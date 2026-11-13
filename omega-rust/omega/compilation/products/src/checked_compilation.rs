@@ -11,7 +11,7 @@ Omega 00 joins against provider selection.
 */
 
 /*
-Measurements, a retained judgment, and invocation-local derived code are not a
+Measurements and invocation-local derived code are not a
 separate checked semantic identity: `PartialEq` compares only `execution` and
 `sources` so populating lazy Terminal publication cannot alter equality.
 */
@@ -33,14 +33,6 @@ pub use report::{
     CheckedProductReport, CompileReportSettlement, ProductReportPlan, ProductReportRequest,
 };
 
-#[derive(Debug, Clone, Default)]
-pub struct RetainedCompilationChecks {
-    pub build: Option<psi_compiler::RetainedCheck>,
-    pub product: Option<psi_compiler::RetainedCheck>,
-    pub sibling_build_checks: Vec<psi_compiler::RetainedCheck>, // invocation-local build judgments across sibling occurrences
-    pub sibling_product_checks: Vec<psi_compiler::RetainedCheck>, // invocation-local product judgments across earlier targets
-}
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckedCompilationInputs {
     pub settled: SelectedExecution,
@@ -51,7 +43,6 @@ pub struct CheckedCompilationInputs {
         Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
     pub providers: ProviderSettlement,
     pub independent_components: Result<Vec<crate::SelectedIndependentComponent>, String>,
-    pub product_selection: Option<psi_compiler::CheckedTreeProductSelection>,
 }
 
 /// ```compile_fail
@@ -65,7 +56,6 @@ pub struct CheckedCompilation {
     execution: CheckedCompilationInputs,
     sources: Arc<CheckedSourceCustody>,
     timings: CompileTimings,
-    settled_checks: RetainedCompilationChecks,
     terminal_publication: Arc<crate::ProductTerminalPublication>,
 }
 
@@ -89,7 +79,6 @@ impl CheckedCompilation {
             execution,
             sources,
             timings,
-            settled_checks: RetainedCompilationChecks::default(),
             terminal_publication,
         }
     }
@@ -114,15 +103,6 @@ impl CheckedCompilation {
         &self,
     ) -> &build_time_evaluation::SourceCompletionAccounting {
         &self.source_completion_accounting
-    }
-
-    pub fn with_settled_checks(mut self, settled_checks: RetainedCompilationChecks) -> Self {
-        self.settled_checks = settled_checks;
-        self
-    }
-
-    pub const fn settled_checks(&self) -> &RetainedCompilationChecks {
-        &self.settled_checks
     }
 
     pub const fn execution(&self) -> &SelectedExecution {

@@ -24,6 +24,7 @@ pub struct PublishedProviderDeclarations {
     pub boundaries: IdTable<BoundaryMachineId, SymbolHandle>,
     pub records: Arc<[SourceRecordCorrespondence]>,
     pub services: Arc<[SourceServiceCorrespondence]>,
+    pub calls: Arc<[typed_trees::SourceCallCorrespondence]>,
 }
 
 #[derive(Debug)]
@@ -32,14 +33,24 @@ pub struct PublishedProviderSource {
     artifact: Arc<CanonicalTerminalArtifact>,
     evidence: Arc<EvidenceSeals>,
     declarations: PublishedProviderDeclarations,
+    accepted_source: Arc<psi_terminal_production::CheckedInvocationSource>,
 }
 
 impl PublishedProviderSource {
     pub fn new(
-        declarations: PublishedProviderDeclarations,
-        artifact: Arc<CanonicalTerminalArtifact>,
-        evidence: EvidenceSeals,
+        accepted_source: Arc<psi_terminal_production::CheckedInvocationSource>,
     ) -> Result<Self, Vec<Diagnostic>> {
+        let publication = accepted_source.publication();
+        let declarations = PublishedProviderDeclarations {
+            typed: Arc::clone(accepted_source.typed()),
+            machines: publication.machines.clone(),
+            boundaries: publication.boundaries.clone(),
+            records: publication.source_records.clone().into(),
+            services: publication.services.clone().into(),
+            calls: publication.calls.clone().into(),
+        };
+        let artifact = Arc::clone(&publication.artifact);
+        let evidence = Arc::clone(&publication.seals);
         let refuse = |reason: &str| {
             vec![Diagnostic::error(format!(
                 "published provider source: {reason}"
@@ -59,6 +70,63 @@ impl PublishedProviderSource {
             ));
         }
         let typed = &declarations.typed;
+        if declarations
+            .calls
+            .windows(2)
+            .any(|rows| (rows[0].machine, rows[0].site) >= (rows[1].machine, rows[1].site))
+        {
+            return Err(refuse(
+                "call correspondence repeats or reorders an invocation",
+            ));
+        }
+        let mut invocation_sites = Vec::new();
+        for machine in &module.machines {
+            invocation_sites.extend(
+                machine
+                    .module_invocations()
+                    .map(|row| (machine.id, row.site)),
+            );
+            invocation_sites.extend(
+                machine
+                    .boundary_invocations()
+                    .map(|row| (machine.id, row.site)),
+            );
+            invocation_sites.extend(
+                machine
+                    .callable_invocations()
+                    .map(|row| (machine.id, row.site)),
+            );
+        }
+        invocation_sites.sort_unstable();
+        invocation_sites.dedup();
+        for call in &*declarations.calls {
+            if typed.machine_by_symbol(call.owner).is_none() {
+                return Err(refuse(
+                    "call correspondence lost its original typed machine owner",
+                ));
+            }
+            if invocation_sites
+                .binary_search(&(call.machine, call.site))
+                .is_err()
+            {
+                return Err(refuse(
+                    "call correspondence names no actual accepted invocation",
+                ));
+            }
+            let valid = match call.source {
+                typed_trees::SourceNode::Expression(expression) => {
+                    typed.expression_table.expression_is_valid(expression)
+                }
+                typed_trees::SourceNode::Statement(statement) => {
+                    typed.statement_table.statement_is_valid(statement)
+                }
+            };
+            if !valid {
+                return Err(refuse(
+                    "call correspondence contains a stale or foreign typed occurrence",
+                ));
+            }
+        }
         for machine in &module.machines {
             let symbol = declarations
                 .machines
@@ -164,9 +232,16 @@ impl PublishedProviderSource {
         Ok(Self {
             typed: Arc::clone(typed),
             artifact,
-            evidence: Arc::new(evidence),
+            evidence,
             declarations,
+            accepted_source,
         })
+    }
+
+    /// The checker-created owner authenticates each source occurrence against
+    /// the accepted invocation. Public coordinate tables cannot create it.
+    pub fn accepted_source(&self) -> &Arc<psi_terminal_production::CheckedInvocationSource> {
+        &self.accepted_source
     }
 
     pub fn typed(&self) -> &Arc<FrozenTypedTrees> {
@@ -183,6 +258,23 @@ impl PublishedProviderSource {
     }
     pub fn module(&self) -> &terminal_psi::TerminalModule {
         self.artifact.semantic_module()
+    }
+
+    /// Find the retained occurrence of this invocation. Source-issued
+    /// companions must also authenticate their own target and exact actuals.
+    pub fn source_call(
+        &self,
+        machine: MachineId,
+        site: semantic_vocabulary::InvocationSite,
+    ) -> Result<typed_trees::SourceNode, String> {
+        let position = self
+            .declarations
+            .calls
+            .binary_search_by_key(&(machine, site), |row| (row.machine, row.site))
+            .map_err(|_| {
+                "accepted invocation has no retained typed source occurrence".to_owned()
+            })?;
+        Ok(self.declarations.calls[position].source)
     }
     pub fn accepted_machine(
         &self,

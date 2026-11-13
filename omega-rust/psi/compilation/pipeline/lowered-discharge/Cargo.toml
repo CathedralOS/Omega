@@ -12,6 +12,7 @@ path = "src/lib.rs"
 # form, and accepts one only when the proof kernel accepted its certificate.
 # It must never depend on Psi 05, validation, Psi 06 or checked trees.
 [dependencies]
+language-semantics = { path = "../../../foundation/language-semantics" }
 diagnostics = { path = "../../../foundation/diagnostics" }
 language-core = { path = "../../../foundation/language-core" }
 optimization = { path = "../../../foundation/optimization" }

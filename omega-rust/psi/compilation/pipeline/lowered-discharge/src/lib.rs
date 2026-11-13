@@ -54,6 +54,7 @@ on (`arrivals`). Kinds outside those five are refused as `Unsupported`.
 mod arrivals;
 mod call_contracts;
 mod callable_formations;
+mod compilation;
 mod crashes;
 mod describe;
 mod entry_inputs;
@@ -70,13 +71,22 @@ mod reuse;
 mod service_reach;
 mod static_contracts;
 mod verdict;
+mod zero_values;
+pub use zero_values::{prove_data_zero, prove_domain_zero};
 
 pub use callable_formations::{
     CallableFormationCause, CallableFormationDefect, CallableFormationFailure,
     check_bound_callable_shapes,
 };
+pub use compilation::{
+    CompilationJudgment, NO_PRODUCT_ROUTE, NOT_SUPPORTED_YET, judge_and_publish,
+};
 pub use places::{ConflictingLoan, LoanConflict};
-pub use refinement::{finalize_callable_refinements, prove_callable_refinement};
+pub use prove::ProofSearchActivity;
+pub use refinement::{
+    finalize_callable_refinements, prove_callable_refinement, prove_published_callable_refinement,
+    prove_source_expression,
+};
 pub use reuse::{Selection, reverify, reverify_at_call, reverify_specialization};
 pub use service_reach::ExceededReach;
 pub use verdict::{
@@ -100,7 +110,7 @@ use semantic_vocabulary::{
     ScalarTerm, ScalarType, StructuralCaseId, StructuralTypeId, ValueId,
 };
 use structure_elaboration::Elaboration;
-use terminal_check_tables::edges::{Actual, Destination};
+use terminal_check_tables::edges::{Actual, Callee, Destination};
 use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::{Justification, KnowledgeRow};
 use terminal_check_tables::{
@@ -324,8 +334,11 @@ impl Discharge {
 /// `knowledge` table. A refusal here concerns the module itself (an identity
 /// that does not resolve, knowledge already present); a refusal of one
 /// obligation is its verdict.
-pub fn discharge(elaboration: &mut Elaboration) -> Checked<Discharge> {
-    discharge_with(elaboration, Knowledge::All)
+pub fn discharge(
+    elaboration: &mut Elaboration,
+    activity: &mut ProofSearchActivity,
+) -> Checked<Discharge> {
+    discharge_with(elaboration, Knowledge::All, activity)
 }
 
 /// Which reasoning `discharge_with` uses. The checker uses `All`; the other
@@ -340,7 +353,11 @@ pub enum Knowledge {
 }
 
 /// `discharge`, with the knowledge set chosen.
-pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Checked<Discharge> {
+pub fn discharge_with(
+    elaboration: &mut Elaboration,
+    knowledge: Knowledge,
+    activity: &mut ProofSearchActivity,
+) -> Checked<Discharge> {
     // Results before inputs: what a helper returns is a fact its caller
     // may pass on to the next private helper, whose inferred input
     // condition is described from the caller's facts.
@@ -349,10 +366,10 @@ pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Ch
     // its callers establish is a further clause. A summary already in the
     // contract is not added twice.
     let mut unreached = Unreached::new(elaboration);
-    result_summaries::infer(elaboration, knowledge, &mut unreached)?;
-    entry_inputs::infer(elaboration, knowledge, &mut unreached)?;
-    result_summaries::infer(elaboration, knowledge, &mut unreached)?;
-    finalize_callable_refinements(&mut elaboration.module)?;
+    result_summaries::infer(elaboration, knowledge, &mut unreached, activity)?;
+    entry_inputs::infer(elaboration, knowledge, &mut unreached, activity)?;
+    result_summaries::infer(elaboration, knowledge, &mut unreached, activity)?;
+    finalize_callable_refinements(&mut elaboration.module, activity)?;
     let module = &elaboration.module;
     let mut machines = IdTable::default();
     let identities: Vec<MachineId> = elaboration.tables.machines.keys().collect();
@@ -395,6 +412,7 @@ pub fn discharge_with(elaboration: &mut Elaboration, knowledge: Knowledge) -> Ch
             tables,
             knowledge,
             &beyond,
+            activity,
         )?);
     }
     Ok(Discharge { machines })
@@ -497,6 +515,7 @@ fn machine(
     tables: &mut MachineTables,
     knowledge: Knowledge,
     unreached: &[ValueId],
+    activity: &mut ProofSearchActivity,
 ) -> Checked<MachineDischarge> {
     let machines = &module.machines;
     let lowered = terminal_machine(machines, id, id)?;
@@ -571,6 +590,7 @@ fn machine(
         },
         tables,
         &mut decided,
+        activity,
     )?;
     // Certificates next; a published clause is then decided from its exits.
     for (index, (obligation, row)) in tables.obligations.iter().enumerate() {
@@ -594,6 +614,7 @@ fn machine(
                 goal,
                 knowledge != Knowledge::LiteralIntervals,
                 unreached,
+                activity,
             )
             .map(Discharged::Certificate)
         });
@@ -711,6 +732,7 @@ fn machine(
                 goal,
                 knowledge != Knowledge::LiteralIntervals,
                 unreached,
+                activity,
             )
         });
         let verdict = match proved {
@@ -1695,6 +1717,7 @@ fn decide(
     goal: Proposition,
     relations: bool,
     unreached: &[ValueId],
+    activity: &mut ProofSearchActivity,
 ) -> Checked<Evidence> {
     let hypotheses = hypotheses(graph, tables, id, obligation, point)?;
     let mut prover = prove::Prover::new(
@@ -1703,6 +1726,7 @@ fn decide(
         &hypotheses.axioms,
         &tables.values,
         relations,
+        activity,
     );
     let proof = prover.prove(&goal).map_err(|reason| {
         // Classified by the goal's form, not by which search path failed
@@ -1928,6 +1952,7 @@ pub fn derive_contract_obligation(
     obligation: ObligationId,
     goal: &Proposition,
     declarations: &[(ValueId, ScalarType)],
+    activity: &mut ProofSearchActivity,
 ) -> Result<CertificateEnvelope, &'static str> {
     context
         .validate(goal)
@@ -1954,7 +1979,7 @@ pub fn derive_contract_obligation(
             .collect::<Result<Vec<_>, &'static str>>()?,
     )
     .map_err(|_| "contract formal identities are not a complete dense namespace")?;
-    let proof = prove::Prover::new(context, &[], &[], &values, true).prove(goal)?;
+    let proof = prove::Prover::new(context, &[], &[], &values, true, activity).prove(goal)?;
     let certificate = CertificateEnvelope {
         identity: EvidenceIdentity::new(obligation.get())
             .ok_or("contract obligation identity is absent")?,

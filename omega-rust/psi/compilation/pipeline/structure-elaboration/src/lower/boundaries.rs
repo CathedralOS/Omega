@@ -50,7 +50,9 @@ impl Lowering<'_> {
             requirement_obligations: requirements,
         };
         match result {
-            Some(ValueType::Scalar(scalar)) => self.emit(operation, Some(scalar), kind),
+            Some(ValueType::Scalar(scalar) | ValueType::Qualified(scalar, _)) => {
+                self.emit(operation, Some(scalar), kind)
+            }
             Some(ValueType::Record(record)) => {
                 let (root, exact) = self.produce(operation, record, kind)?;
                 self.unknown_contents(exact, operation)?;

@@ -48,7 +48,6 @@ impl AdmittedBuildProgram {
         &self,
         packages: Option<&package_compilation::PackageCompilationInputs>,
         snapshot: Option<&package_compilation::BuildSnapshotRequest>,
-        retained_check: Option<psi_compiler::RetainedCheck>,
     ) -> Option<crate::activation::completed_pure_build::CompletedPureBuildInputs> {
         if self.machine.filesystem_reachable
             || self.machine.execution_mode != build_time_evaluation::BuildMachineExecutionMode::Pure
@@ -59,7 +58,6 @@ impl AdmittedBuildProgram {
         let checked = self.prepared.checked_program()?;
         crate::activation::completed_pure_build::CompletedPureBuildInputs::from_admitted(
             checked,
-            retained_check,
             self.providers.clone(),
             self.machine.symbol,
             self.machine.initial_build.clone(),
@@ -95,16 +93,8 @@ pub(crate) fn admit_build_program(
             "Build entry differs from its source-owned selection",
         )]);
     }
-    let operational_plan = validation::infer_operational_may(typed);
-    let service_reach_plan = validation::infer_service_reaches(typed, &operational_plan);
-
     let mut filesystem_scope = filesystem_scope.clone();
-    let machine = admit_build_machine(
-        &prepared,
-        machine_symbol,
-        &service_reach_plan,
-        &mut filesystem_scope,
-    )?;
+    let machine = admit_build_machine(&prepared, machine_symbol, &mut filesystem_scope)?;
     Ok(AdmittedBuildProgram {
         prepared,
         providers,

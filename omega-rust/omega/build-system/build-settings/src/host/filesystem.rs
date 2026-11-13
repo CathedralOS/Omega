@@ -182,6 +182,7 @@ impl FilesystemAdapter {
         buffers: &mut [TerminalBoundaryByteBuffer],
     ) -> Result<TerminalEffectResult, String> {
         let TerminalEffect::BoundaryCall {
+            machine,
             operation,
             boundary,
             arguments,
@@ -197,7 +198,11 @@ impl FilesystemAdapter {
             .host
             .calls
             .iter()
-            .find(|call| call.operation == *operation && call.boundary == *boundary)
+            .find(|call| {
+                call.machine == *machine
+                    && call.operation == *operation
+                    && call.boundary == *boundary
+            })
             .map(|call| call.action)
             .ok_or("filesystem call has no source-issued protocol custody")?;
         if !buffers.is_empty() && action != Operation::Read {

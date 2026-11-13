@@ -305,7 +305,13 @@ fn derive_refinements(
     descriptor_refinement_goals(module, id(1))?
         .into_iter()
         .map(|(id, goal)| {
-            crate::derive_contract_obligation(&context, id, &goal.proposition, &declarations)
+            crate::derive_contract_obligation(
+                &context,
+                id,
+                &goal.proposition,
+                &declarations,
+                &mut Default::default(),
+            )
         })
         .collect()
 }
@@ -343,14 +349,14 @@ fn callable_refinement_proves_input_weakening_and_remaps_result_formals() {
 #[test]
 fn checker_finalizes_descriptors_and_refuses_mutated_retained_certificates() {
     let mut module = declared_refinement_module();
-    crate::finalize_callable_refinements(&mut module).unwrap();
+    crate::finalize_callable_refinements(&mut module, &mut Default::default()).unwrap();
     assert!(
         !module.callables.descriptors[0]
             .refinement_evidence
             .is_empty()
     );
     let retained = module.callables.descriptors[0].refinement_evidence.clone();
-    crate::finalize_callable_refinements(&mut module).unwrap();
+    crate::finalize_callable_refinements(&mut module, &mut Default::default()).unwrap();
     assert_eq!(
         module.callables.descriptors[0].refinement_evidence,
         retained
@@ -358,13 +364,13 @@ fn checker_finalizes_descriptors_and_refuses_mutated_retained_certificates() {
     module.callables.descriptors[0].refinement_evidence[0]
         .proof
         .conclusion = Proposition::Falsehood;
-    assert!(crate::finalize_callable_refinements(&mut module).is_err());
+    assert!(crate::finalize_callable_refinements(&mut module, &mut Default::default(),).is_err());
 }
 
 #[test]
 fn checker_refuses_operational_strengthening_before_publication() {
     let mut module = declared_refinement_module();
-    crate::finalize_callable_refinements(&mut module).unwrap();
+    crate::finalize_callable_refinements(&mut module, &mut Default::default()).unwrap();
     module.callables.machine_envelopes[0]
         .as_mut()
         .unwrap()
@@ -375,7 +381,8 @@ fn checker_refuses_operational_strengthening_before_publication() {
         .as_mut()
         .unwrap()
         .published_may_block = true;
-    let refusal = crate::finalize_callable_refinements(&mut module).unwrap_err();
+    let refusal =
+        crate::finalize_callable_refinements(&mut module, &mut Default::default()).unwrap_err();
     assert_eq!(
         refusal.detail,
         "selected machine may block outside the callable contract"
@@ -384,7 +391,7 @@ fn checker_refuses_operational_strengthening_before_publication() {
     let mut abstract_form = refinement_module();
     abstract_form.callables.descriptors.clear();
     assert!(abstract_form.machines[0].declaration.is_none());
-    crate::finalize_callable_refinements(&mut abstract_form).unwrap();
+    crate::finalize_callable_refinements(&mut abstract_form, &mut Default::default()).unwrap();
 }
 
 #[test]
@@ -525,4 +532,293 @@ fn runtime_evidence_roster_rejoins_full_meaning_and_exact_subjects() {
     let mut application = module;
     application.proposition_applications[0].arguments[0] = "another-formal".into();
     assert!(!roster_valid(&application));
+}
+
+#[test]
+fn published_refinement_keeps_applied_types_and_exact_formal_guarantees() {
+    use structure_elaboration::{CallableDeclaration, CallableRefinementContext};
+    use symbols::{
+        BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder, builtin_type_symbols,
+    };
+    use typed_trees::{
+        TypedTrees,
+        data::{TypeParameter, TypeParameterKind},
+        domain::ProofFact,
+        expression::{BinaryExpression, BinaryOperator, Expression as SourceExpression, NamePath},
+        name::Identifier,
+        signature::{SignatureContract, SignatureContractKind, StateParameter, StateSignature},
+        types::TypeReferenceNode,
+    };
+    let mut symbols = SymbolTableBuilder::default();
+    let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let declarations = symbols.insert_children(
+        root,
+        builtin_type_symbols().into_iter().chain([
+            (
+                SymbolKind::CallableContract,
+                SymbolNameRef::Static("Required"),
+            ),
+            (
+                SymbolKind::CallableContract,
+                SymbolNameRef::Static("Supplied"),
+            ),
+        ]),
+    );
+    let carrier_symbol = declarations.handle_at(BuiltinTypeAtom::U32.ordinal() as u32);
+    let owners = [
+        declarations.handle_at(symbols::BUILTIN_TYPE_COUNT as u32),
+        declarations.handle_at(symbols::BUILTIN_TYPE_COUNT as u32 + 1),
+    ];
+    let scopes = owners.map(|owner| {
+        symbols.insert_children(
+            owner,
+            [
+                (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
+                (SymbolKind::Parameter, SymbolNameRef::Static("item")),
+                (SymbolKind::Parameter, SymbolNameRef::Static("amount")),
+            ],
+        )
+    });
+    let mut typed = TypedTrees {
+        symbols: symbols.finish(),
+        ..Default::default()
+    };
+    let carrier = typed.type_reference_table.insert(TypeReferenceNode::Named {
+        symbol: carrier_symbol,
+        name: Identifier::generated("u32"),
+    });
+    let mut signatures = Vec::new();
+    let mut clause_expressions = Vec::new();
+    for (position, scope) in scopes.iter().copied().enumerate() {
+        let type_parameter = scope.handle_at(0);
+        let item_type = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            symbol: type_parameter,
+            name: Identifier::generated("T"),
+        });
+        let generics = typed.data_type_parameters.insert_many([TypeParameter {
+            symbol: type_parameter,
+            name: Identifier::generated("T"),
+            kind: TypeParameterKind::Type,
+            ..Default::default()
+        }]);
+        let parameters = typed.state_parameters.insert_many([
+            StateParameter {
+                symbol: scope.handle_at(1),
+                name: Identifier::generated("item"),
+                type_reference: item_type,
+                ..Default::default()
+            },
+            StateParameter {
+                symbol: scope.handle_at(2),
+                name: Identifier::generated(if position == 0 { "amount" } else { "renamed" }),
+                type_reference: carrier,
+                ..Default::default()
+            },
+        ]);
+        let result = SourceExpression::Name(
+            NamePath::unresolved(vec![Identifier::generated("result")])
+                .denoting_reserved_result_of(owners[position]),
+        );
+        let argument = SourceExpression::Name(NamePath::resolved(
+            vec![Identifier::generated("amount")],
+            scope.handle_at(2),
+            scope.handle_at(2),
+        ));
+        let fact = typed
+            .expression_table
+            .insert_tree(&SourceExpression::Binary(Box::new(BinaryExpression {
+                left: result,
+                operator: BinaryOperator::LessOrEqual,
+                right: argument,
+            })));
+        clause_expressions.push(fact);
+        let facts = typed.proof_facts.insert_many([ProofFact::Expression(fact)]);
+        let contracts = typed.signature_contracts.insert_many([SignatureContract {
+            kind: SignatureContractKind::Ensures,
+            facts,
+            ..Default::default()
+        }]);
+        signatures.push(StateSignature {
+            symbol: owners[position],
+            type_parameters: generics,
+            parameters,
+            return_type: carrier,
+            contracts,
+            declares_no_crash_route: true,
+            ..Default::default()
+        });
+    }
+    let pairs = [(scopes[0].handle_at(0), scopes[1].handle_at(0))];
+    let bindings = [(pairs[0].0, carrier)];
+    let context = CallableRefinementContext {
+        binder_pairs: &pairs,
+        required_types: &bindings,
+        required_lexical_owner: owners[0],
+        supplied_lexical_owner: owners[1],
+        ..Default::default()
+    };
+    let prove = |typed: &TypedTrees, context| {
+        crate::prove_published_callable_refinement(
+            typed,
+            CallableDeclaration::Signature(&signatures[0]),
+            CallableDeclaration::Signature(&signatures[1]),
+            context,
+            &mut Default::default(),
+        )
+    };
+    prove(&typed, context).unwrap();
+    assert!(
+        prove(
+            &typed,
+            CallableRefinementContext {
+                binder_pairs: &[],
+                ..context
+            }
+        )
+        .is_err()
+    );
+    let typed_trees::expression::ExpressionNode::Binary(comparison) =
+        typed.expression_table.expression_mut(clause_expressions[1])
+    else {
+        unreachable!()
+    };
+    comparison.operator = BinaryOperator::GreaterOrEqual;
+    assert!(prove(&typed, context).is_err());
+}
+
+#[test]
+fn source_expression_formation_owes_its_inputs_before_using_a_condition() {
+    use structure_elaboration::{
+        SourceExpressionAssumptions, SourceExpressionContext, SourceExpressionGoal,
+    };
+    use symbols::{
+        BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder, builtin_type_symbols,
+    };
+    use typed_trees::{
+        TypedTrees,
+        domain::ProofFact,
+        expression::{BinaryExpression, BinaryOperator, Expression as SourceExpression, NamePath},
+        name::Identifier,
+        signature::{SignatureContract, SignatureContractKind, StateParameter, StateSignature},
+        types::TypeReferenceNode,
+    };
+    let mut symbols = SymbolTableBuilder::default();
+    let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let declarations = symbols.insert_children(
+        root,
+        builtin_type_symbols().into_iter().chain([(
+            SymbolKind::CallableContract,
+            SymbolNameRef::Static("Context"),
+        )]),
+    );
+    let owner = declarations.handle_at(symbols::BUILTIN_TYPE_COUNT as u32);
+    let inputs = symbols.insert_children(
+        owner,
+        [
+            (SymbolKind::Parameter, SymbolNameRef::Static("amount")),
+            (SymbolKind::Parameter, SymbolNameRef::Static("floor")),
+        ],
+    );
+    let mut typed = TypedTrees {
+        symbols: symbols.finish(),
+        ..Default::default()
+    };
+    let carrier = typed.type_reference_table.insert(TypeReferenceNode::Named {
+        symbol: declarations.handle_at(BuiltinTypeAtom::U32.ordinal() as u32),
+        name: Identifier::generated("u32"),
+    });
+    let parameters =
+        typed
+            .state_parameters
+            .insert_many(
+                ["amount", "floor"]
+                    .into_iter()
+                    .enumerate()
+                    .map(|(position, name)| StateParameter {
+                        symbol: inputs.handle_at(position as u32),
+                        name: Identifier::generated(name),
+                        type_reference: carrier,
+                        ..Default::default()
+                    }),
+            );
+    let name = |position: u32, spelling: &str| {
+        SourceExpression::Name(NamePath::resolved(
+            vec![Identifier::generated(spelling)],
+            inputs.handle_at(position),
+            inputs.handle_at(position),
+        ))
+    };
+    let difference = || {
+        SourceExpression::Binary(Box::new(BinaryExpression {
+            left: name(0, "amount"),
+            operator: BinaryOperator::Subtract,
+            right: name(1, "floor"),
+        }))
+    };
+    let premise = typed
+        .expression_table
+        .insert_tree(&SourceExpression::Binary(Box::new(BinaryExpression {
+            left: name(0, "amount"),
+            operator: BinaryOperator::GreaterOrEqual,
+            right: name(1, "floor"),
+        })));
+    let expression = typed.expression_table.insert_tree(&difference());
+    let facts = typed
+        .proof_facts
+        .insert_many([ProofFact::Expression(premise)]);
+    let contracts = typed.signature_contracts.insert_many([SignatureContract {
+        kind: SignatureContractKind::Requires,
+        facts,
+        ..Default::default()
+    }]);
+    let mut signature = StateSignature {
+        symbol: owner,
+        parameters,
+        return_type: carrier,
+        contracts,
+        ..Default::default()
+    };
+    let prove = |typed: &TypedTrees, signature: &StateSignature, assumptions| {
+        let mut context = SourceExpressionContext::declaration(owner);
+        context.signature = Some(signature);
+        context.assumptions = assumptions;
+        crate::prove_source_expression(
+            typed,
+            expression,
+            SourceExpressionGoal::Formed { expected: carrier },
+            context,
+            &mut Default::default(),
+        )
+    };
+    prove(&typed, &signature, SourceExpressionAssumptions::Published).unwrap();
+    let missing = prove(
+        &typed,
+        &signature,
+        SourceExpressionAssumptions::Explicit(&[]),
+    )
+    .unwrap_err();
+    assert!(
+        matches!(missing.reason, RefusalReason::Unproved(_)),
+        "{missing:?}"
+    );
+    let self_justifying = typed
+        .expression_table
+        .insert_tree(&SourceExpression::Binary(Box::new(BinaryExpression {
+            left: difference(),
+            operator: BinaryOperator::GreaterOrEqual,
+            right: name(1, "floor"),
+        })));
+    let facts = typed
+        .proof_facts
+        .insert_many([ProofFact::Expression(self_justifying)]);
+    signature.contracts = typed.signature_contracts.insert_many([SignatureContract {
+        kind: SignatureContractKind::Requires,
+        facts,
+        ..Default::default()
+    }]);
+    let refused = prove(&typed, &signature, SourceExpressionAssumptions::Published).unwrap_err();
+    assert!(
+        matches!(refused.reason, RefusalReason::Unproved(_)),
+        "{refused:?}"
+    );
 }

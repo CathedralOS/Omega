@@ -29,10 +29,14 @@ mod calls;
 mod casts;
 mod contracts;
 mod correspondence;
+mod expression_formation;
 mod expressions;
+mod source_zero;
+pub use source_zero::{source_zero_projection_bindings, source_zero_scalar};
 mod machine;
 mod places;
 mod providers;
+mod refinement;
 pub(crate) mod services;
 mod statements;
 mod subjects;
@@ -48,6 +52,19 @@ use typed_trees::TypedTrees;
 
 use crate::body::{RecordType, Signature, ValueType};
 use crate::{Unserved, refuse};
+
+impl Program<'_> {
+    pub(super) fn source_origin(
+        &self,
+        machine: MachineId,
+        node: crate::SourceNode,
+        span: source::SourceSpan,
+    ) -> Checked<crate::SourceOrigin> {
+        let owner =
+            terminal_check_tables::row(&self.symbols, machine, machine, Construct::Machine)?;
+        Ok(crate::SourceOrigin::typed(*owner, node, span))
+    }
+}
 
 pub(crate) struct Program<'t> {
     pub(super) typed: &'t TypedTrees,
@@ -98,6 +115,12 @@ pub(crate) struct Program<'t> {
     /// The locals of the body being read whose value is decided statically
     /// by closed type equations (`static_truth`), by the local's symbol.
     static_truths: Vec<(SymbolHandle, bool)>,
+    /// Exact raw-subject projections authenticated by the source-zero owner.
+    /// Present only while reading a logical source witness.
+    source_expression_values: Vec<(
+        typed_trees::expression::ExpressionHandle,
+        crate::body::Expression,
+    )>,
     /// `Elaboration::value_parameters` and `Elaboration::value_arguments`,
     /// pushed with each machine's signature.
     pub value_parameters: IdTable<MachineId, usize>,
@@ -190,6 +213,7 @@ impl<'t> Program<'t> {
             applied: Vec::new(),
             alternative: None,
             static_truths: Vec::new(),
+            source_expression_values: Vec::new(),
             value_parameters: IdTable::default(),
             value_arguments: IdTable::default(),
             records: IdTable::default(),

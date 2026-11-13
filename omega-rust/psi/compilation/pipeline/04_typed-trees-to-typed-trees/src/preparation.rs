@@ -520,7 +520,6 @@ pub(crate) mod runtime_index_fields {
     struct CallerEffects {
         machine: SymbolHandle,
         track_effects: bool,
-        no_write_calls: Vec<ExpressionHandle>,
     }
 
     impl CallerEffects {
@@ -528,26 +527,20 @@ pub(crate) mod runtime_index_fields {
             if !self.track_effects {
                 return true;
             }
-            inert_value_tree_with_operations(program, expression, |operation| match expressions_of(
-                program,
-            )
-            .expression(operation)
-            {
-                ExpressionNode::Call(_) => self
-                    .no_write_calls
-                    .binary_search_by_key(
-                        &(operation.arena_index(), operation.generation()),
-                        |candidate| (candidate.arena_index(), candidate.generation()),
-                    )
-                    .is_ok(),
-                ExpressionNode::Binary(_) => {
-                    program
-                        .machine_by_symbol(self.machine)
-                        .is_some_and(|machine| {
-                            has_builtin_binary_expression_meaning(program, machine, None, operation)
-                        })
-                }
-                _ => false,
+            // Preparation may repeat a recipe only when its source operations
+            // are inert. An inferred body write set is not a published promise
+            // and cannot authorize another evaluation of an executable call.
+            // Calls need their evaluated operand capture; the receiving checker
+            // proves the writes and loans of the actual invocation.
+            inert_value_tree_with_operations(program, expression, |operation| {
+                matches!(
+                    expressions_of(program).expression(operation),
+                    ExpressionNode::Binary(_)
+                ) && program
+                    .machine_by_symbol(self.machine)
+                    .is_some_and(|machine| {
+                        has_builtin_binary_expression_meaning(program, machine, None, operation)
+                    })
             })
         }
     }
@@ -589,23 +582,12 @@ pub(crate) mod runtime_index_fields {
         let mut caller_effects = Vec::new();
         let mut caller_effects_by_machine: symbols::SymbolKeyMap<SymbolHandle, usize> =
             symbols::SymbolKeyMap::default();
-        let checking_context =
-            has_value_parameter_data.then(|| validation::CheckingContext::new(program));
-        let frames = checking_context
-            .as_ref()
-            .and_then(|context| validation::CallFrameResolver::new(context));
-        let sidecars = has_value_parameter_data
-            .then(|| typed_trees::references::MachineSidecarIndex::build(program));
         for machine in program.machines() {
-            let mut no_write_calls = Vec::new();
-            let mut statement_calls = Vec::new();
-            let mut machine_has_struct_destination_or_call = false;
             for state in program.machine_states(machine) {
                 for statement in program.statement_table.statements(state.statement_nodes) {
                     match statement {
                         StatementNode::LocalData(local) => {
                             if contains_reachable_construction(program, local.initial_value) {
-                                machine_has_struct_destination_or_call = true;
                                 destinations.push((
                                     machine.symbol,
                                     local.initial_value,
@@ -616,7 +598,6 @@ pub(crate) mod runtime_index_fields {
                         }
                         StatementNode::Expression(value) if state.return_type.is_valid() => {
                             if contains_reachable_construction(program, *value) {
-                                machine_has_struct_destination_or_call = true;
                                 destinations.push((
                                     machine.symbol,
                                     *value,
@@ -635,7 +616,6 @@ pub(crate) mod runtime_index_fields {
                                         assignment.target,
                                     )
                             {
-                                machine_has_struct_destination_or_call = true;
                                 destinations.push((
                                     machine.symbol,
                                     assignment.value,
@@ -651,7 +631,6 @@ pub(crate) mod runtime_index_fields {
                                 .iter()
                                 .any(|arg| contains_reachable_construction(program, *arg))
                             {
-                                machine_has_struct_destination_or_call = true;
                                 calls.push((
                                     machine.symbol,
                                     call.target_symbol,
@@ -665,7 +644,6 @@ pub(crate) mod runtime_index_fields {
                                 match program.statement_table.transition_target(target) {
                                     TransitionTargetNode::Value(value) => {
                                         if contains_reachable_construction(program, *value) {
-                                            machine_has_struct_destination_or_call = true;
                                             destinations.push((
                                                 machine.symbol,
                                                 *value,
@@ -682,7 +660,6 @@ pub(crate) mod runtime_index_fields {
                                         if arguments.iter().any(|arg| {
                                             contains_reachable_construction(program, *arg)
                                         }) {
-                                            machine_has_struct_destination_or_call = true;
                                             calls.push((
                                                 machine.symbol,
                                                 path.symbol,
@@ -701,16 +678,12 @@ pub(crate) mod runtime_index_fields {
                     collect_statement_expression_trees(program, statement, &mut expressions);
                     for expression in expressions {
                         if let Some(call) = expressions_of(program).call_node(expression) {
-                            if has_value_parameter_data {
-                                statement_calls.push(expression);
-                            }
                             let arguments =
                                 expressions_of(program).expression_handles(call.arguments);
                             if arguments
                                 .iter()
                                 .any(|arg| contains_reachable_construction(program, *arg))
                             {
-                                machine_has_struct_destination_or_call = true;
                                 calls.push((
                                     machine.symbol,
                                     call.target_symbol,
@@ -722,53 +695,13 @@ pub(crate) mod runtime_index_fields {
                     }
                 }
             }
-            if has_value_parameter_data && machine_has_struct_destination_or_call {
-                for expression in statement_calls {
-                    if frames.as_ref().is_some_and(|frames| {
-                        frames
-                            .expression_write_frame(machine, expression)
-                            .complete_paths()
-                            .is_some_and(|paths| paths.is_empty())
-                    }) {
-                        no_write_calls.push(expression);
-                    }
-                }
-                let references = typed_trees::references::collect_machine_references(
-                    program,
-                    machine,
-                    sidecars.as_ref().expect("built sidecars"),
-                );
-                for expression in references.expressions {
-                    if expressions_of(program).call_node(expression).is_some()
-                        && frames.as_ref().is_some_and(|frames| {
-                            frames.declaration_expression_has_empty_write_frame(
-                                expression,
-                                &|operation| {
-                                    has_builtin_binary_expression_meaning(
-                                        program, machine, None, operation,
-                                    )
-                                },
-                            )
-                        })
-                    {
-                        no_write_calls.push(expression);
-                    }
-                }
-                no_write_calls.sort_by_key(|call| (call.arena_index(), call.generation()));
-                no_write_calls.dedup();
-            } else {
-                no_write_calls.clear();
-            }
             let effect_index = caller_effects.len();
             caller_effects.push(CallerEffects {
                 machine: machine.symbol,
                 track_effects: has_value_parameter_data,
-                no_write_calls,
             });
             caller_effects_by_machine.insert(machine.symbol, effect_index);
         }
-        drop(frames);
-        drop(checking_context);
         for (caller, target, static_arguments, arguments) in calls {
             let effects = &caller_effects[*caller_effects_by_machine
                 .get(&caller)
@@ -857,7 +790,6 @@ pub(crate) mod runtime_index_fields {
         let const_effects = CallerEffects {
             machine: SymbolHandle::invalid(),
             track_effects: has_value_parameter_data,
-            no_write_calls: Vec::new(),
         };
         for (value, declared_type) in const_declarations {
             if value.is_valid() {
@@ -1392,6 +1324,9 @@ pub(crate) mod selections {
         }
         let owner_index =
             validation::expression_owners::OwnerEnvironmentIndex::for_preparation(program);
+        owner_index
+            .validate_source_inputs()
+            .map_err(Diagnostic::error)?;
         validation::validate_domain_membership_carriers(program, &contract_facts, &owner_index)?;
         for (expression, node) in expressions_of(program).iter_expressions() {
             for occurrence in expressions_of(program).authored_selection_occurrences(expression) {
@@ -1957,7 +1892,7 @@ pub fn prepare_typed_trees(
             ))]);
         }
     }
-    validation::validate_wire_protocol(&program, request.wire_compatibility_demands)?;
+    typed_trees::source_wire::validate_wire_protocol(&program, request.wire_compatibility_demands)?;
     value_location_alignment::settle(&mut program)?;
     if !request.admits_pending_inputs {
         deferred_constants::require_evaluated_constants(&program)?;
@@ -1968,7 +1903,7 @@ pub fn prepare_typed_trees(
     let opaque_property_receipts =
         opaque_property_receipts::for_source_instances(&program, request.opaque_property_receipts);
     let opaque_representation_selections = request.opaque_representation_selections.to_vec();
-    crate::rebound_parameter_homes::materialize(&mut program);
+    crate::rebound_parameter_homes::materialize(&mut program)?;
     validation::resolve_dynamic_call_targets(&mut program)?;
     program
         .retain_static_argument_contexts()
@@ -2043,6 +1978,9 @@ pub fn prepare_typed_trees(
         let contracts = arena::Arena::default();
         let owners =
             validation::expression_owners::OwnerEnvironmentIndex::for_preparation(&program);
+        owners
+            .validate_source_inputs()
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
         validation::validate_domain_membership_carriers(&program, &contracts, &owners)
             .map_err(|diagnostic| vec![diagnostic])
     }?;
@@ -2063,8 +2001,8 @@ pub fn prepare_typed_trees(
 
 pub(crate) fn settle_value_destinations(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     validation::resolve_named_result_overloads(program)?;
-    validation::bind_float_conversion_casts(program)?;
-    validation::land_float_literal_destinations(program);
+    crate::source_casts::bind_float_conversion_casts(program)?;
+    crate::source_float_landing::land_float_literal_destinations(program);
     Ok(())
 }
 
@@ -2105,11 +2043,11 @@ pub fn prepare_execution_applications(program: &mut TypedTrees) -> Result<(), Ve
     validation::static_bindings::validate_static_machine_bindings(&checking, &mut Vec::new())?;
     validation::conformance_applications::validate_conformance_applications(&checking)?;
     validation::validate_static_machine_selections(&checking)?;
-    // Generic proofs must read the same checked mathematical facts as ordinary
-    // source checking before a constant or layout computation can execute.
-    let mathematics = proof::mathematical_declarations::check_mathematical_declarations(&checking)?;
-    let checking = checking.with_prepared_mathematics(mathematics.prepared_view());
-    validation::validate_generic_machine_contract_entailment(&checking)
+    proof::mathematical_declarations::check_mathematical_declarations(&checking)?;
+    // Executable invocations judge every generic body through the ordinary
+    // lowered-form checker after preparation. This step authenticates source
+    // declarations without issuing another body verdict.
+    Ok(())
 }
 
 pub fn prepare_constant_execution(mut program: TypedTrees) -> Result<TypedTrees, Vec<Diagnostic>> {
@@ -2117,7 +2055,7 @@ pub fn prepare_constant_execution(mut program: TypedTrees) -> Result<TypedTrees,
     crate::policy_operators::elaborate(&mut program)?;
     value_location_alignment::settle(&mut program)?;
     elaborate(&mut program)?;
-    crate::rebound_parameter_homes::materialize(&mut program);
+    crate::rebound_parameter_homes::materialize(&mut program)?;
     validation::resolve_dynamic_call_targets(&mut program)?;
     program
         .retain_static_argument_contexts()

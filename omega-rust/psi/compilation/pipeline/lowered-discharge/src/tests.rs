@@ -186,7 +186,7 @@ fn lower(machines: Vec<Machine>) -> Checked<structure_elaboration::Elaboration> 
 /// Lowers `machines` (machine 1 is the entry) and discharges them.
 fn run(machines: Vec<Machine>) -> (structure_elaboration::Elaboration, Discharge) {
     let mut elaboration = lower(machines).unwrap();
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     (elaboration, result)
 }
 
@@ -1766,7 +1766,7 @@ fn elaborate_over(
 
 fn run_places(machines: Vec<Shaped>) -> (structure_elaboration::Elaboration, Discharge) {
     let mut elaboration = elaborate_places(machines);
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     (elaboration, result)
 }
 
@@ -2075,7 +2075,7 @@ fn different_values_on_different_arrivals_give_no_equation() {
                 field_store(root, field, value),
             );
         }
-        discharge(&mut elaboration).unwrap();
+        discharge(&mut elaboration, &mut Default::default()).unwrap();
         let read = field_reads(&elaboration)[0];
         let tables = elaboration.tables.machines.get(id(1)).unwrap();
         read_equals(tables, read)
@@ -2369,7 +2369,7 @@ fn a_store_inside_a_guarded_arm_does_not_reach_the_continuation() {
                 field_store(p, 1, in_arm),
             );
         }
-        let result = discharge(&mut elaboration).unwrap();
+        let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
         assert!(uses(&result).iter().all(Result::is_ok));
         let tables = elaboration.tables.machines.get(id(1)).unwrap();
         let reads = field_reads(&elaboration);
@@ -2806,7 +2806,7 @@ fn a_store_on_one_way_to_a_join_does_not_establish_the_read_after_it() {
                     created_at: ProgramPoint::AfterOperation(negation),
                 });
         }
-        let result = discharge(&mut elaboration).unwrap();
+        let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
         let tables = elaboration.tables.machines.get(id(1)).unwrap();
         (uses(&result), read_equals(tables, read))
     };
@@ -2907,7 +2907,7 @@ fn every_use_of_storage_has_exactly_one_verdict() {
         ],
     };
     let mut elaboration = elaborate_over(vec![caller, taker], &types);
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     let mut established = 0;
     let mut unestablished = 0;
     for (machine, lowered) in elaboration.module.machines.iter().enumerate() {
@@ -3073,7 +3073,7 @@ fn matching(
 
 fn run_sums(machines: Vec<Shaped>) -> (structure_elaboration::Elaboration, Discharge) {
     let mut elaboration = elaborate_over(machines, &sums());
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     (elaboration, result)
 }
 
@@ -3483,7 +3483,7 @@ fn a_dispatch_that_lists_no_edge_for_a_declared_case_is_unestablished() {
     // Elaboration lists all four declared cases.
     assert_eq!(cases.len(), 4);
     cases.pop();
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     let verdict = result
         .machines
         .get(id(1))
@@ -3724,7 +3724,7 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
 
 fn run_constrained(machines: Vec<Shaped>) -> (structure_elaboration::Elaboration, Discharge) {
     let mut elaboration = elaborate_over(machines, &constrained());
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     (elaboration, result)
 }
 
@@ -4816,7 +4816,7 @@ fn a_window_a_later_store_restores_is_closed_before_the_value_is_consumed() {
     for machines in span_consumers(true) {
         let mut elaboration = elaborate_over(machines, &constrained());
         let fresh = elaboration.clone();
-        let result = discharge(&mut elaboration).unwrap();
+        let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
         let owed = domains(&elaboration, &result);
         assert_eq!(owed.len(), 3, "the construction and the two stores");
         assert_opens_a_window(owed[1].1);
@@ -4851,7 +4851,7 @@ fn a_value_consumed_while_its_window_is_open_rejects_naming_the_write_and_the_us
     for machines in span_consumers(false) {
         let mut elaboration = elaborate_over(machines, &constrained());
         let fresh = elaboration.clone();
-        let result = discharge(&mut elaboration).unwrap();
+        let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
         let owed = domains(&elaboration, &result);
         assert_opens_a_window(owed[1].1);
         let store = scalar_stores(&elaboration)[0];
@@ -4949,7 +4949,7 @@ fn a_window_is_proved_again_at_its_consumption_point_from_what_flow_adds() {
             &constrained(),
         );
         let fresh = elaboration.clone();
-        let result = discharge(&mut elaboration).unwrap();
+        let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
         (elaboration, result, fresh)
     };
     let (elaboration, result, fresh) = program(true);
@@ -5039,7 +5039,7 @@ fn an_inner_and_an_outer_window_are_opened_and_consumed_independently() {
             &constrained(),
         );
         let fresh = elaboration.clone();
-        let result = discharge(&mut elaboration).unwrap();
+        let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
         (elaboration, result, fresh)
     };
     // `w.span.high = 12` keeps `Span` (1 <= 12) and opens a window on `w`
@@ -5120,7 +5120,7 @@ fn a_store_to_a_sibling_field_does_not_close_a_window_of_another_clause() {
         &constrained(),
     );
     let fresh = elaboration.clone();
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     let owed = domains(&elaboration, &result);
     assert_eq!(owed.len(), 6, "two clauses at each of three operations");
     assert!(matches!(owed[2].1, Ok(Discharged::Certificate(_))));
@@ -5229,7 +5229,7 @@ fn a_field_read_that_takes_a_clause_as_a_premise_consumes_an_open_window() {
             &windowed(),
         );
         let fresh = elaboration.clone();
-        let result = discharge(&mut elaboration).unwrap();
+        let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
         (elaboration, result, fresh)
     };
     // Established: the read is lent its clause and `bounded` follows.
@@ -5292,7 +5292,7 @@ fn a_gated_local_established_field_by_field_is_a_value_once_its_requires_holds()
             &windowed(),
         );
         let fresh = elaboration.clone();
-        let result = discharge(&mut elaboration).unwrap();
+        let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
         (elaboration, result, fresh)
     };
     // let mut g: Both; g.a = 3; g.b = 2; take(g): each store proves the
@@ -5456,7 +5456,7 @@ fn a_window_open_on_one_way_into_a_join_is_open_after_it() {
                     created_at: ProgramPoint::AfterOperation(negation),
                 });
         }
-        let result = discharge(&mut elaboration).unwrap();
+        let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
         windows(&result)
             .iter()
             .map(|consumed| consumed.verdict.is_ok())
@@ -5501,7 +5501,7 @@ fn every_consumption_point_of_an_open_window_has_exactly_one_verdict() {
         &constrained(),
     );
     let fresh = elaboration.clone();
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     let owed = domains(&elaboration, &result);
     let window = owed[1].0;
     assert_opens_a_window(owed[1].1);
@@ -5592,7 +5592,7 @@ fn a_store_that_does_not_restore_an_open_window_opens_no_second_one() {
         &constrained(),
     );
     let fresh = elaboration.clone();
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     let owed = domains(&elaboration, &result);
     assert_opens_a_window(owed[1].1);
     // The second store keeps why it did not prove the clause, and opens
@@ -5625,12 +5625,8 @@ mod reuse {
     // hypotheses from its own program; the saved evidence supplies only the
     // certificate, and the kernel decides it. No search runs on reuse.
     use super::*;
-    use crate::prove::SEARCHES;
+    use crate::ProofSearchActivity;
     use crate::{reverify, reverify_at_call};
-
-    fn searches() -> usize {
-        SEARCHES.with(std::cell::Cell::get)
-    }
 
     /// `add(a, b) requires a <= bound, b <= 100 { return a + b }`.
     fn add(bound: u128) -> Machine {
@@ -5653,11 +5649,26 @@ mod reuse {
         // Shows: a saved proof is accepted for the same obligation of the same
         // program, decided by the kernel against the consumer's own goal and
         // hypotheses, and no prover is started.
-        let (obligation, certificate) = saved(vec![add(10)], 1, safety);
+        let mut activity = ProofSearchActivity::default();
+        let mut producer = lower(vec![add(10)]).unwrap();
+        let result = discharge(&mut producer, &mut activity).unwrap();
+        let (obligation, verdict) = verdicts(&producer, &result, 1, safety)[0];
+        let certificate = certificate(verdict).certificate.clone();
+        let started = activity.started();
+        assert!(
+            started > 0,
+            "the original proof must exercise the search counter"
+        );
         let mut consumer = lower(vec![add(10)]).unwrap();
-        let before = searches();
-        let evidence = reverify(&mut consumer, id(1), obligation, &certificate).unwrap();
-        assert_eq!(searches(), before, "reuse started a prover");
+        let evidence = reverify(
+            &mut consumer,
+            id(1),
+            obligation,
+            &certificate,
+            &mut activity,
+        )
+        .unwrap();
+        assert_eq!(activity.started(), started, "reuse started a prover");
         assert!(matches!(
             evidence.fact.route,
             AcceptedFactRoute::CertificateDerived { .. }
@@ -5672,7 +5683,16 @@ mod reuse {
         let program = |bound| vec![guaranteeing(vec![at_most(1, 5)], at_most(1, bound))];
         let (obligation, certificate) = saved(program(10), 1, guarantee);
         let mut consumer = lower(program(9)).unwrap();
-        assert!(reverify(&mut consumer, id(1), obligation, &certificate).is_err());
+        assert!(
+            reverify(
+                &mut consumer,
+                id(1),
+                obligation,
+                &certificate,
+                &mut Default::default(),
+            )
+            .is_err()
+        );
         // The new program's own goal is provable; only the stale proof fails.
         let (_, result) = run(program(9));
         let verdicts = &result.machines.get(id(1)).unwrap().verdicts;
@@ -5685,7 +5705,16 @@ mod reuse {
         // consumer has no such hypothesis and the kernel refuses the citation.
         let (obligation, certificate) = saved(vec![add(10)], 1, safety);
         let mut consumer = lower(vec![add_of_formals(vec![at_most(2, 100)])]).unwrap();
-        assert!(reverify(&mut consumer, id(1), obligation, &certificate).is_err());
+        assert!(
+            reverify(
+                &mut consumer,
+                id(1),
+                obligation,
+                &certificate,
+                &mut Default::default(),
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -5713,7 +5742,16 @@ mod reuse {
         assert_eq!(safeties.len(), 2);
         let first = certificate(safeties[0].1).certificate.clone();
         let mut consumer = lower(program()).unwrap();
-        assert!(reverify(&mut consumer, id(1), safeties[1].0, &first).is_err());
+        assert!(
+            reverify(
+                &mut consumer,
+                id(1),
+                safeties[1].0,
+                &first,
+                &mut Default::default(),
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -5734,9 +5772,27 @@ mod reuse {
         };
         let (obligation, certificate) = saved(program(100), 2, safety);
         let mut looser = lower(program(100)).unwrap();
-        assert!(reverify(&mut looser, id(3), obligation, &certificate).is_err());
+        assert!(
+            reverify(
+                &mut looser,
+                id(3),
+                obligation,
+                &certificate,
+                &mut Default::default(),
+            )
+            .is_err()
+        );
         let mut same = lower(program(10)).unwrap();
-        assert!(reverify(&mut same, id(3), obligation, &certificate).is_ok());
+        assert!(
+            reverify(
+                &mut same,
+                id(3),
+                obligation,
+                &certificate,
+                &mut Default::default(),
+            )
+            .is_ok()
+        );
     }
 
     #[test]
@@ -5770,12 +5826,29 @@ mod reuse {
         let tables = elaboration.tables.machines.get(id(1)).unwrap();
         let calls: Vec<_> = tables.invocations.keys().collect();
         assert_eq!(calls.len(), 3);
-        let before = searches();
+        let mut activity = ProofSearchActivity::default();
         for call in &calls[..2] {
-            reverify_at_call(&elaboration, &result, id(1), *call, 0, &saved).unwrap();
+            reverify_at_call(
+                &elaboration,
+                &result,
+                id(1),
+                *call,
+                0,
+                &saved,
+                &mut activity,
+            )
+            .unwrap();
         }
-        assert_eq!(searches(), before, "reuse started a prover");
-        let refused = reverify_at_call(&elaboration, &result, id(1), calls[2], 0, &saved);
+        assert_eq!(activity.started(), 0, "reuse started a prover");
+        let refused = reverify_at_call(
+            &elaboration,
+            &result,
+            id(1),
+            calls[2],
+            0,
+            &saved,
+            &mut activity,
+        );
         assert_eq!(
             refused.unwrap_err().reason,
             RefusalReason::Unproved(UnprovedCause::NoDerivation)
@@ -5846,7 +5919,7 @@ mod reuse {
         let started = Instant::now();
         for _ in 0..ROUNDS {
             let mut elaboration = lower(program()).unwrap();
-            let result = discharge(&mut elaboration).unwrap();
+            let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
             saved.clear();
             obligations = 0;
             for (machine, discharged) in result.machines.iter() {
@@ -5863,7 +5936,14 @@ mod reuse {
         for _ in 0..ROUNDS {
             let mut elaboration = lower(program()).unwrap();
             for (machine, obligation, certificate) in &saved {
-                reverify(&mut elaboration, *machine, *obligation, certificate).unwrap();
+                reverify(
+                    &mut elaboration,
+                    *machine,
+                    *obligation,
+                    certificate,
+                    &mut Default::default(),
+                )
+                .unwrap();
             }
         }
         let reusing = started.elapsed();
@@ -5888,12 +5968,8 @@ mod generic_bodies {
     //         requires start <= 10 ensures result <= 21
     //     { Selected::apply(start) + 1 }
     use super::*;
-    use crate::prove::SEARCHES;
+    use crate::ProofSearchActivity;
     use crate::{Selection, reverify_specialization};
-
-    fn searches() -> usize {
-        SEARCHES.with(std::cell::Cell::get)
-    }
 
     /// The result pseudo-value of a machine with one scalar formal.
     fn result_at_most(value: u128) -> Proposition {
@@ -6010,7 +6086,7 @@ mod generic_bodies {
     /// takes a certificate has one, found against `Step::apply`'s contract.
     fn checked_once(bound: u128) -> (structure_elaboration::Elaboration, Discharge) {
         let mut form = generic(vec![advance(bound), step()]);
-        let found = discharge(&mut form).unwrap();
+        let found = discharge(&mut form, &mut Default::default()).unwrap();
         (form, found)
     }
 
@@ -6028,7 +6104,7 @@ mod generic_bodies {
         let (form, found) = checked_once(bound);
         let (witnessed, refinement) = run(vec![witness(), refines]);
         let mut consumer = lower(vec![advance(bound), implementation]).unwrap();
-        let before = searches();
+        let mut activity = ProofSearchActivity::default();
         let verdicts = reverify_specialization(
             &form,
             &found,
@@ -6040,9 +6116,10 @@ mod generic_bodies {
                 witness: &witnessed,
                 refinement: &refinement,
             }],
+            &mut activity,
         )
         .unwrap();
-        let started = searches() - before;
+        let started = activity.started();
         (consumer, verdicts, started)
     }
 
@@ -6324,7 +6401,7 @@ fn crashing_below_ten(
     let mut elaboration =
         structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
             .unwrap();
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     (elaboration, result)
 }
 
@@ -6411,7 +6488,7 @@ fn crashing_at_zero(requires: Vec<Proposition>) -> (structure_elaboration::Elabo
     let mut elaboration =
         structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
             .unwrap();
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     (elaboration, result)
 }
 
@@ -6489,7 +6566,7 @@ fn calling_a_zero_route(
     let mut elaboration =
         structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
             .unwrap();
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     (elaboration, result)
 }
 
@@ -6604,7 +6681,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
         let mut elaboration =
             structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
                 .unwrap();
-        let result = discharge(&mut elaboration).unwrap();
+        let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
         (elaboration, result)
     };
     let operation_site = |kind: &ObligationKind| {

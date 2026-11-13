@@ -26,6 +26,7 @@ modules to native code.
 */
 
 pub mod access;
+pub mod body_services;
 pub mod bytes;
 pub mod callable_envelopes;
 pub mod callable_values;
@@ -708,5 +709,3 @@ pub use calls::evidence_calls::validate_runtime_evidence_inputs;
 pub use scalars::unchanged_scalar::{UnchangedScalarOrigin, unchanged_scalar_identity};
 
 pub(crate) use structural::structural_declarations::{structural_declaration, structural_shape};
-
-/// Owned-value flow and implicit normal cleanup for plain affine records.

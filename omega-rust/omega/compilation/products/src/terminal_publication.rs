@@ -11,7 +11,6 @@ use std::sync::{Arc, OnceLock};
 pub struct ProductTerminalPublication {
     optimizations: OptimizationSelections,
     program: OnceLock<Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>>>,
-    productions: Arc<psi_compiler::PortableProductions>,
     checked_application: Result<Arc<CheckedApplicationProgram>, Vec<Diagnostic>>,
 }
 
@@ -34,14 +33,10 @@ impl std::fmt::Debug for ProductTerminalPublication {
 }
 
 impl ProductTerminalPublication {
-    pub fn new(
-        optimizations: OptimizationSelections,
-        productions: Arc<psi_compiler::PortableProductions>,
-    ) -> Self {
+    pub fn new(optimizations: OptimizationSelections) -> Self {
         Self {
             optimizations,
             program: OnceLock::new(),
-            productions,
             checked_application: Err(vec![Diagnostic::error(
                 "no checked application program was retained for product production",
             )]),
@@ -63,15 +58,10 @@ impl ProductTerminalPublication {
         self.checked_application.as_ref().map_err(Clone::clone)
     }
 
-    // The same portable productions published for a different root
-    // selection. Roots decide which machines the Terminal program retains, so
-    // a separately selected test root never reuses the application's program.
+    // A different root selection gets its own publication result. Its closure
+    // and evidence cannot reuse the application's retained program.
     pub fn for_other_roots(&self) -> Self {
-        Self::new(self.optimizations.clone(), Arc::clone(&self.productions))
-    }
-
-    pub fn productions(&self) -> &psi_compiler::PortableProductions {
-        &self.productions
+        Self::new(self.optimizations.clone())
     }
 
     pub fn optimizations(&self) -> &OptimizationSelections {
@@ -121,8 +111,7 @@ mod tests {
 
     #[test]
     fn publication_keeps_its_projection_and_one_refusal_without_retry() {
-        let publication =
-            ProductTerminalPublication::new(OptimizationSelections::default(), Default::default());
+        let publication = ProductTerminalPublication::new(OptimizationSelections::default());
         let mut attempts = 0;
         for _ in 0..2 {
             let result = publication.retain(&OptimizationSelections::default(), || {

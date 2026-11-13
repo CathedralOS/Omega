@@ -1608,6 +1608,568 @@ pub mod calls {
             owner.attached_data_symbol.is_valid() && path.symbol == owner.attached_data_symbol
         }
     }
+    /// Exact declared callable queries used while constructing typed source.
+    /// These expose signatures; they perform no body or proof admission.
+    pub mod declaration_queries {
+        use crate::machine::Machine;
+        use crate::state::State;
+        use crate::statement::StatementNode;
+        use symbols::SymbolHandle;
+        pub fn find_state(
+            program: &crate::TypedTrees,
+            state_symbol: SymbolHandle,
+        ) -> Option<(&Machine, &State)> {
+            let machine = program.machine_holding_state(state_symbol)?;
+            let state = program.machine_state(machine.symbol, state_symbol)?.1;
+            Some((machine, state))
+        }
+        pub fn find_machine_head(
+            program: &crate::TypedTrees,
+            symbol: SymbolHandle,
+        ) -> Option<(&Machine, &State)> {
+            if let Some(machine) = program.machine_by_symbol(symbol) {
+                return program
+                    .machine_states(machine)
+                    .first()
+                    .map(|entry| (machine, entry));
+            }
+            let (machine, state) = find_state(program, symbol)?;
+            program
+                .machine_states(machine)
+                .first()
+                .is_some_and(|entry| entry.symbol == state.symbol)
+                .then_some((machine, state))
+        }
+        pub fn call_target_state(
+            program: &crate::TypedTrees,
+            symbol: SymbolHandle,
+        ) -> Option<&State> {
+            find_machine_head(program, symbol)
+                .map(|(_, state)| state)
+                .or_else(|| program.state_by_symbol(symbol))
+        }
+        pub fn call_target_entry_symbol(
+            program: &crate::TypedTrees,
+            symbol: SymbolHandle,
+        ) -> SymbolHandle {
+            call_target_state(program, symbol).map_or(symbol, |state| state.symbol)
+        }
+        pub fn call_target_return_type(
+            program: &crate::TypedTrees,
+            target_state_symbol: SymbolHandle,
+        ) -> Option<crate::types::TypeReferenceHandle> {
+            if let Some(state) = call_target_state(program, target_state_symbol) {
+                return Some(state.return_type);
+            }
+            if let Some(slot) = program.dynamic_slot_by_symbol(target_state_symbol) {
+                return Some(slot.return_type);
+            }
+            if let Some(application) = program.closed_requirement_application(target_state_symbol) {
+                return Some(application.signature.return_type);
+            }
+            if let Some((_, signature)) = program.machine_parameter_signature(target_state_symbol) {
+                return Some(signature.return_type);
+            }
+            if let Some(operator) =
+                crate::operator::declaration_by_symbol(program, target_state_symbol)
+            {
+                return Some(operator.return_type);
+            }
+            if let Some(reference) = asm_intrinsic_result_type(program, target_state_symbol) {
+                return Some(reference);
+            }
+            program
+                .trait_machine_signature(target_state_symbol)
+                .map(|(_, signature)| signature.return_type)
+        }
+        pub fn asm_intrinsic_result_type(
+            program: &crate::TypedTrees,
+            target: SymbolHandle,
+        ) -> Option<crate::types::TypeReferenceHandle> {
+            let atom = match program.symbols.builtin_function_for_symbol(target)? {
+                symbols::BuiltinFunction::AsmPortIn => symbols::BuiltinTypeAtom::U8,
+                symbols::BuiltinFunction::AsmSnapshotFlags
+                | symbols::BuiltinFunction::AsmReadMsr
+                | symbols::BuiltinFunction::AsmReadCr0
+                | symbols::BuiltinFunction::AsmReadCr2
+                | symbols::BuiltinFunction::AsmReadCr3
+                | symbols::BuiltinFunction::AsmReadCr4
+                | symbols::BuiltinFunction::AsmReadSctlrEl1
+                | symbols::BuiltinFunction::AsmReadTcrEl1
+                | symbols::BuiltinFunction::AsmReadTtbr0El1
+                | symbols::BuiltinFunction::AsmReadTtbr1El1
+                | symbols::BuiltinFunction::AsmReadMairEl1
+                | symbols::BuiltinFunction::AsmReadVbarEl1
+                | symbols::BuiltinFunction::AsmReadTpidrEl1
+                | symbols::BuiltinFunction::AsmReadEsrEl1
+                | symbols::BuiltinFunction::AsmReadFarEl1 => symbols::BuiltinTypeAtom::U64,
+                _ => return None,
+            };
+            let symbol = program
+                .symbols
+                .child_handles(program.symbols.root())?
+                .find(|candidate| program.symbols.builtin_type_atom(*candidate) == Some(atom))?;
+            program
+                .type_reference_table
+                .find_named_type_reference(symbol)
+        }
+        pub fn terminal_callable_target(
+            program: &crate::TypedTrees,
+            machine: &Machine,
+            target: SymbolHandle,
+        ) -> Option<(SymbolHandle, crate::types::TypeReferenceHandle)> {
+            if let Some(owner) = program.machine_by_symbol(target) {
+                let entry = program.machine_states(owner).first()?;
+                return (owner.symbol != machine.symbol)
+                    .then_some((entry.symbol, entry.return_type));
+            }
+            if let Some((owner, state)) = find_state(program, target) {
+                return (owner.symbol != machine.symbol)
+                    .then_some((state.symbol, state.return_type));
+            }
+            call_target_return_type(program, target).map(|return_type| (target, return_type))
+        }
+        pub fn statement_source_span(
+            program: &crate::TypedTrees,
+            statement: &StatementNode,
+        ) -> Option<source::SourceSpan> {
+            let authored = |source_span: source::SourceSpan| -> Option<source::SourceSpan> {
+                (source_span != source::SourceSpan::default()).then_some(source_span)
+            };
+            let expression_span = |handle: crate::expression::ExpressionHandle| {
+                handle
+                    .is_valid()
+                    .then(|| program.expression_table.source_span(handle))
+                    .and_then(authored)
+            };
+            match statement {
+                StatementNode::Assembly(_) => None,
+                StatementNode::AssemblyFact(fact) => {
+                    program.proof_fact_source_span(fact.fact).and_then(authored)
+                }
+                StatementNode::Assignment(assignment) => {
+                    expression_span(assignment.value).or_else(|| expression_span(assignment.target))
+                }
+                StatementNode::Call(call) => authored(call.source_span),
+                StatementNode::Expression(expression) => expression_span(*expression),
+                StatementNode::LocalData(local) => expression_span(local.initial_value),
+                StatementNode::Transition(transition) => authored(transition.source_span),
+            }
+        }
+    }
+
+    pub mod terminal_transitions {
+        use super::declaration_queries::{
+            call_target_entry_symbol, find_machine_head, find_state, terminal_callable_target,
+        };
+        use crate::TypedTrees;
+        use crate::expression::{
+            ExpressionHandle, ExpressionNode, TableCallExpression, TableNamePath,
+        };
+        use crate::statement::TransitionTargetNode;
+        use symbols::SymbolHandle;
+        use symbols::SymbolKind;
+
+        pub fn normalize_terminal_transition_calls(
+            program: &mut TypedTrees,
+            first_machine: usize,
+            completed_machines: &[SymbolHandle],
+            captured_arguments: impl Fn(SymbolHandle) -> Vec<crate::expression::StaticMachineArgument>,
+        ) {
+            let mut targets = Vec::new();
+            for (index, machine) in program.machines().iter().enumerate() {
+                if index < first_machine && !completed_machines.contains(&machine.symbol) {
+                    continue;
+                }
+                for state in program.machine_states(machine) {
+                    for statement in program.statement_table.statements(state.statement_nodes) {
+                        let Some(transition) = statement.as_transition() else {
+                            continue;
+                        };
+                        for target in transition.targets() {
+                            let TransitionTargetNode::Named { path, .. } =
+                                program.statement_table.transition_target(target)
+                            else {
+                                continue;
+                            };
+                            let members = program.statement_table.name_path_members(path.members);
+                            if members.is_empty() {
+                                continue;
+                            }
+                            let callable =
+                                terminal_callable_target(program, machine, path.symbol).is_some();
+                            let implementation_namespace = path.receiver_symbol.is_valid()
+                                && matches!(
+                                    program.symbols.get(path.receiver_symbol).kind,
+                                    SymbolKind::Conformance | SymbolKind::ConformanceParameter
+                                )
+                                && (!path.symbol.is_valid()
+                                    || (program.symbols.get(path.symbol).kind
+                                        == SymbolKind::State
+                                        && program.symbols.get(path.symbol).parent
+                                            == path.receiver_symbol));
+                            if path.symbol.is_valid()
+                                && !callable
+                                && !implementation_namespace
+                                && program.operator_definition_by_symbol(path.symbol).is_none()
+                            {
+                                continue;
+                            }
+                            if members.len() > 1
+                                && path.head_symbol.is_valid()
+                                && !matches!(
+                                    program.symbols.get(path.head_symbol).kind,
+                                    SymbolKind::Module
+                                        | SymbolKind::BuiltinType
+                                        | SymbolKind::Data
+                                        | SymbolKind::Domain
+                                        | SymbolKind::Machine
+                                        | SymbolKind::Trait
+                                        | SymbolKind::Conformance
+                                        | SymbolKind::ConformanceParameter
+                                )
+                            {
+                                continue;
+                            }
+                            if (callable
+                                || implementation_namespace
+                                || program.operators().iter().any(|operator| {
+                                    operator.is_boundary
+                                        && operator.spelling.is_none()
+                                        && program.operator_path_members(operator.name) == members
+                                }))
+                                && !targets.iter().any(|(previous, _)| *previous == target)
+                            {
+                                targets.push((target, machine.symbol));
+                            }
+                        }
+                    }
+                }
+            }
+            for (target, lexical_owner) in targets {
+                let TransitionTargetNode::Named {
+                    path,
+                    arguments,
+                    evidence_arguments,
+                    source_span,
+                    authored_call_selection,
+                    static_machine_parameter,
+                    operational_acknowledgement,
+                } = program.statement_table.transition_target(target).clone()
+                else {
+                    unreachable!("collected boundary transition changed shape");
+                };
+                let mut members = program
+                    .statement_table
+                    .name_path_members(path.members)
+                    .to_vec();
+                let leaf = members.pop().expect("boundary declaration has a path");
+                let namespace_head = path.head_symbol;
+                let namespace_endpoint = path.receiver_symbol;
+                let receiver = if members.is_empty() {
+                    ExpressionHandle::invalid()
+                } else {
+                    let mut namespace = arena::HandleSpan::empty();
+                    for member in members {
+                        program
+                            .expression_table
+                            .push_name_path_member(&mut namespace, member);
+                    }
+                    let receiver =
+                        program
+                            .expression_table
+                            .insert(ExpressionNode::Name(TableNamePath {
+                                members: namespace,
+                                member_symbols: arena::HandleSpan::empty(),
+                                head_symbol: namespace_head,
+                                symbol: namespace_endpoint,
+                                reserved_result_of: SymbolHandle::invalid(),
+                            }));
+                    program
+                        .expression_table
+                        .set_source_span(receiver, source_span);
+                    receiver
+                };
+                let operands = program
+                    .statement_table
+                    .expression_handles(arguments)
+                    .to_vec();
+                let arguments = program.expression_table.insert_expression_handles(operands);
+                let target_symbol = call_target_entry_symbol(program, path.symbol);
+                let declaration = find_machine_head(program, path.symbol)
+                    .or_else(|| find_state(program, path.symbol))
+                    .map_or(path.symbol, |(machine, _)| machine.symbol);
+                let machine_arguments = captured_arguments(path.symbol);
+                let application = program.expression_table.retain_static_machine_application(
+                    path.symbol,
+                    leaf.clone(),
+                    &machine_arguments,
+                );
+                let retained = program
+                    .expression_table
+                    .static_machine_application_mut(application);
+                retained.lexical_owner = lexical_owner;
+                retained.binding_declaration = declaration;
+                let call =
+                    program
+                        .expression_table
+                        .insert(ExpressionNode::Call(TableCallExpression {
+                            runtime_call: None,
+                            authored_call_selection,
+                            authored_call_binding: None,
+                            authored_machine_application: application,
+                            requirement_application: Default::default(),
+                            exact_coercion_target: Default::default(),
+                            receiver,
+                            target_symbol,
+                            static_machine_parameter,
+                            target: leaf,
+                            static_requirement_dispatch: None,
+                            machine_arguments: machine_arguments.into_boxed_slice(),
+                            quotient_operation: None,
+                            private_layout_operation: None,
+                            installed_interrupt_operation: None,
+                            layout_query: None,
+                            native_code_layout: None,
+                            build_selection: Default::default(),
+                            arguments,
+                            evidence_arguments,
+                            operational_acknowledgement,
+                        }));
+                program.expression_table.set_source_span(call, source_span);
+                if let Some(occurrence) = authored_call_selection {
+                    program
+                        .expression_table
+                        .attach_authored_selection_occurrences(call, [occurrence]);
+                }
+                *program.statement_table.transition_target_mut(target) =
+                    TransitionTargetNode::Value(call);
+            }
+        }
+    }
+
+    /// Materialize an already selected named operator call in expression form.
+    /// Selection and contract admission remain with their respective owners.
+    pub mod source_call_construction {
+        use crate::TypedTrees;
+        use crate::expression::{
+            ExpressionHandle, ExpressionNode, TableCallExpression, TableNamePath,
+        };
+        use crate::statement::{StatementNode, TableCall, TableLocalData};
+        use symbols::{SymbolHandle, SymbolKind};
+
+        pub fn bind_selected_statement_operator(
+            program: &mut TypedTrees,
+            state_symbol: SymbolHandle,
+            statements: arena::HandleSpan<StatementNode>,
+            index: usize,
+            call: TableCall,
+            selected: SymbolHandle,
+            returns_value: bool,
+        ) -> Result<(), diagnostics::Diagnostic> {
+            if call.runtime_call.is_some() {
+                return Err(diagnostics::Diagnostic::error(
+                    "named operator source conversion has a runtime callee",
+                ));
+            }
+            let source_span = call.source_span;
+            let authored_call_selection = call.authored_call_selection;
+            let receiver_members = program
+                .statement_table
+                .name_path_members(call.receiver)
+                .to_vec();
+            let arguments = program
+                .statement_table
+                .expression_handles(call.arguments)
+                .to_vec();
+            let receiver = if receiver_members.is_empty() {
+                ExpressionHandle::invalid()
+            } else {
+                let mut members = arena::HandleSpan::empty();
+                for member in receiver_members {
+                    program
+                        .expression_table
+                        .push_name_path_member(&mut members, member);
+                }
+                program
+                    .expression_table
+                    .insert(ExpressionNode::Name(TableNamePath {
+                        members,
+                        member_symbols: arena::HandleSpan::empty(),
+                        head_symbol: call.receiver_root_symbol,
+                        symbol: call.receiver_symbol,
+                        reserved_result_of: SymbolHandle::invalid(),
+                    }))
+            };
+            let arguments = program
+                .expression_table
+                .insert_expression_handles(arguments);
+            let expression =
+                program
+                    .expression_table
+                    .insert(ExpressionNode::Call(TableCallExpression {
+                        runtime_call: None,
+                        authored_call_selection,
+                        authored_call_binding: None,
+                        authored_machine_application: call.authored_machine_application,
+                        requirement_application: Default::default(),
+                        exact_coercion_target: crate::types::TypeReferenceHandle::invalid(),
+                        receiver,
+                        target_symbol: selected,
+                        target: call.target,
+                        static_machine_parameter: call.static_machine_parameter,
+                        static_requirement_dispatch: None,
+                        machine_arguments: call.machine_arguments,
+                        quotient_operation: None,
+                        private_layout_operation: None,
+                        installed_interrupt_operation: None,
+                        layout_query: None,
+                        native_code_layout: None,
+                        build_selection: Default::default(),
+                        arguments,
+                        evidence_arguments: call.evidence_arguments,
+                        operational_acknowledgement: call.operational_acknowledgement,
+                    }));
+            program
+                .expression_table
+                .set_source_span(expression, source_span);
+            if let Some(occurrence) = authored_call_selection {
+                program
+                    .expression_table
+                    .attach_authored_selection_occurrences(expression, [occurrence]);
+            }
+            if !returns_value {
+                program.statement_table.statements_mut(statements)[index] =
+                    StatementNode::Expression(expression);
+                return Ok(());
+            }
+            let type_reference = program
+                .operator_definition_by_symbol(selected)
+                .ok_or_else(|| {
+                    diagnostics::Diagnostic::error("selected statement operator disappeared")
+                })?
+                .return_type;
+            let generated_name = format!(
+                "__discarded_named_requirement#{}#{index}",
+                statements.start().arena_index()
+            );
+            let symbol = program.symbols.insert_generated_root_from(
+                state_symbol,
+                SymbolKind::Local,
+                &generated_name,
+            );
+            program.statement_table.statements_mut(statements)[index] =
+                StatementNode::LocalData(TableLocalData {
+                    role: language_core::LocalBindingRole::Value,
+                    symbol,
+                    name: crate::name::Identifier::generated(generated_name),
+                    type_reference,
+                    initial_value: expression,
+                    is_mutable: false,
+                    type_is_inferred: true,
+                    is_operand_capture: false,
+                    relevance: language_core::BindingRelevance::Relevant,
+                    reflected_query_origin: None,
+                    ..Default::default()
+                });
+            Ok(())
+        }
+    }
+
+    /// Expected result types supplied by ordinary source contexts to calls.
+    pub mod expected_source_calls {
+        use crate::expression::{ExpressionHandle, ExpressionNode};
+        use crate::types::{TypeReferenceHandle, TypeReferenceNode};
+        pub fn push_expected_call(
+            program: &crate::TypedTrees,
+            value: ExpressionHandle,
+            expected_type: TypeReferenceHandle,
+            expected: &mut Vec<(ExpressionHandle, TypeReferenceHandle)>,
+        ) {
+            match program.expression_table.expression(value) {
+                ExpressionNode::Match(dispatch) => {
+                    for arm in program.expression_table.match_arms(dispatch.arms) {
+                        push_expected_call(program, arm.value, expected_type, expected);
+                    }
+                }
+                ExpressionNode::Borrow(inner) => {
+                    let reference = program
+                        .type_reference_table
+                        .unconstrained_type_reference(expected_type);
+                    if let TypeReferenceNode::Reference { referee, .. } =
+                        program.type_reference_table.type_reference(reference)
+                    {
+                        push_expected_call(program, inner.target, *referee, expected);
+                    }
+                }
+                ExpressionNode::Atomic(atomic) => {
+                    if program.atomic_once_operands(atomic).is_none() {
+                        push_expected_call(program, atomic.value, expected_type, expected);
+                    }
+                }
+                ExpressionNode::Call(_) => {
+                    if let Some((_, existing)) = expected
+                        .iter_mut()
+                        .find(|(candidate, _)| *candidate == value)
+                    {
+                        *existing = expected_type;
+                    } else {
+                        expected.push((value, expected_type));
+                    }
+                }
+                ExpressionNode::ArrayLiteral(values) => {
+                    let Some(element_type) = array_element_type(program, expected_type) else {
+                        return;
+                    };
+                    for element in program
+                        .expression_table
+                        .expression_handles(*values)
+                        .iter()
+                        .copied()
+                    {
+                        push_expected_call(program, element, element_type, expected);
+                    }
+                }
+                ExpressionNode::MachineValue(_)
+                | ExpressionNode::Binary(_)
+                | ExpressionNode::Boolean(_)
+                | ExpressionNode::Cast(_)
+                | ExpressionNode::Float(_)
+                | ExpressionNode::UndeterminedNaN(_)
+                | ExpressionNode::Indexed(_)
+                | ExpressionNode::Integer(_)
+                | ExpressionNode::Member(_)
+                | ExpressionNode::Name(_)
+                | ExpressionNode::SavedSubject(_)
+                | ExpressionNode::Range(_)
+                | ExpressionNode::StructLiteral(_)
+                | ExpressionNode::String(_)
+                | ExpressionNode::Unary(_)
+                | ExpressionNode::TypeExpression(_)
+                | ExpressionNode::ZeroValue(_) => {}
+            }
+        }
+
+        fn array_element_type(
+            program: &crate::TypedTrees,
+            type_reference: TypeReferenceHandle,
+        ) -> Option<TypeReferenceHandle> {
+            match program.type_reference_table.type_reference(type_reference) {
+                crate::types::TypeReferenceNode::Reference { referee, .. }
+                | crate::types::TypeReferenceNode::Constrained {
+                    base_type: referee, ..
+                } => array_element_type(program, *referee),
+                crate::types::TypeReferenceNode::FixedArray { element_type, .. }
+                | crate::types::TypeReferenceNode::Slice { element_type } => Some(*element_type),
+                crate::types::TypeReferenceNode::Callable { .. }
+                | crate::types::TypeReferenceNode::Generic { .. }
+                | crate::types::TypeReferenceNode::DynamicTrait { .. }
+                | crate::types::TypeReferenceNode::Named { .. }
+                | crate::types::TypeReferenceNode::ConstExpression(_)
+                | crate::types::TypeReferenceNode::Unit => None,
+            }
+        }
+    }
 }
 
 pub mod control_flow {

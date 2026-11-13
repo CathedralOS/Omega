@@ -3,7 +3,7 @@ Retain and admit selected `Build`-scope provider implementations across Terminal
 artifact production and `Pure` build reuse (`BuildProviderPlans`,
 `BuildProviderInstallation`).
 
-Psi's `CheckedTrees` remain target-neutral. `BuildProviderPlans` sits alongside
+The accepted source remains target-neutral. `BuildProviderPlans` sits alongside
 the checked `Build` program, participates in the `CompletedPureBuildInputs`
 equality key, and validates its selected provider adapters and numeric
 intrinsics against the lowered `TerminalExecutionView` before the interpreter
@@ -28,17 +28,17 @@ pub(crate) struct BuildProviderInstallation {
 
 impl BuildProviderPlans {
     pub(crate) fn capture(
-        checked: &checked_trees::CheckedTrees,
+        typed: &typed_trees::TypedTrees,
         selected: effects::SelectedProviderPlanFacts,
         provenance: &[provider_planning::SelectedProviderReviewProvenance],
     ) -> Result<Self, Vec<Diagnostic>> {
         let toolchain =
-            source::source_identity::toolchain_source_identities(checked.symbols.source_files())
+            source::source_identity::toolchain_source_identities(typed.symbols.source_files())
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let declarations =
             provider_planning::provider_declarations::retain_selected_provider_declarations(
                 provider_planning::ProviderPlanningContext::new(
-                    checked,
+                    typed,
                     source::DependencyScope::Build,
                 ),
                 &toolchain,

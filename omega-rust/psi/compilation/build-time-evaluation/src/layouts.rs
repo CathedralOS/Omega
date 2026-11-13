@@ -66,8 +66,12 @@ pub(crate) mod access_lifecycles {
                     continue;
                 };
                 if arguments.operation == AccessLifecycleOperation::Relocate
-                    && validation::effective_type_carry_policy(program, &[], arguments.schema)
-                        .address
+                    && typed_trees::source_carry::effective_type_carry_policy(
+                        program,
+                        &[],
+                        arguments.schema,
+                    )
+                    .address
                         != language_semantics::CarryAddress::Movable
                 {
                     return Err(vec![
@@ -1984,9 +1988,9 @@ pub(crate) mod access_views {
 
         use super::{AccessViewRecord, accessor_operations};
         use symbols::SymbolHandle;
+        use typed_trees::access_atomic_observing_results;
         use typed_trees::data::DataMember;
         use typed_trees::typed_trees::{AccessAtomicResidentContract, AccessViewPlan};
-        use validation::access_atomic_observing_results;
 
         fn observing_result_contracts(
             operations: AtomicPermissions,
@@ -6306,7 +6310,6 @@ pub(crate) mod plan_laid {
                     .flat_map(|selection| selection.rows.iter().map(|row| row.realization_machine)),
             );
         });
-        crate::BuildTimeAdmissionPlan::validate_runtime_effects(typed)?;
         let operational = validation::infer_operational_may(typed);
         source_checking_applications(typed, scopes, &defaults, &topology, &operational)
             .map_err(|reason| vec![Diagnostic::error(reason)])

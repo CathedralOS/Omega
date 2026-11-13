@@ -388,7 +388,7 @@ fn judge_elaboration(
     let mut intervals_only = elaboration.clone();
     let mut consumer = elaboration.clone();
     let discharge_started = Instant::now();
-    let discharged = discharge_with(&mut elaboration, Knowledge::All);
+    let discharged = discharge_with(&mut elaboration, Knowledge::All, &mut Default::default());
     let discharge_us = discharge_started.elapsed().as_micros();
     let route_us = started.elapsed().as_micros();
     let discharged = match discharged {
@@ -401,8 +401,18 @@ fn judge_elaboration(
             );
         }
     };
-    let without = discharge_with(&mut without_branches, Knowledge::WithoutBranchConditions).ok();
-    let intervals = discharge_with(&mut intervals_only, Knowledge::LiteralIntervals).ok();
+    let without = discharge_with(
+        &mut without_branches,
+        Knowledge::WithoutBranchConditions,
+        &mut Default::default(),
+    )
+    .ok();
+    let intervals = discharge_with(
+        &mut intervals_only,
+        Knowledge::LiteralIntervals,
+        &mut Default::default(),
+    )
+    .ok();
     // Re-verifying the saved certificates in a consumer elaborated from the
     // same typed trees: goal and hypotheses recomputed, no search.
     let reverify_started = Instant::now();
@@ -415,6 +425,7 @@ fn judge_elaboration(
                     machine,
                     obligation,
                     &evidence.certificate,
+                    &mut Default::default(),
                 )
                 .is_ok()
             {
@@ -825,19 +836,25 @@ impl<'a> CurrentSites<'a> {
     }
 
     fn describe_route(&self, site: Option<SourceOrigin>) -> String {
-        match site {
-            Some(SourceOrigin::Authored(span)) => self.describe_span(span),
-            Some(SourceOrigin::Unpositioned(why)) => format!("Unpositioned({why:?})"),
-            None => "no-correspondence".to_owned(),
+        let Some(site) = site else {
+            return "no-correspondence".to_owned();
+        };
+        match site.span() {
+            Some(span) => self.describe_span(span),
+            None => match site {
+                SourceOrigin::Unpositioned(why) => format!("Unpositioned({why:?})"),
+                _ => "no-span".to_owned(),
+            },
         }
     }
 
     /// The best match between one route site and any current diagnostic.
     fn class(&self, site: Option<SourceOrigin>) -> SiteClass {
-        let span = match site {
-            Some(SourceOrigin::Authored(span)) => span,
-            Some(SourceOrigin::Unpositioned(why)) => return SiteClass::Unpositioned(Some(why)),
-            None => return SiteClass::Unpositioned(None),
+        if let Some(SourceOrigin::Unpositioned(why)) = site {
+            return SiteClass::Unpositioned(Some(why));
+        }
+        let Some(span) = site.and_then(SourceOrigin::span) else {
+            return SiteClass::Unpositioned(None);
         };
         self.spans
             .iter()

@@ -2,427 +2,6 @@
 Proof contract structure, immutable integer bounds, properties, qualification
 evidence, relevance, proof embeddings, and slice ranking (`proof_contracts`).
 */
-pub mod argument_subjects {
-    pub fn contract_argument_root(
-        program: &dyn crate::CheckingInput,
-        target_state: &typed_trees::state::State,
-        occurrence: typed_trees::expression::ExpressionHandle,
-    ) -> checked_trees::OutcomeOccurrenceRoot {
-        if !program.expression_table.expression_is_valid(occurrence) {
-            return checked_trees::OutcomeOccurrenceRoot::Other;
-        }
-        if program.expression_table.names_reserved_result(occurrence) {
-            return checked_trees::OutcomeOccurrenceRoot::CalleeResult;
-        }
-        if let typed_trees::expression::ExpressionNode::Name(path) =
-            program.expression_table.expression(occurrence)
-            && path.symbol.is_valid()
-            && let Some(position) = program
-                .state_parameters(target_state)
-                .iter()
-                .position(|parameter| parameter.symbol == path.symbol)
-            && let Ok(source_position) = u32::try_from(position)
-        {
-            return checked_trees::OutcomeOccurrenceRoot::CalleeParameter { source_position };
-        }
-        if let typed_trees::expression::ExpressionNode::Member(member) =
-            program.expression_table.expression(occurrence)
-            && member.member_symbol.is_valid()
-            && member.case_variant.is_none()
-        {
-            let (source_position, mut fields) =
-                match contract_argument_root(program, target_state, member.receiver) {
-                    checked_trees::OutcomeOccurrenceRoot::CalleeParameter { source_position } => {
-                        (source_position, Vec::new())
-                    }
-                    checked_trees::OutcomeOccurrenceRoot::CalleeParameterProjection {
-                        source_position,
-                        fields,
-                    } => (source_position, fields),
-                    _ => return checked_trees::OutcomeOccurrenceRoot::Other,
-                };
-            fields.push(member.member_symbol);
-            return checked_trees::OutcomeOccurrenceRoot::CalleeParameterProjection {
-                source_position,
-                fields,
-            };
-        }
-        if program
-            .closed_integer_value_in(occurrence, target_state.symbol)
-            .is_some()
-            || matches!(
-                program.expression_table.expression(occurrence),
-                typed_trees::expression::ExpressionNode::Boolean(_)
-            )
-        {
-            return checked_trees::OutcomeOccurrenceRoot::ClosedValue;
-        }
-        checked_trees::OutcomeOccurrenceRoot::Other
-    }
-}
-
-pub mod carrier_contents {
-    use std::collections::HashSet;
-
-    use typed_trees::domain::{DomainAliasDefinition, DomainDefinition};
-    use typed_trees::proof_only::ProofOnlyClassification;
-    use typed_trees::types::{
-        DomainConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-    };
-
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub(crate) enum CarrierFenceViolation {
-        UnshareableType(String),
-        RoutedQualification(String),
-    }
-
-    pub(crate) fn first_forbidden_quotient_content(
-        program: &dyn crate::CheckingInput,
-        proof_only: &ProofOnlyClassification,
-        type_reference: TypeReferenceHandle,
-        visited_data: &mut HashSet<u32>,
-    ) -> Option<CarrierFenceViolation> {
-        first_forbidden_content(
-            program,
-            proof_only,
-            type_reference,
-            visited_data,
-            ContentUse::Quotient,
-        )
-    }
-
-    pub(crate) fn type_has_forbidden_value_observation_content(
-        program: &dyn crate::CheckingInput,
-        type_reference: TypeReferenceHandle,
-    ) -> bool {
-        first_forbidden_content(
-            program,
-            &crate::proof_only_classification(program),
-            type_reference,
-            &mut HashSet::new(),
-            ContentUse::ValueObservation,
-        )
-        .is_some()
-    }
-
-    pub(crate) fn type_has_forbidden_argument_observation_content(
-        program: &dyn crate::CheckingInput,
-        type_reference: TypeReferenceHandle,
-    ) -> bool {
-        match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Reference {
-            referee,
-            access: language_semantics::ReferenceAccess::Shared,
-            ..
-        } => shared_referent_has_forbidden_observation_content(program, *referee),
-        TypeReferenceNode::Constrained {
-            base_type,
-            constraints,
-        } => {
-            program
-                .type_reference_table
-                .constraints(*constraints)
-                .iter()
-                .any(|constraint| {
-                    matches!(constraint, TypeConstraintNode::Domain(domain)
-                        if first_routed_qualification(program, domain, &mut HashSet::new()).is_some())
-                })
-                || type_has_forbidden_argument_observation_content(program, *base_type)
-        }
-        _ => type_has_forbidden_value_observation_content(program, type_reference),
-    }
-    }
-
-    fn shared_referent_has_forbidden_observation_content(
-        program: &dyn crate::CheckingInput,
-        type_reference: TypeReferenceHandle,
-    ) -> bool {
-        first_forbidden_content(
-            program,
-            &crate::proof_only_classification(program),
-            type_reference,
-            &mut HashSet::new(),
-            ContentUse::SharedObservation,
-        )
-        .is_some()
-    }
-
-    #[derive(Clone, Copy)]
-    pub(crate) enum ContentUse {
-        Quotient,
-        ValueObservation,
-        SharedObservation,
-    }
-
-    fn first_forbidden_content(
-        program: &dyn crate::CheckingInput,
-        proof_only: &ProofOnlyClassification,
-        type_reference: TypeReferenceHandle,
-        visited_data: &mut HashSet<u32>,
-        purpose: ContentUse,
-    ) -> Option<CarrierFenceViolation> {
-        if !matches!(
-            program.type_reference_table.type_reference(type_reference),
-            TypeReferenceNode::Constrained { .. }
-        ) && let Some(storage) = program.layout_storage_arguments(type_reference)
-        {
-            return first_forbidden_content(
-                program,
-                proof_only,
-                storage.semantic_type,
-                visited_data,
-                purpose,
-            );
-        }
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Named { symbol, name } => {
-                if program
-                    .type_reference_table
-                    .primitive_type(type_reference)
-                    .is_some()
-                {
-                    return None;
-                }
-                if let Some(definition) =
-                    crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)
-                {
-                    return first_forbidden_data_content(
-                        program,
-                        proof_only,
-                        definition,
-                        visited_data,
-                        purpose,
-                    );
-                }
-                if matches!(
-                    purpose,
-                    ContentUse::ValueObservation | ContentUse::SharedObservation
-                ) && matches!(
-                    program.symbols.builtin_type_atom(*symbol),
-                    Some(symbols::BuiltinTypeAtom::Int | symbols::BuiltinTypeAtom::UInt)
-                ) {
-                    return None;
-                }
-                let parameter = match purpose {
-                    ContentUse::Quotient => program
-                        .data_definitions()
-                        .iter()
-                        .flat_map(|definition| program.data_type_parameters(definition))
-                        .find(|parameter| parameter.symbol == *symbol),
-                    ContentUse::ValueObservation | ContentUse::SharedObservation => {
-                        program.data_type_parameter_by_symbol(*symbol)
-                    }
-                };
-                let Some(parameter) = parameter else {
-                    return matches!(
-                        purpose,
-                        ContentUse::ValueObservation | ContentUse::SharedObservation
-                    )
-                    .then(|| CarrierFenceViolation::UnshareableType(name.as_str().to_owned()));
-                };
-                (matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
-                    && (match purpose {
-                        ContentUse::Quotient => {
-                            parameter.bounds.multiplicity
-                                != language_semantics::Multiplicity::Unrestricted
-                        }
-                        ContentUse::ValueObservation | ContentUse::SharedObservation => {
-                            parameter.bounds.multiplicity
-                                == language_semantics::Multiplicity::Linear
-                        }
-                    } || parameter.bounds.carry.is_some()))
-                .then(|| CarrierFenceViolation::UnshareableType(name.as_str().to_owned()))
-            }
-            TypeReferenceNode::Generic {
-                base_symbol,
-                arguments,
-                ..
-            } => {
-                let definition = crate::declarations::data_queries::data_definition_by_symbol(
-                    program,
-                    *base_symbol,
-                );
-                let Some(definition) = definition else {
-                    return matches!(
-                        purpose,
-                        ContentUse::ValueObservation | ContentUse::SharedObservation
-                    )
-                    .then(|| {
-                        CarrierFenceViolation::UnshareableType(
-                            program.display_type_reference(type_reference),
-                        )
-                    });
-                };
-                if matches!(
-                    purpose,
-                    ContentUse::ValueObservation | ContentUse::SharedObservation
-                ) && program.data_type_parameters(definition).len() != arguments.len()
-                {
-                    return Some(CarrierFenceViolation::UnshareableType(
-                        program.display_type_reference(type_reference),
-                    ));
-                }
-                for (parameter, argument) in program.data_type_parameters(definition).iter().zip(
-                    program
-                        .type_reference_table
-                        .type_reference_handles(*arguments),
-                ) {
-                    if matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
-                        && let Some(forbidden) = first_forbidden_content(
-                            program,
-                            proof_only,
-                            *argument,
-                            visited_data,
-                            purpose,
-                        )
-                    {
-                        return Some(forbidden);
-                    }
-                }
-                first_forbidden_data_content(program, proof_only, definition, visited_data, purpose)
-            }
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                for constraint in program.type_reference_table.constraints(*constraints) {
-                    if let TypeConstraintNode::Domain(domain) = constraint
-                        && let Some(name) =
-                            first_routed_qualification(program, domain, &mut HashSet::new())
-                    {
-                        return Some(CarrierFenceViolation::RoutedQualification(name));
-                    }
-                }
-                first_forbidden_content(program, proof_only, *base_type, visited_data, purpose)
-            }
-            TypeReferenceNode::FixedArray { element_type, .. } => {
-                first_forbidden_content(program, proof_only, *element_type, visited_data, purpose)
-            }
-            TypeReferenceNode::Reference {
-                referee, access, ..
-            } if matches!(purpose, ContentUse::SharedObservation) && access.is_readable() => {
-                // The enclosing shared loan permits reads through these fields;
-                // their actual observations still retain storage and backing identity.
-                first_forbidden_content(program, proof_only, *referee, visited_data, purpose)
-            }
-            TypeReferenceNode::Slice { element_type }
-                if matches!(purpose, ContentUse::SharedObservation) =>
-            {
-                first_forbidden_content(
-                    program,
-                    proof_only,
-                    *element_type,
-                    &mut HashSet::new(),
-                    ContentUse::ValueObservation,
-                )
-            }
-            TypeReferenceNode::Reference { .. }
-            | TypeReferenceNode::Slice { .. }
-            | TypeReferenceNode::DynamicTrait { .. }
-            | TypeReferenceNode::ConstExpression(_) => {
-                Some(CarrierFenceViolation::UnshareableType(
-                    program.display_type_reference_with_constraints(type_reference),
-                ))
-            }
-            TypeReferenceNode::Unit => None,
-        }
-    }
-
-    fn first_routed_qualification(
-        program: &dyn crate::CheckingInput,
-        constraint: &DomainConstraint,
-        visited_aliases: &mut HashSet<u32>,
-    ) -> Option<String> {
-        if !constraint.establishment_routes.is_empty() {
-            return Some(constraint.name.as_str().to_owned());
-        }
-        let definition = constraint
-            .symbol
-            .is_valid()
-            .then(|| program.domain_definition(constraint.symbol));
-        match definition {
-            Some(Some(definition)) => {
-                first_routed_domain_definition(program, definition, visited_aliases)
-            }
-            _ => None,
-        }
-    }
-
-    fn first_routed_domain_definition(
-        program: &dyn crate::CheckingInput,
-        definition: &DomainDefinition,
-        visited_aliases: &mut HashSet<u32>,
-    ) -> Option<String> {
-        if let Some(alias) = definition.alias.as_ref() {
-            if !visited_aliases.insert(definition.symbol.arena_index()) {
-                return None;
-            }
-            let routed = first_routed_alias_constituent(program, alias, visited_aliases);
-            visited_aliases.remove(&definition.symbol.arena_index());
-            return routed;
-        }
-        (!definition.establishment_routes.is_empty()).then(|| definition.name.as_str().to_owned())
-    }
-
-    fn first_routed_alias_constituent(
-        program: &dyn crate::CheckingInput,
-        alias: &DomainAliasDefinition,
-        visited_aliases: &mut HashSet<u32>,
-    ) -> Option<String> {
-        alias.constituents.iter().find_map(|constituent| {
-            program
-                .domain_definition(constituent.domain_symbol)
-                .and_then(|definition| {
-                    first_routed_domain_definition(program, definition, visited_aliases)
-                })
-        })
-    }
-
-    fn first_forbidden_data_content(
-        program: &dyn crate::CheckingInput,
-        proof_only: &ProofOnlyClassification,
-        definition: &typed_trees::data::DataDefinition,
-        visited_data: &mut HashSet<u32>,
-        purpose: ContentUse,
-    ) -> Option<CarrierFenceViolation> {
-        if !visited_data.insert(definition.symbol.arena_index()) {
-            return None;
-        }
-        let forbidden = match purpose {
-            ContentUse::Quotient => {
-                !proof_only.is_proof_only(definition.symbol)
-                    && (definition.properties.multiplicity
-                        != language_semantics::Multiplicity::Unrestricted
-                        || definition.properties.carry.is_some())
-            }
-            ContentUse::ValueObservation | ContentUse::SharedObservation => {
-                definition.supply_mode != language_semantics::DataSupplyMode::CheckedShape
-                    || definition.properties.multiplicity
-                        == language_semantics::Multiplicity::Linear
-                    || definition.properties.carry.is_some()
-            }
-        };
-        if forbidden {
-            return Some(CarrierFenceViolation::UnshareableType(
-                definition.name.as_str().to_owned(),
-            ));
-        }
-
-        for field in program.data_member_fields(program.data_members(definition)) {
-            if let Some(forbidden) = first_forbidden_content(
-                program,
-                proof_only,
-                field.type_reference,
-                visited_data,
-                purpose,
-            ) {
-                return Some(forbidden);
-            }
-        }
-        None
-    }
-}
-
 pub mod proposition_context {
     /*
     Logical connective children retain proposition context. Calls and ordinary
@@ -1775,667 +1354,6 @@ pub mod contract_structure {
     }
 }
 
-pub mod domain_weakening {
-    use crate::CheckingInput;
-    use crate::frozen_program::expression_table;
-    use diagnostics::Diagnostic;
-    use language_semantics::const_value::CanonicalConstValue;
-    use numerics::arithmetic::ArithmeticDomain;
-    use symbols::SymbolHandle;
-    use typed_trees::expression::TableAtomicExpression;
-    use typed_trees::expression::TableCastExpression;
-    use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-    use typed_trees::machine::Machine;
-    use typed_trees::signature::{SignatureContractKind, StateParameter};
-    use typed_trees::state::State;
-    use typed_trees::types::DomainConstraint;
-    use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
-
-    #[derive(Debug, Clone)]
-    pub(crate) enum DomainAtom {
-        Declared {
-            family: SymbolHandle,
-            instance: language_semantics::SemanticDomainId,
-            indexed: bool,
-            label: String,
-        },
-        Arithmetic(ArithmeticDomain),
-    }
-
-    impl PartialEq for DomainAtom {
-        fn eq(&self, other: &Self) -> bool {
-            match (self, other) {
-                (Self::Arithmetic(left), Self::Arithmetic(right)) => left == right,
-                (
-                    Self::Declared {
-                        family: left_family,
-                        instance: left_instance,
-                        indexed: left_indexed,
-                        ..
-                    },
-                    Self::Declared {
-                        family: right_family,
-                        instance: right_instance,
-                        indexed: right_indexed,
-                        ..
-                    },
-                ) => {
-                    left_family == right_family
-                        && left_instance == right_instance
-                        && left_indexed == right_indexed
-                }
-                _ => false,
-            }
-        }
-    }
-
-    impl Eq for DomainAtom {}
-
-    pub(crate) fn validate_implicit_domain_weakening(
-        program: &dyn CheckingInput,
-        machine: &Machine,
-        state: Option<&State>,
-        value: ExpressionHandle,
-        target_type: TypeReferenceHandle,
-        owner: &str,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        validate_argument_domain_weakening(
-            program,
-            machine,
-            state,
-            value,
-            target_type,
-            owner,
-            false,
-            None,
-            diagnostics,
-        );
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn validate_argument_domain_weakening(
-        program: &dyn CheckingInput,
-        machine: &Machine,
-        state: Option<&State>,
-        value: ExpressionHandle,
-        target_type: TypeReferenceHandle,
-        owner: &str,
-        retains_float_result_policy: bool,
-        callee_parameter: Option<&StateParameter>,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        let obligations = callee_parameter
-            .map(|parameter| parameter_premise_atoms(program, parameter))
-            .unwrap_or_default();
-        validate_domain_delivery(
-            program,
-            machine,
-            state,
-            value,
-            target_type,
-            owner,
-            retains_float_result_policy,
-            &obligations,
-            diagnostics,
-        );
-    }
-
-    pub(crate) fn validate_return_domain_weakening(
-        program: &dyn CheckingInput,
-        machine: &Machine,
-        state: &State,
-        value: ExpressionHandle,
-        owner: &str,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        let mut obligations = Vec::new();
-        append_callable_ensured_domain_atoms(program, state.symbol, &mut obligations);
-        validate_domain_delivery(
-            program,
-            machine,
-            Some(state),
-            value,
-            state.return_type,
-            owner,
-            false,
-            &obligations,
-            diagnostics,
-        );
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn validate_domain_delivery(
-        program: &dyn CheckingInput,
-        machine: &Machine,
-        state: Option<&State>,
-        value: ExpressionHandle,
-        target_type: TypeReferenceHandle,
-        owner: &str,
-        retains_float_result_policy: bool,
-        obligations: &[DomainAtom],
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        if !value.is_valid()
-        || !target_type.is_valid()
-        || crate::proof_contracts::arithmetic_domains::expression_reads_unresolved_local_initializer(
-            program, machine, state, value,
-        )
-    {
-        return;
-    }
-        if let Some(state) = state {
-            crate::value_custody::cleanup::validate_cleanup_delivery(
-                program,
-                machine,
-                state,
-                value,
-                target_type,
-                owner,
-                diagnostics,
-            );
-        }
-        let source = expression_atoms(program, machine, state, value);
-        if source.is_empty() {
-            return;
-        }
-        let mut target = Vec::new();
-        append_type_atoms(program, target_type, &mut target, &mut Vec::new());
-        let integer_delivery = program
-            .primitive_type_reference(target_type)
-            .and_then(crate::proof_contracts::arithmetic_domains::integer_bit_width)
-            .is_some()
-            && state
-                .and_then(|state| {
-                    crate::value_custody::expression_types::expression_result_type_reference(
-                        program, machine, state, value,
-                    )
-                })
-                .and_then(|reference| program.primitive_type_reference(reference))
-                .and_then(crate::proof_contracts::arithmetic_domains::integer_bit_width)
-                .is_some();
-        let dropped = source
-            .iter()
-            .filter(|atom| !(integer_delivery && matches!(atom, DomainAtom::Arithmetic(_))))
-            .filter(|atom| {
-                !(retains_float_result_policy && matches!(atom, DomainAtom::Arithmetic(_)))
-            })
-            .filter(|atom| atom_requires_explicit_removal(program, atom))
-            .filter(|atom| {
-                !obligations
-                    .iter()
-                    .any(|premise| atoms_equivalent(program, atom, premise))
-            })
-            .filter(|atom| {
-                !target
-                    .iter()
-                    .any(|candidate| is_deferred_index_compatibility(atom, candidate))
-            })
-            .filter(|atom| {
-                !target
-                    .iter()
-                    .any(|candidate| atoms_equivalent(program, atom, candidate))
-            })
-            .map(atom_label)
-            .collect::<Vec<_>>();
-
-        let mut carried = source.clone();
-        append_call_ensured_domain_atoms(program, value, &mut carried);
-        let assumed = target
-            .iter()
-            .filter(|atom| atom_requires_carried_evidence(program, atom))
-            .filter(|atom| {
-                !carried
-                    .iter()
-                    .any(|candidate| atoms_equivalent(program, atom, candidate))
-            })
-            .filter(|atom| {
-                !carried
-                    .iter()
-                    .any(|candidate| is_deferred_index_compatibility(atom, candidate))
-            })
-            .map(atom_label)
-            .collect::<Vec<_>>();
-
-        if !dropped.is_empty() {
-            diagnostics.push(Diagnostic::error(format!(
-            "implicit domain weakening in {owner} drops {}; semantic meaning, routed provenance, \
-             and arithmetic policy may be removed only by an explicit `as` to the intended target",
-            dropped
-                .iter()
-                .map(|label| format!("`{label}`"))
-                .collect::<Vec<_>>()
-                .join(", "),
-        )));
-        }
-        if !assumed.is_empty() {
-            diagnostics.push(Diagnostic::error(format!(
-                "implicit domain strengthening in {owner} assumes {}; a qualification with no \
-             predicate or establishment route may be introduced only by an explicit `as` to \
-             the intended target",
-                assumed
-                    .iter()
-                    .map(|label| format!("`{label}`"))
-                    .collect::<Vec<_>>()
-                    .join(", "),
-            )));
-        }
-    }
-
-    fn parameter_premise_atoms(
-        program: &dyn CheckingInput,
-        parameter: &StateParameter,
-    ) -> Vec<DomainAtom> {
-        if !parameter.symbol.is_valid() {
-            return Vec::new();
-        }
-        let owner = program.symbols.get(parameter.symbol).parent;
-        let Some(contracts) = callable_signature_contracts(program, owner) else {
-            return Vec::new();
-        };
-        let mut atoms = Vec::new();
-        for contract in contracts {
-            if !matches!(contract.kind, SignatureContractKind::Requires) {
-                continue;
-            }
-            for fact in program.proof_facts.span_or_empty(contract.facts) {
-                let Some(membership) = fact.as_membership() else {
-                    continue;
-                };
-                if !expression_table(program).names_parameter(membership.value, parameter) {
-                    continue;
-                }
-                append_declared_atom(
-                    program,
-                    membership.domain_symbol,
-                    membership.semantic_domain,
-                    !membership.domain_arguments.is_empty(),
-                    None,
-                    &mut atoms,
-                    &mut Vec::new(),
-                );
-            }
-        }
-        atoms
-    }
-
-    fn atom_requires_carried_evidence(program: &dyn CheckingInput, atom: &DomainAtom) -> bool {
-        let DomainAtom::Declared { family: symbol, .. } = atom else {
-            return false;
-        };
-        program.domain_definition(*symbol).is_some_and(|domain| {
-            !domain.predicate_presence.is_present() && domain.establishment_routes.is_empty()
-        })
-    }
-
-    fn append_call_ensured_domain_atoms(
-        program: &dyn CheckingInput,
-        value: ExpressionHandle,
-        atoms: &mut Vec<DomainAtom>,
-    ) {
-        let mut inner = value;
-        let call = loop {
-            match expression_table(program).expression(inner) {
-                ExpressionNode::Borrow(borrow) => inner = borrow.target,
-                ExpressionNode::Atomic(atomic) => inner = atomic.value,
-                ExpressionNode::Call(call) => break call,
-                _ => return,
-            }
-        };
-        append_callable_ensured_domain_atoms(program, call.target_symbol, atoms);
-    }
-
-    fn append_callable_ensured_domain_atoms(
-        program: &dyn CheckingInput,
-        callable: SymbolHandle,
-        atoms: &mut Vec<DomainAtom>,
-    ) {
-        let Some(contracts) = callable_signature_contracts(program, callable) else {
-            return;
-        };
-        for contract in contracts {
-            if !matches!(contract.kind, SignatureContractKind::Ensures) {
-                continue;
-            }
-            for fact in program.proof_facts.span_or_empty(contract.facts) {
-                let Some(membership) = fact.as_membership() else {
-                    continue;
-                };
-                let Some((owner, _)) =
-                    crate::proof_contracts::contract_results::reserved_result_owner(
-                        program,
-                        membership.value,
-                    )
-                else {
-                    continue;
-                };
-                if owner != callable
-                    && !crate::machine_calls::calls::machine_state_by_symbol(program, callable)
-                        .is_some_and(|(machine, _)| owner == machine.symbol)
-                {
-                    continue;
-                }
-                append_declared_atom(
-                    program,
-                    membership.domain_symbol,
-                    membership.semantic_domain,
-                    !membership.domain_arguments.is_empty(),
-                    None,
-                    atoms,
-                    &mut Vec::new(),
-                );
-            }
-        }
-    }
-
-    fn callable_signature_contracts(
-        program: &dyn CheckingInput,
-        target: SymbolHandle,
-    ) -> Option<Vec<&typed_trees::signature::SignatureContract>> {
-        if let Some((machine, state)) =
-            crate::machine_calls::calls::machine_state_by_symbol(program, target)
-        {
-            return Some(
-                program
-                    .state_contracts(state)
-                    .iter()
-                    .chain(program.machine_contracts(machine).iter())
-                    .collect(),
-            );
-        }
-        if !target.is_valid() {
-            return None;
-        }
-        let parent = program.symbols.get(target).parent;
-        let definition = program.trait_definition_by_symbol(parent)?;
-        let signature = program.trait_machine_signature_by_symbol(definition, target)?;
-        Some(
-            program
-                .state_signature_contracts(signature)
-                .iter()
-                .collect(),
-        )
-    }
-
-    fn is_deferred_index_compatibility(left: &DomainAtom, right: &DomainAtom) -> bool {
-        matches!(
-            (left, right),
-            (
-                DomainAtom::Declared {
-                    family: left_family,
-                    instance: left_instance,
-                    indexed: true,
-                    ..
-                },
-                DomainAtom::Declared {
-                    family: right_family,
-                    instance: right_instance,
-                    indexed: true,
-                    ..
-                }
-            ) if left_family == right_family
-                && left_instance.is_valid()
-                && right_instance.is_valid()
-                && left_instance != right_instance
-        )
-    }
-
-    fn expression_atoms(
-        program: &dyn CheckingInput,
-        machine: &Machine,
-        state: Option<&State>,
-        value: ExpressionHandle,
-    ) -> Vec<DomainAtom> {
-        let mut atoms = Vec::new();
-        match expression_table(program).expression(value) {
-            ExpressionNode::Borrow(inner) => {
-                return expression_atoms(program, machine, state, inner.target);
-            }
-            ExpressionNode::Atomic(TableAtomicExpression { value: inner, .. }) => {
-                return expression_atoms(program, machine, state, *inner);
-            }
-            ExpressionNode::Cast(cast) => {
-                append_type_atoms(program, cast.target_type, &mut atoms, &mut Vec::new());
-                if cast.semantic_domain_symbol.is_valid() {
-                    append_declared_atom(
-                        program,
-                        cast.semantic_domain_symbol,
-                        cast.semantic_domain_id,
-                        !cast.semantic_domain_arguments.is_empty(),
-                        Some(qualification_cast_label(program, cast)),
-                        &mut atoms,
-                        &mut Vec::new(),
-                    );
-                }
-                if cast.domain != ArithmeticDomain::Exact {
-                    push_unique(&mut atoms, DomainAtom::Arithmetic(cast.domain));
-                }
-                return atoms;
-            }
-            ExpressionNode::Call(call) => {
-                if let Some(return_type) =
-                    crate::proof_contracts::arithmetic_domains::call_return_type(program, call)
-                {
-                    append_type_atoms(program, return_type, &mut atoms, &mut Vec::new());
-                }
-                return atoms;
-            }
-            _ => {}
-        }
-
-        if let Some(source_type) =
-            crate::value_custody::places::declared_place_type_raw(program, machine, state, value)
-        {
-            append_type_atoms(program, source_type, &mut atoms, &mut Vec::new());
-        }
-        atoms
-    }
-
-    fn append_type_atoms(
-        program: &dyn CheckingInput,
-        type_reference: TypeReferenceHandle,
-        atoms: &mut Vec<DomainAtom>,
-        stack: &mut Vec<SymbolHandle>,
-    ) {
-        if !type_reference.is_valid() {
-            return;
-        }
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Reference { referee, .. } => {
-                append_type_atoms(program, *referee, atoms, stack);
-            }
-            TypeReferenceNode::Constrained {
-                base_type,
-                constraints,
-            } => {
-                append_type_atoms(program, *base_type, atoms, stack);
-                for constraint in program.type_reference_table.constraints(*constraints) {
-                    match constraint {
-                        TypeConstraintNode::Domain(domain) if domain.symbol.is_valid() => {
-                            append_declared_atom(
-                                program,
-                                domain.symbol,
-                                domain.semantic_id,
-                                !domain.arguments.is_empty(),
-                                Some(domain_constraint_label(program, domain)),
-                                atoms,
-                                stack,
-                            );
-                        }
-                        TypeConstraintNode::ArithmeticDomain(domain)
-                            if *domain != ArithmeticDomain::Exact =>
-                        {
-                            push_unique(atoms, DomainAtom::Arithmetic(*domain));
-                        }
-                        _ => {}
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-
-    fn append_declared_atom(
-        program: &dyn CheckingInput,
-        symbol: SymbolHandle,
-        instance: language_semantics::SemanticDomainId,
-        indexed: bool,
-        label: Option<String>,
-        atoms: &mut Vec<DomainAtom>,
-        stack: &mut Vec<SymbolHandle>,
-    ) {
-        if !symbol.is_valid() || stack.contains(&symbol) {
-            return;
-        }
-        let Some(domain) = program.domain_definition(symbol) else {
-            return;
-        };
-        if let Some(alias) = domain.alias.as_ref() {
-            stack.push(symbol);
-            for constituent in &alias.constituents {
-                append_declared_atom(
-                    program,
-                    constituent.domain_symbol,
-                    language_semantics::SemanticDomainId::NULL,
-                    false,
-                    None,
-                    atoms,
-                    stack,
-                );
-            }
-            stack.pop();
-        } else {
-            push_unique(
-                atoms,
-                DomainAtom::Declared {
-                    family: symbol,
-                    instance,
-                    indexed,
-                    label: label.unwrap_or_else(|| domain.name.to_string()),
-                },
-            );
-            stack.push(symbol);
-            for membership in typed_trees::domain::subject_membership_facts(program, domain) {
-                append_declared_atom(
-                    program,
-                    membership.domain_symbol,
-                    membership.semantic_domain,
-                    !membership.domain_arguments.is_empty(),
-                    None,
-                    atoms,
-                    stack,
-                );
-            }
-            stack.pop();
-        }
-    }
-
-    fn push_unique(atoms: &mut Vec<DomainAtom>, atom: DomainAtom) {
-        if !atoms.contains(&atom) {
-            atoms.push(atom);
-        }
-    }
-
-    fn atom_requires_explicit_removal(program: &dyn CheckingInput, atom: &DomainAtom) -> bool {
-        match atom {
-            DomainAtom::Arithmetic(_) => true,
-            DomainAtom::Declared {
-                family: symbol,
-                indexed,
-                ..
-            } => {
-                *indexed
-                    || program.domain_definition(*symbol).is_some_and(|domain| {
-                        !domain.semantic_roles.is_empty() || !domain.establishment_routes.is_empty()
-                    })
-            }
-        }
-    }
-
-    fn atoms_equivalent(
-        program: &dyn CheckingInput,
-        left: &DomainAtom,
-        right: &DomainAtom,
-    ) -> bool {
-        match (left, right) {
-            (DomainAtom::Arithmetic(left), DomainAtom::Arithmetic(right)) => left == right,
-            (
-                DomainAtom::Declared {
-                    family: left_family,
-                    instance: left_instance,
-                    ..
-                },
-                DomainAtom::Declared {
-                    family: right_family,
-                    instance: right_instance,
-                    ..
-                },
-            ) => {
-                if left_instance.is_valid() && right_instance.is_valid() {
-                    return left_instance == right_instance;
-                }
-                if left_family == right_family {
-                    return true;
-                }
-                let semantic_id = |symbol| {
-                    program
-                        .domain_definition(symbol)
-                        .map(|domain| domain.semantic_id)
-                };
-                matches!((semantic_id(*left_family), semantic_id(*right_family)), (Some(left), Some(right)) if left.is_valid() && left == right)
-            }
-            _ => false,
-        }
-    }
-
-    fn atom_label(atom: &DomainAtom) -> String {
-        match atom {
-            DomainAtom::Arithmetic(domain) => domain.name().to_owned(),
-            DomainAtom::Declared { label, .. } => label.clone(),
-        }
-    }
-
-    fn domain_argument_display(
-        program: &dyn CheckingInput,
-        argument: TypeReferenceHandle,
-    ) -> String {
-        match program.type_reference_table.type_reference(argument) {
-            TypeReferenceNode::Named { name, .. } => CanonicalConstValue::from_atom(name.as_str())
-                .map_or_else(|| name.to_string(), |value| value.display),
-            _ => program.display_type_reference(argument),
-        }
-    }
-
-    fn domain_constraint_label(program: &dyn CheckingInput, domain: &DomainConstraint) -> String {
-        if domain.arguments.is_empty() {
-            return domain.name.to_string();
-        }
-
-        let arguments = domain
-            .arguments
-            .iter()
-            .map(|argument| domain_argument_display(program, *argument))
-            .collect::<Vec<_>>()
-            .join(", ");
-        format!("{}<{arguments}>", domain.name)
-    }
-
-    fn qualification_cast_label(program: &dyn CheckingInput, cast: &TableCastExpression) -> String {
-        let name = expression_table(program).name_path_string(cast.semantic_domain);
-        if cast.semantic_domain_arguments.is_empty() {
-            return name;
-        }
-        let arguments = program
-            .type_reference_table
-            .type_reference_handles(cast.semantic_domain_arguments)
-            .iter()
-            .map(|argument| domain_argument_display(program, *argument))
-            .collect::<Vec<_>>()
-            .join(", ");
-        format!("{name}<{arguments}>")
-    }
-}
-
 pub mod expression_owners {
     pub(crate) mod call_targets {
         use super::environments::{exact_owner_environments, executable_site_environment};
@@ -2576,7 +1494,7 @@ pub mod expression_owners {
         ) -> Option<SymbolHandle> {
             let mut target = None;
             if let Some(owner_index) = owner_index {
-                for site in owner_index.executable_sites(expression) {
+                for site in owner_index.executable_sites(expression).ok()? {
                     let machine = &program.machines()[site.machine];
                     if crate::declarations::selection_resolution::machine_is_template_instance(
                         program, machine,
@@ -2958,6 +1876,7 @@ pub mod expression_owners {
         ) -> TypeEnvironment {
             TypeEnvironment {
                 owner,
+                runtime_contract: None,
                 trait_scope: None,
                 self_type,
                 result_type: result_type.is_valid().then_some(result_type),
@@ -3011,9 +1930,14 @@ pub mod expression_owners {
             collect_proposition_environments(program, expression, &mut environments);
             collect_measure_environments(program, expression, &mut environments);
             collect_parameter_constraint_environments(program, expression, &mut environments)?;
-            environments.extend(data_type_environments(program).into_iter().filter_map(
-                |(reached, environment)| reached.contains(&expression).then_some(environment),
-            ));
+            environments.extend(
+                data_type_environments(program)
+                    .ok()?
+                    .into_iter()
+                    .filter_map(|(reached, environment)| {
+                        reached.contains(&expression).then_some(environment)
+                    }),
+            );
             for declaration in program.const_declarations() {
                 if [
                     declaration.authored_initializer,
@@ -3030,6 +1954,16 @@ pub mod expression_owners {
                     });
                 }
             }
+            environments.extend(
+                typed_trees::source_expression_types::callable_environments(
+                    program.typed_program(),
+                )
+                .ok()?
+                .into_iter()
+                .filter_map(|(reached, environment)| {
+                    reached.contains(&expression).then_some(environment)
+                }),
+            );
             collect_ranking_environments(program, expression, &mut environments);
             collect_executable_environments(program, expression, &mut environments)?;
             (!environments.is_empty()).then_some(environments)
@@ -3134,7 +2068,7 @@ pub mod expression_owners {
                             parameter.type_reference,
                             expression,
                             &mut Vec::new(),
-                        ) {
+                        )? {
                             continue;
                         }
                         let environment = TypeEnvironment {
@@ -3202,7 +2136,7 @@ pub mod expression_owners {
                     parameter.type_reference,
                     expression,
                     &mut Vec::new(),
-                ) {
+                )? {
                     continue;
                 }
                 let environment = environment_from_parameters(
@@ -3249,7 +2183,7 @@ pub mod expression_owners {
 
         pub(crate) fn data_type_environments(
             program: &dyn crate::CheckingInput,
-        ) -> Vec<(Vec<ExpressionHandle>, TypeEnvironment)> {
+        ) -> Result<Vec<(Vec<ExpressionHandle>, TypeEnvironment)>, &'static str> {
             let mut environments = Vec::new();
             for definition in program.data_definitions() {
                 let bindings = program
@@ -3303,7 +2237,7 @@ pub mod expression_owners {
                             reached.extend(super::indexing::type_reference_reachable_expressions(
                                 program,
                                 field.type_reference,
-                            ));
+                            )?);
                         }
                         typed_trees::data::DataMember::Variant(variant) => {
                             let mut payload_reached = Vec::new();
@@ -3325,7 +2259,7 @@ pub mod expression_owners {
                                     super::indexing::type_reference_reachable_expressions(
                                         program,
                                         field.type_reference,
-                                    ),
+                                    )?,
                                 );
                             }
                             if !payload_reached.is_empty() {
@@ -3352,7 +2286,7 @@ pub mod expression_owners {
                     ));
                 }
             }
-            environments
+            Ok(environments)
         }
     }
     pub(crate) mod indexing {
@@ -3367,13 +2301,13 @@ pub mod expression_owners {
         pub(crate) type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
         use typed_trees::expression::ExpressionHandle;
         use typed_trees::signature::StateParameter;
-        use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+        use typed_trees::types::TypeReferenceHandle;
 
         pub(crate) fn build_owner_environment_index(
             program: &dyn CheckingInput,
             contract_facts: &arena::Arena<checked_trees::ContractProofFact>,
             call_signatures: &arena::Arena<checked_trees::CallContractSignature>,
-        ) -> OwnerIndex {
+        ) -> Result<OwnerIndex, &'static str> {
             let mut index = OwnerIndex::default();
             for (handle, contract) in contract_facts.iter() {
                 let reached = proof_fact_handle_reachable_expressions(program, contract.fact);
@@ -3409,8 +2343,8 @@ pub mod expression_owners {
             }
             index_proposition_environments(program, &mut index);
             index_measure_environments(program, &mut index);
-            index_parameter_constraint_environments(program, &mut index);
-            for (reached, environment) in super::environments::data_type_environments(program) {
+            index_parameter_constraint_environments(program, &mut index)?;
+            for (reached, environment) in super::environments::data_type_environments(program)? {
                 index.add_all(reached, || environment);
             }
             for declaration in program.const_declarations() {
@@ -3426,9 +2360,16 @@ pub mod expression_owners {
                     ..Default::default()
                 });
             }
+            for (reached, environment) in
+                typed_trees::source_expression_types::callable_environments(
+                    program.typed_program(),
+                )?
+            {
+                index.add_all(reached, || environment);
+            }
             index_ranking_environments(program, &mut index);
             index_executable_environments(program, &mut index);
-            index
+            Ok(index)
         }
 
         /// Preparation needs the lexical binders of retained contracts, but cannot
@@ -3516,77 +2457,12 @@ pub mod expression_owners {
         pub(crate) fn type_reference_reachable_expressions(
             program: &dyn CheckingInput,
             type_reference: TypeReferenceHandle,
-        ) -> HashSet<ExpressionHandle> {
-            let mut reached = HashSet::default();
-            collect_type_reference_expressions(
-                program,
+        ) -> Result<HashSet<ExpressionHandle>, &'static str> {
+            typed_trees::source_expression_types::type_inputs(
+                program.typed_program(),
                 type_reference,
-                &mut Vec::new(),
-                &mut reached,
-            );
-            reached
-        }
-
-        pub(crate) fn collect_type_reference_expressions(
-            program: &dyn CheckingInput,
-            type_reference: TypeReferenceHandle,
-            visited: &mut Vec<TypeReferenceHandle>,
-            reached: &mut HashSet<ExpressionHandle>,
-        ) {
-            if !type_reference.is_valid() || visited.contains(&type_reference) {
-                return;
-            }
-            visited.push(type_reference);
-            match program.type_reference_table.type_reference(type_reference) {
-                TypeReferenceNode::Reference { referee, .. } => {
-                    collect_type_reference_expressions(program, *referee, visited, reached)
-                }
-                TypeReferenceNode::Constrained {
-                    base_type,
-                    constraints,
-                } => {
-                    collect_type_reference_expressions(program, *base_type, visited, reached);
-                    for constraint in program.type_reference_table.constraints(*constraints) {
-                        match constraint {
-                            TypeConstraintNode::Domain(domain) => {
-                                for argument in &domain.arguments {
-                                    collect_type_reference_expressions(
-                                        program, *argument, visited, reached,
-                                    );
-                                }
-                            }
-                            TypeConstraintNode::Named(_)
-                            | TypeConstraintNode::ArithmeticDomain(_) => {}
-                        }
-                    }
-                }
-                TypeReferenceNode::FixedArray {
-                    element_type,
-                    length,
-                } => {
-                    collect_type_reference_expressions(program, *element_type, visited, reached);
-                    if let typed_trees::types::FixedArrayLength::Expression(value) = length {
-                        collect_type_reference_expressions(program, *value, visited, reached);
-                    }
-                }
-                TypeReferenceNode::Slice { element_type } => {
-                    collect_type_reference_expressions(program, *element_type, visited, reached)
-                }
-                TypeReferenceNode::Generic { arguments, .. } => {
-                    for argument in program
-                        .type_reference_table
-                        .type_reference_handles(*arguments)
-                    {
-                        collect_type_reference_expressions(program, *argument, visited, reached);
-                    }
-                }
-                TypeReferenceNode::ConstExpression(root) => {
-                    reached.extend(super::reachable_expressions(program, *root));
-                }
-                TypeReferenceNode::DynamicTrait { .. }
-                | TypeReferenceNode::Named { .. }
-                | TypeReferenceNode::Unit => {}
-            }
+            )
+            .map(|inputs| inputs.expressions.into_iter().collect())
         }
 
         pub(crate) fn index_proposition_environments(
@@ -3649,13 +2525,16 @@ pub mod expression_owners {
         pub(crate) fn index_parameter_constraint_environments(
             program: &dyn CheckingInput,
             index: &mut OwnerIndex,
-        ) {
+        ) -> Result<(), &'static str> {
             for machine in program.machines() {
                 for state in program.machine_states(machine) {
                     let parameters = program.state_parameters(state);
                     for (parameter_index, parameter) in parameters.iter().enumerate() {
                         index.add_all(
-                            type_reference_reachable_expressions(program, parameter.type_reference),
+                            type_reference_reachable_expressions(
+                                program,
+                                parameter.type_reference,
+                            )?,
                             || TypeEnvironment {
                                 owner: machine.symbol,
                                 self_type: machine
@@ -3684,7 +2563,7 @@ pub mod expression_owners {
                     program.state_signature_parameters(contract.signature),
                     contract.trait_scope,
                     index,
-                );
+                )?;
             }
             for operator in program.all_operators() {
                 index_telescope_parameters(
@@ -3692,7 +2571,7 @@ pub mod expression_owners {
                     operator.symbol,
                     program.operator_parameters(operator),
                     index,
-                );
+                )?;
             }
             for proposition in program.propositions() {
                 index_telescope_parameters(
@@ -3700,8 +2579,9 @@ pub mod expression_owners {
                     proposition.symbol,
                     program.proposition_parameters(proposition),
                     index,
-                );
+                )?;
             }
+            Ok(())
         }
 
         pub(crate) fn index_telescope_parameters(
@@ -3709,8 +2589,8 @@ pub mod expression_owners {
             owner: symbols::SymbolHandle,
             parameters: &[StateParameter],
             index: &mut OwnerIndex,
-        ) {
-            index_telescope_parameters_in_scope(program, owner, parameters, None, index);
+        ) -> Result<(), &'static str> {
+            index_telescope_parameters_in_scope(program, owner, parameters, None, index)
         }
 
         fn index_telescope_parameters_in_scope(
@@ -3719,10 +2599,10 @@ pub mod expression_owners {
             parameters: &[StateParameter],
             trait_scope: Option<typed_trees::trait_definition::RetainedTraitScope>,
             index: &mut OwnerIndex,
-        ) {
+        ) -> Result<(), &'static str> {
             for (parameter_index, parameter) in parameters.iter().enumerate() {
                 index.add_all(
-                    type_reference_reachable_expressions(program, parameter.type_reference),
+                    type_reference_reachable_expressions(program, parameter.type_reference)?,
                     || {
                         let mut environment = environment_from_parameters(
                             owner,
@@ -3735,6 +2615,7 @@ pub mod expression_owners {
                     },
                 );
             }
+            Ok(())
         }
 
         pub(crate) fn index_ranking_environments(
@@ -3839,69 +2720,21 @@ pub mod expression_owners {
         /// Handle-keyed indexes and reach sets take the integer hasher.
         use symbols::SymbolHandle;
         use typed_trees::data::DataMember;
-        use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
-        use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+        use typed_trees::expression::{ExpressionHandle, TableMemberExpression};
+        use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
         pub(crate) fn type_reference_contains_expression(
             program: &dyn crate::CheckingInput,
             type_reference: TypeReferenceHandle,
             expression: ExpressionHandle,
-            visited: &mut Vec<TypeReferenceHandle>,
-        ) -> bool {
-            if !type_reference.is_valid() || visited.contains(&type_reference) {
-                return false;
-            }
-            visited.push(type_reference);
-            match program.type_reference_table.type_reference(type_reference) {
-                TypeReferenceNode::Reference { referee, .. } => {
-                    type_reference_contains_expression(program, *referee, expression, visited)
-                }
-                TypeReferenceNode::Constrained {
-                    base_type,
-                    constraints,
-                } => {
-                    type_reference_contains_expression(program, *base_type, expression, visited)
-                        || program
-                            .type_reference_table
-                            .constraints(*constraints)
-                            .iter()
-                            .any(|constraint| match constraint {
-                                TypeConstraintNode::Domain(domain) => {
-                                    domain.arguments.iter().any(|argument| {
-                                        type_reference_contains_expression(
-                                            program, *argument, expression, visited,
-                                        )
-                                    })
-                                }
-                                TypeConstraintNode::Named(_)
-                                | TypeConstraintNode::ArithmeticDomain(_) => false,
-                            })
-                }
-                TypeReferenceNode::FixedArray {
-                    element_type,
-                    length,
-                } => {
-                    type_reference_contains_expression(program, *element_type, expression, visited)
-                        || matches!(length, typed_trees::types::FixedArrayLength::Expression(value)
-                            if type_reference_contains_expression(program, *value, expression, visited))
-                }
-                TypeReferenceNode::Slice { element_type } => {
-                    type_reference_contains_expression(program, *element_type, expression, visited)
-                }
-                TypeReferenceNode::Generic { arguments, .. } => program
-                    .type_reference_table
-                    .type_reference_handles(*arguments)
-                    .iter()
-                    .any(|argument| {
-                        type_reference_contains_expression(program, *argument, expression, visited)
-                    }),
-                TypeReferenceNode::ConstExpression(root) => {
-                    super::expression_contains(program, *root, expression)
-                }
-                TypeReferenceNode::DynamicTrait { .. }
-                | TypeReferenceNode::Named { .. }
-                | TypeReferenceNode::Unit => false,
-            }
+            _visited: &mut Vec<TypeReferenceHandle>,
+        ) -> Option<bool> {
+            typed_trees::source_expression_types::type_inputs(
+                program.typed_program(),
+                type_reference,
+            )
+            .ok()
+            .map(|inputs| inputs.expressions.contains(&expression))
         }
 
         pub(crate) fn member_target_in_environment(
@@ -3987,173 +2820,69 @@ pub mod expression_owners {
             }
         }
 
+        struct SourceTypes<'program>(&'program dyn crate::CheckingInput);
+        impl typed_trees::source_expression_types::ExpressionTypes for SourceTypes<'_> {
+            fn typed(&self) -> &typed_trees::TypedTrees {
+                self.0.typed_program()
+            }
+            fn declaration_type(&self, symbol: SymbolHandle) -> Option<TypeReferenceHandle> {
+                crate::declaration_type_reference(self.0, symbol)
+            }
+            fn member_type(
+                &self,
+                receiver: InferredType,
+                member: &TableMemberExpression,
+            ) -> Option<TypeReferenceHandle> {
+                match receiver {
+                    InferredType::TypeReference(reference) => {
+                        crate::value_custody::places::applied_data_member_field(
+                            self.0, reference, member,
+                        )
+                        .map(|field| field.type_reference)
+                    }
+                    InferredType::Nominal(_) => resolve_member_symbol(self.0, receiver, member)
+                        .and_then(|symbol| crate::declaration_type_reference(self.0, symbol)),
+                    InferredType::CollectionView(_) | InferredType::CompilerString => None,
+                }
+            }
+            fn collection_measure_type(
+                &self,
+                receiver: InferredType,
+                member: &TableMemberExpression,
+            ) -> Option<TypeReferenceHandle> {
+                collection_measure_in_environment(self.0, member, receiver)?;
+                crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
+                    self.0,
+                    symbols::BuiltinTypeAtom::U64,
+                )
+            }
+            fn computation_type(
+                &self,
+                environment: &TypeEnvironment,
+                expression: ExpressionHandle,
+                leaf_type: &dyn Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
+            ) -> Option<TypeReferenceHandle> {
+                crate::value_custody::expression_types::declaration_expression_result_type_reference(
+                    self.0,
+                    environment.owner,
+                    environment.trait_scope,
+                    leaf_type,
+                    expression,
+                )
+            }
+        }
         pub(crate) fn infer_expression_type(
             program: &dyn crate::CheckingInput,
             expression: ExpressionHandle,
             environment: &TypeEnvironment,
             visited: &mut Vec<ExpressionHandle>,
         ) -> Option<InferredType> {
-            if !expression.is_valid() || visited.contains(&expression) {
-                return None;
-            }
-            visited.push(expression);
-            match program.expression_table.expression(expression) {
-                ExpressionNode::SavedSubject(saved) => {
-                    program.saved_value_source(saved).and_then(|subject| {
-                        infer_expression_type(program, subject, environment, visited)
-                    })
-                }
-                ExpressionNode::Match(dispatch) => {
-                    let mut result = None;
-                    for arm in program.expression_table.match_arms(dispatch.arms) {
-                        let arm_type = infer_expression_type(
-                            program,
-                            arm.value,
-                            environment,
-                            &mut visited.clone(),
-                        )?;
-                        if result.is_some_and(|previous| previous != arm_type) {
-                            return None;
-                        }
-                        result = Some(arm_type);
-                    }
-                    result
-                }
-                ExpressionNode::Atomic(atomic) => {
-                    infer_expression_type(program, atomic.value, environment, visited)
-                }
-                ExpressionNode::Borrow(inner) => {
-                    infer_expression_type(program, inner.target, environment, visited)
-                }
-                ExpressionNode::Cast(cast) => Some(InferredType::TypeReference(cast.target_type)),
-                ExpressionNode::Name(path) => {
-                    if path.symbol.is_valid()
-                        && let Some(type_reference) =
-                            crate::value_custody::expression_types::named_value_type_reference(
-                                program, path,
-                            )
-                            .or_else(|| crate::declaration_type_reference(program, path.symbol))
-                    {
-                        return Some(InferredType::TypeReference(type_reference));
-                    }
-                    let [name] = program.expression_table.name_path_members(path.members) else {
-                        return None;
-                    };
-                    if !path.symbol.is_valid()
-                        && !path.head_symbol.is_valid()
-                        && name.is_self_receiver()
-                    {
-                        return environment.self_type;
-                    }
-                    if program.expression_table.names_reserved_result(expression) {
-                        return environment.result_type.map(InferredType::TypeReference);
-                    }
-                    let mut matches = environment
-                        .bindings
-                        .iter()
-                        .filter(|binding| {
-                            (path.head_symbol.is_valid() && binding.symbol == path.head_symbol)
-                                || (path.symbol.is_valid() && binding.symbol == path.symbol)
-                                || (!path.head_symbol.is_valid()
-                                    && !path.symbol.is_valid()
-                                    && binding.name == name.as_str())
-                        })
-                        .map(|binding| binding.type_reference);
-                    let first = matches.next()?;
-                    matches
-                        .all(|type_reference| type_reference == first)
-                        .then_some(InferredType::TypeReference(first))
-                }
-                ExpressionNode::Member(member) => {
-                    let receiver =
-                        infer_expression_type(program, member.receiver, environment, visited)?;
-                    let field_type = match receiver {
-                        InferredType::TypeReference(reference) => {
-                            // Chained field lookup needs the actual payload type.
-                            // Reopening its generic declaration loses that substitution.
-                            crate::value_custody::places::applied_data_member_field(
-                                program, reference, member,
-                            )
-                            .map(|field| field.type_reference)
-                        }
-                        InferredType::Nominal(_) => {
-                            resolve_member_symbol(program, receiver, member).and_then(|symbol| {
-                                crate::declaration_type_reference(program, symbol)
-                            })
-                        }
-                        InferredType::CollectionView(_) | InferredType::CompilerString => None,
-                    };
-                    if let Some(reference) = field_type {
-                        return Some(InferredType::TypeReference(reference));
-                    }
-                    // Measures have no authored field declaration. Their selected
-                    // receiver fixes a count carrier in declaration contracts too.
-                    collection_measure_in_environment(program, member, receiver)?;
-                    crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
-                        program,
-                        symbols::BuiltinTypeAtom::U64,
-                    )
-                    .map(InferredType::TypeReference)
-                }
-                ExpressionNode::Call(_)
-                | ExpressionNode::Binary(_)
-                | ExpressionNode::Unary(_)
-                | ExpressionNode::Boolean(_)
-                | ExpressionNode::Float(_)
-                | ExpressionNode::Integer(_) => {
-                    // The environment binds leaves; the ordinary result-type owner
-                    // selects computations. A separate call/binary recognizer here
-                    // lost proof Int and treated known operands as overload wildcards.
-                    // Keep the declaring owner so its trait meanings remain in scope.
-                    crate::value_custody::expression_types::declaration_expression_result_type_reference(
-                        program,
-                        environment.owner,
-                        environment.trait_scope,
-                        &|leaf| match infer_expression_type(
-                            program,
-                            leaf,
-                            environment,
-                            &mut visited.clone(),
-                        )? {
-                            InferredType::TypeReference(reference) => Some(reference),
-                            _ => None,
-                        },
-                        expression,
-                    )
-                    .map(InferredType::TypeReference)
-                }
-                ExpressionNode::Indexed(indexed) => {
-                    let collection =
-                        infer_expression_type(program, indexed.collection, environment, visited)?;
-                    let element_type = collection_element_type(program, collection)?;
-                    Some(
-                        if matches!(
-                            program.expression_table.expression(indexed.index),
-                            ExpressionNode::Range(_)
-                        ) {
-                            InferredType::CollectionView(element_type)
-                        } else {
-                            InferredType::TypeReference(element_type)
-                        },
-                    )
-                }
-                ExpressionNode::StructLiteral(literal) => {
-                    if literal.application_type.is_valid() {
-                        Some(InferredType::TypeReference(literal.application_type))
-                    } else {
-                        literal
-                            .type_symbol
-                            .is_valid()
-                            .then_some(InferredType::Nominal(literal.type_symbol))
-                    }
-                }
-                ExpressionNode::String(_) => Some(InferredType::CompilerString),
-                ExpressionNode::ArrayLiteral(_)
-                | ExpressionNode::UndeterminedNaN(_)
-                | ExpressionNode::Range(_)
-                | ExpressionNode::TypeExpression(_)
-                | ExpressionNode::ZeroValue(_) => None,
-            }
+            typed_trees::source_expression_types::infer_expression_type(
+                &SourceTypes(program),
+                expression,
+                environment,
+                visited,
+            )
         }
 
         pub(crate) fn resolve_member_symbol(
@@ -4218,20 +2947,10 @@ pub mod expression_owners {
             program: &dyn crate::CheckingInput,
             inferred: InferredType,
         ) -> Option<TypeReferenceHandle> {
-            let type_reference = match inferred {
-                InferredType::TypeReference(type_reference) => type_reference,
-                InferredType::CollectionView(element_type) => return Some(element_type),
-                InferredType::Nominal(_) | InferredType::CompilerString => return None,
-            };
-            match program.type_reference_table.type_reference(type_reference) {
-                TypeReferenceNode::Reference { referee, .. }
-                | TypeReferenceNode::Constrained {
-                    base_type: referee, ..
-                } => collection_element_type(program, InferredType::TypeReference(*referee)),
-                TypeReferenceNode::FixedArray { element_type, .. }
-                | TypeReferenceNode::Slice { element_type } => Some(*element_type),
-                _ => None,
-            }
+            typed_trees::source_expression_types::collection_element_type(
+                program.typed_program(),
+                inferred,
+            )
         }
     }
 
@@ -4307,29 +3026,7 @@ pub mod expression_owners {
         CollectionMeasure(CollectionMeasure),
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub(crate) enum InferredType {
-        TypeReference(TypeReferenceHandle),
-        Nominal(SymbolHandle),
-        CollectionView(TypeReferenceHandle),
-        CompilerString,
-    }
-
-    #[derive(Debug, Clone)]
-    pub(crate) struct Binding {
-        name: String,
-        symbol: SymbolHandle,
-        type_reference: TypeReferenceHandle,
-    }
-
-    #[derive(Debug, Clone, Default)]
-    pub(crate) struct TypeEnvironment {
-        owner: SymbolHandle,
-        trait_scope: Option<typed_trees::trait_definition::RetainedTraitScope>,
-        self_type: Option<InferredType>,
-        result_type: Option<TypeReferenceHandle>,
-        bindings: Vec<Binding>,
-    }
+    pub(crate) use typed_trees::source_expression_types::{Binding, InferredType, TypeEnvironment};
 
     #[derive(Default)]
     pub(crate) struct ExactOwnerEntry {
@@ -4381,7 +3078,7 @@ pub mod expression_owners {
     }
 
     pub struct OwnerEnvironmentIndex {
-        index: OwnerIndex,
+        index: Result<OwnerIndex, &'static str>,
         program_only: std::sync::OnceLock<Box<OwnerEnvironmentIndex>>,
     }
 
@@ -4390,7 +3087,9 @@ pub mod expression_owners {
         /// proof facts. These roots identify binders, never checked evidence.
         pub fn for_preparation(program: &dyn crate::CheckingInput) -> Self {
             let mut owners = Self::new(program, &arena::Arena::default());
-            indexing::index_contract_environments(program, &mut owners.index);
+            if let Ok(index) = &mut owners.index {
+                indexing::index_contract_environments(program, index);
+            }
             owners
         }
 
@@ -4423,19 +3122,32 @@ pub mod expression_owners {
         pub fn containing_statement_sites(
             &self,
             expression: ExpressionHandle,
-        ) -> Vec<(usize, usize, usize)> {
-            self.executable_sites(expression)
+        ) -> Result<Vec<(usize, usize, usize)>, &'static str> {
+            Ok(self
+                .executable_sites(expression)?
                 .into_iter()
                 .map(|site| (site.machine, site.state, site.statement))
-                .collect()
+                .collect())
         }
 
-        pub fn contains_expression(&self, expression: ExpressionHandle) -> bool {
-            self.index.entries.contains_key(&expression)
+        pub fn contains_expression(
+            &self,
+            expression: ExpressionHandle,
+        ) -> Result<bool, &'static str> {
+            Ok(self
+                .index
+                .as_ref()
+                .map_err(|reason| *reason)?
+                .entries
+                .contains_key(&expression))
+        }
+
+        pub fn validate_source_inputs(&self) -> Result<(), &'static str> {
+            self.index.as_ref().map(|_| ()).map_err(|reason| *reason)
         }
 
         fn environments(&self, expression: ExpressionHandle) -> Option<Vec<TypeEnvironment>> {
-            let index = &self.index;
+            let index = self.index.as_ref().ok()?;
             index
                 .entries
                 .get(&expression)
@@ -4449,23 +3161,32 @@ pub mod expression_owners {
                 .filter(|environments| !environments.is_empty())
         }
 
-        fn executable_sites(&self, expression: ExpressionHandle) -> Vec<ExecutableSite> {
-            self.index
+        fn executable_sites(
+            &self,
+            expression: ExpressionHandle,
+        ) -> Result<Vec<ExecutableSite>, &'static str> {
+            Ok(self
+                .index
+                .as_ref()
+                .map_err(|reason| *reason)?
                 .entries
                 .get(&expression)
                 .map(|entry| entry.executable_sites.clone())
-                .unwrap_or_default()
+                .unwrap_or_default())
         }
 
         pub fn containing_contract_facts(
             &self,
             expression: ExpressionHandle,
-        ) -> Vec<arena::Handle<ContractProofFact>> {
-            self.index
+        ) -> Result<Vec<arena::Handle<ContractProofFact>>, &'static str> {
+            Ok(self
+                .index
+                .as_ref()
+                .map_err(|reason| *reason)?
                 .entries
                 .get(&expression)
                 .map(|entry| entry.contract_facts.clone())
-                .unwrap_or_default()
+                .unwrap_or_default())
         }
     }
 
@@ -4474,12 +3195,28 @@ pub mod expression_owners {
         expression: ExpressionHandle,
         owners: &OwnerEnvironmentIndex,
     ) -> Option<SymbolHandle> {
+        owners.validate_source_inputs().ok()?;
         let mut owner =
             crate::proof_contracts::contract_results::source_contract_declaration_owner(
                 program, expression,
             )
             .ok()?;
-        for (machine, _, _) in owners.containing_statement_sites(expression) {
+        if let Some(environments) = owners.environments(expression) {
+            for environment in environments {
+                if let Some(contract) = environment.runtime_contract {
+                    let row = program.typed_program().runtime_callable_contract(contract);
+                    let candidate = row.lexical_owner;
+                    if candidate != environment.owner
+                        || !candidate.is_valid()
+                        || (owner.is_valid() && owner != candidate)
+                    {
+                        return None;
+                    }
+                    owner = candidate;
+                }
+            }
+        }
+        for (machine, _, _) in owners.containing_statement_sites(expression).ok()? {
             let candidate = program.machines().get(machine)?.symbol;
             if !candidate.is_valid() || (owner.is_valid() && owner != candidate) {
                 return None;
@@ -4744,7 +3481,10 @@ pub mod expression_owners {
                         }
                     }
                 }
-                assert_eq!(index.containing_statement_sites(expression), original);
+                assert_eq!(
+                    index.containing_statement_sites(expression).unwrap(),
+                    original
+                );
             }
         }
 
@@ -4774,7 +3514,7 @@ pub mod expression_owners {
                 assert_eq!(index.environments(expression).unwrap().len(), 3);
                 assert_eq!(index.environments(marker).unwrap().len(), 2);
                 assert_eq!(
-                    index.containing_statement_sites(expression),
+                    index.containing_statement_sites(expression).unwrap(),
                     vec![(0, 0, 0)]
                 );
                 let node = program.expression_table.call_node(expression).unwrap();
@@ -5878,446 +4618,19 @@ pub mod parameter_expression_meaning {
 }
 
 pub mod proof_embeddings {
-    pub(crate) type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
-
     use crate::CheckingInput;
     use crate::frozen_program::expression_table;
-    use diagnostics::Diagnostic;
     use numerics::bignum::BigInt;
-    use symbols::BuiltinFunction;
-    use symbols::BuiltinType;
-    use typed_trees::domain::ProofFact;
+    use symbols::{BuiltinFunction, BuiltinType};
     use typed_trees::expression::{
         BinaryOperator, ExpressionHandle, ExpressionNode, TableCallExpression, UnaryOperator,
     };
-    use typed_trees::proof_only::ProofOnlyClassification;
-    use typed_trees::proposition::{PropositionBody, PropositionFormula};
-    use typed_trees::statement::StatementNode;
     use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
-
-    use crate::queries::expression_traversal::collect_expression_nodes;
-
-    pub(crate) mod calls {
-        use std::collections::HashSet;
-
-        use super::{
-            Diagnostic, ExpressionHandle, ExpressionNode, PrimitiveType, TypeReferenceHandle,
-            TypeReferenceNode, collect_expression_nodes, expression_type_reference,
-            is_exact_embed_call, primitive_range,
-        };
-        #[derive(Debug, Clone, PartialEq, Eq)]
-        pub struct ValidatedIntegerEmbeddingCall {
-            pub call_expression: ExpressionHandle,
-            pub target_machine: symbols::SymbolHandle,
-            pub target_state: symbols::SymbolHandle,
-        }
-
-        pub(crate) fn validate_integer_embedding_calls(
-            program: &dyn crate::CheckingInput,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) -> Vec<ValidatedIntegerEmbeddingCall> {
-            let mut nodes = Vec::new();
-            let mut seen = HashSet::new();
-            for (_, expression) in program.expression_table.iter_expressions() {
-                if let ExpressionNode::Call(call) = expression
-                    && is_exact_embed_call(program, call)
-                {
-                    for argument in program.expression_table.expression_handles(call.arguments) {
-                        collect_expression_nodes(program, *argument, &mut nodes, &mut seen);
-                    }
-                }
-            }
-            let calls: Vec<_> = nodes
-                .into_iter()
-                .filter_map(
-                    |expression| match program.expression_table.expression(expression) {
-                        ExpressionNode::Call(call) if !is_exact_embed_call(program, call) => {
-                            Some((expression, call))
-                        }
-                        _ => None,
-                    },
-                )
-                .collect();
-            if calls.is_empty() {
-                return Vec::new();
-            }
-            let operational = crate::infer_operational_may(program);
-            let service_reaches = crate::infer_service_reaches(program, &operational);
-            let mut admitted = Vec::new();
-            for (expression, call) in calls {
-                let reject = |reason: &str, diagnostics: &mut Vec<Diagnostic>| {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "`embed` source call `{}` is not denotational: {reason}",
-                        call.target,
-                    )));
-                };
-                if let Some(dispatch) = &call.static_requirement_dispatch {
-                    reject(
-                        &format!(
-                            "static conformance dispatch selected a private realization `{}`; the public requirement `{}` is the contract, not a direct checked value call",
-                            program.symbols.name(dispatch.realization_state),
-                            program.symbols.name(dispatch.requirement),
-                        ),
-                        diagnostics,
-                    );
-                    continue;
-                }
-                if call.receiver.is_valid()
-                    || !call.selects_only_nominal_route()
-                    || !call.carries_only_positional_arguments()
-                {
-                    reject(
-                        "the source must select a direct checked value call",
-                        diagnostics,
-                    );
-                    continue;
-                }
-                if let Some((machine, state)) =
-                    crate::machine_calls::fact_call_projections::validate_checked_call_candidate(
-                        program,
-                        call,
-                        &operational,
-                        &service_reaches,
-                        &reject,
-                        diagnostics,
-                    )
-                {
-                    if program
-                        .machine_states(machine)
-                        .first()
-                        .map(|entry| entry.symbol)
-                        != Some(state.symbol)
-                    {
-                        reject(
-                            "the source must select the machine's exact entry state",
-                            diagnostics,
-                        );
-                        continue;
-                    }
-                    let parameters = program.state_parameters(state);
-                    let arguments = program.expression_table.expression_handles(call.arguments);
-                    if arguments.len() != parameters.len() {
-                        reject(
-                            &format!(
-                                "expected {} value arguments, got {}",
-                                parameters.len(),
-                                arguments.len()
-                            ),
-                            diagnostics,
-                        );
-                        continue;
-                    }
-                    let mut arguments_match = true;
-                    for (argument, parameter) in arguments.iter().zip(parameters) {
-                        if !argument_has_exact_type(program, *argument, parameter.type_reference) {
-                            reject(
-                                &format!(
-                                    "argument `{}` must establish its exact declared type `{}`; implicit specialization or narrowing is not admitted here",
-                                    parameter.name,
-                                    program.display_type_reference_with_constraints(
-                                        parameter.type_reference
-                                    ),
-                                ),
-                                diagnostics,
-                            );
-                            arguments_match = false;
-                        }
-                    }
-                    if !arguments_match {
-                        continue;
-                    }
-                    admitted.push(ValidatedIntegerEmbeddingCall {
-                        call_expression: expression,
-                        target_machine: machine.symbol,
-                        target_state: state.symbol,
-                    });
-                }
-            }
-            admitted
-        }
-
-        fn argument_has_exact_type(
-            program: &dyn crate::CheckingInput,
-            argument: ExpressionHandle,
-            expected: TypeReferenceHandle,
-        ) -> bool {
-            if !crate::value_custody::expression_types::argument_matches_type_reference_handle(
-                program, argument, expected,
-            ) {
-                return false;
-            }
-            if let Some(actual) = expression_type_reference(program, argument) {
-                return program.normalized_type_identity(actual)
-                    == program.normalized_type_identity(expected);
-            }
-            if !matches!(
-                program.type_reference_table.type_reference(expected),
-                TypeReferenceNode::Named { .. }
-            ) {
-                return false;
-            }
-            let Some(primitive) = program.primitive_type_reference(expected) else {
-                return false;
-            };
-            match program.expression_table.expression(argument) {
-                ExpressionNode::Integer(literal) => {
-                    let Some((minimum, maximum)) = primitive_range(primitive) else {
-                        return false;
-                    };
-                    literal
-                        .value_bignum()
-                        .is_some_and(|value| value >= minimum && value <= maximum)
-                }
-                ExpressionNode::Boolean(_) => primitive == PrimitiveType::Bool,
-                _ => false,
-            }
-        }
-    }
-    pub use calls::ValidatedIntegerEmbeddingCall;
-    pub(crate) use calls::validate_integer_embedding_calls;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub(crate) struct IntegerEmbedding {
         pub(crate) primitive: PrimitiveType,
         pub(crate) interval: crate::proof_contracts::arithmetic_domains::BigIntInterval,
-    }
-
-    pub(crate) fn validate_proof_embeddings(
-        program: &dyn CheckingInput,
-        classification: &ProofOnlyClassification,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        for machine in program.machines() {
-            if machine.name.as_str().rsplit("::").next() == Some("embed") {
-                diagnostics.push(Diagnostic::error(
-                "`embed` is a compiler-owned proof term and cannot be declared or implemented as a machine",
-            ));
-            }
-        }
-        let mut proof_nodes = Vec::new();
-        let mut runtime_nodes = Vec::new();
-        let mut proof_seen = HashSet::default();
-        let mut runtime_seen = HashSet::default();
-        macro_rules! nodes {
-            ($a:expr => $b:expr => $c:expr => $d:expr) => {
-                collect_expression_nodes($a, $b, $c, $d)
-            };
-        }
-        for (_, fact) in typed_trees::references::program_proof_facts(program) {
-            match fact {
-                ProofFact::Expression(expression) => {
-                    collect_expression_nodes(
-                        program,
-                        *expression,
-                        &mut proof_nodes,
-                        &mut proof_seen,
-                    );
-                }
-                ProofFact::Membership(membership) => {
-                    nodes!(program => membership.value => &mut proof_nodes => &mut proof_seen);
-                }
-                ProofFact::Proposition(application) => {
-                    for argument in
-                        expression_table(program).expression_handles(application.arguments)
-                    {
-                        collect_expression_nodes(
-                            program,
-                            *argument,
-                            &mut proof_nodes,
-                            &mut proof_seen,
-                        );
-                    }
-                }
-            }
-        }
-        // Preparing a callable can replace a copied signature while its old
-        // expression rows remain allocated. Those contract rows still describe
-        // proof contexts. This census grants no fact and runtime uses below
-        // remain executable demands, even when the same node occurs in a contract.
-        for (_, clause) in program.signature_contracts.iter() {
-            for fact in program.proof_facts.span_or_empty(clause.facts) {
-                match fact {
-                    ProofFact::Expression(expression) => {
-                        collect_expression_nodes(
-                            program,
-                            *expression,
-                            &mut proof_nodes,
-                            &mut proof_seen,
-                        );
-                    }
-                    ProofFact::Membership(membership) => {
-                        nodes!(program => membership.value => &mut proof_nodes => &mut proof_seen);
-                    }
-                    ProofFact::Proposition(application) => {
-                        for argument in
-                            expression_table(program).expression_handles(application.arguments)
-                        {
-                            nodes!(program => *argument => &mut proof_nodes => &mut proof_seen);
-                        }
-                    }
-                }
-            }
-        }
-        for expression in crate::mathematical_applications::expression_nodes(program) {
-            collect_expression_nodes(program, expression, &mut proof_nodes, &mut proof_seen);
-        }
-        for proposition in program.propositions() {
-            if let PropositionBody::Transparent { proposition } = &proposition.body {
-                match proposition {
-                    PropositionFormula::BooleanExpression(expression) => {
-                        nodes!(program => *expression => &mut proof_nodes => &mut proof_seen);
-                    }
-                    PropositionFormula::Application(application) => {
-                        for argument in
-                            expression_table(program).expression_handles(application.arguments)
-                        {
-                            nodes!(program => *argument => &mut proof_nodes => &mut proof_seen);
-                        }
-                    }
-                }
-            }
-        }
-        for machine in program.machines() {
-            for data in program.machine_owned_data(machine) {
-                nodes!(program => data.initial_value => &mut runtime_nodes => &mut runtime_seen);
-            }
-            if classification.is_proof_machine(program, machine)
-                || crate::mathematical_applications::is_indexed_logical_machine(program, machine)
-            {
-                for state in program.machine_states(machine) {
-                    for statement in program.statement_table.statements(state.statement_nodes) {
-                        collect_statement_nodes(
-                            program,
-                            statement,
-                            &mut proof_nodes,
-                            &mut proof_seen,
-                        );
-                    }
-                }
-            } else if let Some(expression) =
-                crate::value_custody::content_projections::content_projection_body_expression(
-                    program, machine,
-                )
-            {
-                collect_expression_nodes(program, expression, &mut proof_nodes, &mut proof_seen);
-            } else {
-                for state in program.machine_states(machine) {
-                    for statement in program.statement_table.statements(state.statement_nodes) {
-                        if let Some(fact) = statement.as_assembly_fact() {
-                            for expression in program.tables.proof_fact_expression_roots(fact.fact)
-                            {
-                                nodes!(program => expression => &mut proof_nodes => &mut proof_seen);
-                            }
-                        } else {
-                            collect_statement_nodes(
-                                program,
-                                statement,
-                                &mut runtime_nodes,
-                                &mut runtime_seen,
-                            );
-                        }
-                    }
-                }
-            }
-        }
-
-        for expression in crate::mathematical_applications::erased_initializer_nodes(program).iter()
-        {
-            proof_seen.insert(*expression);
-            runtime_seen.remove(expression);
-        }
-
-        for (handle, node) in expression_table(program).iter_expressions() {
-            let mathematical = match node {
-                ExpressionNode::Name(path) => {
-                    program.symbols.builtin_type_member(path.symbol).is_some()
-                }
-                ExpressionNode::Call(call) => {
-                    crate::mathematical_applications::is_mathematical_call(program, call)
-                }
-                _ => false,
-            };
-            if mathematical && (!proof_seen.contains(&handle) || runtime_seen.contains(&handle)) {
-                diagnostics.push(
-                    Diagnostic::error(format!(
-                        "mathematical terms are proof-only and cannot be used as executable values or statements: `{}` {}",
-                        expression_table(program).display_name(handle),
-                        if runtime_seen.contains(&handle) {
-                            "is demanded by executable code"
-                        } else {
-                            "has no retained proof context"
-                        },
-                    ))
-                    .with_source_span(expression_table(program).source_span(handle)),
-                );
-            }
-            let ExpressionNode::Call(call) = node else {
-                continue;
-            };
-            let exact = is_exact_embed_call(program, call);
-            let names_embed = call.target.as_str().rsplit("::").next() == Some("embed");
-            if !exact && !names_embed {
-                continue;
-            }
-            if !exact {
-                diagnostics.push(Diagnostic::error(
-                "`embed` is a compiler-owned proof term; an authored, package-qualified, or same-spelled call cannot replace it",
-            ));
-            } else if !proof_seen.contains(&handle) || runtime_seen.contains(&handle) {
-                diagnostics.push(Diagnostic::error(
-                "compiler-owned `embed(value)` is proof-only and cannot be used in an executable value or statement",
-            ));
-            } else if !has_embedding_shape(call) {
-                diagnostics.push(Diagnostic::error(
-                "compiler-owned `embed` requires exactly one receiverless value argument and no static or evidence arguments",
-            ));
-            } else if expression_table(program)
-                .expression_handles(call.arguments)
-                .first()
-                .and_then(|argument| integer_embedding(program, *argument))
-                .is_none()
-            {
-                diagnostics.push(Diagnostic::error(
-                "compiler-owned `embed(value)` accepts only a fixed-width integer or address value",
-            ));
-            }
-        }
-        for machine in program.machines() {
-            for state in program.machine_states(machine) {
-                for statement in program.statement_table.statements(state.statement_nodes) {
-                    if let Some(call) = statement.as_call()
-                        && program
-                            .mathematical_definitions()
-                            .iter()
-                            .any(|definition| definition.symbol == call.target_symbol)
-                    {
-                        diagnostics.push(Diagnostic::error("a mathematical definition denotes a proof term, not an executable statement call"));
-                    }
-                    if let Some(call) = statement.as_call()
-                        && (program
-                            .symbols
-                            .builtin_function_for_symbol(call.target_symbol)
-                            == Some(BuiltinFunction::IntegerEmbed)
-                            || call.target.as_str().rsplit("::").next() == Some("embed"))
-                    {
-                        diagnostics.push(Diagnostic::error(
-                        "compiler-owned `embed(value)` is a proof value, not an executable statement call",
-                    ));
-                    }
-                }
-            }
-        }
-    }
-
-    fn has_embedding_shape(call: &TableCallExpression) -> bool {
-        !call.receiver.is_valid()
-            && call.arguments.len() == 1
-            && call.machine_arguments.is_empty()
-            && call.evidence_arguments.is_empty()
-            && call.static_requirement_dispatch.is_none()
-            && call.quotient_operation.is_none()
-            && call.private_layout_operation.is_none()
-            && call.installed_interrupt_operation.is_none()
     }
 
     pub(crate) fn is_exact_embed_call(
@@ -6554,17 +4867,6 @@ pub mod proof_embeddings {
             .integer_bounds()
             .map(|(minimum, maximum)| (BigInt::from_i128(minimum), BigInt::from_i128(maximum)))
     }
-
-    fn collect_statement_nodes(
-        program: &dyn CheckingInput,
-        statement: &StatementNode,
-        nodes: &mut Vec<ExpressionHandle>,
-        seen: &mut HashSet<ExpressionHandle>,
-    ) {
-        for (_, expression) in program.tables.expression_roots(statement) {
-            collect_expression_nodes(program, expression, nodes, seen);
-        }
-    }
 }
 
 pub mod proof_facts {
@@ -6577,11 +4879,9 @@ pub mod proof_facts {
     use std::fmt;
     use symbols::JoinedPath;
     use symbols::SymbolHandle;
-    use typed_trees::data::DataMember;
     use typed_trees::domain::ProofFact;
     use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
     use typed_trees::name::Identifier;
-    use typed_trees::trait_definition::TraitDefinition;
     use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
     pub(crate) mod proposition_parameters {
@@ -6714,206 +5014,6 @@ pub mod proof_facts {
             "{owner} references unknown domain `{}`",
             domain_path_label(program, domain)
         )))
-    }
-
-    pub(crate) fn validate_proposition_definitions(
-        program: &dyn CheckingInput,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        for proposition in program.propositions() {
-            let mut visiting = Vec::new();
-            if transparent_proposition_cycle(program, proposition.symbol, &mut visiting) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "transparent proposition `{}` participates in an alias cycle",
-                    proposition.name.as_str()
-                )));
-            }
-            if let typed_trees::proposition::PropositionBody::Witness { evidence } =
-                proposition.body
-            {
-                validate_witness_evidence_interface(
-                    program,
-                    proposition.name.as_str(),
-                    evidence,
-                    diagnostics,
-                );
-            }
-        }
-    }
-
-    fn validate_witness_evidence_interface(
-        program: &dyn CheckingInput,
-        proposition: &str,
-        evidence: TypeReferenceHandle,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        if !evidence.is_valid() {
-            diagnostics.push(Diagnostic::error(format!(
-                "witness-bearing proposition `{proposition}` has no resolved evidence interface"
-            )));
-            return;
-        }
-
-        let (trait_symbol, trait_name, lifetime_argument_count, arguments) = match program
-            .type_reference_table
-            .type_reference(evidence)
-        {
-            TypeReferenceNode::Named { symbol, name } => (*symbol, name.as_str(), 0, &[][..]),
-            TypeReferenceNode::Generic {
-                base_symbol,
-                base_name,
-                lifetime_arguments,
-                arguments,
-            } => (
-                *base_symbol,
-                base_name.as_str(),
-                lifetime_arguments.len(),
-                program
-                    .type_reference_table
-                    .type_reference_handles(*arguments),
-            ),
-            TypeReferenceNode::DynamicTrait { name, .. } => {
-                diagnostics.push(Diagnostic::error(format!(
-                    "witness-bearing proposition `{proposition}` names selected dynamic evidence `dyn {name}`; name the trait interface directly"
-                )));
-                return;
-            }
-            _ => {
-                diagnostics.push(Diagnostic::error(format!(
-                    "witness-bearing proposition `{proposition}` evidence `{}` must name one proof evidence trait interface",
-                    program.display_type_reference(evidence)
-                )));
-                return;
-            }
-        };
-
-        let Some(trait_definition) = program.traits().iter().find(|candidate| {
-            (trait_symbol.is_valid() && candidate.symbol == trait_symbol)
-                || candidate.name.as_str() == trait_name
-        }) else {
-            diagnostics.push(Diagnostic::error(format!(
-            "witness-bearing proposition `{proposition}` evidence `{}` is not a trait interface",
-            program.display_type_reference(evidence)
-        )));
-            return;
-        };
-
-        if lifetime_argument_count != trait_definition.lifetime_parameters.len() {
-            diagnostics.push(Diagnostic::error(format!(
-            "witness-bearing proposition `{proposition}` evidence trait `{trait_name}` expects {} lifetime argument(s), but the interface supplies {lifetime_argument_count}",
-            trait_definition.lifetime_parameters.len()
-        )));
-        }
-
-        let parameter_count = program.trait_type_parameters(trait_definition).len();
-        if arguments.len() != parameter_count {
-            diagnostics.push(Diagnostic::error(format!(
-            "witness-bearing proposition `{proposition}` evidence trait `{trait_name}` expects {parameter_count} generic argument(s), but the interface supplies {}",
-            arguments.len()
-        )));
-        }
-        for argument in arguments {
-            if !evidence_argument_is_resolved(program, *argument) {
-                diagnostics.push(Diagnostic::error(format!(
-                "witness-bearing proposition `{proposition}` evidence trait `{trait_name}` has unresolved generic argument `{}`",
-                program.display_type_reference(*argument)
-            )));
-            }
-        }
-
-        let mut visiting = Vec::new();
-        if let Some(reason) = evidence_trait_violation(program, trait_definition, &mut visiting) {
-            diagnostics.push(Diagnostic::error(format!(
-            "witness-bearing proposition `{proposition}` evidence trait `{trait_name}` is not a proof evidence interface: {reason}"
-        )));
-        }
-    }
-
-    fn evidence_argument_is_resolved(
-        program: &dyn CheckingInput,
-        argument: TypeReferenceHandle,
-    ) -> bool {
-        if !argument.is_valid() {
-            return false;
-        }
-        match program.type_reference_table.type_reference(argument) {
-            TypeReferenceNode::Named { symbol, .. } => symbol.is_valid(),
-            TypeReferenceNode::Reference { referee, .. } => {
-                evidence_argument_is_resolved(program, *referee)
-            }
-            TypeReferenceNode::Constrained { base_type, .. } => {
-                evidence_argument_is_resolved(program, *base_type)
-            }
-            TypeReferenceNode::FixedArray { element_type, .. }
-            | TypeReferenceNode::Slice { element_type } => {
-                evidence_argument_is_resolved(program, *element_type)
-            }
-            TypeReferenceNode::Generic {
-                base_symbol,
-                arguments,
-                ..
-            } => {
-                base_symbol.is_valid()
-                    && program
-                        .type_reference_table
-                        .type_reference_handles(*arguments)
-                        .iter()
-                        .all(|argument| evidence_argument_is_resolved(program, *argument))
-            }
-            TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => true,
-            TypeReferenceNode::DynamicTrait { symbol, .. } => symbol.is_valid(),
-        }
-    }
-
-    fn evidence_trait_violation(
-        program: &dyn CheckingInput,
-        trait_definition: &TraitDefinition,
-        visiting: &mut Vec<SymbolHandle>,
-    ) -> Option<String> {
-        if trait_definition.is_boundary {
-            return Some("boundary traits describe externally executed services".to_owned());
-        }
-        if visiting.contains(&trait_definition.symbol) {
-            return None;
-        }
-        visiting.push(trait_definition.symbol);
-        for parent in program.trait_requirements(trait_definition) {
-            let Some(parent_definition) = program.trait_definition_by_symbol(parent.symbol) else {
-                continue;
-            };
-            if let Some(reason) = evidence_trait_violation(program, parent_definition, visiting) {
-                visiting.pop();
-                return Some(format!(
-                    "parent interface `{}` is not a proof evidence interface: {reason}",
-                    parent.name
-                ));
-            }
-        }
-        visiting.pop();
-        None
-    }
-
-    fn transparent_proposition_cycle(
-        program: &dyn CheckingInput,
-        symbol: symbols::SymbolHandle,
-        visiting: &mut Vec<symbols::SymbolHandle>,
-    ) -> bool {
-        if visiting.contains(&symbol) {
-            return true;
-        }
-        let Some(proposition) = program.proposition_definition_by_symbol(symbol) else {
-            return false;
-        };
-        let typed_trees::proposition::PropositionBody::Transparent {
-            proposition: typed_trees::proposition::PropositionFormula::Application(application),
-        } = &proposition.body
-        else {
-            return false;
-        };
-        visiting.push(symbol);
-        let cyclic = transparent_proposition_cycle(program, application.proposition, visiting);
-        visiting.pop();
-        cyclic
     }
 
     impl fmt::Display for ProofFactOwner<'_> {
@@ -7100,81 +5200,27 @@ pub mod proof_facts {
         expression: ExpressionHandle,
         visited: &mut Vec<ExpressionHandle>,
     ) -> Option<String> {
-        if !expression.is_valid() || visited.contains(&expression) {
+        if !program.expression_table.expression_is_valid(expression) {
             return None;
         }
-        visited.push(expression);
-        if let Some(member) = self_member_name(program, expression) {
-            return Some(member.to_owned());
-        }
-        match expression_table(program).expression(expression) {
-            ExpressionNode::Match(dispatch) => {
-                crate::queries::expression_traversal::match_children(program, *dispatch).find_map(
-                    |child| abstract_trait_self_member_in_expression(program, child, visited),
-                )
-            }
-            ExpressionNode::ArrayLiteral(values) => expression_table(program)
-                .expression_handles(*values)
-                .iter()
-                .find_map(|value| {
-                    abstract_trait_self_member_in_expression(program, *value, visited)
-                }),
-            ExpressionNode::Atomic(atomic) => {
-                abstract_trait_self_member_in_expression(program, atomic.value, visited).or_else(
-                    || abstract_trait_self_member_in_expression(program, atomic.result, visited),
-                )
-            }
-            ExpressionNode::Binary(binary) => {
-                abstract_trait_self_member_in_expression(program, binary.left, visited).or_else(
-                    || abstract_trait_self_member_in_expression(program, binary.right, visited),
-                )
-            }
-            ExpressionNode::Cast(cast) => {
-                abstract_trait_self_member_in_expression(program, cast.value, visited)
-            }
-            ExpressionNode::Call(call) => abstract_trait_self_member_in_expression(
-                program,
-                call.receiver,
-                visited,
-            )
-            .or_else(|| {
-                expression_table(program)
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .find_map(|argument| {
-                        abstract_trait_self_member_in_expression(program, *argument, visited)
-                    })
-            }),
-            ExpressionNode::Indexed(indexed) => {
-                abstract_trait_self_member_in_expression(program, indexed.collection, visited)
-                    .or_else(|| {
-                        abstract_trait_self_member_in_expression(program, indexed.index, visited)
-                    })
-            }
-            ExpressionNode::Member(member) => {
-                abstract_trait_self_member_in_expression(program, member.receiver, visited)
-            }
-            ExpressionNode::Borrow(value) => {
-                abstract_trait_self_member_in_expression(program, value.target, visited)
-            }
-            ExpressionNode::Range(range) => {
-                abstract_trait_self_member_in_expression(program, range.start, visited).or_else(
-                    || abstract_trait_self_member_in_expression(program, range.end, visited),
-                )
-            }
-            ExpressionNode::StructLiteral(literal) => expression_table(program)
-                .struct_fields(literal.fields)
-                .iter()
-                .find_map(|field| {
-                    abstract_trait_self_member_in_expression(program, field.value, visited)
-                }),
-            ExpressionNode::Unary(unary) => {
-                abstract_trait_self_member_in_expression(program, unary.operand, visited)
-            }
-            ExpressionNode::TypeExpression(_)
-            | ExpressionNode::SavedSubject(_)
-            | typed_trees::literal_expression_pattern!() => None,
-        }
+        let mut member = None;
+        program.subtree_any(
+            expression,
+            typed_trees::SubtreeEdges::STRUCTURAL,
+            |expression, _| {
+                if visited.contains(&expression) {
+                    return typed_trees::SubtreeVisit::Prune;
+                }
+                visited.push(expression);
+                if let Some(name) = self_member_name(program, expression) {
+                    member = Some(name.to_owned());
+                    typed_trees::SubtreeVisit::Found
+                } else {
+                    typed_trees::SubtreeVisit::Descend
+                }
+            },
+        );
+        member
     }
 
     fn proof_argument_declared_type(
@@ -7378,48 +5424,10 @@ pub mod proof_facts {
         program: &dyn CheckingInput,
         expression: ExpressionHandle,
     ) -> bool {
-        match expression_table(program).expression(expression) {
-            ExpressionNode::SavedSubject(_) | ExpressionNode::Match(_) => false,
-            ExpressionNode::Atomic(atomic) => is_boolean_fact_expression(program, atomic.value),
-            ExpressionNode::Binary(binary) => match binary.operator {
-                BinaryOperator::CaseMembership => true,
-                BinaryOperator::And
-                | BinaryOperator::Equal
-                | BinaryOperator::Greater
-                | BinaryOperator::GreaterOrEqual
-                | BinaryOperator::Less
-                | BinaryOperator::LessOrEqual
-                | BinaryOperator::NotEqual
-                | BinaryOperator::Or => true,
-                BinaryOperator::Add
-                | BinaryOperator::BitwiseAnd
-                | BinaryOperator::BitwiseOr
-                | BinaryOperator::BitwiseXor
-                | BinaryOperator::Divide
-                | BinaryOperator::Modulo
-                | BinaryOperator::Multiply
-                | BinaryOperator::ShiftLeft
-                | BinaryOperator::ShiftRight
-                | BinaryOperator::Subtract => false,
-            },
-            ExpressionNode::Boolean(_)
-            | ExpressionNode::Call(_)
-            | ExpressionNode::Indexed(_)
-            | ExpressionNode::Member(_)
-            | ExpressionNode::Name(_) => true,
-            ExpressionNode::Range(_) => false,
-            ExpressionNode::Borrow(inner) => is_boolean_fact_expression(program, inner.target),
-            ExpressionNode::Unary(unary) => is_boolean_fact_expression(program, unary.operand),
-            ExpressionNode::ArrayLiteral(_)
-            | ExpressionNode::Cast(_)
-            | ExpressionNode::Float(_)
-            | ExpressionNode::UndeterminedNaN(_)
-            | ExpressionNode::Integer(_)
-            | ExpressionNode::String(_)
-            | ExpressionNode::StructLiteral(_)
-            | ExpressionNode::TypeExpression(_)
-            | ExpressionNode::ZeroValue(_) => false,
-        }
+        typed_trees::source_expression_types::is_boolean_fact_expression(
+            program.typed_program(),
+            expression,
+        )
     }
 
     pub(crate) fn is_boolean_asm_fact_expression(
@@ -7524,159 +5532,6 @@ pub mod proof_facts {
     }
 }
 
-pub mod proof_only_faces {
-    use diagnostics::Diagnostic;
-    use language_semantics::Multiplicity;
-    use typed_trees::data::TypeParameterKind;
-    use typed_trees::proof_only::ProofOnlyClassification;
-
-    pub(crate) fn validate_proof_only_consumption(
-        program: &dyn crate::CheckingInput,
-        classification: &ProofOnlyClassification,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        for definition in program.data_definitions() {
-            let has_machine_parameter = program
-                .data_type_parameters(definition)
-                .iter()
-                .any(|parameter| matches!(parameter.kind, TypeParameterKind::Machine { .. }));
-            if has_machine_parameter
-                && definition.supply_mode != language_semantics::DataSupplyMode::BoundaryOpaque
-                && !classification.is_proof_only(definition.symbol)
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                "data `{}` is parameterized by a static machine but has a runtime layout; `<machine ...>` on data is reserved for proof-only families (recursive data has no layout)",
-                definition.name
-            )));
-            }
-        }
-
-        for definition in program.data_definitions() {
-            let properties = definition.properties;
-            if !(properties.multiplicity != Multiplicity::Affine || properties.carry.is_some()) {
-                continue;
-            }
-            if let Some(reason) =
-                classification.describe(definition.name.as_str(), definition.symbol)
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "data `{}` declares runtime properties, but {reason}; properties speak \
-                 about values in memory, which proof-only data never becomes",
-                    definition.name
-                )));
-            }
-        }
-
-        for machine in program.machines() {
-            if crate::value_custody::content_projections::is_content_projection_machine(
-                program, machine,
-            ) {
-                continue;
-            }
-            if classification.is_proof_machine(program, machine) {
-                continue;
-            }
-
-            for owned_data in program.machine_owned_data(machine) {
-                if let Some(held) =
-                    classification.proof_only_mention(program, owned_data.type_reference)
-                {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "machine `{}` owned data `{}` holds proof-only `{held}`, which has no \
-                     runtime layout",
-                        machine.name, owned_data.name
-                    )));
-                }
-            }
-
-            for state in program.machine_states(machine) {
-                for parameter in program.state_parameters(state) {
-                    if parameter.relevance.is_erased() {
-                        continue;
-                    }
-                    if let Some(held) =
-                        classification.proof_only_mention(program, parameter.type_reference)
-                    {
-                        diagnostics.push(Diagnostic::error(format!(
-                            "machine `{}` state `{}` parameter `{}` mentions proof-only \
-                         `{held}`, which has no runtime layout",
-                            machine.name, state.name, parameter.name
-                        )));
-                    }
-                }
-
-                if state.return_type.is_valid()
-                    && let Some(held) =
-                        classification.proof_only_mention(program, state.return_type)
-                {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "machine `{}` state `{}` returns proof-only `{held}`, which has no \
-                     runtime layout",
-                        machine.name, state.name
-                    )));
-                }
-
-                for statement in program.statement_table.statements(state.statement_nodes) {
-                    let Some(local_data) = statement.as_local_data() else {
-                        continue;
-                    };
-                    if local_data.relevance.is_erased() {
-                        continue;
-                    }
-                    if let Some(held) =
-                        classification.proof_only_mention(program, local_data.type_reference)
-                    {
-                        diagnostics.push(Diagnostic::error(format!(
-                            "machine `{}` state `{}` local `{}` mentions proof-only `{held}`, \
-                         which has no runtime layout",
-                            machine.name, state.name, local_data.name
-                        )));
-                    }
-                }
-            }
-        }
-
-        for schema in program.wire_schemas() {
-            for member in program.wire_members(schema.members) {
-                let typed_trees::wire::WireMember::Field(field) = member else {
-                    continue;
-                };
-                if field.relevance.is_erased() {
-                    continue;
-                }
-                if let Some(held) = classification.proof_only_mention(program, field.type_reference)
-                {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "wire data `{}` field `{}` mentions proof-only `{held}`, which has no \
-                     wire encoding",
-                        schema.name, field.name
-                    )));
-                }
-            }
-        }
-
-        for definition in program.data_definitions() {
-            if classification.is_proof_only(definition.symbol) {
-                continue;
-            }
-            for field in program.data_member_fields(program.data_members(definition)) {
-                if field.relevance == language_core::BindingRelevance::Erased {
-                    continue;
-                }
-                if let Some(held) = classification.proof_only_mention(program, field.type_reference)
-                {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "data `{}` field `{}` views proof-only `{held}` through an \
-                     indirection, but proof-only values never materialize at runtime \
-                     (there is nothing to point at)",
-                        definition.name, field.name
-                    )));
-                }
-            }
-        }
-    }
-}
-
 pub mod properties {
     use diagnostics::Diagnostic;
     use language_semantics::Multiplicity;
@@ -7684,12 +5539,7 @@ pub mod properties {
     use typed_trees::data::{DataDefinition, TypeParameter};
     use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub enum DeclaredPropertyRequirement {
-        Copy,
-        Linear,
-        Carry(language_semantics::CarryPolicy),
-    }
+    pub use typed_trees::source_properties::DeclaredPropertyRequirement;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
     pub enum OpaqueDataPropertyReceiptKind {
@@ -7716,16 +5566,6 @@ pub mod properties {
 
         pub const fn kind(self) -> OpaqueDataPropertyReceiptKind {
             self.kind
-        }
-    }
-
-    impl std::fmt::Display for DeclaredPropertyRequirement {
-        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            match self {
-                Self::Copy => formatter.write_str("copy"),
-                Self::Linear => formatter.write_str("linear"),
-                Self::Carry(policy) => write!(formatter, "{policy}"),
-            }
         }
     }
 
@@ -7766,7 +5606,7 @@ pub mod properties {
         let property = "copy";
         let type_parameters = program.data_type_parameters(data_definition);
         for_each_stored_field(
-            program,
+            program.typed_program(),
             data_definition,
             &mut |field, case: Option<&str>| {
                 if type_satisfies_declared_property(
@@ -7807,11 +5647,11 @@ pub mod properties {
     ) {
         let type_parameters = program.data_type_parameters(data_definition);
         for_each_stored_field(
-            program,
+            program.typed_program(),
             data_definition,
             &mut |field, case: Option<&str>| {
-                let actual =
-                    CarryDerivation::new(program, type_parameters).derive(field.type_reference);
+                let actual = CarryDerivation::new(program.typed_program(), type_parameters)
+                    .derive(field.type_reference);
                 if actual.permits(required) {
                     return;
                 }
@@ -7836,238 +5676,7 @@ pub mod properties {
         );
     }
 
-    pub(crate) mod carry_derivation {
-        use crate::CheckingInput;
-        use symbols::SymbolHandle;
-        use typed_trees::data::{DataDefinition, DataField, DataMember, TypeParameter};
-        use typed_trees::types::TypeReferenceHandle;
-        use typed_trees::types::TypeReferenceNode;
-
-        pub(crate) struct CarryDerivation<'program> {
-            program: &'program dyn CheckingInput,
-            parameters: Vec<(SymbolHandle, String, language_semantics::CarryPolicy)>,
-            substitutions: Vec<(SymbolHandle, String, TypeReferenceHandle)>,
-            visiting: Vec<SymbolHandle>,
-            requires_borrow_preservation: bool,
-            borrow_independent: language_semantics::CarryPolicy,
-        }
-
-        impl<'program> CarryDerivation<'program> {
-            pub(crate) fn new(
-                program: &'program dyn CheckingInput,
-                parameters: &[TypeParameter],
-            ) -> Self {
-                let parameters = parameters
-                    .iter()
-                    .map(|parameter| {
-                        (
-                            parameter.symbol,
-                            parameter.name.as_str().to_owned(),
-                            parameter
-                                .bounds
-                                .carry
-                                .unwrap_or(language_semantics::CarryPolicy::STRICT),
-                        )
-                    })
-                    .collect();
-                Self {
-                    program,
-                    parameters,
-                    substitutions: Vec::new(),
-                    visiting: Vec::new(),
-                    requires_borrow_preservation: false,
-                    borrow_independent: language_semantics::CarryPolicy::PERMISSIVE,
-                }
-            }
-
-            pub(crate) fn derive_requirements(
-                mut self,
-                type_reference: TypeReferenceHandle,
-            ) -> super::TypeCarryRequirements {
-                let structural = self.derive(type_reference);
-                super::TypeCarryRequirements {
-                    structural,
-                    borrow_independent: self.borrow_independent,
-                    requires_borrow_preservation: self.requires_borrow_preservation,
-                }
-            }
-
-            pub(crate) fn derive(
-                &mut self,
-                type_reference: TypeReferenceHandle,
-            ) -> language_semantics::CarryPolicy {
-                use language_semantics::CarryPolicy;
-
-                if let Some(storage) = self.program.layout_storage_arguments(type_reference) {
-                    return self.derive(storage.semantic_type);
-                }
-                if self
-                    .program
-                    .type_reference_table
-                    .primitive_type(type_reference)
-                    .is_some()
-                {
-                    return CarryPolicy::PERMISSIVE;
-                }
-
-                match self
-                    .program
-                    .type_reference_table
-                    .type_reference(type_reference)
-                    .clone()
-                {
-                    TypeReferenceNode::Named { symbol, name } => {
-                        if let Some((_, _, argument)) = self.substitutions.iter().rev().find(
-                            |(candidate, candidate_name, _)| {
-                                (*candidate == symbol && symbol.is_valid())
-                                    || (!symbol.is_valid() && candidate_name == name.as_str())
-                            },
-                        ) {
-                            let argument = *argument;
-                            return self.derive(argument);
-                        }
-                        if let Some((_, _, policy)) =
-                            self.parameters
-                                .iter()
-                                .rev()
-                                .find(|(candidate, candidate_name, _)| {
-                                    (*candidate == symbol && symbol.is_valid())
-                                        || (!symbol.is_valid() && candidate_name == name.as_str())
-                                })
-                        {
-                            if policy.suspension == language_semantics::CarrySuspension::Forbidden {
-                                self.requires_borrow_preservation = true;
-                            }
-                            self.borrow_independent = self.borrow_independent.intersect(*policy);
-                            return *policy;
-                        }
-                        self.derive_named_data(symbol, name.as_str(), None)
-                    }
-                    TypeReferenceNode::Constrained { base_type, .. } => self.derive(base_type),
-                    TypeReferenceNode::FixedArray {
-                        element_type,
-                        length,
-                    } => {
-                        if length == typed_trees::types::FixedArrayLength::Literal(0) {
-                            CarryPolicy::PERMISSIVE
-                        } else {
-                            self.derive(element_type)
-                        }
-                    }
-                    TypeReferenceNode::Generic {
-                        base_symbol,
-                        base_name,
-                        arguments,
-                        ..
-                    } => {
-                        let arguments = self
-                            .program
-                            .type_reference_table
-                            .type_reference_handles(arguments)
-                            .to_vec();
-                        self.derive_named_data(base_symbol, base_name.as_str(), Some(&arguments))
-                    }
-                    TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => {
-                        CarryPolicy::PERMISSIVE
-                    }
-                    TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => {
-                        self.requires_borrow_preservation = true;
-                        CarryPolicy::STRICT
-                    }
-                    TypeReferenceNode::DynamicTrait { .. } => {
-                        self.borrow_independent =
-                            self.borrow_independent.intersect(CarryPolicy::STRICT);
-                        CarryPolicy::STRICT
-                    }
-                }
-            }
-
-            pub(crate) fn derive_named_data(
-                &mut self,
-                symbol: SymbolHandle,
-                name: &str,
-                arguments: Option<&[TypeReferenceHandle]>,
-            ) -> language_semantics::CarryPolicy {
-                use language_semantics::CarryPolicy;
-
-                let Some(definition) = self.program.data_definitions().iter().find(|definition| {
-                    (symbol.is_valid() && definition.symbol == symbol)
-                        || (!symbol.is_valid() && definition.name.as_str() == name)
-                }) else {
-                    self.borrow_independent =
-                        self.borrow_independent.intersect(CarryPolicy::STRICT);
-                    return CarryPolicy::STRICT;
-                };
-                if definition.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque
-                    || self.visiting.contains(&definition.symbol)
-                {
-                    self.borrow_independent =
-                        self.borrow_independent.intersect(CarryPolicy::STRICT);
-                    return CarryPolicy::STRICT;
-                }
-
-                self.visiting.push(definition.symbol);
-                let parameter_len = self.parameters.len();
-                let substitution_len = self.substitutions.len();
-                let definition_parameters = self.program.data_type_parameters(definition);
-                for parameter in definition_parameters {
-                    self.parameters.push((
-                        parameter.symbol,
-                        parameter.name.as_str().to_owned(),
-                        parameter.bounds.carry.unwrap_or(CarryPolicy::STRICT),
-                    ));
-                }
-                if let Some(arguments) = arguments {
-                    self.substitutions
-                        .extend(definition_parameters.iter().zip(arguments).map(
-                            |(parameter, argument)| {
-                                (
-                                    parameter.symbol,
-                                    parameter.name.as_str().to_owned(),
-                                    *argument,
-                                )
-                            },
-                        ));
-                }
-
-                let mut field_types = Vec::new();
-                for_each_stored_field(self.program, definition, &mut |field, _| {
-                    field_types.push(field.type_reference);
-                });
-                let mut effective = definition
-                    .properties
-                    .carry
-                    .unwrap_or(CarryPolicy::PERMISSIVE);
-                self.borrow_independent = self.borrow_independent.intersect(effective);
-                for field_type in field_types {
-                    effective = effective.intersect(self.derive(field_type));
-                }
-
-                self.substitutions.truncate(substitution_len);
-                self.parameters.truncate(parameter_len);
-                self.visiting.pop();
-                effective
-            }
-        }
-
-        pub(crate) fn for_each_stored_field(
-            program: &dyn CheckingInput,
-            data_definition: &DataDefinition,
-            visit: &mut impl FnMut(&DataField, Option<&str>),
-        ) {
-            for member in program.data_members(data_definition) {
-                match member {
-                    DataMember::Field(field) => visit(field, None),
-                    DataMember::Variant(variant) => {
-                        for field in program.data_payload_fields(variant) {
-                            visit(field, Some(variant.name.as_str()));
-                        }
-                    }
-                }
-            }
-        }
-    }
-    use carry_derivation::{CarryDerivation, for_each_stored_field};
+    use typed_trees::source_carry::{CarryDerivation, for_each_stored_field};
 
     fn validate_opaque_data_properties(
         data_definition: &DataDefinition,
@@ -8146,7 +5755,7 @@ pub mod properties {
         program: &dyn crate::CheckingInput,
         data_definition: &DataDefinition,
     ) -> language_semantics::CarryPolicy {
-        CarryDerivation::new(program, &[]).derive_named_data(
+        CarryDerivation::new(program.typed_program(), &[]).derive_named_data(
             data_definition.symbol,
             data_definition.name.as_str(),
             None,
@@ -8161,136 +5770,21 @@ pub mod properties {
         effective_type_carry_requirements(program, type_parameters, type_reference).structural
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub struct TypeCarryRequirements {
-        pub structural: language_semantics::CarryPolicy,
-        pub borrow_independent: language_semantics::CarryPolicy,
-        pub requires_borrow_preservation: bool,
-    }
+    pub use typed_trees::source_carry::TypeCarryRequirements;
 
     pub fn effective_type_carry_requirements(
         program: &dyn crate::CheckingInput,
         type_parameters: &[TypeParameter],
         type_reference: typed_trees::types::TypeReferenceHandle,
     ) -> TypeCarryRequirements {
-        CarryDerivation::new(program, type_parameters).derive_requirements(type_reference)
+        CarryDerivation::new(program.typed_program(), type_parameters)
+            .derive_requirements(type_reference)
     }
 
-    pub fn type_satisfies_declared_property(
-        program: &dyn crate::CheckingInput,
-        type_parameters: &[TypeParameter],
-        type_reference: typed_trees::types::TypeReferenceHandle,
-        property: DeclaredPropertyRequirement,
-    ) -> bool {
-        match property {
-            DeclaredPropertyRequirement::Carry(required) => {
-                CarryDerivation::new(program, type_parameters)
-                    .derive(type_reference)
-                    .permits(required)
-            }
-            DeclaredPropertyRequirement::Copy => type_satisfies_structural_property(
-                program,
-                type_parameters,
-                type_reference,
-                &[],
-                "copy",
-            ),
-            DeclaredPropertyRequirement::Linear => type_satisfies_structural_property(
-                program,
-                type_parameters,
-                type_reference,
-                &[],
-                "linear",
-            ),
-        }
-    }
-
-    pub fn substituted_type_satisfies_copy(
-        program: &dyn crate::CheckingInput,
-        type_reference: typed_trees::types::TypeReferenceHandle,
-        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-    ) -> bool {
-        type_satisfies_structural_property(program, &[], type_reference, substitutions, "copy")
-    }
-
-    fn type_satisfies_structural_property(
-        program: &dyn crate::CheckingInput,
-        type_parameters: &[TypeParameter],
-        type_reference: typed_trees::types::TypeReferenceHandle,
-        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-        property: &str,
-    ) -> bool {
-        if let Some(storage) = program.layout_storage_arguments(type_reference) {
-            return type_satisfies_structural_property(
-                program,
-                type_parameters,
-                storage.semantic_type,
-                substitutions,
-                property,
-            );
-        }
-        if program
-            .type_reference_table
-            .primitive_type(type_reference)
-            .is_some()
-        {
-            return property != "linear";
-        }
-
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Named { symbol, name } => {
-                if symbol.is_valid()
-                    && let Some(position) = substitutions
-                        .iter()
-                        .rposition(|(formal, actual)| formal == symbol && *actual != type_reference)
-                {
-                    let remaining = substitutions
-                        .iter()
-                        .filter(|(formal, _)| formal != symbol)
-                        .copied()
-                        .collect::<Vec<_>>();
-                    return type_satisfies_structural_property(
-                        program,
-                        type_parameters,
-                        substitutions[position].1,
-                        &remaining,
-                        property,
-                    );
-                }
-                if let Some(parameter) =
-                    type_parameter_for_reference(type_parameters, *symbol, name.as_str())
-                {
-                    return type_parameter_declares_property(parameter, property);
-                }
-                named_type_declares_property(program, *symbol, name.as_str(), property)
-            }
-            TypeReferenceNode::Reference { access, .. } => {
-                property == "copy" && *access == language_core::ReferenceAccess::Shared
-            }
-            TypeReferenceNode::Constrained { base_type, .. } => type_satisfies_structural_property(
-                program,
-                type_parameters,
-                *base_type,
-                substitutions,
-                property,
-            ),
-            TypeReferenceNode::FixedArray { element_type, .. } => {
-                type_satisfies_structural_property(
-                    program,
-                    type_parameters,
-                    *element_type,
-                    substitutions,
-                    property,
-                )
-            }
-            TypeReferenceNode::Generic {
-                base_symbol,
-                base_name,
-                ..
-            } => named_type_declares_property(program, *base_symbol, base_name.as_str(), property),
-            _ => false,
-        }
-    }
+    pub use typed_trees::source_properties::{
+        referenced_type_parameter, substituted_type_satisfies_copy,
+        type_satisfies_declared_property,
+    };
 
     pub fn declared_property_requirements(
         properties: &typed_trees::data::DataProperties,
@@ -8307,404 +5801,10 @@ pub mod properties {
         }
         names
     }
-
-    fn type_parameter_for_reference<'program>(
-        type_parameters: &'program [TypeParameter],
-        symbol: symbols::SymbolHandle,
-        name: &str,
-    ) -> Option<&'program TypeParameter> {
-        if symbol.is_valid() {
-            return type_parameters
-                .iter()
-                .find(|parameter| parameter.symbol == symbol);
-        }
-        type_parameters
-            .iter()
-            .find(|parameter| parameter.name.as_str() == name)
-    }
-
-    fn type_parameter_declares_property(parameter: &TypeParameter, property: &str) -> bool {
-        match property {
-            "copy" => parameter.bounds.multiplicity == Multiplicity::Unrestricted,
-            "linear" => parameter.bounds.multiplicity == Multiplicity::Linear,
-            _ => false,
-        }
-    }
-
-    pub(crate) fn referenced_type_parameter<'program>(
-        program: &dyn crate::CheckingInput,
-        type_parameters: &'program [TypeParameter],
-        type_reference: typed_trees::types::TypeReferenceHandle,
-    ) -> Option<&'program TypeParameter> {
-        if !type_reference.is_valid() {
-            return None;
-        }
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Named { symbol, name } => {
-                type_parameter_for_reference(type_parameters, *symbol, name.as_str())
-            }
-            TypeReferenceNode::Reference { referee, .. } => {
-                referenced_type_parameter(program, type_parameters, *referee)
-            }
-            TypeReferenceNode::Constrained { base_type, .. } => {
-                referenced_type_parameter(program, type_parameters, *base_type)
-            }
-            TypeReferenceNode::FixedArray { element_type, .. } => {
-                referenced_type_parameter(program, type_parameters, *element_type)
-            }
-            _ => None,
-        }
-    }
-
-    fn named_type_declares_property(
-        program: &dyn crate::CheckingInput,
-        symbol: symbols::SymbolHandle,
-        name: &str,
-        property: &str,
-    ) -> bool {
-        program
-            .data_definitions()
-            .iter()
-            .find(|definition| {
-                if symbol.is_valid() {
-                    definition.symbol == symbol
-                } else {
-                    definition.name.as_str() == name
-                }
-            })
-            .is_some_and(|definition| match property {
-                "copy" => definition.properties.multiplicity == Multiplicity::Unrestricted,
-                "linear" => definition.properties.multiplicity == Multiplicity::Linear,
-                _ => false,
-            })
-    }
 }
 
 pub mod proposition_entailment {
-    use crate::frozen_program::expression_table;
-    use std::collections::{BTreeSet, HashSet};
-    use typed_trees::expression::ExpressionNode;
-    use typed_trees::proposition::ProofSubstitutions;
     use typed_trees::trait_definition::Conformance;
-
-    use diagnostics::Diagnostic;
-    use typed_trees::domain::ProofFact;
-    use typed_trees::machine::Machine;
-    use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
-    use typed_trees::statement::TableCall;
-
-    pub(crate) fn validate_proposition_entailment(
-        program: &dyn crate::CheckingInput,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        let mut call_targets_with_proposition_requires = HashSet::new();
-        for callee in program.machines() {
-            let has_proposition_requires =
-                program.machine_contracts(callee).iter().any(|contract| {
-                    contract.kind == SignatureContractKind::Requires
-                        && program
-                            .proof_facts
-                            .span_or_empty(contract.facts)
-                            .iter()
-                            .any(|fact| matches!(fact, ProofFact::Proposition(_)))
-                });
-            if has_proposition_requires {
-                call_targets_with_proposition_requires.insert(callee.symbol);
-                for state in program.machine_states(callee) {
-                    call_targets_with_proposition_requires.insert(state.symbol);
-                }
-            }
-        }
-        let any_machine_has_proposition_requires =
-            !call_targets_with_proposition_requires.is_empty();
-        for machine in program.machines() {
-            if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
-                continue;
-            }
-            let machine_ensures = proposition_labels(
-                program,
-                program.machine_contracts(machine),
-                SignatureContractKind::Ensures,
-                &[],
-                false,
-            );
-            let produced_evidence = produced_evidence_labels(program, machine, diagnostics);
-            if machine_ensures.is_empty()
-                && !any_machine_has_proposition_requires
-                && !program.machine_states(machine).iter().any(|state| {
-                    program.state_contracts(state).iter().any(|contract| {
-                        contract.kind == SignatureContractKind::Ensures
-                            && program
-                                .proof_facts
-                                .span_or_empty(contract.facts)
-                                .iter()
-                                .any(|fact| matches!(fact, ProofFact::Proposition(_)))
-                    })
-                })
-            {
-                continue;
-            }
-            let mut machine_requires: Option<Vec<String>> = None;
-            let has_proof_output_calls = program
-                .proof_output_calls
-                .iter()
-                .any(|package| package.machine_symbol == machine.symbol);
-            for state in program.machine_states(machine) {
-                let mut required = machine_ensures.clone();
-                required.extend(proposition_labels(
-                    program,
-                    program.state_contracts(state),
-                    SignatureContractKind::Ensures,
-                    &[],
-                    false,
-                ));
-                let statements = program.statement_table.statements(state.statement_nodes);
-                let last_proposition_requires_call_index = if any_machine_has_proposition_requires {
-                    statements.iter().rposition(|statement| {
-                        statement.as_call().is_some_and(|call| {
-                            call_targets_with_proposition_requires.contains(&call.target_symbol)
-                        })
-                    })
-                } else {
-                    None
-                };
-                if !produced_evidence.is_empty() {
-                    required.retain(|goal| !produced_evidence.contains(goal));
-                }
-                if required.is_empty() && last_proposition_requires_call_index.is_none() {
-                    continue;
-                }
-                let machine_requires = machine_requires.get_or_insert_with(|| {
-                    proposition_labels(
-                        program,
-                        program.machine_contracts(machine),
-                        SignatureContractKind::Requires,
-                        &[],
-                        true,
-                    )
-                });
-                let mut known = machine_requires.iter().cloned().collect::<BTreeSet<_>>();
-                known.extend(proposition_labels(
-                    program,
-                    program.state_contracts(state),
-                    SignatureContractKind::Requires,
-                    &[],
-                    true,
-                ));
-                required.retain(|goal| !known.contains(goal));
-                if required.is_empty() && last_proposition_requires_call_index.is_none() {
-                    continue;
-                }
-                for (statement_index, statement) in statements.iter().enumerate() {
-                    let need_ensures = !required.is_empty()
-                        || last_proposition_requires_call_index
-                            .is_some_and(|last_index| statement_index <= last_index);
-                    if has_proof_output_calls && need_ensures {
-                        intake_proof_output_propositions(
-                            program,
-                            machine,
-                            state.symbol,
-                            statement_index,
-                            &mut known,
-                        );
-                    }
-                    if let Some(call) = statement.as_call() {
-                        let call_has_proposition_requires =
-                            call_targets_with_proposition_requires.contains(&call.target_symbol);
-                        let call_need_ensures = !required.is_empty()
-                            || last_proposition_requires_call_index
-                                .is_some_and(|last_index| statement_index < last_index);
-                        if call_has_proposition_requires || call_need_ensures {
-                            intake_call_propositions(
-                                program,
-                                machine,
-                                state,
-                                call,
-                                call_has_proposition_requires,
-                                call_need_ensures,
-                                &mut known,
-                                diagnostics,
-                            );
-                        }
-                    }
-                }
-                if has_proof_output_calls && !required.is_empty() {
-                    intake_proof_output_propositions(
-                        program,
-                        machine,
-                        state.symbol,
-                        statements.len(),
-                        &mut known,
-                    );
-                }
-                required.retain(|goal| !known.contains(goal));
-                if required.is_empty() {
-                    continue;
-                }
-
-                let structural_proposition_goals = program
-                    .machine_contracts(machine)
-                    .iter()
-                    .chain(program.state_contracts(state))
-                    .filter(|contract| contract.kind == SignatureContractKind::Ensures)
-                    .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
-                    .filter_map(|fact| match fact {
-                        ProofFact::Proposition(application) => program
-                            .normalize_proposition_application(application, None)
-                            .map(|formula| (formula.identity_label(), application)),
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>();
-                for goal in required {
-                    if known.contains(&goal) || produced_evidence.contains(&goal) {
-                        continue;
-                    }
-                    let instruction_flow_obligation =
-                    structural_proposition_goals
-                        .iter()
-                        .any(|(label, application)| {
-                            label == &goal
-                                && crate::proof_contracts::instruction_effects::instruction_effect_contract(
-                                    program,
-                                    application,
-                                )
-                                .is_some()
-                        });
-                    if instruction_flow_obligation {
-                        continue;
-                    }
-                    let structurally_entailed =
-                        structural_proposition_goals
-                            .iter()
-                            .any(|(label, application)| {
-                                label == &goal
-                                    && crate::transparent_proposition_application_entailed(
-                                        program,
-                                        machine,
-                                        state,
-                                        application,
-                                        None,
-                                    )
-                            });
-                    if !structurally_entailed {
-                        diagnostics.push(Diagnostic::error(format!(
-                        "checked machine `{}` cannot establish proposition ensure `{goal}` in state `{}`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence",
-                        machine.name.as_str(),
-                        state.name.as_str(),
-                    )));
-                    }
-                }
-            }
-        }
-    }
-
-    fn intake_proof_output_propositions(
-        program: &dyn crate::CheckingInput,
-        caller: &Machine,
-        state_symbol: symbols::SymbolHandle,
-        statement_index: usize,
-        known: &mut BTreeSet<String>,
-    ) {
-        for package in &program.proof_output_calls {
-            if package.machine_symbol != caller.symbol
-                || package.state_symbol != state_symbol
-                || package.statement_index != statement_index
-            {
-                continue;
-            }
-            let ExpressionNode::Call(call) = expression_table(program).expression(package.call)
-            else {
-                continue;
-            };
-            let Some(callee) = program.machine_by_own_or_state_symbol(call.target_symbol) else {
-                continue;
-            };
-            known.extend(proposition_labels(
-                program,
-                program.machine_contracts(callee),
-                SignatureContractKind::Ensures,
-                &[],
-                true,
-            ));
-        }
-    }
-
-    fn produced_evidence_labels(
-        program: &dyn crate::CheckingInput,
-        machine: &Machine,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) -> Vec<String> {
-        if program.evidence_forwardings.is_empty() {
-            return Vec::new();
-        }
-        let mut labels = Vec::new();
-        for assignment in &program.evidence_forwardings {
-            if assignment.machine_symbol != machine.symbol {
-                continue;
-            }
-            let Some(conformance) = assignment.source_conformance else {
-                continue;
-            };
-            let Some(contract) = program.machine_contracts(machine).iter().find(|contract| {
-                contract.kind == SignatureContractKind::Ensures
-                    && contract
-                        .binding
-                        .as_ref()
-                        .is_some_and(|binding| binding == &assignment.target)
-            }) else {
-                continue;
-            };
-            let Some((expected_interface_label, expected_interface)) =
-                program
-                    .proof_facts
-                    .span_or_empty(contract.facts)
-                    .iter()
-                    .find_map(|fact| {
-                        let application = fact.as_proposition()?;
-                        let normalized =
-                            program.normalize_nominal_proposition_application(application, None)?;
-                        match normalized.classification {
-                    typed_trees::proposition::PropositionEvidenceClassification::Witness {
-                        evidence,
-                        interface,
-                    } => Some((evidence, interface)),
-                    typed_trees::proposition::PropositionEvidenceClassification::FactOnly => None,
-                }
-                    })
-            else {
-                continue;
-            };
-            let Some(expected_interface) = expected_interface else {
-                diagnostics.push(Diagnostic::error(format!(
-                "named implementation `{}` cannot provide unresolved generic evidence interface `{expected_interface_label}` required by `{}`",
-                assignment.source, assignment.target
-            )));
-                continue;
-            };
-            if select_named_evidence_implementation(
-                program,
-                conformance,
-                assignment.source.as_str(),
-                &expected_interface,
-            )
-            .is_none()
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                "named implementation `{}` does not provide the exact `{expected_interface_label}` evidence interface required by `{}`",
-                assignment.source, assignment.target
-            )));
-                continue;
-            }
-            labels.extend(proposition_labels(
-                program,
-                std::slice::from_ref(contract),
-                SignatureContractKind::Ensures,
-                &[],
-                false,
-            ));
-        }
-        labels
-    }
 
     pub fn select_named_evidence_implementation<'program>(
         program: &'program dyn crate::CheckingInput,
@@ -8716,10 +5816,7 @@ pub mod proposition_entailment {
         if conformance.alias.as_ref()?.as_str() != source_name {
             return None;
         }
-        let evidence_trait = program
-            .traits()
-            .iter()
-            .find(|candidate| candidate.name == conformance.trait_name)?;
+        let evidence_trait = program.trait_definition_by_symbol(conformance.trait_symbol)?;
         let selected_interface = typed_trees::proposition::NormalizedEvidenceInterfaceIdentity {
             trait_symbol: evidence_trait.symbol,
             arguments: program
@@ -8732,412 +5829,17 @@ pub mod proposition_entailment {
         };
         (&selected_interface == expected_interface).then_some((conformance, evidence_trait.symbol))
     }
-
-    fn intake_call_propositions(
-        program: &dyn crate::CheckingInput,
-        caller: &Machine,
-        caller_state: &typed_trees::state::State,
-        call: &TableCall,
-        has_proposition_requires: bool,
-        need_ensures: bool,
-        known: &mut BTreeSet<String>,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        let Some((callee, callee_state)) = call_target(program, call) else {
-            return;
-        };
-        let callee_contracts = program.machine_contracts(callee);
-        let has_relevant_ensures = need_ensures
-            && callee_contracts.iter().any(|contract| {
-                contract.kind == SignatureContractKind::Ensures
-                    && program
-                        .proof_facts
-                        .span_or_empty(contract.facts)
-                        .iter()
-                        .any(|fact| {
-                            matches!(fact, ProofFact::Proposition(_) | ProofFact::Expression(_))
-                        })
-            });
-        if !has_proposition_requires && !has_relevant_ensures {
-            return;
-        }
-        let substitutions =
-            call_parameter_substitutions(program, call, program.state_parameters(callee_state));
-        if has_proposition_requires {
-            let arguments = program.statement_table.expression_handles(call.arguments);
-            let missing = callee_contracts
-                .iter()
-                .filter(|contract| contract.kind == SignatureContractKind::Requires)
-                .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
-                .filter_map(ProofFact::as_proposition)
-                .filter_map(|application| {
-                    Some((
-                        application,
-                        application_label(program, application, &substitutions)?,
-                    ))
-                })
-                .find(|(application, label)| {
-                    !known.contains(label)
-                        && !crate::transparent_call_requirement_entailed(
-                            program,
-                            caller,
-                            caller_state,
-                            callee,
-                            callee_state,
-                            arguments,
-                            application,
-                        )
-                });
-            if let Some((_, missing)) = missing {
-                diagnostics.push(Diagnostic::error(format!(
-                "checked machine `{}` cannot cite `{}`: proposition requirement `{missing}` is not established at the call",
-                caller.name.as_str(),
-                callee.name.as_str(),
-            )));
-                return;
-            }
-        }
-        if has_relevant_ensures {
-            known.extend(proposition_labels(
-                program,
-                callee_contracts,
-                SignatureContractKind::Ensures,
-                &substitutions,
-                true,
-            ));
-        }
-    }
-
-    fn call_target<'a>(
-        program: &'a dyn crate::CheckingInput,
-        call: &TableCall,
-    ) -> Option<(&'a Machine, &'a typed_trees::state::State)> {
-        if let Some(machine) = program.machine_by_symbol(call.target_symbol) {
-            return Some((machine, program.machine_states(machine).first()?));
-        }
-        let machine = program.machine_holding_state(call.target_symbol)?;
-        let state = program.state_in_machine(machine, call.target_symbol)?;
-        Some((machine, state))
-    }
-
-    fn call_parameter_substitutions(
-        program: &dyn crate::CheckingInput,
-        call: &TableCall,
-        parameters: &[StateParameter],
-    ) -> Vec<(symbols::SymbolHandle, String, String)> {
-        let arguments = program.statement_table.expression_handles(call.arguments);
-        let mut argument_index = 0usize;
-        parameters
-            .iter()
-            .map(|parameter| {
-                let label = {
-                    let label = arguments
-                        .get(argument_index)
-                        .map(|argument| expression_table(program).display_name(*argument))
-                        .unwrap_or_else(|| parameter.name.as_str().to_owned());
-                    argument_index = argument_index.saturating_add(1);
-                    label
-                };
-                (parameter.symbol, parameter.name.as_str().to_owned(), label)
-            })
-            .collect()
-    }
-
-    fn proposition_labels(
-        program: &dyn crate::CheckingInput,
-        contracts: &[SignatureContract],
-        kind: SignatureContractKind,
-        substitutions: &[(symbols::SymbolHandle, String, String)],
-        include_boolean_expressions: bool,
-    ) -> Vec<String> {
-        contracts
-            .iter()
-            .filter(|contract| contract.kind == kind)
-            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
-            .filter_map(|fact| {
-                let Some(application) = fact.as_proposition() else {
-                    return match fact {
-                        ProofFact::Expression(expression) if include_boolean_expressions => {
-                            Some(format!(
-                                "boolean:{}",
-                                program.render_proof_expression(
-                                    *expression,
-                                    ProofSubstitutions::ByParameter(substitutions)
-                                )
-                            ))
-                        }
-                        ProofFact::Expression(_)
-                        | ProofFact::Membership(_)
-                        | ProofFact::Proposition(_) => None,
-                    };
-                };
-                application_label(program, application, substitutions)
-            })
-            .collect()
-    }
-
-    fn application_label(
-        program: &dyn crate::CheckingInput,
-        application: &typed_trees::proposition::PropositionApplication,
-        substitutions: &[(symbols::SymbolHandle, String, String)],
-    ) -> Option<String> {
-        let binder_labels = application
-            .binder_arguments
-            .iter()
-            .map(|argument| {
-                substitutions
-                    .iter()
-                    .find(|(symbol, _, _)| *symbol == argument.symbol)
-                    .map(|(_, _, label)| label.clone())
-                    .unwrap_or_else(|| argument.display_name())
-            })
-            .collect::<Vec<_>>();
-        let argument_labels = expression_table(program)
-            .expression_handles(application.arguments)
-            .iter()
-            .map(|argument| {
-                program.render_proof_expression(
-                    *argument,
-                    ProofSubstitutions::ByParameter(substitutions),
-                )
-            })
-            .collect::<Vec<_>>();
-        program.normalized_identity_label(application, &binder_labels, &argument_labels)
-    }
 }
 
 pub mod qualification_evidence {
     use crate::CheckingInput;
     use crate::frozen_program::expression_table;
-    use crate::value_custody::places::unwrapped_type_reference;
-    use crate::value_custody::type_references::type_references_match;
-    use checked_trees::BoundaryQualificationAuthorization;
-    use diagnostics::Diagnostic;
     use language_semantics::DomainEstablishmentRoute;
-    use language_semantics::MachineSupplyMode;
     use symbols::SymbolHandle;
     use typed_trees::expression::ExpressionHandle;
     use typed_trees::signature::SignatureContractKind;
     use typed_trees::signature::StateSignature;
     use typed_trees::types::TypeReferenceHandle;
-
-    pub(crate) mod calls {
-        use checked_trees::BoundaryQualificationAuthorization;
-        use language_semantics::MachineSupplyMode;
-        use symbols::SymbolHandle;
-        use typed_trees::machine::Machine;
-        use typed_trees::signature::{SignatureContractKind, StateSignature};
-
-        pub enum CallQualificationSource<'program> {
-            CheckedBody(&'program Machine),
-            AdmittedRequirement(BoundaryQualificationAuthorization),
-            Propagated,
-        }
-
-        pub fn call_qualification_source(
-            program: &dyn crate::CheckingInput,
-            target: SymbolHandle,
-            authorization: Option<BoundaryQualificationAuthorization>,
-        ) -> Option<CallQualificationSource<'_>> {
-            CallQualificationTarget::resolve(program, target).fact_source(authorization)
-        }
-
-        pub(crate) enum CallQualificationTarget<'program> {
-            CheckedBody(&'program Machine),
-            AdmittedRequirement,
-            BoundaryRequirement {
-                invoked: SymbolHandle,
-                declaration: SymbolHandle,
-                signature: SymbolHandle,
-            },
-            Propagated,
-        }
-
-        impl<'program> CallQualificationTarget<'program> {
-            fn resolve(program: &'program dyn crate::CheckingInput, target: SymbolHandle) -> Self {
-                if let Some(machine) = program.machine_by_own_or_state_symbol(target) {
-                    return if machine.body_is_present
-                        && matches!(
-                            machine.supply_mode,
-                            MachineSupplyMode::CheckedBody | MachineSupplyMode::Boundary
-                        ) {
-                        Self::CheckedBody(machine)
-                    } else {
-                        Self::AdmittedRequirement
-                    };
-                }
-                if let Some((declaration, signature)) =
-                    crate::selected_requirement_signature(program, target)
-                        .filter(|(declaration, _)| declaration.is_boundary)
-                {
-                    return Self::BoundaryRequirement {
-                        invoked: target,
-                        declaration: declaration.symbol,
-                        signature: signature.symbol,
-                    };
-                }
-                if program
-                    .trait_definition_by_symbol(target)
-                    .is_some_and(|definition| definition.is_boundary)
-                {
-                    return Self::AdmittedRequirement;
-                }
-                Self::Propagated
-            }
-
-            fn fact_source(
-                &self,
-                authorization: Option<BoundaryQualificationAuthorization>,
-            ) -> Option<CallQualificationSource<'program>> {
-                match self {
-                    Self::CheckedBody(machine) => authorization
-                        .is_none()
-                        .then_some(CallQualificationSource::CheckedBody(machine)),
-                    Self::AdmittedRequirement | Self::BoundaryRequirement { .. } => {
-                        authorization.map(CallQualificationSource::AdmittedRequirement)
-                    }
-                    Self::Propagated => Some(CallQualificationSource::Propagated),
-                }
-            }
-        }
-
-        pub struct CallQualificationContract<'program> {
-            program: &'program dyn crate::CheckingInput,
-            target: CallQualificationTarget<'program>,
-            clauses: CallQualificationClauses<'program>,
-        }
-
-        pub(crate) enum CallQualificationClauses<'program> {
-            ActualBody,
-            Requirement {
-                declaration: SymbolHandle,
-                signature: &'program StateSignature,
-            },
-            UnresolvedRequirement,
-        }
-
-        impl<'program> CallQualificationContract<'program> {
-            pub fn prepare(
-                program: &'program dyn crate::CheckingInput,
-                target: SymbolHandle,
-                selected: Option<&'program StateSignature>,
-            ) -> Self {
-                let clauses = match selected {
-                    None => match crate::selected_requirement_signature(program, target) {
-                        Some((declaration, signature)) => CallQualificationClauses::Requirement {
-                            declaration: declaration.symbol,
-                            signature,
-                        },
-                        None => CallQualificationClauses::ActualBody,
-                    },
-                    Some(signature) => {
-                        match crate::selected_requirement_signature(program, signature.symbol) {
-                            Some((declaration, _)) => CallQualificationClauses::Requirement {
-                                declaration: declaration.symbol,
-                                signature,
-                            },
-                            None => CallQualificationClauses::UnresolvedRequirement,
-                        }
-                    }
-                };
-                Self {
-                    program,
-                    target: CallQualificationTarget::resolve(program, target),
-                    clauses,
-                }
-            }
-
-            pub fn declares_membership_obligation(
-                &self,
-                kind: SignatureContractKind,
-                fact: arena::Handle<typed_trees::domain::ProofFact>,
-            ) -> bool {
-                let (
-                    CallQualificationTarget::BoundaryRequirement {
-                        invoked,
-                        declaration: actual_declaration,
-                        signature: actual_signature,
-                    },
-                    CallQualificationClauses::Requirement {
-                        declaration,
-                        signature,
-                    },
-                ) = (&self.target, &self.clauses)
-                else {
-                    return false;
-                };
-                if kind != SignatureContractKind::Ensures
-                    || actual_declaration != declaration
-                    || !self.program.proof_facts.is_valid(fact)
-                    || self.program.proof_facts.get(fact).as_membership().is_none()
-                {
-                    return false;
-                }
-                if self
-                    .program
-                    .closed_requirement_application(*invoked)
-                    .is_some()
-                    && *actual_signature != signature.symbol
-                {
-                    return false;
-                }
-                if let (Some(actual), Some(selected)) = (
-                    self.program
-                        .closed_requirement_application(*actual_signature),
-                    self.program
-                        .closed_requirement_application(signature.symbol),
-                ) && actual.trait_application_identity != selected.trait_application_identity
-                {
-                    return false;
-                }
-                let declaration_signature = |selected| {
-                    self.program
-                        .closed_requirement_application(selected)
-                        .map_or(Some(selected), |application| {
-                            (application.declaring_trait == *declaration)
-                                .then_some(application.template)
-                        })
-                };
-                if declaration_signature(*actual_signature).is_none()
-                    || declaration_signature(*actual_signature)
-                        != declaration_signature(signature.symbol)
-                {
-                    return false;
-                }
-                self.program
-                    .state_signature_contracts(signature)
-                    .iter()
-                    .any(|contract| {
-                        contract.kind == kind && contract.facts.handles().any(|owned| owned == fact)
-                    })
-            }
-
-            pub fn fact_source(
-                &self,
-                kind: SignatureContractKind,
-                fact: &typed_trees::domain::ProofFact,
-            ) -> Option<CallQualificationSource<'program>> {
-                let authorization = match &self.clauses {
-                    CallQualificationClauses::ActualBody => None,
-                    CallQualificationClauses::Requirement {
-                        declaration,
-                        signature,
-                    } => super::boundary_qualification_authorization(
-                        self.program,
-                        *declaration,
-                        signature,
-                        kind,
-                        fact,
-                    ),
-                    CallQualificationClauses::UnresolvedRequirement => return None,
-                };
-                self.target.fact_source(authorization)
-            }
-        }
-    }
-    pub use calls::{
-        CallQualificationContract, CallQualificationSource, call_qualification_source,
-    };
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct BoundaryQualificationObligation {
@@ -9181,15 +5883,13 @@ pub mod qualification_evidence {
             let formal = program.state_signature_parameters(requirement);
             for contract in program.state_signature_contracts(requirement) {
                 for fact in program.proof_facts.span_or_empty(contract.facts) {
-                    if boundary_qualification_authorization(
+                    if !boundary_declares_qualification(
                         program,
                         definition.symbol,
                         requirement,
                         contract.kind.clone(),
                         fact,
-                    )
-                    .is_none()
-                    {
+                    ) {
                         continue;
                     }
                     let Some(membership) = fact.as_membership() else {
@@ -9277,193 +5977,6 @@ pub mod qualification_evidence {
         obligations
     }
 
-    pub(crate) fn validate_qualification_authorization(
-        program: &dyn CheckingInput,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        validate_boundary_requirements(program, diagnostics);
-        validate_external_machine_claims(program, diagnostics);
-    }
-
-    fn validate_boundary_requirements(
-        program: &dyn CheckingInput,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        for trait_definition in program
-            .traits()
-            .iter()
-            .filter(|definition| definition.is_boundary)
-        {
-            for signature in program.trait_machine_signatures(trait_definition) {
-                for contract in program
-                    .state_signature_contracts(signature)
-                    .iter()
-                    .filter(|contract| contract.kind == SignatureContractKind::Ensures)
-                {
-                    for fact in program.proof_facts.span_or_empty(contract.facts) {
-                        let Some(membership) = fact.as_membership() else {
-                            continue;
-                        };
-                        if let Some(permission) =
-                            crate::proof_contracts::proof_facts::carry_permission(
-                                program,
-                                membership.domain,
-                            )
-                        {
-                            if !expression_table(program).names_reserved_result(membership.value)
-                                && mutable_parameter(program, signature, membership.value).is_none()
-                            {
-                                diagnostics.push(Diagnostic::error(format!(
-                                "boundary requirement `{}::{}` may admit carry permission `{permission}` only for its exact `result` or an exact mutable parameter",
-                                trait_definition.name, signature.name,
-                            )));
-                            }
-                            continue;
-                        }
-                        if !membership.domain_symbol.is_valid() {
-                            continue;
-                        }
-                        let Some(domain) = program.domain_definition(membership.domain_symbol)
-                        else {
-                            continue;
-                        };
-
-                        let subject =
-                            if expression_table(program).names_reserved_result(membership.value) {
-                                Some((signature.return_type, "result"))
-                            } else {
-                                mutable_parameter(program, signature, membership.value).map(
-                                    |parameter| (parameter.type_reference, parameter.name.as_str()),
-                                )
-                            };
-                        let Some((subject, subject_name)) = subject else {
-                            diagnostics.push(Diagnostic::error(format!(
-                            "boundary requirement `{}::{}` may admit domain `{}` only for its exact `result` or an exact mutable parameter; move the membership guarantee to `ensures result in {}` or name a mutable parameter",
-                            trait_definition.name,
-                            signature.name,
-                            domain.name,
-                            domain.name,
-                        )));
-                            continue;
-                        };
-
-                        let subject_carrier = unwrapped_type_reference(program, subject);
-                        let domain_carrier = unwrapped_type_reference(program, domain.target_type);
-                        if !matches!(
-                            (subject_carrier, domain_carrier),
-                            (Some(subject_carrier), Some(domain_carrier))
-                                if type_references_match(program, subject_carrier, domain_carrier)
-                                    || lifetime_erased_nominal_carriers_match(
-                                        program,
-                                        subject_carrier,
-                                        domain_carrier,
-                                    )
-                        ) {
-                            diagnostics.push(Diagnostic::error(format!(
-                            "boundary requirement `{}::{}` cannot admit `{subject_name} in {}`: {} carrier `{}` does not match domain target `{}`",
-                            trait_definition.name,
-                            signature.name,
-                            domain.name,
-                            if language_core::is_reserved_result(subject_name) {
-                                "result"
-                            } else {
-                                "parameter"
-                            },
-                            program.display_type_reference_with_constraints(subject),
-                            program.display_type_reference_with_constraints(domain.target_type),
-                        )));
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    fn lifetime_erased_nominal_carriers_match(
-        program: &dyn CheckingInput,
-        application: typed_trees::types::TypeReferenceHandle,
-        nominal: typed_trees::types::TypeReferenceHandle,
-    ) -> bool {
-        let typed_trees::types::TypeReferenceNode::Generic {
-            base_symbol,
-            lifetime_arguments,
-            arguments,
-            ..
-        } = program.type_reference_table.type_reference(application)
-        else {
-            return false;
-        };
-        let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
-            program.type_reference_table.type_reference(nominal)
-        else {
-            return false;
-        };
-        *base_symbol == *symbol
-            && symbol.is_valid()
-            && program
-                .type_reference_table
-                .type_reference_handles(*arguments)
-                .is_empty()
-            && crate::declarations::data_queries::data_definition_by_symbol(program, *base_symbol)
-                .is_some_and(|definition| {
-                    !definition.lifetime_parameters.is_empty()
-                        && definition.lifetime_parameters.len() == lifetime_arguments.len()
-                })
-    }
-
-    fn validate_external_machine_claims(
-        program: &dyn CheckingInput,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        for machine in program.machines().iter().filter(|machine| {
-            matches!(
-                machine.supply_mode,
-                MachineSupplyMode::AdmissionClaim
-                    | MachineSupplyMode::Requirement
-                    | MachineSupplyMode::ExternalRealization { .. }
-            )
-        }) {
-            for contract in program
-                .machine_contracts(machine)
-                .iter()
-                .chain(
-                    program
-                        .machine_states(machine)
-                        .iter()
-                        .flat_map(|state| program.state_contracts(state)),
-                )
-                .filter(|contract| contract.kind == SignatureContractKind::Ensures)
-            {
-                for fact in program.proof_facts.span_or_empty(contract.facts) {
-                    let Some(membership) = fact.as_membership() else {
-                        continue;
-                    };
-                    if let Some(permission) = crate::proof_contracts::proof_facts::carry_permission(
-                        program,
-                        membership.domain,
-                    ) {
-                        diagnostics.push(Diagnostic::error(format!(
-                        "external machine `{}` cannot directly admit carry permission `{permission}`; publish it on an owner-authorized boundary trait requirement and satisfy that requirement through the provider",
-                        machine.name,
-                    )));
-                        continue;
-                    }
-                    if !membership.domain_symbol.is_valid() {
-                        continue;
-                    }
-                    let domain_name = program
-                        .domain_definition(membership.domain_symbol)
-                        .map(|domain| domain.name.as_str())
-                        .unwrap_or("<unknown>");
-                    diagnostics.push(Diagnostic::error(format!(
-                    "external machine `{}` cannot directly admit domain membership `{}`; publish `ensures result in {}` on an owner-authorized boundary trait requirement and satisfy that requirement through the provider",
-                    machine.name, domain_name, domain_name,
-                )));
-                }
-            }
-        }
-    }
-
     fn mutable_parameter<'a>(
         program: &'a dyn CheckingInput,
         signature: &'a typed_trees::signature::StateSignature,
@@ -9493,44 +6006,48 @@ pub mod qualification_evidence {
         }
     }
 
-    pub fn boundary_qualification_authorization(
+    fn boundary_declares_qualification(
         program: &dyn CheckingInput,
         owner_symbol: SymbolHandle,
         signature: &StateSignature,
         contract_kind: SignatureContractKind,
         fact: &typed_trees::domain::ProofFact,
-    ) -> Option<BoundaryQualificationAuthorization> {
+    ) -> bool {
         if contract_kind != SignatureContractKind::Ensures
             || !program
                 .traits()
                 .iter()
                 .any(|definition| definition.symbol == owner_symbol && definition.is_boundary)
         {
-            return None;
+            return false;
         }
 
-        let membership = fact.as_membership()?;
+        let Some(membership) = fact.as_membership() else {
+            return false;
+        };
         let subject_carrier = if expression_table(program).names_reserved_result(membership.value) {
             signature.return_type
         } else {
-            mutable_parameter(program, signature, membership.value)?.type_reference
+            let Some(parameter) = mutable_parameter(program, signature, membership.value) else {
+                return false;
+            };
+            parameter.type_reference
         };
         if crate::proof_contracts::proof_facts::carry_permission(program, membership.domain)
             .is_some()
         {
-            return Some(BoundaryQualificationAuthorization {
-                requirement_symbol: owner_symbol,
-                signature_symbol: signature.symbol,
-            });
+            return true;
         }
         if !membership.domain_symbol.is_valid() {
-            return None;
+            return false;
         }
-        let domain = program.domain_definition(membership.domain_symbol)?;
+        let Some(domain) = program.domain_definition(membership.domain_symbol) else {
+            return false;
+        };
         if membership.authored_domain_selection.is_none()
             || membership.domain_arguments.len() != domain.type_parameters.len()
         {
-            return None;
+            return false;
         }
         let authority_signature = program
             .closed_requirement_application(signature.symbol)
@@ -9545,16 +6062,13 @@ pub mod qualification_evidence {
                 } if *boundary_trait == owner_symbol && *requirement == authority_signature
             )
         }) {
-            return None;
+            return false;
         }
         if !return_type_matches_domain_target(program, subject_carrier, domain.target_type) {
-            return None;
+            return false;
         }
 
-        Some(BoundaryQualificationAuthorization {
-            requirement_symbol: owner_symbol,
-            signature_symbol: signature.symbol,
-        })
+        true
     }
 
     fn return_type_matches_domain_target(
@@ -9586,1889 +6100,3 @@ pub mod qualification_evidence {
             .closed_nominal_symbol(unwrapped)
     }
 }
-
-pub mod relevance {
-    //! Runtime noninterference and fail-closed fences for occurrence-level
-    //! `[erased]` bindings: data fields, case payload fields, signature
-    //! parameters, and `let` locals.
-    //!
-    //! The executable slice supports transparent records and sums, including
-    //! constructors joined to their exact closed receiving application, and closed
-    //! plain data whose attached machines are ordinary checked bodies. The full
-    //! semantic tree remains intact for proofs and ownership; native lowering later strips erased literal fields from its
-    //! private runtime expression graph and attached-machine storage/topology.
-    //!
-    //! Every binding occurrence shares one contract
-    //! (wiki/spec/proofs/contracts.md#explicit-erased-bindings): the binding may
-    //! supply proof computation but cannot determine runtime data or control.
-    //! Contracts, invariants, and proof machines are `Context::Proof` and never
-    //! walk here as runtime reads. An erased binding's own initializer -- a
-    //! field initializer in a struct literal, a `let x [erased]` initializer, or
-    //! the argument supplied to an erased parameter position -- is
-    //! `Context::ErasedInitializer`: it may read erased bindings but cannot call
-    //! a runtime machine or perform an atomic operation, because nothing at
-    //! runtime will ever observe the result. Runtime reads of erased parameters
-    //! and locals are resolved by symbol against the current state's own
-    //! parameters and `let` statements; parameter positions align arguments with
-    //! the callee's non-`self` parameters. A statement call's receiver is its
-    //! callee's `self` operand -- a runtime place, not a proof position -- so a
-    //! runtime call through an erased binding or erased field projection rejects
-    //! with the same diagnostic as a direct read.
-
-    use crate::CheckingInput;
-    use diagnostics::Diagnostic;
-    use symbols::SymbolHandle;
-    use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
-
-    #[derive(Clone, Copy, PartialEq, Eq)]
-    pub(crate) enum Context {
-        Runtime,
-        ErasedInitializer,
-        Proof,
-    }
-
-    pub(crate) fn validate_relevance(
-        program: &dyn CheckingInput,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        let proof_only = crate::proof_only_classification(program);
-        validate_erased_field_shapes(program, diagnostics);
-
-        for machine in program.machines() {
-            let machine_context = if proof_only.is_proof_machine(program, machine)
-                || crate::mathematical_applications::is_indexed_logical_machine(program, machine)
-                || crate::value_custody::content_projections::is_content_projection_machine(
-                    program, machine,
-                ) {
-                Context::Proof
-            } else {
-                Context::Runtime
-            };
-            for state in program.machine_states(machine) {
-                macro_rules! relevance_child {
-                    ($expression:expr, $context:expr $(,)?) => {
-                        validate_expression(
-                            program,
-                            &proof_only,
-                            machine,
-                            state,
-                            $expression,
-                            $context,
-                            diagnostics,
-                        )
-                    };
-                }
-                for statement in program.statement_table.statements(state.statement_nodes) {
-                    match statement {
-                        StatementNode::Assembly(_) => {}
-                        StatementNode::AssemblyFact(fact) => {
-                            for expression in program.tables.proof_fact_expression_roots(fact.fact)
-                            {
-                                relevance_child!(expression, Context::Proof);
-                            }
-                        }
-                        StatementNode::Assignment(assignment) => {
-                            relevance_child!(assignment.target, machine_context);
-                            relevance_child!(assignment.value, machine_context);
-                        }
-                        StatementNode::Call(call) => {
-                            let argument_context = if machine_context == Context::Proof
-                                || call_targets_proof_machine(
-                                    program,
-                                    &proof_only,
-                                    call.target_symbol,
-                                ) {
-                                Context::Proof
-                            } else {
-                                Context::Runtime
-                            };
-                            if argument_context == Context::Runtime {
-                                runtime_uses::validate_statement_call_receiver(
-                                    program,
-                                    machine,
-                                    state,
-                                    call,
-                                    diagnostics,
-                                );
-                            }
-                            let callee_parameters = callee_parameters(program, call.target_symbol);
-                            for (position, argument) in program
-                                .statement_table
-                                .expression_handles(call.arguments)
-                                .iter()
-                                .enumerate()
-                            {
-                                relevance_child!(
-                                    *argument,
-                                    argument_position_context(
-                                        argument_context,
-                                        callee_parameters,
-                                        position,
-                                    ),
-                                );
-                            }
-                        }
-                        StatementNode::Expression(expression) => {
-                            relevance_child!(*expression, machine_context)
-                        }
-                        StatementNode::LocalData(local) => relevance_child!(
-                            local.initial_value,
-                            if machine_context == Context::Runtime && local.relevance.is_erased() {
-                                Context::ErasedInitializer
-                            } else {
-                                machine_context
-                            },
-                        ),
-                        StatementNode::Transition(transition) => {
-                            if let TransitionGuardNode::When(guard) = transition.guard {
-                                relevance_child!(guard, machine_context);
-                            }
-                            for target in transition.targets() {
-                                match program.statement_table.transition_target(target) {
-                                    TransitionTargetNode::Named {
-                                        path, arguments, ..
-                                    } => {
-                                        let target_parameters =
-                                            callee_parameters(program, path.symbol);
-                                        for (position, argument) in program
-                                            .statement_table
-                                            .expression_handles(*arguments)
-                                            .iter()
-                                            .enumerate()
-                                        {
-                                            let position_context = argument_position_context(
-                                                machine_context,
-                                                target_parameters,
-                                                position,
-                                            );
-                                            relevance_child!(*argument, position_context);
-                                        }
-                                    }
-                                    TransitionTargetNode::Value(value) => {
-                                        relevance_child!(*value, machine_context)
-                                    }
-                                    TransitionTargetNode::Terminal => {}
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn dispatch_subject_of_erased_binding(
-        program: &dyn CheckingInput,
-        state: &typed_trees::state::State,
-        local: &typed_trees::statement::TableLocalData,
-    ) -> bool {
-        if !local.name.as_str().starts_with("__transition_subject")
-            || !local.initial_value.is_valid()
-        {
-            return false;
-        }
-        let mut expression = local.initial_value;
-        let mut symbol = symbols::SymbolHandle::invalid();
-        for _ in 0..8 {
-            match program.expression_table.expression(expression) {
-                typed_trees::expression::ExpressionNode::Borrow(borrow) => {
-                    expression = borrow.target;
-                }
-                typed_trees::expression::ExpressionNode::Name(path) => {
-                    symbol = path.symbol;
-                    break;
-                }
-                _ => return false,
-            }
-        }
-        if !symbol.is_valid() {
-            return false;
-        }
-        program
-            .state_parameters(state)
-            .iter()
-            .any(|parameter| parameter.symbol == symbol && parameter.relevance.is_erased())
-            || program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .any(|statement| {
-                    statement.as_local_data().is_some_and(|binding| {
-                        binding.symbol == symbol && binding.relevance.is_erased()
-                    })
-                })
-    }
-
-    pub(crate) mod shape_admission {
-        use diagnostics::Diagnostic;
-        use language_core::BindingRelevance;
-        use language_semantics::DataSupplyMode;
-        use typed_trees::data::{DataDefinition, DataField, DataMember, DataShapeKind};
-        use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-
-        pub(crate) fn validate_erased_field_shapes(
-            program: &dyn crate::CheckingInput,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) {
-            for definition in program.data_definitions() {
-                let erased = erased_fields(program, definition);
-                if erased.is_empty() {
-                    continue;
-                }
-                let field_names = erased
-                    .iter()
-                    .map(|field| field.name.as_str())
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                if definition.supply_mode == DataSupplyMode::BoundaryOpaque {
-                    diagnostics.push(unsupported(
-                        definition,
-                        &field_names,
-                        "boundary-opaque ABI data",
-                    ));
-                }
-                if program
-                    .access_view_plans
-                    .iter()
-                    .any(|plan| plan.data_symbol == definition.symbol)
-                {
-                    diagnostics.push(unsupported(definition, &field_names, "access-view data"));
-                }
-                let has_attached_machines = program
-                    .machines()
-                    .iter()
-                    .any(|machine| machine.attached_data.as_ref() == Some(&definition.name));
-                if has_attached_machines
-                    && program.data_type_parameters(definition).is_empty()
-                    && !erased_attached_machine_record_is_admitted(program, definition)
-                {
-                    diagnostics.push(unsupported(
-                        definition,
-                        &field_names,
-                        "data with attached machines",
-                    ));
-                }
-            }
-
-            validate_unresolved_erased_generic_uses(program, diagnostics);
-            validate_erased_binding_qualifiers(program, diagnostics);
-            validate_erased_runtime_scalar_formals(program, diagnostics);
-            crate::erased_actuals::validate(program, diagnostics);
-        }
-
-        /// Whether an expression clause of the machine's contracts names
-        /// exactly the field path `fields` below `parameter`.
-        fn contract_names_field(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            parameter: symbols::SymbolHandle,
-            fields: &[symbols::SymbolHandle],
-        ) -> bool {
-            let mut expressions = Vec::new();
-            crate::queries::expression_traversal::collect_expression_trees(
-                program,
-                program
-                    .machine_contracts(machine)
-                    .iter()
-                    .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
-                    .filter_map(|fact| fact.as_expression().copied()),
-                &mut expressions,
-            );
-            expressions.iter().any(|expression| {
-                crate::canonical_place_from_expression(program, *expression).is_some_and(|place| {
-                    place.root.as_symbol() == Some(parameter)
-                        && place.segments.len() == fields.len()
-                        && place.segments.iter().zip(fields).all(|(segment, field)| {
-                            matches!(segment, facts::PlaceSegment::Field { symbol } if symbol == field)
-                        })
-                })
-            })
-        }
-
-        fn validate_erased_runtime_scalar_formals(
-            program: &dyn crate::CheckingInput,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) {
-            let proof_only = crate::proof_only_classification(program);
-            for machine in program.machines() {
-                if proof_only.is_proof_machine(program, machine) {
-                    continue;
-                }
-                for state in program.machine_states(machine) {
-                    for parameter in program.state_parameters(state) {
-                        if !parameter.relevance.is_erased() || !parameter.type_reference.is_valid()
-                        {
-                            continue;
-                        }
-                        let lanes = program.erased_scalar_lanes(parameter.type_reference);
-                        // A contract over a record's `bool` field is read by
-                        // the Boolean vocabulary, which names a formal's
-                        // structural slot; an erased record has none. A
-                        // `bool` field no contract names rides its lane like
-                        // any other field.
-                        if let Some(lane) = lanes.iter().find(|lane| {
-                            !lane.fields.is_empty()
-                                && lane.primitive_type == typed_trees::types::PrimitiveType::Bool
-                                && contract_names_field(
-                                    program,
-                                    machine,
-                                    parameter.symbol,
-                                    &lane.fields,
-                                )
-                        }) {
-                            diagnostics.push(Diagnostic::error(format!(
-                                "machine `{}::{}` erased parameter `{}` is a record with `bool` field `{}`; an erased record carries integer and float fields only, so pass that field as its own erased `bool` parameter",
-                                machine.name,
-                                state.name,
-                                parameter.name,
-                                lane.fields
-                                    .iter()
-                                    .map(|field| program.symbols.name(*field))
-                                    .collect::<Vec<_>>()
-                                    .join("."),
-                            )));
-                            continue;
-                        }
-                        if !lanes.is_empty() {
-                            continue;
-                        }
-                        if proof_only.contract_term_carrier(program, parameter.type_reference)
-                            || crate::mathematical_applications::is_source_evidence_carrier(
-                                program,
-                                parameter.type_reference,
-                            )
-                        {
-                            continue;
-                        }
-                        diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}::{}` erased parameter `{}` is not scalar; an erased formal on a runtime machine needs a scalar lane or a contract term carrier",
-                    machine.name, state.name, parameter.name,
-                )));
-                    }
-                }
-            }
-        }
-
-        fn validate_erased_binding_qualifiers(
-            program: &dyn crate::CheckingInput,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) {
-            for machine in program.machines() {
-                for state in program.machine_states(machine) {
-                    for parameter in program.state_parameters(state) {
-                        let Some(qualifier) = erased_qualifier(
-                            parameter.relevance,
-                            parameter.is_const,
-                            parameter.is_mutable,
-                        ) else {
-                            continue;
-                        };
-                        diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}::{}` erased parameter `{}` cannot be `{qualifier}`; an erased binding owns no runtime storage or custody",
-                    machine.name, state.name, parameter.name,
-                )));
-                    }
-                    for statement in program.statement_table.statements(state.statement_nodes) {
-                        let Some(local) = statement.as_local_data() else {
-                            continue;
-                        };
-                        if local.relevance.is_erased() && local.is_mutable {
-                            diagnostics.push(Diagnostic::error(format!(
-                        "machine `{}::{}` erased local `{}` cannot be `mut`; an erased binding owns no runtime storage or custody",
-                        machine.name, state.name, local.name,
-                    )));
-                        }
-                    }
-                }
-            }
-            for definition in program.traits() {
-                for signature in program.trait_machine_signatures(definition) {
-                    for parameter in program.state_signature_parameters(signature) {
-                        let Some(qualifier) = erased_qualifier(
-                            parameter.relevance,
-                            parameter.is_const,
-                            parameter.is_mutable,
-                        ) else {
-                            continue;
-                        };
-                        diagnostics.push(Diagnostic::error(format!(
-                    "requirement `{}` erased parameter `{}` cannot be `{qualifier}`; an erased binding owns no runtime storage or custody",
-                    signature.name, parameter.name,
-                )));
-                    }
-                }
-            }
-        }
-
-        fn erased_qualifier(
-            relevance: BindingRelevance,
-            is_const: bool,
-            is_mutable: bool,
-        ) -> Option<&'static str> {
-            if !relevance.is_erased() {
-                return None;
-            }
-            if is_const {
-                Some("const")
-            } else if is_mutable {
-                Some("mut")
-            } else {
-                None
-            }
-        }
-
-        fn erased_attached_machine_record_is_admitted(
-            program: &dyn crate::CheckingInput,
-            definition: &DataDefinition,
-        ) -> bool {
-            if definition.supply_mode != DataSupplyMode::CheckedShape
-                || !program.data_type_parameters(definition).is_empty()
-                || !matches!(
-                    DataDefinition::shape_kind_from_members(program.data_members(definition)),
-                    DataShapeKind::Record | DataShapeKind::Enum | DataShapeKind::Mixed
-                )
-                || program.plan_laid_layout_for_data(definition).is_some()
-                || program
-                    .access_view_plans
-                    .iter()
-                    .any(|plan| plan.data_symbol == definition.symbol)
-                || program
-                    .wire_schemas()
-                    .iter()
-                    .any(|schema| schema.name == definition.name)
-            {
-                return false;
-            }
-
-            let attached = program
-                .machines()
-                .iter()
-                .filter(|machine| machine.attached_data.as_ref() == Some(&definition.name));
-            let mut found = false;
-            for machine in attached {
-                found = true;
-                if !machine.supply_mode.is_checked_body()
-                    || !program.machine_type_parameters(machine).is_empty()
-                {
-                    return false;
-                }
-            }
-            found
-        }
-
-        fn validate_unresolved_erased_generic_uses(
-            program: &dyn crate::CheckingInput,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) {
-            for definition in program
-                .data_definitions()
-                .iter()
-                .filter(|definition| definition.type_parameters.is_empty())
-            {
-                for member in program.data_members(definition) {
-                    let fields = program.data_member_fields(std::slice::from_ref(member));
-                    for field in fields {
-                        if field.relevance.is_erased()
-                            && crate::mathematical_applications::is_source_evidence_carrier(
-                                program,
-                                field.type_reference,
-                            )
-                        {
-                            continue;
-                        }
-                        if let Some(base) =
-                            unresolved_erased_generic_base(program, field.type_reference)
-                        {
-                            diagnostics.push(Diagnostic::error(format!(
-                        "data `{}` field `{}` uses unresolved erased generic data `{base}`; this slice requires a closed monomorphized instance",
-                        definition.name, field.name
-                    )));
-                        }
-                    }
-                }
-            }
-
-            for machine in program.machines().iter().filter(|machine| {
-                program.machine_type_parameters(machine).is_empty()
-                    && !crate::mathematical_applications::is_indexed_logical_machine(
-                        program, machine,
-                    )
-            }) {
-                for state in program.machine_states(machine) {
-                    for parameter in program.state_parameters(state) {
-                        if parameter.relevance.is_erased()
-                            && crate::mathematical_applications::is_source_evidence_carrier(
-                                program,
-                                parameter.type_reference,
-                            )
-                        {
-                            continue;
-                        }
-                        if let Some(base) =
-                            unresolved_erased_generic_base(program, parameter.type_reference)
-                        {
-                            diagnostics.push(Diagnostic::error(format!(
-                        "machine `{}::{}` parameter `{}` uses unresolved erased generic data `{base}`; this slice requires a closed monomorphized instance",
-                        machine.name, state.name, parameter.name
-                    )));
-                        }
-                    }
-                    if let Some(base) = unresolved_erased_generic_base(program, state.return_type) {
-                        diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}::{}` result uses unresolved erased generic data `{base}`; this slice requires a closed monomorphized instance",
-                    machine.name, state.name
-                )));
-                    }
-                    for statement in program.statement_table.statements(state.statement_nodes) {
-                        let Some(local) = statement.as_local_data() else {
-                            continue;
-                        };
-                        if (local.relevance.is_erased()
-                            && crate::mathematical_applications::is_source_evidence_carrier(
-                                program,
-                                local.type_reference,
-                            ))
-                            || super::dispatch_subject_of_erased_binding(program, state, local)
-                        {
-                            continue;
-                        }
-                        if let Some(base) =
-                            unresolved_erased_generic_base(program, local.type_reference)
-                        {
-                            diagnostics.push(Diagnostic::error(format!(
-                        "machine `{}::{}` local `{}` uses unresolved erased generic data `{base}`; this slice requires a closed monomorphized instance",
-                        machine.name, state.name, local.name
-                    )));
-                        }
-                    }
-                }
-            }
-        }
-
-        fn unsupported(definition: &DataDefinition, fields: &str, shape: &str) -> Diagnostic {
-            Diagnostic::error(format!(
-                "data `{}` has erased field(s) `{fields}`, but erased-stripped runtime support for {shape} is not implemented yet",
-                definition.name
-            ))
-        }
-
-        pub(crate) fn erased_fields<'program>(
-            program: &'program dyn crate::CheckingInput,
-            definition: &'program DataDefinition,
-        ) -> Vec<&'program DataField> {
-            let mut fields = Vec::new();
-            for member in program.data_members(definition) {
-                match member {
-                    DataMember::Field(field) if field.relevance == BindingRelevance::Erased => {
-                        fields.push(field)
-                    }
-                    DataMember::Variant(variant) => fields.extend(
-                        program
-                            .data_payload_fields(variant)
-                            .iter()
-                            .filter(|field| field.relevance == BindingRelevance::Erased),
-                    ),
-                    DataMember::Field(_) => {}
-                }
-            }
-            fields
-        }
-
-        fn unresolved_erased_generic_base(
-            program: &dyn crate::CheckingInput,
-            handle: TypeReferenceHandle,
-        ) -> Option<String> {
-            if !handle.is_valid() {
-                return None;
-            }
-            match program.type_reference_table.type_reference(handle) {
-                TypeReferenceNode::Reference { referee, .. } => {
-                    unresolved_erased_generic_base(program, *referee)
-                }
-                TypeReferenceNode::Constrained { base_type, .. } => {
-                    unresolved_erased_generic_base(program, *base_type)
-                }
-                TypeReferenceNode::FixedArray { element_type, .. }
-                | TypeReferenceNode::Slice { element_type } => {
-                    unresolved_erased_generic_base(program, *element_type)
-                }
-                TypeReferenceNode::Generic {
-                    base_symbol,
-                    base_name,
-                    arguments,
-                    ..
-                } => {
-                    let base = program.data_definitions().iter().find(|definition| {
-                        if base_symbol.is_valid() {
-                            definition.symbol == *base_symbol
-                        } else {
-                            definition.name == *base_name
-                        }
-                    });
-                    if base.is_some_and(|definition| {
-                        !definition.type_parameters.is_empty()
-                            && !erased_fields(program, definition).is_empty()
-                    }) {
-                        return Some(base_name.as_str().to_owned());
-                    }
-                    program
-                        .type_reference_table
-                        .type_reference_handles(*arguments)
-                        .iter()
-                        .find_map(|argument| unresolved_erased_generic_base(program, *argument))
-                }
-                TypeReferenceNode::Named { .. }
-                | TypeReferenceNode::ConstExpression(_)
-                | TypeReferenceNode::DynamicTrait { .. }
-                | TypeReferenceNode::Unit => None,
-            }
-        }
-    }
-    pub(crate) use shape_admission::erased_fields;
-    use shape_admission::validate_erased_field_shapes;
-
-    pub(crate) mod runtime_uses {
-
-        use super::{
-            Context, argument_position_context, call_targets_proof_machine, callee_parameters,
-            erased_fields,
-        };
-        use crate::frozen_program::expression_table;
-        use diagnostics::Diagnostic;
-        use language_core::BindingRelevance;
-        use symbols::SymbolHandle;
-        use typed_trees::data::{DataDefinition, DataField, DataMember};
-        use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableStructLiteral};
-        use typed_trees::machine::Machine;
-        use typed_trees::state::State;
-        use typed_trees::statement::TableCall;
-        use typed_trees::types::TypeReferenceHandle;
-
-        pub(crate) fn validate_expression(
-            program: &dyn crate::CheckingInput,
-            proof_only: &typed_trees::proof_only::ProofOnlyClassification,
-            machine: &Machine,
-            state: &State,
-            expression: ExpressionHandle,
-            context: Context,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) {
-            if !expression.is_valid() {
-                return;
-            }
-            macro_rules! visit_expression {
-                ($child:expr, $context:expr) => {
-                    validate_expression(
-                        program,
-                        proof_only,
-                        machine,
-                        state,
-                        $child,
-                        $context,
-                        diagnostics,
-                    )
-                };
-            }
-            match expression_table(program).expression(expression) {
-                ExpressionNode::Name(path) => {
-                    if context == Context::Runtime {
-                        let mut reported = false;
-                        for symbol in
-                            expression_table(program).name_path_member_symbols(path.member_symbols)
-                        {
-                            reported |= report_runtime_erased_field(program, *symbol, diagnostics)
-                                || report_runtime_erased_binding(
-                                    program,
-                                    state,
-                                    *symbol,
-                                    diagnostics,
-                                );
-                        }
-                        let members = expression_table(program).name_path_members(path.members);
-                        if !reported && members.len() == 2 && members[0].is_self_receiver() {
-                            report_runtime_erased_attached_field(
-                                program,
-                                machine,
-                                members[1].as_str(),
-                                diagnostics,
-                            );
-                        }
-                    }
-                }
-                ExpressionNode::Member(member) => {
-                    if context == Context::Runtime
-                        && !report_runtime_erased_field(program, member.member_symbol, diagnostics)
-                    {
-                        if crate::value_custody::places::direct_self_field_member(
-                            program, expression,
-                        ) == Some(member.member.as_str())
-                        {
-                            report_runtime_erased_attached_field(
-                                program,
-                                machine,
-                                member.member.as_str(),
-                                diagnostics,
-                            );
-                        } else {
-                            report_runtime_erased_member_by_receiver(
-                                program,
-                                machine,
-                                state,
-                                member.receiver,
-                                member.member.as_str(),
-                                member.case_variant.as_ref().map(|variant| variant.as_str()),
-                                diagnostics,
-                            );
-                        }
-                    }
-                    visit_expression!(member.receiver, context);
-                }
-                ExpressionNode::StructLiteral(literal) => validate_struct_literal(
-                    program,
-                    proof_only,
-                    machine,
-                    state,
-                    expression,
-                    literal,
-                    context,
-                    diagnostics,
-                ),
-                ExpressionNode::Call(call) => {
-                    if context == Context::Runtime
-                        && call_targets_proof_machine(program, proof_only, call.target_symbol)
-                    {
-                        diagnostics.push(Diagnostic::error(format!(
-                    "call to proof machine `{}` has no runtime result; use it only in a proof or erased context, or as a statement citation",
-                    call.target
-                )));
-                    }
-                    if context == Context::ErasedInitializer
-                        && !call_targets_proof_machine(program, proof_only, call.target_symbol)
-                        && !(crate::mathematical_applications::is_mathematical_call(program, call)
-                            && program
-                                .prepared_mathematics()
-                                .is_some_and(|view| view.application(expression).is_some()))
-                    {
-                        diagnostics.push(Diagnostic::error(format!(
-                    "erased binding initializer calls runtime machine `{}`; erased initialization cannot perform runtime effects or computation",
-                    call.target
-                )));
-                    }
-                    if call.receiver.is_valid() {
-                        visit_expression!(call.receiver, context);
-                    }
-                    let parameters = callee_parameters(program, call.target_symbol);
-                    for (position, argument) in expression_table(program)
-                        .expression_handles(call.arguments)
-                        .iter()
-                        .enumerate()
-                    {
-                        visit_expression!(
-                            *argument,
-                            argument_position_context(context, parameters, position)
-                        );
-                    }
-                }
-                ExpressionNode::Atomic(atomic) => {
-                    if context == Context::ErasedInitializer {
-                        diagnostics.push(Diagnostic::error(
-                            "erased binding initializer cannot perform an atomic runtime operation",
-                        ));
-                    }
-                    visit_expression!(atomic.value, context);
-                    visit_expression!(atomic.result, context);
-                }
-                other => crate::queries::expression_traversal::children(program, other, |child| {
-                    visit_expression!(child, context);
-                }),
-            }
-        }
-
-        fn validate_struct_literal(
-            program: &dyn crate::CheckingInput,
-            proof_only: &typed_trees::proof_only::ProofOnlyClassification,
-            machine: &Machine,
-            state: &State,
-            expression: ExpressionHandle,
-            literal: &TableStructLiteral,
-            context: Context,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) {
-            macro_rules! visit_expression {
-                ($child:expr, $context:expr) => {
-                    validate_expression(
-                        program,
-                        proof_only,
-                        machine,
-                        state,
-                        $child,
-                        $context,
-                        diagnostics,
-                    )
-                };
-            }
-            let Some(definition) = program.data_definition_by_symbol(literal.type_symbol) else {
-                for field in expression_table(program).struct_fields(literal.fields) {
-                    visit_expression!(field.value, context);
-                }
-                return;
-            };
-            let checked_source_evidence = context != Context::Runtime
-                && program.prepared_mathematics().is_some_and(|view| {
-                    view.source_evidence(expression).is_some_and(|evidence| {
-                        evidence.type_identity.is_valid()
-                            && evidence.type_identity
-                                == program.normalized_type_identity(evidence.source_type)
-                    }) || view
-                        .source_constructor(expression)
-                        .is_some_and(|constructor| {
-                            constructor.type_identity.is_valid()
-                                && constructor.type_identity
-                                    == program.normalized_type_identity(constructor.source_type)
-                                && constructor.machine == machine.symbol
-                                && constructor.state == state.symbol
-                        })
-                });
-            // Receiving application custody establishes correspondence, not evidence
-            // or permission to read an erased field at runtime. Its selected fields
-            // still require explicit terms (including checked nullary elaboration),
-            // and those terms retain their ErasedInitializer context below.
-            let applied = program.closed_data_constructor_definition(
-                crate::value_custody::struct_literals::construction_application(
-                    program, expression,
-                ),
-                literal.type_symbol,
-            );
-            let unsupported_bare_generic = !definition.type_parameters.is_empty()
-                && !erased_fields(program, definition).is_empty()
-                && applied.is_none()
-                && !checked_source_evidence;
-            if unsupported_bare_generic {
-                diagnostics.push(Diagnostic::error(format!(
-            "construction of erased generic data `{}` is unsupported in this context; use a closed generic record in an explicitly typed local initializer",
-            definition.name
-        )));
-            }
-            let declared_erased = literal_fields(
-                program,
-                applied.unwrap_or(definition),
-                literal.case_name.as_ref(),
-            )
-            .filter(|field| field.relevance.is_erased())
-            .collect::<Vec<_>>();
-            let authored = expression_table(program).struct_fields(literal.fields);
-            for erased in &declared_erased {
-                if !unsupported_bare_generic
-                    && !authored.iter().any(|field| field.name == erased.name)
-                {
-                    diagnostics.push(Diagnostic::error(format!(
-                "construction of `{}` omits erased field `{}`; supply an explicit proof term because no unique accessible nullary constructor determines this binding",
-                definition.name, erased.name
-            )));
-                }
-            }
-            for field in authored {
-                let field_context = if declared_erased
-                    .iter()
-                    .any(|declared| declared.name == field.name)
-                {
-                    Context::ErasedInitializer
-                } else {
-                    context
-                };
-                visit_expression!(field.value, field_context);
-            }
-        }
-
-        pub(crate) fn validate_statement_call_receiver(
-            program: &dyn crate::CheckingInput,
-            machine: &Machine,
-            state: &State,
-            call: &TableCall,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) {
-            if report_runtime_erased_binding(program, state, call.receiver_root_symbol, diagnostics)
-                || report_runtime_erased_binding(program, state, call.receiver_symbol, diagnostics)
-                || report_runtime_erased_field(program, call.receiver_root_symbol, diagnostics)
-                || report_runtime_erased_field(program, call.receiver_symbol, diagnostics)
-            {
-                return;
-            }
-            let members = program.statement_table.name_path_members(call.receiver);
-            let Some((first, projected)) = members.split_first() else {
-                return;
-            };
-            let mut owner = if first.is_self_receiver() {
-                crate::declarations::data_queries::data_definition_by_symbol(
-                    program,
-                    machine.attached_data_symbol,
-                )
-            } else {
-                receiver_root_type(program, state, call.receiver_root_symbol).and_then(
-                    |type_reference| {
-                        crate::value_custody::places::data_definition_for_type(
-                            program,
-                            type_reference,
-                        )
-                    },
-                )
-            };
-            for member in projected {
-                let Some(definition) = owner else {
-                    return;
-                };
-                let Some(field) = crate::value_custody::places::exact_data_member_field(
-                    program,
-                    definition,
-                    SymbolHandle::invalid(),
-                    member.as_str(),
-                    None,
-                ) else {
-                    return;
-                };
-                if field.relevance.is_erased() {
-                    diagnostics.push(Diagnostic::error(format!(
-                "erased field `{}` has no runtime value, address, read, write, or cleanup; it may be used only by proofs or another erased binding",
-                field.name
-            )));
-                    return;
-                }
-                owner = crate::value_custody::places::data_definition_for_type(
-                    program,
-                    field.type_reference,
-                );
-            }
-        }
-
-        fn receiver_root_type(
-            program: &dyn crate::CheckingInput,
-            state: &State,
-            root: SymbolHandle,
-        ) -> Option<TypeReferenceHandle> {
-            if !root.is_valid() {
-                return None;
-            }
-            crate::state_root_type(program, state, root)
-                .or_else(|| field_by_symbol(program, root).map(|field| field.type_reference))
-        }
-
-        fn report_runtime_erased_field(
-            program: &dyn crate::CheckingInput,
-            symbol: SymbolHandle,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) -> bool {
-            if !symbol.is_valid() {
-                return false;
-            }
-            if let Some(field) = field_by_symbol(program, symbol)
-                && field.relevance == BindingRelevance::Erased
-            {
-                diagnostics.push(Diagnostic::error(format!(
-            "erased field `{}` has no runtime value, address, read, write, or cleanup; it may be used only by proofs or another erased binding",
-            field.name
-        )));
-                return true;
-            }
-            false
-        }
-
-        fn report_runtime_erased_binding(
-            program: &dyn crate::CheckingInput,
-            state: &State,
-            symbol: SymbolHandle,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) -> bool {
-            if !symbol.is_valid() {
-                return false;
-            }
-            let erased_parameter = program
-                .state_parameters(state)
-                .iter()
-                .find(|parameter| parameter.symbol == symbol && parameter.relevance.is_erased());
-            if let Some(parameter) = erased_parameter {
-                diagnostics.push(Diagnostic::error(format!(
-            "erased parameter `{}` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding",
-            parameter.name
-        )));
-                return true;
-            }
-            let erased_local = program
-                .statement_table
-                .statements(state.statement_nodes)
-                .iter()
-                .find_map(|statement| match statement {
-                    typed_trees::statement::StatementNode::LocalData(local)
-                        if local.symbol == symbol && local.relevance.is_erased() =>
-                    {
-                        Some(local)
-                    }
-                    _ => None,
-                });
-            if let Some(local) = erased_local {
-                diagnostics.push(Diagnostic::error(format!(
-            "erased local `{}` has no runtime value, address, read, write, or cleanup; it may be used only by proofs, contracts, or another erased binding",
-            local.name
-        )));
-                return true;
-            }
-            false
-        }
-
-        fn report_runtime_erased_attached_field(
-            program: &dyn crate::CheckingInput,
-            machine: &Machine,
-            name: &str,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) {
-            let Some(attached) = machine.attached_data.as_ref() else {
-                return;
-            };
-            let Some(definition) = program.data_definition_by_name(attached) else {
-                return;
-            };
-            if let Some(field) = program.data_members(definition).iter().find_map(|member| {
-                let field = member.as_field()?;
-                (field.name.as_str() == name).then_some(field)
-            }) {
-                report_runtime_erased_field(program, field.symbol, diagnostics);
-            }
-        }
-
-        fn report_runtime_erased_member_by_receiver(
-            program: &dyn crate::CheckingInput,
-            machine: &Machine,
-            state: &State,
-            receiver: ExpressionHandle,
-            name: &str,
-            case_variant: Option<&str>,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) {
-            let receiver_type = crate::value_custody::places::declared_place_type(
-                program,
-                machine,
-                Some(state),
-                receiver,
-            )
-            .or_else(|| {
-                crate::value_custody::places::declared_indexed_projection_type(
-                    program,
-                    machine,
-                    Some(state),
-                    receiver,
-                )
-            });
-            let Some(definition) = receiver_type.and_then(|type_reference| {
-                crate::value_custody::places::data_definition_for_type(program, type_reference)
-            }) else {
-                return;
-            };
-            let field = if let Some(case_variant) = case_variant {
-                program.data_members(definition).iter().find_map(|member| {
-                    let variant = member.as_variant()?;
-                    (variant.name.as_str() == case_variant).then(|| {
-                        program
-                            .data_payload_fields(variant)
-                            .iter()
-                            .find(|field| field.name.as_str() == name)
-                    })?
-                })
-            } else {
-                let common = program.data_members(definition).iter().find_map(|member| {
-                    let field = member.as_field()?;
-                    (field.name.as_str() == name).then_some(field)
-                });
-                common.or_else(|| {
-                    program.data_members(definition).iter().find_map(|member| {
-                        let variant = member.as_variant()?;
-                        program.data_payload_fields(variant).iter().find(|field| {
-                            field.name.as_str() == name && field.relevance.is_erased()
-                        })
-                    })
-                })
-            };
-            if let Some(field) = field {
-                report_runtime_erased_field(program, field.symbol, diagnostics);
-            }
-        }
-
-        fn literal_fields<'program>(
-            program: &'program dyn crate::CheckingInput,
-            definition: &'program DataDefinition,
-            case_name: Option<&typed_trees::name::Identifier>,
-        ) -> impl Iterator<Item = &'program DataField> {
-            let mut fields = Vec::new();
-            for member in program.data_members(definition) {
-                match member {
-                    DataMember::Field(field) => fields.push(field),
-                    DataMember::Variant(variant)
-                        if case_name.is_some_and(|case_name| *case_name == variant.name) =>
-                    {
-                        fields.extend(program.data_payload_fields(variant));
-                    }
-                    DataMember::Variant(_) => {}
-                }
-            }
-            fields.into_iter()
-        }
-
-        fn field_by_symbol(
-            program: &dyn crate::CheckingInput,
-            symbol: SymbolHandle,
-        ) -> Option<&DataField> {
-            program.any_field_owner(symbol).map(|(_, field)| field)
-        }
-    }
-    use runtime_uses::validate_expression;
-
-    pub(crate) fn callee_parameters(
-        program: &dyn CheckingInput,
-        target: SymbolHandle,
-    ) -> Option<&[typed_trees::signature::StateParameter]> {
-        program
-            .state_by_symbol(target)
-            .or_else(|| {
-                program
-                    .machine_by_symbol(target)
-                    .and_then(|machine| program.machine_states(machine).first())
-            })
-            .map(|state| program.state_parameters(state))
-    }
-
-    pub(crate) fn argument_position_context(
-        context: Context,
-        callee_parameters: Option<&[typed_trees::signature::StateParameter]>,
-        position: usize,
-    ) -> Context {
-        if context != Context::Runtime {
-            return context;
-        }
-        let erased_position = callee_parameters.is_some_and(|parameters| {
-            parameters
-                .get(position)
-                .is_some_and(|parameter| parameter.relevance.is_erased())
-        });
-        if erased_position {
-            Context::ErasedInitializer
-        } else {
-            Context::Runtime
-        }
-    }
-
-    pub(crate) fn call_targets_proof_machine(
-        program: &dyn CheckingInput,
-        proof_only: &typed_trees::proof_only::ProofOnlyClassification,
-        target: SymbolHandle,
-    ) -> bool {
-        program
-            .machine_holding_state(target)
-            .or_else(|| program.machine_by_symbol(target))
-            .is_some_and(|machine| {
-                proof_only.is_proof_machine(program, machine)
-                    || crate::mathematical_applications::is_indexed_logical_machine(
-                        program, machine,
-                    )
-            })
-    }
-}
-
-pub mod scalar_boundary_guarantees {
-    use checked_trees::{
-        CheckedBooleanExpression as Boolean, CheckedBoundaryScalarGuarantee as Guarantee,
-        CheckedFloatProjectionSource as Source, CheckedFloatSemanticApplicationOperand as Operand,
-        CheckedIeeeFloatComparisonKind as Compare, CheckedScalarExpression as Scalar,
-        ClosedScalarContractValue,
-    };
-    use numerics::float_semantics_catalog::FloatSemanticOperation;
-    use semantic_vocabulary::{IeeeFloatFormat, IeeeFloatValue};
-    use typed_trees::{machine::Machine, types::PrimitiveType};
-
-    pub fn derive_scalar_boundary_guarantees(
-        program: &dyn crate::CheckingInput,
-        facts: &checked_trees::CheckFacts,
-        machine: &Machine,
-        contract: &checked_trees::MachineContractPlan,
-    ) -> Vec<Guarantee> {
-        let mut guarantees = Vec::new();
-        for clause in contract.closed_scalar_values.ensures().iter().flatten() {
-            match clause {
-                ClosedScalarContractValue::Predicate(predicate) => {
-                    guarantees.push(Guarantee::Predicate(predicate.clone()));
-                }
-                ClosedScalarContractValue::SourceCheckedGuarantee {
-                    facts: source_facts,
-                    ..
-                } => {
-                    for fact in program.proof_facts.span_or_empty(*source_facts) {
-                        if let Some(expression) = fact.as_expression()
-                            && let Some(guarantee) =
-                                meaning_consequence(program, facts, machine, *expression)
-                        {
-                            guarantees.push(guarantee);
-                        }
-                    }
-                }
-                _ => {}
-            }
-        }
-        guarantees
-    }
-
-    fn meaning_consequence(
-        program: &dyn crate::CheckingInput,
-        facts: &checked_trees::CheckFacts,
-        machine: &Machine,
-        expression: typed_trees::expression::ExpressionHandle,
-    ) -> Option<Guarantee> {
-        let mut equalities = facts
-            .proof
-            .float_meaning_equalities
-            .iter()
-            .filter(|row| row.use_site.is_none() && row.source_expression == expression);
-        let equality = equalities.next()?;
-        if equalities.next().is_some() {
-            return None;
-        }
-        let projections = &facts.proof.float_meaning_projections;
-        let projection = |id| projections.iter().find(|row| row.result.id == id);
-        let (result, application) = [
-            (equality.left, equality.right),
-            (equality.right, equality.left),
-        ]
-        .into_iter()
-        .find_map(|(result, application)| {
-            let Source::DirectMachineResult(result) = projection(result)?.source else {
-                return None;
-            };
-            if result.owner_machine != machine.symbol {
-                return None;
-            }
-            let application = facts
-                .proof
-                .float_semantic_applications
-                .iter()
-                .find(|row| row.result == application)?;
-            Some((result, application))
-        })?;
-        application.validate().ok()?;
-        if !source_equation_matches(program, facts, machine, expression, application) {
-            return None;
-        }
-        let row = FloatSemanticOperation::for_contract_identity(&application.contract)?;
-        let division = match row.name {
-            "add" | "subtract" | "multiply" => false,
-            "divide" => true,
-            _ => return None,
-        };
-        let primitive_type = match application.format {
-            IeeeFloatFormat::Binary32 => PrimitiveType::F32,
-            IeeeFloatFormat::Binary64 => PrimitiveType::F64,
-        };
-        if result.fallback.primitive != primitive_type {
-            return None;
-        }
-        let [state] = program.machine_states(machine) else {
-            return None;
-        };
-        if program.primitive_type_reference(state.return_type) != Some(primitive_type)
-            || !language_core::signature_reserves_result(
-                program
-                    .state_parameters(state)
-                    .iter()
-                    .map(|parameter| program.symbols.name(parameter.symbol)),
-            )
-        {
-            return None;
-        }
-        let parameters = program
-            .state_parameters(state)
-            .iter()
-            .filter(|parameter| {
-                program
-                    .primitive_type_reference(parameter.type_reference)
-                    .is_some()
-            })
-            .collect::<Vec<_>>();
-        let [
-            Operand::Format(format),
-            Operand::Meaning(left),
-            Operand::Meaning(right),
-        ] = application.operands.as_slice()
-        else {
-            return None;
-        };
-        if *format != application.format {
-            return None;
-        }
-        let formal = |id| {
-            let Source::DirectMachineParameter(source) = projection(id)?.source else {
-                return None;
-            };
-            if source.owner_machine != machine.symbol || source.fallback.primitive != primitive_type
-            {
-                return None;
-            }
-            let position = parameters.iter().position(|parameter| {
-                parameter.symbol == source.parameter
-                    && program.primitive_type_reference(parameter.type_reference)
-                        == Some(primitive_type)
-            })?;
-            Some(Scalar::Parameter {
-                position,
-                primitive_type,
-            })
-        };
-        let left = formal(*left)?;
-        let right = formal(*right)?;
-        let result = Scalar::Parameter {
-            position: parameters.len(),
-            primitive_type,
-        };
-        let mut condition = and(
-            finite(left, application.format),
-            finite(right.clone(), application.format),
-        );
-        if division {
-            let zero = Scalar::IeeeFloatLiteral {
-                value: match application.format {
-                    IeeeFloatFormat::Binary32 => IeeeFloatValue::Binary32(0),
-                    IeeeFloatFormat::Binary64 => IeeeFloatValue::Binary64(0),
-                },
-            };
-            condition = and(
-                condition,
-                Boolean::Not(Box::new(compare(Compare::Equal, right, zero))),
-            );
-        }
-        Some(Guarantee::Implication {
-            premise: condition,
-            conclusion: compare(Compare::Equal, result.clone(), result),
-        })
-    }
-
-    fn source_equation_matches(
-        program: &dyn crate::CheckingInput,
-        facts: &checked_trees::CheckFacts,
-        machine: &Machine,
-        expression: typed_trees::expression::ExpressionHandle,
-        application: &checked_trees::CheckedFloatSemanticApplication,
-    ) -> bool {
-        use typed_trees::expression::BinaryOperator;
-        let Some(binary) = program.expression_table.binary_node(expression) else {
-            return false;
-        };
-        if binary.operator != BinaryOperator::Equal {
-            return false;
-        }
-        let projection_source = |expression, expected: Option<symbols::SymbolHandle>| {
-            let Some(call) = program.expression_table.call_node(expression) else {
-                return false;
-            };
-            let Some((_, primitive, _, _)) =
-                crate::proof_contracts::float_projection_invocations::exact_projection_operation(
-                    program, call,
-                )
-            else {
-                return false;
-            };
-            if primitive
-                != match application.format {
-                    IeeeFloatFormat::Binary32 => PrimitiveType::F32,
-                    IeeeFloatFormat::Binary64 => PrimitiveType::F64,
-                }
-            {
-                return false;
-            }
-            let [operand] = program.expression_table.expression_handles(call.arguments) else {
-                return false;
-            };
-            let Some(path) = program.expression_table.name_path_node(*operand) else {
-                return false;
-            };
-            match expected {
-                Some(symbol) => path.symbol == symbol,
-                None => matches!(program.expression_table.name_path_members(path.members), [name]
-                if name.as_str() == "result"),
-            }
-        };
-        [(binary.left, binary.right), (binary.right, binary.left)]
-            .into_iter()
-            .any(|(result, meaning)| {
-                if !projection_source(result, None) {
-                    return false;
-                }
-                let Some(call) = program.expression_table.call_node(meaning) else {
-                    return false;
-                };
-                let Some(operator) =
-                    typed_trees::operator::resolve_named_expression_call(program, call)
-                else {
-                    return false;
-                };
-                let Some((_, contract)) =
-                    crate::exact_toolchain_float_semantic_contract(program, operator)
-                else {
-                    return false;
-                };
-                if contract != application.contract {
-                    return false;
-                }
-                let arguments = program.expression_table.expression_handles(call.arguments);
-                if arguments.len() != application.operands.len() {
-                    return false;
-                }
-                arguments
-                    .iter()
-                    .zip(&application.operands)
-                    .all(|(expression, operand)| match operand {
-                        Operand::Format(format) => {
-                            crate::exact_toolchain_float_format_const(program, *expression)
-                                == Some(*format)
-                        }
-                        Operand::Meaning(value) => {
-                            let Some(projection) = facts
-                                .proof
-                                .float_meaning_projections
-                                .iter()
-                                .find(|projection| projection.result.id == *value)
-                            else {
-                                return false;
-                            };
-                            let Source::DirectMachineParameter(source) = projection.source else {
-                                return false;
-                            };
-                            source.owner_machine == machine.symbol
-                                && projection_source(*expression, Some(source.parameter))
-                        }
-                    })
-            })
-    }
-
-    fn compare(kind: Compare, left: Scalar, right: Scalar) -> Boolean {
-        Boolean::ScalarIeeeFloatComparison {
-            kind,
-            left: Box::new(left),
-            right: Box::new(right),
-        }
-    }
-
-    fn and(left: Boolean, right: Boolean) -> Boolean {
-        Boolean::And {
-            left: Box::new(left),
-            right: Box::new(right),
-        }
-    }
-
-    fn finite(value: Scalar, format: IeeeFloatFormat) -> Boolean {
-        let (minimum, maximum) = match format {
-            IeeeFloatFormat::Binary32 => (
-                IeeeFloatValue::Binary32(0xff7f_ffff),
-                IeeeFloatValue::Binary32(0x7f7f_ffff),
-            ),
-            IeeeFloatFormat::Binary64 => (
-                IeeeFloatValue::Binary64(0xffef_ffff_ffff_ffff),
-                IeeeFloatValue::Binary64(0x7fef_ffff_ffff_ffff),
-            ),
-        };
-        and(
-            compare(
-                Compare::LessOrEqual,
-                Scalar::IeeeFloatLiteral { value: minimum },
-                value.clone(),
-            ),
-            compare(
-                Compare::LessOrEqual,
-                value,
-                Scalar::IeeeFloatLiteral { value: maximum },
-            ),
-        )
-    }
-}
-
-pub mod signature_ensures {
-    use crate::{CallWriteOrigins, LocalWriteSource};
-    use facts::PlaceRoot;
-    use typed_trees::domain::ProofFact;
-    use typed_trees::expression::{BinaryOperator, ExpressionHandle};
-    use typed_trees::signature::{SignatureContractKind, StateSignature};
-    use typed_trees::state::State;
-
-    pub fn ensures_contract_expressions<'program>(
-        program: &'program dyn crate::CheckingInput,
-        signature: &'program StateSignature,
-    ) -> impl Iterator<Item = ExpressionHandle> + 'program {
-        program
-            .signature_contracts
-            .span_or_empty(signature.contracts)
-            .iter()
-            .filter(|contract| matches!(contract.kind, SignatureContractKind::Ensures))
-            .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts).iter())
-            .filter_map(|fact| match fact {
-                ProofFact::Expression(expression) => Some(*expression),
-                _ => None,
-            })
-    }
-
-    pub fn collect_parameter_bound_comparisons(
-        program: &dyn crate::CheckingInput,
-        state: &State,
-        signature: &StateSignature,
-        origins: &CallWriteOrigins,
-        conjunct: ExpressionHandle,
-        comparisons: &mut Vec<(String, BinaryOperator, i64)>,
-    ) {
-        let Some(comparison) = program.expression_table.binary_node(conjunct) else {
-            return;
-        };
-        if comparison.operator == BinaryOperator::And {
-            collect_parameter_bound_comparisons(
-                program,
-                state,
-                signature,
-                origins,
-                comparison.left,
-                comparisons,
-            );
-            collect_parameter_bound_comparisons(
-                program,
-                state,
-                signature,
-                origins,
-                comparison.right,
-                comparisons,
-            );
-            return;
-        }
-        let Some(place) = crate::canonical_place_from_expression(program, comparison.left) else {
-            return;
-        };
-        let parameters = program.state_signature_parameters(signature);
-        let Some(position) = parameters
-            .iter()
-            .position(|parameter| place.root == PlaceRoot::Symbol(parameter.symbol))
-        else {
-            return;
-        };
-        let parameter = &parameters[position];
-        let Some(reference) = crate::reference_shell(program, parameter.type_reference) else {
-            return;
-        };
-        let Some(leaf) = crate::project_type_reference_from_segments(
-            program,
-            reference.referee,
-            &place.segments,
-        ) else {
-            return;
-        };
-        let Some(primitive) = program.primitive_type_reference(
-            crate::value_custody::places::assignment_value_type(program, leaf),
-        ) else {
-            return;
-        };
-        if primitive.integer_sign_bits().is_none() {
-            return;
-        }
-        let spelling = match comparison.operator {
-            BinaryOperator::Less => language_core::OperatorSpelling::Less,
-            BinaryOperator::LessOrEqual => language_core::OperatorSpelling::LessEqual,
-            BinaryOperator::Greater => language_core::OperatorSpelling::Greater,
-            BinaryOperator::GreaterOrEqual => language_core::OperatorSpelling::GreaterEqual,
-            _ => return,
-        };
-        let operand_types = [comparison.left, comparison.right].map(|operand| {
-            crate::parameter_expression_result_type_reference(
-                program,
-                signature.symbol,
-                parameters,
-                operand,
-            )
-        });
-        if !typed_trees::operator::has_builtin_spelled_expression_meaning(
-            program,
-            signature.symbol,
-            conjunct,
-            spelling,
-            &operand_types,
-        ) {
-            return;
-        }
-        let Some(literal) = program.expression_table.integer_node(comparison.right) else {
-            return;
-        };
-        let Some(value) = literal.value_i64() else {
-            return;
-        };
-        let Some(sources) = origins
-            .arguments
-            .get(position)
-            .and_then(|origins| origins.as_ref())
-            .filter(|origins| !origins.is_empty())
-        else {
-            return;
-        };
-        let relative = LocalWriteSource {
-            invocation_output: None,
-            invocation_result: None,
-            is_image_storage: false,
-            root: parameter.symbol,
-            segments: place.segments,
-            representation: None,
-            recasts: Vec::new(),
-            path: String::new(),
-            collection_coarse: false,
-        };
-        let mut coordinate: Option<crate::ScalarStorageCoordinate> = None;
-        for source in sources {
-            let Some(projected) = source
-                .substitute_storage(program, &relative)
-                .and_then(|source| source.scalar_storage_coordinate(program, state))
-                .filter(|coordinate| {
-                    coordinate.preserves_scalar_value
-                        && coordinate.source_primitive == primitive
-                        && coordinate.view_primitive == primitive
-                })
-            else {
-                return;
-            };
-            if coordinate
-                .as_ref()
-                .is_some_and(|existing| existing.place != projected.place)
-            {
-                return;
-            }
-            coordinate = Some(projected);
-        }
-        let Some(coordinate) = coordinate else {
-            return;
-        };
-        let Some(path) = coordinate.label(program) else {
-            return;
-        };
-        comparisons.push((path, comparison.operator, value));
-    }
-}
-
-pub mod slice_ranking {
-    use crate::frozen_program::expression_table;
-    use crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup;
-    use symbols::SymbolHandle;
-
-    use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-    use typed_trees::signature::StateParameter;
-    use typed_trees::types::{PrimitiveType, TypeReferenceNode};
-
-    pub fn slice_tail_strictly_decreases<'p>(
-        program: &'p dyn crate::CheckingInput,
-        guard: ExpressionHandle,
-        argument: ExpressionHandle,
-        parameter: &StateParameter,
-        bound_lookup: &mut Option<ImmutableBoundLookup<'p>>,
-    ) -> bool {
-        if !parameter.symbol.is_valid() || !parameter_is_slice(program, parameter) {
-            return false;
-        }
-        let argument = expression_table(program)
-            .borrow_expression(argument)
-            .map_or(argument, |borrow| borrow.target);
-        let Some(indexed) = expression_table(program).indexed_node(argument) else {
-            return false;
-        };
-        let Some(range) = expression_table(program).range_node(indexed.index) else {
-            return false;
-        };
-        if !names_parameter(program, indexed.collection, parameter)
-            || range.end.is_valid()
-            || range.end_inclusive
-        {
-            return false;
-        }
-        let Some(start) = tail_bound(
-            program,
-            bound_lookup.get_or_insert_with(|| ImmutableBoundLookup::new(program)),
-            range.start,
-        ) else {
-            return false;
-        };
-        if !tail_bound_is_positive(program, start) {
-            return false;
-        }
-        let guard = match expression_table(program).expression(guard) {
-            ExpressionNode::Binary(binary)
-                if binary.operator == BinaryOperator::Equal
-                    && matches!(
-                        expression_table(program).expression(binary.right),
-                        ExpressionNode::Boolean(true)
-                    ) =>
-            {
-                binary.left
-            }
-            _ => guard,
-        };
-        let Some(binary) = expression_table(program).binary_node(guard) else {
-            return false;
-        };
-        let Some(length) = crate::length_member(program, binary.left) else {
-            return false;
-        };
-        let bonus = match binary.operator {
-            BinaryOperator::Greater => 1,
-            BinaryOperator::GreaterOrEqual => 0,
-            _ => return false,
-        };
-        names_parameter(program, length.receiver, parameter)
-            && tail_bound(
-                program,
-                bound_lookup.get_or_insert_with(|| ImmutableBoundLookup::new(program)),
-                binary.right,
-            )
-            .is_some_and(|bound| bound_ordering_at_least(program, bound, start, bonus))
-    }
-
-    #[derive(Debug, Clone, Copy)]
-    pub(crate) enum TailBound {
-        Literal(usize),
-        Symbol { symbol: SymbolHandle, offset: i64 },
-    }
-
-    fn tail_bound(
-        program: &dyn crate::CheckingInput,
-        bound_lookup: &crate::proof_contracts::immutable_integer_bounds::ImmutableBoundLookup<'_>,
-        expression: ExpressionHandle,
-    ) -> Option<TailBound> {
-        if let Some(value) =
-            crate::normalize_immutable_integer_bound_to_usize(program, bound_lookup, expression)
-        {
-            return Some(TailBound::Literal(value));
-        }
-        if let Some(bound) =
-            crate::immutable_integer_bound_symbol_offset(program, bound_lookup, expression)
-        {
-            return Some(TailBound::Symbol {
-                symbol: bound.symbol,
-                offset: bound.offset,
-            });
-        }
-        if let Some(leaf) =
-            crate::normalize_immutable_integer_bound_expression(program, bound_lookup, expression)
-        {
-            return match expression_table(program).expression(leaf) {
-                ExpressionNode::Name(path) if crate::is_single_segment_name_path(program, path) => {
-                    Some(TailBound::Symbol {
-                        symbol: path.symbol,
-                        offset: 0,
-                    })
-                }
-                _ => None,
-            };
-        }
-        crate::immutable_integer_bound_value_symbol(program, bound_lookup, expression)
-            .map(|symbol| TailBound::Symbol { symbol, offset: 0 })
-    }
-
-    fn bound_ordering_at_least(
-        program: &dyn crate::CheckingInput,
-        bound: TailBound,
-        start: TailBound,
-        bonus: i64,
-    ) -> bool {
-        match (bound, start) {
-            (TailBound::Literal(bound), TailBound::Literal(start)) => {
-                bound as i128 + bonus as i128 >= start as i128
-            }
-            (
-                TailBound::Symbol {
-                    symbol: bound_symbol,
-                    offset: bound_offset,
-                },
-                TailBound::Symbol {
-                    symbol: start_symbol,
-                    offset: start_offset,
-                },
-            ) => {
-                bound_symbol == start_symbol
-                    && bound_offset
-                        .checked_add(bonus)
-                        .is_some_and(|bound| bound >= start_offset)
-            }
-            (TailBound::Symbol { symbol, offset }, TailBound::Literal(start)) => {
-                i64::try_from(start).ok().is_some_and(|start| {
-                    bound_symbol_floor(program, symbol)
-                        .and_then(|floor| floor.checked_add(offset))
-                        .and_then(|low| low.checked_add(bonus))
-                        .is_some_and(|low| low >= start)
-                })
-            }
-            (TailBound::Literal(_), TailBound::Symbol { .. }) => false,
-        }
-    }
-
-    fn tail_bound_is_positive(program: &dyn crate::CheckingInput, start: TailBound) -> bool {
-        match start {
-            TailBound::Literal(value) => value >= 1,
-            TailBound::Symbol { symbol, offset } => bound_symbol_floor(program, symbol)
-                .and_then(|floor| floor.checked_add(offset))
-                .is_some_and(|floor| floor >= 1),
-        }
-    }
-
-    fn bound_symbol_floor(program: &dyn crate::CheckingInput, symbol: SymbolHandle) -> Option<i64> {
-        let type_reference =
-            crate::value_custody::places::bound_symbol_declared_type(program, symbol)?;
-        let carrier = match program
-            .type_reference_table
-            .primitive_type(type_reference)?
-        {
-            PrimitiveType::U8
-            | PrimitiveType::U16
-            | PrimitiveType::U32
-            | PrimitiveType::U64
-            | PrimitiveType::Addr => 0,
-            PrimitiveType::I8 => i8::MIN as i64,
-            PrimitiveType::I16 => i16::MIN as i64,
-            PrimitiveType::I32 => i32::MIN as i64,
-            PrimitiveType::I64 => i64::MIN,
-            PrimitiveType::Selector
-            | PrimitiveType::Bool
-            | PrimitiveType::F32
-            | PrimitiveType::F64 => {
-                return None;
-            }
-        };
-        let declared = crate::proof_contracts::arithmetic_domains::enforced_declared_range(
-            program,
-            type_reference,
-        )
-        .and_then(|interval| interval.low);
-        Some(carrier.max(declared.unwrap_or(i64::MIN)))
-    }
-
-    fn names_parameter(
-        program: &dyn crate::CheckingInput,
-        expression: ExpressionHandle,
-        parameter: &StateParameter,
-    ) -> bool {
-        matches!(
-            expression_table(program).expression(expression),
-            ExpressionNode::Name(path)
-                if path.symbol == parameter.symbol
-                    && path.head_symbol == parameter.symbol
-                    && program.expression_table.name_path_members(path.members).len() == 1
-        )
-    }
-
-    fn parameter_is_slice(program: &dyn crate::CheckingInput, parameter: &StateParameter) -> bool {
-        let mut reference = parameter.type_reference;
-        let mut visited = Vec::new();
-        while reference.is_valid() && !visited.contains(&reference) {
-            visited.push(reference);
-            reference = match program.type_reference_table.type_reference(reference) {
-                TypeReferenceNode::Slice { .. } => return true,
-                TypeReferenceNode::Reference { referee, .. } => *referee,
-                TypeReferenceNode::Constrained { base_type, .. } => *base_type,
-                _ => return false,
-            };
-        }
-        false
-    }
-}
-
-pub use argument_subjects::contract_argument_root;

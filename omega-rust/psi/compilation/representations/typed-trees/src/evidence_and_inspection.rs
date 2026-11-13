@@ -5319,10 +5319,25 @@ pub mod inspection {
                 pub commutativity_licensed: bool,
                 pub associativity_licensed: bool,
                 pub distributes_over: Vec<String>,
+                pub law_evidence: Vec<OpenIndexLawSnapshot>,
                 #[serde(skip_serializing_if = "String::is_empty")]
                 pub left_identity_literal: String,
                 #[serde(skip_serializing_if = "String::is_empty")]
                 pub right_identity_literal: String,
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub struct OpenIndexLawSnapshot {
+                pub provider: String,
+                pub bound_trait: String,
+                pub lifetime_arguments: Vec<String>,
+                pub declaring_trait: String,
+                pub law: String,
+                pub contract: u32,
+                pub fact: u32,
+                pub conjunct: Vec<u32>,
+                pub kind: &'static str,
+                pub arguments: Vec<TypeReferenceSnapshot>,
             }
 
             #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -5512,7 +5527,24 @@ pub mod inspection {
                                                 .commutativity_licensed,
                                             associativity_licensed: operation
                                                 .associativity_licensed,
-                                            distributes_over: operation.distributes_over.clone(),
+                                            distributes_over: operation.distributes_over.iter().map(|symbol| program.symbols.display_path(*symbol, "::")).collect(),
+                                            law_evidence: operation.law_evidence.iter().map(|evidence| OpenIndexLawSnapshot {
+                                                provider: program.symbols.display_path(evidence.bound.binder, "::"),
+                                                bound_trait: program.symbols.display_path(evidence.bound.trait_symbol, "::"),
+                                                lifetime_arguments: evidence.bound.lifetime_arguments.iter().map(|argument| argument.as_str().to_owned()).collect(),
+                                                declaring_trait: program.symbols.display_path(evidence.declaring_trait, "::"),
+                                                law: program.symbols.display_path(evidence.law, "::"),
+                                                contract: evidence.contract, fact: evidence.fact, conjunct: evidence.conjunct.clone(),
+                                                kind: match evidence.kind {
+                                                    crate::source_index_algebra::IndexLawKind::Commutativity => "commutativity",
+                                                    crate::source_index_algebra::IndexLawKind::Associativity => "associativity",
+                                                    crate::source_index_algebra::IndexLawKind::Distributivity => "distributivity",
+                                                    crate::source_index_algebra::IndexLawKind::LeftIdentity => "left_identity",
+                                                    crate::source_index_algebra::IndexLawKind::RightIdentity => "right_identity",
+                                                    crate::source_index_algebra::IndexLawKind::LiteralConnection => "literal_connection",
+                                                },
+                                                arguments: evidence.bound.arguments.iter().map(|actual| type_reference_snapshot(program, *actual)).collect(),
+                                            }).collect(),
                                             left_identity_literal: operation
                                                 .left_identity_literal
                                                 .clone(),

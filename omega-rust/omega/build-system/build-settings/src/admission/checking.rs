@@ -20,12 +20,9 @@ continuation:
    `Build`-scope provider plans (`derive_satisfies_plans`,
    `select_derived_provider_plans`) and fold any remaining deferred constant
    evaluations (`SelectedConstantEvaluation::evaluate_pending`).
-4. Run `psi_compiler::CheckRequest` on the settled `Build` projection, reusing
-   `priors` only when the projected `Build` program matches, install
-   `Build`-specific comparison dispatch (`settle_selected_comparison_execution`)
-   on an owned copy of `CheckedTrees`, and discharge the completed `Build`
-   pre-checks from `pre_checks` so the subsequent Product compilation only
-   evaluates its complement.
+4. Prepare the settled source frontier and judge it with the same lowered-form
+   checker as the Product. Retain that accepted source and its publication, then
+   discharge completed pre-checks so Product compilation evaluates its complement.
 
 Steps 1-3 are `settle_build_slice` and the discharge is `discharge_build_slice`,
 because the Product is not always completed from the frontier Build ran on.
@@ -44,7 +41,6 @@ use build_time_evaluation::PreparedBuildMachineProgram;
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use provider_planning::{ProviderPlanDerivation, ProviderPlanningContext};
-use psi_compiler::RetainedCheck;
 use source::DependencyScope;
 use target::TargetProfile;
 
@@ -268,14 +264,10 @@ pub(crate) fn prepare_checked_build(
     dependency_activation: bool,
     execution_profile: Option<target::TargetProfile>,
     timings: &mut artifacts::compile_timings::CompileTimings,
-    priors: &[&RetainedCheck],
-    retain: bool,
-    checked_slices: Option<&dyn psi_compiler::CheckedSliceStore>,
 ) -> Result<
     (
         PreparedBuildMachineProgram,
         super::provider_execution::BuildProviderPlans,
-        Option<RetainedCheck>,
         bool, // A constant was folded under the provider plans.
     ),
     Vec<Diagnostic>,
@@ -301,69 +293,66 @@ pub(crate) fn prepare_checked_build(
             "Build admission settled its slice without provider plans",
         )]
     })?;
-    // A dependency's Build holds no source of its consumer, so its whole
-    // check may be reused; any other Build program only when it holds no
-    // source of the root package.
-    let target = execution_profile
-        .or_else(target::TargetProfile::host_if_supported)
-        .map(|profile| profile.target_name());
-    let checked_slices =
-        checked_slices
-            .zip(target)
-            .map(|(store, target)| psi_compiler::CheckedSliceReuse {
-                store,
-                target,
-                owner: if dependency_activation {
-                    psi_compiler::CheckedSliceOwner::Dependency
-                } else {
-                    psi_compiler::CheckedSliceOwner::Consumer(packages.map(|inputs| inputs.root()))
-                },
-            });
-    let outcome = timings.record_result(TYPED_TREES_TO_CHECKED_TREES, || {
+    let mut selected = Vec::new();
+    for retained in &provenance {
+        let provider = &retained.provider;
+        // A schema owns its requirements. Keep the actual implementation too,
+        // so accepting its bodies also checks their conformance to that schema.
+        let declarations = std::iter::once(provider.schema.symbol())
+            .chain(provider.provider_type)
+            .chain(
+                provider
+                    .named_application
+                    .map(|application| application.declaration),
+            )
+            .chain(
+                provider
+                    .row_realizations
+                    .iter()
+                    .filter_map(|body| body.authored()),
+            );
+        for declaration in declarations {
+            if !selected.contains(&declaration) {
+                selected.push(declaration);
+            }
+        }
+    }
+    let accepted = timings.record_result(TYPED_TREES_TO_CHECKED_TREES, || {
         let started = std::time::Instant::now();
-        let result = psi_compiler::CheckRequest {
-            program,
-            admission: psi_compiler::SourceAdmission {
-                declarations: packages
-                    .map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
-                ..Default::default()
-            },
-            previous: priors,
-            retain,
-            library_slice: psi_compiler::LibrarySliceRequest {
-                root_package: packages.map(|inputs| inputs.root()),
-            },
-            checked_slices,
-        }
-        .check();
+        let result = (|| {
+            let typed = psi_compiler::prepare_product_typed_frontier(
+                program,
+                &psi_compiler::SourceAdmission {
+                    declarations: packages
+                        .map(|inputs| inputs as &dyn validation::DeclarationSelectionAuthority),
+                    ..Default::default()
+                },
+            )?;
+            psi_compiler::CheckedInvocationSource::prepare(
+                std::sync::Arc::new(typed),
+                psi_compiler::SourceCompilation {
+                    entries: &[entry],
+                    subject: packages
+                        .filter(|_| !dependency_activation)
+                        .map(|inputs| inputs.root()),
+                    selected: &selected,
+                    bindings: &[],
+                },
+            )
+        })();
         artifacts::compile_timings::counters::record_preliminary_check(started.elapsed());
-        if !result.as_ref().is_ok_and(|outcome| outcome.reused) {
-            artifacts::compile_timings::counters::record_settled_check(started.elapsed());
-        }
+        artifacts::compile_timings::counters::record_settled_check(started.elapsed());
         result
     })?;
-    let psi_compiler::CheckedSource {
-        program: checked,
-        retained,
-        ..
-    } = outcome;
-    let mut checked =
-        std::sync::Arc::try_unwrap(checked).unwrap_or_else(|shared| (*shared).clone());
-    selected_dispatch::settle_selected_comparison_execution(
-        &mut checked,
-        DependencyScope::Build,
-        &provenance,
-    )?;
-    discharge_build_slice(typed, pre_checks, &checked)?;
+    discharge_build_slice(typed, pre_checks, accepted.typed())?;
     let providers = super::provider_execution::BuildProviderPlans::capture(
-        &checked,
+        accepted.typed(),
         selected_provider_plan_facts,
         &provenance,
     )?;
     Ok((
-        PreparedBuildMachineProgram::from_checked(checked),
+        PreparedBuildMachineProgram::from_accepted(std::sync::Arc::new(accepted)),
         providers,
-        retained,
         folded_under_plans,
     ))
 }

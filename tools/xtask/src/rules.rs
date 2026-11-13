@@ -126,13 +126,14 @@ fn collect_files_with_ext(dir: &Path, root: &Path, ext: &str, out: &mut Vec<Path
 }
 
 /*
-    Checking reads frozen typed tables and publishes facts it owns; it holds no
-    hidden mutable state. The stage-05 lib test `checking_does_not_reopen_typed_preparation`
-    pins this, but CI never runs that test, so six PRs broke it unnoticed. The
-    same scan runs here, on every PR, over the same roots. :CheckingInteriorState
+    Checking reads frozen source and publishes its own evidence. Keep the same
+    state rule on the source preparation and lowered-form checking owners so
+    moving a phase cannot hide shared mutable checking state.
+    :CheckingInteriorState
 */
 const CHECKING_STATE_ROOTS: &[&str] = &[
-    "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src",
+    "omega-rust/psi/compilation/pipeline/structure-elaboration/src",
+    "omega-rust/psi/compilation/pipeline/lowered-discharge/src",
     "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src",
     "omega-rust/psi/compilation/validation/src",
 ];

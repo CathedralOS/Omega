@@ -1,5 +1,5 @@
-//! Review inputs retain the accepted module and its exact immutable source
-//! owner. Legacy checker queries cannot supply missing publication receipts.
+//! Review borrows the accepted Product and its exact immutable source owner.
+//! A caller-supplied typed tree cannot replace the publication's source.
 
 use compilation_products::CheckedCompilation;
 use diagnostics::Diagnostic;
@@ -9,45 +9,31 @@ use typed_trees::TypedTrees;
 
 #[derive(Clone, Copy)]
 pub struct PublishedPackageReviewInput<'a> {
-    source: ReviewSource<'a>,
-}
-#[derive(Clone, Copy)]
-enum ReviewSource<'a> {
-    Published {
-        candidate: &'a TypedTrees,
-        custody: &'a CheckedCompilation,
-    },
-    Legacy(super::PackageReviewInput<'a>),
+    pub(super) candidate: &'a TypedTrees,
+    pub(super) custody: &'a CheckedCompilation,
 }
 impl<'a> PublishedPackageReviewInput<'a> {
     pub fn supplied(candidate: &'a TypedTrees, custody: &'a CheckedCompilation) -> Self {
-        Self {
-            source: ReviewSource::Published { candidate, custody },
-        }
+        Self { candidate, custody }
     }
-    fn require_source(
+    pub(super) fn require_source(
         &self,
         target: TargetProfile,
         package: PackageKeyIdentity,
     ) -> Result<(), Vec<Diagnostic>> {
-        let ReviewSource::Published { candidate, custody } = self.source else {
-            return Err(vec![Diagnostic::error(
-                "published review input has no accepted source owner",
-            )]);
-        };
-        let source = custody.source_inspection().program();
-        if !std::ptr::eq(candidate, &***source.typed()) {
-            return Err(vec![Diagnostic::error(
-                "review candidate has no exact published source and proof custody",
-            )]);
+        let source = self.custody.source_inspection().program();
+        if !std::ptr::eq(self.candidate, &***source.typed()) {
+            return Err(rejected(
+                "candidate has no exact published source and proof custody",
+            ));
         }
-        if custody.sources().package_identity() != Some(package)
-            || custody.execution().selected_target_profile != Some(target)
-            || custody.execution().selected_native_target() != Some(target.native_target())
+        if self.custody.sources().package_identity() != Some(package)
+            || self.custody.execution().selected_target_profile != Some(target)
+            || self.custody.execution().selected_native_target() != Some(target.native_target())
         {
-            return Err(vec![Diagnostic::error(
-                "review package or target differs from the published root activation",
-            )]);
+            return Err(rejected(
+                "package or target differs from the published root activation",
+            ));
         }
         Ok(())
     }
@@ -69,13 +55,8 @@ pub fn project_checked_package_policy<'a>(
     package: PackageKeyIdentity,
 ) -> Result<crate::record::PackagePolicyBaseline, Vec<Diagnostic>> {
     let input = input.into();
-    if let ReviewSource::Legacy(source) = input.source {
-        return super::package_policy::project_source_package_policy(source, target, package);
-    }
     input.require_source(target, package)?;
-    Err(vec![Diagnostic::error(
-        "published package review needs exact public API, contract, data and behavior proof receipts; legacy checker facts cannot replace them",
-    )])
+    super::published_projection::package(input, target, package)
 }
 
 pub fn project_checked_terminal_permission_policy<'a>(
@@ -84,21 +65,12 @@ pub fn project_checked_terminal_permission_policy<'a>(
     package: PackageKeyIdentity,
 ) -> Result<crate::record::PackagePolicyTerminalPermissions, Vec<Diagnostic>> {
     let input = input.into();
-    if let ReviewSource::Legacy(source) = input.source {
-        return super::terminal_authority_permissions::project_source_terminal_permission_policy(
-            source, target, package,
-        );
-    }
     input.require_source(target, package)?;
-    Err(vec![Diagnostic::error(
-        "published terminal-permission disclosure needs the complete named service contract receipt roster",
-    )])
+    super::published_projection::permissions(input, target, package)
 }
 
-impl<'a> From<super::PackageReviewInput<'a>> for PublishedPackageReviewInput<'a> {
-    fn from(input: super::PackageReviewInput<'a>) -> Self {
-        Self {
-            source: ReviewSource::Legacy(input),
-        }
-    }
+pub(crate) fn rejected(reason: &str) -> Vec<Diagnostic> {
+    vec![Diagnostic::error(format!(
+        "published package review: {reason}"
+    ))]
 }

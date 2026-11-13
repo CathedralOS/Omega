@@ -1064,7 +1064,6 @@ pub use declaration_types::declaration_type_reference;
 pub use declaration_types::state_root_type;
 
 use crate::frozen_program::expression_table;
-use crate::value_custody::locals::WritableRoots;
 use crate::value_custody::struct_literals::data_declares_field;
 use access_plans::BorrowPolarity;
 use diagnostics::Diagnostic;
@@ -1096,83 +1095,6 @@ pub(crate) fn assignment_targets_parameter_referent(
                         .is_some_and(|shell| shell.access.is_exclusive())
                 })
     })
-}
-
-pub(crate) fn validate_assignment_target_handle(
-    program: &dyn crate::CheckingInput,
-    target: ExpressionHandle,
-    writable_roots: &WritableRoots<'_, '_>,
-    diagnostics: &mut Vec<Diagnostic>,
-    machine: &Machine,
-    current_state: Option<&typed_trees::state::State>,
-    state_name: &str,
-    receiver: BorrowPolarity,
-) {
-    let machine_name = machine.name.as_str();
-    if !is_mutable_place_handle(program, target) {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{machine_name}` state `{state_name}` assignment target must be a named place"
-        )));
-        return;
-    }
-
-    if let Some(field_name) = direct_self_field_member(program, target)
-        && let Some(data) = machine_attached_data(program, machine)
-        && !data_declares_field(program, data, field_name)
-    {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{machine_name}` state `{state_name}` assignment: data `{}` has no field \
-             `{field_name}` (check the spelling of the field name)",
-            data.name.as_str()
-        )));
-        return;
-    }
-
-    if let Some((container, member)) =
-        first_unknown_nested_field(program, machine, current_state, target)
-    {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{machine_name}` state `{state_name}` assignment: data `{container}` has \
-             no field `{member}` (check the spelling of the field name)"
-        )));
-        return;
-    }
-
-    let Some(root_name) = expression_root_name_handle(program, target) else {
-        return;
-    };
-
-    if receiver == BorrowPolarity::Shared {
-        if !writable_roots.contains_for_shared_access(root_name) {
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{machine_name}` state `{state_name}` atomic operation cannot reach \
-                 `{root_name}` because no such field or local exists in this state"
-            )));
-        }
-        return;
-    }
-
-    let access = crate::value_custody::reference_access::assignment_storage_write_access(
-        program,
-        machine,
-        current_state,
-        writable_roots.statements,
-        target,
-    );
-    let writes_borrowed_storage =
-        access == Some(crate::value_custody::expression_types::StorageWriteAccess::BorrowedStorage);
-    if !writable_roots.contains_for_write(root_name) && !writes_borrowed_storage {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{machine_name}` state `{state_name}` assignment cannot write `{root_name}` \
-             because it is not mutable in this state (if `{root_name}` is undeclared -- a typo -- \
-             no such field or local exists)"
-        )));
-    } else if access.is_none() {
-        diagnostics.push(Diagnostic::error(format!(
-            "machine `{machine_name}` state `{state_name}` assignment requires mutable source access \
-             through every reference crossed by its destination"
-        )));
-    }
 }
 
 fn is_mutable_place_handle(
@@ -5200,29 +5122,10 @@ pub(crate) mod declared_symbols {
 
     pub fn machine_symbol_from_type_reference_handle(
         program: &dyn crate::CheckingInput,
-        type_reference: typed_trees::types::TypeReferenceHandle,
+        reference: typed_trees::types::TypeReferenceHandle,
     ) -> SymbolHandle {
-        match program.type_reference_table.type_reference(type_reference) {
-            typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
-                machine_symbol_from_type_reference_handle(program, *referee)
-            }
-            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
-                machine_symbol_from_type_reference_handle(program, *base_type)
-            }
-            typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. }
-            | typed_trees::types::TypeReferenceNode::Named {
-                symbol: base_symbol,
-                ..
-            } => *base_symbol,
-            typed_trees::types::TypeReferenceNode::DynamicTrait {
-                symbol: trait_symbol,
-                ..
-            } => *trait_symbol,
-            typed_trees::types::TypeReferenceNode::ConstExpression(_)
-            | typed_trees::types::TypeReferenceNode::FixedArray { .. }
-            | typed_trees::types::TypeReferenceNode::Slice { .. }
-            | typed_trees::types::TypeReferenceNode::Unit => SymbolHandle::invalid(),
-        }
+        typed_trees::source_operator_types::nominal_type_symbol(program.typed_program(), reference)
+            .unwrap_or_else(SymbolHandle::invalid)
     }
 
     pub fn expression_root_symbol(
@@ -5724,24 +5627,10 @@ pub(crate) mod canonical_projection {
         if let Some(value) = folded_coordinate(program, expression, &bindings) {
             return usize::try_from(value).ok();
         }
-        if let Some(value) = standing_fixed_element(program, expression) {
-            return usize::try_from(value).ok();
-        }
         if let Some(initializer) = immutable_name_initializer(program, expression) {
-            if let Some(call) = expression_table(program).call_node(initializer) {
-                let declaration = program
-                    .symbols
-                    .get(expression_name_symbol(program, expression)?);
-                let caller = program.symbols.get(declaration.parent).parent;
-                let (Some(low), Some(high)) =
-                    crate::normal_return_integer_bounds(program, caller, initializer, call)?
-                else {
-                    return None;
-                };
-                return (low == high)
-                    .then_some(low)
-                    .and_then(|value| usize::try_from(value).ok());
-            }
+            // Only closed source values become fixed coordinates here. Calls
+            // keep their exact runtime index; the lowered checker proves any
+            // relationship established by their published result contract.
             return exact_fixed_element(program, initializer, depth + 1);
         }
         if let ExpressionNode::Match(dispatch) = expression_table(program).expression(expression) {
@@ -5762,32 +5651,6 @@ pub(crate) mod canonical_projection {
             .iter()
             .find(|field| field.field_symbol == member.member_symbol)?;
         exact_fixed_element(program, field.value, depth + 1)
-    }
-
-    fn standing_fixed_element(
-        program: &dyn CheckingInput,
-        expression: ExpressionHandle,
-    ) -> Option<i64> {
-        let states = states_naming(program, expression);
-        if states.is_empty() {
-            return None;
-        }
-        let mut element = None;
-        for state_symbol in states.iter().copied() {
-            let machine_symbol = program.symbols.get(state_symbol).parent;
-            let (machine, state) = program.machine_state(machine_symbol, state_symbol)?;
-            let (lower, upper) =
-                crate::standing_integer_bounds(program, machine, state, expression)?;
-            let lower = lower?;
-            if upper != Some(lower) {
-                return None;
-            }
-            if element.is_some_and(|prior| prior != lower) {
-                return None;
-            }
-            element = Some(lower);
-        }
-        element
     }
 
     fn expression_name_symbol(
@@ -8542,145 +8405,40 @@ pub(crate) mod projection_types {
 
     fn field_type_reference(
         program: &dyn crate::CheckingInput,
-        type_reference: typed_trees::types::TypeReferenceHandle,
-        field_symbol: SymbolHandle,
-        substitutions: &mut Vec<(SymbolHandle, typed_trees::types::TypeReferenceHandle)>,
-    ) -> Option<typed_trees::types::TypeReferenceHandle> {
-        let type_reference = substituted_type_reference(program, type_reference, substitutions);
-        match program.type_reference_table.type_reference(type_reference) {
-            typed_trees::types::TypeReferenceNode::Reference { referee, .. }
-            | typed_trees::types::TypeReferenceNode::Constrained {
-                base_type: referee, ..
-            } => field_type_reference(program, *referee, field_symbol, substitutions),
-            typed_trees::types::TypeReferenceNode::Generic {
-                base_symbol,
-                base_name,
-                arguments,
-                ..
-            } => {
-                let exact_application = substitutions.is_empty()
-                    || program.normalized_type_identity(type_reference)
-                        == substituted_identity(program, type_reference, substitutions);
-                if let Some(instance) = program
-                    .data_application_definition(type_reference)
-                    .filter(|_| exact_application)
-                    .or_else(|| program.closed_data_definition(type_reference))
-                {
-                    return data_field_type_reference(program, instance, field_symbol);
-                }
-                let data = crate::field_domains::data_definition_by_symbol_or_name(
-                    program,
-                    *base_symbol,
-                    base_name,
-                )?;
-                let bindings: Vec<_> = program
-                    .data_type_parameters(data)
-                    .iter()
-                    .zip(
-                        program
-                            .type_reference_table
-                            .type_reference_handles(*arguments),
-                    )
-                    .filter(|&(parameter, _argument)| {
-                        matches!(parameter.kind, TypeParameterKind::Type)
-                    })
-                    .map(|(parameter, argument)| {
-                        (
-                            parameter.symbol,
-                            substituted_type_reference(program, *argument, substitutions),
-                        )
-                    })
-                    .collect();
-                substitutions.extend(bindings);
-                data_field_type_reference(program, data, field_symbol)
-            }
-            typed_trees::types::TypeReferenceNode::Named {
-                symbol: base_symbol,
-                name: base_name,
-            } => {
-                if let Some(machine) = program.machine(*base_symbol) {
-                    attached_data_field_type_reference(program, machine, field_symbol)
-                } else {
-                    crate::field_domains::data_definition_by_symbol_or_name(
-                        program,
-                        *base_symbol,
-                        base_name,
-                    )
-                    .and_then(|data| data_field_type_reference(program, data, field_symbol))
-                }
-            }
-            typed_trees::types::TypeReferenceNode::ConstExpression(_)
-            | typed_trees::types::TypeReferenceNode::FixedArray { .. }
-            | typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
-            | typed_trees::types::TypeReferenceNode::Slice { .. }
-            | typed_trees::types::TypeReferenceNode::Unit => None,
-        }
+        reference: TypeReferenceHandle,
+        symbol: SymbolHandle,
+        substitutions: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
+    ) -> Option<TypeReferenceHandle> {
+        typed_trees::type_system::source_projections::field_type_reference(
+            program.typed_program(),
+            reference,
+            symbol,
+            substitutions,
+        )
     }
 
     fn indexed_element_type_reference(
         program: &dyn crate::CheckingInput,
-        type_reference: typed_trees::types::TypeReferenceHandle,
-        substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
-    ) -> Option<typed_trees::types::TypeReferenceHandle> {
-        let type_reference = substituted_type_reference(program, type_reference, substitutions);
-        let element = match program.type_reference_table.type_reference(type_reference) {
-            typed_trees::types::TypeReferenceNode::Reference { referee, .. }
-            | typed_trees::types::TypeReferenceNode::Constrained {
-                base_type: referee, ..
-            } => indexed_element_type_reference(program, *referee, substitutions),
-            typed_trees::types::TypeReferenceNode::FixedArray { element_type, .. }
-            | typed_trees::types::TypeReferenceNode::Slice { element_type } => Some(*element_type),
-            typed_trees::types::TypeReferenceNode::ConstExpression(_)
-            | typed_trees::types::TypeReferenceNode::Generic { .. }
-            | typed_trees::types::TypeReferenceNode::Named { .. }
-            | typed_trees::types::TypeReferenceNode::DynamicTrait { .. }
-            | typed_trees::types::TypeReferenceNode::Unit => None,
-        }?;
-        let collection_policy = program.arithmetic_domain_for_type_reference(type_reference);
-        if program
-            .type_reference_table
-            .element_inherits_collection_arithmetic_policy(element, &program.symbols)
-            && collection_policy != numerics::arithmetic::ArithmeticDomain::Exact
-            && program.arithmetic_domain_for_type_reference(element)
-                == numerics::arithmetic::ArithmeticDomain::Exact
-        {
-            program
-                .type_reference_table
-                .find_policy_qualified_type_reference(element, collection_policy)
-        } else {
-            Some(element)
-        }
+        reference: TypeReferenceHandle,
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    ) -> Option<TypeReferenceHandle> {
+        typed_trees::type_system::source_projections::indexed_element_type_reference(
+            program.typed_program(),
+            reference,
+            substitutions,
+        )
     }
 
     fn substituted_type_reference(
         program: &dyn crate::CheckingInput,
-        mut type_reference: typed_trees::types::TypeReferenceHandle,
-        substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
-    ) -> typed_trees::types::TypeReferenceHandle {
-        let mut remaining = substitutions.len().saturating_add(1);
-        while remaining > 0 {
-            remaining -= 1;
-            let typed_trees::types::TypeReferenceNode::Named { symbol, .. } =
-                program.type_reference_table.type_reference(type_reference)
-            else {
-                break;
-            };
-            let Some(replacement) =
-                substitutions
-                    .iter()
-                    .rev()
-                    .find_map(|(parameter, replacement)| {
-                        (*parameter == *symbol).then_some(*replacement)
-                    })
-            else {
-                break;
-            };
-            if replacement == type_reference {
-                break;
-            }
-            type_reference = replacement;
-        }
-        type_reference
+        reference: TypeReferenceHandle,
+        substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+    ) -> TypeReferenceHandle {
+        typed_trees::type_system::source_projections::substituted_type_reference(
+            program.typed_program(),
+            reference,
+            substitutions,
+        )
     }
 
     pub fn unique_data_definition_by_symbol(
@@ -8945,3 +8703,88 @@ pub mod receiver_projections {
 pub use receiver_projections::{
     projected_statement_receiver_place, projected_statement_receiver_type_reference,
 };
+
+/// The source receiving-type decision uses declarations, not inferred body writes.
+pub mod source_assignments {
+    use typed_trees::{
+        expression::ExpressionHandle, machine::Machine, state::State, types::TypeReferenceHandle,
+    };
+    struct Source<'a>(&'a dyn crate::CheckingInput);
+    impl typed_trees::source_operator_types::AssignmentSourceTypes for Source<'_> {
+        fn typed(&self) -> &typed_trees::TypedTrees {
+            self.0.typed_program()
+        }
+        fn declared_target_type(
+            &self,
+            machine: &Machine,
+            state: &State,
+            target: ExpressionHandle,
+        ) -> Option<TypeReferenceHandle> {
+            super::declared_place_type_raw(self.0, machine, Some(state), target)
+        }
+        fn value_type(
+            &self,
+            machine: &Machine,
+            state: &State,
+            value: ExpressionHandle,
+        ) -> Option<TypeReferenceHandle> {
+            match self
+                .0
+                .typed_program()
+                .declared_callable_expression_type_reference(value)
+            {
+                Ok(Some(reference)) => Some(reference),
+                Ok(None) => crate::expression_result_type_reference(self.0, machine, state, value),
+                Err(_) => None,
+            }
+        }
+        fn reference_shell(
+            &self,
+            reference: TypeReferenceHandle,
+        ) -> Option<(language_semantics::ReferenceAccess, TypeReferenceHandle)> {
+            crate::reference_shell(self.0, reference).map(|shell| (shell.access, shell.referee))
+        }
+        fn atomic_assignment(
+            &self,
+            machine: &Machine,
+            state: &State,
+            target: ExpressionHandle,
+            value: ExpressionHandle,
+        ) -> bool {
+            crate::value_custody::atomic_operations::target_atomic_operation(
+                self.0,
+                machine,
+                Some(state),
+                target,
+                value,
+            )
+            .is_some()
+        }
+    }
+    pub fn assignment_rebinds_parameter(
+        program: &dyn crate::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        statement: &typed_trees::statement::StatementNode,
+    ) -> Result<Option<symbols::SymbolHandle>, &'static str> {
+        typed_trees::source_operator_types::assignment_rebinds_parameter(
+            &Source(program),
+            machine,
+            state,
+            statement,
+        )
+    }
+    pub fn assignment_stored_value_type(
+        program: &dyn crate::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        assignment: &typed_trees::statement::TableAssignment,
+    ) -> Option<TypeReferenceHandle> {
+        typed_trees::source_operator_types::assignment_stored_value_type(
+            &Source(program),
+            machine,
+            state,
+            assignment,
+        )
+    }
+}

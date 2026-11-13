@@ -1449,7 +1449,7 @@ pub(crate) mod target_machine_families {
                 if typed_trees::data::type_parameter_demands_stronger_properties(required, actual) {
                     return Err(unjoined(member, "generic property-demand conjunction"));
                 }
-                let content_conservation = validation::content_conservation_plans(program);
+                let content_conservation = validation::content_conservation_plans(program)?;
                 if let (
                     TypeParameterKind::Machine { contract: required },
                     TypeParameterKind::Machine { contract: actual },
@@ -1932,7 +1932,7 @@ pub(crate) fn close_typed_cohort(
         &mut lowerer.typed_trees,
         cohort.machines,
     )?;
-    validation::normalize_terminal_transition_calls(
+    typed_trees::calls::terminal_transitions::normalize_terminal_transition_calls(
         &mut lowerer.typed_trees,
         cohort.typed_machines,
         cohort.completed_machines,

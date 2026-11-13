@@ -12,18 +12,18 @@ identities, render assumed-binding contracts, and emit canonical
 `PackagePolicyRow` items without reopening source.
 */
 
-use super::package_policy::assumed_bindings::PreparedAssumedContracts;
-use super::semantics::declarations::nominal_identity_from_symbols;
-use super::terminal_authority_permissions::declarations::rejected;
+use super::assumed_bindings::PreparedAssumedContracts;
+use super::nominal::nominal_identity_from_symbols;
+use super::published_input::rejected;
 use crate::record::{
     PackagePolicyTerminalPermission, PackageReviewNominalIdentity, PackageReviewNominalOwner,
 };
-use checked_trees::typed_trees::service_declarations::PreparedServiceCatalog;
 use compilation_products::CheckedProductSource;
 use diagnostics::Diagnostic;
 use provider_planning::service_declarations::ServiceDeclarations;
 use std::sync::{Arc, Weak};
 use symbols::SymbolHandle;
+use typed_trees::service_declarations::PreparedServiceCatalog;
 
 struct ServiceIdentities {
     symbol: SymbolHandle,

@@ -258,8 +258,8 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         byte_buffers: &mut [terminal_interpreter::TerminalBoundaryByteBuffer],
         storage_buffers: &mut [terminal_interpreter::TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
-        let native = matches!(effect, TerminalEffect::BoundaryCall { operation, boundary, .. }
-            if self.host.calls.iter().any(|call| call.operation == *operation && call.boundary == *boundary && call.action == TerminalBuildBindingOperation::BindNative));
+        let native = matches!(effect, TerminalEffect::BoundaryCall { machine, operation, boundary, .. }
+            if self.host.calls.iter().any(|call| call.machine == *machine && call.operation == *operation && call.boundary == *boundary && call.action == TerminalBuildBindingOperation::BindNative));
         if native {
             if !byte_buffers.is_empty() {
                 return Err(TerminalEffectRejection::new(
@@ -281,6 +281,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         effect: &TerminalEffect,
     ) -> Result<bool, TerminalEffectRejection> {
         let TerminalEffect::BoundaryCall {
+            machine,
             operation,
             boundary,
             ..
@@ -288,12 +289,11 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         else {
             return Err(TerminalEffectRejection::new("not a Build binding effect"));
         };
-        match self
-            .host
-            .queries
-            .iter()
-            .find(|query| query.operation == *operation && query.boundary == *boundary)
-        {
+        match self.host.queries.iter().find(|query| {
+            query.machine == *machine
+                && query.operation == *operation
+                && query.boundary == *boundary
+        }) {
             Some(query) => self.host.poll_query(query, effect),
             None => Ok(true),
         }
@@ -305,6 +305,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
     ) -> Result<bool, TerminalEffectRejection> {
         let refuse = TerminalEffectRejection::new;
         let TerminalEffect::BoundaryCall {
+            machine,
             operation,
             boundary,
             arguments,
@@ -314,19 +315,22 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         else {
             return Err(refuse("not a Build binding effect"));
         };
-        if self
-            .host
-            .queries
-            .iter()
-            .any(|query| query.operation == *operation && query.boundary == *boundary)
-        {
+        if self.host.queries.iter().any(|query| {
+            query.machine == *machine
+                && query.operation == *operation
+                && query.boundary == *boundary
+        }) {
             return Ok(true);
         }
         let call = self
             .host
             .calls
             .iter()
-            .find(|call| call.operation == *operation && call.boundary == *boundary)
+            .find(|call| {
+                call.machine == *machine
+                    && call.operation == *operation
+                    && call.boundary == *boundary
+            })
             .ok_or_else(|| refuse("Build binding call has no source-issued designated operands"))?;
         if call.action != TerminalBuildBindingOperation::AwaitProvider {
             return Ok(true);
@@ -372,6 +376,7 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
         let refuse = TerminalEffectRejection::new;
         let TerminalEffect::BoundaryCall {
+            machine,
             operation,
             boundary,
             arguments,
@@ -381,19 +386,22 @@ impl TerminalEffectHandler for TerminalBuildBindingAdapter {
         else {
             return Err(refuse("not a Build binding effect"));
         };
-        if let Some(query) = self
-            .host
-            .queries
-            .iter()
-            .find(|query| query.operation == *operation && query.boundary == *boundary)
-        {
+        if let Some(query) = self.host.queries.iter().find(|query| {
+            query.machine == *machine
+                && query.operation == *operation
+                && query.boundary == *boundary
+        }) {
             return self.host.complete_query(query, effect);
         }
         let call = self
             .host
             .calls
             .iter()
-            .find(|call| call.operation == *operation && call.boundary == *boundary)
+            .find(|call| {
+                call.machine == *machine
+                    && call.operation == *operation
+                    && call.boundary == *boundary
+            })
             .ok_or_else(|| refuse("Build binding call has no source-issued designated operands"))?;
         let mut state = lock_state(&self.host.state).map_err(refuse)?;
         // Every selection is prepared on the original Build receiver; a test

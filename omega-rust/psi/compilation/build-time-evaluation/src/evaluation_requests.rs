@@ -52,7 +52,7 @@ impl EvaluationSemanticsIdentity {
 }
 
 pub const CURRENT_EVALUATION_SEMANTICS: EvaluationSemanticsIdentity =
-    EvaluationSemanticsIdentity(6);
+    EvaluationSemanticsIdentity(7);
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum UnavailableStaticInput {
@@ -174,12 +174,8 @@ impl<'a> BuildMachineEvaluationRequest<'a> {
 
 #[derive(Clone, Copy)]
 pub enum BuildMachineProgram<'program> {
+    Accepted(&'program psi_terminal_production::CheckedInvocationSource),
     Typed(&'program TypedTrees),
-    Checked(&'program checked_trees::CheckedTrees),
-    CheckedClosure {
-        execution: &'program checked_trees::CheckedTrees,
-        product_declarations: &'program TypedTrees,
-    },
 }
 
 /// One private callback slot a layout policy placed while it ran.

@@ -170,6 +170,7 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         let refuse = TerminalEffectRejection::new;
         let TerminalEffect::BoundaryCall {
+            machine,
             operation,
             boundary,
             arguments,
@@ -185,7 +186,11 @@ impl TerminalEffectHandler for TerminalBuildRequestAdapter {
             .host
             .calls
             .iter()
-            .find(|call| call.operation == *operation && call.boundary == *boundary)
+            .find(|call| {
+                call.machine == *machine
+                    && call.operation == *operation
+                    && call.boundary == *boundary
+            })
             .ok_or_else(|| refuse("Build request has no source-issued protocol call"))?;
         if call.action == Operation::LogLine {
             let [facet, _] = structural_arguments.as_slice() else {

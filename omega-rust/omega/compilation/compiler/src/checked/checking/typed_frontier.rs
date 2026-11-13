@@ -1,14 +1,7 @@
-// A comparison harness needs the program the current checker judged even when
-// that checker rejects it. The product path cannot supply it: Psi 04's frozen
-// typed trees are moved into Psi 05, and every later rejection returns only
-// diagnostics. `CompilationSession::check_keeping_typed_frontier` runs the same
-// check and also returns those trees.
-//
-// The trees are copied out where they are produced
-// (`psi_compiler::CheckRequest::check_keeping_typed_frontier`), through one
-// optional slot passed down the existing check calls. Product callers pass no
-// slot, so they clone nothing: the checker on the lowered form judges the same
-// trees by reference (`lowered_route`).
+// A diagnostic request can retain the exact prepared source even when its
+// lowered-form judgment rejects. The ordinary product path shares that frozen
+// source with its accepted publication; only an explicit frontier request
+// copies the source into this inspection result.
 
 use compilation_products::{CheckedCompilation, CompileFailure};
 
@@ -27,8 +20,7 @@ pub enum TypedFrontierRequest {
 /// The Product program as Psi 04 left it, with the entries this Build bound.
 #[derive(Debug, Clone)]
 pub struct TypedFrontier {
-    /// The frozen typed trees Psi 05 was given. When the lifecycle-plan step
-    /// between Psi 04 and Psi 05 refused, these are Psi 04's output instead.
+    /// The exact frozen typed source supplied to the lowered-form checker.
     pub typed: typed_trees::FrozenTypedTrees,
     /// The Build's bound program roots, in the order the checker received
     /// them. Empty when the Build binds no entry.

@@ -50,7 +50,6 @@ pub fn select_build_machine(
 pub fn admit_build_machine(
     prepared: &PreparedBuildMachineProgram,
     machine_symbol: SymbolHandle,
-    service_reach_plan: &flow_effects::ServiceReachInferencePlan,
     filesystem_scope: &mut BuildMachineFilesystemScope,
 ) -> Result<SelectedBuildMachine, Vec<Diagnostic>> {
     let typed = prepared.typed();
@@ -75,34 +74,65 @@ pub fn admit_build_machine(
             })?;
     let value_admission = BuildValueAdmission::admit(typed)?;
 
-    let transitive = service_reach_plan
-        .for_machine(machine.symbol)
-        .map(|entry| service_reach_plan.services(entry.inferred_transitive))
-        .unwrap_or(&[]);
+    let source = prepared.accepted_source().ok_or_else(|| {
+        vec![Diagnostic::error(
+            "Build admission has no accepted source publication",
+        )]
+    })?;
+    let publication = source.publication();
+    let module = publication.artifact.semantic_module();
+    let entry = module
+        .machines
+        .iter()
+        .find(|machine| publication.machines.get(machine.id) == Some(&machine_symbol))
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "accepted Build publication lost its selected entry",
+            )]
+        })?;
+    let transitive = entry
+        .published_service_ceiling
+        .iter()
+        .map(|service| {
+            let mut matches = publication
+                .services
+                .iter()
+                .filter(|row| row.service == *service);
+            let row = matches.next().ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "accepted Build service has no exact source correspondence",
+                )]
+            })?;
+            if matches.next().is_some() {
+                return Err(vec![Diagnostic::error(
+                    "accepted Build service correspondence is ambiguous",
+                )]);
+            }
+            let definition = typed
+                .service_reaches
+                .definition(row.source)
+                .filter(|definition| definition.symbol == row.declaration)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "accepted Build service lost its source declaration",
+                    )]
+                })?;
+            Ok(definition)
+        })
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
     let transitive_names = transitive
         .iter()
-        .filter(|service| {
-            !typed
-                .service_reaches
-                .definition(**service)
-                .is_some_and(|definition| {
-                    language_semantics::build_requests::is_project_request_protocol(
-                        &typed.symbols,
-                        definition.symbol,
-                    ) || language_semantics::build_requests::is_build_protocol(
-                        &typed.symbols,
-                        definition.symbol,
-                        "BuildFilesystemOperations",
-                    )
-                })
+        .filter(|definition| {
+            !language_semantics::build_requests::is_project_request_protocol(
+                &typed.symbols,
+                definition.symbol,
+            ) && !language_semantics::build_requests::is_build_protocol(
+                &typed.symbols,
+                definition.symbol,
+                "BuildFilesystemOperations",
+            )
         })
-        .map(|service| {
-            typed
-                .service_reaches
-                .definition(*service)
-                .map(|definition| definition.name.as_str())
-                .unwrap_or("<unknown canonical service>")
-        })
+        .map(|definition| definition.name.as_str())
         .collect::<Vec<_>>();
     if std::env::var_os("OMEGA_DEBUG_BUILD_CONFIG").is_some() {
         eprintln!(
@@ -119,17 +149,12 @@ pub fn admit_build_machine(
             transitive_names.join(", "),
         ))]);
     }
-    let filesystem_reachable = transitive.iter().any(|service| {
-        typed
-            .service_reaches
-            .definition(*service)
-            .is_some_and(|definition| {
-                language_semantics::build_requests::is_build_protocol(
-                    &typed.symbols,
-                    definition.symbol,
-                    "BuildFilesystemOperations",
-                )
-            })
+    let filesystem_reachable = transitive.iter().any(|definition| {
+        language_semantics::build_requests::is_build_protocol(
+            &typed.symbols,
+            definition.symbol,
+            "BuildFilesystemOperations",
+        )
     });
 
     let zero_build = value_admission.initial_value(typed, machine, filesystem_scope);

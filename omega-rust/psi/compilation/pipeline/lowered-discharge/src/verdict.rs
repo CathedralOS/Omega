@@ -116,13 +116,14 @@ pub struct AcceptedClosure {
 /// module's identity, which travel beside it in memory to Omega 00.
 #[derive(Debug)]
 pub struct RoutePublication {
-    pub artifact: terminal_codec::CanonicalTerminalArtifact,
-    pub seals: terminal_codec::EvidenceSeals,
+    pub artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
+    pub seals: std::sync::Arc<terminal_codec::EvidenceSeals>,
     pub machines: semantic_vocabulary::IdTable<MachineId, symbols::SymbolHandle>,
     pub boundaries:
         semantic_vocabulary::IdTable<semantic_vocabulary::BoundaryMachineId, symbols::SymbolHandle>,
     pub source_records: Vec<typed_trees::SourceRecordCorrespondence>,
     pub services: Vec<structure_elaboration::SourceServiceCorrespondence>,
+    pub calls: Vec<structure_elaboration::SourceCallCorrespondence>,
 }
 
 impl RoutePublication {
@@ -175,6 +176,59 @@ impl AcceptedClosure {
         if let Some((machine, reason)) = self.elaboration.undeclared.first() {
             return Err(PublicationError::Undeclared(*machine, reason));
         }
+        let mut calls = Vec::new();
+        for machine in &self.elaboration.module.machines {
+            let tables = self
+                .elaboration
+                .tables
+                .machines
+                .get(machine.id)
+                .ok_or_else(|| {
+                    PublicationError::Semantic(format!(
+                        "machine {} lost its checked invocation table before publication",
+                        machine.id.get(),
+                    ))
+                })?;
+            for invocation in tables.invocations.values() {
+                let sources = self.elaboration.sources.get(machine.id).ok_or_else(|| {
+                    PublicationError::Semantic(format!(
+                        "machine {} lost its invocation source correspondence",
+                        machine.id.get(),
+                    ))
+                })?;
+                let origin = match invocation.site {
+                    semantic_vocabulary::InvocationSite::Operation(operation) => {
+                        sources.operations.get(operation)
+                    }
+                    semantic_vocabulary::InvocationSite::InvokeNoNormal(edge)
+                    | semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
+                        sources.edges.get(edge)
+                    }
+                }
+                .ok_or_else(|| {
+                    PublicationError::Semantic(format!(
+                        "machine {} invocation {:?} has no source correspondence",
+                        machine.id.get(),
+                        invocation.site,
+                    ))
+                })?;
+                // Source-free calls have no typed occurrence. Their presence
+                // grants no source-issued Build request or other companion.
+                if let Some(source) = origin.node() {
+                    calls.push(structure_elaboration::SourceCallCorrespondence {
+                        machine: machine.id,
+                        site: invocation.site,
+                        owner: origin.owner().ok_or_else(|| {
+                            PublicationError::Semantic(
+                                "typed invocation lost its original source machine".to_owned(),
+                            )
+                        })?,
+                        source,
+                    });
+                }
+            }
+        }
+        calls.sort_unstable_by_key(|call| (call.machine, call.site));
         let module = self.elaboration.module.clone();
         terminal_semantics::activation_storage::validate_module(&module)
             .map_err(|reason| PublicationError::Semantic(reason.to_owned()))?;
@@ -191,12 +245,13 @@ impl AcceptedClosure {
         let artifact = terminal_codec::CanonicalTerminalArtifact::from_parts(module, record, None)
             .map_err(PublicationError::Artifact)?;
         Ok(RoutePublication {
-            artifact,
-            seals,
+            artifact: std::sync::Arc::new(artifact),
+            seals: std::sync::Arc::new(seals),
             machines: self.elaboration.machines.clone(),
             boundaries: self.elaboration.boundaries.clone(),
             source_records: self.elaboration.source_records.clone(),
             services: self.elaboration.services.clone(),
+            calls,
         })
     }
 }
@@ -276,9 +331,13 @@ impl UnprovedObligation {
     /// consumption point, and `opening_diagnostic` names the write.
     pub fn reject_diagnostic(&self) -> Diagnostic {
         let diagnostic = Diagnostic::error(self.message());
-        match self.consumed.map_or(self.site, |consumed| consumed.site) {
-            SourceOrigin::Authored(span) => diagnostic.with_source_span(span),
-            SourceOrigin::Unpositioned(_) => diagnostic,
+        match self
+            .consumed
+            .map_or(self.site, |consumed| consumed.site)
+            .span()
+        {
+            Some(span) => diagnostic.with_source_span(span),
+            None => diagnostic,
         }
     }
 
@@ -290,9 +349,9 @@ impl UnprovedObligation {
             "this write opens the invariant window: it is not shown to keep {}",
             describe_kind(self.kind)
         ));
-        Some(match self.site {
-            SourceOrigin::Authored(span) => diagnostic.with_source_span(span),
-            SourceOrigin::Unpositioned(_) => diagnostic,
+        Some(match self.site.span() {
+            Some(span) => diagnostic.with_source_span(span),
+            None => diagnostic,
         })
     }
 }
@@ -328,9 +387,9 @@ impl UnestablishedUse {
     /// The `Reject` diagnostic.
     pub fn reject_diagnostic(&self) -> Diagnostic {
         let diagnostic = Diagnostic::error(self.message());
-        match self.site {
-            Some(SourceOrigin::Authored(span)) => diagnostic.with_source_span(span),
-            Some(SourceOrigin::Unpositioned(_)) | None => diagnostic,
+        match self.site.and_then(SourceOrigin::span) {
+            Some(span) => diagnostic.with_source_span(span),
+            None => diagnostic,
         }
     }
 }
@@ -361,9 +420,9 @@ impl ConflictingUse {
     /// The `Reject` diagnostic.
     pub fn reject_diagnostic(&self) -> Diagnostic {
         let diagnostic = Diagnostic::error(self.message());
-        match self.site {
-            SourceOrigin::Authored(span) => diagnostic.with_source_span(span),
-            SourceOrigin::Unpositioned(_) => diagnostic,
+        match self.site.span() {
+            Some(span) => diagnostic.with_source_span(span),
+            None => diagnostic,
         }
     }
 }
@@ -390,14 +449,13 @@ fn conflict_statement(
         .and_then(|callee| elaboration.names.get(callee))
         .map(|names| names.machine.clone())
         .filter(|state| !state.is_empty());
-    let lender = match site {
-        SourceOrigin::Authored(span) => elaboration
+    let lender = site.span().and_then(|span| {
+        elaboration
             .names
             .get(machine)
             .and_then(|names| names.lender(span, conflict.position))
-            .map(str::to_owned),
-        SourceOrigin::Unpositioned(_) => None,
-    };
+            .map(str::to_owned)
+    });
     let how = match conflict.conflict {
         crate::LoanConflict::TwiceExclusive => "as mutable more than once",
         crate::LoanConflict::ExclusiveAndShared => "as both mutable and read-only",
@@ -542,7 +600,7 @@ pub(crate) fn judge_owing(
             });
         }
     }
-    let discharged = match discharge(&mut elaboration) {
+    let discharged = match discharge(&mut elaboration, &mut Default::default()) {
         Ok(discharged) => discharged,
         Err(refused) => return fall_back_or_defect(refused),
     };

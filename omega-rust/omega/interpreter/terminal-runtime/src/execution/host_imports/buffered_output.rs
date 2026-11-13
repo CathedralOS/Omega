@@ -162,6 +162,7 @@ mod tests {
             output.clone(),
         );
         let effect = |scalar_type, value| TerminalEffect::BoundaryCall {
+            machine: semantic_vocabulary::MachineId::new(1).expect("test machine"),
             operation: OperationId::new(1).unwrap(),
             boundary: BoundaryMachineId::new(1).unwrap(),
             arguments: vec![TerminalScalarValue::Integer { scalar_type, value }],

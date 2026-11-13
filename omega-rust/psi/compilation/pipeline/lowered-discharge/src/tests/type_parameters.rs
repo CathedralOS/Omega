@@ -14,13 +14,9 @@
 // `forward` for it.
 
 use super::*;
-use crate::prove::SEARCHES;
+use crate::ProofSearchActivity;
 use crate::reverify_specialization;
 use terminal_check_tables::values::RigidType;
-
-fn searches() -> usize {
-    SEARCHES.with(std::cell::Cell::get)
-}
 
 fn rigid() -> ValueType {
     ValueType::Rigid(RigidType(0))
@@ -117,7 +113,7 @@ fn checked_once(bound: u128) -> (structure_elaboration::Elaboration, Discharge) 
         vec![relay(rigid(), bound), forward(rigid(), Vec::new())],
         &[2],
     );
-    let found = discharge(&mut form).unwrap();
+    let found = discharge(&mut form, &mut Default::default()).unwrap();
     (form, found)
 }
 
@@ -155,10 +151,18 @@ fn a_body_over_a_type_parameter_is_checked_once_and_carried_to_two_types() {
         ValueType::Scalar(bool_type()),
     ] {
         let mut consumer = specialized(item_type, 11);
-        let before = searches();
-        let verdicts =
-            reverify_specialization(&form, &found, id(1), &mut consumer, id(1), &[]).unwrap();
-        assert_eq!(searches() - before, 0, "carrying a proof started a prover");
+        let mut activity = ProofSearchActivity::default();
+        let verdicts = reverify_specialization(
+            &form,
+            &found,
+            id(1),
+            &mut consumer,
+            id(1),
+            &[],
+            &mut activity,
+        )
+        .unwrap();
+        assert_eq!(activity.started(), 0, "carrying a proof started a prover");
         assert_eq!(verdicts.len(), 3);
         for (obligation, verdict) in &verdicts {
             assert_kernel_checked(&consumer, 1, *obligation, verdict.as_ref().unwrap());
@@ -179,10 +183,18 @@ fn a_bound_the_callee_does_not_give_is_refused_for_every_type() {
         RefusalReason::Unproved(_)
     ));
     let mut consumer = specialized(ValueType::Scalar(i32_type()), 10);
-    let before = searches();
-    let verdicts =
-        reverify_specialization(&form, &found, id(1), &mut consumer, id(1), &[]).unwrap();
-    assert_eq!(searches() - before, 0);
+    let mut activity = ProofSearchActivity::default();
+    let verdicts = reverify_specialization(
+        &form,
+        &found,
+        id(1),
+        &mut consumer,
+        id(1),
+        &[],
+        &mut activity,
+    )
+    .unwrap();
+    assert_eq!(activity.started(), 0);
     let refusals: Vec<_> = verdicts
         .iter()
         .filter_map(|(_, verdict)| verdict.as_ref().err())
@@ -207,7 +219,7 @@ fn nothing_is_proved_from_the_type_a_rigid_value_is_declared_with() {
         ..relay(rigid(), 11)
     };
     let mut form = lowered(vec![assumes, forward(rigid(), Vec::new())], &[2]);
-    let found = discharge(&mut form).unwrap();
+    let found = discharge(&mut form, &mut Default::default()).unwrap();
     let decided = verdicts(&form, &found, 1, |kind| !published(kind));
     assert_eq!(decided.len(), 3);
     for (_, verdict) in decided {
@@ -221,7 +233,7 @@ fn nothing_is_proved_from_the_type_a_rigid_value_is_declared_with() {
         ..relay(rigid(), 11)
     };
     let mut form = lowered(vec![promises, forward(rigid(), Vec::new())], &[2]);
-    let found = discharge(&mut form).unwrap();
+    let found = discharge(&mut form, &mut Default::default()).unwrap();
     let (_, verdict) = verdicts(&form, &found, 1, guarantee)[0];
     assert_eq!(
         verdict.as_ref().unwrap_err().reason,
@@ -241,10 +253,18 @@ fn one_type_parameter_is_one_type_in_a_specialization() {
         statements: vec![returns(slot(2, u32_type()))],
     };
     let mut form = lowered(vec![both(rigid(), rigid())], &[]);
-    let found = discharge(&mut form).unwrap();
+    let found = discharge(&mut form, &mut Default::default()).unwrap();
     let carry = |left, right| {
         let mut consumer = lowered(vec![both(left, right)], &[]);
-        reverify_specialization(&form, &found, id(1), &mut consumer, id(1), &[])
+        reverify_specialization(
+            &form,
+            &found,
+            id(1),
+            &mut consumer,
+            id(1),
+            &[],
+            &mut Default::default(),
+        )
     };
     let (int, boolean) = (
         ValueType::Scalar(i32_type()),

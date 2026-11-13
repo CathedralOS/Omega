@@ -12,12 +12,8 @@
 // the result against the specialization's own goal and hypotheses.
 
 use super::*;
-use crate::prove::SEARCHES;
+use crate::ProofSearchActivity;
 use crate::reverify_specialization;
-
-fn searches() -> usize {
-    SEARCHES.with(std::cell::Cell::get)
-}
 
 fn below(left: ScalarTerm, right: ScalarTerm) -> Proposition {
     Proposition::LessOrEqual(left, right)
@@ -36,7 +32,7 @@ fn number(value: u128) -> ScalarTerm {
 fn checked_once(machine: Machine, rigid: usize) -> (structure_elaboration::Elaboration, Discharge) {
     let mut form = lower(vec![machine]).unwrap();
     form.value_parameters.push(rigid);
-    let found = discharge(&mut form).unwrap();
+    let found = discharge(&mut form, &mut Default::default()).unwrap();
     (form, found)
 }
 
@@ -52,9 +48,10 @@ fn carried(
     usize,
 ) {
     let mut consumer = lower(vec![specialization]).unwrap();
-    let before = searches();
-    let verdicts = reverify_specialization(form, found, id(1), &mut consumer, id(1), &[]);
-    let started = searches() - before;
+    let mut activity = ProofSearchActivity::default();
+    let verdicts =
+        reverify_specialization(form, found, id(1), &mut consumer, id(1), &[], &mut activity);
+    let started = activity.started();
     (consumer, verdicts, started)
 }
 

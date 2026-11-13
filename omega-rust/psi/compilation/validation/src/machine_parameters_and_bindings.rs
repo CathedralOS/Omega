@@ -360,9 +360,10 @@ pub mod machine_parameters {
                 parameter,
                 requirement,
                 &CallableParts {
-                    declaration: structure_elaboration::CallableDeclaration::Machine(
-                        actual_machine.symbol,
-                    ),
+                    declaration: structure_elaboration::CallableDeclaration::MachineState {
+                        declaration: actual_machine.symbol,
+                        entry: actual_state.symbol,
+                    },
                     lexical_owner: actual_machine.symbol,
                     contract_owner: actual_machine.symbol,
                     lifetime_parameters: &actual_machine.lifetime_parameters,
@@ -643,11 +644,8 @@ pub mod machine_parameters {
                 parameter,
                 requirement,
                 actual.declaration,
-                actual.contracts,
-                required_parameters,
-                actual_parameters,
-                actual.contract_owner,
-                actual.return_type,
+                applied.map_or(requirement.symbol, |view| view.lexical_owner),
+                actual.lexical_owner,
                 &binder_bindings
                     .static_bindings
                     .iter()
@@ -655,7 +653,6 @@ pub mod machine_parameters {
                     .collect::<Vec<_>>(),
                 &substitutions,
                 super::contract_facts::CallableProofScope {
-                    site: actual.proof_site,
                     types: &actual_types,
                 },
                 diagnostics,
@@ -756,18 +753,19 @@ pub mod machine_parameters {
                         _ => None,
                     })
                     .collect::<Vec<_>>();
-                caller_lifetimes = crate::borrow_contracts::resolve_callable_lifetime_bindings(
-                    program,
-                    expression_table(program)
-                        .static_machine_application(applied.invocation)
-                        .lifetime_binding_declaration,
-                    expression_table(program)
-                        .static_machine_application(applied.invocation)
-                        .lexical_owner,
-                    applied.caller_lifetimes,
-                    &required_applications,
-                )
-                .map_err(str::to_owned)?;
+                caller_lifetimes =
+                    typed_trees::callable_lifetimes::resolve_callable_lifetime_bindings(
+                        program.typed_program(),
+                        expression_table(program)
+                            .static_machine_application(applied.invocation)
+                            .lifetime_binding_declaration,
+                        expression_table(program)
+                            .static_machine_application(applied.invocation)
+                            .lexical_owner,
+                        applied.caller_lifetimes,
+                        &required_applications,
+                    )
+                    .map_err(str::to_owned)?;
                 required_applications.push(CallableLifetimeApplication::Enclosing {
                     bindings: &caller_lifetimes,
                 });
@@ -791,14 +789,15 @@ pub mod machine_parameters {
                 provider_lifetimes = program
                     .static_application_lifetimes_for_declaration(applied.provider, machine.symbol)
                     .map_err(str::to_owned)?;
-                selected_lifetimes = crate::borrow_contracts::resolve_callable_lifetime_bindings(
-                    program,
-                    machine.symbol,
-                    source.lexical_owner,
-                    &provider_lifetimes,
-                    &actual_applications,
-                )
-                .map_err(str::to_owned)?;
+                selected_lifetimes =
+                    typed_trees::callable_lifetimes::resolve_callable_lifetime_bindings(
+                        program.typed_program(),
+                        machine.symbol,
+                        source.lexical_owner,
+                        &provider_lifetimes,
+                        &actual_applications,
+                    )
+                    .map_err(str::to_owned)?;
                 actual_applications.push(CallableLifetimeApplication::Invocation {
                     bindings: &selected_lifetimes,
                 });
@@ -1875,44 +1874,15 @@ pub mod machine_parameters {
     pub use closed_types::closed_static_call_type_bindings;
     use typed_trees::static_applications::StaticMachineBindingValue;
     pub(crate) mod contract_facts {
-        use crate::frozen_program::expression_table;
         use diagnostics::Diagnostic;
-        use symbols::JoinedPath;
         use symbols::SymbolHandle;
-        use typed_trees::data::TypeParameter;
-        use typed_trees::domain::ProofFact;
-        use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
-        use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
+        use typed_trees::{
+            data::TypeParameter, signature::StateSignature, types::TypeReferenceHandle,
+        };
 
         #[derive(Clone, Copy, Default)]
         pub(crate) struct CallableProofScope<'a> {
-            pub(crate) site: Option<super::ValidatedNominalMachineUseSite>,
-            pub(crate) types: &'a [(
-                symbols::SymbolHandle,
-                typed_trees::types::TypeReferenceHandle,
-            )],
-        }
-        impl CallableProofScope<'_> {
-            fn proves_type_fact(
-                self,
-                program: &dyn crate::CheckingInput,
-                expression: ExpressionHandle,
-            ) -> bool {
-                if program.applied_static_type_predicate_value(expression, self.types) == Some(true)
-                {
-                    return true;
-                }
-                match self.site {
-                    Some(super::ValidatedNominalMachineUseSite::Expression(context)) => {
-                        program.static_type_requirement_entailed(expression, context, self.types)
-                    }
-                    Some(super::ValidatedNominalMachineUseSite::Statement(context)) => program
-                        .static_type_requirement_entailed_at_statement(
-                            expression, context, self.types,
-                        ),
-                    None => false,
-                }
-            }
+            pub(crate) types: &'a [(SymbolHandle, TypeReferenceHandle)],
         }
 
         #[allow(clippy::too_many_arguments)]
@@ -1920,676 +1890,141 @@ pub mod machine_parameters {
             program: &dyn crate::CheckingInput,
             label: &str,
             parameter: &TypeParameter,
-            requirement: &typed_trees::signature::StateSignature,
+            requirement: &StateSignature,
             actual_declaration: structure_elaboration::CallableDeclaration<'_>,
-            actual_contracts: &[SignatureContract],
-            required_parameters: &[StateParameter],
-            actual_parameters: &[StateParameter],
-            actual_owner: symbols::SymbolHandle,
-            actual_result: typed_trees::types::TypeReferenceHandle,
+            required_lexical_owner: SymbolHandle,
+            actual_lexical_owner: SymbolHandle,
             binder_pairs: &[(SymbolHandle, SymbolHandle)],
-            substitutions: &[(
-                symbols::SymbolHandle,
-                typed_trees::types::TypeReferenceHandle,
-            )],
+            substitutions: &[(SymbolHandle, TypeReferenceHandle)],
             proof_scope: CallableProofScope<'_>,
             diagnostics: &mut Vec<Diagnostic>,
         ) {
-            let required_contracts = program.state_signature_contracts(requirement);
-            let prepare_implication = || {
-                // The typed application owner must have spent every outer
-                // substitution before this witness reads the two contracts.
-                // An open correspondence keeps its existing checking route;
-                // it is never silently dropped from a lowered proof request.
-                if substitutions.is_empty()
-                    && binder_pairs.is_empty()
-                    && proof_scope.types.is_empty()
-                    && let Some(judgment) = crate::proof_contracts::contract_entailment::CallableContractRefinement::prepare_lowered(
-                        program.typed_program(), requirement, actual_declaration,
-                    )
-                {
-                    return Some(judgment);
-                }
-                crate::proof_contracts::contract_entailment::CallableContractRefinement::prepare(
-                    program,
-                    crate::proof_contracts::contract_entailment::CallableContract {
-                        owner: requirement.symbol,
-                        contracts: required_contracts,
-                        parameters: required_parameters,
-                        result: requirement.return_type,
-                    },
-                    crate::proof_contracts::contract_entailment::CallableContract {
-                        owner: actual_owner,
-                        contracts: actual_contracts,
-                        parameters: actual_parameters,
-                        result: actual_result,
-                    },
-                    binder_pairs,
-                )
+            let context = structure_elaboration::CallableRefinementContext {
+                required_types: substitutions,
+                supplied_types: proof_scope.types,
+                binder_pairs,
+                required_lexical_owner,
+                supplied_lexical_owner: actual_lexical_owner,
+                ..Default::default()
             };
+            let verdict = lowered_discharge::prove_published_callable_refinement(
+                program.typed_program(),
+                structure_elaboration::CallableDeclaration::Signature(requirement),
+                actual_declaration,
+                context,
+                &mut Default::default(),
+            );
             validate_callable_contract_refinement(
-                program,
                 label,
                 parameter.name.as_str(),
-                required_contracts,
-                actual_contracts,
-                required_parameters,
-                actual_parameters,
-                requirement.symbol,
-                actual_owner,
-                substitutions,
-                proof_scope,
-                prepare_implication,
+                verdict,
                 diagnostics,
             );
         }
 
         #[allow(clippy::too_many_arguments)]
-        pub(crate) fn validate_callable_contract_refinement(
+        pub(crate) fn check_selected_contract_refinement(
             program: &dyn crate::CheckingInput,
-            label: &str,
-            requirement_identity: &str,
-            required_contracts: &[SignatureContract],
-            actual_contracts: &[SignatureContract],
-            required_parameters: &[StateParameter],
-            actual_parameters: &[StateParameter],
-            required_owner: symbols::SymbolHandle,
-            actual_owner: symbols::SymbolHandle,
-            substitutions: &[(
-                symbols::SymbolHandle,
-                typed_trees::types::TypeReferenceHandle,
-            )],
-            proof_scope: CallableProofScope<'_>,
-            prepare_implication: impl FnOnce() -> Option<
-                crate::proof_contracts::contract_entailment::CallableContractRefinement,
-            >,
+            machine: &typed_trees::machine::Machine,
+            entry: &typed_trees::state::State,
+            member_parameters: &[typed_trees::signature::StateParameter],
+            invocation_parameters: &[TypeParameter],
+            application: &typed_trees::trait_definition::AppliedTraitScope<'_>,
+            requirement: &StateSignature,
+            selecting: Option<&typed_trees::trait_definition::Conformance>,
             diagnostics: &mut Vec<Diagnostic>,
         ) {
-            let mut prepare_implication = Some(prepare_implication);
-            let mut implication = None;
-            for kind in [
-                SignatureContractKind::Requires,
-                SignatureContractKind::Ensures,
-            ] {
-                if kind == SignatureContractKind::Requires
-                    && super::reflection_coverage::is_open_field_query(program, proof_scope.site)
+            let label = format!(
+                "machine `{}` for `{}::{}`",
+                machine.name, application.declaration.name, requirement.name
+            );
+            let applied = program.applied_callable_signature(application, requirement.symbol);
+            let requirement = match applied {
+                Some(signature) => signature,
+                None if requirement.type_parameters.is_empty()
+                    && application.substitutions.is_empty()
+                    && application.declaration.lifetime_parameters.is_empty() =>
                 {
-                    continue;
+                    requirement
                 }
-                let required = normalized_facts(
-                    program,
-                    required_contracts,
-                    &kind,
-                    required_parameters,
-                    substitutions,
-                );
-                let actual = normalized_facts_in(
-                    program,
-                    actual_contracts,
-                    &kind,
-                    actual_parameters,
-                    &[],
-                    proof_scope,
-                );
-                let valid = match &kind {
-                    SignatureContractKind::Requires => {
-                        actual.iter().all(|fact| required.contains(fact))
-                    }
-                    SignatureContractKind::Ensures => required.iter().all(|fact| {
-                        actual.contains(fact)
-                            || single_guarantee_left_prefix(
-                                program,
-                                required_contracts,
-                                actual_contracts,
-                                required_parameters,
-                                actual_parameters,
-                                required_owner,
-                                actual_owner,
-                            )
-                    }),
-                    SignatureContractKind::EnsuresForResultCase { .. } => {
-                        unreachable!(
-                            "outcome-specific guarantees are not machine-parameter contracts"
-                        )
-                    }
-                    SignatureContractKind::Crashes { .. } => {
-                        unreachable!("crash routes compare separately")
-                    }
-                };
-                if !valid {
-                    if let Some(prepare) = prepare_implication.take() {
-                        implication = prepare();
-                    }
-                    if implication
-                        .as_ref()
-                        .is_some_and(|judgment| judgment.proves(program, &kind))
-                    {
-                        continue;
-                    }
-                    let detail = implication
-                        .as_ref()
-                        .and_then(|judgment| judgment.refusal_detail())
-                        .map_or(String::new(), |detail| format!(": {detail}"));
+                None => {
                     diagnostics.push(Diagnostic::error(format!(
-                        "{label} does not refine `{}`: its {} facts are not a conservative refinement{detail}",
-                        requirement_identity,
-                        contract_kind_name(&kind)
+                        "{label} has no prepared contract for its exact trait application",
                     )));
+                    return;
+                }
+            };
+            if program.state_signature_parameters(requirement).len() != member_parameters.len()
+                || program.state_parameters(entry) != member_parameters
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{label} lost its exact formal correspondence"
+                )));
+                return;
+            }
+            let required_generics = program.state_signature_type_parameters(requirement);
+            if required_generics.len() > invocation_parameters.len() {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{label} lost its generic declaration correspondence"
+                )));
+                return;
+            }
+            let mut pairs = required_generics
+                .iter()
+                .zip(invocation_parameters)
+                .map(|(required, supplied)| (required.symbol, supplied.symbol))
+                .collect::<Vec<_>>();
+            for captured in program
+                .machine_type_reference_scope(machine, |left, right| left.symbol == right.symbol)
+                .0
+            {
+                if !invocation_parameters
+                    .iter()
+                    .any(|local| local.symbol == captured.symbol)
+                    && !pairs
+                        .iter()
+                        .any(|(left, right)| *left == captured.symbol || *right == captured.symbol)
+                {
+                    pairs.push((captured.symbol, captured.symbol));
                 }
             }
-            validate_crash_contract_refinement(
-                program,
-                label,
-                requirement_identity,
-                required_contracts,
-                actual_contracts,
-                required_parameters,
-                actual_parameters,
-                substitutions,
+            let verdict = lowered_discharge::prove_published_callable_refinement(
+                program.typed_program(),
+                structure_elaboration::CallableDeclaration::Signature(requirement),
+                structure_elaboration::CallableDeclaration::MachineState {
+                    declaration: machine.symbol,
+                    entry: entry.symbol,
+                },
+                structure_elaboration::CallableRefinementContext {
+                    required_types: &application.substitutions,
+                    required_scope_starts: &application.substitution_scope_starts,
+                    binder_pairs: &pairs,
+                    required_lexical_owner: application.argument_owner,
+                    supplied_lexical_owner: machine.symbol,
+                    selecting: selecting.map(|selection| selection.symbol),
+                    ..Default::default()
+                },
+                &mut Default::default(),
+            );
+            validate_callable_contract_refinement(
+                &label,
+                requirement.name.as_str(),
+                verdict,
                 diagnostics,
             );
         }
 
-        #[allow(clippy::too_many_arguments)]
-        fn validate_crash_contract_refinement(
-            program: &dyn crate::CheckingInput,
+        pub(crate) fn validate_callable_contract_refinement(
             label: &str,
             requirement_identity: &str,
-            required_contracts: &[SignatureContract],
-            actual_contracts: &[SignatureContract],
-            required_parameters: &[StateParameter],
-            actual_parameters: &[StateParameter],
-            substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
+            verdict: terminal_check_tables::Checked<()>,
             diagnostics: &mut Vec<Diagnostic>,
         ) {
-            let mut checked = Vec::<SignatureContractKind>::new();
-            for actual_contract in actual_contracts {
-                let SignatureContractKind::Crashes { .. } = &actual_contract.kind else {
-                    continue;
-                };
-                if checked.contains(&actual_contract.kind) {
-                    continue;
-                }
-                checked.push(actual_contract.kind.clone());
-
-                let actual_bucket = normalized_crash_bucket(
-                    program,
-                    actual_contracts,
-                    &actual_contract.kind,
-                    actual_parameters,
-                    &[],
-                )
-                .expect("an actual crash contract contributes its own bucket");
-                let required_bucket = normalized_crash_bucket(
-                    program,
-                    required_contracts,
-                    &actual_contract.kind,
-                    required_parameters,
-                    substitutions,
-                );
-                let valid = required_bucket.is_some_and(|required| {
-                    required.unconditional
-                        || (!actual_bucket.unconditional
-                            && actual_bucket
-                                .routes
-                                .iter()
-                                .all(|route| required.routes.contains(route)))
-                });
-                if !valid {
-                    let SignatureContractKind::Crashes { cause } = &actual_contract.kind else {
-                        unreachable!("checked crash bucket kind")
-                    };
-                    diagnostics.push(Diagnostic::error(format!(
-                "{label} does not refine `{}`: its `crashes {cause:?}` routes are not contained by the required crash ceiling",
-                requirement_identity,
-            )));
-                }
-            }
-        }
-
-        pub(crate) struct NormalizedCrashBucket {
-            unconditional: bool,
-            routes: Vec<String>,
-        }
-
-        fn normalized_crash_bucket(
-            program: &dyn crate::CheckingInput,
-            contracts: &[SignatureContract],
-            kind: &SignatureContractKind,
-            parameters: &[StateParameter],
-            substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
-        ) -> Option<NormalizedCrashBucket> {
-            let matching = contracts
-                .iter()
-                .filter(|contract| &contract.kind == kind)
-                .collect::<Vec<_>>();
-            if matching.is_empty() {
-                return None;
-            }
-            let unconditional = matching.iter().any(|contract| {
-                normalized_facts(
-                    program,
-                    std::slice::from_ref(*contract),
-                    kind,
-                    parameters,
-                    substitutions,
-                )
-                .is_empty()
-            });
-            let mut routes = normalized_facts(program, contracts, kind, parameters, substitutions);
-            routes.sort();
-            routes.dedup();
-            Some(NormalizedCrashBucket {
-                unconditional,
-                routes,
-            })
-        }
-
-        fn normalized_facts(
-            program: &dyn crate::CheckingInput,
-            contracts: &[SignatureContract],
-            kind: &SignatureContractKind,
-            parameters: &[StateParameter],
-            substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
-        ) -> Vec<String> {
-            normalized_facts_in(
-                program,
-                contracts,
-                kind,
-                parameters,
-                substitutions,
-                CallableProofScope {
-                    site: None,
-                    types: substitutions,
-                },
-            )
-        }
-
-        fn normalized_facts_in(
-            program: &dyn crate::CheckingInput,
-            contracts: &[SignatureContract],
-            kind: &SignatureContractKind,
-            parameters: &[StateParameter],
-            substitutions: &[(
-                symbols::SymbolHandle,
-                typed_trees::types::TypeReferenceHandle,
-            )],
-            proof_scope: CallableProofScope<'_>,
-        ) -> Vec<String> {
-            let mut facts = Vec::new();
-            for contract in contracts.iter().filter(|contract| &contract.kind == kind) {
-                for fact in program.tables.proof_facts.span_or_empty(contract.facts) {
-                    if matches!(
-                        fact,
-                        ProofFact::Expression(expression)
-                            if matches!(
-                                expression_table(program).expression(*expression),
-                                ExpressionNode::Boolean(true)
-                            ) || matches!(fact, ProofFact::Expression(expression)
-                                if proof_scope.proves_type_fact(program, *expression))
-                    ) {
-                        continue;
-                    }
-                    let raw = match fact {
-                        ProofFact::Expression(expression) => {
-                            expression_table(program).display_name(*expression)
-                        }
-                        ProofFact::Membership(membership) => format!(
-                            "{} in {}{}",
-                            expression_table(program).display_name(membership.value),
-                            program.domain_path_members(membership.domain).joined_path(),
-                            if membership.domain_arguments.is_empty() {
-                                String::new()
-                            } else {
-                                format!(
-                                    "<{}>",
-                                    program
-                                        .type_reference_table
-                                        .type_reference_handles(membership.domain_arguments)
-                                        .iter()
-                                        .map(|argument| program
-                                            .normalized_type_identity_text(*argument))
-                                        .collect::<Vec<_>>()
-                                        .join(",")
-                                )
-                            }
-                        ),
-                        ProofFact::Proposition(application) => {
-                            let binders = application
-                                .binder_arguments
-                                .iter()
-                                .map(|argument| argument.path.joined_path())
-                                .collect::<Vec<_>>();
-                            let arguments = expression_table(program)
-                                .expression_handles(application.arguments)
-                                .iter()
-                                .map(|argument| expression_table(program).display_name(*argument))
-                                .collect::<Vec<_>>();
-                            let binder_suffix = if binders.is_empty() {
-                                String::new()
-                            } else {
-                                format!("[{}]", binders.join(", "))
-                            };
-                            format!(
-                                "{}{binder_suffix}({})",
-                                application.name.as_str(),
-                                arguments.join(", ")
-                            )
-                        }
-                    };
-                    let substituted = substitute_type_actuals(program, &raw, substitutions);
-                    facts.push(alpha_normalize(&substituted, parameters));
-                }
-            }
-            facts.sort();
-            facts.dedup();
-            facts
-        }
-
-        fn single_guarantee_left_prefix(
-            program: &dyn crate::CheckingInput,
-            required_contracts: &[SignatureContract],
-            actual_contracts: &[SignatureContract],
-            required_parameters: &[StateParameter],
-            actual_parameters: &[StateParameter],
-            expected_required_owner: SymbolHandle,
-            expected_actual_owner: SymbolHandle,
-        ) -> bool {
-            for parameters in [required_parameters, actual_parameters] {
-                for (index, parameter) in parameters.iter().enumerate() {
-                    if !parameter.symbol.is_valid()
-                        || parameters[..index]
-                            .iter()
-                            .any(|earlier| earlier.symbol == parameter.symbol)
-                    {
-                        return false;
-                    }
-                }
-            }
-            let required = required_contracts
-                .iter()
-                .filter(|contract| contract.kind == SignatureContractKind::Ensures)
-                .flat_map(|contract| program.tables.proof_facts.span_or_empty(contract.facts))
-                .collect::<Vec<_>>();
-            let [ProofFact::Expression(required)] = required.as_slice() else {
-                return false;
-            };
-            let Some((required_owner, required_type)) = expression_result_owner(program, *required)
-            else {
-                return false;
-            };
-            if required_owner != expected_required_owner || !expected_actual_owner.is_valid() {
-                return false;
-            }
-            actual_contracts
-                .iter()
-                .filter(|contract| contract.kind == SignatureContractKind::Ensures)
-                .flat_map(|contract| program.tables.proof_facts.span_or_empty(contract.facts))
-                .any(|fact| {
-                    let ProofFact::Expression(expression) = fact else {
-                        return false;
-                    };
-                    let mut prefix = *expression;
-                    while let ExpressionNode::Binary(binary) =
-                        expression_table(program).expression(prefix)
-                    {
-                        if binary.operator != BinaryOperator::And {
-                            break;
-                        }
-                        prefix = binary.left;
-                        let Some((actual_owner, actual_type)) =
-                            expression_result_owner(program, prefix)
-                        else {
-                            continue;
-                        };
-                        if actual_owner != expected_actual_owner {
-                            continue;
-                        }
-                        if !required_type.is_valid() || !actual_type.is_valid() {
-                            continue;
-                        }
-                        let required_identity = program.normalized_type_identity(required_type);
-                        let actual_identity = program.normalized_type_identity(actual_type);
-                        if !required_identity.is_valid()
-                            || !actual_identity.is_valid()
-                            || required_identity != actual_identity
-                        {
-                            continue;
-                        }
-                        if crate::has_builtin_parameter_bound_expression_meaning(
-                            program,
-                            required_owner,
-                            required_parameters,
-                            *required,
-                        ) && crate::has_builtin_parameter_bound_expression_meaning(
-                            program,
-                            actual_owner,
-                            actual_parameters,
-                            prefix,
-                        ) && same_guarantee_expression(
-                            program,
-                            *required,
-                            prefix,
-                            required_owner,
-                            actual_owner,
-                            required_parameters,
-                            actual_parameters,
-                        ) {
-                            return true;
-                        }
-                    }
-                    false
-                })
-        }
-
-        fn expression_result_owner(
-            program: &dyn crate::CheckingInput,
-            expression: ExpressionHandle,
-        ) -> Option<(SymbolHandle, typed_trees::types::TypeReferenceHandle)> {
-            let mut nodes = Vec::new();
-            crate::queries::expression_traversal::collect_expression_tree(
-                program, expression, &mut nodes,
-            );
-            let mut owner = None;
-            for node in nodes {
-                if let Some(candidate) = crate::reserved_result_owner(program, node) {
-                    if owner.is_some_and(|existing| existing != candidate) {
-                        return None;
-                    }
-                    owner = Some(candidate);
-                }
-            }
-            owner
-        }
-
-        fn same_guarantee_expression(
-            program: &dyn crate::CheckingInput,
-            required: ExpressionHandle,
-            actual: ExpressionHandle,
-            required_owner: SymbolHandle,
-            actual_owner: SymbolHandle,
-            required_parameters: &[StateParameter],
-            actual_parameters: &[StateParameter],
-        ) -> bool {
-            match (
-                expression_table(program).expression(required),
-                expression_table(program).expression(actual),
-            ) {
-                (ExpressionNode::Integer(left), ExpressionNode::Integer(right)) => left == right,
-                (ExpressionNode::Boolean(left), ExpressionNode::Boolean(right)) => left == right,
-                (ExpressionNode::Name(left), ExpressionNode::Name(right)) => {
-                    if crate::reserved_result_owner(program, required)
-                        .is_some_and(|(owner, _)| owner == required_owner)
-                        && crate::reserved_result_owner(program, actual)
-                            .is_some_and(|(owner, _)| owner == actual_owner)
-                    {
-                        return true;
-                    }
-                    let table = expression_table(program);
-                    let left_members = table.name_path_members(left.members);
-                    let right_members = table.name_path_members(right.members);
-                    let left_symbols = table.name_path_member_symbols(left.member_symbols);
-                    let right_symbols = table.name_path_member_symbols(right.member_symbols);
-                    if left_members.len() != 1
-                        || right_members.len() != 1
-                        || left_symbols.len() != 1
-                        || right_symbols.len() != 1
-                        || !left.symbol.is_valid()
-                        || !right.symbol.is_valid()
-                        || left.head_symbol != left.symbol
-                        || right.head_symbol != right.symbol
-                        || left_symbols[0] != left.symbol
-                        || right_symbols[0] != right.symbol
-                    {
-                        return false;
-                    }
-                    let left_index = required_parameters
-                        .iter()
-                        .position(|p| p.symbol == left.symbol);
-                    let right_index = actual_parameters
-                        .iter()
-                        .position(|p| p.symbol == right.symbol);
-                    match (left_index, right_index) {
-                        (Some(left), Some(right)) => left == right,
-                        (None, None) => left.symbol == right.symbol,
-                        _ => false,
-                    }
-                }
-                (ExpressionNode::Binary(left), ExpressionNode::Binary(right)) => {
-                    left.operator == right.operator
-                        && same_guarantee_expression(
-                            program,
-                            left.left,
-                            right.left,
-                            required_owner,
-                            actual_owner,
-                            required_parameters,
-                            actual_parameters,
-                        )
-                        && same_guarantee_expression(
-                            program,
-                            left.right,
-                            right.right,
-                            required_owner,
-                            actual_owner,
-                            required_parameters,
-                            actual_parameters,
-                        )
-                }
-                _ => false,
-            }
-        }
-
-        fn substitute_type_actuals(
-            program: &dyn crate::CheckingInput,
-            text: &str,
-            substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
-        ) -> String {
-            if substitutions.is_empty() {
-                return text.to_owned();
-            }
-            let mut names = Vec::new();
-            for (symbol, actual) in substitutions {
-                let Some(parameter) = program.data_type_parameter_by_symbol(*symbol) else {
-                    continue;
-                };
-                if !matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type) {
-                    continue;
-                }
-                let rendered = program.display_type_reference(*actual);
-                if rendered.is_empty()
-                    || names
-                        .iter()
-                        .any(|(name, _)| name == parameter.name.as_str())
-                {
-                    continue;
-                }
-                names.push((parameter.name.as_str().to_owned(), rendered));
-            }
-            if names.is_empty() {
-                return text.to_owned();
-            }
-            let characters: Vec<char> = text.chars().collect();
-            let mut output = String::with_capacity(text.len());
-            let mut cursor = 0;
-            while cursor < characters.len() {
-                if !characters[cursor].is_ascii_alphanumeric() && characters[cursor] != '_' {
-                    output.push(characters[cursor]);
-                    cursor += 1;
-                    continue;
-                }
-                let start = cursor;
-                while cursor < characters.len()
-                    && (characters[cursor].is_ascii_alphanumeric() || characters[cursor] == '_')
-                {
-                    cursor += 1;
-                }
-                let word: String = characters[start..cursor].iter().collect();
-                let previous = characters[..start]
-                    .iter()
-                    .rev()
-                    .copied()
-                    .find(|character| !character.is_whitespace());
-                if matches!(previous, Some('<' | ','))
-                    && let Some((_, rendered)) = names.iter().find(|(name, _)| name == &word)
-                {
-                    output.push_str(rendered);
-                } else {
-                    output.push_str(&word);
-                }
-            }
-            output
-        }
-
-        fn alpha_normalize(text: &str, parameters: &[StateParameter]) -> String {
-            let characters: Vec<char> = text.chars().collect();
-            let mut output = String::with_capacity(text.len());
-            let mut cursor = 0;
-            while cursor < characters.len() {
-                if !characters[cursor].is_ascii_alphanumeric() && characters[cursor] != '_' {
-                    output.push(characters[cursor]);
-                    cursor += 1;
-                    continue;
-                }
-
-                let start = cursor;
-                while cursor < characters.len()
-                    && (characters[cursor].is_ascii_alphanumeric() || characters[cursor] == '_')
-                {
-                    cursor += 1;
-                }
-                let word: String = characters[start..cursor].iter().collect();
-                let previous = characters[..start]
-                    .iter()
-                    .rev()
-                    .copied()
-                    .find(|character| !character.is_whitespace());
-                let next = characters[cursor..]
-                    .iter()
-                    .copied()
-                    .find(|character| !character.is_whitespace());
-                let is_declaration_name =
-                    matches!(previous, Some('.' | ':')) || matches!(next, Some(':' | '(' | '{'));
-                if !is_declaration_name
-                    && let Some(index) = parameters
-                        .iter()
-                        .position(|parameter| parameter.name.as_str() == word)
-                {
-                    output.push('$');
-                    output.push_str(&index.to_string());
-                } else {
-                    output.push_str(&word);
-                }
-            }
-            output
-        }
-
-        pub(crate) fn contract_kind_name(kind: &SignatureContractKind) -> &'static str {
-            match kind {
-                SignatureContractKind::Requires => "requires",
-                SignatureContractKind::Ensures => "ensures",
-                SignatureContractKind::EnsuresForResultCase { .. } => "outcome-specific ensures",
-                SignatureContractKind::Crashes { .. } => "crashes",
+            if let Err(refused) = verdict {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{label} does not refine `{requirement_identity}`: {}",
+                    refused.detail,
+                )));
             }
         }
     }
@@ -3950,7 +3385,9 @@ pub mod machine_parameters {
     use callable_shape::validate_selected_callable_effects;
     use callable_shape::validate_selected_callable_shape;
     pub(crate) use callable_shape::validate_trait_callable_parameter_refinement;
-    pub(crate) use contract_facts::validate_callable_contract_refinement;
+    pub(crate) use contract_facts::{
+        check_selected_contract_refinement, validate_callable_contract_refinement,
+    };
     pub(crate) mod installed_interrupts {
         use super::*;
         use typed_trees::expression::{InstalledInterruptOperationRequest, StaticMachineArgument};
@@ -6012,8 +5449,8 @@ pub mod static_arguments {
     }
     pub(crate) mod requirement_predicates {
         use crate::frozen_program::expression_table;
-        use crate::proof_contracts::contract_entailment::static_applications::generic_tuple_requirements;
         use diagnostics::Diagnostic;
+        use structure_elaboration::static_tuple_requirements;
         use symbols::SymbolHandle;
         use typed_trees::expression::{ExpressionHandle, StaticMachineArgument};
         use typed_trees::references::StaticArgumentCall;
@@ -6029,7 +5466,7 @@ pub mod static_arguments {
             program
                 .trait_machine_signatures(owner)
                 .iter()
-                .any(|signature| !generic_tuple_requirements(program, signature).is_empty())
+                .any(|signature| !static_tuple_requirements(program.typed_program(), signature).is_ok_and(|facts| facts.is_empty()))
         }) && !expression_table(program).iter_expressions().any(|(_, expression)| {
                 matches!(
                     expression,
@@ -6109,7 +5546,9 @@ pub mod static_arguments {
                 }
             };
             let target = source.symbol;
-            if generic_tuple_requirements(program, source).is_empty() {
+            if static_tuple_requirements(program.typed_program(), source)
+                .is_ok_and(|facts| facts.is_empty())
+            {
                 return;
             }
             let executable = match call {
@@ -6213,28 +5652,20 @@ pub mod static_arguments {
             arguments: &[StaticMachineArgument],
             lexical_owner: SymbolHandle,
             caller_state: Option<&State>,
-            entry_proof_follows: bool,
+            _entry_proof_follows: bool,
             diagnostics: &mut Vec<Diagnostic>,
         ) {
-            use crate::StrictArithmeticImplicationJudgment;
-            use crate::proof_contracts::contract_entailment::static_applications::static_application_requirement_judgment;
-            let judgment = static_application_requirement_judgment(
+            if let Err(reason) = crate::source_expression_formation::static_requirements(
                 program,
                 source,
                 arguments,
                 lexical_owner,
                 caller_state,
-                &[],
-            );
-            match judgment {
-        StrictArithmeticImplicationJudgment::Proven => {}
-        StrictArithmeticImplicationJudgment::Refuted => diagnostics.push(Diagnostic::error(format!(
-            "static application of requirement `{}::{}` violates its declared requires facts: the complete tuple is structurally false", owner.name, source.name,
-        ))),
-        StrictArithmeticImplicationJudgment::Unknown if entry_proof_follows => {}
-        StrictArithmeticImplicationJudgment::Unknown => diagnostics.push(Diagnostic::error(format!(
-            "cannot prove declared requires facts for static application of requirement `{}::{}` under its complete applied telescope", owner.name, source.name,
-        ))),
+            ) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "cannot establish declared requires facts for static application of requirement `{}::{}`: {reason}",
+                    owner.name, source.name,
+                )));
             }
         }
     }
@@ -7595,7 +7026,9 @@ pub mod static_bindings {
                 _ => {}
             }
         }
-        if !open && authored_tuple_is_refuted(program, signature, application_handle, owner) {
+        if !open
+            && authored_tuple_requires_diagnostic(program, signature, application_handle, owner)
+        {
             return true;
         }
         open
@@ -7679,7 +7112,7 @@ pub mod static_bindings {
         (dynamic.signature.symbol == binding_declaration).then_some(dynamic.application)
     }
 
-    fn authored_tuple_is_refuted(
+    fn authored_tuple_requires_diagnostic(
         program: &dyn crate::CheckingInput,
         signature: &typed_trees::signature::StateSignature,
         application_handle: StaticMachineApplicationHandle,
@@ -7687,14 +7120,14 @@ pub mod static_bindings {
     ) -> bool {
         let arguments =
             expression_table(program).static_machine_application_arguments(application_handle);
-        crate::proof_contracts::contract_entailment::static_applications::static_application_requirement_judgment(
-        program,
-        signature,
-        arguments,
-        lexical_owner,
-        None,
-        &[],
-    ) == crate::StrictArithmeticImplicationJudgment::Refuted
+        crate::source_expression_formation::static_requirements(
+            program,
+            signature,
+            arguments,
+            lexical_owner,
+            None,
+        )
+        .is_err()
     }
 
     pub fn validate_static_machine_bindings(

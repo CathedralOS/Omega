@@ -94,13 +94,6 @@ pub(crate) fn select_test_roots(
             notes: Vec::new(),
         });
     }
-    // Pruning keeps only application roots; running tests against that
-    // program would depend on optional dead-code elimination.
-    if source.product_selection.is_some() {
-        return Err(vec![Diagnostic::error(
-            "registered test groups cannot run against a checked program pruned to its application roots",
-        )]);
-    }
     let mut roots = Vec::new();
     let mut notes = Vec::new();
     for group in &config.test_groups {

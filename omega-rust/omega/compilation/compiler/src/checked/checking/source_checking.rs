@@ -3,7 +3,7 @@
 // Native selection consumes that packet; no retired body verdict or lowering
 // output can substitute for it.
 
-use compilation_products::{CheckedProductSource, PreparedProductSource, SettledCheckReuse};
+use compilation_products::{CheckedProductSource, PreparedProductSource};
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
 use std::sync::Arc;
@@ -12,8 +12,6 @@ pub(crate) fn check_product_source(
     source: PreparedProductSource,
     package_inputs: Option<&PackageCompilationInputs>,
     rollback: &crate::OptimizationRollback,
-    _reuse: SettledCheckReuse,
-    selections: &mut psi_compiler::ProductSelections,
     frontier: Option<&mut Option<super::typed_frontier::TypedFrontier>>,
 ) -> Result<CheckedProductSource, Vec<Diagnostic>> {
     let PreparedProductSource {
@@ -23,7 +21,6 @@ pub(crate) fn check_product_source(
         admission,
         build_sources,
         mut timings,
-        retained_build_check,
     } = source;
     source_completion_accounting
         .validate_charges()
@@ -202,7 +199,6 @@ pub(crate) fn check_product_source(
                 .settle(&build.settings.optimizations)
                 .effective()
                 .clone(),
-            selections.portable_productions(),
         )
         .with_checked_application(Ok(Arc::clone(&program))),
     );
@@ -227,13 +223,6 @@ pub(crate) fn check_product_source(
         admission,
         sources,
         timings,
-        retained_checks: compilation_products::RetainedCompilationChecks {
-            build: retained_build_check,
-            ..Default::default()
-        },
-        // The checked module owns its closure directly. There is no retired
-        // checked-tree pruning operation or receipt on this source path.
-        product_selection: None,
     })
 }
 

@@ -67,4 +67,11 @@ pub enum PackageReviewSemanticDependencyExposure {
     PublicInterface,
 }
 
-pub type PackageReviewSemanticDependencyKind = checked_trees::CheckedSemanticDependencyKind;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum PackageReviewSemanticDependencyKind {
+    NominalIdentity,
+    Layout,
+    OwnershipBehavior,
+    AutomaticCleanup,
+    AutomaticCleanupMachine,
+}

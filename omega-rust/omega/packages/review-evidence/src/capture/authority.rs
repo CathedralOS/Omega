@@ -10,11 +10,12 @@ bindings (`ConsoleExitProcessI32`, `FilesystemHostService`) map to their
 conservative authority classes while those services remain in use.
 */
 
+use super::published_input::PublishedPackageReviewInput;
+use super::published_projection::nominal;
 use crate::capture::EvidenceOption;
-use crate::capture::PackageReviewInput;
-use crate::capture::semantics::declarations::nominal_identity;
 use crate::record::{PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner};
 use diagnostics::Diagnostic;
+use provider_planning::service_declarations::ServiceDeclarations;
 
 macro_rules! r {
     ($a:expr => $b:expr => $c:ident) => {
@@ -40,27 +41,26 @@ const CORE_CRITICAL_SERVICES: &[(&str, &str, PackageReviewDangerousAuthorityClas
 ];
 
 pub(crate) fn dangerous_authority_class(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &PublishedPackageReviewInput<'_>,
+    services: &ServiceDeclarations,
     definition: &language_semantics::ServiceReachDefinition,
 ) -> Result<Option<PackageReviewDangerousAuthorityClass>, Vec<Diagnostic>> {
-    let identity = nominal_identity(compilation, definition.symbol)?;
+    let identity = nominal(*compilation, definition.symbol)?;
     if matches!(
         identity.owner(),
         PackageReviewNominalOwner::ToolchainSource(_)
     ) {
         let source = compilation
-            .typed
+            .candidate
             .symbols
             .symbol_provenance_source_span(definition.symbol)
-            .and_then(|span| compilation.typed.symbols.source_file(span))
+            .and_then(|span| compilation.candidate.symbols.source_file(span))
             .or_evidence("critical service has no retained toolchain source")?;
         if source
             .package_root
             .file_name()
             .is_some_and(|namespace| namespace == "core")
-            && !crate::capture::semantics::declarations::is_canonical_virtual_toolchain_path(
-                &source.path,
-            )
+            && !super::nominal::is_canonical_virtual_toolchain_path(&source.path)
         {
             let relative = source
                 .path
@@ -96,9 +96,6 @@ pub(crate) fn dangerous_authority_class(
             .execution()
             .resolved_semantic_binding(role)
         {
-            let services = compilation.service_declarations.or_evidence(
-                "authority review has no independent service declaration projection",
-            )?;
             if services
                 .identifies(definition.symbol, binding.declaration())
                 .map_err(|diagnostic| vec![diagnostic])?

@@ -1764,7 +1764,7 @@ pub(crate) mod const_domain_facts {
 }
 pub(crate) mod const_generic_calls {
     use crate::build_time_evaluation::{expression_table, type_references};
-    use crate::const_evaluation::const_initializers::CheckedInitializers;
+    use crate::const_evaluation::const_initializers::PreparedInitializers;
     use crate::{BuildTimeAdmissionPlan, PreparedBuildMachineProgram};
     use diagnostics::Diagnostic;
     use language_semantics::const_value::DecodedCanonicalConstValue;
@@ -2251,7 +2251,7 @@ pub(crate) mod const_generic_calls {
             let independent_domain = preparation.domain_for_roots(&independent)?;
             let independent_program =
                 PreparedBuildMachineProgram::prepare_in(&preparation.typed, &independent_domain)?;
-            let mut checked_program = None;
+            let mut prepared_initializers = None;
             for ordinal in &layer.arguments {
                 let (argument, expression, _, public) = &application_destinations[*ordinal];
                 if deferred_extents.contains(argument) {
@@ -2276,9 +2276,9 @@ pub(crate) mod const_generic_calls {
                 ) {
                     continue;
                 }
-                let checked = match checked_program {
-                    Some(ref checked) => checked,
-                    None => checked_program.insert(CheckedInitializers::prepare(
+                let initializers = match prepared_initializers {
+                    Some(ref initializers) => initializers,
+                    None => prepared_initializers.insert(PreparedInitializers::prepare(
                         &independent_program,
                         selection_authority.clone(),
                         &independent,
@@ -2286,7 +2286,9 @@ pub(crate) mod const_generic_calls {
                         &[],
                     )?),
                 };
-                let invocation = checked.calls_for_symbol(machine.symbol).map_err(&failure)?;
+                let invocation = initializers
+                    .calls_for_symbol(machine.symbol)
+                    .map_err(&failure)?;
                 let evaluated = invocation
                     .evaluate_application_probe(
                         reference,
@@ -2729,14 +2731,12 @@ pub(crate) mod const_lengths {
                 &all_endpoints,
             )?;
             let preparation_request = typed_trees_to_typed_trees::PreparationRequest::settled();
-            let checking = typed_trees_to_checked_trees::CheckingRequest::new();
-            let (execution, preparation) =
-                typed_trees_to_typed_trees::prepare_typed_trees(execution, &preparation_request)?;
-            let checked =
-                typed_trees_to_checked_trees::lower_typed_trees(execution, preparation, &checking)?;
-            let admitted = prepare_selected_execution(&checked.typed, &[], &operators)
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            let execution = admitted.as_ref().unwrap_or(&checked.typed);
+            let execution = prepare_selected_execution(&execution, &[], &operators)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?
+                .unwrap_or(execution);
+            let accepted =
+                crate::prepare_accepted_invocation(execution, machine, &preparation_request)?;
+            let execution: &TypedTrees = accepted.typed();
             let root = execution.machine_by_symbol(machine).ok_or_else(|| {
                 vec![Diagnostic::error(
                     "array length lost its exact selected machine",
@@ -2758,7 +2758,7 @@ pub(crate) mod const_lengths {
                     false,
                 )
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            let prepared = crate::PreparedBuildMachineProgram::from_checked(checked);
+            let prepared = crate::PreparedBuildMachineProgram::from_accepted(accepted);
             let entry = prepared
                 .entry(machine)
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
@@ -3009,17 +3009,28 @@ pub(crate) mod const_qualifications {
             prepare_owned_probe_evaluation(frontier, &owners, &[], context.predecessor.clone())?;
         let program = prepared.domain.execution_program(&prepared.typed);
         let request = typed_trees_to_typed_trees::PreparationRequest::settled();
-        let (program, preparation) =
+        let (program, _preparation) =
             typed_trees_to_typed_trees::prepare_typed_trees(program, &request)?;
-        let checked = typed_trees_to_checked_trees::lower_typed_trees(
-            program,
-            preparation,
-            &typed_trees_to_checked_trees::CheckingRequest::new(),
-        )?;
-
         for (owner, (_, definition)) in owners.iter().zip(&pending) {
-            require_complete_destination_judgment(&checked, *owner, definition.name.source_span())?;
+            if program.machine_by_symbol(*owner).is_none() {
+                return Err(vec![
+                    Diagnostic::error("constant qualification lost its exact probe root")
+                        .with_source_span(definition.name.source_span()),
+                ]);
+            }
         }
+        // Qualification needs the ordinary source verdict on every exact
+        // destination probe. It does not request executable publication.
+        let (judgment, _publication) = psi_terminal_production::CheckedInvocationSource::judge(
+            std::sync::Arc::new(program),
+            psi_terminal_production::SourceCompilation {
+                entries: &owners,
+                subject: None,
+                selected: &[],
+                bindings: &[],
+            },
+        );
+        judgment.verdict()?;
 
         for (item, mut definition) in pending {
             definition.pending_qualification = None;
@@ -3059,28 +3070,6 @@ pub(crate) mod const_qualifications {
         Ok(true)
     }
 
-    fn require_complete_destination_judgment(
-        checked: &checked_trees::CheckedTrees,
-        owner: symbols::SymbolHandle,
-        declaration: source::SourceSpan,
-    ) -> Result<(), Vec<Diagnostic>> {
-        if checked.typed.machine_by_symbol(owner).is_none() {
-            return Err(vec![
-                Diagnostic::error("constant qualification lost its exact checked probe root")
-                    .with_source_span(declaration),
-            ]);
-        }
-        crate::machine_execution::admission::require_complete_checked_conditions(checked, owner)
-            .map_err(|reason| {
-                vec![
-                    Diagnostic::error(format!(
-                        "constant destination qualification remains conditional: {reason}",
-                    ))
-                    .with_source_span(declaration),
-                ]
-            })
-    }
-
     pub(crate) fn defer_unproved(syntax: &mut SyntaxTrees) {
         for item in syntax.root_item_handles().to_vec() {
             let Item::Const(mut definition) = syntax.root_item(item).clone() else {
@@ -3103,62 +3092,6 @@ pub(crate) mod const_qualifications {
                 definition.type_reference = *base_type;
             }
             syntax.items.replace_item(item, Item::Const(definition));
-        }
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::require_complete_destination_judgment;
-        use checked_trees::{CheckFacts, CheckedTrees, IntegerRangeObligation, IntegerRangeRecipe};
-        use numerics::bignum::BigInt;
-        use symbols::SymbolHandle;
-        use typed_trees::TypedTrees;
-        use typed_trees::expression::ExpressionHandle;
-        use typed_trees::machine::Machine;
-
-        #[test]
-        fn destination_receipt_requires_its_exact_complete_checked_probe() {
-            let probe = SymbolHandle::from_parts(1, 1);
-            let unrelated = SymbolHandle::from_parts(2, 1);
-            let missing = SymbolHandle::from_parts(3, 1);
-            let mut program = TypedTrees::default();
-            for symbol in [probe, unrelated] {
-                program.push_machine(Machine {
-                    symbol,
-                    ..Default::default()
-                });
-            }
-            let mut checked = CheckedTrees::with_roots(program, CheckFacts::default());
-            let declaration = source::SourceSpan::default();
-            assert!(require_complete_destination_judgment(&checked, probe, declaration).is_ok());
-            assert!(require_complete_destination_judgment(&checked, missing, declaration).is_err());
-
-            checked
-                .facts
-                .integer_range_obligations
-                .push(IntegerRangeObligation::retain(
-                    ExpressionHandle::invalid(),
-                    unrelated,
-                    semantic_vocabulary::ScalarConditionRole::Prerequisite,
-                    IntegerRangeRecipe::bounds(BigInt::from_i64(0), BigInt::from_i64(1)),
-                    BigInt::from_i64(0),
-                    BigInt::from_i64(1),
-                    "unrelated retained target condition".to_owned(),
-                ));
-            assert!(require_complete_destination_judgment(&checked, probe, declaration).is_ok());
-            checked
-                .facts
-                .integer_range_obligations
-                .push(IntegerRangeObligation::retain(
-                    ExpressionHandle::invalid(),
-                    probe,
-                    semantic_vocabulary::ScalarConditionRole::Prerequisite,
-                    IntegerRangeRecipe::bounds(BigInt::from_i64(0), BigInt::from_i64(1)),
-                    BigInt::from_i64(0),
-                    BigInt::from_i64(1),
-                    "destination retained target condition".to_owned(),
-                ));
-            assert!(require_complete_destination_judgment(&checked, probe, declaration).is_err());
         }
     }
 }
@@ -3544,30 +3477,28 @@ pub(crate) mod contract_expressions {
                 &EvaluationDomain::all(),
             )
             .expect("retain requirement root");
-            let (prepared, preparation) = typed_trees_to_typed_trees::prepare_typed_trees(
+            let (prepared, _preparation) = typed_trees_to_typed_trees::prepare_typed_trees(
                 program,
                 &typed_trees_to_typed_trees::PreparationRequest::preliminary(),
             )
             .expect("prepare entries");
-            let checked = typed_trees_to_checked_trees::lower_typed_trees(
-                prepared,
-                preparation,
-                &typed_trees_to_checked_trees::CheckingRequest::new(),
-            )
-            .expect("retain conditional call requirement");
-            let obligations = checked
-                .facts
-                .constant_recipe_obligations
+            let contexts = prepared
+                .constant_recipes
                 .iter()
-                .filter(|obligation| obligation.owner() == caller)
+                .flat_map(|(_, recipe)| {
+                    prepared
+                        .constant_expression_contexts
+                        .span_or_empty(recipe.contexts)
+                })
                 .collect::<Vec<_>>();
             assert!(
-                !obligations.is_empty(),
-                "caller must retain the deferred requirement"
+                contexts.iter().any(|context| context.owner == callee),
+                "callee retains the source scope of its deferred requirement"
             );
-            for obligation in obligations {
-                assert_eq!(obligation.recipe_owner(), callee);
-            }
+            assert!(
+                contexts.iter().all(|context| context.owner != caller),
+                "calling a requirement must not substitute the caller as its source owner"
+            );
         }
 
         #[test]
@@ -3596,7 +3527,7 @@ pub(crate) mod contract_expressions {
         }
 
         #[test]
-        fn constant_entries_are_checked_per_specialized_scope() {
+        fn constant_entries_keep_each_specialized_source_scope() {
             let mut program = typed(
                 "data Cell { code: u64; tag: u64; }
              machine require_geometry<T>()
@@ -3615,7 +3546,7 @@ pub(crate) mod contract_expressions {
                 &EvaluationDomain::all(),
             )
             .expect("retain complete roots");
-            let (prepared, preparation) = typed_trees_to_typed_trees::prepare_typed_trees(
+            let (prepared, _preparation) = typed_trees_to_typed_trees::prepare_typed_trees(
                 program,
                 &typed_trees_to_typed_trees::PreparationRequest::preliminary(),
             )
@@ -3652,25 +3583,14 @@ pub(crate) mod contract_expressions {
                     assert_ne!(left.evaluation_expression, right.evaluation_expression);
                 }
             }
-            let checked = typed_trees_to_checked_trees::lower_typed_trees(
-                prepared,
-                preparation,
-                &typed_trees_to_checked_trees::CheckingRequest::new(),
-            )
-            .expect("ordinary checking must accept the conditional entries");
             for context in entries {
-                let entry = checked
-                    .typed
+                let entry = prepared
                     .constant_evaluation_entry(context.evaluation_entry)
-                    .expect("checked entry retains exact source ownership");
+                    .expect("prepared entry retains exact source ownership");
                 assert_eq!(entry.owner, context.owner);
                 assert_eq!(entry.evaluation_expression, context.evaluation_expression);
                 assert_ne!(entry.source_expression, entry.evaluation_expression);
             }
-            assert!(
-                !checked.facts.integer_range_obligations.is_empty(),
-                "checking must retain addition formation, not assume it succeeded"
-            );
         }
 
         #[test]
@@ -4328,7 +4248,6 @@ pub(crate) mod range_endpoints {
                     machine.symbol,
                     "@const-endpoint",
                     &typed_trees_to_typed_trees::PreparationRequest::preliminary(),
-                    &typed_trees_to_checked_trees::CheckingRequest::new(),
                     expression,
                     machine.name.as_str(),
                     entry.return_type,

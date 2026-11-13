@@ -74,12 +74,13 @@ pub(crate) fn infer(
     elaboration: &mut Elaboration,
     knowledge: Knowledge,
     unreached: &mut crate::Unreached,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     if elaboration.local_results.is_empty() {
         return Ok(());
     }
     for id in callees_first(elaboration)? {
-        summarize(elaboration, id, knowledge, unreached)?;
+        summarize(elaboration, id, knowledge, unreached, activity)?;
     }
     Ok(())
 }
@@ -246,6 +247,7 @@ fn summarize(
     id: MachineId,
     knowledge: Knowledge,
     unreached: &mut crate::Unreached,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     let module = &elaboration.module;
     let lowered = terminal_machine(&module.machines, id, id)?;
@@ -315,6 +317,7 @@ fn summarize(
         },
         &mut scratch,
         &mut decided,
+        activity,
     )?;
     // The identities the summary's rows take once it is added: its published
     // row, then one guarantee per return.
@@ -360,6 +363,7 @@ fn summarize(
                 &known.axioms,
                 &scratch.values,
                 relations,
+                activity,
             );
             // A caller's goal on this result then depends on an operation
             // the integer rules do not reach, whatever is described of it.
@@ -418,6 +422,7 @@ fn summarize(
             goal,
             relations,
             &beyond,
+            activity,
         )
         .is_err()
         {

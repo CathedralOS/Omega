@@ -242,6 +242,7 @@ impl<'t> Program<'t> {
         id: MachineId,
         slots: &[Slot],
         call: &TableCall,
+        source: SourceOrigin,
     ) -> Checked<Expression> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         if let Some(runtime) = call.runtime_call {
@@ -261,13 +262,7 @@ impl<'t> Program<'t> {
                 .typed
                 .statement_table
                 .expression_handles(call.arguments);
-            return self.runtime_call(
-                id,
-                slots,
-                runtime,
-                arguments,
-                SourceOrigin::of(call.source_span),
-            );
+            return self.runtime_call(id, slots, runtime, arguments, source);
         }
         if call.installed_interrupt_operation.is_some()
             || call.static_requirement_dispatch.is_some()
@@ -306,13 +301,7 @@ impl<'t> Program<'t> {
             .typed
             .statement_table
             .expression_handles(call.arguments);
-        self.call(
-            id,
-            slots,
-            call.target_symbol,
-            arguments,
-            SourceOrigin::of(call.source_span),
-        )
+        self.call(id, slots, call.target_symbol, arguments, source)
     }
 
     pub(super) fn call_expression(
@@ -955,7 +944,7 @@ impl<'t> Program<'t> {
                 Unserved::Typing("argument count"),
             ));
         }
-        if let SourceOrigin::Authored(span) = source
+        if let Some(span) = source.span()
             && let Some(names) = self.names.get_mut(id)
         {
             let shown = arguments
@@ -987,7 +976,7 @@ impl<'t> Program<'t> {
             });
         }
         lent_storage_is_untouched(id, &read)?;
-        if let SourceOrigin::Authored(span) = source
+        if let Some(span) = source.span()
             && let Some(names) = self.names.get_mut(id)
         {
             for (position, lender) in lenders {

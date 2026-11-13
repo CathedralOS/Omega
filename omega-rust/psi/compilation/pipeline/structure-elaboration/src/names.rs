@@ -123,16 +123,18 @@ impl MachineNames {
 
     /// The statement position of the exit at `site`.
     pub fn exit_statement(&self, site: crate::SourceOrigin) -> Option<usize> {
-        match site {
-            crate::SourceOrigin::Authored(site) => self
+        match site.span() {
+            Some(site) => self
                 .exits
                 .iter()
                 .find(|(span, _)| *span == site)
                 .map(|(_, position)| *position),
-            crate::SourceOrigin::Unpositioned(crate::Unpositioned::ImplicitReturn) => {
+            None if site
+                == crate::SourceOrigin::Unpositioned(crate::Unpositioned::ImplicitReturn) =>
+            {
                 Some(self.fall_off)
             }
-            crate::SourceOrigin::Unpositioned(_) => None,
+            None => None,
         }
     }
 

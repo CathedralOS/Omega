@@ -429,7 +429,7 @@ impl Program<'_> {
         };
         match self.scalar_type(id, base_type) {
             Ok(carrier @ ScalarType::Integer(_)) => Ok(ValueType::Qualified(carrier, policy)),
-            Ok(ScalarType::Boolean | ScalarType::IeeeFloat(_)) => {
+            Ok(ScalarType::Boolean | ScalarType::IeeeFloat(_) | ScalarType::Callable(_)) => {
                 unserved("arithmetic policy on a type that is not an integer")
             }
             Err(refusal) => Err(refusal),

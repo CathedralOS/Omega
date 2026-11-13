@@ -5300,3 +5300,218 @@ pub mod types {
 }
 
 pub use type_predicates::CaseMembershipTypeFacts;
+
+/// Source type projection uses exact declarations and applied operands only.
+/// It grants no ownership, lifetime or proof judgment.
+pub mod source_projections {
+    use crate::data::TypeParameterKind;
+    use crate::types::TypeReferenceHandle;
+    use symbols::SymbolHandle;
+
+    pub struct SourceTypeCursor {
+        current: TypeReferenceHandle,
+        substitutions: Vec<(SymbolHandle, TypeReferenceHandle)>,
+    }
+    impl SourceTypeCursor {
+        pub fn new(current: TypeReferenceHandle) -> Self {
+            Self {
+                current,
+                substitutions: Vec::new(),
+            }
+        }
+        pub fn current(&mut self, program: &crate::TypedTrees) -> TypeReferenceHandle {
+            self.current = substituted_type_reference(program, self.current, &self.substitutions);
+            self.current
+        }
+        pub fn field(
+            &mut self,
+            program: &crate::TypedTrees,
+            symbol: SymbolHandle,
+        ) -> Option<TypeReferenceHandle> {
+            self.current =
+                field_type_reference(program, self.current, symbol, &mut self.substitutions)?;
+            Some(self.current(program))
+        }
+        pub fn element(&mut self, program: &crate::TypedTrees) -> Option<TypeReferenceHandle> {
+            self.current =
+                indexed_element_type_reference(program, self.current, &self.substitutions)?;
+            Some(self.current(program))
+        }
+    }
+
+    fn attached_data_field_type_reference(
+        program: &crate::TypedTrees,
+        machine: &crate::machine::Machine,
+        symbol: SymbolHandle,
+    ) -> Option<TypeReferenceHandle> {
+        if machine.attached_data_application.is_valid() {
+            return SourceTypeCursor::new(machine.attached_data_application).field(program, symbol);
+        }
+        let data = program.unique_data_definition_by_symbol(machine.attached_data_symbol)?;
+        data_field_type_reference(program, data, symbol)
+    }
+    pub fn field_type_reference(
+        program: &crate::TypedTrees,
+        type_reference: crate::types::TypeReferenceHandle,
+        field_symbol: SymbolHandle,
+        substitutions: &mut Vec<(SymbolHandle, crate::types::TypeReferenceHandle)>,
+    ) -> Option<crate::types::TypeReferenceHandle> {
+        let type_reference = substituted_type_reference(program, type_reference, substitutions);
+        match program.type_reference_table.type_reference(type_reference) {
+            crate::types::TypeReferenceNode::Reference { referee, .. }
+            | crate::types::TypeReferenceNode::Constrained {
+                base_type: referee, ..
+            } => field_type_reference(program, *referee, field_symbol, substitutions),
+            crate::types::TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } => {
+                let exact_application = substitutions.is_empty()
+                    || program.normalized_type_identity(type_reference)
+                        == program.type_identity(crate::type_identity::TypeIdentityRequest {
+                            substitutions,
+                            ..crate::type_identity::TypeIdentityRequest::ordinary(type_reference)
+                        });
+                if let Some(instance) = program
+                    .data_application_definition(type_reference)
+                    .filter(|_| exact_application)
+                    .or_else(|| program.closed_data_definition(type_reference))
+                {
+                    return data_field_type_reference(program, instance, field_symbol);
+                }
+                let data = program.unique_data_definition_by_symbol(*base_symbol)?;
+                let bindings: Vec<_> = program
+                    .data_type_parameters(data)
+                    .iter()
+                    .zip(
+                        program
+                            .type_reference_table
+                            .type_reference_handles(*arguments),
+                    )
+                    .filter(|&(parameter, _argument)| {
+                        matches!(parameter.kind, TypeParameterKind::Type)
+                    })
+                    .map(|(parameter, argument)| {
+                        (
+                            parameter.symbol,
+                            substituted_type_reference(program, *argument, substitutions),
+                        )
+                    })
+                    .collect();
+                substitutions.extend(bindings);
+                data_field_type_reference(program, data, field_symbol)
+            }
+            crate::types::TypeReferenceNode::Named {
+                symbol: base_symbol,
+                ..
+            } => {
+                if let Some(machine) = program.machine(*base_symbol) {
+                    attached_data_field_type_reference(program, machine, field_symbol)
+                } else {
+                    program
+                        .unique_data_definition_by_symbol(*base_symbol)
+                        .and_then(|data| data_field_type_reference(program, data, field_symbol))
+                }
+            }
+            crate::types::TypeReferenceNode::Callable { .. }
+            | crate::types::TypeReferenceNode::ConstExpression(_)
+            | crate::types::TypeReferenceNode::FixedArray { .. }
+            | crate::types::TypeReferenceNode::DynamicTrait { .. }
+            | crate::types::TypeReferenceNode::Slice { .. }
+            | crate::types::TypeReferenceNode::Unit => None,
+        }
+    }
+
+    pub fn indexed_element_type_reference(
+        program: &crate::TypedTrees,
+        type_reference: crate::types::TypeReferenceHandle,
+        substitutions: &[(SymbolHandle, crate::types::TypeReferenceHandle)],
+    ) -> Option<crate::types::TypeReferenceHandle> {
+        let type_reference = substituted_type_reference(program, type_reference, substitutions);
+        let element = match program.type_reference_table.type_reference(type_reference) {
+            crate::types::TypeReferenceNode::Reference { referee, .. }
+            | crate::types::TypeReferenceNode::Constrained {
+                base_type: referee, ..
+            } => indexed_element_type_reference(program, *referee, substitutions),
+            crate::types::TypeReferenceNode::FixedArray { element_type, .. }
+            | crate::types::TypeReferenceNode::Slice { element_type } => Some(*element_type),
+            crate::types::TypeReferenceNode::Callable { .. }
+            | crate::types::TypeReferenceNode::ConstExpression(_)
+            | crate::types::TypeReferenceNode::Generic { .. }
+            | crate::types::TypeReferenceNode::Named { .. }
+            | crate::types::TypeReferenceNode::DynamicTrait { .. }
+            | crate::types::TypeReferenceNode::Unit => None,
+        }?;
+        let collection_policy = program.arithmetic_domain_for_type_reference(type_reference);
+        if program
+            .type_reference_table
+            .element_inherits_collection_arithmetic_policy(element, &program.symbols)
+            && collection_policy != numerics::arithmetic::ArithmeticDomain::Exact
+            && program.arithmetic_domain_for_type_reference(element)
+                == numerics::arithmetic::ArithmeticDomain::Exact
+        {
+            program
+                .type_reference_table
+                .find_policy_qualified_type_reference(element, collection_policy)
+        } else {
+            Some(element)
+        }
+    }
+
+    pub fn substituted_type_reference(
+        program: &crate::TypedTrees,
+        mut type_reference: crate::types::TypeReferenceHandle,
+        substitutions: &[(SymbolHandle, crate::types::TypeReferenceHandle)],
+    ) -> crate::types::TypeReferenceHandle {
+        let mut remaining = substitutions.len().saturating_add(1);
+        while remaining > 0 {
+            remaining -= 1;
+            let crate::types::TypeReferenceNode::Named { symbol, .. } =
+                program.type_reference_table.type_reference(type_reference)
+            else {
+                break;
+            };
+            let Some(replacement) =
+                substitutions
+                    .iter()
+                    .rev()
+                    .find_map(|(parameter, replacement)| {
+                        (*parameter == *symbol).then_some(*replacement)
+                    })
+            else {
+                break;
+            };
+            if replacement == type_reference {
+                break;
+            }
+            type_reference = replacement;
+        }
+        type_reference
+    }
+
+    fn data_field_type_reference(
+        program: &crate::TypedTrees,
+        data: &crate::data::DataDefinition,
+        field_symbol: SymbolHandle,
+    ) -> Option<crate::types::TypeReferenceHandle> {
+        if !field_symbol.is_valid() {
+            return None;
+        }
+
+        program
+            .data_members(data)
+            .iter()
+            .find_map(|member| match member {
+                crate::data::DataMember::Field(field) => {
+                    (field.symbol == field_symbol).then_some(field.type_reference)
+                }
+                crate::data::DataMember::Variant(variant) => program
+                    .data_payload_fields(variant)
+                    .iter()
+                    .find_map(|field| {
+                        (field.symbol == field_symbol).then_some(field.type_reference)
+                    }),
+            })
+    }
+}

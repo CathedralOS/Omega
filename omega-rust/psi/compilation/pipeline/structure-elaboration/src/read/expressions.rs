@@ -13,7 +13,7 @@ use typed_trees::expression::{
 
 use super::{Program, Slot, symbol_kind};
 use crate::body::{Expression, ExpressionKind, Strict, ValueType};
-use crate::{SourceOrigin, Unserved, refuse};
+use crate::{SourceNode, SourceOrigin, Unserved, refuse};
 
 impl<'t> Program<'t> {
     pub(super) fn slot_of(
@@ -88,7 +88,11 @@ impl<'t> Program<'t> {
         expected: Option<ScalarType>,
     ) -> Checked<Expression> {
         let node = self.node(id, handle)?;
-        let source = SourceOrigin::of(self.typed.expression_table.source_span(handle));
+        let source = self.source_origin(
+            id,
+            SourceNode::Expression(handle),
+            self.typed.expression_table.source_span(handle),
+        )?;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let (kind, result) = match node {
             ExpressionNode::MachineValue(_) => {
@@ -136,9 +140,20 @@ impl<'t> Program<'t> {
         handle: ExpressionHandle,
         expected: Option<ScalarType>,
     ) -> Checked<Expression> {
+        if let Some((_, value)) = self
+            .source_expression_values
+            .iter()
+            .find(|(source, _)| *source == handle)
+        {
+            return Ok(value.clone());
+        }
         let typed = self.typed;
         let node = self.node(id, handle)?;
-        let source = SourceOrigin::of(typed.expression_table.source_span(handle));
+        let source = self.source_origin(
+            id,
+            SourceNode::Expression(handle),
+            typed.expression_table.source_span(handle),
+        )?;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let (kind, result) = match node {
             ExpressionNode::MachineValue(value) => return self.machine_value(id, value, source),

@@ -1413,9 +1413,10 @@ mod mathematical_signature {
                 &mut self,
                 reference: TypeReferenceHandle,
             ) -> Result<Option<TermHandle>, Vec<Diagnostic>> {
-                let Some(algebra) =
-                    validation::content_algebra_application(self.program, reference)
-                else {
+                let Some(algebra) = typed_trees::source_content::content_algebra_application(
+                    self.program.typed_program(),
+                    reference,
+                ) else {
                     return Ok(None);
                 };
                 let parameter = self.elaborate_type_reference(algebra.parameter)?;
@@ -2833,7 +2834,6 @@ mod mathematical_signature {
         use validation::expression_traversal::children;
         use validation::mathematical_applications::{
             PreparedSourceBinding, PreparedSourceBindingKind, integer_embedding_meaning,
-            source_operations_have_same_meaning,
         };
 
         pub(super) struct SourceOperationDeclaration {
@@ -3253,7 +3253,7 @@ mod mathematical_signature {
                             .zip(&bindings)
                             .all(|(old, new)| old.same_source_binding(new))
                         && (operation.expression == handle
-                            || source_operations_have_same_meaning(
+                            || crate::source_operations::same_meaning(
                                 self.program,
                                 self.source_owner,
                                 operation.expression,
@@ -3997,7 +3997,7 @@ mod mathematical_signature {
                         self.program,
                     )
                 });
-                if owners.contains_expression(expression) {
+                if owners.contains_expression(expression).ok()? {
                     return validation::expression_owners::checked_expression_type_reference_from_exact_owner(
                         self.program,
                         &arena::Arena::default(),
@@ -5469,7 +5469,9 @@ mod mathematical_signature {
                         {
                             return false;
                         }
-                        let sites = owners.containing_statement_sites(*expression);
+                        let Ok(sites) = owners.containing_statement_sites(*expression) else {
+                            return false;
+                        };
                         if sites.is_empty()
                             || sites.iter().any(|(m, s, statement)| {
                                 let owner = &self.program.machines()[*m];
@@ -6593,7 +6595,9 @@ mod mathematical_signature {
                             })?;
                         let owners =
                             OwnerEnvironmentIndex::new(self.program, &arena::Arena::default());
-                        let sites = owners.containing_statement_sites(expression);
+                        let sites = owners
+                            .containing_statement_sites(expression)
+                            .map_err(|reason| self.refuse(reason.into()))?;
                         if source_declaration_owner(self.program, expression, &owners)
                             != Some(self.source_owner)
                             || sites.is_empty()

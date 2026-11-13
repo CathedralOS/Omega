@@ -2978,6 +2978,7 @@ pub(crate) mod namespaces {
 pub use machine_instances::MachineInstantiation;
 pub(crate) mod payloads {
     use super::{CallableApplication, CallableLifetimeOrigin};
+    use crate::type_identity::lifetime_parameter_identity;
     use crate::{TypedTrees, expression, static_applications, types};
     use arena::HandleSpan;
 
@@ -3624,6 +3625,41 @@ pub(crate) mod payloads {
                     if let Some(operation) = &mut authority.operation {
                         operation.operand_type =
                             self.type_reference(program, operation.operand_type)?;
+                        let source_provider = operation.provider;
+                        for evidence in &mut operation.law_evidence {
+                            for actual in &mut evidence.bound.arguments {
+                                *actual = self.type_reference(program, *actual)?;
+                            }
+                            for lifetime in &mut evidence.bound.lifetime_arguments {
+                                let region = lifetime_parameter_identity(
+                                    program,
+                                    evidence.bound.binder,
+                                    lifetime.as_str(),
+                                )
+                                .ok_or(
+                                    "index evidence lifetime lost its exact source declaration",
+                                )?;
+                                if let Some(binding) = self.lifetimes.iter().rev().find(|binding| {
+                                    lifetime_parameter_identity(
+                                        program,
+                                        self.region_scope,
+                                        binding.parameter.as_str(),
+                                    ) == Some(region)
+                                }) {
+                                    *lifetime = binding.argument.clone();
+                                } else if let Some((environment, preceding_frames)) =
+                                    &self.trait_region_application
+                                {
+                                    let (actual, _) = environment.resolved_lifetime_identity(program, region, *preceding_frames).ok_or("index evidence lifetime lost its supplying application")?;
+                                    *lifetime = crate::type_identity::lifetime_parameter_name(
+                                        program, actual,
+                                    )
+                                    .ok_or("index evidence lifetime lost its declaration ordinal")?
+                                    .clone();
+                                }
+                            }
+                        }
+                        operation.remap_symbols(|symbol| self.symbol(symbol));
                         if let Some(application) = &mut operation.application {
                             self.static_arguments(program, std::slice::from_mut(application))?;
                         }
@@ -3631,7 +3667,7 @@ pub(crate) mod payloads {
                             .static_arguments
                             .iter()
                             .rev()
-                            .find(|(binder, _)| *binder == operation.provider)
+                            .find(|(binder, _)| *binder == source_provider)
                         {
                             let alias = if program.symbols.get(selected.symbol).kind
                                 == symbols::SymbolKind::ConformanceParameter

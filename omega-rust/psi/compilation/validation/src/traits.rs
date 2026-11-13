@@ -160,306 +160,6 @@ pub(crate) mod conformance {
             }
         }
     }
-    pub(crate) mod external_shapes {
-        use crate::declarations::standard_declarations::boundary_has_explicit_calling_policy;
-        use crate::declarations::standard_declarations::is_core_vector;
-        use crate::declarations::traits::trait_definition_by_symbol;
-        use crate::frozen_program::expression_table;
-        use diagnostics::Diagnostic;
-        use symbols::SymbolHandle;
-        use typed_trees::expression::ExpressionNode;
-        use typed_trees::machine::Machine;
-        use typed_trees::signature::StateSignature;
-        use typed_trees::trait_definition::TraitDefinition;
-        use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-
-        pub(crate) fn validate_external_leaf_native_shapes(
-            program: &dyn crate::CheckingInput,
-            machine: &Machine,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) {
-            for conformance in
-                program
-                    .machine_trait_conformances(machine)
-                    .iter()
-                    .filter(|conformance| {
-                        conformance.external_binding.is_some()
-                            || conformance.via_expression.is_valid()
-                    })
-            {
-                if matches!(
-                    machine.supply_mode,
-                    language_semantics::MachineSupplyMode::ExternalRealization {
-                        mechanism: Some(
-                            language_semantics::ExternalBindingMechanism::CompilerIntrinsic,
-                        ),
-                        ..
-                    }
-                ) {
-                    continue;
-                }
-                let Some(trait_definition) =
-                    trait_definition_by_symbol(program, conformance.symbol)
-                else {
-                    continue;
-                };
-                if boundary_has_explicit_calling_policy(program, trait_definition) {
-                    continue;
-                }
-                let Some(requirement) = program.trait_machine_signature_by_symbol(
-                    trait_definition,
-                    conformance.requirement_symbol,
-                ) else {
-                    continue;
-                };
-
-                for parameter in program.state_signature_parameters(requirement).iter() {
-                    if let Some(carrier) =
-                        private_native_carrier(program, parameter.type_reference, &mut Vec::new())
-                    {
-                        diagnostics.push(native_carrier_diagnostic(
-                            program,
-                            machine,
-                            trait_definition,
-                            requirement,
-                            parameter.type_reference,
-                            carrier,
-                            "parameter",
-                        ));
-                    }
-                }
-                if requirement.return_type.is_valid()
-                    && let Some(carrier) =
-                        private_native_carrier(program, requirement.return_type, &mut Vec::new())
-                {
-                    diagnostics.push(native_carrier_diagnostic(
-                        program,
-                        machine,
-                        trait_definition,
-                        requirement,
-                        requirement.return_type,
-                        carrier,
-                        "result",
-                    ));
-                }
-            }
-        }
-
-        pub(crate) fn validate_external_via_expression(
-            program: &dyn crate::CheckingInput,
-            machine: &Machine,
-            conformance: &typed_trees::machine::TraitConformance,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) {
-            let expression = conformance.via_expression;
-            if !expression.is_valid() {
-                return;
-            }
-            let source_span = expression_table(program).source_span(expression);
-            let ExpressionNode::Call(call) = expression_table(program).expression(expression)
-            else {
-                diagnostics.push(
-            Diagnostic::error(format!(
-                "external realization `{}` must use one direct zero-argument machine call after `via`",
-                machine.name
-            ))
-            .with_source_span(source_span),
-        );
-                return;
-            };
-            let has_value_arguments = !expression_table(program)
-                .expression_handles(call.arguments)
-                .is_empty();
-            let invalid_call_shape = call.receiver.is_valid()
-                || has_value_arguments
-                || !call.carries_only_positional_arguments()
-                || !call.selects_only_nominal_route()
-                || !call.target_symbol.is_valid();
-            if invalid_call_shape {
-                diagnostics.push(
-            Diagnostic::error(format!(
-                "external realization `{}` must use one exact receiverless zero-argument machine call after `via`",
-                machine.name
-            ))
-            .with_source_span(source_span),
-        );
-                return;
-            }
-
-            let producers = program
-                .machines()
-                .iter()
-                .filter_map(|producer| {
-                    program
-                        .state_in_machine(producer, call.target_symbol)
-                        .map(|state| (producer, state))
-                })
-                .collect::<Vec<_>>();
-            let [(producer, state)] = producers.as_slice() else {
-                diagnostics.push(
-            Diagnostic::error(format!(
-                "external realization `{}` does not select one exact `via` producer machine",
-                machine.name
-            ))
-            .with_source_span(source_span),
-        );
-                return;
-            };
-            let bodies = if producer.target_family_interface {
-                crate::machine_calls::calls::target_family_members(program, producer)
-                    .map(|members| {
-                        members
-                            .iter()
-                            .filter_map(|member| program.machine(member.machine))
-                            .collect::<Vec<_>>()
-                    })
-                    .unwrap_or_default()
-            } else {
-                vec![*producer]
-            };
-            let rung_holds = !bodies.is_empty()
-                && bodies.iter().all(|body| {
-                    let entry = program.machine_states(body).first();
-                    let entry_state = if std::ptr::eq(*body, *producer) {
-                        Some(*state)
-                    } else {
-                        entry
-                    };
-                    body.body_is_present
-                        && body.lifetime_parameters.is_empty()
-                        && program.machine_type_parameters(body).is_empty()
-                        && entry_state.is_some_and(|entry_state| {
-                            program.state_parameters(entry_state).is_empty()
-                                && producer_entry_state(program, body).is_some_and(
-                                    |producer_entry| producer_entry.symbol == entry_state.symbol,
-                                )
-                        })
-                });
-            if !rung_holds {
-                diagnostics.push(
-            Diagnostic::error(format!(
-                "external realization `{}` selects `via` producer `{}`, but the first evaluated-binding rung requires its body-bearing, non-generic, zero-parameter entry state",
-                machine.name, producer.name
-            ))
-            .with_source_span(source_span),
-        );
-            }
-        }
-
-        fn producer_entry_state<'program>(
-            program: &'program dyn crate::CheckingInput,
-            producer: &Machine,
-        ) -> Option<&'program typed_trees::state::State> {
-            let leaf = producer
-                .name
-                .as_str()
-                .rsplit("::")
-                .next()
-                .unwrap_or_default();
-            program
-                .machine_states(producer)
-                .iter()
-                .find(|candidate| candidate.name.as_str() == leaf)
-                .or_else(|| program.machine_states(producer).first())
-        }
-
-        #[derive(Debug, Clone, Copy)]
-        pub(crate) enum PrivateNativeCarrier {
-            Slice,
-            Vector,
-        }
-
-        impl PrivateNativeCarrier {
-            const fn label(self) -> &'static str {
-                match self {
-                    Self::Slice => "safe slice",
-                    Self::Vector => "vector carrier",
-                }
-            }
-        }
-
-        fn private_native_carrier(
-            program: &dyn crate::CheckingInput,
-            type_reference: TypeReferenceHandle,
-            visiting: &mut Vec<SymbolHandle>,
-        ) -> Option<PrivateNativeCarrier> {
-            match program.type_reference_table.type_reference(type_reference) {
-                TypeReferenceNode::Constrained { base_type, .. } => {
-                    private_native_carrier(program, *base_type, visiting)
-                }
-                TypeReferenceNode::Reference { referee, .. } => {
-                    private_native_carrier(program, *referee, visiting)
-                }
-                TypeReferenceNode::Slice { .. } => Some(PrivateNativeCarrier::Slice),
-                TypeReferenceNode::FixedArray { element_type, .. } => {
-                    private_native_carrier(program, *element_type, visiting)
-                }
-                TypeReferenceNode::Generic {
-                    base_symbol,
-                    arguments,
-                    ..
-                } => {
-                    if is_core_vector(program, *base_symbol) {
-                        return Some(PrivateNativeCarrier::Vector);
-                    }
-                    program
-                        .type_reference_table
-                        .type_reference_handles(*arguments)
-                        .iter()
-                        .find_map(|argument| private_native_carrier(program, *argument, visiting))
-                        .or_else(|| private_record_carrier(program, *base_symbol, visiting))
-                }
-                TypeReferenceNode::Named { symbol, .. } => {
-                    if is_core_vector(program, *symbol) {
-                        return Some(PrivateNativeCarrier::Vector);
-                    }
-                    private_record_carrier(program, *symbol, visiting)
-                }
-                TypeReferenceNode::ConstExpression(_)
-                | TypeReferenceNode::DynamicTrait { .. }
-                | TypeReferenceNode::Unit => None,
-            }
-        }
-
-        fn private_record_carrier(
-            program: &dyn crate::CheckingInput,
-            symbol: SymbolHandle,
-            visiting: &mut Vec<SymbolHandle>,
-        ) -> Option<PrivateNativeCarrier> {
-            if !symbol.is_valid() || visiting.contains(&symbol) {
-                return None;
-            }
-            let definition =
-                crate::declarations::data_queries::data_definition_by_symbol(program, symbol)?;
-            visiting.push(symbol);
-            let carrier = program.data_members(definition).iter().find_map(|member| {
-                let field = member.as_field()?;
-                private_native_carrier(program, field.type_reference, visiting)
-            });
-            visiting.pop();
-            carrier
-        }
-
-        fn native_carrier_diagnostic(
-            program: &dyn crate::CheckingInput,
-            machine: &Machine,
-            trait_definition: &TraitDefinition,
-            requirement: &StateSignature,
-            type_reference: TypeReferenceHandle,
-            carrier: PrivateNativeCarrier,
-            position: &str,
-        ) -> Diagnostic {
-            Diagnostic::error(format!(
-                "external leaf `{}` cannot use {} `{}` as a default-native {} for `{}::{}`; declare the foreign pointer/length/terminator or record shape explicitly in a checked adapter, or select a custom `Calling<C>` policy that publishes a canonical representation",
-                machine.name,
-                carrier.label(),
-                program.display_type_reference(type_reference),
-                position,
-                trait_definition.name,
-                requirement.name,
-            ))
-        }
-    }
     pub(crate) mod generic_operator {
         use crate::declarations::traits::conformance::signature_matching::trait_type_bindings;
         use crate::declarations::traits::conformance::signature_matching::type_references_match_for_trait_bindings;
@@ -1118,41 +818,56 @@ pub(crate) mod conformance {
                 diagnostics,
             );
             if conformance.external_binding.is_none() && !conformance.via_expression.is_valid() {
-                let prepare_implication = || {
-                    crate::proof_contracts::contract_entailment::CallableContractRefinement::prepare(
-                        program,
-                        crate::proof_contracts::contract_entailment::CallableContract {
-                            owner: requirement.symbol,
-                            contracts: program.machine_contracts(requirement),
-                            parameters: required_parameters,
-                            result: requirement_entry.return_type,
-                        },
-                        crate::proof_contracts::contract_entailment::CallableContract {
-                            owner: machine.symbol,
-                            contracts: program.machine_contracts(machine),
-                            parameters: actual_parameters,
-                            result: provider_entry.return_type,
-                        },
-                        &required_type_parameters
-                            .iter()
-                            .zip(actual_type_parameters)
-                            .map(|(required, actual)| (required.symbol, actual.symbol))
-                            .collect::<Vec<_>>(),
-                    )
-                };
+                let pairs = required_type_parameters
+                    .iter()
+                    .zip(actual_type_parameters)
+                    .map(|(required, actual)| (required.symbol, actual.symbol))
+                    .collect::<Vec<_>>();
+                let substitutions = type_bindings
+                    .iter()
+                    .filter_map(|binding| match binding.target {
+                        TraitTypeBindingTarget::Type(reference) => {
+                            Some((binding.parameter_symbol, reference))
+                        }
+                        TraitTypeBindingTarget::Parameter(_) => None,
+                    })
+                    .collect::<Vec<_>>();
+                let starts = type_bindings
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(ordinal, binding)| {
+                        matches!(binding.target, TraitTypeBindingTarget::Type(_)).then(|| {
+                            if binding.scope_start > ordinal {
+                                usize::MAX
+                            } else {
+                                type_bindings[..binding.scope_start]
+                                    .iter()
+                                    .filter(|earlier| {
+                                        matches!(earlier.target, TraitTypeBindingTarget::Type(_))
+                                    })
+                                    .count()
+                            }
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                let verdict = lowered_discharge::prove_published_callable_refinement(
+                    program.typed_program(),
+                    structure_elaboration::CallableDeclaration::Machine(requirement.symbol),
+                    structure_elaboration::CallableDeclaration::Machine(machine.symbol),
+                    structure_elaboration::CallableRefinementContext {
+                        required_types: &substitutions,
+                        required_scope_starts: &starts,
+                        binder_pairs: &pairs,
+                        required_lexical_owner: requirement.symbol,
+                        supplied_lexical_owner: machine.symbol,
+                        ..Default::default()
+                    },
+                    &mut Default::default(),
+                );
                 crate::machine_calls::machine_parameters::validate_callable_contract_refinement(
-                    program,
                     &label,
                     requirement_identity,
-                    program.machine_contracts(requirement),
-                    program.machine_contracts(machine),
-                    required_parameters,
-                    actual_parameters,
-                    requirement.symbol,
-                    machine.symbol,
-                    &[],
-                    Default::default(),
-                    prepare_implication,
+                    verdict,
                     diagnostics,
                 );
             }
@@ -1424,10 +1139,68 @@ pub(crate) mod conformance {
             }
 
             if conformance.external_binding.is_none() && !conformance.via_expression.is_valid() {
-                crate::proof_contracts::contract_entailment::check_operator_contract_conformance(
-                    program,
-                    machine,
-                    operator,
+                let Some(entry) = program.machine_states(machine).first() else {
+                    diagnostics.push(Diagnostic::error(
+                        "operator provider has no exact entry declaration",
+                    ));
+                    return true;
+                };
+                let required_generics = program.operator_type_parameters(operator);
+                let actual_generics = program.machine_type_parameters(machine);
+                let pairs = if required_generics.len() == actual_generics.len() {
+                    required_generics
+                        .iter()
+                        .zip(actual_generics)
+                        .map(|(required, actual)| (required.symbol, actual.symbol))
+                        .collect::<Vec<_>>()
+                } else {
+                    Vec::new()
+                };
+                let closed = typed_trees::operator::closed_operator_realization_application(
+                    program, machine, operator,
+                );
+                let mut types = Vec::new();
+                let mut constants = Vec::new();
+                if let Some(application) = closed {
+                    for argument in application.arguments {
+                        match argument {
+                            typed_trees::operator::ClosedOperatorApplicationArgument::Type {
+                                binder_symbol,
+                                type_reference,
+                            } => {
+                                types.push((binder_symbol, type_reference));
+                            }
+                            typed_trees::operator::ClosedOperatorApplicationArgument::Const {
+                                binder_symbol,
+                                declared_carrier,
+                                value,
+                            } => {
+                                constants.push((binder_symbol, declared_carrier, value));
+                            }
+                        }
+                    }
+                }
+                let verdict = lowered_discharge::prove_published_callable_refinement(
+                    program.typed_program(),
+                    structure_elaboration::CallableDeclaration::Operator(operator),
+                    structure_elaboration::CallableDeclaration::MachineState {
+                        declaration: machine.symbol,
+                        entry: entry.symbol,
+                    },
+                    structure_elaboration::CallableRefinementContext {
+                        required_types: &types,
+                        required_constants: &constants,
+                        binder_pairs: &pairs,
+                        required_lexical_owner: operator.symbol,
+                        supplied_lexical_owner: machine.symbol,
+                        ..Default::default()
+                    },
+                    &mut Default::default(),
+                );
+                crate::machine_calls::machine_parameters::validate_callable_contract_refinement(
+                    &format!("operator provider `{}`", machine.name),
+                    &program.operator_path_string(operator.name),
+                    verdict,
                     diagnostics,
                 );
             }
@@ -1441,7 +1214,7 @@ pub(crate) mod conformance {
             trait_definition: &TraitDefinition,
             requirement_name: &typed_trees::name::Identifier,
             settled_requirement_symbol: symbols::SymbolHandle,
-            conformance_alias: Option<&str>,
+            _conformance_alias: Option<&str>,
             trait_lifetime_arguments: &[u32],
             explicit_type_arguments: &[TypeReferenceHandle],
             diagnostics: &mut Vec<Diagnostic>,
@@ -1548,16 +1321,6 @@ pub(crate) mod conformance {
                 requirement,
                 explicit_type_arguments,
                 diagnostics,
-            );
-
-            crate::proof_contracts::contract_entailment::check_law_conformance(
-                program,
-                machine,
-                conformance_alias,
-                &application,
-                requirement,
-                diagnostics,
-                &mut Vec::new(),
             );
         }
 
@@ -1991,7 +1754,7 @@ pub(crate) mod conformance {
             impl TypeRegionScope for RegionApplicationScope<'_> {
                 fn erased_identity(
                     self,
-                    program: &dyn crate::CheckingInput,
+                    program: &typed_trees::TypedTrees,
                     reference: TypeReferenceHandle,
                 ) -> NormalizedTypeIdentity {
                     let mut substitutions = Vec::new();
@@ -2031,7 +1794,7 @@ pub(crate) mod conformance {
 
                 fn named_alias(
                     mut self,
-                    _program: &dyn crate::CheckingInput,
+                    _program: &typed_trees::TypedTrees,
                     symbol: symbols::SymbolHandle,
                     _reference: TypeReferenceHandle,
                 ) -> Option<ReferenceStep<Self>> {
@@ -2569,7 +2332,7 @@ pub(crate) mod conformance {
         )));
             }
 
-            crate::proof_contracts::contract_entailment::check_contract_refinement(
+            crate::machine_calls::machine_parameters::check_selected_contract_refinement(
                 program,
                 callable_machine,
                 callable_state,
@@ -3781,9 +3544,6 @@ pub(crate) mod conformance {
     pub(crate) use bounds::{
         named_conformance_argument_matches, validate_conformance_bounds,
         validate_generic_conformance_bounds, validate_trait_conformance_bounds,
-    };
-    pub(crate) use external_shapes::{
-        validate_external_leaf_native_shapes, validate_external_via_expression,
     };
     pub use generic_operator::generic_bound_operator_requirement;
     pub(crate) use machine_conformance::validate_machine_trait_conformances;
@@ -6095,46 +5855,13 @@ pub(crate) mod dynamic {
         updates: &mut Vec<(ExpressionHandle, SymbolHandle)>,
         diagnostics: &mut Vec<Diagnostic>,
     ) {
-        if !expression.is_valid() {
-            return;
-        }
-
-        macro_rules! visit {
-            ($child:expr) => {
-                collect_dynamic_expression_call_updates(
-                    program,
-                    machine,
-                    state,
-                    before,
-                    $child,
-                    updates,
-                    diagnostics,
-                )
-            };
-        }
-        match expression_table(program).expression(expression) {
-            ExpressionNode::Match(dispatch) => {
-                for child in
-                    crate::queries::expression_traversal::match_children(program, *dispatch)
-                {
-                    visit!(child);
-                }
-            }
-            ExpressionNode::ArrayLiteral(elements) => {
-                for element in expression_table(program).expression_handles(*elements) {
-                    visit!(*element);
-                }
-            }
-            ExpressionNode::Atomic(atomic) => {
-                visit!(atomic.value);
-                visit!(atomic.result);
-            }
-            ExpressionNode::Binary(binary) => {
-                visit!(binary.left);
-                visit!(binary.right);
-            }
-            ExpressionNode::Cast(cast) => visit!(cast.value),
-            ExpressionNode::Call(call) => {
+        program.typed_program().subtree_for_each(
+            expression,
+            typed_trees::SubtreeEdges::STRUCTURAL,
+            |expression, node| {
+                let ExpressionNode::Call(call) = node else {
+                    return;
+                };
                 let receiver_expression = call.receiver;
                 let receiver_type = match crate::receiver_projections::expression(
                     program,
@@ -6180,31 +5907,8 @@ pub(crate) mod dynamic {
                 {
                     updates.push((expression, requirement));
                 }
-                visit!(call.receiver);
-                for argument in expression_table(program).expression_handles(call.arguments) {
-                    visit!(*argument);
-                }
-            }
-            ExpressionNode::Indexed(indexed) => {
-                visit!(indexed.collection);
-                visit!(indexed.index);
-            }
-            ExpressionNode::Member(member) => visit!(member.receiver),
-            ExpressionNode::Borrow(inner) => visit!(inner.target),
-            ExpressionNode::Range(range) => {
-                visit!(range.start);
-                visit!(range.end);
-            }
-            ExpressionNode::StructLiteral(literal) => {
-                for field in expression_table(program).struct_fields(literal.fields) {
-                    visit!(field.value);
-                }
-            }
-            ExpressionNode::Unary(unary) => visit!(unary.operand),
-            ExpressionNode::TypeExpression(_)
-            | ExpressionNode::SavedSubject(_)
-            | typed_trees::literal_expression_pattern!() => {}
-        }
+            },
+        );
     }
 
     fn resolved_dynamic_requirement_symbol(
@@ -6676,15 +6380,6 @@ pub(crate) mod named_implementations {
                         requirement,
                         Some(conformance),
                         diagnostics,
-                    );
-                    crate::proof_contracts::contract_entailment::check_law_conformance(
-                        program,
-                        machine,
-                        conformance_name,
-                        &application,
-                        requirement,
-                        diagnostics,
-                        &mut Vec::new(),
                     );
                 };
             if !machine.target_family_interface {
@@ -7334,7 +7029,7 @@ pub(crate) mod provider_regions {
     impl TypeRegionScope for ApplicationRegions<'_> {
         fn erased_identity(
             self,
-            program: &dyn CheckingInput,
+            program: &typed_trees::TypedTrees,
             reference: TypeReferenceHandle,
         ) -> NormalizedTypeIdentity {
             program.scoped_type_identity(
@@ -7346,7 +7041,7 @@ pub(crate) mod provider_regions {
             )
         }
 
-        fn enter_operand(mut self, program: &dyn CheckingInput, owner: SymbolHandle) -> Self {
+        fn enter_operand(mut self, program: &typed_trees::TypedTrees, owner: SymbolHandle) -> Self {
             let count = self
                 .identities
                 .iter()
@@ -7362,7 +7057,7 @@ pub(crate) mod provider_regions {
 
         fn named_alias(
             mut self,
-            _program: &dyn CheckingInput,
+            _program: &typed_trees::TypedTrees,
             symbol: SymbolHandle,
             reference: TypeReferenceHandle,
         ) -> Option<ReferenceStep<Self>> {
@@ -7506,45 +7201,33 @@ pub mod refinement_fit {
                     );
                     let required_generics = program.state_signature_type_parameters(required);
                     if required_generics.len() != actual_generics.len() {
-                        return Err("has a different callable generic telescope");
+                        return Err("has a different callable generic telescope".to_owned());
                     }
                     let binders = required_generics
                         .iter()
                         .zip(&actual_generics)
                         .map(|(required, actual)| (required.symbol, actual.symbol))
                         .collect::<Vec<_>>();
-                    let actual_contracts = program
-                        .machine_contracts(machine)
-                        .iter()
-                        .chain(program.state_contracts(entry))
-                        .cloned()
-                        .collect::<Vec<_>>();
-                    // A selected map must publish the promised facts itself. Its
-                    // body and the required guarantees are not proof premises.
-                    let implication = crate::proof_contracts::contract_entailment::CallableContractRefinement::prepare(
-                        program,
-                        crate::proof_contracts::contract_entailment::CallableContract {
-                            owner: required.symbol,
-                            contracts: program.state_signature_contracts(required),
-                            parameters: program.state_signature_parameters(required),
-                            result: required.return_type,
+                    // Only published contracts enter this proof. The selected
+                    // implementation body supplies no additional guarantee.
+                    lowered_discharge::prove_published_callable_refinement(
+                        program.typed_program(),
+                        structure_elaboration::CallableDeclaration::Signature(required),
+                        structure_elaboration::CallableDeclaration::MachineState {
+                            declaration: machine.symbol,
+                            entry: entry.symbol,
                         },
-                        crate::proof_contracts::contract_entailment::CallableContract {
-                            owner: machine.symbol,
-                            contracts: &actual_contracts,
-                            parameters: program.state_parameters(entry),
-                            result: entry.return_type,
+                        structure_elaboration::CallableRefinementContext {
+                            required_types: &declaring.substitutions,
+                            required_scope_starts: &declaring.substitution_scope_starts,
+                            binder_pairs: &binders,
+                            required_lexical_owner: declaring.argument_owner,
+                            supplied_lexical_owner: machine.symbol,
+                            ..Default::default()
                         },
-                        &binders,
+                        &mut Default::default(),
                     )
-                    .ok_or("has no complete parameter/result correspondence")?;
-                    if !implication.proves(program, &SignatureContractKind::Requires) {
-                        return Err("does not preserve the public preconditions");
-                    }
-                    if !implication.proves(program, &SignatureContractKind::Ensures) {
-                        return Err("does not prove the strengthened public guarantees");
-                    }
-                    Ok(())
+                    .map_err(|refused| refused.detail)
                 })();
                 if let Err(reason) = fit {
                     diagnostics.push(reject(format!(
@@ -7729,7 +7412,14 @@ pub(crate) mod requirements {
             let Some(spelling) = requirement.spelling else {
                 continue;
             };
-            let operands = trait_operator_operand_signature(program, trait_definition, requirement);
+            let operands =
+                match trait_operator_operand_signature(program, trait_definition, requirement) {
+                    Ok(identity) => identity,
+                    Err(error) => {
+                        diagnostics.push(Diagnostic::error(error.to_string()));
+                        continue;
+                    }
+                };
             if seen.iter().any(|(prior_spelling, prior_operands)| {
                 *prior_spelling == spelling && prior_operands == &operands
             }) {
@@ -8302,7 +7992,6 @@ pub use conformance::revalidate_machine_trait_conformances;
 pub use conformance::revalidate_top_level_requirement_realization;
 pub(crate) use conformance::{
     named_conformance_argument_matches, validate_conformance_bounds,
-    validate_external_leaf_native_shapes, validate_external_via_expression,
     validate_generic_conformance_bounds, validate_machine_trait_conformances,
     validate_trait_application_obligations, validate_trait_conformance_bounds,
 };

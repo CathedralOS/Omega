@@ -425,11 +425,38 @@ pub mod boundary_values {
             .map_or(type_reference, |binding| binding.actual)
     }
 }
+pub mod callable_lifetimes;
+pub mod source_carry;
+pub mod source_claims;
+pub mod source_names;
+pub mod source_numeric;
+pub mod source_type_formation;
+pub mod source_wire;
 pub(crate) mod source_review {
     use crate::{PlanLaidTargetLayout, types::TypeReferenceHandle};
     use arena::Handle;
     use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};
     use symbols::SymbolHandle;
+
+    /// Typed occurrence identity belongs to the frozen source kept beside a
+    /// publication. Spans are diagnostic positions, never this association.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum SourceNode {
+        Expression(crate::expression::ExpressionHandle),
+        Statement(crate::statement::StatementHandle),
+    }
+
+    /// One actual emitted invocation and the typed occurrence that produced it.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct SourceCallCorrespondence {
+        /// The lowered machine that executes this invocation.
+        pub machine: semantic_vocabulary::MachineId,
+        pub site: semantic_vocabulary::InvocationSite,
+        /// Combining a call cycle into one loop does not change this original
+        /// source owner or its static argument environment.
+        pub owner: SymbolHandle,
+        pub source: SourceNode,
+    }
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct SourceTypeApplication {
@@ -480,8 +507,9 @@ pub(crate) mod source_review {
     }
 }
 pub use source_review::{
-    SourceFieldCorrespondence, SourceLayoutPlanCoordinate, SourceLayoutRealizationCoordinate,
-    SourceRecordCorrespondence, SourceServiceCorrespondence, SourceTypeApplication,
+    SourceCallCorrespondence, SourceFieldCorrespondence, SourceLayoutPlanCoordinate,
+    SourceLayoutRealizationCoordinate, SourceNode, SourceRecordCorrespondence,
+    SourceServiceCorrespondence, SourceTypeApplication,
 };
 pub mod direct_calls {
     use crate::TypedTrees;
@@ -769,9 +797,14 @@ mod callable_copies;
 pub mod callable_signature_shapes;
 pub mod callable_values;
 pub mod contract_structure;
+pub mod native_locators;
 pub mod references;
 pub mod runtime_callable_identity;
 pub mod service_declarations;
+pub mod source_call_occurrences;
+pub mod source_expression_types;
+pub mod source_operation_meaning;
+pub mod source_operator_types;
 pub use service_declarations::provider_declarations;
 mod access_views_and_commitments;
 pub use access_views_and_commitments::constant_recipes;
@@ -1315,6 +1348,7 @@ pub use access_views::{
     PlanLaidRealizations, PlanLaidRepeatedField, PlanLaidRetiredFieldIdentity,
     PlanLaidSchemaArgument, PlanLaidSchemaField, PlanLaidSchemaFieldKind, PlanLaidTargetLayout,
     PrivateCallbackSlotApplication, ScalarAccessorDeclaration, ScalarAccessorOperation,
+    access_atomic_observing_results,
 };
 pub use commitments::{
     CapturedMachineApplication, CapturedMachineState, ClosedConformanceApplication,
@@ -1897,3 +1931,13 @@ pub use values::subtrees::{SubtreeEdges, SubtreeVisit};
 pub mod typed_trees {
     pub use crate::*;
 }
+
+pub mod source_borrow_contracts;
+pub mod source_borrow_shapes;
+pub mod source_properties;
+
+pub mod source_content;
+
+pub mod source_index_algebra;
+
+pub mod source_scalar_operands;

@@ -38,8 +38,10 @@
 
 pub use product::assumed_bindings;
 pub use product::test_groups;
+mod accepted_evaluation;
 mod const_generic_expressions;
 mod const_initializers;
+mod source_selections;
 pub(crate) mod build_time_evaluation {
     use crate::const_evaluation::constant_recipes::retain_deferred_constant_recipes;
     use crate::evaluation_accounting::EvaluationAccounting;
@@ -943,6 +945,7 @@ pub use layouts::access_views::{AccessViewRecord, desugar_access_views};
 pub use layouts::plan_laid::{
     FixedLayoutTargetScope, evaluate_fixed_layout_applications, has_fixed_layout_applications,
 };
+pub(crate) use machine_execution::admission::prepare_accepted_invocation;
 pub use machine_execution::admission::{
     BuildTimeAdmissionPlan, BuildTimeAdmissionRejection, BuildTimeInvocationCustody,
     BuildTimeProgram, BuildTimeSelectionAuthority,

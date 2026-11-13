@@ -140,9 +140,8 @@ setup are not additional public program stages.
 | Syntax → symbol-resolved trees | [syntax-trees-to-symbol-resolved-trees](psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) |
 | Resolved → typed trees | [symbol-resolved-trees-to-typed-trees](psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) |
 | Typed → typed trees | [typed-trees-to-typed-trees](psi/compilation/pipeline/04_typed-trees-to-typed-trees/README.md) |
-| Typed → checked trees | [typed-trees-to-checked-trees](psi/compilation/pipeline/05_typed-trees-to-checked-trees/README.md) |
-| Lowered Psi → lowered Psi | [lowered-psi-to-lowered-psi](psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/lib.rs) |
-| Lowered Psi → Terminal Psi | [lowered-psi-to-terminal-psi](psi/compilation/pipeline/08_lowered-psi-to-terminal-psi/src/lib.rs) |
+| Frozen typed trees → unsealed Terminal Psi and checking tables | [structure-elaboration](psi/compilation/pipeline/structure-elaboration/src/lib.rs) |
+| Unsealed Terminal Psi and tables → checked portable Terminal Psi | [lowered-discharge](psi/compilation/pipeline/lowered-discharge/src/lib.rs) |
 | Terminal Psi → abstract operations | [terminal-psi-to-abstract-operations](omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
 | Abstract → abstract operations | [abstract-operations-to-abstract-operations](omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/lib.rs) |
 | Abstract → target operations | [abstract-operations-to-target-operations](omega/compilation/pipeline/02_abstract-operations-to-target-operations/README.md) |
@@ -1573,8 +1572,8 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   (`source-files-to-tokens` → `tokens-to-syntax-trees` →
   `syntax-trees-to-symbol-resolved-trees` →
   `symbol-resolved-trees-to-typed-trees` →
-  `typed-trees-to-typed-trees` → `typed-trees-to-checked-trees` →
-  `lowered-psi-to-lowered-psi` → `lowered-psi-to-terminal-psi`, then
+  `typed-trees-to-typed-trees`, then `structure-elaboration` and
+  `lowered-discharge` publish checked Terminal Psi. Omega continues through
   `terminal-psi-to-abstract-operations` →
   `abstract-operations-to-target-operations` →
   `target-operations-to-selected-instructions` →
@@ -1585,9 +1584,11 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   the same representation; do not invent a `PreOptimized`/`PostOptimized` pair.
   The folders must expose the connected `X-to-Y`, `Y-to-Y`, `Y-to-Z` sequence,
   not merely name individually plausible calculations. See [optimization phases](../wiki/spec/build/optimizations.md#phase-and-product-boundaries).
-- Psi `compilation/validation/` — reusable source-program judgments.
-- Psi `compilation/proof/` — source obligation construction and proof search; independent
-  `compilation/proof/admission/` owns the shared mathematical checker.
+- Psi `compilation/validation/` — surviving source queries, being moved to their
+  owning preparation layers as the retired body checker is removed.
+- Psi `compilation/proof/` — mathematical declaration elaboration and source proof
+  descriptions; independent `compilation/proof/admission/` owns the shared
+  mathematical checker. Executable body checking lives in `lowered-discharge`.
 - Terminal companion packages live beneath `compilation/representations/terminal-psi/`:
   `codec/`, `semantics/` and `work/`.
   Representation data and candidate production remain independent of checking.

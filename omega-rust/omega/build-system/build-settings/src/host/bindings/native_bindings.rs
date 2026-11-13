@@ -31,6 +31,7 @@ impl TerminalBuildBindingAdapter {
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         let refuse = TerminalEffectRejection::new;
         let TerminalEffect::BoundaryCall {
+            machine,
             operation,
             boundary,
             arguments,
@@ -45,7 +46,8 @@ impl TerminalBuildBindingAdapter {
             .calls
             .iter()
             .find(|call| {
-                call.operation == *operation
+                call.machine == *machine
+                    && call.operation == *operation
                     && call.boundary == *boundary
                     && call.action == TerminalBuildBindingOperation::BindNative
             })

@@ -25,6 +25,7 @@ use std::sync::Arc;
 pub struct PreparedBuildExecution {
     execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
     produced: Arc<psi_compiler::ProducedTerminalProgram>,
+    accepted_source: Arc<psi_compiler::CheckedInvocationSource>,
     providers: Arc<crate::admission::provider_execution::BuildProviderInstallation>,
     account: evaluation_accounting::EvaluationInvocationAccount,
     machine: Arc<package_compilation::build_execution::SelectedBuildMachine>,
@@ -52,21 +53,11 @@ impl PreparedBuildExecution {
             default_sources,
         } = admitted;
         let refuse = |reason: String| failed(&machine.name, &reason);
-        let checked = prepared
-            .checked_trees()
+        let accepted_source = prepared
+            .accepted_source()
+            .cloned()
             .ok_or_else(|| refuse("Build has no admitted source judgment".into()))?;
-        let toolchain =
-            source::source_identity::toolchain_source_identities(checked.symbols.source_files())
-                .map_err(&refuse)?;
-        let mut production = psi_compiler::TerminalProductionRequest::new(
-            checked,
-            psi_compiler::TerminalMachineSelection::Symbol(machine.symbol),
-            &toolchain,
-        );
-        production.publication = terminal_codec::TerminalPublication::Invocation;
-        let produced = production
-            .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
-            .map_err(|error| error.diagnostics())?;
+        let produced = accepted_source.produce_invocation()?;
         let providers = providers.admit(produced.view())?;
 
         let measurement = crate::activation::measurement();
@@ -95,6 +86,7 @@ impl PreparedBuildExecution {
         Ok(Self {
             execution_purpose,
             produced: Arc::new(produced),
+            accepted_source,
             providers: Arc::new(providers),
             account,
             machine: Arc::new(machine),
@@ -206,6 +198,7 @@ impl PreparedBuildExecution {
             evaluation_usage: Some(usage),
             observation_summary: Some(observation_summary),
             selected_build_machine_symbol: Some(self.machine.symbol),
+            accepted_build_source: Some(self.accepted_source),
             generated_sources,
         })
     }

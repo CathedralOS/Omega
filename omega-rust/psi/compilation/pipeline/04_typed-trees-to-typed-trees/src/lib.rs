@@ -36,6 +36,8 @@ mod monomorphization;
 mod policy_operators;
 mod preparation;
 mod selection_and_reflection;
+mod source_casts;
+mod source_float_landing;
 mod source_type_queries;
 
 pub(crate) use assembly_and_operators::{assembly_control, operators};
@@ -251,14 +253,22 @@ pub(crate) mod rebound_parameter_homes {
 
     use crate::tables::expressions_of_mut;
 
-    pub(crate) fn materialize(program: &mut TypedTrees) {
+    pub(crate) fn materialize(
+        program: &mut TypedTrees,
+    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
         let mut pending = Vec::new();
         for machine in program.machines() {
             for (state_index, state) in program.machine_states(machine).iter().enumerate() {
                 let mut rebound: Vec<SymbolHandle> = Vec::new();
                 for statement in program.statement_table.statements(state.statement_nodes) {
                     if let Some(parameter) =
-                        validation::assignment_rebinds_parameter(program, machine, statement)
+                        validation::assignment_rebinds_parameter(program, machine, state, statement)
+                            .map_err(|reason| {
+                                vec![diagnostics::Diagnostic::error(format!(
+                                    "machine `{}` state `{}`: {reason}",
+                                    machine.name, state.name,
+                                ))]
+                            })?
                         && !rebound.contains(&parameter)
                     {
                         rebound.push(parameter);
@@ -325,6 +335,7 @@ pub(crate) mod rebound_parameter_homes {
             }
             program.machine_states_mut(&machine)[state_index].statement_nodes = body;
         }
+        Ok(())
     }
 }
 

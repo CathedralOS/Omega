@@ -7,11 +7,7 @@ shared read-only program queries (`queries`: `execution_projection`,
 
 pub mod frozen_program {
     use crate::declarations::symbols::CallerSiteCaches;
-    use crate::machine_calls::calls::CallFrameCaches;
     use crate::machine_calls::effect_inference::PreparedEffectPlans;
-    use crate::proof_contracts::contract_entailment::structural_judgment::{
-        CaseGuaranteeEligibility, EntryMachines, LicenseCandidates,
-    };
     use crate::value_custody::content_conservation::ContentConservationInputs;
     use language_semantics::declaration_selection::AuthoredDeclarationSelections;
     use representation_selections::OpaqueRepresentationSelection;
@@ -117,55 +113,6 @@ pub mod frozen_program {
             }
 
             #[test]
-            fn numeric_query_views_preserve_inputs_and_follow_projection_custody() {
-                let program = TypedTrees::default();
-                let context = CheckingContext::new(&program).with_pending_layout_geometry(true);
-                let machine = SymbolHandle::from_parts(1, 1);
-                let state = SymbolHandle::from_parts(2, 1);
-                let population = CheckingQuery::operand_fit_population(&context, machine).unwrap();
-                let query =
-                    CheckingQuery::numeric_observation(&population, machine, state).unwrap();
-                assert!(query.defers_pending_layout_geometry());
-                assert!(std::ptr::eq(context.typed_program(), query.typed_program()));
-                query
-                    .checking_memos()
-                    .unwrap()
-                    .shared_proof_walks
-                    .lock()
-                    .unwrap()
-                    .insert(machine, std::sync::Arc::default());
-                assert!(
-                    context
-                        .checking_memos()
-                        .unwrap()
-                        .shared_proof_walks
-                        .lock()
-                        .unwrap()
-                        .get(&machine)
-                        .is_none()
-                );
-                assert!(std::sync::Arc::ptr_eq(
-                    &context.proof_only_classification(),
-                    &query.proof_only_classification(),
-                ));
-
-                let layout = crate::queries::layout_checking::LayoutCheckingContext::new(
-                    &query,
-                    Some("linux_x86_64"),
-                );
-                assert_eq!(layout.layout_target(), Some("linux_x86_64"));
-                assert!(CheckingQuery::operand_fit_population(&layout, machine).is_none());
-                assert!(CheckingQuery::numeric_observation(&layout, machine, state).is_none());
-                let mut projection = CheckingProjection::new(&query);
-                assert!(CheckingQuery::operand_fit_population(&projection, machine).is_none());
-                assert!(CheckingQuery::numeric_observation(&projection, machine, state).is_none());
-                projection.program_mut();
-                assert!(projection.checking_memos().is_none());
-                assert!(CheckingQuery::operand_fit_population(&projection, machine).is_some());
-                assert!(CheckingQuery::numeric_observation(&projection, machine, state).is_some());
-            }
-
-            #[test]
             fn operand_fit_population_ancestry_is_exact_and_composes_with_numeric_queries() {
                 let program = TypedTrees::default();
                 let context = CheckingContext::new(&program);
@@ -238,83 +185,6 @@ pub mod frozen_program {
                 projection.program_mut();
                 assert!(projection.checking_memos().is_none());
                 assert!(CheckingQuery::completed_case_population(&projection, machine).is_some());
-            }
-
-            #[test]
-            fn only_cut_free_answers_under_a_query_reach_the_context() {
-                let program = TypedTrees::default();
-                let context = CheckingContext::new(&program);
-                let machine = SymbolHandle::from_parts(1, 1);
-                let state = SymbolHandle::from_parts(2, 1);
-                let other = SymbolHandle::from_parts(3, 1);
-                let shared = context.checking_memos().unwrap();
-                let fresh = || CheckingQuery::operand_fit_population(&context, machine).unwrap();
-
-                let population = fresh();
-                let query =
-                    CheckingQuery::numeric_observation(&population, machine, state).unwrap();
-                let guard = crate::frozen_program::CutGuard::start(&query);
-                assert!(!query.has_active_numeric_observation(machine, other));
-                assert!(std::ptr::eq(guard.memos().unwrap(), shared));
-
-                let query =
-                    CheckingQuery::numeric_observation(&population, machine, state).unwrap();
-                let guard = crate::frozen_program::CutGuard::start(&query);
-                assert!(query.has_active_numeric_observation(machine, state));
-                assert!(std::ptr::eq(
-                    guard.memos().unwrap(),
-                    query.checking_memos().unwrap()
-                ));
-                let query =
-                    CheckingQuery::numeric_observation(&population, machine, state).unwrap();
-                let guard = crate::frozen_program::CutGuard::start(&query);
-                assert!(CheckingQuery::operand_fit_population(&query, machine).is_none());
-                assert!(std::ptr::eq(
-                    guard.memos().unwrap(),
-                    query.checking_memos().unwrap()
-                ));
-
-                let population = fresh();
-                let query =
-                    CheckingQuery::numeric_observation(&population, machine, state).unwrap();
-                assert!(query.has_active_numeric_observation(machine, state));
-                query
-                    .checking_memos()
-                    .unwrap()
-                    .shared_proof_walks
-                    .lock()
-                    .unwrap()
-                    .insert(machine, std::sync::Arc::default());
-                let guard = crate::frozen_program::CutGuard::start(&query);
-                assert!(
-                    query
-                        .checking_memos()
-                        .unwrap()
-                        .shared_proof_walks
-                        .lock()
-                        .unwrap()
-                        .contains_key(&machine)
-                );
-                assert!(std::ptr::eq(
-                    guard.memos().unwrap(),
-                    query.checking_memos().unwrap()
-                ));
-
-                let population = fresh();
-                let query =
-                    CheckingQuery::numeric_observation(&population, machine, state).unwrap();
-                let guard = crate::frozen_program::CutGuard::start(&query);
-                let nested = CheckingQuery::numeric_observation(&query, machine, other).unwrap();
-                assert!(nested.has_active_numeric_observation(machine, other));
-                assert!(std::ptr::eq(guard.memos().unwrap(), shared));
-                assert!(nested.has_active_operand_fit_population(machine));
-                assert!(std::ptr::eq(
-                    guard.memos().unwrap(),
-                    query.checking_memos().unwrap()
-                ));
-
-                assert_eq!(crate::frozen_program::readable_memos(&context).count(), 1);
-                assert_eq!(crate::frozen_program::readable_memos(&query).count(), 2);
             }
         }
 
@@ -521,13 +391,6 @@ pub mod frozen_program {
                 self.input.proof_only_classification()
             }
 
-            fn call_frame_tables(
-                &self,
-            ) -> Option<std::sync::Arc<crate::machine_calls::calls::CallFrameTables<'_>>>
-            {
-                self.input.call_frame_tables()
-            }
-
             fn prepared_effect_plans(&self) -> Option<&crate::PreparedEffectPlans> {
                 self.input.prepared_effect_plans()
             }
@@ -634,12 +497,6 @@ pub mod frozen_program {
                 Some(memos) => memos.proof_only.get_or_init(compute).clone(),
                 None => compute(),
             }
-        }
-
-        fn call_frame_tables(
-            &self,
-        ) -> Option<Arc<crate::machine_calls::calls::CallFrameTables<'_>>> {
-            None
         }
 
         fn prepared_effect_plans(&self) -> Option<&PreparedEffectPlans> {
@@ -834,8 +691,6 @@ pub mod frozen_program {
             Option<crate::mathematical_applications::PreparedMathematicalView<'program>>,
         opaque_selections: Option<&'program [OpaqueRepresentationSelection]>,
         memos: Arc<CheckingMemos>,
-        call_frame_tables:
-            OnceLock<Option<Arc<crate::machine_calls::calls::CallFrameTables<'program>>>>,
     }
 
     impl<'program> CheckingContext<'program> {
@@ -853,7 +708,6 @@ pub mod frozen_program {
         ) -> Self {
             self.retained_borrows = rows;
             self.memos = Arc::new(CheckingMemos::default());
-            self.call_frame_tables = OnceLock::new();
             self
         }
 
@@ -878,7 +732,6 @@ pub mod frozen_program {
                 prepared_mathematics: None,
                 opaque_selections: None,
                 memos: Arc::new(CheckingMemos::default()),
-                call_frame_tables: OnceLock::new(),
             }
         }
 
@@ -889,7 +742,6 @@ pub mod frozen_program {
             if self.external_roots != Some(roots) {
                 self.external_roots = Some(roots);
                 self.memos = Arc::new(CheckingMemos::default());
-                self.call_frame_tables = OnceLock::new();
             }
             self
         }
@@ -922,7 +774,6 @@ pub mod frozen_program {
                 prepared_mathematics: self.prepared_mathematics,
                 opaque_selections: self.opaque_selections,
                 memos: Arc::new(self.memos.clone_typed_tree_memos()),
-                call_frame_tables: self.call_frame_tables.clone(),
             }
         }
 
@@ -942,7 +793,6 @@ pub mod frozen_program {
                 prepared_mathematics: self.prepared_mathematics,
                 opaque_selections: self.opaque_selections,
                 memos: Arc::new(self.memos.clone_typed_tree_memos()),
-                call_frame_tables: self.call_frame_tables.clone(),
             }
         }
 
@@ -961,10 +811,6 @@ pub mod frozen_program {
         where
             'program: 'context,
         {
-            let call_frame_tables = OnceLock::new();
-            if let Some(tables) = self.call_frame_tables.get() {
-                let _ = call_frame_tables.set(tables.clone());
-            }
             let memos = if self.memos.matches_effect_plans(plans) {
                 self.memos.clone()
             } else {
@@ -982,7 +828,6 @@ pub mod frozen_program {
                 prepared_mathematics: self.prepared_mathematics,
                 opaque_selections: self.opaque_selections,
                 memos,
-                call_frame_tables,
             }
         }
 
@@ -1055,23 +900,6 @@ pub mod frozen_program {
 
         fn shared_memos(&self) -> Option<&CheckingMemos> {
             Some(&self.memos)
-        }
-
-        fn call_frame_tables(
-            &self,
-        ) -> Option<Arc<crate::machine_calls::calls::CallFrameTables<'_>>> {
-            self.call_frame_tables
-                .get_or_init(|| {
-                    let mut tables =
-                        crate::machine_calls::calls::CallFrameTables::build(self.program)?;
-                    tables.symbols.caller_sites = crate::frozen_program::frozen_memo(
-                        self,
-                        |memos| &memos.caller_sites,
-                        crate::declarations::symbols::CallerSiteCaches::default,
-                    );
-                    Some(Arc::new(tables))
-                })
-                .clone()
         }
 
         fn prepared_effect_plans(&self) -> Option<&PreparedEffectPlans> {
@@ -1229,12 +1057,6 @@ pub mod frozen_program {
             self.memo_source()?.expression_interval(expression)
         }
 
-        fn call_frame_tables(
-            &self,
-        ) -> Option<Arc<crate::machine_calls::calls::CallFrameTables<'_>>> {
-            self.memo_source()?.call_frame_tables()
-        }
-
         fn prepared_mathematics(
             &self,
         ) -> Option<crate::mathematical_applications::PreparedMathematicalView<'_>> {
@@ -1253,255 +1075,128 @@ pub mod frozen_program {
         /// tables, never changing flow or numeric facts.
         pub(crate) projection_syntax:
             OnceLock<Arc<crate::value_custody::places::ProjectionSyntaxQueries>>,
-    pub(crate) case_guarantee_eligibility: OnceLock<Arc<CaseGuaranteeEligibility>>,
-    pub(crate) provider_applications: OnceLock<Arc<Vec<crate::ProviderApplicationAssociation>>>,
-    pub(crate) indexed_logical_machines: OnceLock<Arc<Vec<symbols::SymbolHandle>>>,
-    pub(crate) structural_descent_components:
-        OnceLock<Arc<crate::machine_calls::call_cycles::StructuralDescentComponents>>,
-    pub(crate) requirement_satisfiers:
-        OnceLock<Arc<crate::machine_calls::denotational_calls::RequirementSatisfierIndex>>,
-    pub(crate) erased_initializers: OnceLock<Arc<Vec<typed_trees::expression::ExpressionHandle>>>,
-    pub(crate) mathematical_expression_nodes:
-        OnceLock<Arc<Vec<typed_trees::expression::ExpressionHandle>>>,
-    pub(crate) owned_field_domains:
-        OnceLock<crate::value_custody::field_domains::OwnedFieldDomainQueries>,
-    pub(crate) declared_type_domains:
-        OnceLock<crate::value_custody::field_domains::DeclaredTypeDomainQueries>,
-    pub(crate) claim_frontiers:
-        OnceLock<crate::value_custody::type_properties::ClaimFrontierQueries>,
-    pub(crate) establishment: OnceLock<crate::value_custody::type_properties::EstablishmentQueries>,
-    pub(crate) cleanup_types: OnceLock<crate::value_custody::cleanup::CleanupTypeQueries>,
-    pub(crate) call_destinations:
-        OnceLock<crate::machine_calls::calls::signature_queries::CallDestinationQueries>,
-    pub(crate) operational: OnceLock<Arc<flow_effects::OperationalPlan>>,
-    pub(crate) service_reaches: OnceLock<(
-        flow_effects::OperationalPlan,
-        flow_effects::ServiceReachInferencePlan,
-    )>,
-    pub(crate) call_frames: Arc<CallFrameCaches>,
-    pub(crate) numeric_observations:
-        crate::proof_contracts::contract_entailment::numeric_observations::NumericObservationTable,
-    pub(crate) operand_fit_outcomes: Mutex<
-        symbols::SymbolKeyMap<
-            (
-                symbols::SymbolHandle,
-                typed_trees::expression::ExpressionHandle,
-            ),
-            Option<crate::proof_contracts::contract_entailment::OperandFitOutcome>,
+        pub(crate) provider_applications: OnceLock<Arc<Vec<crate::ProviderApplicationAssociation>>>,
+        pub(crate) indexed_logical_machines: OnceLock<Arc<Vec<symbols::SymbolHandle>>>,
+        pub(crate) erased_initializers:
+            OnceLock<Arc<Vec<typed_trees::expression::ExpressionHandle>>>,
+        pub(crate) mathematical_expression_nodes:
+            OnceLock<Arc<Vec<typed_trees::expression::ExpressionHandle>>>,
+        pub(crate) owned_field_domains:
+            OnceLock<crate::value_custody::field_domains::OwnedFieldDomainQueries>,
+        pub(crate) declared_type_domains:
+            OnceLock<crate::value_custody::field_domains::DeclaredTypeDomainQueries>,
+        pub(crate) claim_frontiers:
+            OnceLock<crate::value_custody::type_properties::ClaimFrontierQueries>,
+        pub(crate) establishment:
+            OnceLock<crate::value_custody::type_properties::EstablishmentQueries>,
+        pub(crate) call_destinations:
+            OnceLock<crate::machine_calls::calls::signature_queries::CallDestinationQueries>,
+        pub(crate) operational: OnceLock<Arc<flow_effects::OperationalPlan>>,
+        pub(crate) service_reaches: OnceLock<(
+            flow_effects::OperationalPlan,
+            flow_effects::ServiceReachInferencePlan,
+        )>,
+        pub(crate) caller_sites: OnceLock<Arc<CallerSiteCaches>>,
+        pub(crate) content_conservation: OnceLock<Arc<ContentConservationInputs>>,
+        pub(crate) binary_meanings: Mutex<
+            symbols::SymbolKeyMap<(u32, u32, typed_trees::expression::ExpressionHandle), bool>,
         >,
-    >,
-    pub(crate) operand_fit_populated:
-        Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, ()>>,
-    pub(crate) completed_case_outcomes: Mutex<
-        symbols::SymbolKeyMap<
-            (
-                symbols::SymbolHandle,
-                symbols::SymbolHandle,
-                usize,
-                typed_trees::expression::ExpressionHandle,
-                typed_trees::types::TypeReferenceHandle,
-            ),
-            Option<symbols::SymbolHandle>,
+        pub(crate) bound_subtree_meanings: Mutex<
+            symbols::SymbolKeyMap<
+                (u32, u32, typed_trees::expression::ExpressionHandle),
+                Option<u8>,
+            >,
         >,
-    >,
-    pub(crate) completed_case_populated:
-        Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, ()>>,
-    proof_only: OnceLock<Arc<ProofOnlyClassification>>,
-    pub(crate) license_candidates: OnceLock<Arc<LicenseCandidates>>,
-    pub(crate) entry_machines: OnceLock<Arc<EntryMachines>>,
-    pub(crate) caller_sites: OnceLock<Arc<CallerSiteCaches>>,
-    pub(crate) content_conservation: OnceLock<Arc<ContentConservationInputs>>,
-    pub(crate) admitted_dependency_bodies: Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, ()>>,
-    pub(crate) shared_proof_walks: Mutex<
-        symbols::SymbolKeyMap<
-            symbols::SymbolHandle,
-            Arc<crate::proof_contracts::contract_entailment::shared_proof_walks::SharedProofWalks>,
+        /// `value_class` and float-operand answers per state-owned expression.
+        /// Operator validation asks both of each binary's operands, and each
+        /// answer descends its operand's whole arithmetic subtree, so without
+        /// these an operator chain was classified once per enclosing operator.
+        /// Static boolean answers per arena slot: 0 unknown, 1 none, 2 false,
+        /// 3 true (`TypedTrees::static_boolean_value_memoized`).
+        pub(crate) static_booleans: std::sync::RwLock<Vec<u8>>,
+        pub(crate) expression_value_classes: std::sync::RwLock<
+            symbols::SymbolKeyMap<
+                (u32, u32, typed_trees::expression::ExpressionHandle),
+                Option<u8>,
+            >,
         >,
-    >,
-    pub(crate) building_shared_proof_walks: Mutex<
-        symbols::SymbolKeyMap<
-            crate::proof_contracts::contract_entailment::shared_proof_walks::BuildingWalk,
-            (),
+        pub(crate) expression_float_operands: std::sync::RwLock<
+            symbols::SymbolKeyMap<(u32, u32, typed_trees::expression::ExpressionHandle), bool>,
         >,
-    >,
-    pub(crate) normal_return_intervals: Mutex<
-        symbols::SymbolKeyMap<
-            (
-                symbols::SymbolHandle,
-                symbols::SymbolHandle,
-                u8,
-                Vec<(symbols::SymbolHandle, crate::proof_contracts::arithmetic_domains::Interval)>,
-            ),
-            Option<(
+        pub(crate) expression_result_types: std::sync::RwLock<
+            symbols::SymbolKeyMap<
+                (u32, u32, typed_trees::expression::ExpressionHandle),
+                Option<typed_trees::types::TypeReferenceHandle>,
+            >,
+        >,
+        /// A parameter telescope's principal results depend on its owner,
+        /// formal roster and exact supplying application, including phantom
+        /// operands of nullary calls. Equal complete contexts share one dense id.
+        /// Proof intake rebuilds the same roster for every observed value; without
+        /// the id, a deep `||`/`&&` predicate retypes each subtree at every node.
+        pub(crate) parameter_telescopes: Mutex<
+            symbols::SymbolKeyMap<
+                (
+                    symbols::SymbolHandle,
+                    Vec<(
+                        symbols::SymbolHandle,
+                        typed_trees::types::TypeReferenceHandle,
+                    )>,
+                    Option<typed_trees::trait_definition::RetainedTraitScope>,
+                ),
+                u32,
+            >,
+        >,
+        pub(crate) parameter_result_types: std::sync::RwLock<
+            symbols::SymbolKeyMap<
+                (u32, typed_trees::expression::ExpressionHandle),
+                Option<typed_trees::types::TypeReferenceHandle>,
+            >,
+        >,
+        pub(crate) effective_result_references: Mutex<
+            std::collections::HashMap<String, Option<typed_trees::types::TypeReferenceHandle>>,
+        >,
+        pub(crate) ordered_integer_meanings: Mutex<
+            symbols::SymbolKeyMap<
+                (u32, u32, typed_trees::expression::ExpressionHandle),
+                Option<(
+                    typed_trees::types::PrimitiveType,
+                    numerics::arithmetic::ArithmeticDomain,
+                )>,
+            >,
+        >,
+        pub(crate) parameter_requires_intervals: Mutex<
+            symbols::SymbolKeyMap<
+                (u32, u32, symbols::SymbolHandle, bool),
                 crate::proof_contracts::arithmetic_domains::Interval,
-                Option<checked_trees::IntegerRangeRecipe>,
-            )>,
+            >,
         >,
-    >,
-    pub(crate) completed_collection_lengths: Mutex<
-        symbols::SymbolKeyMap<
-            (
-                symbols::SymbolHandle,
-                symbols::SymbolHandle,
-                typed_trees::expression::ExpressionHandle,
-            ),
-            u64,
-        >,
-    >,
-    pub(crate) active_collection_lengths: Mutex<
-        symbols::SymbolKeyMap<
-            (
-                symbols::SymbolHandle,
-                symbols::SymbolHandle,
-                typed_trees::expression::ExpressionHandle,
-                std::thread::ThreadId,
-            ),
-            (),
-        >,
-    >,
-    pub(crate) binary_meanings:
-        Mutex<symbols::SymbolKeyMap<(u32, u32, typed_trees::expression::ExpressionHandle), bool>>,
-    pub(crate) bound_subtree_meanings: Mutex<
-        symbols::SymbolKeyMap<(u32, u32, typed_trees::expression::ExpressionHandle), Option<u8>>,
-    >,
-    /// `value_class` and float-operand answers per state-owned expression.
-    /// Operator validation asks both of each binary's operands, and each
-    /// answer descends its operand's whole arithmetic subtree, so without
-    /// these an operator chain was classified once per enclosing operator.
-    /// Static boolean answers per arena slot: 0 unknown, 1 none, 2 false,
-    /// 3 true (`TypedTrees::static_boolean_value_memoized`).
-    pub(crate) static_booleans: std::sync::RwLock<Vec<u8>>,
-    pub(crate) expression_value_classes: std::sync::RwLock<
-        symbols::SymbolKeyMap<(u32, u32, typed_trees::expression::ExpressionHandle), Option<u8>>,
-    >,
-    pub(crate) expression_float_operands: std::sync::RwLock<
-        symbols::SymbolKeyMap<(u32, u32, typed_trees::expression::ExpressionHandle), bool>,
-    >,
-    pub(crate) expression_result_types: std::sync::RwLock<
-        symbols::SymbolKeyMap<
-            (u32, u32, typed_trees::expression::ExpressionHandle),
-            Option<typed_trees::types::TypeReferenceHandle>,
-        >,
-    >,
-    /// A parameter telescope's principal results depend on its owner,
-    /// formal roster and exact supplying application, including phantom
-    /// operands of nullary calls. Equal complete contexts share one dense id.
-    /// Proof intake rebuilds the same roster for every observed value; without
-    /// the id, a deep `||`/`&&` predicate retypes each subtree at every node.
-    pub(crate) parameter_telescopes: Mutex<
-        symbols::SymbolKeyMap<
-            (
-                symbols::SymbolHandle,
-                Vec<(
+        pub(crate) case_reference_owners:
+            Mutex<symbols::SymbolKeyMap<typed_trees::expression::ExpressionHandle, Option<usize>>>,
+        pub(crate) nominal_cleanup_owners: Mutex<symbols::SymbolMap<Option<symbols::SymbolHandle>>>,
+        pub(crate) selected_application_carriers: Mutex<
+            symbols::SymbolKeyMap<
+                (
+                    symbols::SymbolHandle,
                     symbols::SymbolHandle,
                     typed_trees::types::TypeReferenceHandle,
-                )>,
-                Option<typed_trees::trait_definition::RetainedTraitScope>,
-            ),
-            u32,
+                    usize,
+                ),
+                SelectedCarrierVerdict,
+            >,
         >,
-    >,
-    pub(crate) parameter_result_types: std::sync::RwLock<
-        symbols::SymbolKeyMap<
-            (u32, typed_trees::expression::ExpressionHandle),
-            Option<typed_trees::types::TypeReferenceHandle>,
-        >,
-    >,
-    pub(crate) effective_result_references: Mutex<
-        std::collections::HashMap<
-            String,
-            Option<typed_trees::types::TypeReferenceHandle>,
-        >,
-    >,
-    pub(crate) ordered_integer_meanings: Mutex<
-        symbols::SymbolKeyMap<
-            (u32, u32, typed_trees::expression::ExpressionHandle),
-            Option<(
-                typed_trees::types::PrimitiveType,
-                numerics::arithmetic::ArithmeticDomain,
-            )>,
-        >,
-    >,
-    pub(crate) parameter_requires_intervals: Mutex<
-        symbols::SymbolKeyMap<
-            (u32, u32, symbols::SymbolHandle, bool),
-            crate::proof_contracts::arithmetic_domains::Interval,
-        >,
-    >,
-    pub(crate) case_reference_owners:
-        Mutex<symbols::SymbolKeyMap<typed_trees::expression::ExpressionHandle, Option<usize>>>,
-    pub(crate) checked_value_call_candidates: Mutex<
-        symbols::SymbolKeyMap<
-            (symbols::SymbolHandle, symbols::SymbolHandle),
-            Result<(), &'static str>,
-        >,
-    >,
-    pub(crate) nominal_cleanup_owners: Mutex<symbols::SymbolMap<Option<symbols::SymbolHandle>>>,
-    pub(crate) selected_application_carriers: Mutex<
-        symbols::SymbolKeyMap<
-            (
-                symbols::SymbolHandle,
-                symbols::SymbolHandle,
+        pub(crate) contract_occurrences:
+            OnceLock<Arc<crate::proof_contracts::contract_results::ContractOccurrenceIndex>>,
+        pub(crate) bound_maps:
+            OnceLock<Arc<crate::proof_contracts::immutable_integer_bounds::BoundMaps>>,
+        pub(crate) declared_float_field_bounds: Mutex<
+            symbols::SymbolKeyMap<
                 typed_trees::types::TypeReferenceHandle,
-                usize,
-            ),
-            SelectedCarrierVerdict,
-        >,
-    >,
-    pub(crate) contract_occurrences:
-        OnceLock<Arc<crate::proof_contracts::contract_results::ContractOccurrenceIndex>>,
-    pub(crate) bound_maps:
-        OnceLock<Arc<crate::proof_contracts::immutable_integer_bounds::BoundMaps>>,
-    pub(crate) incoming_guard_environments: Mutex<
-        symbols::SymbolMap<
-            Arc<
-                Vec<(
-                    symbols::SymbolHandle,
-                    crate::proof_contracts::arithmetic_domains::ValueEnvironment,
-                )>,
+                Vec<crate::DeclaredFloatFieldBound>,
             >,
         >,
-    >,
-    pub(crate) returned_field_projections: Mutex<
-        symbols::SymbolMap<
-            Arc<(
-                Vec<(
-                    Vec<facts::PlaceSegment>,
-                    crate::proof_contracts::contract_entailment::structural_judgment::StructuralTerm,
-                )>,
-                Vec<symbols::SymbolHandle>,
-            )>,
-        >,
-    >,
-    pub(crate) declared_float_field_bounds: Mutex<
-        symbols::SymbolKeyMap<
-            typed_trees::types::TypeReferenceHandle,
-            Vec<crate::DeclaredFloatFieldBound>,
-        >,
-    >,
-    pub(crate) trapping_receipt_demand: OnceLock<Arc<crate::proof_contracts::arithmetic_domains::TrappingReceiptDemand>>,
-    pub(crate) private_arrival_index: OnceLock<
-        Arc<
-            crate::proof_contracts::contract_entailment::structural_prefix::ProgramPrivateArrivalIndex,
-        >,
-    >,
-    pub(crate) private_closed_arrivals: Mutex<
-        symbols::SymbolKeyMap<
-            (symbols::SymbolHandle, symbols::SymbolHandle),
-            Result<
-                std::sync::Arc<
-                    crate::proof_contracts::contract_entailment::structural_prefix::ClosedArrivals,
-                >,
-                &'static str,
-            >,
-        >,
-    >,
-    pub(crate) state_prefix_reachability_edges:
-        Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, Option<Vec<symbols::SymbolHandle>>>>,
-    pub(crate) state_prefix_cycle_membership:
-        Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, bool>>,
-    pub(crate) normal_completion_possible:
-        Mutex<symbols::SymbolKeyMap<symbols::SymbolHandle, Option<bool>>>,
+        pub(crate) trapping_receipt_demand:
+            OnceLock<Arc<crate::proof_contracts::arithmetic_domains::TrappingReceiptDemand>>,
     }
 
     impl CheckingMemos {
@@ -1521,7 +1216,6 @@ pub mod frozen_program {
         fn retain_typed_tree_memos(self) -> Self {
             Self {
                 projection_syntax: self.projection_syntax,
-                requirement_satisfiers: self.requirement_satisfiers,
                 erased_initializers: self.erased_initializers,
                 mathematical_expression_nodes: self.mathematical_expression_nodes,
                 owned_field_domains: self.owned_field_domains,
@@ -1530,8 +1224,6 @@ pub mod frozen_program {
                 establishment: self.establishment,
                 call_destinations: self.call_destinations,
                 proof_only: self.proof_only,
-                license_candidates: self.license_candidates,
-                entry_machines: self.entry_machines,
                 caller_sites: self.caller_sites,
                 content_conservation: self.content_conservation,
                 case_reference_owners: self.case_reference_owners,
@@ -1539,12 +1231,6 @@ pub mod frozen_program {
                 contract_occurrences: self.contract_occurrences,
                 bound_maps: self.bound_maps,
                 declared_float_field_bounds: self.declared_float_field_bounds,
-                private_arrival_index: self.private_arrival_index,
-                private_closed_arrivals: self.private_closed_arrivals,
-                state_prefix_reachability_edges: self.state_prefix_reachability_edges,
-                state_prefix_cycle_membership: self.state_prefix_cycle_membership,
-                normal_completion_possible: self.normal_completion_possible,
-                admitted_dependency_bodies: self.admitted_dependency_bodies,
                 ..Self::default()
             }
         }
@@ -1559,12 +1245,9 @@ pub mod frozen_program {
         fn clone_typed_tree_memos(&self) -> Self {
             Self {
                 projection_syntax: self.projection_syntax.clone(),
-                requirement_satisfiers: self.requirement_satisfiers.clone(),
                 erased_initializers: self.erased_initializers.clone(),
                 mathematical_expression_nodes: self.mathematical_expression_nodes.clone(),
                 proof_only: self.proof_only.clone(),
-                license_candidates: self.license_candidates.clone(),
-                entry_machines: self.entry_machines.clone(),
                 caller_sites: self.caller_sites.clone(),
                 content_conservation: self.content_conservation.clone(),
                 case_reference_owners: Mutex::new(
@@ -1588,37 +1271,6 @@ pub mod frozen_program {
                         .unwrap_or_default(),
                 ),
                 trapping_receipt_demand: self.trapping_receipt_demand.clone(),
-                private_arrival_index: self.private_arrival_index.clone(),
-                private_closed_arrivals: Mutex::new(
-                    self.private_closed_arrivals
-                        .lock()
-                        .map(|guard| guard.clone())
-                        .unwrap_or_default(),
-                ),
-                state_prefix_reachability_edges: Mutex::new(
-                    self.state_prefix_reachability_edges
-                        .lock()
-                        .map(|guard| guard.clone())
-                        .unwrap_or_default(),
-                ),
-                state_prefix_cycle_membership: Mutex::new(
-                    self.state_prefix_cycle_membership
-                        .lock()
-                        .map(|guard| guard.clone())
-                        .unwrap_or_default(),
-                ),
-                normal_completion_possible: Mutex::new(
-                    self.normal_completion_possible
-                        .lock()
-                        .map(|guard| guard.clone())
-                        .unwrap_or_default(),
-                ),
-                admitted_dependency_bodies: Mutex::new(
-                    self.admitted_dependency_bodies
-                        .lock()
-                        .map(|guard| guard.clone())
-                        .unwrap_or_default(),
-                ),
                 ..Self::default()
             }
         }
@@ -1676,56 +1328,6 @@ pub mod frozen_program {
 
     pub fn proof_only_classification(program: &dyn CheckingInput) -> Arc<ProofOnlyClassification> {
         program.proof_only_classification()
-    }
-
-    #[cfg(test)]
-    mod cleanup_query_tests {
-        use super::*;
-        use crate::value_custody::cleanup::has_no_owned_cleanup_obligations;
-        use typed_trees::types::TypeReferenceNode;
-
-        #[test]
-        fn cleanup_queries_reset_for_unique_and_shared_context_substitutions() {
-            let mut program = TypedTrees::default();
-            let reference = program.type_reference_table.insert(TypeReferenceNode::Unit);
-            for share_previous in [false, true] {
-                let context = CheckingContext::new(&program);
-                let answer = has_no_owned_cleanup_obligations(&context, reference);
-                assert!(context.memos.cleanup_types.get().is_some());
-                let previous = share_previous.then(|| context.memos.clone());
-
-                let substituted = context.with_prepared_mathematics(None);
-                assert!(substituted.memos.cleanup_types.get().is_none());
-                assert_eq!(
-                    has_no_owned_cleanup_obligations(&substituted, reference),
-                    answer
-                );
-                if let Some(previous) = previous {
-                    assert!(previous.cleanup_types.get().is_some());
-                }
-            }
-        }
-
-        #[test]
-        fn cleanup_queries_do_not_cross_borrow_contexts_or_bare_inputs() {
-            let mut program = TypedTrees::default();
-            let reference = program.type_reference_table.insert(TypeReferenceNode::Unit);
-            assert!(program.checking_memos().is_none());
-            let uncached = has_no_owned_cleanup_obligations(&program, reference);
-            let context = CheckingContext::new(&program);
-            assert!(context.memos.cleanup_types.get().is_none());
-            assert_eq!(
-                has_no_owned_cleanup_obligations(&context, reference),
-                uncached
-            );
-
-            let substituted = context.with_retained_borrow_custodies(Arc::from([]));
-            assert!(substituted.memos.cleanup_types.get().is_none());
-            assert_eq!(
-                has_no_owned_cleanup_obligations(&substituted, reference),
-                uncached
-            );
-        }
     }
 }
 
@@ -2725,7 +2327,7 @@ pub mod queries {
         use std::collections::HashSet;
         use typed_trees::domain::ProofFact;
         use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMatchExpression};
-        use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+        use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
         pub fn inert_value_tree_with_operations(
             program: &dyn crate::CheckingInput,
@@ -2915,65 +2517,9 @@ pub mod queries {
         pub fn children(
             program: &dyn crate::CheckingInput,
             node: &ExpressionNode,
-            mut child: impl FnMut(ExpressionHandle),
+            child: impl FnMut(ExpressionHandle),
         ) {
-            match node {
-                ExpressionNode::Match(dispatch) => {
-                    for expression in match_children(program, *dispatch) {
-                        child(expression);
-                    }
-                }
-                ExpressionNode::Binary(binary) => {
-                    child(binary.left);
-                    child(binary.right);
-                }
-                ExpressionNode::Unary(unary) => child(unary.operand),
-                ExpressionNode::Borrow(borrow) => child(borrow.target),
-                ExpressionNode::Cast(cast) => child(cast.value),
-                ExpressionNode::Atomic(atomic) => {
-                    if let Some(once) =
-                        crate::value_custody::atomic_operations::atomic_once_operands(
-                            program, atomic,
-                        )
-                    {
-                        child(once.place);
-                        for operand in once.operands {
-                            child(operand);
-                        }
-                    } else {
-                        child(atomic.value);
-                        child(atomic.result);
-                    }
-                }
-                ExpressionNode::ArrayLiteral(elements) => {
-                    for element in expression_table(program).expression_handles(*elements) {
-                        child(*element);
-                    }
-                }
-                ExpressionNode::Call(call) => {
-                    child(call.receiver);
-                    for argument in expression_table(program).expression_handles(call.arguments) {
-                        child(*argument);
-                    }
-                }
-                ExpressionNode::Indexed(indexed) => {
-                    child(indexed.collection);
-                    child(indexed.index);
-                }
-                ExpressionNode::Member(member) => child(member.receiver),
-                ExpressionNode::Range(range) => {
-                    child(range.start);
-                    child(range.end);
-                }
-                ExpressionNode::StructLiteral(literal) => {
-                    for field in expression_table(program).struct_fields(literal.fields) {
-                        child(field.value);
-                    }
-                }
-                ExpressionNode::TypeExpression(_)
-                | ExpressionNode::SavedSubject(_)
-                | typed_trees::literal_expression_pattern!() => {}
-            }
+            program.typed_program().expression_children(node, child);
         }
 
         pub(crate) fn executable_children(
@@ -3232,41 +2778,22 @@ pub mod queries {
             machine: &typed_trees::machine::Machine,
             state: &typed_trees::state::State,
             prior_statements: &[typed_trees::statement::StatementNode],
-            symbols: &crate::TopLevelSymbols<'_>,
+            _symbols: &crate::TopLevelSymbols<'_>,
             expression: ExpressionHandle,
             diagnostics: &mut Vec<diagnostics::Diagnostic>,
         ) {
             let mut names = Vec::new();
             collect_expression_tree(program, expression, &mut names);
             for name in names {
-                crate::machine_calls::calls::report_unresolved_name_use(
+                typed_trees::source_names::report_unresolved_name_use(
                     program,
                     machine,
                     state,
                     prior_statements,
-                    symbols,
                     name,
                     diagnostics,
                 );
             }
-            if let Err(mut construction) = crate::validate_value_construction(
-                program,
-                machine,
-                state,
-                expression,
-                &mut Vec::new(),
-            ) {
-                diagnostics.append(&mut construction);
-            }
-            crate::value_custody::expression_types::validate_float_expression_formats(
-                program,
-                state.symbol,
-                expression,
-                &|operand| {
-                    crate::expression_result_type_reference(program, machine, state, operand)
-                },
-                diagnostics,
-            );
         }
 
         pub fn collect_expression_tree(
@@ -3361,55 +2888,9 @@ pub mod queries {
             visited: &mut Vec<TypeReferenceHandle>,
             expressions: &mut Vec<ExpressionHandle>,
         ) {
-            if !reference.is_valid() || visited.contains(&reference) {
-                return;
-            }
-            visited.push(reference);
-            match program.type_reference_table.type_reference(reference) {
-                TypeReferenceNode::Reference { referee, .. } => {
-                    collect_type_expressions(program, *referee, visited, expressions);
-                }
-                TypeReferenceNode::FixedArray { element_type, .. }
-                | TypeReferenceNode::Slice { element_type } => {
-                    collect_type_expressions(program, *element_type, visited, expressions);
-                }
-                TypeReferenceNode::Generic { arguments, .. } => {
-                    for argument in program
-                        .type_reference_table
-                        .type_reference_handles(*arguments)
-                    {
-                        collect_type_expressions(program, *argument, visited, expressions);
-                    }
-                }
-                TypeReferenceNode::Constrained {
-                    base_type,
-                    constraints,
-                } => {
-                    collect_type_expressions(program, *base_type, visited, expressions);
-                    for constraint in program.type_reference_table.constraints(*constraints) {
-                        match constraint {
-                            TypeConstraintNode::Domain(domain) => {
-                                for argument in &domain.arguments {
-                                    collect_type_expressions(
-                                        program,
-                                        *argument,
-                                        visited,
-                                        expressions,
-                                    );
-                                }
-                            }
-                            TypeConstraintNode::Named(_)
-                            | TypeConstraintNode::ArithmeticDomain(_) => {}
-                        }
-                    }
-                }
-                TypeReferenceNode::ConstExpression(expression) => {
-                    collect_expression_tree(program, *expression, expressions);
-                }
-                TypeReferenceNode::Named { .. }
-                | TypeReferenceNode::DynamicTrait { .. }
-                | TypeReferenceNode::Unit => {}
-            }
+            program
+                .typed_program()
+                .collect_type_expression_trees(reference, visited, expressions);
         }
 
         pub fn collect_transition_target_expression_trees(
@@ -4419,550 +3900,5 @@ pub mod queries {
             Some(definition)
         }
     }
-    pub(crate) mod type_regions {
-        use typed_trees::name::Identifier;
-        use typed_trees::types::{
-            DomainConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-        };
-
-        pub(crate) trait TypeRegionScope: Copy {
-            fn erased_identity(
-                self,
-                program: &dyn crate::CheckingInput,
-                reference: TypeReferenceHandle,
-            ) -> typed_trees::type_identity::NormalizedTypeIdentity {
-                program.normalized_type_identity(reference)
-            }
-
-            fn enter_operand(
-                self,
-                _program: &dyn crate::CheckingInput,
-                _owner: symbols::SymbolHandle,
-            ) -> Self {
-                self
-            }
-
-            fn at_lifetime(
-                self,
-                program: &dyn crate::CheckingInput,
-                reference: TypeReferenceHandle,
-                slot: usize,
-                spelling: Option<&Identifier>,
-            ) -> Option<Self> {
-                Some(
-                    match retained_lifetime_identity(program, reference, slot, spelling).ok()? {
-                        Some(region) => self.enter_lifetime(program, region),
-                        None => self,
-                    },
-                )
-            }
-
-            fn enter_lifetime(
-                self,
-                program: &dyn crate::CheckingInput,
-                region: typed_trees::type_identity::LifetimeParameterIdentity,
-            ) -> Self {
-                self.enter_operand(program, region.declaration)
-            }
-
-            fn named_alias(
-                self,
-                _program: &dyn crate::CheckingInput,
-                _symbol: symbols::SymbolHandle,
-                _reference: TypeReferenceHandle,
-            ) -> Option<ReferenceStep<Self>> {
-                None
-            }
-
-            fn resolve(
-                mut self,
-                program: &dyn crate::CheckingInput,
-                mut reference: TypeReferenceHandle,
-            ) -> Option<(TypeReferenceHandle, Self)> {
-                let mut visited = Vec::new();
-                loop {
-                    if !reference.is_valid() {
-                        return Some((reference, self));
-                    }
-                    if visited.contains(&reference)
-                        || !program
-                            .type_reference_table
-                            .contains_type_reference(reference)
-                    {
-                        return None;
-                    }
-                    visited.push(reference);
-                    let owner = program
-                        .type_reference_table
-                        .operand_lifetime_owner(reference);
-                    if owner.is_valid() {
-                        self = self.enter_operand(program, owner);
-                    }
-                    let TypeReferenceNode::Named { symbol, .. } =
-                        program.type_reference_table.type_reference(reference)
-                    else {
-                        return Some((reference, self));
-                    };
-                    match self.named_alias(program, *symbol, reference) {
-                        Some(ReferenceStep::Refuse) => return None,
-                        Some(ReferenceStep::Stop) => return Some((reference, self)),
-                        Some(ReferenceStep::Chase(scope, next)) => {
-                            self = scope;
-                            reference = next;
-                            continue;
-                        }
-                        None => {}
-                    }
-                    if let Some(application) = program
-                        .data_definition_by_symbol(*symbol)
-                        .and_then(|definition| definition.generic_instance)
-                    {
-                        reference = application;
-                        continue;
-                    }
-                    return Some((reference, self));
-                }
-            }
-        }
-
-        pub(crate) fn retained_lifetime_identity(
-            program: &dyn crate::CheckingInput,
-            reference: TypeReferenceHandle,
-            slot: usize,
-            spelling: Option<&Identifier>,
-        ) -> Result<Option<typed_trees::type_identity::LifetimeParameterIdentity>, &'static str>
-        {
-            let regions = program.type_reference_table.operand_lifetimes(reference);
-            if regions.is_empty() {
-                return Ok(None);
-            }
-            let expected = match program.type_reference_table.type_reference(reference) {
-                TypeReferenceNode::Reference {
-                    lifetime: Some(_), ..
-                } => 1,
-                TypeReferenceNode::Generic {
-                    lifetime_arguments, ..
-                } => lifetime_arguments.len(),
-                _ => 0,
-            };
-            if regions.len() != expected {
-                return Err("retained lifetime slots do not match the type's telescope");
-            }
-            let region = *regions
-                .get(slot)
-                .ok_or("retained lifetime slot is absent")?;
-            if !region.declaration.is_valid() {
-                return Ok(None);
-            }
-            if typed_trees::type_identity::lifetime_parameter_name(program.typed_program(), region)
-                != spelling
-            {
-                return Err("retained lifetime slot lost its exact declaration ordinal");
-            }
-            Ok(Some(region))
-        }
-
-        pub(crate) enum ReferenceStep<Scope> {
-            Chase(Scope, TypeReferenceHandle),
-            Stop,
-            Refuse,
-        }
-
-        #[derive(Clone, Copy, PartialEq, Eq)]
-        pub(crate) enum TypeRegionRelationship {
-            CallableRefinement,
-            ExactApplication,
-        }
-
-        pub(crate) fn type_reference_regions_match<
-            Scope: TypeRegionScope,
-            State: Clone + PartialEq,
-        >(
-            program: &dyn crate::CheckingInput,
-            actual: TypeReferenceHandle,
-            required: TypeReferenceHandle,
-            actual_scope: Scope,
-            required_scope: Scope,
-            state: &mut State,
-            lifetime_matches: &mut impl FnMut(
-                &mut State,
-                Scope,
-                Scope,
-                TypeReferenceHandle,
-                Option<&Identifier>,
-                Option<&Identifier>,
-            ) -> bool,
-        ) -> bool {
-            let mut applications = vec![state.clone()];
-            if !type_reference_region_applications(
-                program,
-                actual,
-                required,
-                actual_scope,
-                required_scope,
-                TypeRegionRelationship::CallableRefinement,
-                &mut applications,
-                lifetime_matches,
-            ) {
-                return false;
-            }
-            let [application] = applications.as_slice() else {
-                return false;
-            };
-            *state = application.clone();
-            true
-        }
-
-        pub(crate) fn type_reference_region_applications<
-            Scope: TypeRegionScope,
-            State: Clone + PartialEq,
-        >(
-            program: &dyn crate::CheckingInput,
-            actual: TypeReferenceHandle,
-            required: TypeReferenceHandle,
-            actual_scope: Scope,
-            required_scope: Scope,
-            relationship: TypeRegionRelationship,
-            applications: &mut Vec<State>,
-            lifetime_matches: &mut impl FnMut(
-                &mut State,
-                Scope,
-                Scope,
-                TypeReferenceHandle,
-                Option<&Identifier>,
-                Option<&Identifier>,
-            ) -> bool,
-        ) -> bool {
-            if applications.is_empty() {
-                return false;
-            }
-            if !actual.is_valid() || !required.is_valid() {
-                return actual.is_valid() == required.is_valid();
-            }
-            let Some((actual, actual_scope, actual_domains)) =
-                type_structure(program, actual, actual_scope)
-            else {
-                return false;
-            };
-            let Some((required, required_scope, required_domains)) =
-                type_structure(program, required, required_scope)
-            else {
-                return false;
-            };
-            macro_rules! region_child {
-                ($actual:expr, $required:expr $(,)?) => {
-                    type_reference_region_applications(
-                        program,
-                        $actual,
-                        $required,
-                        actual_scope,
-                        required_scope,
-                        relationship,
-                        applications,
-                        lifetime_matches,
-                    )
-                };
-            }
-            if !domain_region_applications(
-                program,
-                &actual_domains,
-                &required_domains,
-                DomainCoverage::Required,
-                relationship,
-                applications,
-                lifetime_matches,
-            ) || (relationship == TypeRegionRelationship::ExactApplication
-                && !domain_region_applications(
-                    program,
-                    &actual_domains,
-                    &required_domains,
-                    DomainCoverage::Actual,
-                    relationship,
-                    applications,
-                    lifetime_matches,
-                ))
-            {
-                return false;
-            }
-            match (
-                program.type_reference_table.type_reference(actual),
-                program.type_reference_table.type_reference(required),
-            ) {
-                (
-                    TypeReferenceNode::Reference {
-                        referee: actual_referee,
-                        lifetime: actual_lifetime,
-                        ..
-                    },
-                    TypeReferenceNode::Reference {
-                        referee: required_referee,
-                        lifetime: required_lifetime,
-                        ..
-                    },
-                ) => {
-                    let Some(actual_region_scope) =
-                        actual_scope.at_lifetime(program, actual, 0, actual_lifetime.as_ref())
-                    else {
-                        return false;
-                    };
-                    let Some(required_region_scope) = required_scope.at_lifetime(
-                        program,
-                        required,
-                        0,
-                        required_lifetime.as_ref(),
-                    ) else {
-                        return false;
-                    };
-                    applications.retain_mut(|state| {
-                        lifetime_matches(
-                            state,
-                            actual_region_scope,
-                            required_region_scope,
-                            actual,
-                            actual_lifetime.as_ref(),
-                            required_lifetime.as_ref(),
-                        )
-                    });
-                    region_child!(*actual_referee, *required_referee)
-                }
-                (
-                    TypeReferenceNode::FixedArray {
-                        element_type: actual_element,
-                        ..
-                    },
-                    TypeReferenceNode::FixedArray {
-                        element_type: required_element,
-                        ..
-                    },
-                )
-                | (
-                    TypeReferenceNode::Slice {
-                        element_type: actual_element,
-                    },
-                    TypeReferenceNode::Slice {
-                        element_type: required_element,
-                    },
-                ) => region_child!(*actual_element, *required_element),
-                (
-                    TypeReferenceNode::Generic {
-                        lifetime_arguments: actual_lifetimes,
-                        arguments: actual_arguments,
-                        ..
-                    },
-                    TypeReferenceNode::Generic {
-                        lifetime_arguments: required_lifetimes,
-                        arguments: required_arguments,
-                        ..
-                    },
-                ) => {
-                    actual_lifetimes.len() == required_lifetimes.len()
-                        && actual_lifetimes
-                            .iter()
-                            .zip(required_lifetimes)
-                            .enumerate()
-                            .all(|(slot, (actual_lifetime, required_lifetime))| {
-                                let Some(actual_region_scope) = actual_scope.at_lifetime(
-                                    program,
-                                    actual,
-                                    slot,
-                                    Some(actual_lifetime),
-                                ) else {
-                                    return false;
-                                };
-                                let Some(required_region_scope) = required_scope.at_lifetime(
-                                    program,
-                                    required,
-                                    slot,
-                                    Some(required_lifetime),
-                                ) else {
-                                    return false;
-                                };
-                                applications.retain_mut(|state| {
-                                    lifetime_matches(
-                                        state,
-                                        actual_region_scope,
-                                        required_region_scope,
-                                        actual,
-                                        Some(actual_lifetime),
-                                        Some(required_lifetime),
-                                    )
-                                });
-                                !applications.is_empty()
-                            })
-                        && actual_arguments.count() == required_arguments.count()
-                        && program
-                            .type_reference_table
-                            .type_reference_handles(*actual_arguments)
-                            .len()
-                            == actual_arguments.len()
-                        && program
-                            .type_reference_table
-                            .type_reference_handles(*required_arguments)
-                            .len()
-                            == required_arguments.len()
-                        && program
-                            .type_reference_table
-                            .type_reference_handles(*actual_arguments)
-                            .iter()
-                            .zip(
-                                program
-                                    .type_reference_table
-                                    .type_reference_handles(*required_arguments),
-                            )
-                            .all(|(actual_argument, required_argument)| {
-                                region_child!(*actual_argument, *required_argument)
-                            })
-                }
-                (
-                    TypeReferenceNode::DynamicTrait {
-                        arguments: actual, ..
-                    },
-                    TypeReferenceNode::DynamicTrait {
-                        arguments: required,
-                        ..
-                    },
-                ) => {
-                    actual.len() == required.len()
-                        && program
-                            .type_reference_table
-                            .type_reference_handles(*actual)
-                            .len()
-                            == actual.len()
-                        && program
-                            .type_reference_table
-                            .type_reference_handles(*required)
-                            .len()
-                            == required.len()
-                        && program
-                            .type_reference_table
-                            .type_reference_handles(*actual)
-                            .iter()
-                            .zip(
-                                program
-                                    .type_reference_table
-                                    .type_reference_handles(*required),
-                            )
-                            .all(|(actual, required)| region_child!(*actual, *required))
-                }
-                _ => true,
-            }
-        }
-
-        #[derive(Clone, Copy)]
-        pub(crate) enum DomainCoverage {
-            Required,
-            Actual,
-        }
-
-        fn domain_region_applications<Scope: TypeRegionScope, State: Clone + PartialEq>(
-            program: &dyn crate::CheckingInput,
-            actual_domains: &[(&DomainConstraint, Scope)],
-            required_domains: &[(&DomainConstraint, Scope)],
-            coverage: DomainCoverage,
-            relationship: TypeRegionRelationship,
-            applications: &mut Vec<State>,
-            lifetime_matches: &mut impl FnMut(
-                &mut State,
-                Scope,
-                Scope,
-                TypeReferenceHandle,
-                Option<&Identifier>,
-                Option<&Identifier>,
-            ) -> bool,
-        ) -> bool {
-            let (obligations, candidates) = match coverage {
-                DomainCoverage::Required => (required_domains, actual_domains),
-                DomainCoverage::Actual => (actual_domains, required_domains),
-            };
-            for (obligation, obligation_scope) in obligations {
-                let corresponding = candidates.iter().filter(|(candidate, candidate_scope)| {
-                    candidate.subject == obligation.subject
-                        && candidate.symbol == obligation.symbol
-                        && candidate.arguments.len() == obligation.arguments.len()
-                        && candidate.arguments.iter().zip(&obligation.arguments).all(
-                            |(candidate, obligation)| {
-                                candidate_scope.erased_identity(program, *candidate)
-                                    == obligation_scope.erased_identity(program, *obligation)
-                            },
-                        )
-                });
-                let mut found = false;
-                let mut alternatives = Vec::new();
-                for (candidate, candidate_scope) in corresponding {
-                    found = true;
-                    let (actual, actual_scope, required, required_scope) = match coverage {
-                        DomainCoverage::Required => {
-                            (*candidate, *candidate_scope, *obligation, *obligation_scope)
-                        }
-                        DomainCoverage::Actual => {
-                            (*obligation, *obligation_scope, *candidate, *candidate_scope)
-                        }
-                    };
-                    let mut candidate_applications = applications.clone();
-                    if actual
-                        .arguments
-                        .iter()
-                        .zip(&required.arguments)
-                        .all(|(actual, required)| {
-                            type_reference_region_applications(
-                                program,
-                                *actual,
-                                *required,
-                                actual_scope,
-                                required_scope,
-                                relationship,
-                                &mut candidate_applications,
-                                lifetime_matches,
-                            )
-                        })
-                    {
-                        for application in candidate_applications {
-                            if !alternatives.contains(&application) {
-                                alternatives.push(application);
-                            }
-                        }
-                    }
-                }
-                if !found && relationship == TypeRegionRelationship::CallableRefinement {
-                    continue;
-                }
-                *applications = alternatives;
-                if applications.is_empty() {
-                    return false;
-                }
-            }
-            true
-        }
-
-        fn type_structure<Scope: TypeRegionScope>(
-            program: &dyn crate::CheckingInput,
-            mut reference: TypeReferenceHandle,
-            mut scope: Scope,
-        ) -> Option<(TypeReferenceHandle, Scope, Vec<(&DomainConstraint, Scope)>)> {
-            let mut domains = Vec::new();
-            let mut visited = Vec::new();
-            loop {
-                let (resolved, resolved_scope) = scope.resolve(program, reference)?;
-                reference = resolved;
-                scope = resolved_scope;
-                if visited.contains(&reference) {
-                    return None;
-                }
-                visited.push(reference);
-                let TypeReferenceNode::Constrained {
-                    base_type,
-                    constraints,
-                } = program.type_reference_table.type_reference(reference)
-                else {
-                    return Some((reference, scope, domains));
-                };
-                for constraint in program.type_reference_table.constraints(*constraints) {
-                    if let TypeConstraintNode::Domain(domain) = constraint {
-                        domains.push((domain, scope));
-                    }
-                }
-                reference = *base_type;
-            }
-        }
-    }
+    pub(crate) use typed_trees::source_borrow_contracts::type_regions;
 }

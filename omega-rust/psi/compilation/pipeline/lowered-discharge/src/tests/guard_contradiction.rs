@@ -167,7 +167,7 @@ fn calls_with(argument: u128) -> (structure_elaboration::Elaboration, Discharge)
     let mut elaboration =
         structure_elaboration::lower_bodies(id(1), &bodies, &signatures, &IdTable::default())
             .unwrap();
-    let result = discharge(&mut elaboration).unwrap();
+    let result = discharge(&mut elaboration, &mut Default::default()).unwrap();
     (elaboration, result)
 }
 

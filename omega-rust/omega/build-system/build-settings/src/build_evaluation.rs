@@ -64,9 +64,6 @@ pub struct BuildEvaluationRequest<'request> {
         &'request [(source::SourceId, build_output::PackageGeneratedSource)],
     pub execution: BuildExecutionInputs,
     pub artifact_only: bool,
-    pub prior_checks: Vec<&'request psi_compiler::RetainedCheck>, // Scan-ordered prior Build language judgments (own slot chain + equal-projection siblings).
-    pub retain_check: bool, // Retain a successful judgment only when a subsequent review pass will consume it.
-    pub checked_slices: Option<&'request dyn psi_compiler::CheckedSliceStore>, // Local store of checked dependency slices; `None` checks every slice afresh.
 }
 
 pub use compilation_products::EvaluatedBuild;
@@ -84,7 +81,6 @@ pub struct PreparedBuildEvaluation {
     state: BuildEvaluationState,
     restricted_build_requests: Vec<RestrictedBuildRequest>,
     base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
-    retained_check: Option<psi_compiler::RetainedCheck>,
     provider_folded_constants: bool,
     pure_retention: Option<(CompletedPureBuildInputs, PureBuildCompilation)>,
     restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
@@ -166,7 +162,6 @@ impl PreparedBuildEvaluation {
             state,
             restricted_build_requests,
             base_source_consumption_commitment,
-            retained_check,
             provider_folded_constants,
             pure_retention,
             restricted_build_grants,
@@ -199,7 +194,6 @@ impl PreparedBuildEvaluation {
             configuration,
             restricted_build_requests,
             base_source_consumption_commitment,
-            retained_check,
             provider_folded_constants,
         })
     }
@@ -222,9 +216,6 @@ pub fn prepare_build_evaluation(
         generated_source_custody,
         execution,
         artifact_only,
-        prior_checks,
-        retain_check,
-        checked_slices,
     } = request;
     let BuildExecutionInputs {
         profile: execution_profile,
@@ -273,15 +264,7 @@ pub fn prepare_build_evaluation(
             "Build execution requires its source-owned selection",
         )]
     })?;
-    let completed_checks = pure_build_compilation
-        .map(PureBuildCompilation::completed_checks)
-        .transpose()?
-        .unwrap_or_default();
-    let prior_checks = prior_checks
-        .into_iter()
-        .chain(completed_checks.iter().map(AsRef::as_ref))
-        .collect::<Vec<_>>();
-    let (prepared, providers, retained_check, provider_folded_constants) =
+    let (prepared, providers, provider_folded_constants) =
         crate::admission::checking::prepare_checked_build(
             typed,
             pre_checks,
@@ -290,9 +273,6 @@ pub fn prepare_build_evaluation(
             dependency_activation,
             execution_profile,
             timings,
-            &prior_checks,
-            retain_check || pure_build_compilation.is_some(),
-            checked_slices,
         )?;
     let filesystem_scope = crate::prepare_filesystem_scope(
         root_path,
@@ -325,8 +305,7 @@ pub fn prepare_build_evaluation(
             restricted_build_requests,
         ));
     }
-    let inputs = admitted.pure_consumption_inputs(package_inputs, snapshot, retained_check.clone());
-    let retained_check = retain_check.then_some(retained_check).flatten();
+    let inputs = admitted.pure_consumption_inputs(package_inputs, snapshot);
     let reusable = inputs
         .as_ref()
         .zip(pure_build_compilation)
@@ -368,7 +347,6 @@ pub fn prepare_build_evaluation(
         state,
         restricted_build_requests,
         base_source_consumption_commitment,
-        retained_check,
         provider_folded_constants,
         pure_retention: inputs.zip(pure_build_compilation.cloned()),
         restricted_build_grants,

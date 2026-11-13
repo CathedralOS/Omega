@@ -7,536 +7,11 @@ pub mod expression_types {
 
     use crate::frozen_program::expression_table;
     use checked_trees::CheckedByteSequenceCarrier;
-    use diagnostics::Diagnostic;
-    use std::fmt;
     use symbols::SymbolHandle;
-    use typed_trees::data::DataMember;
     use typed_trees::expression::{ExpressionHandle, ExpressionNode};
     use typed_trees::type_identity::TypeIdentityRequest;
     use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
 
-    pub(crate) mod cast_validation {
-        use super::expression_type_name_handle;
-        use super::shape_validation::value_shape_is_array;
-        use super::value_classification::{ValueClass, value_class, value_concrete_data_name};
-        use diagnostics::Diagnostic;
-        use numerics::arithmetic::ArithmeticDomain;
-        use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCastExpression};
-        use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
-
-        pub(crate) fn validate_cast_types(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: Option<&typed_trees::state::State>,
-            occurrence: ExpressionHandle,
-            cast: &TableCastExpression,
-            environment: &crate::proof_contracts::arithmetic_domains::ValueEnvironment,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) {
-            if cast.form.is_recast() {
-                return;
-            }
-            if let Some(state) = state {
-                crate::value_custody::cleanup::validate_cleanup_delivery(
-                    program,
-                    machine,
-                    state,
-                    cast.value,
-                    cast.target_type,
-                    "explicit qualification cast",
-                    diagnostics,
-                );
-                super::validate_exact_float_coercion(
-                    program,
-                    machine,
-                    state,
-                    occurrence,
-                    cast.value,
-                    cast.target_type,
-                    environment,
-                    diagnostics,
-                );
-            }
-            crate::value_custody::type_references::validate_indexed_qualification_arguments(
-                program,
-                machine,
-                cast,
-                diagnostics,
-            );
-            let target_name = program.named_type_reference(cast.target_type);
-            if crate::proof_contracts::contract_entailment::proof_nat_cast(program, cast) {
-                let hypotheses: Vec<_> = program
-                    .contract_expressions(
-                        program.machine_contracts(machine).iter().chain(
-                            state
-                                .into_iter()
-                                .flat_map(|state| program.state_contracts(state)),
-                        ),
-                        typed_trees::signature::SignatureContractKind::Requires,
-                    )
-                    .collect();
-                if !crate::proof_contracts::contract_entailment::proof_integer_nonnegative(
-                    program,
-                    state.map_or(machine.symbol, |state| state.symbol),
-                    cast.value,
-                    &hypotheses,
-                    &[],
-                ) {
-                    diagnostics.push(Diagnostic::error(
-                "Exact proof Int-to-Nat conversion requires a previously proven nonnegative value",
-            ));
-                }
-                return;
-            }
-            if target_name.is_some_and(|target| PrimitiveType::from_name(target.as_str()).is_none())
-                && (match state {
-                    Some(state) => {
-                        super::expression_result_type_reference(program, machine, state, cast.value)
-                    }
-                    None => super::declaration_expression_result_type_reference(
-                        program,
-                        machine.symbol,
-                        None,
-                        &|expression| {
-                            crate::value_custody::places::declared_place_type(
-                                program, machine, state, expression,
-                            )
-                        },
-                        cast.value,
-                    ),
-                })
-                .is_some_and(|actual| {
-                    crate::stored_structural_type_identity(program, actual, &[], &[])
-                        == crate::stored_structural_type_identity(
-                            program,
-                            cast.target_type,
-                            &[],
-                            &[],
-                        )
-                })
-            {
-                return;
-            }
-            if let Some(target_name) = target_name
-                && let Some(quotient_data) = program.data_definitions().iter().find(|definition| {
-                    definition.name.as_str() == target_name.as_str()
-                        && definition.quotient.is_some()
-                })
-            {
-                validate_quotient_mint(program, machine, state, cast, quotient_data, diagnostics);
-                return;
-            }
-            if let Some(target) = target_name
-                && PrimitiveType::from_name(target.as_str()).is_none()
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` state `{}` casts with `as {target}`, but `{target}` is not a scalar \
-             type; non-scalar `as` only erases qualifications from the same data carrier",
-                    machine.name.as_str(),
-                    state.map(|state| state.name.as_str()).unwrap_or(""),
-                )));
-            }
-            match target_name.and_then(|target| PrimitiveType::from_name(target.as_str())) {
-                Some(PrimitiveType::Bool) => {
-                    report_number_to_bool_cast(program, machine, state, cast.value, diagnostics);
-                }
-                Some(primitive) => {
-                    report_invalid_numeric_cast_source(
-                        program,
-                        machine,
-                        state,
-                        cast.value,
-                        primitive.name(),
-                        diagnostics,
-                    );
-                }
-                _ => {}
-            }
-        }
-
-        fn validate_quotient_mint(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: Option<&typed_trees::state::State>,
-            cast: &TableCastExpression,
-            quotient_data: &typed_trees::data::DataDefinition,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) {
-            let quotient = quotient_data
-                .quotient
-                .as_ref()
-                .expect("quotient target was selected by quotient metadata");
-            let expected = base_data_symbol(program, quotient.carrier);
-            let actual = expression_data_symbol(program, machine, state, cast.value);
-            if expected.is_none() || actual != expected {
-                diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` state `{}` constructs quotient `{}` from `{}`, but quotient construction is carrier-only: expected `{}`",
-            machine.name,
-            state.map(|state| state.name.as_str()).unwrap_or(""),
-            quotient_data.name,
-            expression_type_name_handle(program, cast.value),
-            program.display_type_reference_with_constraints(quotient.carrier),
-        )));
-            }
-            if cast.semantic_domain.count() != 0 || cast.domain != ArithmeticDomain::Exact {
-                diagnostics.push(Diagnostic::error(format!(
-            "quotient construction `as {}` cannot carry an arithmetic or semantic-domain policy suffix",
-            quotient_data.name,
-        )));
-            }
-        }
-
-        fn base_data_symbol(
-            program: &dyn crate::CheckingInput,
-            type_reference: TypeReferenceHandle,
-        ) -> Option<symbols::SymbolHandle> {
-            if !type_reference.is_valid() {
-                return None;
-            }
-            program.type_reference_table.type_head_symbol(
-                program
-                    .type_reference_table
-                    .unconstrained_type_reference(type_reference),
-            )
-        }
-
-        fn expression_data_symbol(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: Option<&typed_trees::state::State>,
-            expression: ExpressionHandle,
-        ) -> Option<symbols::SymbolHandle> {
-            if let Some(type_reference) = crate::value_custody::places::declared_place_type(
-                program, machine, state, expression,
-            )
-            .or_else(|| match program.expression_table.expression(expression) {
-                ExpressionNode::Call(call) => {
-                    crate::proof_contracts::arithmetic_domains::call_return_type(program, call)
-                }
-                _ => None,
-            }) {
-                return base_data_symbol(program, type_reference);
-            }
-            match program.expression_table.expression(expression) {
-                ExpressionNode::StructLiteral(literal) => literal
-                    .type_symbol
-                    .is_valid()
-                    .then_some(literal.type_symbol),
-                ExpressionNode::Borrow(inner) => {
-                    expression_data_symbol(program, machine, state, inner.target)
-                }
-                ExpressionNode::Atomic(atomic) => {
-                    expression_data_symbol(program, machine, state, atomic.value)
-                }
-                ExpressionNode::Cast(cast) => base_data_symbol(program, cast.target_type),
-                _ => None,
-            }
-        }
-
-        fn report_number_to_bool_cast(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: Option<&typed_trees::state::State>,
-            value: ExpressionHandle,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) -> bool {
-            let class = value_class(program, Some(machine), state, value);
-            if !matches!(class, Some(ValueClass::Numeric) | Some(ValueClass::Text)) {
-                return false;
-            }
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` state `{}` casts {} to `bool`, but `as` has no number-to-bool conversion \
-         (a `bool` is {{0, 1}}; write an explicit comparison like `n != 0`)",
-                machine.name.as_str(),
-                state.map(|state| state.name.as_str()).unwrap_or(""),
-                class.unwrap().describe(),
-            )));
-            true
-        }
-
-        fn report_invalid_numeric_cast_source(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: Option<&typed_trees::state::State>,
-            source: ExpressionHandle,
-            target_name: &str,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) -> bool {
-            let mut reject = |reason: String| {
-                diagnostics.push(Diagnostic::error(format!(
-                    "machine `{}` state `{}` {reason} to `{target_name}`, but `as` converts between \
-             scalar types only",
-                    machine.name.as_str(),
-                    state.map(|state| state.name.as_str()).unwrap_or(""),
-                )));
-                true
-            };
-            if value_class(program, Some(machine), state, source) == Some(ValueClass::Text) {
-                return reject("casts text".to_owned());
-            }
-            if value_shape_is_array(program, machine, state, source) == Some(true) {
-                return reject("casts an array value".to_owned());
-            }
-            if let Some(name) = value_concrete_data_name(program, machine, state, source) {
-                return reject(format!("casts a `{name}` value"));
-            }
-            false
-        }
-    }
-    pub(crate) mod float_coercions {
-        use diagnostics::Diagnostic;
-        use numerics::bignum::BigRational;
-        use numerics::float_semantics::{FloatFormat, FloatMeaning, FloatSemantics};
-        use typed_trees::machine::Machine;
-        use typed_trees::state::State;
-        use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
-
-        #[allow(clippy::too_many_arguments)]
-        pub(crate) fn validate_exact_float_coercion(
-            program: &dyn crate::CheckingInput,
-            machine: &Machine,
-            state: &State,
-            occurrence: typed_trees::expression::ExpressionHandle,
-            operand: typed_trees::expression::ExpressionHandle,
-            target: TypeReferenceHandle,
-            environment: &crate::proof_contracts::arithmetic_domains::ValueEnvironment,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) -> bool {
-            let source = super::expression_result_type_reference(program, machine, state, operand)
-                .and_then(|reference| program.primitive_type_reference(reference));
-            let Some(source) = source else {
-                return true;
-            };
-            let Some(target) = program.primitive_type_reference(target) else {
-                return true;
-            };
-            let proven = float_coercion_preserves_denotation(
-                source,
-                target,
-                || {
-                    crate::proof_contracts::arithmetic_domains::float_source_bounds(
-                        program,
-                        machine.symbol,
-                        environment,
-                        operand,
-                        &|value| {
-                            Some(state).and_then(|state| {
-                crate::value_custody::expression_types::expression_result_type_reference(
-                    program,
-                    machine,
-                    state,
-                    value,
-                )
-            })
-            .or_else(|| {
-                crate::value_custody::places::declared_place_type_raw(
-                    program,
-                    machine,
-                    Some(state),
-                    value,
-                )
-            })
-                        },
-                    )
-                },
-                || {
-                    crate::proof_contracts::arithmetic_domains::integer_source_bounds(
-                        program,
-                        machine,
-                        state,
-                        operand,
-                        source,
-                        environment,
-                        diagnostics,
-                    )
-                },
-            );
-            let Some(proven) = proven else {
-                return true;
-            };
-            let source_reference =
-                super::expression_result_type_reference(program, machine, state, operand);
-            let proven = proven
-        || (matches!(source, PrimitiveType::F32 | PrimitiveType::F64)
-            && source_reference.is_some_and(|reference| {
-                crate::proof_contracts::contract_entailment::exact_float_integer_cast_fits_at_occurrence(
-                    program, machine, state, occurrence, reference, target,
-                )
-            }))
-        || (source.is_fixed_integer()
-            && matches!(target, PrimitiveType::F32 | PrimitiveType::F64)
-            && source_reference.is_some_and(|reference| {
-                crate::proof_contracts::contract_entailment::exact_integer_float_cast_fits_at_occurrence(
-                    program, machine, state, occurrence, reference, target,
-                )
-            }));
-            if !proven {
-                let message = if matches!(source, PrimitiveType::F32 | PrimitiveType::F64) {
-                    format!(
-                        "machine `{}` state `{}` cannot prove Exact float-to-`{}` cast operand `{}` \
-                 preserves its denotation; prove an integral representable value for an integer \
-                 target, or exact format representability; use a named conversion to round or truncate",
-                        machine.name,
-                        state.name,
-                        target.name(),
-                        program.expression_table.display_name(operand),
-                    )
-                } else {
-                    format!(
-                        "machine `{}` state `{}` cannot prove integer-to-`{}` cast operand `{}` \
-                 preserves its denotation; prove exact format representability or use a named conversion to round",
-                        machine.name,
-                        state.name,
-                        target.name(),
-                        program.expression_table.display_name(operand),
-                    )
-                };
-                diagnostics.push(
-                    Diagnostic::error(message)
-                        .with_source_span(program.expression_table.source_span(operand)),
-                );
-            }
-            proven
-        }
-
-        pub(crate) fn float_coercion_preserves_denotation(
-            source: PrimitiveType,
-            target: PrimitiveType,
-            float_bounds: impl FnOnce() -> Option<
-                crate::proof_contracts::arithmetic_domains::FloatSourceBounds,
-            >,
-            integer_bounds: impl FnOnce() -> Option<(i128, i128)>,
-        ) -> Option<bool> {
-            if numerics::float_semantics_catalog::IntegerCarrier::from_spelling(source.name())
-                .is_some()
-                && matches!(target, PrimitiveType::F32 | PrimitiveType::F64)
-            {
-                let format = if target == PrimitiveType::F32 {
-                    FloatFormat::BINARY32
-                } else {
-                    FloatFormat::BINARY64
-                };
-                return Some(integer_bounds().is_some_and(|(minimum, maximum)| {
-                    let exact_limit = 1i128 << format.precision;
-                    if minimum >= -exact_limit && maximum <= exact_limit {
-                        true
-                    } else if minimum == maximum {
-                        let integer = numerics::bignum::BigInt::from_i128(minimum);
-                        FloatSemantics::from_integer(format, &integer)
-                            == FloatMeaning::FiniteNonZero(BigRational::from_integer(integer))
-                    } else {
-                        false
-                    }
-                }));
-            }
-            if !matches!(source, PrimitiveType::F32 | PrimitiveType::F64) {
-                return None;
-            }
-            if source == target || (source == PrimitiveType::F32 && target == PrimitiveType::F64) {
-                return Some(true);
-            }
-            if !target.accepts_integer_literal() && target != PrimitiveType::F32 {
-                return None;
-            }
-            Some(float_bounds().is_some_and(|bounds| {
-                if target.accepts_integer_literal() {
-                    bounds.is_exact_integer(target)
-                } else if bounds.minimum == bounds.maximum {
-                    let meaning = FloatMeaning::from_f64(bounds.minimum);
-                    FloatSemantics::convert(FloatFormat::BINARY32, &meaning) == meaning
-                } else {
-                    false
-                }
-            }))
-        }
-    }
-    pub(crate) mod float_operations {
-        use diagnostics::Diagnostic;
-        use symbols::SymbolHandle;
-        use typed_trees::expression::{BinaryOperator, ExpressionHandle};
-        use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
-
-        pub(crate) fn validate_binary_float_formats(
-            program: &dyn crate::CheckingInput,
-            owner: SymbolHandle,
-            expression: ExpressionHandle,
-            operands: &[Option<TypeReferenceHandle>; 2],
-            diagnostics: &mut Vec<Diagnostic>,
-        ) {
-            let Some(binary) = program.expression_table.binary_node(expression) else {
-                return;
-            };
-            if !matches!(
-                binary.operator,
-                BinaryOperator::Add
-                    | BinaryOperator::Subtract
-                    | BinaryOperator::Multiply
-                    | BinaryOperator::Divide
-                    | BinaryOperator::Equal
-                    | BinaryOperator::NotEqual
-                    | BinaryOperator::Less
-                    | BinaryOperator::LessOrEqual
-                    | BinaryOperator::Greater
-                    | BinaryOperator::GreaterOrEqual
-            ) {
-                return;
-            }
-            let [Some(left), Some(right)] = *operands else {
-                return;
-            };
-            let (Some(left), Some(right)) = (
-                program.primitive_type_reference(left),
-                program.primitive_type_reference(right),
-            ) else {
-                return;
-            };
-            if !matches!(
-                (left, right),
-                (PrimitiveType::F32, PrimitiveType::F64) | (PrimitiveType::F64, PrimitiveType::F32)
-            ) {
-                return;
-            }
-            let Some(spelling) = typed_trees::operator::binary_operator_spelling(binary.operator)
-            else {
-                return;
-            };
-            if !typed_trees::operator::has_builtin_spelled_expression_meaning(
-                program, owner, expression, spelling, operands,
-            ) {
-                return;
-            }
-            diagnostics.push(Diagnostic::error(format!(
-        "builtin `{}` cannot combine `{}` and `{}`; a landed float retains its format, so changing format requires an explicit conversion",
-        spelling.symbol(), left.name(), right.name(),
-            )).with_source_span(program.expression_table.source_span(expression)));
-        }
-
-        pub(crate) fn validate_float_expression_formats(
-            program: &dyn crate::CheckingInput,
-            owner: SymbolHandle,
-            expression: ExpressionHandle,
-            result_type: &impl Fn(ExpressionHandle) -> Option<TypeReferenceHandle>,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) {
-            crate::queries::expression_traversal::visit_pre_order(
-                program,
-                vec![expression],
-                |handle, node| {
-                    if let typed_trees::expression::ExpressionNode::Binary(binary) = node {
-                        let operands = [binary.left, binary.right].map(result_type);
-                        validate_binary_float_formats(
-                            program,
-                            owner,
-                            handle,
-                            &operands,
-                            diagnostics,
-                        );
-                    }
-                    false
-                },
-            );
-        }
-    }
     pub(crate) mod match_dispatch {
         use super::expression_result_type_reference as declared_value_type;
         use crate::frozen_program::expression_table;
@@ -924,13 +399,13 @@ pub mod expression_types {
                         ) {
                             diagnostics.push(Diagnostic::error(format!("match equality operand for field `{}` is incompatible with the field's declared carrier", field.member)).with_source_span(source_span));
                         }
-                        crate::proof_contracts::arithmetic_domains::validate_anonymous_integer_range(
-                    program,
-                    carrier,
-                    value,
-                    "match field equality",
-                    diagnostics,
-                );
+                        typed_trees::source_scalar_operands::validate_anonymous_integer_range(
+                            program,
+                            carrier,
+                            value,
+                            "match field equality",
+                            diagnostics,
+                        );
                     }
                 }
                 if !pattern.has_rest
@@ -1285,7 +760,7 @@ pub mod expression_types {
             let peer = peer.value;
             if let Some(destination) = declared_value_type(program, machine, state, peer) {
                 for arm in &live_arms {
-                    crate::proof_contracts::arithmetic_domains::validate_anonymous_integer_range(
+                    typed_trees::source_scalar_operands::validate_anonymous_integer_range(
                         program,
                         destination,
                         arm.value,
@@ -1502,990 +977,9 @@ pub mod expression_types {
                     == program.normalized_type_identity(right_element)
         }
     }
-    pub(crate) mod operator_validation {
-        use super::value_classification::{ValueClass, concrete_data_type_name, value_class};
-        use crate::value_custody::places::collection_operations::type_reference_is_collection;
-        use diagnostics::Diagnostic;
-        use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-        use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
-
-        pub(crate) fn validate_binary_operand_types(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: Option<&typed_trees::state::State>,
-            expression: ExpressionHandle,
-            operator: typed_trees::expression::BinaryOperator,
-            left: ExpressionHandle,
-            right: ExpressionHandle,
-            diagnostics: &mut Vec<Diagnostic>,
-            formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
-        ) {
-            if let Some(state) = state {
-                let operands = [left, right].map(|operand| {
-                    super::expression_result_type_reference(program, machine, state, operand)
-                });
-                super::float_operations::validate_binary_float_formats(
-                    program,
-                    state.symbol,
-                    expression,
-                    &operands,
-                    diagnostics,
-                );
-                if crate::proof_contracts::bound_expression_meaning::has_builtin_binary_expression_meaning(
-            program,
-            machine,
-            Some(state),
-            expression,
-        ) {
-            validate_builtin_comparison_operand_landing(
-                program,
-                operator,
-                [(left, operands[0]), (right, operands[1])],
-                &format!("machine `{}` state `{}`", machine.name, state.name),
-                &mut |peer, target| {
-                    crate::proof_contracts::contract_entailment::anonymous_comparison_operand_fits_at_occurrence(
-                        program, machine, state, expression, peer, target,
-                    ).retain(expression, machine.symbol, "anonymous address comparison operand", formation_obligations)
-                },
-                diagnostics,
-            );
-        }
-            }
-            report_cross_class_binary_operands(program, machine, state, left, right, diagnostics);
-            report_invalid_text_operator(
-                program,
-                machine,
-                state,
-                operator,
-                left,
-                right,
-                diagnostics,
-            );
-            report_non_bool_logical_operands(
-                program,
-                machine,
-                state,
-                operator,
-                left,
-                right,
-                diagnostics,
-            );
-            report_array_operator_operands(
-                program,
-                machine,
-                state,
-                operator,
-                left,
-                right,
-                diagnostics,
-            );
-            report_undeclared_struct_operator(
-                program,
-                machine,
-                state,
-                operator,
-                left,
-                right,
-                diagnostics,
-            );
-            report_float_bitwise_operator(
-                program,
-                machine,
-                state,
-                operator,
-                left,
-                right,
-                diagnostics,
-            );
-        }
-
-        pub(crate) fn validate_builtin_comparison_operand_landing(
-            program: &dyn crate::CheckingInput,
-            operator: typed_trees::expression::BinaryOperator,
-            operands: [(ExpressionHandle, Option<TypeReferenceHandle>); 2],
-            owner: &str,
-            target_fit: &mut dyn FnMut(ExpressionHandle, PrimitiveType) -> bool,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) {
-            use typed_trees::expression::BinaryOperator;
-            if !matches!(
-                operator,
-                BinaryOperator::Equal
-                    | BinaryOperator::NotEqual
-                    | BinaryOperator::Less
-                    | BinaryOperator::LessOrEqual
-                    | BinaryOperator::Greater
-                    | BinaryOperator::GreaterOrEqual
-            ) {
-                return;
-            }
-            for ((_, reference), (peer, peer_reference)) in
-                [(operands[0], operands[1]), (operands[1], operands[0])]
-            {
-                if peer_reference.is_some() {
-                    continue;
-                }
-                let Some(primitive) = reference
-                    .and_then(|reference| {
-                        super::scalar_observations::readable_observation_type_reference(
-                            program, reference,
-                        )
-                    })
-                    .and_then(|reference| program.primitive_type_reference(reference))
-                    .filter(|primitive| {
-                        primitive.is_integer() || *primitive == PrimitiveType::Addr
-                    })
-                else {
-                    continue;
-                };
-                let before = diagnostics.len();
-                crate::proof_contracts::arithmetic_domains::validate_anonymous_integer_primitive_range(
-            program,
-            primitive,
-            peer,
-            owner,
-            diagnostics,
-        );
-                if primitive == PrimitiveType::Addr
-                    && diagnostics.len() == before
-                    && crate::value_custody::literals::has_anonymous_numeric_results(program, peer)
-                    && !target_fit(peer, primitive)
-                {
-                    diagnostics.push(Diagnostic::error(format!(
-                "anonymous address comparison operand cannot prove fit in `addr::Bound` in {owner}",
-            )).with_source_span(program.expression_table.source_span(peer)));
-                }
-            }
-        }
-
-        // The operands whose float-ness decides `operand`'s, if it has any.
-        fn float_operands(
-            program: &dyn crate::CheckingInput,
-            operand: ExpressionHandle,
-        ) -> Option<Vec<ExpressionHandle>> {
-            match program.expression_table.expression(operand) {
-                ExpressionNode::Borrow(inner) => Some(vec![inner.target]),
-                ExpressionNode::Binary(binary) => Some(vec![binary.left, binary.right]),
-                ExpressionNode::Unary(unary) => Some(vec![unary.operand]),
-                _ => None,
-            }
-        }
-
-        /*
-            Whether `operand` is float-typed, memoized per state-owned
-            expression and decided bottom-up from a stack the query owns, for
-            the reason `value_class` is.
-        */
-        pub(crate) fn expression_is_float_typed(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: Option<&typed_trees::state::State>,
-            operand: ExpressionHandle,
-        ) -> bool {
-            let Some((memos, state)) =
-                crate::frozen_program::frozen_program_memos(program).zip(state)
-            else {
-                return float_typed(program, machine, state, operand, &mut |operand| {
-                    expression_is_float_typed(program, machine, state, operand)
-                });
-            };
-            let key = |expression| {
-                crate::proof_contracts::bound_expression_meaning::meaning_key(
-                    program,
-                    machine,
-                    Some(state),
-                    expression,
-                )
-            };
-            let cached = |expression| {
-                let key = key(expression)?;
-                memos
-                    .expression_float_operands
-                    .read()
-                    .ok()?
-                    .get(&key)
-                    .copied()
-            };
-            if let Some(answer) = cached(operand) {
-                return answer;
-            }
-            let mut pending = vec![(operand, false)];
-            while let Some((expression, operands_ready)) = pending.pop() {
-                if cached(expression).is_some() {
-                    continue;
-                }
-                if !operands_ready && let Some(operands) = float_operands(program, expression) {
-                    pending.push((expression, true));
-                    pending.extend(operands.into_iter().map(|operand| (operand, false)));
-                    continue;
-                }
-                let answer = float_typed(program, machine, Some(state), expression, &mut |inner| {
-                    cached(inner).unwrap_or_else(|| {
-                        expression_is_float_typed(program, machine, Some(state), inner)
-                    })
-                });
-                match key(expression) {
-                    Some(key) => {
-                        if let Ok(mut answers) = memos.expression_float_operands.write() {
-                            answers.insert(key, answer);
-                        }
-                    }
-                    None if expression == operand => return answer,
-                    None => {}
-                }
-            }
-            cached(operand).unwrap_or_else(|| {
-                float_typed(program, machine, Some(state), operand, &mut |inner| {
-                    expression_is_float_typed(program, machine, Some(state), inner)
-                })
-            })
-        }
-
-        fn float_typed(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: Option<&typed_trees::state::State>,
-            operand: ExpressionHandle,
-            operand_is_float: &mut dyn FnMut(ExpressionHandle) -> bool,
-        ) -> bool {
-            match program.expression_table.expression(operand) {
-                ExpressionNode::UndeterminedNaN(_) => true,
-                ExpressionNode::Float(literal) => literal.landing().is_some(),
-                ExpressionNode::Borrow(inner) => operand_is_float(inner.target),
-                ExpressionNode::Binary(binary) => {
-                    operand_is_float(binary.left) || operand_is_float(binary.right)
-                }
-                ExpressionNode::Unary(unary) => operand_is_float(unary.operand),
-                ExpressionNode::Cast(cast) => program
-                    .primitive_type_reference(cast.target_type)
-                    .is_some_and(|primitive| primitive.accepts_float_literal()),
-                ExpressionNode::Call(call) => {
-                    crate::proof_contracts::arithmetic_domains::call_return_type(program, call)
-                        .and_then(|return_type| program.primitive_type_reference(return_type))
-                        .is_some_and(|primitive| primitive.accepts_float_literal())
-                }
-                _ => crate::value_custody::places::declared_place_type(
-                    program, machine, state, operand,
-                )
-                .and_then(|type_reference| program.primitive_type_reference(type_reference))
-                .is_some_and(|primitive| {
-                    matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
-                }),
-            }
-        }
-
-        fn report_float_bitwise_operator(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: Option<&typed_trees::state::State>,
-            operator: typed_trees::expression::BinaryOperator,
-            left: ExpressionHandle,
-            right: ExpressionHandle,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) -> bool {
-            use typed_trees::expression::BinaryOperator;
-            if !matches!(
-                operator,
-                BinaryOperator::BitwiseAnd
-                    | BinaryOperator::BitwiseOr
-                    | BinaryOperator::BitwiseXor
-                    | BinaryOperator::ShiftLeft
-                    | BinaryOperator::ShiftRight
-                    | BinaryOperator::Modulo
-            ) {
-                return false;
-            }
-            if !expression_is_float_typed(program, machine, state, left)
-                && !expression_is_float_typed(program, machine, state, right)
-            {
-                return false;
-            }
-            diagnostics.push(Diagnostic::error(format!(
-        "machine `{}` state `{}` applies `{operator:?}` to a float operand, but bitwise, shift, \
-         and modulo operators are defined for integers only",
-        machine.name.as_str(),
-        state.map(|state| state.name.as_str()).unwrap_or(""),
-            )));
-            true
-        }
-
-        fn report_cross_class_binary_operands(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: Option<&typed_trees::state::State>,
-            left: ExpressionHandle,
-            right: ExpressionHandle,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) -> bool {
-            let (Some(left_class), Some(right_class)) = (
-                value_class(program, Some(machine), state, left),
-                value_class(program, Some(machine), state, right),
-            ) else {
-                return false;
-            };
-            if left_class == right_class {
-                return false;
-            }
-            let detail = if matches!(left_class, ValueClass::Text)
-                || matches!(right_class, ValueClass::Text)
-            {
-                "text and non-text operands cannot be compared or combined"
-            } else {
-                "Omega does not coerce a boolean to a number -- compare booleans directly \
-             (`b == true`) or convert a number explicitly (`n != 0`)"
-            };
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` state `{}` applies an operator to {} and {} -- {detail}",
-                machine.name.as_str(),
-                state.map(|state| state.name.as_str()).unwrap_or(""),
-                left_class.describe(),
-                right_class.describe(),
-            )));
-            true
-        }
-
-        pub(crate) fn type_reference_is_text_carrier(
-            program: &dyn crate::CheckingInput,
-            handle: TypeReferenceHandle,
-        ) -> bool {
-            let Some(carrier) =
-                crate::value_custody::reference_shells::carrier_beneath_borrows(program, handle)
-            else {
-                return false;
-            };
-            let element_type = match program.type_reference_table.type_reference(carrier) {
-                TypeReferenceNode::FixedArray { element_type, .. }
-                | TypeReferenceNode::Slice { element_type } => *element_type,
-                _ => return false,
-            };
-            program.primitive_type_reference(element_type) == Some(PrimitiveType::U8)
-        }
-
-        fn report_non_bool_logical_operands(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: Option<&typed_trees::state::State>,
-            operator: typed_trees::expression::BinaryOperator,
-            left: ExpressionHandle,
-            right: ExpressionHandle,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) -> bool {
-            use typed_trees::expression::BinaryOperator;
-            if !matches!(operator, BinaryOperator::And | BinaryOperator::Or) {
-                return false;
-            }
-            let non_bool = |value| {
-                matches!(
-                    value_class(program, Some(machine), state, value),
-                    Some(ValueClass::Numeric) | Some(ValueClass::Text)
-                )
-            };
-            if !non_bool(left) && !non_bool(right) {
-                return false;
-            }
-            diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` state `{}` applies logical `{operator:?}` to a non-bool operand, but \
-         `&&`/`||` require `bool` operands",
-                machine.name.as_str(),
-                state.map(|state| state.name.as_str()).unwrap_or(""),
-            )));
-            true
-        }
-
-        fn report_invalid_text_operator(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: Option<&typed_trees::state::State>,
-            operator: typed_trees::expression::BinaryOperator,
-            left: ExpressionHandle,
-            right: ExpressionHandle,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) -> bool {
-            use typed_trees::expression::BinaryOperator;
-            if !matches!(
-                operator,
-                BinaryOperator::Subtract
-                    | BinaryOperator::Multiply
-                    | BinaryOperator::Divide
-                    | BinaryOperator::Modulo
-                    | BinaryOperator::ShiftLeft
-                    | BinaryOperator::ShiftRight
-                    | BinaryOperator::BitwiseAnd
-                    | BinaryOperator::BitwiseOr
-                    | BinaryOperator::BitwiseXor
-                    | BinaryOperator::Less
-                    | BinaryOperator::LessOrEqual
-                    | BinaryOperator::Greater
-                    | BinaryOperator::GreaterOrEqual
-            ) {
-                return false;
-            }
-            let is_text =
-                |value| value_class(program, Some(machine), state, value) == Some(ValueClass::Text);
-            if !is_text(left) || !is_text(right) {
-                return false;
-            }
-            diagnostics.push(Diagnostic::error(format!(
-        "machine `{}` state `{}` applies `{operator:?}` to text operands, but text supports only \
-         concatenation (`+`), `==`, and `!=`",
-        machine.name.as_str(),
-        state.map(|state| state.name.as_str()).unwrap_or(""),
-            )));
-            true
-        }
-
-        pub(crate) fn report_non_bool_logical_not(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: Option<&typed_trees::state::State>,
-            operand: ExpressionHandle,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) -> bool {
-            let class = value_class(program, Some(machine), state, operand);
-            if !matches!(class, Some(ValueClass::Numeric) | Some(ValueClass::Text)) {
-                return false;
-            }
-            diagnostics.push(Diagnostic::error(format!(
-        "machine `{}` state `{}` applies logical `!` to {}, but `!` requires a `bool` operand \
-         (bitwise-not is spelled `~`)",
-        machine.name.as_str(),
-        state.map(|state| state.name.as_str()).unwrap_or(""),
-        class.unwrap().describe(),
-            )));
-            true
-        }
-
-        pub(crate) fn report_non_integer_bitwise_not(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: Option<&typed_trees::state::State>,
-            operand: ExpressionHandle,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) -> bool {
-            let class = value_class(program, Some(machine), state, operand);
-            let invalid = matches!(class, Some(ValueClass::Boolean | ValueClass::Text))
-                || expression_is_float_typed(program, machine, state, operand);
-            if !invalid {
-                return false;
-            }
-            diagnostics.push(Diagnostic::error(format!(
-        "machine `{}` state `{}` applies bitwise `~` to {}, but `~` requires a fixed-width integer operand",
-        machine.name.as_str(),
-        state.map(|state| state.name.as_str()).unwrap_or(""),
-        class.map_or("a non-integer value", ValueClass::describe),
-            )));
-            true
-        }
-
-        pub(crate) fn report_non_integer_index(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: &typed_trees::state::State,
-            indexed: &typed_trees::expression::TableIndexedExpression,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) -> bool {
-            use language_core::operator_spelling::OperatorSpelling;
-            let (spelling, index_operands) =
-                match program.expression_table.expression(indexed.index) {
-                    ExpressionNode::Range(range) => {
-                        (OperatorSpelling::Range, vec![range.start, range.end])
-                    }
-                    _ => (OperatorSpelling::Index, vec![indexed.index]),
-                };
-            let operand_type = |operand: ExpressionHandle| {
-                super::result_type::expression_result_type_reference(
-                    program, machine, state, operand,
-                )
-            };
-            let index_types = index_operands
-                .iter()
-                .map(|operand| operand_type(*operand))
-                .collect::<Vec<_>>();
-            let non_integer = index_operands
-                .iter()
-                .zip(&index_types)
-                .filter_map(|(operand, index_type)| {
-                    let primitive = crate::value_custody::places::unwrapped_type_reference(
-                        program,
-                        (*index_type)?,
-                    )
-                    .and_then(|unwrapped| program.primitive_type_reference(unwrapped))?;
-                    (!primitive.accepts_integer_literal()).then_some((*operand, primitive))
-                })
-                .collect::<Vec<_>>();
-            if non_integer.is_empty() {
-                return false;
-            }
-            let operand_types = std::iter::once(operand_type(indexed.collection))
-                .chain(index_types)
-                .collect::<Vec<_>>();
-            if !typed_trees::operator::resolve_indexed_spelling_for_operands(
-                program,
-                spelling,
-                &operand_types,
-                program.expression_table.source_span(indexed.index),
-            )
-            .is_empty()
-                || !typed_trees::operator::selected_trait_operator_meanings(
-                    program,
-                    machine.symbol,
-                    spelling,
-                    &operand_types,
-                )
-                .is_empty()
-            {
-                return false;
-            }
-            for (operand, primitive) in non_integer {
-                diagnostics.push(Diagnostic::error(format!(
-            "machine `{}` state `{}` indexes `{}` with `{}` of type `{}`, but an index or range \
-             endpoint must be an integer",
-            machine.name.as_str(),
-            state.name.as_str(),
-            program.diagnostic_expression_name(indexed.collection),
-            program.diagnostic_expression_name(operand),
-            primitive.name(),
-        )));
-            }
-            true
-        }
-
-        fn binary_operator_spelling(
-            operator: typed_trees::expression::BinaryOperator,
-        ) -> Option<language_core::operator_spelling::OperatorSpelling> {
-            use language_core::operator_spelling::OperatorSpelling;
-            use typed_trees::expression::BinaryOperator;
-            Some(match operator {
-                BinaryOperator::Add => OperatorSpelling::Add,
-                BinaryOperator::Subtract => OperatorSpelling::Subtract,
-                BinaryOperator::Multiply => OperatorSpelling::Multiply,
-                BinaryOperator::Divide => OperatorSpelling::Divide,
-                BinaryOperator::Modulo => OperatorSpelling::Modulo,
-                BinaryOperator::Less => OperatorSpelling::Less,
-                BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,
-                BinaryOperator::Greater => OperatorSpelling::Greater,
-                BinaryOperator::GreaterOrEqual => OperatorSpelling::GreaterEqual,
-                _ => return None,
-            })
-        }
-
-        fn report_undeclared_struct_operator(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: Option<&typed_trees::state::State>,
-            operator: typed_trees::expression::BinaryOperator,
-            left: ExpressionHandle,
-            right: ExpressionHandle,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) -> bool {
-            let Some(spelling) = binary_operator_spelling(operator) else {
-                return false;
-            };
-            let operand_types = [left, right].map(|operand| {
-                state.and_then(|state| {
-                    super::result_type::expression_result_type_reference(
-                        program, machine, state, operand,
-                    )
-                })
-            });
-            let Some(type_name) = operand_types
-                .iter()
-                .flatten()
-                .find_map(|reference| concrete_data_type_name(program, *reference))
-            else {
-                return false;
-            };
-            if !typed_trees::operator::resolve_spelling_for_operands(
-                program,
-                spelling,
-                &operand_types,
-                program.expression_table.source_span(left),
-            )
-            .is_empty()
-            {
-                return false;
-            }
-            if !typed_trees::operator::selected_trait_operator_meanings(
-                program,
-                machine.symbol,
-                spelling,
-                &operand_types,
-            )
-            .is_empty()
-            {
-                return false;
-            }
-            diagnostics.push(Diagnostic::error(format!(
-        "machine `{}` state `{}` applies `{operator:?}` to a `{type_name}` value, but no such \
-         operator is declared for these operand types; declare a matching token-bearing \
-         machine or select its declared trait meaning",
-        machine.name.as_str(),
-        state.map(|state| state.name.as_str()).unwrap_or(""),
-            )));
-            true
-        }
-
-        fn report_array_operator_operands(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: Option<&typed_trees::state::State>,
-            operator: typed_trees::expression::BinaryOperator,
-            left: ExpressionHandle,
-            right: ExpressionHandle,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) -> bool {
-            use typed_trees::expression::BinaryOperator;
-            if matches!(operator, BinaryOperator::And | BinaryOperator::Or) {
-                return false;
-            }
-            let is_equality = matches!(operator, BinaryOperator::Equal | BinaryOperator::NotEqual);
-            for operand in [left, right] {
-                if let Some(operand_type) = crate::value_custody::places::declared_place_type(
-                    program, machine, state, operand,
-                ) && type_reference_is_collection(program, operand_type)
-                    && !type_reference_is_text_carrier(program, operand_type)
-                {
-                    let detail = if is_equality {
-                        "arrays do not support `==` / `!=` yet (element-wise array equality is not \
-                 synthesized -- compare elements individually)"
-                    } else {
-                        "ordering, arithmetic, and bitwise operators are not defined for arrays"
-                    };
-                    diagnostics.push(Diagnostic::error(format!(
-                "machine `{}` state `{}` applies `{operator:?}` to an array operand, but {detail}",
-                machine.name.as_str(),
-                state.map(|state| state.name.as_str()).unwrap_or(""),
-            )));
-                    return true;
-                }
-            }
-            false
-        }
-    }
-    pub(crate) use float_operations::validate_float_expression_formats;
-
-    pub(crate) mod float_destinations {
-        use crate::CheckingInput;
-        use diagnostics::Diagnostic;
-        use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-        use typed_trees::machine::Machine;
-        use typed_trees::state::State;
-        use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
-
-        pub(crate) fn report_mismatch(
-            program: &dyn CheckingInput,
-            machine: Option<&Machine>,
-            state: Option<&State>,
-            value: ExpressionHandle,
-            target: PrimitiveType,
-            slot_context: &str,
-            slot_noun: &str,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) -> bool {
-            let mut direct = value;
-            direct = program.expression_table.peeled_expression_handle(direct);
-            if matches!(target, PrimitiveType::F32 | PrimitiveType::F64)
-                && matches!(
-                    program.expression_table.expression(direct),
-                    ExpressionNode::Float(_)
-                )
-            {
-                return false;
-            }
-
-            let source = source_primitive(program, machine, state, direct);
-            if let Some(source @ (PrimitiveType::F32 | PrimitiveType::F64)) = source
-                && source != target
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                "{slot_context} delivers a `{}` value to a `{}` {slot_noun}; a landed float retains its format, so changing format requires an explicit conversion",
-                source.name(), target.name(),
-            )));
-                return true;
-            }
-            false
-        }
-
-        fn source_primitive(
-            program: &dyn CheckingInput,
-            machine: Option<&Machine>,
-            state: Option<&State>,
-            value: ExpressionHandle,
-        ) -> Option<PrimitiveType> {
-            match program.expression_table.expression(value) {
-                ExpressionNode::UndeterminedNaN(format) => Some(match format {
-                    numerics::literals::FloatFormat::F32 => PrimitiveType::F32,
-                    numerics::literals::FloatFormat::F64 => PrimitiveType::F64,
-                }),
-                ExpressionNode::Float(literal) => literal.landing().map(|format| match format {
-                    numerics::literals::FloatFormat::F32 => PrimitiveType::F32,
-                    numerics::literals::FloatFormat::F64 => PrimitiveType::F64,
-                }),
-                ExpressionNode::Cast(cast) => primitive(program, cast.target_type),
-                ExpressionNode::Call(call) => {
-                    crate::machine_calls::calls::call_result_type(program, value)
-                        .or_else(|| {
-                            typed_trees::operator::resolve_named_expression_call(program, call)
-                                .map(|operator| operator.return_type)
-                        })
-                        .and_then(|reference| primitive(program, reference))
-                }
-                ExpressionNode::Name(path) => super::named_value_type_reference(program, path)
-                    .or_else(|| {
-                        machine.and_then(|machine| {
-                            crate::value_custody::places::declared_place_type(
-                                program, machine, state, value,
-                            )
-                        })
-                    })
-                    .and_then(|reference| primitive(program, reference)),
-                ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => machine
-                    .and_then(|machine| {
-                        crate::value_custody::places::declared_place_type(
-                            program, machine, state, value,
-                        )
-                    })
-                    .and_then(|reference| primitive(program, reference)),
-                ExpressionNode::Binary(binary)
-                    if crate::value_custody::literals::has_anonymous_operator_meaning(
-                        program, value,
-                    ) =>
-                {
-                    [binary.left, binary.right]
-                        .into_iter()
-                        .filter_map(|operand| source_primitive(program, machine, state, operand))
-                        .find(|primitive| {
-                            matches!(primitive, PrimitiveType::F32 | PrimitiveType::F64)
-                        })
-                }
-                _ => None,
-            }
-        }
-
-        fn primitive(
-            program: &dyn CheckingInput,
-            reference: TypeReferenceHandle,
-        ) -> Option<PrimitiveType> {
-            let reference =
-                crate::value_custody::places::unwrapped_type_reference(program, reference)?;
-            program.primitive_type_reference(reference)
-        }
-    }
-    pub(crate) mod shape_validation {
-        use super::operator_validation::type_reference_is_text_carrier;
-        use super::value_classification::{
-            ValueClass, concrete_data_type_name, value_class, value_concrete_data_name,
-        };
-        use crate::value_custody::places::collection_operations::type_reference_is_collection;
-        use diagnostics::Diagnostic;
-        use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-        use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-
-        pub(crate) fn value_shape_is_array(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: Option<&typed_trees::state::State>,
-            value: ExpressionHandle,
-        ) -> Option<bool> {
-            match program.expression_table.expression(value) {
-                ExpressionNode::ArrayLiteral(_) => Some(true),
-                ExpressionNode::Integer(_)
-                | ExpressionNode::Float(_)
-                | ExpressionNode::UndeterminedNaN(_)
-                | ExpressionNode::Boolean(_)
-                | ExpressionNode::String(_)
-                | ExpressionNode::StructLiteral(_) => Some(false),
-                ExpressionNode::Borrow(inner) => {
-                    value_shape_is_array(program, machine, state, inner.target)
-                }
-                ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
-                    crate::value_custody::places::declared_place_type(
-                        program, machine, state, value,
-                    )
-                    .map(|type_reference| type_reference_is_collection(program, type_reference))
-                }
-                _ => None,
-            }
-        }
-
-        pub(crate) fn report_array_scalar_shape_mismatch(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: Option<&typed_trees::state::State>,
-            value: ExpressionHandle,
-            target_type: TypeReferenceHandle,
-            slot_context: &str,
-            slot_noun: &str,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) -> bool {
-            if crate::value_custody::literals::validate_constant_projection_destination(
-                program,
-                machine.symbol,
-                value,
-                target_type,
-                diagnostics,
-            ) {
-                return true;
-            }
-            if type_reference_is_text_carrier(program, target_type)
-                || value_class(program, Some(machine), state, value) == Some(ValueClass::Text)
-                || crate::value_custody::places::declared_place_type(program, machine, state, value)
-                    .is_some_and(|value_type| type_reference_is_text_carrier(program, value_type))
-            {
-                return false;
-            }
-            let Some(value_is_array) = value_shape_is_array(program, machine, state, value) else {
-                return false;
-            };
-            if value_is_array == type_reference_is_collection(program, target_type) {
-                return false;
-            }
-            diagnostics.push(Diagnostic::error(if value_is_array {
-                format!("{slot_context} binds an ARRAY value into a non-array {slot_noun}")
-            } else {
-                format!("{slot_context} binds a non-array value into an ARRAY {slot_noun}")
-            }));
-            true
-        }
-
-        pub(crate) fn report_scalar_data_shape_mismatch(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: Option<&typed_trees::state::State>,
-            value: ExpressionHandle,
-            target_type: TypeReferenceHandle,
-            slot_context: &str,
-            slot_noun: &str,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) -> bool {
-            if let Some(target_name) = concrete_data_type_name(program, target_type)
-                && let Some(value_scalar_class) = value_class(program, Some(machine), state, value)
-            {
-                diagnostics.push(Diagnostic::error(format!(
-            "{slot_context} binds {} into the `{target_name}` data {slot_noun}; a scalar value \
-             cannot fill a struct or enum slot",
-            value_scalar_class.describe(),
-        )));
-                return true;
-            }
-            if program.primitive_type_reference(target_type).is_some()
-                && let Some(value_name) = value_concrete_data_name(program, machine, state, value)
-            {
-                diagnostics.push(Diagnostic::error(format!(
-            "{slot_context} binds a `{value_name}` value into a scalar {slot_noun}; a struct or \
-             enum value cannot fill a scalar slot",
-        )));
-                return true;
-            }
-            false
-        }
-
-        fn slice_view_element(
-            program: &dyn crate::CheckingInput,
-            type_reference: TypeReferenceHandle,
-        ) -> Option<TypeReferenceHandle> {
-            let mut handle = type_reference;
-            loop {
-                match program.type_reference_table.type_reference(handle) {
-                    TypeReferenceNode::Constrained { base_type, .. } => handle = *base_type,
-                    TypeReferenceNode::Reference { referee, .. } => handle = *referee,
-                    TypeReferenceNode::Slice { element_type } => return Some(*element_type),
-                    _ => return None,
-                }
-            }
-        }
-
-        fn collection_element(
-            program: &dyn crate::CheckingInput,
-            type_reference: TypeReferenceHandle,
-        ) -> Option<TypeReferenceHandle> {
-            match program.type_reference_table.type_reference(type_reference) {
-                TypeReferenceNode::Slice { element_type }
-                | TypeReferenceNode::FixedArray { element_type, .. } => Some(*element_type),
-                _ => None,
-            }
-        }
-
-        fn argument_collection_element(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: Option<&typed_trees::state::State>,
-            argument: ExpressionHandle,
-        ) -> Option<TypeReferenceHandle> {
-            let mut handle = argument;
-            handle = program.expression_table.peeled_expression_handle(handle);
-            if let Some(indexed) = program.expression_table.indexed_node(handle)
-                && matches!(
-                    program.expression_table.expression(indexed.index),
-                    ExpressionNode::Range(_)
-                )
-            {
-                return crate::value_custody::places::declared_place_type(
-                    program,
-                    machine,
-                    state,
-                    indexed.collection,
-                )
-                .and_then(|type_reference| collection_element(program, type_reference));
-            }
-            crate::value_custody::places::declared_place_type(program, machine, state, handle)
-                .and_then(|type_reference| collection_element(program, type_reference))
-        }
-
-        fn element_is_concrete(
-            program: &dyn crate::CheckingInput,
-            element: TypeReferenceHandle,
-        ) -> bool {
-            let handle = program
-                .type_reference_table
-                .unconstrained_type_reference(element);
-            !matches!(
-                program.type_reference_table.type_reference(handle),
-                TypeReferenceNode::Named { symbol, .. }
-                    if program.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
-            ) && !matches!(
-                program.type_reference_table.type_reference(handle),
-                TypeReferenceNode::Generic { .. } | TypeReferenceNode::DynamicTrait { .. }
-            )
-        }
-
-        pub(crate) fn report_view_element_argument_mismatch(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: Option<&typed_trees::state::State>,
-            argument: ExpressionHandle,
-            target_type: TypeReferenceHandle,
-            slot_context: &str,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) -> bool {
-            let Some(required_element) = slice_view_element(program, target_type) else {
-                return false;
-            };
-            let Some(actual_element) =
-                argument_collection_element(program, machine, state, argument)
-            else {
-                return false;
-            };
-            if !element_is_concrete(program, required_element)
-                || !element_is_concrete(program, actual_element)
-                || program.normalized_type_identity(actual_element)
-                    == program.normalized_type_identity(required_element)
-            {
-                return false;
-            }
-            diagnostics.push(Diagnostic::error(format!(
-                "{slot_context} expects element type `{}`, but the argument supplies `{}`",
-                program.display_type_reference_with_constraints(required_element),
-                program.display_type_reference_with_constraints(actual_element),
-            )));
-            true
-        }
-    }
     pub(crate) mod value_classification {
-        use crate::declarations::data_queries::data_definition_by_symbol;
-        use diagnostics::Diagnostic;
         use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-        use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+        use typed_trees::types::PrimitiveType;
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub(crate) enum ValueClass {
@@ -2660,7 +1154,14 @@ pub mod expression_types {
                 }
                 let left = value_class(program, machine, state, binary.left);
                 let right = value_class(program, machine, state, binary.right);
-                if crate::proof_contracts::arithmetic_domains::is_arithmetic(binary.operator) {
+                if matches!(
+                    binary.operator,
+                    BinaryOperator::Add
+                        | BinaryOperator::Subtract
+                        | BinaryOperator::Multiply
+                        | BinaryOperator::Divide
+                        | BinaryOperator::Modulo
+                ) {
                     return match (left, right) {
                         (Some(ValueClass::Text), _) | (_, Some(ValueClass::Text)) => {
                             Some(ValueClass::Text)
@@ -2696,9 +1197,7 @@ pub mod expression_types {
                             program, machine, state, value,
                         )
                     }
-                    _ => {
-                        crate::proof_contracts::arithmetic_domains::call_return_type(program, call)
-                    }
+                    _ => super::source_call_return_type(program, call),
                 };
                 if let Some(primitive) =
                     reference.and_then(|handle| program.primitive_type_reference(handle))
@@ -2713,398 +1212,6 @@ pub mod expression_types {
                     .and_then(|handle| program.primitive_type_reference(handle))?;
             Some(ValueClass::of_primitive(primitive))
         }
-
-        pub(crate) fn cross_class_conflict(
-            program: &dyn crate::CheckingInput,
-            machine: Option<&typed_trees::machine::Machine>,
-            state: Option<&typed_trees::state::State>,
-            value: ExpressionHandle,
-            target: PrimitiveType,
-        ) -> Option<(ValueClass, ValueClass)> {
-            let value_class = value_class(program, machine, state, value)?;
-            let target_class = ValueClass::of_primitive(target);
-            (value_class != target_class).then_some((value_class, target_class))
-        }
-
-        pub(crate) fn report_cross_class_store(
-            program: &dyn crate::CheckingInput,
-            machine: Option<&typed_trees::machine::Machine>,
-            state: Option<&typed_trees::state::State>,
-            value: ExpressionHandle,
-            target: PrimitiveType,
-            slot_context: &str,
-            slot_noun: &str,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) -> bool {
-            if program.static_type_context_is_unreachable(value) {
-                return false;
-            }
-            if let Some(dispatch) = program.expression_table.match_node(value) {
-                let mut rejected = false;
-                for arm in program.expression_table.match_arms(dispatch.arms) {
-                    rejected |= report_cross_class_store(
-                        program,
-                        machine,
-                        state,
-                        arm.value,
-                        target,
-                        slot_context,
-                        slot_noun,
-                        diagnostics,
-                    );
-                }
-                return rejected;
-            }
-            if let Some(machine) = machine
-                && let Some(actual) =
-                    crate::builtin_constant_array_projection_type(program, machine.symbol, value)
-                && let Some(actual) = program.primitive_type_reference(actual)
-                && actual != target
-            {
-                diagnostics.push(Diagnostic::error(format!(
-            "{slot_context} stores a constant array projection of type `{}` into a `{}` {slot_noun}; use an explicit conversion",
-            actual.name(), target.name(),
-        )));
-                return true;
-            }
-            if let Some(call) = program.expression_table.call_node(value)
-                && let Some(operator) =
-                    typed_trees::operator::resolve_named_expression_call(program, call)
-                && let Some(source) = program.primitive_type_reference(operator.return_type)
-                && source != target
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{slot_context} stores the `{}` result of named operator `{}` into a `{}` \
-             {slot_noun}; numeric representation changes require an explicit named conversion",
-                    source.name(),
-                    call.target,
-                    target.name(),
-                )));
-                return true;
-            }
-
-            if super::float_destinations::report_mismatch(
-                program,
-                machine,
-                state,
-                value,
-                target,
-                slot_context,
-                slot_noun,
-                diagnostics,
-            ) {
-                return true;
-            }
-
-            let Some((value_class, target_class)) =
-                cross_class_conflict(program, machine, state, value, target)
-            else {
-                return false;
-            };
-            diagnostics.push(Diagnostic::error(format!(
-                "{slot_context} stores {} into a `{}` {slot_noun}, which holds {}",
-                value_class.describe(),
-                target.name(),
-                target_class.describe(),
-            )));
-            true
-        }
-
-        fn concrete_data_type_symbol(
-            program: &dyn crate::CheckingInput,
-            handle: TypeReferenceHandle,
-        ) -> Option<symbols::SymbolHandle> {
-            if !handle.is_valid() {
-                return None;
-            }
-            match program.type_reference_table.type_reference(handle) {
-                TypeReferenceNode::Reference { referee, .. } => {
-                    concrete_data_type_symbol(program, *referee)
-                }
-                TypeReferenceNode::Constrained { base_type, .. } => {
-                    concrete_data_type_symbol(program, *base_type)
-                }
-                TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
-                    (data_definition_by_symbol(program, *symbol).is_some()).then_some(*symbol)
-                }
-                _ => None,
-            }
-        }
-
-        pub(crate) fn concrete_data_type_name(
-            program: &dyn crate::CheckingInput,
-            handle: TypeReferenceHandle,
-        ) -> Option<&str> {
-            let symbol = concrete_data_type_symbol(program, handle)?;
-            data_definition_by_symbol(program, symbol).map(|definition| definition.name.as_str())
-        }
-
-        fn constructed_data_symbol(
-            program: &dyn crate::CheckingInput,
-            value: ExpressionHandle,
-        ) -> Option<symbols::SymbolHandle> {
-            let symbol = match program.expression_table.expression(value) {
-                ExpressionNode::StructLiteral(literal) => literal.type_symbol,
-                ExpressionNode::Name(path)
-                    if program.symbols.get(path.symbol).kind == symbols::SymbolKind::Variant =>
-                {
-                    program.symbols.get(path.symbol).parent
-                }
-                ExpressionNode::Borrow(inner) => {
-                    return constructed_data_symbol(program, inner.target);
-                }
-                _ => return None,
-            };
-            data_definition_by_symbol(program, symbol)
-                .filter(|definition| definition.type_parameters.is_empty())
-                .map(|definition| definition.symbol)
-        }
-
-        pub(crate) fn value_concrete_data_symbol(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: Option<&typed_trees::state::State>,
-            value: ExpressionHandle,
-        ) -> Option<symbols::SymbolHandle> {
-            constructed_data_symbol(program, value)
-                .or_else(|| {
-                    crate::value_custody::places::declared_place_type(
-                        program, machine, state, value,
-                    )
-                    .and_then(|reference| concrete_data_type_symbol(program, reference))
-                })
-                .or_else(|| {
-                    crate::machine_calls::calls::call_result_type(program, value)
-                        .and_then(|reference| concrete_data_type_symbol(program, reference))
-                })
-        }
-
-        pub(crate) fn value_concrete_data_name<'program>(
-            program: &'program dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: Option<&typed_trees::state::State>,
-            value: ExpressionHandle,
-        ) -> Option<&'program str> {
-            let symbol = value_concrete_data_symbol(program, machine, state, value)?;
-            data_definition_by_symbol(program, symbol).map(|definition| definition.name.as_str())
-        }
-
-        pub(crate) fn report_data_type_conflict(
-            program: &dyn crate::CheckingInput,
-            machine: &typed_trees::machine::Machine,
-            state: Option<&typed_trees::state::State>,
-            value: ExpressionHandle,
-            expected_type: TypeReferenceHandle,
-            slot_context: &str,
-            slot_noun: &str,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) -> bool {
-            if let Some(dispatch) = program.expression_table.match_node(value) {
-                let mut rejected = false;
-                for arm in program.expression_table.match_arms(dispatch.arms) {
-                    rejected |= report_data_type_conflict(
-                        program,
-                        machine,
-                        state,
-                        arm.value,
-                        expected_type,
-                        slot_context,
-                        slot_noun,
-                        diagnostics,
-                    );
-                }
-                return rejected;
-            }
-            let Some(expected) = concrete_data_type_symbol(program, expected_type) else {
-                return false;
-            };
-            let Some(got) = value_concrete_data_symbol(program, machine, state, value) else {
-                return false;
-            };
-            if expected == got
-                || program
-                    .normalized_nominal_type_identity(expected)
-                    .is_some_and(|expected| {
-                        Some(expected) == program.normalized_nominal_type_identity(got)
-                    })
-            {
-                return false;
-            }
-            let expected = program.symbols.display_path(expected, "::");
-            let got = program.symbols.display_path(got, "::");
-            diagnostics.push(Diagnostic::error(format!(
-        "{slot_context} expects the `{expected}` data type but got `{got}` in the `{slot_noun}` \
-         position; these are incompatible data types (a place is accepted structurally, but its \
-         declared type must match)",
-            )));
-            true
-        }
-    }
-
-    pub(crate) mod call_carriers {
-
-        use super::*;
-
-        pub(crate) fn argument_matches_call_carrier(
-            program: &dyn crate::CheckingInput,
-            scope: SymbolHandle,
-            argument: ExpressionHandle,
-            required: TypeReferenceHandle,
-            required_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-        ) -> bool {
-            if argument.is_valid()
-                && program.pattern_component(argument)
-                    != Some(language_core::PatternComponent::Fields)
-            {
-                return false;
-            }
-            if argument_matches_carrier(program, scope, argument, required, required_substitutions)
-            {
-                return true;
-            }
-            let raw_required = required;
-            let (required, required_substitutions) =
-                reference_values::substituted_required_reference(
-                    program,
-                    required,
-                    required_substitutions,
-                );
-            if required != raw_required {
-                return false;
-            }
-            let TypeReferenceNode::Reference {
-                referee, access, ..
-            } = program.type_reference_table.type_reference(required)
-            else {
-                return false;
-            };
-            let borrow = program.expression_table.borrow_expression(argument);
-            if borrow.is_some_and(|borrow| borrow.access != *access) {
-                return false;
-            }
-            let source = borrow.map_or(argument, |borrow| borrow.target);
-            let mut substitutions = Vec::new();
-            let Some(mut actual) =
-                reference_values::declared_value_type(program, source, &mut substitutions)
-            else {
-                return false;
-            };
-            if let TypeReferenceNode::Reference {
-                referee,
-                access: actual_access,
-                ..
-            } = program.type_reference_table.type_reference(actual)
-            {
-                if actual_access != access {
-                    return false;
-                }
-                actual = *referee;
-            } else if borrow.is_none() {
-                return false;
-            }
-            call_value_index_carriers_match(
-                program,
-                actual,
-                &substitutions,
-                *referee,
-                required_substitutions,
-                0,
-            )
-        }
-
-        fn call_value_index_carriers_match(
-            program: &dyn crate::CheckingInput,
-            actual: TypeReferenceHandle,
-            substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-            required: TypeReferenceHandle,
-            required_substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-            depth: usize,
-        ) -> bool {
-            if depth >= 128 {
-                return false;
-            }
-            if substituted_identity(program, actual, substitutions)
-                == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
-                    substitutions: required_substitutions,
-                    ..TypeIdentityRequest::ordinary(required)
-                })
-            {
-                return true;
-            }
-            let Some(actual) =
-                reference_values::substituted_reference(program, actual, substitutions)
-            else {
-                return false;
-            };
-            let raw_required = required;
-            let (required, required_substitutions) =
-                reference_values::substituted_required_reference(
-                    program,
-                    required,
-                    required_substitutions,
-                );
-            if required != raw_required {
-                return false;
-            }
-            let actual = delivered_types::application_form(program, actual);
-            let required = delivered_types::application_form(program, required);
-            let (
-                TypeReferenceNode::Generic {
-                    base_symbol: left_base,
-                    arguments: left,
-                    lifetime_arguments: left_lifetimes,
-                    ..
-                },
-                TypeReferenceNode::Generic {
-                    base_symbol: right_base,
-                    arguments: right,
-                    lifetime_arguments: right_lifetimes,
-                    ..
-                },
-            ) = (
-                program.type_reference_table.type_reference(actual),
-                program.type_reference_table.type_reference(required),
-            )
-            else {
-                return false;
-            };
-            if left_base != right_base || !left_lifetimes.is_empty() || !right_lifetimes.is_empty()
-            {
-                return false;
-            }
-            let Some(data) = program.data_definition_by_symbol(*left_base) else {
-                return false;
-            };
-            let parameters = program.data_type_parameters(data);
-            let left = program.type_reference_table.type_reference_handles(*left);
-            let right = program.type_reference_table.type_reference_handles(*right);
-            parameters.len() == left.len()
-                && left.len() == right.len()
-                && parameters.iter().zip(left.iter().zip(right)).all(
-                    |(parameter, (left, right))| match parameter.kind {
-                        typed_trees::data::TypeParameterKind::Value { .. } => true,
-                        typed_trees::data::TypeParameterKind::Type => {
-                            call_value_index_carriers_match(
-                                program,
-                                *left,
-                                substitutions,
-                                *right,
-                                required_substitutions,
-                                depth + 1,
-                            )
-                        }
-                        _ => {
-                            substituted_identity(program, *left, substitutions)
-                                == program.type_identity_with_simultaneous_substitutions(
-                                    TypeIdentityRequest {
-                                        substitutions: required_substitutions,
-                                        ..TypeIdentityRequest::ordinary(*right)
-                                    },
-                                )
-                        }
-                    },
-                )
-        }
     }
     pub(crate) mod delivered_types {
 
@@ -3113,7 +1220,6 @@ pub mod expression_types {
             named_value_type_reference, reference_values,
         };
         use crate::frozen_program::expression_table;
-        use diagnostics::Diagnostic;
         use symbols::SymbolHandle;
         use typed_trees::types::PrimitiveType;
 
@@ -3486,107 +1592,7 @@ pub mod expression_types {
                 TypeParameterKind::Type | TypeParameterKind::Implementation => false,
             }
         }
-
-        fn delivered_type_conflict(
-            program: &dyn crate::CheckingInput,
-            scope: SymbolHandle,
-            value: ExpressionHandle,
-            destination: TypeReferenceHandle,
-        ) -> Option<TypeReferenceHandle> {
-            if program.static_type_context_is_unreachable(value) {
-                return None;
-            }
-            if let Some(dispatch) = expression_table(program).match_node(value) {
-                return expression_table(program)
-                    .match_arms(dispatch.arms)
-                    .iter()
-                    .find_map(|arm| {
-                        delivered_type_conflict(program, scope, arm.value, destination)
-                    });
-            }
-            let DeliveredType {
-                reference: delivered,
-                substitutions,
-            } = delivered_value_type(program, value)?;
-            let conflict = if matches!(
-                program.type_reference_table.type_reference(destination),
-                TypeReferenceNode::Reference { .. }
-            ) {
-                matches!(
-                    program.type_reference_table.type_reference(delivered),
-                    TypeReferenceNode::Reference { .. }
-                ) && !reference_values::value_carrier_matches_reference(
-                    program,
-                    delivered,
-                    destination,
-                    &substitutions,
-                    &[],
-                )
-            } else {
-                delivered_carrier_conflict(
-                    program,
-                    scope,
-                    value,
-                    delivered,
-                    &substitutions,
-                    destination,
-                    &[],
-                )
-            };
-            conflict.then(|| {
-                reference_values::substituted_reference(program, delivered, &substitutions)
-                    .unwrap_or(delivered)
-            })
-        }
-
-        pub(crate) fn report_delivered_type_mismatch(
-            program: &dyn crate::CheckingInput,
-            scope: SymbolHandle,
-            value: ExpressionHandle,
-            destination: TypeReferenceHandle,
-            owner: &str,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) {
-            report_delivered_type_mismatch_with_component(
-                program,
-                scope,
-                value,
-                destination,
-                Some(language_core::PatternComponent::Fields),
-                owner,
-                diagnostics,
-            );
-        }
-
-        pub(crate) fn report_delivered_type_mismatch_with_component(
-            program: &dyn crate::CheckingInput,
-            scope: SymbolHandle,
-            value: ExpressionHandle,
-            destination: TypeReferenceHandle,
-            component: Option<language_core::PatternComponent>,
-            owner: &str,
-            diagnostics: &mut Vec<Diagnostic>,
-        ) {
-            if crate::value_custody::pattern_components::report_delivery(
-                program,
-                value,
-                destination,
-                component,
-                owner,
-                diagnostics,
-            ) {
-                return;
-            }
-            if let Some(delivered) = delivered_type_conflict(program, scope, value, destination) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{owner} expects `{}`, but the value is delivered as `{}`",
-                    program.display_type_reference_with_constraints(destination),
-                    program.display_type_reference_with_constraints(delivered),
-                )));
-            }
-        }
     }
-    pub(crate) use call_carriers::argument_matches_call_carrier;
     pub(crate) mod reference_values {
         use super::{
             ExpressionHandle, ExpressionNode, TypeReferenceHandle, TypeReferenceNode,
@@ -4782,6 +2788,71 @@ pub mod expression_types {
             }
         }
     }
+    pub(crate) fn proof_integer_expression(
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+    ) -> bool {
+        typed_trees::source_scalar_operands::proof_integer_expression(
+            program.typed_program(),
+            expression,
+            &|expression| {
+                crate::proof_contracts::proof_embeddings::expression_type_reference(
+                    program, expression,
+                )
+            },
+            &|call| crate::proof_contracts::proof_embeddings::is_exact_embed_call(program, call),
+        )
+    }
+    pub(crate) fn anonymous_integer_value(
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+    ) -> Option<numerics::bignum::BigInt> {
+        typed_trees::source_scalar_operands::anonymous_integer_value(
+            program.typed_program(),
+            expression,
+        )
+    }
+    pub(crate) fn anonymous_integer_math_literal(
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+    ) -> Option<semantic_vocabulary::IntegerMathLiteral> {
+        typed_trees::source_scalar_operands::anonymous_integer_math_literal(
+            program.typed_program(),
+            expression,
+        )
+    }
+    pub(crate) fn mathematical_integer_operands(
+        program: &dyn crate::CheckingInput,
+        operands: [ExpressionHandle; 2],
+    ) -> bool {
+        let mathematical = operands.map(|operand| proof_integer_expression(program, operand));
+        mathematical.iter().any(|value| *value)
+            && operands
+                .into_iter()
+                .zip(mathematical)
+                .all(|(expression, mathematical)| {
+                    mathematical
+                        || typed_trees::source_scalar_operands::anonymous_integer_value(
+                            program.typed_program(),
+                            expression,
+                        )
+                        .is_some()
+                })
+    }
+    fn source_call_return_type(
+        program: &dyn crate::CheckingInput,
+        call: &typed_trees::expression::TableCallExpression,
+    ) -> Option<TypeReferenceHandle> {
+        if crate::proof_contracts::proof_embeddings::is_exact_embed_call(program, call) {
+            return crate::proof_contracts::proof_embeddings::proof_int_type_reference(program);
+        }
+        if let Some(operator) = typed_trees::operator::resolve_named_expression_call(program, call)
+            && operator.return_type.is_valid()
+        {
+            return Some(operator.return_type);
+        }
+        crate::machine_calls::calls::resolved_call_result_type(program, call)
+    }
     pub(crate) mod result_type {
         use crate::frozen_program::expression_table;
         use crate::proof_contracts::bound_expression_meaning::builtin_type_reference;
@@ -5126,7 +3197,11 @@ pub mod expression_types {
                 return Some(declaration.declared_type);
             }
             if let ExpressionNode::Name(path) = expression_table(program).expression(expression)
-                && let Some(reference) = super::builtin_member_type_reference(program, path.symbol)
+                && let Some(reference) =
+                    typed_trees::source_operator_types::builtin_member_type_reference(
+                        program.typed_program(),
+                        path.symbol,
+                    )
             {
                 return Some(reference);
             }
@@ -6036,7 +4111,7 @@ pub mod expression_types {
                     matches!(program.type_reference_table.type_reference(reference),
                 TypeReferenceNode::Named { symbol, .. }
                     if program.symbols.builtin_type_symbol(symbols::BuiltinType::Int) == Some(*symbol))
-                }) || crate::proof_contracts::contract_entailment::proof_integer_expression(
+                }) || super::proof_integer_expression(
                     program, expression,
                 )
             });
@@ -6046,7 +4121,7 @@ pub mod expression_types {
                     .zip(mathematical)
                     .all(|(expression, mathematical)| {
                         mathematical
-                            || crate::proof_contracts::contract_entailment::anonymous_integer_value(
+                            || typed_trees::source_scalar_operands::anonymous_integer_value(
                                 program, expression,
                             )
                             .is_some()
@@ -6079,18 +4154,15 @@ pub mod expression_types {
                         && matches!(operands, [Some(left), Some(right)]
                     if crate::declared_carriers_match(program, left, right));
                     let mathematical =
-                        crate::proof_contracts::contract_entailment::mathematical_integer_operands(
-                            program,
-                            [binary.left, binary.right],
-                        );
+                        super::mathematical_integer_operands(program, [binary.left, binary.right]);
                     let integer_comparison = [binary.left, binary.right]
                 .into_iter()
                 .zip(operands)
                 .all(|(expression, reference)| {
-                    super::scalar_observations::completed_observations_satisfy(
+                    super::scalar_observations::source_observations_satisfy(
                         program, expression, reference, expression_type, &|expression, reference| {
                             let Some(reference) = reference else {
-                                return crate::proof_contracts::contract_entailment::anonymous_integer_value(program, expression).map(|_| ());
+                                return typed_trees::source_scalar_operands::anonymous_integer_value(program, expression).map(|_| ());
                             };
                             let observed = super::scalar_observations::readable_observation_type_reference(program, reference)?;
                             let bare = program.type_reference_table.unconstrained_type_reference(observed);
@@ -6103,7 +4175,7 @@ pub mod expression_types {
                             .into_iter()
                             .zip(declared_operands)
                             .all(|(expression, reference)| {
-                                super::scalar_observations::completed_observations_satisfy(
+                                super::scalar_observations::source_observations_satisfy(
                                     program,
                                     expression,
                                     reference,
@@ -6667,55 +4739,21 @@ pub mod expression_types {
             false
         }
 
-        pub(crate) fn builtin_scalar_operand_references(
+        pub fn builtin_scalar_operand_references(
             program: &dyn crate::CheckingInput,
             binary: &typed_trees::expression::TableBinaryExpression,
             references: [Option<TypeReferenceHandle>; 2],
             expected: Option<TypeReferenceHandle>,
         ) -> Option<[TypeReferenceHandle; 2]> {
-            let reference = |index: usize| {
-                if let Some(reference) = references[index] {
-                    return Some(reference);
-                }
-                let destination = references[1 - index].or(expected)?;
-                let (primitive, _) = scalar_observation_meaning(program, destination)?;
-                let primitive = if references[1 - index].is_some() {
-                    typed_trees::operator::integer_peer_operand_carrier(
-                        binary.operator,
-                        primitive,
-                        index == 1,
-                    )
-                } else {
-                    primitive
-                };
-                if primitive == PrimitiveType::Addr {
-                    if !binary.operator.is_comparison()
-                        || references[1 - index].is_none()
-                        || !crate::value_custody::literals::has_anonymous_numeric_results(
-                            program,
-                            [binary.left, binary.right][index],
-                        )
-                    {
-                        return None;
-                    }
-                    let mut diagnostics = Vec::new();
-                    crate::proof_contracts::arithmetic_domains::validate_anonymous_integer_primitive_range(
-                program,
-                primitive,
-                [binary.left, binary.right][index],
-                "completed address comparison",
-                &mut diagnostics,
-            );
-                    if !diagnostics.is_empty() {
-                        return None;
-                    }
-                } else {
-                    if !primitive.is_integer() {
-                        return None;
-                    }
+            typed_trees::source_scalar_operands::builtin_scalar_operand_references(
+                program.typed_program(),
+                binary,
+                references,
+                expected,
+                |expression, primitive| {
                     crate::value_custody::literals::land_anonymous_integer_expression(
                         program,
-                        [binary.left, binary.right][index],
+                        expression,
                         primitive,
                         &[],
                         |expression| {
@@ -6723,56 +4761,31 @@ pub mod expression_types {
                                 program, expression,
                             )
                         },
-                    )?;
-                }
-                crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
-                    program,
-                    typed_trees::types::builtin_type_atom(primitive.landed_landing()?),
-                )
-            };
-            Some([reference(0)?, reference(1)?])
+                    )
+                    .is_some_and(|(_, error)| error.is_none())
+                },
+            )
         }
-
         pub fn scalar_observation_meaning(
             program: &dyn crate::CheckingInput,
             declared: TypeReferenceHandle,
         ) -> Option<(PrimitiveType, ArithmeticDomain)> {
-            let observed = readable_observation_type_reference(program, declared)?;
-            Some((
-                program.primitive_type_reference(observed)?,
-                program.arithmetic_domain_for_type_reference(observed),
-            ))
+            typed_trees::source_scalar_operands::scalar_observation_meaning(
+                program.typed_program(),
+                declared,
+            )
         }
-
-        pub(crate) fn readable_observation_type_reference(
+        pub fn readable_observation_type_reference(
             program: &dyn crate::CheckingInput,
             declared: TypeReferenceHandle,
         ) -> Option<TypeReferenceHandle> {
-            let mut reference = declared;
-            let mut observed = declared;
-            for _ in 0..=program.type_reference_table.type_reference_count() {
-                if !program
-                    .type_reference_table
-                    .contains_type_reference(reference)
-                {
-                    return None;
-                }
-                match program.type_reference_table.type_reference(reference) {
-                    TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
-                    TypeReferenceNode::Reference {
-                        referee, access, ..
-                    } if access.is_readable() => {
-                        reference = *referee;
-                        observed = *referee;
-                    }
-                    TypeReferenceNode::Reference { .. } => return None,
-                    _ => return Some(observed),
-                }
-            }
-            None
+            typed_trees::source_scalar_operands::readable_observation_type_reference(
+                program.typed_program(),
+                declared,
+            )
         }
 
-        pub(crate) fn completed_observations_satisfy(
+        pub(crate) fn source_observations_satisfy(
             program: &dyn crate::CheckingInput,
             expression: ExpressionHandle,
             reference: Option<TypeReferenceHandle>,
@@ -6785,7 +4798,7 @@ pub mod expression_types {
             match program.expression_table.expression(expression) {
                 typed_trees::expression::ExpressionNode::Atomic(atomic) => {
                     let reference = expression_type(atomic.value);
-                    completed_observations_satisfy(
+                    source_observations_satisfy(
                         program,
                         atomic.value,
                         reference,
@@ -6798,7 +4811,7 @@ pub mod expression_types {
                     !arms.is_empty()
                         && arms.iter().all(|arm| {
                             let reference = expression_type(arm.value);
-                            completed_observations_satisfy(
+                            source_observations_satisfy(
                                 program,
                                 arm.value,
                                 reference,
@@ -6826,8 +4839,6 @@ pub mod expression_types {
 
     pub(crate) use crate::value_custody::places::declared_reference_access;
     pub(crate) use crate::value_custody::type_references::substituted_identity;
-    pub(crate) use delivered_types::report_delivered_type_mismatch;
-    pub(crate) use delivered_types::report_delivered_type_mismatch_with_component;
     pub use reference_values::borrow_selects_reference_storage;
     pub(crate) use reference_values::{
         StorageWriteAccess, owned_rvalue_exclusive_reference_access,
@@ -6841,48 +4852,11 @@ pub mod expression_types {
         selected_operator_result_type_reference,
     };
     pub use scalar_observations::scalar_observation_meaning;
-    pub(crate) use scalar_observations::{
+    pub use scalar_observations::{
         builtin_scalar_operand_references, readable_observation_type_reference,
     };
 
-    pub(crate) use cast_validation::validate_cast_types;
-    pub(crate) use float_coercions::{
-        float_coercion_preserves_denotation, validate_exact_float_coercion,
-    };
-
-    pub(crate) use operator_validation::{
-        report_non_bool_logical_not, report_non_integer_bitwise_not, report_non_integer_index,
-        validate_binary_operand_types, validate_builtin_comparison_operand_landing,
-    };
-
-    pub(crate) use shape_validation::{
-        report_array_scalar_shape_mismatch, report_scalar_data_shape_mismatch,
-        report_view_element_argument_mismatch,
-    };
-
     pub(crate) use value_classification::ValueClass;
-    pub(crate) use value_classification::{report_cross_class_store, report_data_type_conflict};
-
-    #[derive(Debug, Clone, Copy)]
-    pub(crate) enum ExpressionTypeOwner<'program> {
-        StateTerminalExpression {
-            machine: &'program str,
-            state: &'program str,
-        },
-    }
-
-    impl fmt::Display for ExpressionTypeOwner<'_> {
-        fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-            match self {
-                Self::StateTerminalExpression { machine, state } => {
-                    write!(
-                        formatter,
-                        "machine `{machine}` state `{state}` terminal expression"
-                    )
-                }
-            }
-        }
-    }
 
     pub fn argument_matches_type_reference_handle(
         program: &dyn crate::CheckingInput,
@@ -6892,25 +4866,14 @@ pub mod expression_types {
         argument_matches_type_reference_with_substitutions(program, argument, type_reference, &[])
     }
 
-    pub(crate) fn completed_value_type_matches(
-        program: &dyn crate::CheckingInput,
-        actual: TypeReferenceHandle,
-        required: TypeReferenceHandle,
-    ) -> bool {
-        crate::value_custody::type_references::type_references_match(program, actual, required)
-            || (actual.is_valid()
-                && required.is_valid()
-                && reference_values::reference_type_matches(program, actual, required, &[], &[]))
-    }
-
-    pub(crate) fn completed_call_operand_matches(
+    pub(crate) fn source_call_operand_type_matches(
         program: &dyn crate::CheckingInput,
         actual: TypeReferenceHandle,
         required: TypeReferenceHandle,
         required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
     ) -> bool {
-        actual.is_valid()
-            && required.is_valid()
+        program.contains_type_reference(actual)
+            && program.contains_type_reference(required)
             && (program.type_identity(TypeIdentityRequest::ordinary(actual))
                 == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
                     substitutions: required_substitutions,
@@ -7454,195 +5417,15 @@ pub mod expression_types {
         }
     }
 
-    fn builtin_member_type_reference(
-        program: &dyn crate::CheckingInput,
-        symbol: SymbolHandle,
-    ) -> Option<TypeReferenceHandle> {
-        match program.symbols.builtin_type_member(symbol)? {
-            symbols::BuiltinTypeMember::AddressBound => {
-                crate::proof_contracts::proof_embeddings::proof_int_type_reference(program)
-            }
-        }
-    }
-
     pub fn named_value_type_reference(
         program: &dyn crate::CheckingInput,
         path: &typed_trees::expression::TableNamePath,
     ) -> Option<TypeReferenceHandle> {
-        if let Some(reference) = builtin_member_type_reference(program, path.symbol) {
-            return Some(reference);
-        }
-        let [_] = expression_table(program).name_path_members(path.members) else {
-            return None;
-        };
-        if let Some(reference) =
-            crate::proof_contracts::mathematical_applications::parameter_type_reference(
-                program,
-                path.symbol,
-            )
-        {
-            return Some(reference);
-        }
-        if path.symbol.is_valid()
-            && path.head_symbol == path.symbol
-            && let Some(parameter) = program.first_data_type_parameter_by_symbol(path.symbol)
-            && let typed_trees::data::TypeParameterKind::Const { type_reference }
-            | typed_trees::data::TypeParameterKind::Value { type_reference } = parameter.kind
-        {
-            return Some(type_reference);
-        }
-        let matches_symbol = |candidate: symbols::SymbolHandle| {
-            candidate.is_valid()
-                && ((path.symbol.is_valid() && candidate == path.symbol)
-                    || (path.head_symbol.is_valid() && candidate == path.head_symbol))
-        };
-
-        if let Some(type_reference) =
-            hinted_named_value_type_reference(program, path, matches_symbol)
-        {
-            return Some(type_reference);
-        }
-
-        program.first_named_value_declared_type(path.symbol, path.head_symbol)
+        typed_trees::source_operator_types::named_value_type_reference(
+            program.typed_program(),
+            path,
+        )
     }
-
-    fn hinted_named_value_type_reference(
-        program: &dyn crate::CheckingInput,
-        path: &typed_trees::expression::TableNamePath,
-        matches_symbol: impl Fn(symbols::SymbolHandle) -> bool,
-    ) -> Option<TypeReferenceHandle> {
-        let binder = if path.symbol.is_valid() {
-            path.symbol
-        } else {
-            path.head_symbol
-        };
-        if !binder.is_valid() {
-            return None;
-        }
-        let parent = program.symbols.get(binder).parent;
-        if !parent.is_valid() {
-            return None;
-        }
-        match program.symbols.get(parent).kind {
-            symbols::SymbolKind::Domain => program
-                .domain_definitions()
-                .iter()
-                .find(|domain| domain.symbol == parent)
-                .filter(|domain| matches_symbol(domain.subject_symbol))
-                .map(|domain| domain.target_type),
-            symbols::SymbolKind::Data => {
-                let definition = program.data_definition_by_symbol(parent)?;
-                if definition.predicate_subject_symbol.is_valid()
-                    && matches_symbol(definition.predicate_subject_symbol)
-                    && program
-                        .symbols
-                        .get(definition.predicate_subject_symbol)
-                        .parent
-                        == definition.symbol
-                    && program
-                        .symbols
-                        .get(definition.predicate_subject_symbol)
-                        .kind
-                        == symbols::SymbolKind::Parameter
-                {
-                    return definition
-                        .predicate_subject_type
-                        .is_valid()
-                        .then_some(definition.predicate_subject_type);
-                }
-                program
-                    .data_members(definition)
-                    .iter()
-                    .find_map(|member| match member {
-                        DataMember::Field(field) if matches_symbol(field.symbol) => {
-                            Some(field.type_reference)
-                        }
-                        _ => None,
-                    })
-            }
-            symbols::SymbolKind::Variant => {
-                let owner = program.symbols.get(parent).parent;
-                let definition = program.data_definition_by_symbol(owner)?;
-                let variant =
-                    program
-                        .data_members(definition)
-                        .iter()
-                        .find_map(|member| match member {
-                            DataMember::Variant(variant) if variant.symbol == parent => {
-                                Some(variant)
-                            }
-                            _ => None,
-                        })?;
-                program
-                    .data_payload_fields(variant)
-                    .iter()
-                    .find(|field| matches_symbol(field.symbol))
-                    .map(|field| field.type_reference)
-            }
-            symbols::SymbolKind::Machine => {
-                if let Some(machine) = program.machine(parent) {
-                    return program
-                        .machine_owned_data(machine)
-                        .iter()
-                        .find(|owned| matches_symbol(owned.symbol))
-                        .map(|owned| owned.type_reference);
-                }
-                None
-            }
-            symbols::SymbolKind::Proposition => program
-                .proposition_definition_by_symbol(parent)
-                .and_then(|proposition| {
-                    program
-                        .proposition_parameters(proposition)
-                        .iter()
-                        .find(|parameter| matches_symbol(parameter.symbol))
-                        .map(|parameter| parameter.type_reference)
-                }),
-            symbols::SymbolKind::Measure => program
-                .measures()
-                .iter()
-                .find(|measure| measure.symbol == parent)
-                .and_then(|measure| measure.parameter.as_ref())
-                .filter(|parameter| {
-                    path.symbol.is_valid()
-                        && path.head_symbol == path.symbol
-                        && parameter.symbol == path.symbol
-                })
-                .map(|parameter| parameter.type_reference),
-            symbols::SymbolKind::State => {
-                let grandparent = program.symbols.get(parent).parent;
-                if program.symbols.get(grandparent).kind != symbols::SymbolKind::Machine {
-                    return None;
-                }
-                let (_, state) = program.machine_state(grandparent, parent)?;
-                state_symbol_declared_type(program, state, matches_symbol)
-            }
-            _ => None,
-        }
-    }
-
-    fn state_symbol_declared_type(
-        program: &dyn crate::CheckingInput,
-        state: &typed_trees::state::State,
-        matches_symbol: impl Fn(SymbolHandle) -> bool,
-    ) -> Option<TypeReferenceHandle> {
-        if let Some(parameter) = program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| matches_symbol(parameter.symbol))
-        {
-            return Some(parameter.type_reference);
-        }
-        for statement in program.statement_table.statements(state.statement_nodes) {
-            if let Some(local) = statement.as_local_data()
-                && matches_symbol(local.symbol)
-            {
-                return Some(local.type_reference);
-            }
-        }
-        None
-    }
-
     pub fn bounded_byte_buffer_capacity(
         program: &dyn crate::CheckingInput,
         type_reference: TypeReferenceHandle,
@@ -7650,41 +5433,6 @@ pub mod expression_types {
         match crate::byte_sequence_carrier(program, type_reference, &[])? {
             CheckedByteSequenceCarrier::BoundedOwned { capacity } => usize::try_from(capacity).ok(),
             _ => None,
-        }
-    }
-
-    pub(crate) fn validate_expression_type_handle(
-        program: &dyn crate::CheckingInput,
-        scope: SymbolHandle,
-        expression: ExpressionHandle,
-        type_reference: TypeReferenceHandle,
-        diagnostics: &mut Vec<Diagnostic>,
-        owner: ExpressionTypeOwner<'_>,
-    ) {
-        if let ExpressionNode::String(literal) = expression_table(program).expression(expression)
-            && let Some(capacity) = bounded_byte_buffer_capacity(program, type_reference)
-            && literal.len() > capacity
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "{owner} constructs {} byte(s), exceeding the {capacity}-byte capacity of `{}`",
-                literal.len(),
-                program.display_type_reference_with_constraints(type_reference),
-            )));
-            return;
-        }
-        if !argument_matches_type_reference_using(
-            program,
-            scope,
-            expression,
-            type_reference,
-            reference_values::declared_value_matches_reference,
-            &[],
-        ) {
-            diagnostics.push(Diagnostic::error(format!(
-                "{owner} expects `{}`, got `{}`",
-                program.display_type_reference_with_constraints(type_reference),
-                expression_type_name_handle(program, expression)
-            )));
         }
     }
 
@@ -7721,49 +5469,6 @@ pub mod expression_types {
             ExpressionNode::TypeExpression(_) => "static type operand",
             ExpressionNode::ZeroValue(_) => "zero-value representation observation",
         }
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn report_place_value_mismatches(
-        program: &dyn crate::CheckingInput,
-        machine: &typed_trees::machine::Machine,
-        state: Option<&typed_trees::state::State>,
-        value: ExpressionHandle,
-        target_type: TypeReferenceHandle,
-        slot_context: &str,
-        slot_noun: &str,
-        diagnostics: &mut Vec<Diagnostic>,
-    ) {
-        report_data_type_conflict(
-            program,
-            machine,
-            state,
-            value,
-            target_type,
-            slot_context,
-            slot_noun,
-            diagnostics,
-        );
-        report_array_scalar_shape_mismatch(
-            program,
-            machine,
-            state,
-            value,
-            target_type,
-            slot_context,
-            slot_noun,
-            diagnostics,
-        );
-        report_scalar_data_shape_mismatch(
-            program,
-            machine,
-            state,
-            value,
-            target_type,
-            slot_context,
-            slot_noun,
-            diagnostics,
-        );
     }
 
     pub(crate) use match_dispatch::validate_transition_patterns;
@@ -8526,9 +6231,14 @@ pub mod field_domains {
                 return;
             }
             if !prefix.is_empty() {
-                if crate::linear_claim_frontier(program, carrier)
-                    .iter()
-                    .any(|claim| claim.path.is_empty())
+                let owns_claim = match crate::linear_claim_frontier(program, carrier) {
+                    Ok(claims) => claims.iter().any(|claim| claim.path.is_empty()),
+                    Err(_) => {
+                        output.unresolved.push(prefix.clone());
+                        false
+                    }
+                };
+                if owns_claim
                     || crate::nominal_cleanup_machine_for_type(program, reference, &[]).is_some()
                 {
                     output.custody.push(prefix.clone());

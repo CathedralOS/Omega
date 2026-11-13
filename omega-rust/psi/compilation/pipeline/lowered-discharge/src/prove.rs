@@ -236,14 +236,21 @@ enum Slot {
     Done(Option<Bound>),
 }
 
-#[cfg(test)]
-thread_local! {
-    /// How many provers were started on this thread: the reuse tests assert
-    /// that re-verifying a saved proof starts none.
-    pub(crate) static SEARCHES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+/// Searches started during one explicit proof invocation. Callers retain the
+/// activity across certificate reuse to detect any additional search.
+#[derive(Debug, Default)]
+pub struct ProofSearchActivity {
+    started: usize,
+}
+
+impl ProofSearchActivity {
+    pub fn started(&self) -> usize {
+        self.started
+    }
 }
 
 pub(crate) struct Prover<'a> {
+    activity: &'a mut ProofSearchActivity,
     context: &'a PropositionContext,
     assumptions: &'a [Proposition],
     axioms: &'a [Proposition],
@@ -382,12 +389,13 @@ impl<'a> Prover<'a> {
         axioms: &'a [Proposition],
         values: &'a IdTable<ValueId, ValueRow>,
         relations: bool,
+        activity: &'a mut ProofSearchActivity,
     ) -> Self {
-        #[cfg(test)]
-        SEARCHES.with(|searches| searches.set(searches.get() + 1));
+        activity.started = activity.started.saturating_add(1);
         let crate::known::Known { facts, equations } =
             crate::known::Known::new(context, assumptions, axioms, values);
         Self {
+            activity,
             context,
             assumptions,
             axioms,
@@ -753,6 +761,7 @@ impl<'a> Prover<'a> {
             self.axioms,
             self.values,
             self.relations,
+            self.activity,
         );
         branch.case_split = self.case_split;
         branch.remaining_case_branches = self.remaining_case_branches;
@@ -801,6 +810,7 @@ impl<'a> Prover<'a> {
             self.axioms,
             self.values,
             self.relations,
+            self.activity,
         );
         under.case_split = self.case_split;
         under.remaining_case_branches = self.remaining_case_branches;

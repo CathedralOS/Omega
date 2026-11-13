@@ -174,6 +174,6 @@ fn what_a_caller_knows_about_an_argument_is_not_known_about_the_parameter() {
 fn an_invariant_row_that_misses_an_arrival_refuses_the_machine() {
     let mut elaboration = lower(vec![countdown(vec![at_most(1, 9)], less_one())]).unwrap();
     elaboration.module.scalar_block_invariants[0].arrivals.pop();
-    let refusal = discharge(&mut elaboration).unwrap_err();
+    let refusal = discharge(&mut elaboration, &mut Default::default()).unwrap_err();
     assert_eq!(refusal.reason, RefusalReason::ForeignIdentity);
 }

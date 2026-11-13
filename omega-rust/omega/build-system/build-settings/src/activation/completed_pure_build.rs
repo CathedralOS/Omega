@@ -15,8 +15,8 @@ public carrier constructor or global registry:
    bit equality for floats), source assembly inputs, dependency handoff
    commitments (preserving both consumer import scope and producer purpose),
    snapshot request, activation identity, and captured source inventory.
-3. Because full `CheckedBuildProgram` comparison traverses the checked trees and
-   `CheckFacts`, both `matching_result` and `retain_completed` clone the
+3. Because full `CheckedBuildProgram` comparison traverses the accepted source and
+   canonical artifact, both `matching_result` and `retain_completed` clone the
    append-only `Arc<CompletedPureBuild>` slice under the mutex and run the deep
    structural comparison outside the lock.
 */
@@ -31,7 +31,6 @@ use std::sync::{Arc, Mutex};
 #[derive(Clone)]
 pub(crate) struct CompletedPureBuildInputs {
     checked: build_time_evaluation::CheckedBuildProgram,
-    retained_check: Option<Arc<psi_compiler::RetainedCheck>>, // Candidate for Psi check reuse; never a substitute for admission or key equality.
     providers: crate::admission::provider_execution::BuildProviderPlans,
     measurement_identity: evaluation_accounting::EvaluationMeasurementIdentity,
     sponsor_policy: Option<(EvaluationMeasurementIdentity, BuildEvaluationSponsorLimits)>, // Distinguishes sponsored ceilings/units without retaining account authority.
@@ -59,7 +58,6 @@ struct CompletedPureBuildDependency {
 impl CompletedPureBuildInputs {
     pub(crate) fn from_admitted(
         checked: build_time_evaluation::CheckedBuildProgram,
-        retained_check: Option<psi_compiler::RetainedCheck>,
         providers: crate::admission::provider_execution::BuildProviderPlans,
         selected_entry: symbols::SymbolHandle,
         initial_build: BuildTimeValue,
@@ -86,7 +84,6 @@ impl CompletedPureBuildInputs {
         }
         Some(Self {
             checked,
-            retained_check: retained_check.map(Arc::new),
             providers,
             measurement_identity,
             sponsor_policy: sponsor.map(|sponsor| (sponsor.measurement(), sponsor.limits())),
@@ -139,20 +136,6 @@ pub struct PureBuildCompilation {
 }
 
 impl PureBuildCompilation {
-    pub(crate) fn completed_checks(
-        &self,
-    ) -> Result<Vec<Arc<psi_compiler::RetainedCheck>>, Vec<diagnostics::Diagnostic>> {
-        let completed = self.completed.lock().map_err(|_| {
-            vec![diagnostics::Diagnostic::error(
-                "completed Pure Build owner is unavailable",
-            )]
-        })?;
-        Ok(completed
-            .iter()
-            .filter_map(|completed| completed.inputs.retained_check.clone())
-            .collect())
-    }
-
     pub(crate) fn matching_result(
         &self,
         inputs: &CompletedPureBuildInputs,
@@ -236,6 +219,10 @@ impl CompletedPureBuild {
                 .is_none_or(|tree| tree.entry_count() != 0)
             || !configuration.generated_sources.is_empty()
             || configuration.selected_build_machine_symbol != Some(inputs.selected_entry)
+            || configuration
+                .accepted_build_source
+                .as_ref()
+                .is_none_or(|source| !Arc::ptr_eq(source, inputs.checked.accepted_source()))
             || observations.activation() != inputs.activation
             || observations.captured_source_inventory() != inputs.captured_inventory
         {

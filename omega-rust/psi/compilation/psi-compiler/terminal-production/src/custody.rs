@@ -15,8 +15,8 @@ use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::{
     NativeBindingFormation, ProductDeclarationRequest,
 };
-use lowered_psi_to_terminal_psi::rejoin_program_entry_receipt;
 use std::sync::Arc;
+use terminal_codec::entry_receipt::rejoin_program_entry_receipt;
 use terminal_codec::{CanonicalTerminalArtifact, CanonicalTerminalArtifactError};
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
@@ -117,6 +117,51 @@ impl compiler_storage::Record for ProducedTerminalProgram {
 }
 
 impl ProducedTerminalProgram {
+    pub(crate) fn from_accepted_source(
+        source: &crate::CheckedInvocationSource,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let publication = source.publication();
+        let module = publication.artifact.semantic_module();
+        let companions = crate::invocation_companions::InvocationCompanions::capture(source)
+            .map_err(|diagnostic| vec![diagnostic])?;
+        let mut provenance = terminal_psi::TerminalMachineProvenance::default();
+        for machine in &module.machines {
+            let symbol = *publication.machines.get(machine.id).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "invocation lost a checked machine's source declaration",
+                )]
+            })?;
+            provenance.name(
+                machine.id,
+                source.typed().symbols.display_path(symbol, "::"),
+                source.typed().symbols.symbol_source_span(symbol),
+            );
+        }
+        if let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry {
+            provenance = provenance.for_root(module, entry, None);
+        }
+        let code = terminal_codec::InvocationTerminalCode::from_artifact(&publication.artifact);
+        let view = code.view();
+        let build_bindings = TerminalBuildBindings::new(
+            view,
+            companions.bindings,
+            companions.declarations,
+            companions.queries,
+            companions.native_formations,
+        );
+        let build_requests = TerminalBuildRequests::new(view, companions.requests);
+        let build_filesystem = TerminalBuildFilesystem::new(view, companions.filesystem);
+        Ok(Self {
+            program: terminal_codec::TerminalProgramProduct::Invocation(code),
+            build_bindings,
+            build_requests,
+            build_filesystem,
+            applications: Vec::new(),
+            provenance,
+            source_records: publication.source_records.clone(),
+        })
+    }
+
     pub fn into_shared_portable(
         self,
     ) -> Result<PortableTerminalProgram, CanonicalTerminalArtifactError> {

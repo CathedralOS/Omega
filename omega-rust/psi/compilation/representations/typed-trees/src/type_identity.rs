@@ -3478,7 +3478,7 @@ pub(crate) mod open_index_identity {
     use crate::expression::{BinaryOperator, ExpressionHandle, OpenIndexOperationSelection};
     use crate::type_system::type_identity::constraint_identity::{atom, compound};
     use crate::type_system::type_identity::identity_context::{
-        TypeIdentityContext, TypeIdentityQualification, normalize_index_expression,
+        TypeIdentityContext, normalize_index_expression,
     };
     use language_semantics::type_identity::vocabulary::{IndexForm, Label};
 
@@ -3526,7 +3526,10 @@ pub(crate) mod open_index_identity {
                         "<unresolved-algebra-trait>",
                     ),
                 ),
-                atom(Label::Requirement, &selection.algebra_requirement),
+                atom(
+                    Label::Requirement,
+                    &context.name(program, selection.operator, ""),
+                ),
             ],
         )
     }
@@ -3536,18 +3539,21 @@ pub(crate) mod open_index_identity {
         selection: &OpenIndexOperationSelection,
         context: &TypeIdentityContext<'_>,
     ) -> String {
-        let contract = selection.operation_contract_identity(program);
-        if context.qualification == TypeIdentityQualification::Ordinary {
-            return contract;
-        }
         compound(
             Label::OpenIndexOperation,
             [
                 atom(
                     Label::Symbol,
-                    &context.name(program, selection.operator, &contract),
+                    &context.name(program, selection.operator, ""),
                 ),
-                atom(Label::Contract, &contract),
+                atom(
+                    Label::Contract,
+                    &super::identity_context::normalize_type_reference(
+                        program,
+                        selection.operand_type,
+                        context,
+                    ),
+                ),
             ],
         )
     }
@@ -3564,7 +3570,6 @@ pub(crate) mod open_index_identity {
             && program.normalized_type_identity(left.operand_type)
                 == program.normalized_type_identity(right.operand_type)
             && left.algebra_trait == right.algebra_trait
-            && left.algebra_requirement == right.algebra_requirement
             && left.commutativity_licensed == right.commutativity_licensed
             && left.associativity_licensed == right.associativity_licensed
             && left.distributes_over == right.distributes_over
@@ -3579,8 +3584,8 @@ pub(crate) mod open_index_identity {
         context: &TypeIdentityContext<'_>,
     ) -> bool {
         product.algebra_trait == sum.algebra_trait
-            && product.distributes_over.contains(&sum.algebra_requirement)
-            && !sum.distributes_over.contains(&product.algebra_requirement)
+            && product.distributes_over.contains(&sum.operator)
+            && !sum.distributes_over.contains(&product.operator)
             && program.normalized_type_identity(product.operand_type)
                 == program.normalized_type_identity(sum.operand_type)
             && provider_identity(program, product, context)
@@ -5050,6 +5055,7 @@ pub(crate) mod package_policy_reading_tests {
                 commutativity_licensed: true,
                 associativity_licensed: true,
                 distributes_over: Vec::new(),
+                law_evidence: Vec::new(),
                 left_identity_literal: String::new(),
                 right_identity_literal: String::new(),
             };

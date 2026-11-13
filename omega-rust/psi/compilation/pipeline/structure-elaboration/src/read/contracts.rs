@@ -385,6 +385,14 @@ impl Program<'_> {
         expression: ExpressionHandle,
         expected: Option<ScalarType>,
     ) -> Checked<(ScalarTerm, ScalarType)> {
+        if let Some((_, value)) = self
+            .source_expression_values
+            .iter()
+            .find(|(source, _)| *source == expression)
+        {
+            let term = super::expression_formation::expression_literal(id, value)?;
+            return Ok((term.clone(), term.scalar_type()));
+        }
         let typed = self.typed;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
         if !expression.is_valid() {

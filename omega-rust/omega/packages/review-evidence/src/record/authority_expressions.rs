@@ -49,7 +49,40 @@ pub enum PackageReviewIntegerComparisonKind {
 
 pub type PackageReviewIeeeFloatComparisonKind = semantic_vocabulary::IeeeFloatComparisonKind;
 
-pub type PackageReviewIntegerBinaryKind = facts::CheckedIntegerBinaryKind;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PackageReviewIntegerBinaryKind {
+    ExactAdd,
+    ExactSubtract,
+    ExactMultiply,
+    ExactDivide,
+    ExactRemainder,
+    WrappingDivide,
+    WrappingRemainder,
+    SaturatingDivide,
+    SaturatingRemainder,
+    WrappingAdd,
+    SaturatingAdd,
+    WrappingSubtract,
+    SaturatingSubtract,
+    WrappingMultiply,
+    SaturatingMultiply,
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
+    WrappingShiftLeft,
+    WrappingShiftRight,
+    ExactShiftLeft,
+    ExactShiftRight,
+    SaturatingShiftLeft,
+    SaturatingShiftRight,
+    TrappingShiftLeft,
+    TrappingShiftRight,
+    TrappingAdd,
+    TrappingSubtract,
+    TrappingMultiply,
+    TrappingDivide,
+    TrappingRemainder,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackageReviewIntegerLiteralLanding {

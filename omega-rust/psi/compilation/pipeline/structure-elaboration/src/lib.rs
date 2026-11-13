@@ -54,6 +54,13 @@ pub use canonical::substituted_routes as substituted_call_routes;
 mod components;
 mod declare;
 mod external_providers;
+pub use read::{source_zero_projection_bindings, source_zero_scalar};
+mod expression_formation;
+pub use expression_formation::{
+    SourceExpressionAssumptions, SourceExpressionBinding, SourceExpressionContext,
+    SourceExpressionGoal, SourceExpressionProjectionBinding, SourceExpressionValue,
+    elaborate_source_expression_witnesses, static_tuple_requirements,
+};
 mod lower;
 mod names;
 mod outcome;
@@ -92,8 +99,17 @@ use typed_trees::TypedTrees;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SourceOrigin {
     Authored(source::SourceSpan),
+    /// The exact typed occurrence survives source transformations even when
+    /// several generated operations share one authored span.
+    Typed {
+        owner: SymbolHandle,
+        node: SourceNode,
+        span: Option<source::SourceSpan>,
+    },
     Unpositioned(Unpositioned),
 }
+
+pub use typed_trees::{SourceCallCorrespondence, SourceNode};
 
 /// Why a lowered construct has no source position.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -122,6 +138,36 @@ pub enum Unpositioned {
 }
 
 impl SourceOrigin {
+    pub fn span(self) -> Option<source::SourceSpan> {
+        match self {
+            Self::Authored(span) => Some(span),
+            Self::Typed { span, .. } => span,
+            Self::Unpositioned(_) => None,
+        }
+    }
+
+    pub fn node(self) -> Option<SourceNode> {
+        match self {
+            Self::Typed { node, .. } => Some(node),
+            Self::Authored(_) | Self::Unpositioned(_) => None,
+        }
+    }
+
+    pub fn owner(self) -> Option<SymbolHandle> {
+        match self {
+            Self::Typed { owner, .. } => Some(owner),
+            Self::Authored(_) | Self::Unpositioned(_) => None,
+        }
+    }
+
+    pub(crate) fn typed(owner: SymbolHandle, node: SourceNode, span: source::SourceSpan) -> Self {
+        Self::Typed {
+            owner,
+            node,
+            span: Self::of(span).span(),
+        }
+    }
+
     pub(crate) fn of(span: source::SourceSpan) -> Self {
         if span.span.start < span.span.end {
             Self::Authored(span)
@@ -512,7 +558,37 @@ pub fn elaborate_witness(
 #[derive(Clone, Copy)]
 pub enum CallableDeclaration<'a> {
     Signature(&'a typed_trees::signature::StateSignature),
+    Operator(&'a typed_trees::operator::OperatorDefinition),
     Machine(SymbolHandle),
+    MachineState {
+        declaration: SymbolHandle,
+        entry: SymbolHandle,
+    },
+}
+
+/// Exact source applications and alpha correspondence supplied by formation.
+/// Type operands keep their original typed-table ownership. Captures are paired
+/// by declaration symbol, never by a rendered formal name.
+#[derive(Clone, Copy, Default)]
+pub struct CallableRefinementContext<'a> {
+    pub required_types: &'a [(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
+    pub supplied_types: &'a [(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
+    pub required_scope_starts: &'a [usize],
+    pub supplied_scope_starts: &'a [usize],
+    pub required_constants: &'a [(
+        SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+        language_semantics::const_value::CanonicalConstIdentity,
+    )],
+    pub supplied_constants: &'a [(
+        SymbolHandle,
+        typed_trees::types::TypeReferenceHandle,
+        language_semantics::const_value::CanonicalConstIdentity,
+    )],
+    pub binder_pairs: &'a [(SymbolHandle, SymbolHandle)],
+    pub required_lexical_owner: SymbolHandle,
+    pub supplied_lexical_owner: SymbolHandle,
+    pub selecting: Option<SymbolHandle>,
 }
 
 /// The logical refinement obligation between two published callable contracts.
@@ -526,9 +602,24 @@ pub fn elaborate_callable_witness<'a>(
     required: &'a typed_trees::signature::StateSignature,
     supplied: CallableDeclaration<'a>,
 ) -> Checked<Elaboration> {
+    elaborate_published_callable_witness(
+        typed,
+        CallableDeclaration::Signature(required),
+        supplied,
+        CallableRefinementContext::default(),
+    )
+}
+
+/// A proof between exact published declarations in their retained application
+/// context. Both headers stay abstract: no implementation body is a premise.
+pub fn elaborate_published_callable_witness<'a>(
+    typed: &'a TypedTrees,
+    required: CallableDeclaration<'a>,
+    supplied: CallableDeclaration<'a>,
+    context: CallableRefinementContext<'_>,
+) -> Checked<Elaboration> {
     let mut program = read::Program::new(typed, false);
-    let entry = program.witnessed_signature(required, &[])?;
-    let callee = program.callable_contract(supplied)?;
+    let (entry, callee) = program.refinement_contracts(required, supplied, context)?;
     elaborate_witness_call(program, entry, callee)
 }
 
@@ -578,7 +669,54 @@ fn elaborate_witness_call(
             None => Statement::Evaluate(call),
         }],
     });
-    finish_reading(program, entry, bodies, None)
+    finish_logical_witness(program, entry, bodies)
+}
+
+/// A logical witness has abstract dependencies and no executable closure. Read
+/// no dependency body and publish no inferred operational promise for it.
+fn finish_logical_witness(
+    mut program: read::Program<'_>,
+    entry: MachineId,
+    mut bodies: IdTable<MachineId, Body>,
+) -> Checked<Elaboration> {
+    while bodies.len() < program.signatures.len() {
+        let id = MachineId::new(bodies.len() as u64 + 1).ok_or_else(|| {
+            refuse(
+                entry,
+                Construct::Machine,
+                Unserved::Machine("identity overflow"),
+            )
+        })?;
+        let signature =
+            terminal_check_tables::row(&program.signatures, id, entry, Construct::Machine)?;
+        bodies.push(Body {
+            slots: signature.parameters.clone(),
+            statements: Vec::new(),
+        });
+        if !program.requirements.contains(&id) {
+            program.requirements.push(id);
+        }
+    }
+    let services = program.service_map(entry)?;
+    let mut witness = lower_program(
+        entry,
+        &bodies,
+        &program.signatures,
+        &program.records,
+        &program.requirements,
+        &program.callables,
+        &program.boundaries,
+        &services,
+        &program.external_providers,
+        &program.static_contracts,
+    )?;
+    witness.machines = program.symbols;
+    witness.names = program.names;
+    witness.value_parameters = program.value_parameters;
+    witness.value_arguments = program.value_arguments;
+    witness.applications = program.applications;
+    witness.selections = program.selections;
+    Ok(witness)
 }
 
 fn elaborate_form(typed: &TypedTrees, entry: SymbolHandle, rigid: bool) -> Checked<Elaboration> {

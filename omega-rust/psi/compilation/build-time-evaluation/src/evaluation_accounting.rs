@@ -16,7 +16,7 @@ use crate::evaluation_requests::{
 use typed_trees::TypedTrees;
 
 use crate::{BuildTimeValue, SelectedBuildTimeBinaryOperator};
-use compiler_storage::{RecordError, RecordReader};
+use compiler_storage::{Record, RecordError, RecordReader};
 use terminal_interpreter::TerminalExecutionResult;
 
 mod canonical_scalar {
@@ -186,58 +186,75 @@ mod canonical_scalar {
 pub use canonical_scalar::CanonicalScalarEvaluationReceipt;
 pub(crate) use canonical_scalar::CanonicalScalarScope;
 
-#[derive(Debug, Clone, compiler_storage::Record)]
+#[derive(Debug, Clone)]
 pub enum PureEvaluationProgram {
-    Typed(Arc<TypedTrees>),
-    Checked(Arc<checked_trees::CheckedTrees>),
-    CheckedClosure {
-        execution: Arc<checked_trees::CheckedTrees>,
-        product_declarations: Arc<TypedTrees>,
+    /// A content key only. Decoding this row grants no execution authority.
+    Accepted {
+        typed: Arc<typed_trees::FrozenTypedTrees>,
+        semantic: terminal_psi::TerminalPsiIdentity,
     },
+    Typed(Arc<TypedTrees>),
+}
+
+impl compiler_storage::Record for PureEvaluationProgram {
+    fn write(&self, output: &mut compiler_storage::RecordWriter) -> Result<(), RecordError> {
+        u64::from_le_bytes(*b"PUREKEY1").write(output)?;
+        match self {
+            Self::Accepted { typed, semantic } => {
+                0_u8.write(output)?;
+                typed.write(output)?;
+                semantic.write(output)
+            }
+            Self::Typed(typed) => {
+                1_u8.write(output)?;
+                typed.write(output)
+            }
+        }
+    }
+
+    fn read<Context>(input: &mut RecordReader<'_, Context>) -> Result<Self, RecordError> {
+        if u64::read(input)? != u64::from_le_bytes(*b"PUREKEY1") {
+            return Err(input.error("compiler evaluation input key uses a retired representation"));
+        }
+        match u8::read(input)? {
+            0 => Ok(Self::Accepted {
+                typed: Arc::read(input)?,
+                semantic: terminal_psi::TerminalPsiIdentity::read(input)?,
+            }),
+            1 => Ok(Self::Typed(Arc::read(input)?)),
+            _ => Err(input.error("compiler evaluation input key has an unknown representation")),
+        }
+    }
 }
 
 impl PureEvaluationProgram {
     fn retain(program: BuildMachineProgram<'_>) -> Self {
         match program {
-            BuildMachineProgram::Typed(typed) => Self::Typed(Arc::new(typed.clone())),
-            BuildMachineProgram::Checked(checked) => Self::Checked(Arc::new(checked.clone())),
-            BuildMachineProgram::CheckedClosure {
-                execution,
-                product_declarations,
-            } => Self::CheckedClosure {
-                execution: Arc::new(execution.clone()),
-                product_declarations: Arc::new(product_declarations.clone()),
+            BuildMachineProgram::Accepted(source) => Self::Accepted {
+                typed: Arc::clone(source.typed()),
+                semantic: source.publication().artifact.view().identity(),
             },
+            BuildMachineProgram::Typed(typed) => Self::Typed(Arc::new(typed.clone())),
         }
     }
 
     fn matches(&self, program: BuildMachineProgram<'_>) -> bool {
         match (self, program) {
+            (Self::Accepted { typed, semantic }, BuildMachineProgram::Accepted(source)) => {
+                typed.as_ref() == source.typed().as_ref()
+                    && *semantic == source.publication().artifact.view().identity()
+            }
             (Self::Typed(retained), BuildMachineProgram::Typed(current)) => {
                 retained.as_ref() == current
             }
-            (Self::Checked(retained), BuildMachineProgram::Checked(current)) => {
-                retained.as_ref() == current
-            }
-            (
-                Self::CheckedClosure {
-                    execution,
-                    product_declarations,
-                },
-                BuildMachineProgram::CheckedClosure {
-                    execution: current,
-                    product_declarations: current_product,
-                },
-            ) => execution.as_ref() == current && product_declarations.as_ref() == current_product,
             _ => false,
         }
     }
 
     fn typed(&self) -> &TypedTrees {
         match self {
+            Self::Accepted { typed, .. } => typed,
             Self::Typed(typed) => typed,
-            Self::Checked(checked) => &checked.typed,
-            Self::CheckedClosure { execution, .. } => &execution.typed,
         }
     }
 }
@@ -581,10 +598,7 @@ impl EvaluationAccounting {
             &mut Option<Arc<psi_terminal_production::ProducedTerminalProgram>>,
         ) -> Result<TerminalExecutionResult, String>,
     ) -> Result<TerminalExecutionResult, String> {
-        if !matches!(
-            program,
-            BuildMachineProgram::Checked(_) | BuildMachineProgram::CheckedClosure { .. }
-        ) {
+        if !matches!(program, BuildMachineProgram::Accepted(_)) {
             return Err("Terminal source-completion accounting requires checked input".to_owned());
         }
         let input = self.reserve_invocation(program)?;
@@ -637,10 +651,7 @@ impl EvaluationAccounting {
             &mut Option<Arc<psi_terminal_production::ProducedTerminalProgram>>,
         ) -> Result<BuildTimeValue, String>,
     ) -> Result<MeasuredEvaluation<BuildTimeValue>, String> {
-        if !matches!(
-            program,
-            BuildMachineProgram::Checked(_) | BuildMachineProgram::CheckedClosure { .. }
-        ) {
+        if !matches!(program, BuildMachineProgram::Accepted(_)) {
             return Err("Terminal source-completion accounting requires checked input".to_owned());
         }
         let account = pure_terminal_invocation_account()?;
@@ -688,17 +699,54 @@ impl EvaluationAccounting {
         evaluation
     }
 
-    // The seam for a machine that runs before the program is checked. The tree
-    // interpreter that served it is removed and no build-time job produces a
-    // Terminal program from trees that are not checked yet, so every request is
-    // refused; none is skipped and none is answered with a default value.
+    /// Materialize exact actuals in an ordinary caller, judge that caller, and
+    /// execute only its accepted Terminal publication.
     pub(crate) fn evaluate(
         &self,
-        _program: BuildMachineProgram<'_>,
-        _request: BuildMachineEvaluationRequest<'_>,
+        program: BuildMachineProgram<'_>,
+        request: BuildMachineEvaluationRequest<'_>,
         job: &str,
     ) -> Result<BuildTimeOperationEvaluation<BuildTimeValue>, BuildMachineEvaluationError> {
-        Err(crate::evaluation_requests::no_typed_tree_engine(job))
+        let typed = match program {
+            BuildMachineProgram::Typed(typed) => typed,
+            BuildMachineProgram::Accepted(source) => &***source.typed(),
+        };
+        let symbol = match request.entry {
+            crate::BuildMachineEntry::Symbol(symbol) => symbol,
+            crate::BuildMachineEntry::Name(name) => typed
+                .realized_machine_named(name)
+                .map(|machine| machine.symbol)
+                .ok_or_else(|| format!("{job}: no exact executable machine `{name}`"))?,
+        };
+        if let BuildMachineProgram::Accepted(source) = program {
+            let entry = crate::accepted_evaluation::entry(source)?;
+            if source.publication().machines.get(entry).copied() != Some(symbol) {
+                return Err(format!(
+                    "{job}: requested entry differs from its accepted publication"
+                )
+                .into());
+            }
+        }
+        if !request.machine_bodies.is_empty() {
+            return Err(format!(
+                "{job}: target-family evaluation requires an exact target installation"
+            )
+            .into());
+        }
+        let admission = crate::BuildTimeAdmissionPlan::infer(typed, None)
+            .map_err(|diagnostics| diagnostics::join_messages(&diagnostics))?
+            .with_accounting(self.clone())
+            .with_selected_operators(typed, request.operators)?;
+        let value = admission.evaluate_const_evaluable_machine_symbol_for_invocation(
+            typed,
+            symbol,
+            request.arguments,
+            crate::BuildTimeInvocationCustody::Symbol(symbol),
+        )?;
+        // This pure Terminal runner has no private-layout host operation. An
+        // attempted placement refuses before completion, so a returned value
+        // has made no private layout placements.
+        Ok(BuildTimeOperationEvaluation::new(value, Vec::new()))
     }
 }
 

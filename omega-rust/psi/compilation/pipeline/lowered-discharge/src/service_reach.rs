@@ -64,9 +64,9 @@ impl ExceededReach {
     /// The `Reject` diagnostic, at the call.
     pub fn reject_diagnostic(&self) -> Diagnostic {
         let diagnostic = Diagnostic::error(self.message());
-        match self.site {
-            SourceOrigin::Authored(span) => diagnostic.with_source_span(span),
-            SourceOrigin::Unpositioned(_) => diagnostic,
+        match self.site.span() {
+            Some(span) => diagnostic.with_source_span(span),
+            None => diagnostic,
         }
     }
 }

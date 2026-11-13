@@ -12,9 +12,13 @@
 
 mod build_bindings;
 mod build_provider;
-pub(crate) use build_bindings::{build_filesystem, build_protocol, build_queries, build_requests};
+pub(crate) use build_bindings::{build_filesystem, build_queries, build_requests};
 mod custody;
 mod external_providers;
+mod invocation_companions;
+mod invocation_source;
+pub use invocation_source::CheckedInvocationSource;
+pub use structure_elaboration::Compilation as SourceCompilation;
 pub(crate) mod production_selection {
     #[derive(Debug, Clone, Copy)]
     pub enum TerminalMachineSelection<'a> {
@@ -104,13 +108,12 @@ pub use checked_trees::PreparedProviderInventory;
 pub(crate) mod terminal_production {
     use checked_trees::CheckedTrees;
     use diagnostics::Diagnostic;
-    use lowered_psi_to_lowered_psi::PsiOptimizationStageError;
 
     use crate::custody::{ProducedTerminalProgram, TerminalProductionCustody};
     use crate::observation::PsiCompilationObserver;
     use crate::{TerminalMachineSelection, TerminalProgramRoots};
 
-    pub use lowered_psi_to_terminal_psi::ProgramEntryTerminalReceiptError;
+    pub use terminal_codec::entry_receipt::ProgramEntryTerminalReceiptError;
 
     pub struct TerminalProductionRequest<'a> {
         pub publication: terminal_codec::TerminalPublication,
@@ -141,12 +144,9 @@ pub(crate) mod terminal_production {
             }
         }
 
-        /*
-            The stage that lowered checked trees into Lowered Psi is removed, and the
-            product hand-off from the lowered route's published module is not built
-            yet. Until it is, no request reaches Terminal Psi: every production is
-            refused here rather than routed back through the old checker's output.
-        */
+        /// The retired checked-tree producer cannot replace the module that
+        /// the lowered-form checker accepted. New invocations use that accepted
+        /// publication through `CheckedInvocationSource`.
         pub fn produce(
             self,
             _custody: TerminalProductionCustody<'_>,
@@ -160,7 +160,6 @@ pub(crate) mod terminal_production {
     pub enum TerminalArtifactProductionError {
         BuildContext(Diagnostic),
         NoProductRoute,
-        Optimization(PsiOptimizationStageError),
         Artifact(terminal_codec::CanonicalTerminalArtifactError),
         EntryReceipt(ProgramEntryTerminalReceiptError),
     }
@@ -226,7 +225,7 @@ pub(crate) mod composition_roots {
     use crate::observation::{PsiCompilationObserver, PsiCompilationStage};
     use crate::{ProducedTerminalApplication, TerminalArtifactProductionError};
     use diagnostics::Diagnostic;
-    use lowered_psi_to_terminal_psi::prepare_program_entry_receipt;
+    use terminal_codec::entry_receipt::prepare_program_entry_receipt;
     use terminal_psi::{PreparedNominalRoot, TerminalMachineProvenance};
 
     #[derive(Debug, PartialEq, Eq, compiler_storage::Record)]

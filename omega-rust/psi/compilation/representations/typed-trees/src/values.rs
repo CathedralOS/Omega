@@ -818,7 +818,7 @@ pub mod expression {
             pub normalizer_version: u32,
         }
 
-        #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+        #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct OpenIndexOperationSelection {
             pub expression: ExpressionHandle,
             pub spelling: language_core::operator_spelling::OperatorSpelling,
@@ -831,12 +831,121 @@ pub mod expression {
             pub algebra_alias: Option<String>,
             pub commutativity_licensed: bool,
             pub associativity_licensed: bool,
-            pub distributes_over: Vec<String>,
+            pub distributes_over: Vec<SymbolHandle>,
+            pub law_evidence: Vec<crate::source_index_algebra::IndexLawEvidence>,
             pub left_identity_literal: String,
             pub right_identity_literal: String,
         }
 
+        impl compiler_storage::Record for OpenIndexOperationSelection {
+            fn write(
+                &self,
+                output: &mut compiler_storage::RecordWriter,
+            ) -> Result<(), compiler_storage::RecordError> {
+                output.record(|output| {
+                    compiler_storage::Record::write(b"OMGIDX02", output)?;
+                    compiler_storage::Record::write(&self.expression, output)?;
+                    compiler_storage::Record::write(&self.spelling, output)?;
+                    compiler_storage::Record::write(&self.operator, output)?;
+                    compiler_storage::Record::write(&self.operand_type, output)?;
+                    compiler_storage::Record::write(&self.provider, output)?;
+                    compiler_storage::Record::write(&self.application, output)?;
+                    compiler_storage::Record::write(&self.algebra_trait, output)?;
+                    compiler_storage::Record::write(&self.algebra_requirement, output)?;
+                    compiler_storage::Record::write(&self.algebra_alias, output)?;
+                    compiler_storage::Record::write(&self.commutativity_licensed, output)?;
+                    compiler_storage::Record::write(&self.associativity_licensed, output)?;
+                    compiler_storage::Record::write(&self.distributes_over, output)?;
+                    compiler_storage::Record::write(&self.law_evidence, output)?;
+                    compiler_storage::Record::write(&self.left_identity_literal, output)?;
+                    compiler_storage::Record::write(&self.right_identity_literal, output)?;
+                    Ok(())
+                })
+            }
+            fn read<Context>(
+                input: &mut compiler_storage::RecordReader<'_, Context>,
+            ) -> Result<Self, compiler_storage::RecordError> {
+                input.record(|input| {
+                    if <[u8; 8] as compiler_storage::Record>::read(input)? != *b"OMGIDX02" {
+                        return Err(input.error(
+                            "index operation record has an unsupported source-evidence format",
+                        ));
+                    }
+                    let value = Self {
+                        expression: compiler_storage::Record::read(input)?,
+                        spelling: compiler_storage::Record::read(input)?,
+                        operator: compiler_storage::Record::read(input)?,
+                        operand_type: compiler_storage::Record::read(input)?,
+                        provider: compiler_storage::Record::read(input)?,
+                        application: compiler_storage::Record::read(input)?,
+                        algebra_trait: compiler_storage::Record::read(input)?,
+                        algebra_requirement: compiler_storage::Record::read(input)?,
+                        algebra_alias: compiler_storage::Record::read(input)?,
+                        commutativity_licensed: compiler_storage::Record::read(input)?,
+                        associativity_licensed: compiler_storage::Record::read(input)?,
+                        distributes_over: compiler_storage::Record::read(input)?,
+                        law_evidence: compiler_storage::Record::read(input)?,
+                        left_identity_literal: compiler_storage::Record::read(input)?,
+                        right_identity_literal: compiler_storage::Record::read(input)?,
+                    };
+                    value
+                        .validate_evidence_shape()
+                        .map_err(|reason| input.error(reason))?;
+                    Ok(value)
+                })
+            }
+        }
+
         impl OpenIndexOperationSelection {
+            fn validate_evidence_shape(&self) -> Result<(), &'static str> {
+                use crate::source_index_algebra::IndexLawKind;
+                for evidence in &self.law_evidence {
+                    if !evidence.bound.binder.is_valid()
+                        || !evidence.bound.trait_symbol.is_valid()
+                        || !evidence.declaring_trait.is_valid()
+                        || !evidence.law.is_valid()
+                        || evidence
+                            .bound
+                            .arguments
+                            .iter()
+                            .any(|actual| !actual.is_valid())
+                        || evidence.conjunct.iter().any(|side| *side > 1)
+                    {
+                        return Err("index law evidence has malformed source coordinates");
+                    }
+                }
+                let has = |kind| {
+                    self.law_evidence
+                        .iter()
+                        .any(|evidence| evidence.kind == kind)
+                };
+                if (self.commutativity_licensed && !has(IndexLawKind::Commutativity))
+                    || (self.associativity_licensed && !has(IndexLawKind::Associativity))
+                    || (!self.distributes_over.is_empty() && !has(IndexLawKind::Distributivity))
+                    || (!self.left_identity_literal.is_empty()
+                        && (!has(IndexLawKind::LeftIdentity)
+                            || !has(IndexLawKind::LiteralConnection)))
+                    || (!self.right_identity_literal.is_empty()
+                        && (!has(IndexLawKind::RightIdentity)
+                            || !has(IndexLawKind::LiteralConnection)))
+                {
+                    return Err("index operation license has no retained declaration evidence");
+                }
+                Ok(())
+            }
+
+            pub fn remap_symbols(&mut self, mut remap: impl FnMut(SymbolHandle) -> SymbolHandle) {
+                self.provider = remap(self.provider);
+                self.operator = remap(self.operator);
+                self.algebra_trait = remap(self.algebra_trait);
+                for requirement in &mut self.distributes_over {
+                    *requirement = remap(*requirement);
+                }
+                for evidence in &mut self.law_evidence {
+                    evidence.remap_symbols(&mut remap);
+                }
+            }
+
             pub fn apply_provider(&mut self, selected: &super::StaticMachineArgument, alias: &str) {
                 self.provider = selected.symbol;
                 self.application = selected.application.as_ref().map(|_| selected.clone());
@@ -1631,17 +1740,12 @@ pub mod expression {
                         if let Some(application) = &mut operation.application {
                             self.remap_static_argument_symbols(application, symbols.execution());
                         }
-                        for symbol in [
-                            &mut operation.provider,
-                            &mut operation.operator,
-                            &mut operation.algebra_trait,
-                        ] {
-                            if let Some((_, replacement)) =
-                                symbols.iter().find(|(original, _)| original == symbol)
-                            {
-                                *symbol = *replacement;
-                            }
-                        }
+                        operation.remap_symbols(|symbol| {
+                            symbols
+                                .iter()
+                                .find(|(original, _)| *original == symbol)
+                                .map_or(symbol, |(_, replacement)| *replacement)
+                        });
                     }
                     *self.index_expression_authority_mut(root) = authority;
                 }
@@ -5283,6 +5387,15 @@ mod pattern_components {
 pub mod subtrees {
     use crate::expression::{ExpressionHandle, ExpressionNode};
 
+    /// The source operands retained by an atomic single-attempt observation.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct AtomicCarrierAccess {
+        pub operation: access_plans::AtomicAccessOperation,
+        pub place: ExpressionHandle,
+        pub operands: Vec<ExpressionHandle>,
+        pub result: ExpressionHandle,
+    }
+
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
     pub struct SubtreeEdges {
         pub saved_sources: bool,
@@ -5320,6 +5433,98 @@ pub mod subtrees {
     }
 
     impl crate::TypedTrees {
+        pub fn atomic_once_operands(
+            &self,
+            atomic: &crate::expression::TableAtomicExpression,
+        ) -> Option<AtomicCarrierAccess> {
+            use access_plans::AtomicAccessOperation;
+            use language_core::atomic::AtomicOrderingPlan;
+            let AtomicOrderingPlan::CompareExchangeOnce { success, failure } = atomic.ordering
+            else {
+                return None;
+            };
+            if !atomic.result_custody.is_valid_for(atomic.ordering)
+                || atomic.result.is_valid()
+                || !failure.valid_compare_exchange_failure(success)
+            {
+                return None;
+            }
+            let language_core::atomic::AtomicExpressionResultCustody::CompareExchangeOnce(custody) =
+                atomic.result_custody
+            else {
+                return None;
+            };
+            let ExpressionNode::Call(call) = self.expression_table.expression(atomic.value) else {
+                return None;
+            };
+            let [expected, replacement] = self.expression_table.expression_handles(call.arguments)
+            else {
+                return None;
+            };
+            if !call.receiver.is_valid()
+                || call.target.as_str() != custody.observation.single_attempt_member_name()
+                || !call.machine_arguments.is_empty()
+                || !call.evidence_arguments.is_empty()
+            {
+                return None;
+            }
+            Some(AtomicCarrierAccess {
+                operation: AtomicAccessOperation::single_attempt(
+                    custody.observation,
+                    success,
+                    failure,
+                ),
+                place: call.receiver,
+                operands: vec![*expected, *replacement],
+                result: ExpressionHandle::invalid(),
+            })
+        }
+
+        /// Direct source children in operand order. Atomic observation
+        /// operands follow their retained custody declaration.
+        pub fn expression_children(
+            &self,
+            node: &ExpressionNode,
+            mut child: impl FnMut(ExpressionHandle),
+        ) {
+            if let ExpressionNode::Atomic(atomic) = node
+                && let Some(once) = self.atomic_once_operands(atomic)
+            {
+                child(once.place);
+                for operand in once.operands {
+                    child(operand);
+                }
+                return;
+            }
+            self.subtree_children(node, SubtreeEdges::STRUCTURAL, |expression| {
+                child(expression);
+                false
+            });
+        }
+
+        /// Type dependencies include complete callable signature operands.
+        pub fn collect_type_expression_trees(
+            &self,
+            reference: crate::types::TypeReferenceHandle,
+            visited: &mut Vec<crate::types::TypeReferenceHandle>,
+            expressions: &mut Vec<ExpressionHandle>,
+        ) {
+            if !reference.is_valid() || visited.contains(&reference) {
+                return;
+            }
+            let inputs = crate::references::type_reference_inputs(self, reference);
+            for reference in inputs.types {
+                if !visited.contains(&reference) {
+                    visited.push(reference);
+                }
+            }
+            for expression in inputs.expressions {
+                if !expressions.contains(&expression) {
+                    expressions.push(expression);
+                }
+            }
+        }
+
         /*
             Visits `root`'s subtree in pre-order, children in edge order, and
             stops at the first `Found`. The walk keeps its pending nodes in a

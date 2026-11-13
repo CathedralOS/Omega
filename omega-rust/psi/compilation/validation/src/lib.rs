@@ -13,12 +13,11 @@ declaration checks, machine and state validation, and result publication in
 order; `frozen_program_and_queries.rs` owns the immutable checking context and
 the shared read-only queries. The families are declarations (`declarations_core`,
 `operators`, `traits`), machine calls (`machine_calls_core`, `calls`,
-`call_cycles`, `effect_inference`, `machine_parameters_and_bindings`,
-`reference_result_custody`, `structural_call_custody`), proof contracts
+`call_cycles`, `effect_inference`, `machine_parameters_and_bindings`), proof contracts
 (`proof_contracts_core`, `arithmetic_domains`, `contract_entailment`,
 `domains_and_predicates`, `float_and_mathematical_contracts`, `quotients`), and
 value custody (`value_custody_core`, `access_views_and_borrows`,
-`completed_storage_and_conservation`, `expression_types_and_fields`,
+`source_content_contracts`, `expression_types_and_fields`,
 `literals_and_struct_literals`, `places`, `recasts`, `type_references_and_wire`,
 `borrow_and_reflection`). The `declarations`, `machine_calls`,
 `proof_contracts`, and `value_custody` facade modules below keep the module
@@ -42,7 +41,6 @@ pub(crate) mod arithmetic_domains;
 mod borrow_and_reflection;
 pub(crate) mod call_cycles;
 pub(crate) mod calls;
-mod completed_storage_and_conservation;
 pub(crate) mod contract_entailment;
 mod declarations_core;
 mod domains_and_predicates;
@@ -60,8 +58,8 @@ mod program_validation;
 mod proof_contracts_core;
 pub(crate) mod quotients;
 pub(crate) mod recasts;
-pub mod reference_result_custody;
-pub(crate) mod structural_call_custody;
+mod source_content_contracts;
+mod source_expression_formation;
 pub mod trace_flags;
 pub(crate) mod traits;
 mod type_references_and_wire;
@@ -88,15 +86,12 @@ pub(crate) mod machine_calls {
     pub use crate::machine_calls_core::{
         assembly_services, attached_method_bounds, boundary_calls, callable_overloads,
         compiler_operations, contract_dependencies, contract_identities, denotational_calls,
-        effects, fact_call_projections, fact_only_citations, graph_components, invocations,
-        machine_data, machine_specialization_identity, result_overloads,
-        static_machine_call_contracts, terminal_transitions,
+        effects, graph_components, invocations, machine_data, machine_specialization_identity,
+        result_overloads, static_machine_call_contracts,
     };
     pub use crate::machine_parameters_and_bindings::{
         machine_parameters, static_arguments, static_bindings,
     };
-    pub use crate::reference_result_custody;
-    pub(crate) use crate::structural_call_custody;
 }
 
 pub(crate) mod proof_contracts {
@@ -109,37 +104,31 @@ pub(crate) mod proof_contracts {
         float_projection_bindings, float_projection_invocations, mathematical_applications,
     };
     pub use crate::proof_contracts_core::{
-        carrier_contents, contract_argument_root, contract_results, contract_structure,
-        domain_weakening, expression_owners, immutable_integer_bounds, instruction_effects,
-        parameter_domains, parameter_expression_meaning, proof_embeddings, proof_facts,
-        proof_only_faces, properties, proposition_context, proposition_entailment,
-        qualification_evidence, relevance, scalar_boundary_guarantees, signature_ensures,
-        slice_ranking,
+        contract_argument_root, contract_results, contract_structure, domain_weakening,
+        expression_owners, immutable_integer_bounds, instruction_effects, parameter_domains,
+        parameter_expression_meaning, proof_embeddings, proof_facts, proof_only_faces, properties,
+        proposition_context, proposition_entailment, qualification_evidence,
+        scalar_boundary_guarantees, signature_ensures, slice_ranking,
     };
     pub(crate) use crate::quotients;
 }
 
 pub(crate) mod value_custody {
 
-    pub use crate::access_views_and_borrows::{
-        access_atomic_observing_results, access_views, write_only_borrows,
-    };
-    pub use crate::completed_storage_and_conservation::{
-        completed_storage, content_conservation, content_projections,
-    };
+    pub use crate::access_views_and_borrows::{access_atomic_observing_results, access_views};
     pub use crate::expression_types_and_fields::{expression_types, field_domains};
     pub use crate::literals_and_struct_literals::{literals, struct_literals};
     pub(crate) use crate::places;
     pub(crate) use crate::recasts;
-    pub use crate::type_references_and_wire::{type_references, wire};
+    pub use crate::source_content_contracts::{content_conservation, content_projections};
+    pub use crate::type_references_and_wire::type_references;
     pub use crate::value_custody_core::{
         activation_storage, atomic_fences, atomic_operations, byte_observations, claim_frontier,
         cleanup, cleanup_selection, collect_executable_value_origins, const_expressions, constants,
-        content_classes, data, destructure, dispatch_extraction, intrinsic_boundaries, locals,
-        logical_matches, membership_evidence, owned_value_source, partial_affine_residuals,
-        permission_provenance, plan_laid, qualification_casts, receiving_values, reference_access,
-        reference_local_establishment, reference_shells, resident_content, scalar_case_constructor,
-        scalar_representation_range, source_liveness, static_inline_storage, storage_contents,
+        data, destructure, dispatch_extraction, intrinsic_boundaries, logical_matches,
+        membership_evidence, partial_affine_residuals, permission_provenance, plan_laid,
+        receiving_values, reference_access, reference_shells, resident_content,
+        scalar_case_constructor, scalar_representation_range, static_inline_storage,
         structural_identity, transition_operand_moves, type_properties, type_shapes,
         visit_executable_value_occurrences, visit_statement_value_occurrences,
     };
@@ -921,492 +910,7 @@ pub mod product_entries {
 }
 
 pub mod native_locators {
-    pub(crate) mod vocabulary {
-        use diagnostics::Diagnostic;
-        use symbols::SymbolHandle;
-        use typed_trees::TypedTrees;
-        use typed_trees::data::{DataDefinition, DataMember, TypeParameterKind};
-        use typed_trees::types::{
-            FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode,
-        };
-
-        #[derive(Debug, Clone, Copy)]
-        pub struct NativeLocatorVocabulary {
-            pub binding: SymbolHandle,
-            pub dll_import: SymbolHandle,
-        }
-
-        pub fn vocabulary(
-            typed: &TypedTrees,
-            in_scope: impl Fn(SymbolHandle) -> bool,
-        ) -> Result<NativeLocatorVocabulary, Vec<Diagnostic>> {
-            let exact = |name: &str| {
-                typed
-                    .data_definitions()
-                    .iter()
-                    .filter(|definition| {
-                        in_scope(definition.symbol)
-                            && definition.name.as_str() == name
-                            && definition.generic_instance.is_none()
-                            && definition.is_public
-                            && definition.supply_mode
-                                == language_semantics::DataSupplyMode::CheckedShape
-                            && typed.symbols.core_vocabulary(definition.symbol).is_some_and(
-                                |vocabulary| {
-                                    matches!(
-                                        vocabulary,
-                                        language_core::core_vocabulary::CoreVocabulary::ExternalBinding(_)
-                                    )
-                                },
-                            )
-                    })
-                    .collect::<Vec<_>>()
-            };
-            let bindings = exact("ForeignBinding");
-            let imports = exact("DllImport");
-            let ([binding], [dll_import]) = (bindings.as_slice(), imports.as_slice()) else {
-                return Err(vec![Diagnostic::error(
-                    "native locator requires the unique compiler-owned ForeignBinding and DllImport vocabulary",
-                )]);
-            };
-            let binding_parameters = exact_width_parameters(typed, binding)?;
-            let import_parameters = exact_width_parameters(typed, dll_import)?;
-            validate_dll_import_shape(typed, dll_import, import_parameters)?;
-            validate_binding_shape(typed, binding, binding_parameters, dll_import.symbol)?;
-            Ok(NativeLocatorVocabulary {
-                binding: binding.symbol,
-                dll_import: dll_import.symbol,
-            })
-        }
-
-        pub fn application_widths(
-            typed: &TypedTrees,
-            reference: TypeReferenceHandle,
-        ) -> Result<[u64; 3], Vec<Diagnostic>> {
-            let application = binding_application(typed, reference)
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            let TypeReferenceNode::Generic { base_symbol, .. } =
-                typed.type_reference_table.type_reference(application)
-            else {
-                return Err(vec![Diagnostic::error(
-                    "native locator lost its exact generic origin",
-                )]);
-            };
-            let binding = exact_vocabulary(
-                typed,
-                *base_symbol,
-                language_core::core_vocabulary::ExternalBindingVocabulary::ForeignBinding,
-            )?;
-            let import_symbol = typed
-                .data_members(binding)
-                .first()
-                .and_then(DataMember::as_variant)
-                .and_then(|variant| typed.data_payload_fields(variant).first())
-                .and_then(|field| {
-                    match typed
-                        .type_reference_table
-                        .type_reference(field.type_reference)
-                    {
-                        TypeReferenceNode::Generic { base_symbol, .. } => Some(*base_symbol),
-                        _ => None,
-                    }
-                })
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "compiler-owned ForeignBinding lost its exact DllImport payload",
-                    )]
-                })?;
-            let import = exact_vocabulary(
-                typed,
-                import_symbol,
-                language_core::core_vocabulary::ExternalBindingVocabulary::DllImport,
-            )?;
-            let parameters = exact_width_parameters(typed, binding)?;
-            let import_parameters = exact_width_parameters(typed, import)?;
-            validate_dll_import_shape(typed, import, import_parameters)?;
-            validate_binding_shape(typed, binding, parameters, import.symbol)?;
-            binding_widths(typed, binding.symbol, reference)
-                .map_err(|message| vec![Diagnostic::error(message)])
-        }
-
-        pub fn unused_coordinate_widths(
-            typed: &TypedTrees,
-            symbol: SymbolHandle,
-            case: SymbolHandle,
-        ) -> Option<[bool; 3]> {
-            if let Ok(definition) = exact_vocabulary(
-                typed,
-                symbol,
-                language_core::core_vocabulary::ExternalBindingVocabulary::DllImport,
-            ) {
-                let parameters = exact_width_parameters(typed, definition).ok()?;
-                validate_dll_import_shape(typed, definition, parameters).ok()?;
-                let ordinal = typed.data_members(definition).iter().position(|member| {
-                    member
-                        .as_variant()
-                        .is_some_and(|variant| variant.symbol == case)
-                })?;
-                return [
-                    [false, false, true],
-                    [false, true, true],
-                    [false; 3],
-                    [false, false, true],
-                ]
-                .get(ordinal)
-                .copied();
-            }
-            let definition = exact_vocabulary(
-                typed,
-                symbol,
-                language_core::core_vocabulary::ExternalBindingVocabulary::ForeignBinding,
-            )
-            .ok()?;
-            let widths = exact_width_parameters(typed, definition).ok()?;
-            let import_symbol = typed
-                .data_members(definition)
-                .first()?
-                .as_variant()
-                .and_then(|variant| typed.data_payload_fields(variant).first())
-                .and_then(|field| {
-                    match typed
-                        .type_reference_table
-                        .type_reference(field.type_reference)
-                    {
-                        TypeReferenceNode::Generic { base_symbol, .. } => Some(*base_symbol),
-                        _ => None,
-                    }
-                })?;
-            let import = exact_vocabulary(
-                typed,
-                import_symbol,
-                language_core::core_vocabulary::ExternalBindingVocabulary::DllImport,
-            )
-            .ok()?;
-            validate_dll_import_shape(typed, import, exact_width_parameters(typed, import).ok()?)
-                .ok()?;
-            validate_binding_shape(typed, definition, widths, import_symbol).ok()?;
-            let ordinal = typed.data_members(definition).iter().position(|member| {
-                member
-                    .as_variant()
-                    .is_some_and(|variant| variant.symbol == case)
-            })?;
-            [[false; 3], [true; 3]].get(ordinal).copied()
-        }
-
-        fn exact_vocabulary(
-            typed: &TypedTrees,
-            symbol: SymbolHandle,
-            vocabulary: language_core::core_vocabulary::ExternalBindingVocabulary,
-        ) -> Result<&DataDefinition, Vec<Diagnostic>> {
-            let name = match vocabulary {
-                language_core::core_vocabulary::ExternalBindingVocabulary::ForeignBinding => {
-                    "ForeignBinding"
-                }
-                language_core::core_vocabulary::ExternalBindingVocabulary::DllImport => "DllImport",
-            };
-            let definition = typed
-                .unique_data_definition_by_symbol(symbol)
-                .ok_or_else(|| {
-                    vec![Diagnostic::error(format!(
-                        "native binding lost the exact `{name}` template declaration"
-                    ))]
-                })?;
-            let admitted = typed.symbols.core_vocabulary(symbol)
-                == Some(
-                    language_core::core_vocabulary::CoreVocabulary::ExternalBinding(vocabulary),
-                )
-                && definition.generic_instance.is_none()
-                && definition.is_public
-                && definition.supply_mode == language_semantics::DataSupplyMode::CheckedShape;
-            if !admitted {
-                return Err(vec![Diagnostic::error(format!(
-                    "native binding requires the exact compiler-owned `{name}` declaration"
-                ))]);
-            }
-            Ok(definition)
-        }
-
-        fn binding_application(
-            typed: &TypedTrees,
-            reference: TypeReferenceHandle,
-        ) -> Result<TypeReferenceHandle, String> {
-            match typed.type_reference_table.type_reference(reference) {
-                TypeReferenceNode::Named { symbol, .. } => typed
-                    .unique_data_definition_by_symbol(*symbol)
-                    .and_then(|definition| definition.generic_instance)
-                    .ok_or_else(|| {
-                        "native locator must return a closed Binding application".to_owned()
-                    }),
-                TypeReferenceNode::Generic { .. } => Ok(reference),
-                _ => Err("native locator must return a closed Binding application".to_owned()),
-            }
-        }
-
-        fn exact_width_parameters(
-            typed: &TypedTrees,
-            definition: &DataDefinition,
-        ) -> Result<[SymbolHandle; 3], Vec<Diagnostic>> {
-            let parameters = typed.data_type_parameters(definition);
-            if parameters.len() != 3 {
-                return Err(vec![Diagnostic::error(format!(
-                    "compiler-owned `{}` must retain exactly three width parameters",
-                    definition.name
-                ))]);
-            }
-            let names = ["ObjectLength", "SymbolLength", "VersionLength"];
-            let mut symbols = [SymbolHandle::invalid(); 3];
-            for (index, (parameter, expected_name)) in parameters.iter().zip(names).enumerate() {
-                let TypeParameterKind::Const { type_reference } = parameter.kind else {
-                    return Err(vec![Diagnostic::error(format!(
-                        "compiler-owned `{}` parameter `{expected_name}` must remain const u64",
-                        definition.name
-                    ))]);
-                };
-                if parameter.name.as_str() != expected_name
-                    || typed.primitive_type_reference(type_reference) != Some(PrimitiveType::U64)
-                {
-                    return Err(vec![Diagnostic::error(format!(
-                        "compiler-owned `{}` parameter `{expected_name}` drifted from const u64",
-                        definition.name
-                    ))]);
-                }
-                symbols[index] = parameter.symbol;
-            }
-            Ok(symbols)
-        }
-
-        fn validate_dll_import_shape(
-            typed: &TypedTrees,
-            definition: &DataDefinition,
-            widths: [SymbolHandle; 3],
-        ) -> Result<(), Vec<Diagnostic>> {
-            let members = typed.data_members(definition);
-            let expected = [
-                ("PeByName", &["library", "export"][..]),
-                ("PeByOrdinal", &["library", "ordinal"][..]),
-                ("ElfVersioned", &["object", "symbol", "version"][..]),
-                ("MachODylibSymbol", &["install_name", "symbol"][..]),
-            ];
-            if members.len() != expected.len() {
-                return Err(vec![Diagnostic::error(
-                    "compiler-owned DllImport case set drifted",
-                )]);
-            }
-            for (index, (member, (variant_name, field_names))) in
-                members.iter().zip(expected).enumerate()
-            {
-                let Some(variant) = member.as_variant() else {
-                    return Err(vec![Diagnostic::error(
-                        "compiler-owned DllImport must remain a closed case sum",
-                    )]);
-                };
-                let fields = typed.data_payload_fields(variant);
-                if variant.name.as_str() != variant_name
-                    || fields.len() != field_names.len()
-                    || fields
-                        .iter()
-                        .zip(field_names)
-                        .any(|(field, name)| field.name.as_str() != *name)
-                {
-                    return Err(vec![Diagnostic::error(format!(
-                        "compiler-owned DllImport::{variant_name} shape drifted"
-                    ))]);
-                }
-                match index {
-                    0 => {
-                        require_fixed_bytes(typed, fields[0].type_reference, widths[0])?;
-                        require_fixed_bytes(typed, fields[1].type_reference, widths[1])?;
-                    }
-                    1 => {
-                        require_fixed_bytes(typed, fields[0].type_reference, widths[0])?;
-                        if typed.primitive_type_reference(fields[1].type_reference)
-                            != Some(PrimitiveType::U16)
-                        {
-                            return Err(vec![Diagnostic::error(
-                                "compiler-owned PeByOrdinal ordinal must remain u16",
-                            )]);
-                        }
-                    }
-                    2 => {
-                        require_fixed_bytes(typed, fields[0].type_reference, widths[0])?;
-                        require_fixed_bytes(typed, fields[1].type_reference, widths[1])?;
-                        require_fixed_bytes(typed, fields[2].type_reference, widths[2])?;
-                    }
-                    3 => {
-                        require_fixed_bytes(typed, fields[0].type_reference, widths[0])?;
-                        require_fixed_bytes(typed, fields[1].type_reference, widths[1])?;
-                    }
-                    _ => unreachable!(),
-                }
-            }
-            Ok(())
-        }
-
-        fn validate_binding_shape(
-            typed: &TypedTrees,
-            definition: &DataDefinition,
-            widths: [SymbolHandle; 3],
-            dll_import: SymbolHandle,
-        ) -> Result<(), Vec<Diagnostic>> {
-            let [
-                DataMember::Variant(import_variant),
-                DataMember::Variant(syscall_variant),
-            ] = typed.data_members(definition)
-            else {
-                return Err(vec![Diagnostic::error(
-                    "compiler-owned Binding must retain the exact DllImport and Syscall cases",
-                )]);
-            };
-            let [field] = typed.data_payload_fields(import_variant) else {
-                return Err(vec![Diagnostic::error(
-                    "compiler-owned ForeignBinding::DllImport payload drifted",
-                )]);
-            };
-            if import_variant.name.as_str() != "DllImport" || field.name.as_str() != "import" {
-                return Err(vec![Diagnostic::error(
-                    "compiler-owned ForeignBinding::DllImport names drifted",
-                )]);
-            }
-            let TypeReferenceNode::Generic {
-                base_symbol,
-                arguments,
-                ..
-            } = typed
-                .type_reference_table
-                .type_reference(field.type_reference)
-            else {
-                return Err(vec![Diagnostic::error(
-                    "compiler-owned Binding payload must remain an exact DllImport application",
-                )]);
-            };
-            let arguments = typed
-                .type_reference_table
-                .type_reference_handles(*arguments);
-            if *base_symbol != dll_import || arguments.len() != 3 {
-                return Err(vec![Diagnostic::error(
-                    "compiler-owned Binding payload generic identity drifted",
-                )]);
-            }
-            for (argument, expected) in arguments.iter().zip(widths) {
-                let Some(symbol) = typed
-                    .type_reference_table
-                    .type_reference(*argument)
-                    .as_named_symbol()
-                else {
-                    return Err(vec![Diagnostic::error(
-                        "compiler-owned Binding widths must pass through exact const binders",
-                    )]);
-                };
-                if symbol != expected {
-                    return Err(vec![Diagnostic::error(
-                        "compiler-owned Binding width binder identity drifted",
-                    )]);
-                }
-            }
-            let [number] = typed.data_payload_fields(syscall_variant) else {
-                return Err(vec![Diagnostic::error(
-                    "compiler-owned ForeignBinding::Syscall payload drifted",
-                )]);
-            };
-            if syscall_variant.name.as_str() != "Syscall"
-                || number.name.as_str() != "number"
-                || typed.primitive_type_reference(number.type_reference) != Some(PrimitiveType::U64)
-            {
-                return Err(vec![Diagnostic::error(
-                    "compiler-owned ForeignBinding::Syscall must retain one u64 `number` field",
-                )]);
-            }
-            Ok(())
-        }
-
-        fn require_fixed_bytes(
-            typed: &TypedTrees,
-            reference: TypeReferenceHandle,
-            width: SymbolHandle,
-        ) -> Result<(), Vec<Diagnostic>> {
-            let TypeReferenceNode::FixedArray {
-                element_type,
-                length: FixedArrayLength::ConstParameter { symbol, .. },
-            } = typed.type_reference_table.type_reference(reference)
-            else {
-                return Err(vec![Diagnostic::error(
-                    "compiler-owned foreign coordinate must remain a const-sized byte array",
-                )]);
-            };
-            if *symbol != width
-                || typed.primitive_type_reference(*element_type) != Some(PrimitiveType::U8)
-            {
-                return Err(vec![Diagnostic::error(
-                    "compiler-owned foreign coordinate width or element type drifted",
-                )]);
-            }
-            Ok(())
-        }
-
-        pub fn binding_widths(
-            typed: &TypedTrees,
-            binding_symbol: SymbolHandle,
-            return_type: TypeReferenceHandle,
-        ) -> Result<[u64; 3], String> {
-            let application = match typed.type_reference_table.type_reference(return_type) {
-                TypeReferenceNode::Named { symbol, .. } => typed
-                    .data_definition_by_symbol(*symbol)
-                    .and_then(|definition| definition.generic_instance)
-                    .ok_or_else(|| {
-                        "ordinary external `via` producer must return a closed Binding application"
-                            .to_owned()
-                    })?,
-                TypeReferenceNode::Generic { .. } => return_type,
-                _ => {
-                    return Err(
-                        "ordinary external `via` producer must return a closed Binding application"
-                            .to_owned(),
-                    );
-                }
-            };
-            let TypeReferenceNode::Generic {
-                base_symbol,
-                arguments,
-                ..
-            } = typed.type_reference_table.type_reference(application)
-            else {
-                return Err(
-                    "ordinary external `via` producer return lost its generic Binding origin"
-                        .to_owned(),
-                );
-            };
-            let arguments = typed
-                .type_reference_table
-                .type_reference_handles(*arguments);
-            if *base_symbol != binding_symbol || arguments.len() != 3 {
-                return Err("ordinary external `via` producer must return the exact compiler-owned ForeignBinding<ObjectLength, SymbolLength, VersionLength>".to_owned());
-            }
-            let mut widths = [0u64; 3];
-            for (index, argument) in arguments.iter().enumerate() {
-                let TypeReferenceNode::Named { symbol, name } =
-                    typed.type_reference_table.type_reference(*argument)
-                else {
-                    return Err(
-                        "ordinary external `via` Binding widths must be closed decimal constants"
-                            .to_owned(),
-                    );
-                };
-                if symbol.is_valid()
-                    || name.as_str().is_empty()
-                    || !name.as_str().bytes().all(|byte| byte.is_ascii_digit())
-                {
-                    return Err(
-                        "ordinary external `via` Binding widths must be closed decimal constants"
-                            .to_owned(),
-                    );
-                }
-                widths[index] = name.as_str().parse::<u64>().map_err(|_| {
-                    "ordinary external `via` Binding width does not fit u64".to_owned()
-                })?;
-            }
-            Ok(widths)
-        }
-    }
+    pub(crate) use typed_trees::native_locators as vocabulary;
     pub use vocabulary::{
         NativeLocatorVocabulary, application_widths, binding_widths, unused_coordinate_widths,
         vocabulary,
@@ -1435,19 +939,11 @@ pub use declarations::traits::{
 };
 pub use machine_calls::attached_method_bounds::validate_selected_attached_method_bounds;
 pub use machine_calls::{compiler_operations, contract_identities};
-pub use proof_contracts::contract_entailment::specification_calls::{
-    DirectMemberCall, direct_member_call, invocation_is_fact_only,
-};
 pub use proof_contracts::default_domains::case_predicate_expressions;
-pub use proof_contracts::qualification_evidence::boundary_qualification_authorization;
 pub use proof_contracts::qualification_evidence::{
-    BoundaryQualificationObligation, CallQualificationContract, CallQualificationSource,
-    boundary_provider_qualification_obligations, call_qualification_source,
+    BoundaryQualificationObligation, boundary_provider_qualification_obligations,
 };
-pub use proof_contracts::relevance::dispatch_subject_of_erased_binding;
-pub use proof_contracts::{
-    contract_argument_root, contract_structure, expression_owners, mathematical_applications,
-};
+pub use proof_contracts::{contract_structure, expression_owners, mathematical_applications};
 pub use value_custody::destructure::record_pattern_subject;
 pub use value_custody::field_domains::readable_fixed_array_elements;
 pub use value_custody::partial_affine_residuals::{
@@ -1480,123 +976,56 @@ pub use machine_calls::calls::{
     SelectedCallArgument, SelectedCallArgumentError, authored_call_parameters, call_returns_unit,
     call_target_has_checked_body_contract, call_type_arguments,
     closed_requirement_dispatch_is_valid, machine_has_unit_result,
-    named_conformance_target_requirement, nested_boundary_applications_compose,
-    requirement_contract_signature, resolve_requirement_contract,
-    result_initializer_call_is_admitted, selected_call_arguments,
-    selected_call_result_domain_matches, selected_requirement_signature, target_family_members,
-    unit_result_initializer_call_is_admitted, unit_return_call_is_admitted,
+    named_conformance_target_requirement, requirement_contract_signature,
+    resolve_requirement_contract, selected_call_arguments, selected_call_result_domain_matches,
+    selected_requirement_signature, target_family_members, unit_return_call_is_admitted,
     unit_statement_call_is_admitted,
-};
-pub use machine_calls::fact_only_citations::{
-    fact_only_theorem, is_fact_only_citation, is_fact_only_citation_call,
-    is_fact_only_requirement_citation, validate_runtime_proof_citations,
 };
 pub use machine_calls::static_machine_call_contracts::{
     static_machine_call_binding_bytes, static_machine_parameter_contract_bytes,
     static_machine_template_reach_contract_bytes,
 };
-pub use machine_calls::structural_call_custody::{
-    DeclarationPredicateRow, StateContractRow, StructuralQualificationContract,
-    StructuralResultContract, borrowed_slice_view_result, declaration_facts_carried,
-    finite_arrival_parameter, machine_declaration_predicates,
-    reconstruct_structural_parameter_return_claims, restates_structural_parameter_qualification,
-    result_membership_carrier, state_declaration_predicates, state_finite_predicate,
-    structural_call_custody, structural_call_result_claims, structural_claim_path,
-    structural_owned_path, structural_qualification_contract, structural_result_contract,
-    structural_result_projected_qualifications, structural_result_qualification_contract,
-    structural_result_qualifications, structural_state_contract_predicates,
-    structural_storage_path, structural_transfer_storage_path, view_result_carrier_qualifications,
-    zeroed_byte_projected_qualifications,
-};
+
 pub use proof_contracts::arithmetic_domains::domain_intervals::{
     declared_domain_predicate_bounds, exact_declared_domain_carrier_interval,
     exact_declared_domain_interval,
 };
-pub use proof_contracts::arithmetic_domains::float_return_postcondition;
-pub use proof_contracts::arithmetic_domains::normal_return_float_predicates;
 pub use proof_contracts::arithmetic_domains::plain_exact_widening_cast;
 pub use proof_contracts::arithmetic_domains::{
-    BigIntInterval, ExpressionInterval, IntegerBound, IntegerOrderingRelation, Interval,
-    StatedOrderingPremise, expression_interval, folded_integer_binary, integer_binary_range,
-    integer_bound_offset, integer_bound_terms_equal, premise_chain_proves, premise_proves,
-    propagate_integer_upper_bounds, prove_integer_ordering,
+    BigIntInterval, ExpressionInterval, Interval, expression_interval, folded_integer_binary,
+    integer_binary_range,
 };
 pub use proof_contracts::arithmetic_domains::{
-    SelectedScalarIntervalSource, carrier_integer_range, checked_integer_binary_kind,
-    integer_range_contains, selected_boolean_decision, selected_scalar_interval,
+    carrier_integer_range, checked_integer_binary_kind, integer_range_contains,
 };
 pub use proof_contracts::collection_predicates::{
-    PredicateBooleanSubject, PredicateCondition, PredicateIntegerOperand,
-    PredicateIntegerReadSubject, PredicateIntegerSubject, exact_predicate_conjunction,
-    exact_predicate_intervals, exact_predicate_ordering, length_member, predicate_integer_operand,
-    predicate_ordering_consequences, premises_prove_expression,
-};
-pub use proof_contracts::contract_entailment::call_projection_identity::{
-    captured_call_argument_index_matches, captured_call_index_value,
-    captured_call_subject_identity, owned_contract_subject,
-};
-pub use proof_contracts::contract_entailment::completed_domains::{
-    completed_value_proves_bound_domain_predicate, completed_value_proves_domain_predicate,
-    completed_value_refutes_domain,
-};
-pub use proof_contracts::contract_entailment::completed_observations::completed_value_is_bounded_by_static;
-pub use proof_contracts::contract_entailment::content_conservation::{
-    CompletedConservationQueries, ConditionalContentGuarantee, ContentBackingAddressGoal,
-    ContentConservationDependencies, ContentConservationImplication,
-    completed_value_conservation_answers, completed_value_content_conservation_dependencies,
-    completed_value_has_content_conservation_candidate, completed_value_preserves_entry_projection,
-    completed_value_proves_backing_addresses, completed_value_proves_content_conservation,
-};
-pub(crate) use proof_contracts::contract_entailment::immutable_entry_boolean_projection;
-pub use proof_contracts::contract_entailment::numeric_observations::{
-    CapturedIntegerOperation, CapturedNumericObservations, CapturedScalarObservation,
-    NumericObservationDemand, ScalarObservationDemand, captured_numeric_observations,
-};
-pub use proof_contracts::contract_entailment::ranking_range::{
-    captured_collection_length, captured_integer_value, closed_collection_length,
-    closed_collection_length_at_place, closed_collection_length_under_matches,
-    collection_length_equals_under_matches, unique_literal_field,
-};
-pub use proof_contracts::contract_entailment::structural_prefix::{
-    private_invocation_entry_is_closed, with_private_invocation_inputs,
-};
-pub use proof_contracts::contract_entailment::{
-    ImmutableEntryReadIdentity, immutable_entry_indexed_read_identity,
-    immutable_entry_integer_projection, instantiate_immutable_entry_indexed_read_identity,
+    PredicateIntegerOperand, PredicateIntegerReadSubject, PredicateIntegerSubject,
+    exact_predicate_intervals, length_member, predicate_integer_operand,
 };
 pub use proof_contracts::contract_results::{
     ReservedResultMember, ReservedResultPlace, callable_contract_scopes, reserved_result_owner,
     reserved_result_place,
 };
 pub use proof_contracts::domains::{
-    integer_domain_membership, scalar_domain_definition_predicate, scalar_domain_local_predicate,
-    scalar_domain_predicate, scalar_domain_value_predicate, scalar_field_domain_predicate,
-    scalar_field_restriction, scalar_membership_carrier, scalar_membership_is_tag,
-    scalar_membership_predicates, scalar_membership_value_carrier,
-    scalar_membership_value_predicates, scalar_predicate_domains, scalar_type_routed_domains,
-    scalar_type_tags, validate_domain_membership_carriers,
+    scalar_domain_definition_predicate, scalar_domain_local_predicate, scalar_domain_predicate,
+    scalar_domain_value_predicate, scalar_field_domain_predicate, scalar_field_restriction,
+    scalar_membership_carrier, scalar_membership_is_tag, scalar_membership_predicates,
+    scalar_membership_value_carrier, scalar_membership_value_predicates, scalar_predicate_domains,
+    scalar_type_routed_domains, scalar_type_tags, validate_domain_membership_carriers,
 };
 pub use proof_contracts::parameter_domains::parameter_domain_constraints;
 pub use proof_contracts::parameter_expression_meaning::has_builtin_parameter_bound_expression_meaning;
-pub use proof_contracts::signature_ensures::{
-    collect_parameter_bound_comparisons, ensures_contract_expressions,
-};
 use typed_trees::types::TypeReferenceHandle;
 pub use value_custody::access_atomic_observing_results;
 pub use value_custody::byte_observations::{ByteObservationCarrier, comparable_byte_carrier_type};
 pub use value_custody::claim_frontier::{
     ClaimFrontierClaim, DeclaredClaimFrontier, declared_claim_frontier, linear_claim_frontier,
-    owned_receiver_claims, type_carries_linear_obligation,
+    type_carries_linear_obligation,
 };
 pub use value_custody::constants::validate_constant_literal_fields;
-pub use value_custody::content_classes::classify_program_content_classes;
 pub use value_custody::content_conservation::{data_variant_name, push_structural_field};
 pub use value_custody::dispatch_extraction::DispatchExtraction;
 pub use value_custody::field_domains;
-pub use value_custody::owned_value_source::{
-    ownership_source_expression, plain_owned_value_source, value_preserving_cast_operand,
-    whole_owned_value_source,
-};
 pub use value_custody::permission_provenance::expression_permission_provenance;
 pub use value_custody::receiving_values::receiving_value;
 pub use value_custody::reference_shells::{
@@ -1604,20 +1033,13 @@ pub use value_custody::reference_shells::{
     stored_view_shell,
 };
 pub use value_custody::scalar_case_constructor::{
-    ScalarCaseConstructor, StructuralCaseConstructor, is_scalar_case_value,
-    scalar_case_constructor, scalar_case_value_source, structural_case_constructor,
+    StructuralCaseConstructor, structural_case_constructor,
 };
 pub use value_custody::scalar_representation_range::scalar_representation_range;
-pub use value_custody::source_liveness::{
-    statement_uses_symbol, transition_target_uses_symbol, transition_target_uses_symbol_except,
-};
-pub use value_custody::storage_contents::{
-    ContentsRequirement, data_has_contents, has_contents, has_owned_or_shared_view_fields,
-};
 pub use value_custody::struct_literals::{
     ArrayWindowShape, array_window_shape, case_predicates_admit_zero, selected_construction_case,
     selected_construction_definition, selected_construction_field,
-    selected_construction_field_type, validate_value_construction,
+    selected_construction_field_type,
 };
 pub use value_custody::structural_identity::{
     logical_structural_type_identity, stored_structural_type_identity, stores_reference_shape,
@@ -1625,7 +1047,7 @@ pub use value_custody::structural_identity::{
 };
 pub use value_custody::transition_operand_moves::transition_operand_moves;
 pub use value_custody::type_shapes::exact_constrained_shells;
-pub use value_custody::wire::validate_wire_protocol;
+
 pub use value_custody::{
     collect_executable_value_origins, visit_executable_value_occurrences,
     visit_statement_value_occurrences,
@@ -1668,7 +1090,6 @@ pub use proof_contracts::bound_expression_meaning::{
     has_exact_integer_domain_subject, match_result_unique_arm, sealed_float_comparison,
     sealed_float_comparison_declaration,
 };
-pub use proof_contracts::contract_entailment::declaration_projection_cases_hold;
 pub use proof_contracts::proposition_context::logical_proposition_children;
 pub use value_custody::intrinsic_boundaries::boundary_requirement_completion;
 pub use value_custody::intrinsic_boundaries::checked_shape_data_declaration;
@@ -1684,43 +1105,15 @@ pub use crate::declarations::selection_authority::{
     DeclarationSelectionAuthority, RecordedDeclarationAuthority, checked_selection_requirements,
     validate_authored_declaration_selections,
 };
+pub use crate::machine_calls::call_cycles::machine_call_dependency_symbols;
 pub use crate::machine_calls::call_cycles::requirement_backing_machines;
-pub use crate::machine_calls::call_cycles::{
-    RankRelevance, RuntimeRankApplicationBinding, RuntimeRankBodyWitness, RuntimeRankComponents,
-    RuntimeRankInput, RuntimeRankOperand, ValidatedProofCallComponent, ValidatedProofRankInterval,
-    ValidatedProofRankingRelation, ValidatedProofRecursiveCallSite,
-    ValidatedProofRecursiveComponent, ValidatedProofRecursiveEdge, ValidatedProofRecursiveMember,
-    ValidatedProofRecursiveTransitionLane, ValidatedRuntimeIntegerRank,
-    ValidatedRuntimeNaturalComponent, ValidatedRuntimeNaturalEdge, ValidatedRuntimeNaturalState,
-    activation_target_state_index, infer_checked_proof_recursive_machines, internal_state_index,
-    machine_call_dependency_symbols, prepare_runtime_rank_components, rank_relevance,
-    retain_runtime_rank_component, retained_internal_rank_nonincrease,
-    retained_runtime_natural_components, retained_runtime_recursive_components,
-};
-pub use crate::machine_calls::calls::{
-    AssignmentStorageOrigins, AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins,
-    InvocationResultHome, LocalWriteOrigin, LocalWriteSource, RecastSource,
-    ReferenceResultLeafOrigin, ReferenceResultTransport, ReferenceSlotContract,
-    ReferenceViewFormation, ScalarStorageCoordinate, StoredReferenceCallContext,
-    StoredReferenceDestinationKind, StoredReferenceEffect, StoredReferenceRelationRefusal,
-    ValidatedSelfCallDescent, assignment_rebinds_parameter, assignment_stored_value_type,
-    frame_coordinate_path, frame_length_coordinate_path, frame_paths_overlap, operand_call_plans,
-    state_reference_parameter_binding_is_stable, storage_origin_types_match,
-};
-pub use crate::machine_calls::denotational_calls::{
-    SpecificationCallRequest, admit_specification_calls, checked_value_call_candidate,
-    expression_values_have_call_identity, normal_return_call_candidate, requirement_satisfiers,
-    selected_operator_has_closed_value_denotation,
-};
-pub use crate::machine_calls::fact_call_projections::has_checked_denotational_call_identity;
-pub use crate::proof_contracts::slice_ranking::slice_tail_strictly_decreases;
+
 pub use crate::value_custody::cleanup::{
     data_cleanup_machine, nominal_cleanup_machine_for_type, nominal_cleanup_owner,
     nominal_cleanup_target, validate_reserved_cleanup_selections,
 };
 pub use crate::value_custody::content_conservation::{
-    ContentBoundaryBodyRequirement, ContentConservationSourcePlan,
-    boundary_body_content_requirements, content_conservation_plans,
+    ContentConservationSourcePlan, content_conservation_plans,
 };
 pub use crate::value_custody::content_projections::{
     ContentAlgebraApplication, build_content_projection_plans, content_algebra_application,
@@ -1728,10 +1121,6 @@ pub use crate::value_custody::content_projections::{
 };
 
 pub use crate::declarations::symbols::TopLevelSymbols;
-pub use crate::value_custody::cleanup::{
-    data_requires_nominal_drop, has_no_code_cleanup_contents, has_no_owned_cleanup_obligations,
-    has_plain_contents_without_nominal_cleanup, type_graph_requires_nominal_drop,
-};
 pub use crate::value_custody::data::{data_requires_establishment, type_requires_establishment};
 pub use crate::value_custody::type_references::{
     StaticTypeArgumentOwner, scalar_type_refinement_predicates, scalar_value_domain_predicate,
@@ -1780,14 +1169,12 @@ pub use machine_calls::machine_parameters::{
 };
 pub use machine_calls::machine_specialization_identity::machine_specialization_matches_template_identity;
 pub use machine_calls::result_overloads::{
-    bind_float_conversion_casts, collect_expected_expression_calls, resolve_named_result_overloads,
+    collect_expected_expression_calls, resolve_named_result_overloads,
 };
 pub use machine_calls::static_arguments;
 pub use machine_calls::static_bindings;
-pub use proof_contracts::default_domains::{
-    OpenInvariantCrashSite, data_float_predicate, data_predicates_admit_zero,
-    standing_facts_prove_requirement,
-};
+pub use places::source_assignments::{assignment_rebinds_parameter, assignment_stored_value_type};
+pub use proof_contracts::default_domains::{data_float_predicate, data_predicates_admit_zero};
 pub use proof_contracts::float_projection_bindings::semantic_operations::{
     exact_toolchain_float_semantic_contract, float_semantic_application_for_parameters,
 };
@@ -1809,11 +1196,6 @@ pub use proof_contracts::properties::{
     substituted_type_satisfies_copy, type_satisfies_declared_property,
 };
 pub use proof_contracts::proposition_entailment::select_named_evidence_implementation;
-pub use proof_contracts::quotients::{
-    CheckedTerminationOracle, QuotientRequestAdmission, ValidatedQuotientFormation,
-    ValidatedQuotientOperation, admit_checked_quotient_requests,
-    checked_quotient_relation_identity, validate_quotient_formations,
-};
 pub use value_custody::constants::completed_integer_constant;
 pub use value_custody::expression_types::argument_matches_type_reference_handle as checked_argument_matches_type_reference;
 pub use value_custody::expression_types::borrow_selects_reference_storage;
@@ -1821,9 +1203,11 @@ pub use value_custody::expression_types::bounded_byte_buffer_capacity;
 pub use value_custody::expression_types::match_subject_primitive_type;
 pub use value_custody::expression_types::validate_match_dispatch;
 pub use value_custody::expression_types::{
-    arithmetic_result_type_reference, expression_result_type_reference,
-    join_result_type_references, parameter_expression_result_type_reference,
-    parameter_expression_result_type_reference_in_scope, scalar_observation_meaning,
+    arithmetic_result_type_reference, builtin_scalar_operand_references,
+    expression_result_type_reference, join_result_type_references,
+    parameter_expression_result_type_reference,
+    parameter_expression_result_type_reference_in_scope, readable_observation_type_reference,
+    scalar_observation_meaning,
 };
 pub use value_custody::expression_types::{
     structural_match_cases_are_covered, structural_match_pattern_case,
@@ -1836,10 +1220,8 @@ pub use value_custody::literals::evaluate_anonymous_numeric_expression;
 pub use value_custody::literals::has_anonymous_numeric_results;
 pub use value_custody::literals::has_anonymous_operator_meaning;
 pub use value_custody::literals::land_anonymous_integer_expression;
-pub use value_custody::literals::land_float_literal_destinations;
 pub use value_custody::literals::land_integer_value;
 pub use value_custody::literals::select_anonymous_numeric_match_arm;
-pub use value_custody::literals::validate_anonymous_numeric_formation;
 pub use value_custody::literals::{
     ScalarArrayElement, ScalarArrayElements, closed_array_store_type,
     closed_constant_array_elements, closed_literal_array_elements, closed_record_scalar_projection,
@@ -1860,11 +1242,10 @@ pub use value_custody::recasts::{
     RecastLeafSegment, RecastRecordSourceLeaf, RecastRuntimeIndexGeometry, RecastScalarGeometry,
     RecastScalarLayout, RecastScalarProjection, ReferenceFormationInterpretation,
     ReferenceFormationSource, SliceRecastByteRegion, SliceRecastSource,
-    ValidatedLiteralIndexedRecastFootprint, access_borrow_has_empty_write_frame,
-    recast_record_source_leaf, recast_scalar_layout, recast_scalar_path_geometry,
-    recast_scalar_path_projection, recast_scalar_projection, reference_formation_source,
-    reference_view_storage, slice_recast_byte_region, slice_recast_source,
-    validate_literal_indexed_recast_footprint, validate_runtime_indexed_recast_source,
+    access_borrow_has_empty_write_frame, recast_record_source_leaf, recast_scalar_layout,
+    recast_scalar_path_geometry, recast_scalar_path_projection, recast_scalar_projection,
+    reference_formation_source, reference_view_storage, slice_recast_byte_region,
+    slice_recast_source,
 };
 pub use value_custody::resident_content::{
     ResidentOwnerQualifications, is_core_extent, is_core_extent_domain,
@@ -1877,95 +1258,9 @@ pub use value_custody::type_references::{
     scalar_result_contract_is_represented, unrestricted_builtin_primitive,
 };
 
-pub use proof_contracts::arithmetic_domains::arrival_integer_expression_bounds;
-pub use proof_contracts::arithmetic_domains::builtin_monotonic_integer_update_bounds;
 pub use proof_contracts::arithmetic_domains::enforced_integer_type_bounds;
-pub use proof_contracts::arithmetic_domains::evaluated_call_requires_proven;
-pub use proof_contracts::arithmetic_domains::immutable_integer_expression_bounds;
 pub use proof_contracts::arithmetic_domains::integer_widen_is_total;
-pub use proof_contracts::arithmetic_domains::normal_return_integer_bounds;
-pub use proof_contracts::arithmetic_domains::normal_return_length_collection;
-pub use proof_contracts::arithmetic_domains::occurrence_integer_expression_fits_range;
-pub use proof_contracts::arithmetic_domains::occurrence_integer_expressions_bounds;
-pub use proof_contracts::arithmetic_domains::state_parameter_integer_interval;
-pub use proof_contracts::arithmetic_domains::validate_ordered_requirement_call_totality;
-pub use proof_contracts::arithmetic_domains::{OccurrenceIntegerBounds, occurrence_integer_bounds};
-pub use proof_contracts::arithmetic_domains::{
-    StoredIntegerReach, UnestablishedStoredEncoding, standing_integer_bounds,
-    stored_integer_bounds, stored_integer_source_projections, stored_integer_source_reach,
-};
-pub use proof_contracts::arithmetic_domains::{
-    occurrence_integer_expression_bounds, occurrence_integer_expression_recipe,
-};
-pub use proof_contracts::contract_entailment::arithmetic_judgment::IntegerDenotation as CapturedIntegerDenotation;
-pub use proof_contracts::contract_entailment::call_requirements::selected_value_call_requirement_entailed;
-pub use proof_contracts::contract_entailment::call_requirements::structural_call_requirement_entailed;
-pub use proof_contracts::contract_entailment::collection_bounds::{
-    CollectionBoundsDemands, CollectionBoundsObservations,
-};
-pub use proof_contracts::contract_entailment::exit_predicates::{
-    NormalExitContract, normal_exit_proves,
-};
 pub use proof_contracts::contract_entailment::is_arm_pattern_marker;
-pub use proof_contracts::contract_entailment::law_conformance::{
-    InheritedRequirementApplication, inherited_requirement_proposition_application,
-    inherited_requirement_proposition_label, inherited_satisfier_parameters,
-};
-pub use proof_contracts::contract_entailment::law_conformance::{
-    MatchedLawGuarantee, matched_machine_law_guarantees,
-};
-pub use proof_contracts::contract_entailment::proof_integer::{
-    anonymous_integer_math_literal, proof_integer_expression,
-};
-pub use proof_contracts::contract_entailment::ranking_range::{
-    ArithmeticCallObservation, CapturedRankApplicationInput, CapturedRankEntry,
-    RankArrivalCompatibility, RankArrivalCorrespondence, RankArrivalDemand, RankCoordinateBinding,
-    RankCoordinateTransport, RankLocalCapture, RankPremiseCoordinate, RankPremiseInput,
-    RankPremiseObservation, RankProtectedPath, RankReceivingCoordinate, RankStateBindings,
-    RankSubjectCoordinate, RankValueDerivation, RankingRangeEdgeProof, RankingRangeEntryProof,
-    RankingRangeMeasure, RankingRangePremises, RankingRangeState, StateEntryCorrespondence,
-    arithmetic_entry_requirement_is_covered, discover_rank_arrival_correspondence,
-    frame_preserves_rank_premises, protect_rank_premise, prove_arithmetic_call_requirement,
-    prove_captured_arithmetic_call_requirement, prove_captured_ranking_range_entry,
-    prove_captured_ranking_range_entry_with_formation, prove_ranking_range_edge,
-    prove_ranking_range_entry, prove_ranking_range_entry_with_formation,
-    prove_ranking_range_transition, rank_protected_path, ranking_coordinate_type,
-    ranking_range_arrival_preserves_roles, ranking_range_premise_symbols,
-    ranking_range_required_coordinates, ranking_range_state_premise_coordinates,
-    ranking_slice_length_observation, select_rank_arrival_correspondence,
-};
-pub use proof_contracts::contract_entailment::ranking_range::{
-    ComputationBodyShape, DeclaredInputRead, DeclaredInputShape, DeclaredScalarView,
-    MeasureBodyShape, ProjectionStep, ScalarViewComputation, computation_body_shape,
-    declared_input_shape, declared_input_type_matches, declared_scalar_view, find_declared_measure,
-    identity_subject_matches, measure_body_shape, measure_constraints_cover_subject,
-};
-pub use proof_contracts::contract_entailment::refuted_requires::instantiated_value_call_requires_proven;
-pub use proof_contracts::contract_entailment::scoped_arithmetic::{
-    ScopedArithmeticBinder, ScopedArithmeticBinding, ScopedArithmeticComparison,
-    ScopedArithmeticExpression, ScopedArithmeticHypothesis, ScopedArithmeticValue,
-    ScopedCallCompletion, ScopedCallResultObservation, scoped_arithmetic_comparisons_unsatisfiable,
-    scoped_arithmetic_implication, scoped_arithmetic_value_bounds,
-    scoped_arithmetic_values_relation, scoped_call_result_observations,
-    scoped_completed_call_guarantees, scoped_declared_integer_application_formation,
-    scoped_integer_expression_formation,
-};
-pub use proof_contracts::contract_entailment::specification_calls::call_contract_parameter_position;
-pub use proof_contracts::contract_entailment::statement_predicates::{
-    EntryPredicateObservations, StatementPredicateObservations,
-};
-pub use proof_contracts::contract_entailment::strict_arithmetic::{
-    StrictArithmeticBindingValue, StrictArithmeticExpressionBinding,
-    StrictArithmeticImplicationJudgment, StrictArithmeticSymbolBinding,
-    strict_arithmetic_expression_implication,
-};
-pub use proof_contracts::contract_entailment::structural_judgment::owned_snapshots::{
-    CapturedOwnedSnapshot, captured_call_owned_snapshot, captured_entry_owned_snapshot,
-};
-pub use proof_contracts::contract_entailment::transparent_applications::{
-    InheritedRequirementEdge, transparent_call_requirement_entailed,
-    transparent_proposition_application_entailed,
-};
 pub use proof_contracts::default_domains::{
     case_requires_field_intervals, data_requires_field_intervals, impossible_variant,
 };
@@ -1980,8 +1275,10 @@ pub use proof_contracts::immutable_integer_bounds::{
     normalize_immutable_integer_bound_to_usize, projected_integer_bound_root,
     projected_integer_bound_subject_type,
 };
-pub use proof_contracts::proof_embeddings::{
-    ValidatedIntegerEmbeddingCall, integer_embedding_argument,
+pub use proof_contracts::proof_embeddings::integer_embedding_argument;
+pub(crate) use value_custody::expression_types::{
+    anonymous_integer_math_literal, anonymous_integer_value, mathematical_integer_operands,
+    proof_integer_expression,
 };
 
 pub(crate) use optimization::digest_encoder;
@@ -1997,18 +1294,7 @@ pub use frozen_program::{
     CheckingContext, CheckingInput, CheckingMemos, CheckingProjection, proof_only_classification,
 };
 pub use machine_calls::effect_inference::PreparedEffectPlans;
-pub use program_validation::{
-    ContractEntailment, DeferredEntailment, DependencyBodyJudgment, ExactIntegerCastFact,
-    FrozenDependencyBody, OpaquePropertyValidation, ProgramValidation, ProgramValidationFacts,
-    ProvenContractExpressions, admit_prepared_program_effects, checking_thread_pool,
-    dependency_body_read_totals, dependency_entailment_totals, judge_contract_entailment,
-    prepare_specialized_program, statement_source_span,
-    validate_checked_operator_realization_contract, validate_generic_machine_contract_entailment,
-    validate_program,
-};
-pub(crate) use program_validation::{DependencyBodyRead, note_dependency_body_read};
-
-pub use proof_contracts::scalar_boundary_guarantees::derive_scalar_boundary_guarantees;
+pub use program_validation::{ExactIntegerCastFact, checking_thread_pool, statement_source_span};
 
 pub use machine_calls::calls::{
     CallSite, CompletingTransfer, call_is_unconditional, call_receiver_parts, call_result_type,
@@ -2016,12 +1302,11 @@ pub use machine_calls::calls::{
     call_target_parameters, call_target_return_type, call_target_state, call_target_symbol,
     call_target_type_parameters, collect_call_sites_in_statement, completing_call_transfer,
     completing_transition_invocation, completing_transition_invocations,
-    completing_transition_transfer, expression_normal_completion_possible, find_call_site,
-    find_call_site_in_state, find_machine, find_machine_by_entry_state, find_machine_head,
-    find_state, find_state_for_exit, find_state_in_machine, find_state_on_machine,
-    invocation_output_parameter, machine_parameter_signature_symbol, machine_state_by_symbols,
-    machine_state_count, normal_completion_possible, receiver_can_dispatch_to_machine,
-    resolve_name_path_member_symbol, resolve_state_call_target,
+    completing_transition_transfer, find_call_site, find_call_site_in_state, find_machine,
+    find_machine_by_entry_state, find_machine_head, find_state, find_state_for_exit,
+    find_state_in_machine, find_state_on_machine, invocation_output_parameter,
+    machine_parameter_signature_symbol, machine_state_by_symbols, machine_state_count,
+    receiver_can_dispatch_to_machine, resolve_name_path_member_symbol, resolve_state_call_target,
     statement_call_can_dispatch_to_machine, statement_call_receiver_members,
     statement_call_receiver_path, terminal_callable_target, trait_machine_signature_symbol,
     transition_call_target, unique_dispatched_entry,
@@ -2100,12 +1385,9 @@ pub use value_custody::const_expressions::{
     ConstProjectionStep, ImmutableConstProjection, fixed_array_geometry, immutable_const_projection,
 };
 
-pub use value_custody::completed_storage;
 pub use value_custody::places::storage_path_relations;
 
 pub use value_custody::membership_evidence;
-
-pub use machine_calls::terminal_transitions::normalize_terminal_transition_calls;
 
 pub use proof_contracts::bound_expression_meaning::{
     case_membership_type_facts, static_type_boolean_equalities,
@@ -2113,4 +1395,4 @@ pub use proof_contracts::bound_expression_meaning::{
 
 pub use value_custody::literals::land_owned_fixed_byte_literal;
 
-pub use proof_contracts::contract_entailment::IntegerApplicationFormation;
+pub mod source_index_algebra;

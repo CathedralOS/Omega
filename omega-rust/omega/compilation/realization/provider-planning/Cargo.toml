@@ -9,6 +9,7 @@ name = "provider_planning"
 path = "src/lib.rs"
 
 [dependencies]
+psi-terminal-production = { path = "../../../../psi/compilation/psi-compiler/terminal-production" }
 provider-selection = { path = "../provider-selection" }
 evaluation-accounting = { path = "../../../../psi/foundation/evaluation-accounting" }
 optimization-core = { path = "../../../foundation/optimization-core" }

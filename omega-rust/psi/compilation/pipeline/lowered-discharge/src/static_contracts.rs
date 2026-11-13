@@ -165,15 +165,14 @@ fn schema_context(
                 .map_err(|_| fault(machine, "static formal ordinal exceeds u32"))?;
             places.push((place, StructuralPlaceKind::Parameter { position }));
         } else {
-            let ValueType::Scalar(scalar) = value_type else {
-                return Err(fault(
-                    machine,
-                    "static value formal has no exact scalar type",
-                ));
-            };
+            // Predicates name the stored carrier. The complete signature keeps
+            // the arithmetic policy which controls operations over that value.
+            let scalar = value_type
+                .scalar()
+                .ok_or_else(|| fault(machine, "static value formal has no exact scalar type"))?;
             module
                 .callables
-                .validate_scalar_type(*scalar)
+                .validate_scalar_type(scalar)
                 .map_err(|detail| fault(machine, detail))?;
             scalars.push((
                 values[position].ok_or_else(|| {
@@ -182,7 +181,7 @@ fn schema_context(
                         "static scalar formal lost its exact value identity",
                     )
                 })?,
-                *scalar,
+                scalar,
             ));
         }
         if let ValueType::Record(record) = value_type
@@ -198,7 +197,7 @@ fn schema_context(
         }
     }
     match signature.result {
-        Some(ValueType::Scalar(scalar)) => {
+        Some(ValueType::Scalar(scalar) | ValueType::Qualified(scalar, _)) => {
             module
                 .callables
                 .validate_scalar_type(scalar)
@@ -208,7 +207,7 @@ fn schema_context(
                 .iter()
                 .enumerate()
                 .filter(|(position, value)| {
-                    matches!(value, ValueType::Scalar(_))
+                    value.scalar().is_some()
                         && !signature.is_erased(*position)
                         && !signature.is_place(*position)
                 })
@@ -420,6 +419,7 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
                 obligation,
                 &goal.proposition,
                 &declarations,
+                &mut Default::default(),
             )
             .map_err(|detail| {
                 crate::refusal(

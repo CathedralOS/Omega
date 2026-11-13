@@ -81,7 +81,6 @@ pub(in crate::checked) fn typed_frontier_without_build(
         }),
         restricted_build_requests: Vec::new(),
         base_source_consumption_commitment: None,
-        retained_check: None,
         provider_folded_constants: false,
     };
     let (mut built, build_sources) = build_continuation::complete_build_source(
@@ -182,17 +181,13 @@ fn frozen_frontier(
         &demanded,
         &[],
     );
-    let mut judged = None;
-    // The preparation fails with whatever its inspection returns, before Psi
-    // 05 is given the trees, so returning an error here is what keeps the old
-    // stages from running. A failure in an earlier step leaves `judged` empty.
-    let stopped = psi_compiler::CheckRequest {
-        program: typed,
-        admission: psi_compiler::SourceAdmission {
+    let typed = psi_compiler::prepare_product_typed_frontier(
+        typed,
+        &psi_compiler::SourceAdmission {
             external_roots: &entries,
             layout_scopes: &layout_scopes,
             layout_selection_authority: None,
-            completion: validation::source_completion::SourceCompletionAdmission::None,
+            completion: typed_trees::boundary_completions::SourceCompletionAdmission::None,
             representations: psi_compiler::ProductRepresentationInput {
                 activation: None,
                 declared: &[],
@@ -205,28 +200,14 @@ fn frozen_frontier(
             wire_demands: &[],
             declarations: None,
         },
-        previous: &[],
-        retain: false,
-        library_slice: psi_compiler::LibrarySliceRequest { root_package: None },
-        checked_slices: None,
-    }
-    .check_inspecting_typed_frontier(&mut |trees| {
-        judged = Some(trees.clone());
-        Err(Vec::new())
-    });
-    match (judged, stopped) {
-        (Some(typed), _) => Ok(TypedFrontier {
-            typed,
-            entries,
-            subject,
-            selected: Vec::new(),
-            bindings,
-        }),
-        (None, Err(diagnostics)) => Err(diagnostics),
-        (None, Ok(_)) => Err(vec![Diagnostic::error(
-            "the product preparation finished without showing its frozen typed trees",
-        )]),
-    }
+    )?;
+    Ok(TypedFrontier {
+        typed,
+        entries,
+        subject,
+        selected: Vec::new(),
+        bindings,
+    })
 }
 
 /// The binding a Build would have executed as

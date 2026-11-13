@@ -502,6 +502,7 @@ pub(crate) fn check(
     machine: &Machine<'_>,
     tables: &mut MachineTables,
     decided: &mut [Option<Checked<Discharged>>],
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<Vec<BlockId>> {
     let arrivals: Vec<(usize, ObligationId, EdgeId, ProgramPoint)> = tables
         .obligations
@@ -540,6 +541,7 @@ pub(crate) fn check(
                     goal,
                     machine.relations,
                     machine.unreached,
+                    activity,
                 )
                 .map(Discharged::Certificate)
             });

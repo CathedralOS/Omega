@@ -1787,6 +1787,11 @@ pub(crate) mod body_cloning {
             if let Some(operation) = &mut authority.operation {
                 operation.operand_type =
                     copy_type_reference(source, program, operation.operand_type, symbols)?;
+                for evidence in &mut operation.law_evidence {
+                    for actual in &mut evidence.bound.arguments {
+                        *actual = copy_type_reference(source, program, *actual, symbols)?;
+                    }
+                }
                 if let Some(application) = &mut operation.application {
                     copy_static_argument_type_payloads(
                         source,

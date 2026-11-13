@@ -303,7 +303,7 @@ enum CallableActualValue {
 }
 
 impl CallableValueProgram<'_> {
-    fn validate_occurrence(
+    pub(crate) fn validate_occurrence(
         &self,
         caller: MachineId,
         invocation: &CallableInvocation,
@@ -464,7 +464,7 @@ impl CallableValueProgram<'_> {
         })
     }
 
-    fn validate_actuals(
+    pub(crate) fn validate_actuals(
         &self,
         caller: MachineId,
         callee: MachineId,

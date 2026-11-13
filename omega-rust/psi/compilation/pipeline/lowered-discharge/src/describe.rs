@@ -53,10 +53,9 @@ pub(crate) fn unproved(
             let callee_names = callee.and_then(|callee| elaboration.names.get(callee));
             let text = callee_names.and_then(|callee_names| {
                 let clause = callee_names.requires.get(usize::try_from(clause).ok()?)?;
-                let arguments = match site {
-                    SourceOrigin::Authored(span) => names.and_then(|names| names.arguments(span)),
-                    SourceOrigin::Unpositioned(_) => None,
-                };
+                let arguments = site
+                    .span()
+                    .and_then(|span| names.and_then(|names| names.arguments(span)));
                 let over_actuals = clause.render(&|position| {
                     arguments
                         .and_then(|arguments| arguments.get(position))
@@ -165,9 +164,7 @@ fn head_arrival(
         .find(|(block, _)| *block == head)?
         .1;
     let callee = elaboration.names.get(member)?;
-    let SourceOrigin::Authored(span) = site else {
-        return None;
-    };
+    let span = site.span()?;
     let (caller, arguments) = elaboration
         .names
         .iter()
@@ -339,10 +336,7 @@ pub(crate) fn owner(names: Option<&MachineNames>, site: SourceOrigin) -> String 
         return String::from("this machine");
     };
     let mut owner = format!("machine `{}` state `{}`", names.machine, names.state);
-    let binder = match site {
-        SourceOrigin::Authored(span) => names.binder(span),
-        SourceOrigin::Unpositioned(_) => None,
-    };
+    let binder = site.span().and_then(|span| names.binder(span));
     match binder {
         Some(Binder::Local(name)) => {
             owner.push_str(" local `");

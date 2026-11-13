@@ -1656,6 +1656,28 @@ pub mod product_operand {
 }
 
 pub mod trait_definition {
+    /// Find declarations that explicitly realize this requirement. This query
+    /// retains the source selection; it establishes no body or proof verdict.
+    pub fn declared_requirement_realizers(
+        program: &crate::TypedTrees,
+        requirement: symbols::SymbolHandle,
+    ) -> Vec<symbols::SymbolHandle> {
+        program
+            .machines()
+            .iter()
+            .filter(|machine| {
+                program
+                    .machine_trait_conformances(machine)
+                    .iter()
+                    .any(|conformance| {
+                        crate::machine::resolve_satisfied_declaration(program, machine, conformance)
+                            .is_some_and(|satisfied| satisfied.symbol() == requirement)
+                    })
+            })
+            .map(|machine| machine.symbol)
+            .collect()
+    }
+
     pub(crate) mod applications {
         use super::TraitDefinition;
         use crate::TypedTrees;
@@ -4045,6 +4067,51 @@ pub mod trait_definition {
                 self.region_scopes = regions;
                 self.argument_owner = outer.argument_owner;
                 self
+            }
+
+            /// Visit every applied parent or return the missing source relationship.
+            pub fn try_visit(
+                &self,
+                program: &'program TypedTrees,
+                visit: &mut impl FnMut(&Self) -> Result<(), &'static str>,
+            ) -> Result<(), &'static str> {
+                fn walk<'p>(
+                    scope: &AppliedTraitScope<'p>,
+                    program: &'p TypedTrees,
+                    active: &mut Vec<SymbolHandle>,
+                    visit: &mut impl FnMut(&AppliedTraitScope<'p>) -> Result<(), &'static str>,
+                ) -> Result<(), &'static str> {
+                    if active.contains(&scope.declaration.symbol) {
+                        return Err("trait law application has an inherited declaration cycle");
+                    }
+                    active.push(scope.declaration.symbol);
+                    visit(scope)?;
+                    for parent in program
+                        .trait_requirements(scope.declaration)
+                        .iter()
+                        .chain(scope.declaration.refines.iter())
+                    {
+                        let declaration = program
+                            .trait_definition_by_symbol(parent.symbol)
+                            .ok_or("trait law application has a missing inherited declaration")?;
+                        let nested = AppliedTraitScope::new(
+                            program,
+                            declaration,
+                            TraitApplicationArguments {
+                                lexical_owner: scope.argument_owner,
+                                enclosing_data_applications: &[],
+                                arguments: program.type_reference_handles(parent.arguments),
+                                lifetimes: &parent.lifetime_arguments,
+                            },
+                        )
+                        .ok_or("trait law application has an unresolved inherited argument frame")?
+                        .preceded_by(scope);
+                        walk(&nested, program, active, visit)?;
+                    }
+                    active.pop();
+                    Ok(())
+                }
+                walk(self, program, &mut Vec::new(), visit)
             }
 
             pub fn visit(&self, program: &'program TypedTrees, visit: &mut impl FnMut(&Self)) {

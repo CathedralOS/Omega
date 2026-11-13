@@ -19,7 +19,6 @@ pub struct EvaluatedBuild {
         Vec<package_compilation::build_execution::RestrictedBuildRequest>,
     pub base_source_consumption_commitment:
         Option<package_compilation::PackageSourceConsumptionCommitment>,
-    pub retained_check: Option<psi_compiler::RetainedCheck>,
     // Build admission folded a constant under Build's own provider plans. A
     // Product completed from another typed frontier must have that fold
     // repeated there, because the new frontier holds the constant unsettled.
@@ -163,6 +162,9 @@ impl BuildConfig {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComputedBuildConfig {
     pub config: BuildConfig,
+    /// Review keeps the accepted Build program beside its executed settings.
+    /// A Product's source cannot replace the Build's own callable contracts.
+    pub accepted_build_source: Option<std::sync::Arc<psi_compiler::CheckedInvocationSource>>,
     pub root_binding_requests: Vec<language_semantics::declaration_selection::ExecutedRootBinding>,
     pub declared_product_selections:
         Vec<std::sync::Arc<language_semantics::declaration_selection::ProductDeclarationRequest>>,

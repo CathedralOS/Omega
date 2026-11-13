@@ -764,6 +764,7 @@ pub(crate) mod source_occurrences {
                 commutativity_licensed: false,
                 associativity_licensed: false,
                 distributes_over: Vec::new(),
+                law_evidence: Vec::new(),
                 left_identity_literal: String::new(),
                 right_identity_literal: String::new(),
             });
@@ -1081,6 +1082,15 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     fn code_selection(&mut self, symbol: SymbolHandle) {
         self.extend([symbol]);
     }
+    fn machine_value_dependencies(
+        &mut self,
+        program: &TypedTrees,
+        value: &crate::callable_values::MachineValue,
+    ) where
+        Self: Sized,
+    {
+        visit_machine_value_dependencies(program, &mut CodeSelectionReferences(self), value);
+    }
     fn callable_signature(&mut self, _: &crate::signature::StateSignature) {}
     fn callable_contract(
         &mut self,
@@ -1151,6 +1161,16 @@ impl<References: TypedReferences> TypedReferences for CodeSelectionReferences<'_
     fn code_selection(&mut self, symbol: SymbolHandle) {
         self.0.code_selection(symbol);
     }
+    fn machine_value_dependencies(
+        &mut self,
+        program: &TypedTrees,
+        value: &crate::callable_values::MachineValue,
+    ) {
+        // Nested selections already have this reference role. Reuse the visitor
+        // so recursive type/expression walks do not create another Rust wrapper
+        // type at every level, while every dependency remains code selection.
+        visit_machine_value_dependencies(program, self, value);
+    }
     fn callable_signature(&mut self, signature: &crate::signature::StateSignature) {
         self.0.callable_signature(signature);
     }
@@ -1218,6 +1238,18 @@ impl<References: TypedReferences> TypedReferences for CodeSelectionReferences<'_
     fn mathematical_type(&mut self, reference: MathematicalTypeHandle) -> bool {
         self.0.mathematical_type(reference)
     }
+}
+
+fn visit_machine_value_dependencies(
+    program: &TypedTrees,
+    retained: &mut impl TypedReferences,
+    value: &crate::callable_values::MachineValue,
+) {
+    visit_symbol(retained, value.conformance);
+    visit_symbol(retained, value.requirement);
+    visit_type_reference(program, retained, value.type_reference);
+    visit_static_argument(program, retained, &value.selected);
+    visit_static_machine_bindings(program, retained, value.application);
 }
 
 pub struct ProgramReferences {
@@ -3158,6 +3190,22 @@ pub fn visit_expression(
         visit_symbol(retained, operation.operator);
         visit_symbol(retained, operation.algebra_trait);
         visit_type_reference(program, retained, operation.operand_type);
+        for requirement in &operation.distributes_over {
+            retained.declaration_description_dependency(*requirement);
+        }
+        for evidence in &operation.law_evidence {
+            for symbol in [
+                evidence.bound.binder,
+                evidence.bound.trait_symbol,
+                evidence.declaring_trait,
+                evidence.law,
+            ] {
+                retained.declaration_description_dependency(symbol);
+            }
+            for actual in &evidence.bound.arguments {
+                visit_type_reference(program, retained, *actual);
+            }
+        }
         if let Some(application) = &operation.application {
             visit_static_argument(program, retained, application);
         }
@@ -3170,12 +3218,7 @@ pub fn visit_expression(
     }
     match program.expression_table.expression(expression) {
         ExpressionNode::MachineValue(value) => {
-            let retained = &mut CodeSelectionReferences(retained);
-            visit_symbol(retained, value.conformance);
-            visit_symbol(retained, value.requirement);
-            visit_type_reference(program, retained, value.type_reference);
-            visit_static_argument(program, retained, &value.selected);
-            visit_static_machine_bindings(program, retained, value.application);
+            retained.machine_value_dependencies(program, value);
         }
         ExpressionNode::Match(match_expression) => {
             visit_expression(program, retained, match_expression.subject);

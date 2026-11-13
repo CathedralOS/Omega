@@ -1184,45 +1184,7 @@ pub mod borrow {
         pub kind: BorrowAccessKind,
     }
 
-    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
-    pub enum BorrowAccessKind {
-        #[default]
-        Read,
-        Mutable,
-        WriteOnly,
-    }
-
-    impl From<language_core::ReferenceAccess> for BorrowAccessKind {
-        fn from(access: language_core::ReferenceAccess) -> Self {
-            match access {
-                language_core::ReferenceAccess::Shared => Self::Read,
-                language_core::ReferenceAccess::Mutable => Self::Mutable,
-                language_core::ReferenceAccess::WriteOnly => Self::WriteOnly,
-            }
-        }
-    }
-
-    impl BorrowAccessKind {
-        pub fn is_exclusive(&self) -> bool {
-            matches!(self, Self::Mutable | Self::WriteOnly)
-        }
-
-        pub fn direct_reborrow_effect(&self, child: &Self) -> Option<CheckedReborrowAccessEffect> {
-            match (self, child) {
-                (Self::Read, Self::Read) => Some(CheckedReborrowAccessEffect::SharedRelease),
-                (Self::Mutable, Self::Read) => Some(CheckedReborrowAccessEffect::SharedFreeze),
-                (Self::Mutable, Self::Mutable)
-                | (Self::Mutable, Self::WriteOnly)
-                | (Self::WriteOnly, Self::WriteOnly) => {
-                    Some(CheckedReborrowAccessEffect::ExclusiveSuspension)
-                }
-                (Self::Read, Self::Mutable)
-                | (Self::Read, Self::WriteOnly)
-                | (Self::WriteOnly, Self::Read)
-                | (Self::WriteOnly, Self::Mutable) => None,
-            }
-        }
-    }
+    pub use typed_trees::source_borrow_contracts::BorrowAccessKind;
 
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
     pub enum CheckedReborrowAccessEffect {
@@ -1637,14 +1599,7 @@ pub mod borrow {
         pub restoration: CheckedReborrowRestorationObligation,
     }
 
-    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
-    pub enum BorrowLoanOwnerSegment {
-        Field(SymbolHandle),
-        Case(SymbolHandle),
-        FixedIndex(usize),
-        #[default]
-        DynamicIndex,
-    }
+    pub use typed_trees::source_borrow_contracts::BorrowLoanOwnerSegment;
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct BorrowIncomingCompatibilityRequirement {

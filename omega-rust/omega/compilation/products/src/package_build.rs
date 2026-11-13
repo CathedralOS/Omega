@@ -178,10 +178,6 @@ impl PreparedPackageBuild {
         &self.prepared.timings
     }
 
-    pub fn retained_build_check(&self) -> Option<&psi_compiler::RetainedCheck> {
-        self.prepared.built.retained_build_check.as_ref()
-    }
-
     pub fn with_independent_component_descriptions(
         mut self,
         descriptions: Vec<IndependentComponentDescription>,

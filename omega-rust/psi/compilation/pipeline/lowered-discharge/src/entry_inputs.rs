@@ -41,6 +41,7 @@ pub(crate) fn infer(
     elaboration: &mut Elaboration,
     knowledge: Knowledge,
     unreached: &mut crate::Unreached,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     if elaboration.private_inputs.is_empty() {
         return Ok(());
@@ -71,7 +72,15 @@ pub(crate) fn infer(
                 }
             }
         }
-        describe_calls(elaboration, id, knowledge, &sites, &mut incoming, unreached)?;
+        describe_calls(
+            elaboration,
+            id,
+            knowledge,
+            &sites,
+            &mut incoming,
+            unreached,
+            activity,
+        )?;
         for &site in terminal_check_tables::row(&sites.outgoing, id, id, Construct::Machine)? {
             let callee = sites.arrivals[site].callee;
             let remaining = machine_row_mut(&mut waiting, callee, id)?;
@@ -91,6 +100,7 @@ fn describe_calls(
     sites: &CallSites,
     incoming: &mut IdTable<MachineId, Vec<Proposition>>,
     unreached: &mut crate::Unreached,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<()> {
     let original =
         terminal_check_tables::row(&elaboration.tables.machines, id, id, Construct::Machine)?;
@@ -148,6 +158,7 @@ fn describe_calls(
         },
         &mut tables,
         &mut decided,
+        activity,
     )?;
     for &index in outgoing {
         let site = &sites.arrivals[index];
@@ -192,6 +203,7 @@ fn describe_calls(
             &crossing,
             relations,
             &beyond,
+            activity,
         )?;
         // What the helper learns of such a formal describes an operation
         // the integer rules do not reach, in the caller.
@@ -389,6 +401,7 @@ fn derived(
     crossing: &[(ScalarTerm, ValueId)],
     relations: bool,
     beyond: &[ValueId],
+    activity: &mut crate::ProofSearchActivity,
 ) -> Checked<Derived> {
     let mut assumptions = Vec::new();
     let mut axioms = Vec::new();
@@ -407,8 +420,14 @@ fn derived(
             }
         }
     }
-    let mut prover =
-        crate::prove::Prover::new(context, &assumptions, &axioms, &tables.values, relations);
+    let mut prover = crate::prove::Prover::new(
+        context,
+        &assumptions,
+        &axioms,
+        &tables.values,
+        relations,
+        activity,
+    );
     let mut found = Derived {
         bounds: Vec::new(),
         unreached: Vec::new(),

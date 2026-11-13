@@ -28,7 +28,7 @@ use crate::checked::{PreparedProductTarget, PreparedTargetDeclarations};
 use artifacts::compile_timings::{CompileTimings, EXECUTION_SETTLEMENT};
 use compilation_products::{
     BuildAdmission, CheckedCompilationInputs, CheckedCompileOutcome, CheckedProductSource,
-    CompileFailure, RetainedCompilationChecks,
+    CompileFailure,
 };
 use diagnostics::Diagnostic;
 use package_compilation::PackageCompilationInputs;
@@ -50,7 +50,6 @@ pub(crate) struct SelectedProviderCustody {
     pub(crate) build_admission: BuildAdmission,
     pub(crate) provider_defaults:
         Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
-    pub(crate) product_selection: Option<psi_compiler::CheckedTreeProductSelection>,
     pub(crate) sources: Arc<package_compilation::CheckedSourceCustody>,
     pub(crate) timings: CompileTimings,
 }
@@ -58,7 +57,6 @@ pub(crate) struct SelectedProviderCustody {
 pub(crate) struct SelectedProductTarget {
     pub(crate) runtime_policy: Arc<package_evidence::permission_acceptance::PreparedRuntimePolicy>,
     pub(crate) custody: SelectedProviderCustody,
-    pub(crate) retained_checks: RetainedCompilationChecks,
     pub(crate) independent_components:
         Result<Vec<compilation_products::SelectedIndependentComponent>, String>,
 }
@@ -86,7 +84,6 @@ impl SelectedProductTarget {
         Ok(Self {
             runtime_policy,
             custody,
-            retained_checks: source.retained_checks.clone(),
             independent_components,
         })
     }
@@ -266,11 +263,7 @@ impl SelectedProductTarget {
     }
 
     pub(crate) fn into_checked_compilation(self) -> CheckedCompilation {
-        checked_compilation(
-            self.custody,
-            self.retained_checks,
-            self.independent_components,
-        )
+        checked_compilation(self.custody, self.independent_components)
     }
 }
 
@@ -480,7 +473,6 @@ fn select_product_providers(
         build: Arc::clone(&source.computed_build_config),
         build_admission: source.admission.clone().for_target(selected_target_profile),
         provider_defaults: Arc::clone(&source.provider_defaults),
-        product_selection: source.product_selection.clone(),
         sources: Arc::clone(&source.sources),
         timings,
     })
@@ -488,7 +480,6 @@ fn select_product_providers(
 
 fn checked_compilation(
     selection: SelectedProviderCustody,
-    retained_checks: RetainedCompilationChecks,
     independent_components: Result<Vec<compilation_products::SelectedIndependentComponent>, String>,
 ) -> CheckedCompilation {
     let SelectedProviderCustody {
@@ -500,7 +491,6 @@ fn checked_compilation(
         build,
         build_admission,
         provider_defaults,
-        product_selection,
         sources,
         timings,
     } = selection;
@@ -513,14 +503,12 @@ fn checked_compilation(
             provider_defaults,
             providers: settlement,
             independent_components,
-            product_selection,
         },
         sources,
         timings,
         terminal_publication,
     )
     .with_source_completion_accounting(source_completion_accounting)
-    .with_settled_checks(retained_checks)
 }
 
 pub(crate) fn select_product_target(

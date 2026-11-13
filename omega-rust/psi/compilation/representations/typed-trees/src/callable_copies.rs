@@ -724,6 +724,17 @@ fn expression_type_payloads(owner: &mut impl TypePayloadTransform, expression: E
         .index_expression_authority(expression)
         .cloned()
     {
+        if let Some(normalization) = &mut authority.normalization {
+            normalization.index_type = owner.reference(normalization.index_type);
+        }
+        if let Some(operation) = &mut authority.operation {
+            operation.operand_type = owner.reference(operation.operand_type);
+            for evidence in &mut operation.law_evidence {
+                for actual in &mut evidence.bound.arguments {
+                    *actual = owner.reference(*actual);
+                }
+            }
+        }
         if let Some(application) = authority
             .operation
             .as_mut()

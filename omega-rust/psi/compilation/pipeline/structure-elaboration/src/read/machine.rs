@@ -22,7 +22,7 @@ use crate::body::{
     ValueType,
 };
 use crate::canonical::{self, Repeated};
-use crate::{Binder, MachineNames, SourceOrigin, Unserved, refuse};
+use crate::{Binder, MachineNames, SourceNode, SourceOrigin, Unserved, refuse};
 use source::SourceSpan;
 
 impl<'t> Program<'t> {
@@ -166,7 +166,7 @@ impl<'t> Program<'t> {
         Ok(local)
     }
 
-    fn next_identity(&self) -> Checked<MachineId> {
+    pub(super) fn next_identity(&self) -> Checked<MachineId> {
         MachineId::new(self.symbols.len() as u64 + 1).ok_or_else(|| {
             refuse(
                 MachineId::new(1).expect("1 is nonzero"),
@@ -296,27 +296,6 @@ impl<'t> Program<'t> {
         self.value_parameters.push(0);
         self.value_arguments.push(arguments.to_vec());
         self.scopes.push(Vec::new());
-        Ok(id)
-    }
-
-    /// Allocate the supplied contract independently of the witness entry, even
-    /// when both views name the same declaration. Reusing the entry would turn
-    /// the proof obligation into a recursive call to itself.
-    pub fn callable_contract(
-        &mut self,
-        supplied: crate::CallableDeclaration<'t>,
-    ) -> Checked<MachineId> {
-        let id = match supplied {
-            crate::CallableDeclaration::Signature(signature) => {
-                self.witnessed_signature(signature, &[])?
-            }
-            crate::CallableDeclaration::Machine(symbol) => {
-                let id = self.next_identity()?;
-                self.read_machine(id, symbol, Reading::Closed)?;
-                id
-            }
-        };
-        self.requirements.push(id);
         Ok(id)
     }
 
@@ -889,6 +868,31 @@ impl<'t> Program<'t> {
     ) -> Checked<(Signature, MachineNames)> {
         let typed = self.typed;
         let formals = span(&typed.state_parameters, formals, id, "parameter span")?;
+        let contracts = span(&typed.signature_contracts, contracts, id, "contract span")?;
+        self.contract_parts(
+            id,
+            owner,
+            formals,
+            return_type,
+            contracts,
+            declared,
+            binders,
+            bound,
+        )
+    }
+
+    pub(super) fn contract_parts(
+        &mut self,
+        id: MachineId,
+        owner: SymbolHandle,
+        formals: &[StateParameter],
+        return_type: typed_trees::types::TypeReferenceHandle,
+        contracts: &[typed_trees::signature::SignatureContract],
+        declared: Declarer,
+        binders: &[ValueBinder],
+        bound: &[(SymbolHandle, semantic_vocabulary::ScalarTerm)],
+    ) -> Checked<(Signature, MachineNames)> {
+        let typed = self.typed;
         let mut parameters = Vec::with_capacity(formals.len());
         let mut erased = Vec::new();
         let mut borrowed = Vec::new();
@@ -999,7 +1003,7 @@ impl<'t> Program<'t> {
         let mut ensures_text = Vec::new();
         let mut routes = Vec::new();
         let mut crash_clauses = false;
-        for contract in span(&typed.signature_contracts, contracts, id, "contract span")? {
+        for contract in contracts {
             if contract.binding.is_some() {
                 return Err(refuse(
                     id,
@@ -1071,6 +1075,7 @@ impl<'t> Program<'t> {
         // as `declares_no_crash_route`, so it is told from an omission by
         // that fact and never by the missing rows.
         let declares_none = match declared {
+            Declarer::Operator => false,
             Declarer::Machine {
                 declares_no_crash_route,
                 ..
@@ -1101,6 +1106,7 @@ impl<'t> Program<'t> {
                 ));
             }
             (_, true)
+            | (Declarer::Operator, false)
             | (
                 Declarer::Machine {
                     is_public: true, ..
@@ -1261,7 +1267,7 @@ impl<'t> Program<'t> {
     /// Two kinds stay refused by name: an `[erased]` one, which names a
     /// term and has no storage to assign, and one of a type parameter,
     /// whose replaced value no slice disposes of yet.
-    fn formal(
+    pub(super) fn formal(
         &mut self,
         id: MachineId,
         formal: &StateParameter,
@@ -1570,7 +1576,19 @@ impl<'t> Program<'t> {
                 }
                 StatementNode::Assignment(assignment) => self.assignment(id, &slots, assignment)?,
                 StatementNode::Call(call) => {
-                    let called = self.call_statement(id, &slots, call)?;
+                    let ordinal = u32::try_from(position).map_err(|_| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Machine("statement ordinal exceeds its typed span"),
+                        )
+                    })?;
+                    let source = self.source_origin(
+                        id,
+                        SourceNode::Statement(state.statement_nodes.handle_at(ordinal)),
+                        call.source_span,
+                    )?;
+                    let called = self.call_statement(id, &slots, call, source)?;
                     if !call.discards_result {
                         undiscarded(id, &called)?;
                     }
@@ -1593,8 +1611,8 @@ impl<'t> Program<'t> {
                                 ));
                             }
                             completed = true;
-                            if let (Some(names), SourceOrigin::Authored(span)) =
-                                (self.names.get_mut(id), expression.source)
+                            if let (Some(names), Some(span)) =
+                                (self.names.get_mut(id), expression.source.span())
                             {
                                 names.exits.push((span, position));
                             }
@@ -1899,10 +1917,10 @@ fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
         | Statement::Evaluate(_) => Vec::new(),
     };
     for (target, arm) in arms {
-        let (Target::Value(value), SourceOrigin::Authored(arm)) = (target, arm) else {
+        let (Target::Value(value), Some(arm)) = (target, arm.span()) else {
             continue;
         };
-        let SourceOrigin::Authored(span) = value.source else {
+        let Some(span) = value.source.span() else {
             continue;
         };
         let position = exits
@@ -1922,7 +1940,7 @@ fn target_spans(target: &Target, out: &mut Vec<(SourceSpan, Binder)>) {
 }
 
 fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Binder)>) {
-    if let SourceOrigin::Authored(span) = expression.source {
+    if let Some(span) = expression.source.span() {
         out.push((span, binder.clone()));
     }
     match &expression.kind {
@@ -1980,7 +1998,8 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
 /// a requirement, deferral to the selected member. An authored `crashes
 /// none` leaves no row on either, so it is carried beside them.
 #[derive(Clone, Copy)]
-enum Declarer {
+pub(super) enum Declarer {
+    Operator,
     Machine {
         declares_no_crash_route: bool,
         is_public: bool,
@@ -2003,10 +2022,10 @@ enum Declarer {
 /// One value parameter of a generic check form: the binder's symbol, which
 /// is what a name in the body or a clause resolves to, its spelling for
 /// diagnostics, and its carrier.
-struct ValueBinder {
-    symbol: SymbolHandle,
-    name: String,
-    scalar_type: semantic_vocabulary::ScalarType,
+pub(super) struct ValueBinder {
+    pub(super) symbol: SymbolHandle,
+    pub(super) name: String,
+    pub(super) scalar_type: semantic_vocabulary::ScalarType,
 }
 
 /// How a machine's declaration is read.

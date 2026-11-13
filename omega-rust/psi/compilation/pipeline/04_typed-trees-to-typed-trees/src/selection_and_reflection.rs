@@ -3222,7 +3222,10 @@ pub(crate) mod result_locals {
                             (false, false)
                         };
                         if logical_machine
-                            && !validation::type_carries_linear_obligation(program, actual)
+                            && typed_trees::source_claims::type_carries_linear_obligation(
+                                program, actual,
+                            )
+                            .is_ok_and(|carries| !carries)
                             && validation::place_has_immutable_denotation(
                                 program,
                                 machine,
@@ -3537,7 +3540,10 @@ pub(crate) mod result_locals {
                 Ok(())
             } else {
                 let mut formation_errors = Vec::new();
-                validation::validate_anonymous_numeric_formation(program, &mut formation_errors);
+                typed_trees::source_numeric::validate_anonymous_numeric_formation(
+                    program,
+                    &mut formation_errors,
+                );
                 let symbols = validation::TopLevelSymbols::build(program, &mut Vec::new());
                 for machine in program.machines() {
                     for state in program.machine_states(machine) {

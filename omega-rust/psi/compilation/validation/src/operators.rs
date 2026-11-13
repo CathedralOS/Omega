@@ -328,15 +328,11 @@ pub(crate) mod applications {
         {
             return None;
         }
-        let receiver = program
-            .statement_table
-            .name_path_members(call.receiver)
-            .last()?;
-        crate::machine_calls::calls::declared_receiver_type_reference(
+        typed_trees::source_names::declared_receiver_type_reference(
             program,
             machine,
             state,
-            receiver.as_str(),
+            call.receiver_symbol,
         )
     }
 
@@ -460,51 +456,11 @@ pub(crate) mod applications {
         supplied: &StaticMachineArgument,
         inferred: TypeReferenceHandle,
     ) -> bool {
-        if supplied.const_literal.is_some() || supplied.evidence_projection.is_some() {
-            return false;
-        }
-        match program.type_reference_table.type_reference(inferred) {
-            TypeReferenceNode::Named { symbol, .. } => {
-                supplied.application.is_none()
-                    && symbol.is_valid()
-                    && supplied.symbol.is_valid()
-                    && supplied.symbol == *symbol
-            }
-            TypeReferenceNode::Generic {
-                base_symbol,
-                lifetime_arguments,
-                arguments,
-                ..
-            } => {
-                let Some(application) = supplied.application.as_ref() else {
-                    return false;
-                };
-                base_symbol.is_valid()
-                    && supplied.symbol.is_valid()
-                    && supplied.symbol == *base_symbol
-                    && lifetime_arguments.is_empty()
-                    && application.lifetime_arguments.is_empty()
-                    && application.arguments.len() == arguments.len()
-                    && application
-                        .arguments
-                        .iter()
-                        .zip(
-                            program
-                                .type_reference_table
-                                .type_reference_handles(*arguments),
-                        )
-                        .all(|(supplied, inferred)| {
-                            static_type_argument_matches(program, supplied, *inferred)
-                        })
-            }
-            TypeReferenceNode::Reference { .. }
-            | TypeReferenceNode::Constrained { .. }
-            | TypeReferenceNode::FixedArray { .. }
-            | TypeReferenceNode::Slice { .. }
-            | TypeReferenceNode::ConstExpression(_)
-            | TypeReferenceNode::DynamicTrait { .. }
-            | TypeReferenceNode::Unit => false,
-        }
+        typed_trees::source_operator_types::static_type_argument_matches(
+            program.typed_program(),
+            supplied,
+            inferred,
+        )
     }
 }
 pub(crate) mod contracts {
@@ -726,346 +682,63 @@ pub(crate) mod namespaces {
     }
 }
 pub(crate) mod receiver {
-    use crate::frozen_program::expression_table;
-    use crate::value_custody::type_references::substituted_identity;
     use checked_trees::CheckedValueOrigin;
-    use numerics::literals::FloatFormat;
     use symbols::SymbolHandle;
-    use typed_trees::expression::{ExpressionHandle, ExpressionNode};
-    use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-
+    use typed_trees::{
+        expression::{ExpressionHandle, TableCastExpression},
+        machine::Machine,
+        state::State,
+        types::TypeReferenceHandle,
+    };
+    struct SourceTypes<'a>(&'a dyn crate::CheckingInput);
+    impl typed_trees::source_operator_types::ContextualSourceTypes for SourceTypes<'_> {
+        fn typed(&self) -> &typed_trees::TypedTrees {
+            self.0.typed_program()
+        }
+        fn expression_result_type(
+            &self,
+            machine: &Machine,
+            state: &State,
+            expression: ExpressionHandle,
+        ) -> Option<TypeReferenceHandle> {
+            crate::expression_result_type_reference(self.0, machine, state, expression)
+        }
+        fn cast_result_type(&self, cast: &TableCastExpression) -> Option<TypeReferenceHandle> {
+            crate::value_custody::expression_types::cast_result_type_reference(self.0, cast)
+        }
+        fn selected_operator_result_type(
+            &self,
+            symbol: SymbolHandle,
+            result: TypeReferenceHandle,
+            operands: &[Option<TypeReferenceHandle>],
+        ) -> Option<TypeReferenceHandle> {
+            crate::value_custody::expression_types::selected_operator_result_type_reference(
+                self.0, symbol, result, operands,
+            )
+        }
+        fn array_literal_type(&self, expression: ExpressionHandle) -> Option<TypeReferenceHandle> {
+            crate::declared_constant_array_type(self.0, expression)
+        }
+    }
     pub fn expression_type_reference_for_origin(
         program: &dyn crate::CheckingInput,
         expression: ExpressionHandle,
         origin: CheckedValueOrigin,
     ) -> Option<TypeReferenceHandle> {
-        let (state_symbol, statement_index) = match origin {
-            CheckedValueOrigin::StateStatement {
-                state_symbol,
-                statement_index,
-                ..
-            } => (state_symbol, statement_index),
-            CheckedValueOrigin::NestedExpression { .. }
-            | CheckedValueOrigin::MachineDecrease { .. }
-            | CheckedValueOrigin::MachineOwnedDataInitializer { .. } => return None,
-        };
-        expression_type_reference_in_state(program, state_symbol, statement_index, expression)
-    }
-
-    fn expression_type_reference_in_state(
-        program: &dyn crate::CheckingInput,
-        state_symbol: SymbolHandle,
-        statement_index: usize,
-        expression: ExpressionHandle,
-    ) -> Option<TypeReferenceHandle> {
-        if !expression.is_valid() {
+        let CheckedValueOrigin::StateStatement {
+            state_symbol,
+            statement_index,
+            ..
+        } = origin
+        else {
             return None;
-        }
-
-        match expression_table(program).expression(expression) {
-            ExpressionNode::SavedSubject(saved) => {
-                program.saved_value_source(saved).and_then(|subject| {
-                    expression_type_reference_in_state(
-                        program,
-                        state_symbol,
-                        statement_index,
-                        subject,
-                    )
-                })
-            }
-            ExpressionNode::Match(dispatch) => expression_table(program)
-                .match_arms(dispatch.arms)
-                .iter()
-                .find_map(|arm| {
-                    expression_type_reference_in_state(
-                        program,
-                        state_symbol,
-                        statement_index,
-                        arm.value,
-                    )
-                }),
-            ExpressionNode::Atomic(atomic) => expression_type_reference_in_state(
-                program,
-                state_symbol,
-                statement_index,
-                atomic.value,
-            ),
-            ExpressionNode::Name(path) => {
-                let name = expression_table(program)
-                    .name_path_members(path.members)
-                    .first()
-                    .map(|name| name.as_str());
-                symbol_type_reference_in_state(
-                    program,
-                    state_symbol,
-                    statement_index,
-                    path.symbol,
-                    name,
-                )
-            }
-            ExpressionNode::Member(member) => expression_type_reference_in_state(
-                program,
-                state_symbol,
-                statement_index,
-                member.receiver,
-            )
-            .and_then(|receiver| field_type_reference(program, receiver, member))
-            .or_else(|| data_binding_field_type_reference(program, state_symbol, member)),
-            ExpressionNode::Borrow(_) | ExpressionNode::Indexed(_) => program
-                .machine_holding_state(state_symbol)
-                .zip(program.state_by_symbol(state_symbol))
-                .and_then(|(machine, state)| {
-                    crate::expression_result_type_reference(program, machine, state, expression)
-                }),
-            ExpressionNode::Cast(cast) => {
-                crate::value_custody::expression_types::cast_result_type_reference(program, cast)
-            }
-            ExpressionNode::Call(call) => program
-                .machine_holding_state(state_symbol)
-                .zip(program.state_by_symbol(state_symbol))
-                .and_then(|(machine, state)| {
-                    crate::expression_result_type_reference(program, machine, state, expression)
-                })
-                .or_else(|| {
-                    typed_trees::operator::resolve_named_expression_call(program, call)
-                        .map(|operator| operator.return_type)
-                }),
-            ExpressionNode::Binary(binary) => {
-                let operands = [
-                    expression_type_reference_in_state(
-                        program,
-                        state_symbol,
-                        statement_index,
-                        binary.left,
-                    ),
-                    expression_type_reference_in_state(
-                        program,
-                        state_symbol,
-                        statement_index,
-                        binary.right,
-                    ),
-                ];
-                if operands.iter().any(Option::is_some)
-                    && let Some(spelling) =
-                        typed_trees::operator::binary_operator_spelling(binary.operator)
-                {
-                    let candidates = typed_trees::operator::resolve_spelling_for_operands(
-                        program,
-                        spelling,
-                        &operands,
-                        expression_table(program).source_span(expression),
-                    );
-                    if let [candidate] = candidates.as_slice() {
-                        if candidate.domain.is_none() {
-                            return crate::value_custody::expression_types::selected_operator_result_type_reference(
-                            program, candidate.operator.symbol, candidate.operator.return_type, &operands,
-                        );
-                        }
-                        return None;
-                    } else if !candidates.is_empty() {
-                        return None;
-                    }
-                }
-                use typed_trees::expression::BinaryOperator;
-                if matches!(
-                    binary.operator,
-                    BinaryOperator::Equal
-                        | BinaryOperator::NotEqual
-                        | BinaryOperator::Less
-                        | BinaryOperator::LessOrEqual
-                        | BinaryOperator::Greater
-                        | BinaryOperator::GreaterOrEqual
-                        | BinaryOperator::And
-                        | BinaryOperator::Or
-                ) {
-                    return crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
-                    program,
-                    symbols::BuiltinTypeAtom::Bool,
-                );
-                }
-                operands[0].or(operands[1])
-            }
-            ExpressionNode::UndeterminedNaN(format) => float_type_reference(program, *format),
-            ExpressionNode::Float(literal) => literal
-                .landing()
-                .and_then(|format| float_type_reference(program, format)),
-            ExpressionNode::TypeExpression(_) => None,
-            ExpressionNode::ZeroValue(type_reference) => Some(*type_reference),
-            ExpressionNode::StructLiteral(literal) => program
-                .type_reference_table
-                .find_named_type_reference(literal.type_symbol),
-            ExpressionNode::ArrayLiteral(_) => {
-                crate::declared_constant_array_type(program, expression)
-            }
-            ExpressionNode::Boolean(_)
-            | ExpressionNode::Integer(_)
-            | ExpressionNode::Range(_)
-            | ExpressionNode::String(_)
-            | ExpressionNode::Unary(_) => None,
-        }
-    }
-
-    fn float_type_reference(
-        program: &dyn crate::CheckingInput,
-        format: FloatFormat,
-    ) -> Option<TypeReferenceHandle> {
-        let primitive = match format {
-            FloatFormat::F32 => typed_trees::types::PrimitiveType::F32,
-            FloatFormat::F64 => typed_trees::types::PrimitiveType::F64,
         };
-        let atom = match primitive {
-            typed_trees::types::PrimitiveType::F32 => symbols::BuiltinTypeAtom::F32,
-            typed_trees::types::PrimitiveType::F64 => symbols::BuiltinTypeAtom::F64,
-            _ => return None,
-        };
-        crate::proof_contracts::bound_expression_meaning::builtin_type_reference(program, atom)
-    }
-
-    fn symbol_type_reference_in_state(
-        program: &dyn crate::CheckingInput,
-        state_symbol: SymbolHandle,
-        statement_index: usize,
-        symbol: SymbolHandle,
-        name: Option<&str>,
-    ) -> Option<TypeReferenceHandle> {
-        if !symbol.is_valid() && name.is_none() {
-            return None;
-        }
-
-        let state = program.state_by_symbol(state_symbol)?;
-        program
-            .state_parameters(state)
-            .iter()
-            .find(|parameter| {
-                (symbol.is_valid() && parameter.symbol == symbol)
-                    || (!symbol.is_valid()
-                        && name.is_some_and(|name| parameter.name.as_str() == name))
-            })
-            .map(|parameter| parameter.type_reference)
-            .or_else(|| {
-                local_type_reference_before_statement(program, state, statement_index, symbol, name)
-            })
-    }
-
-    fn local_type_reference_before_statement(
-        program: &dyn crate::CheckingInput,
-        state: &typed_trees::state::State,
-        statement_index: usize,
-        symbol: SymbolHandle,
-        name: Option<&str>,
-    ) -> Option<TypeReferenceHandle> {
-        program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .take(statement_index)
-            .find_map(|statement| {
-                let local = statement.as_local_data()?;
-                ((symbol.is_valid() && local.symbol == symbol)
-                    || (!symbol.is_valid() && name.is_some_and(|name| local.name.as_str() == name)))
-                .then_some(local.type_reference)
-            })
-    }
-
-    fn data_binding_field_type_reference(
-        program: &dyn crate::CheckingInput,
-        state_symbol: SymbolHandle,
-        member: &typed_trees::expression::TableMemberExpression,
-    ) -> Option<TypeReferenceHandle> {
-        let path = expression_table(program).name_path_node(member.receiver)?;
-        let (machine, state) = program
-            .machine_holding_state(state_symbol)
-            .zip(program.state_by_symbol(state_symbol))?;
-        let data_binding =
-            program.data_binding_parameter(machine, program.state_parameters(state))?;
-        let path_members = expression_table(program).name_path_members(path.members);
-        let names_data_binding = path_members.len() == 1
-            && ((path.symbol.is_valid() && path.symbol == data_binding.symbol)
-                || (path.head_symbol.is_valid() && path.head_symbol == data_binding.symbol));
-        if !names_data_binding {
-            return None;
-        }
-
-        let data = program.data_definition_by_symbol(machine.attached_data_symbol)?;
-        data_field_type_reference(program, data, member)
-    }
-
-    fn field_type_reference(
-        program: &dyn crate::CheckingInput,
-        type_reference: TypeReferenceHandle,
-        member: &typed_trees::expression::TableMemberExpression,
-    ) -> Option<TypeReferenceHandle> {
-        if program.closed_data_definition(type_reference).is_some() {
-            return crate::value_custody::places::applied_data_member_field(
-                program,
-                type_reference,
-                member,
-            )
-            .map(|field| field.type_reference);
-        }
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Reference { referee, .. }
-            | TypeReferenceNode::Constrained {
-                base_type: referee, ..
-            } => field_type_reference(program, *referee, member),
-            TypeReferenceNode::Generic {
-                base_symbol,
-                base_name,
-                arguments,
-                ..
-            } => {
-                let data = crate::field_domains::data_definition_by_symbol_or_name(
-                    program,
-                    *base_symbol,
-                    base_name,
-                )?;
-                let field = data_field_type_reference(program, data, member)?;
-                let parameters = program.data_type_parameters(data);
-                let arguments = program
-                    .type_reference_table
-                    .type_reference_handles(*arguments);
-                if parameters.len() != arguments.len() {
-                    return None;
-                }
-                let substitutions = parameters
-                    .iter()
-                    .zip(arguments)
-                    .map(|(parameter, argument)| (parameter.symbol, *argument))
-                    .collect::<Vec<_>>();
-                (program.normalized_type_identity(field)
-                    == substituted_identity(program, field, &substitutions))
-                .then_some(field)
-            }
-            TypeReferenceNode::Named {
-                symbol: base_symbol,
-                name: base_name,
-            } => crate::field_domains::data_definition_by_symbol_or_name(
-                program,
-                *base_symbol,
-                base_name,
-            )
-            .and_then(|data| data_field_type_reference(program, data, member)),
-            TypeReferenceNode::ConstExpression(_)
-            | TypeReferenceNode::FixedArray { .. }
-            | TypeReferenceNode::DynamicTrait { .. }
-            | TypeReferenceNode::Slice { .. }
-            | TypeReferenceNode::Unit => None,
-        }
-    }
-
-    fn data_field_type_reference(
-        program: &dyn crate::CheckingInput,
-        data: &typed_trees::data::DataDefinition,
-        member: &typed_trees::expression::TableMemberExpression,
-    ) -> Option<TypeReferenceHandle> {
-        crate::value_custody::places::exact_data_member_field(
-            program,
-            data,
-            member.member_symbol,
-            member.member.as_str(),
-            member.case_variant.as_ref().map(|variant| variant.as_str()),
+        typed_trees::source_operator_types::expression_type_reference_in_state(
+            &SourceTypes(program),
+            state_symbol,
+            statement_index,
+            expression,
         )
-        .map(|field| field.type_reference)
     }
 }
 pub(crate) mod requirement_uses {
@@ -1806,23 +1479,9 @@ pub(crate) mod selection {
 
     pub(crate) fn type_is_primitive(
         program: &dyn crate::CheckingInput,
-        type_reference: TypeReferenceHandle,
+        reference: TypeReferenceHandle,
     ) -> bool {
-        match program.type_reference_table.type_reference(type_reference) {
-            TypeReferenceNode::Reference { referee, .. }
-            | TypeReferenceNode::Constrained {
-                base_type: referee, ..
-            } => type_is_primitive(program, *referee),
-            TypeReferenceNode::Named { name, .. } => {
-                PrimitiveType::from_name(name.as_str()).is_some()
-            }
-            TypeReferenceNode::ConstExpression(_)
-            | TypeReferenceNode::Generic { .. }
-            | TypeReferenceNode::FixedArray { .. }
-            | TypeReferenceNode::DynamicTrait { .. }
-            | TypeReferenceNode::Slice { .. }
-            | TypeReferenceNode::Unit => false,
-        }
+        typed_trees::source_operator_types::type_is_primitive(program.typed_program(), reference)
     }
 }
 pub use scoped_applications::{
@@ -1835,18 +1494,15 @@ pub(crate) mod signatures {
     pub(crate) fn operator_signature_key(
         program: &dyn crate::CheckingInput,
         operator: &typed_trees::operator::OperatorDefinition,
-    ) -> String {
-        format!(
-            "{}({})",
-            operator_name(program, operator),
-            operator_operand_signature(program, operator)
-        )
+    ) -> Result<String, typed_trees::runtime_callable_identity::RuntimeCallableIdentityError> {
+        operator_operand_signature(program, operator)
+            .map(|operands| format!("{}({operands})", operator_name(program, operator)))
     }
 
     pub(crate) fn operator_operand_key(
         program: &dyn crate::CheckingInput,
         operator: &typed_trees::operator::OperatorDefinition,
-    ) -> String {
+    ) -> Result<String, typed_trees::runtime_callable_identity::RuntimeCallableIdentityError> {
         operator_operand_signature(program, operator)
     }
 
@@ -2826,19 +2482,34 @@ fn validate_spelling_overlap(
     operators: &[typed_trees::operator::OperatorDefinition],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let keys = operators
+        .iter()
+        .map(|operator| operator_operand_key(program, operator))
+        .collect::<Vec<_>>();
     for (operator_index, operator) in operators.iter().enumerate() {
         let Some(spelling) = operator.spelling else {
             continue;
         };
-        let operand_key = operator_operand_key(program, operator);
+        let operand_key = match &keys[operator_index] {
+            Ok(identity) => identity,
+            Err(error) => {
+                diagnostics.push(Diagnostic::error(error.to_string()));
+                continue;
+            }
+        };
 
-        let overlaps = operators[..operator_index].iter().any(|previous| {
-            previous.spelling == Some(spelling)
-                && operator_operand_key(program, previous) == operand_key
-                && !program
-                    .symbols
-                    .source_scopes_separate(previous.symbol, operator.symbol)
-        });
+        let overlaps = operators[..operator_index]
+            .iter()
+            .enumerate()
+            .any(|(index, previous)| {
+                previous.spelling == Some(spelling)
+                    && keys[index]
+                        .as_ref()
+                        .is_ok_and(|previous| previous == operand_key)
+                    && !program
+                        .symbols
+                        .source_scopes_separate(previous.symbol, operator.symbol)
+            });
 
         if overlaps {
             diagnostics.push(Diagnostic::error(format!(
@@ -2856,16 +2527,30 @@ fn validate_duplicate_operator_signatures(
     operators: &[typed_trees::operator::OperatorDefinition],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    let keys = operators
+        .iter()
+        .map(|operator| operator_signature_key(program, operator))
+        .collect::<Vec<_>>();
     for (operator_index, operator) in operators.iter().enumerate() {
-        let signature = operator_signature_key(program, operator);
+        let signature = match &keys[operator_index] {
+            Ok(identity) => identity,
+            Err(error) => {
+                diagnostics.push(Diagnostic::error(error.to_string()));
+                continue;
+            }
+        };
         let previous = operators[..operator_index]
             .iter()
-            .filter(|previous| {
-                operator_signature_key(program, previous) == signature
+            .enumerate()
+            .filter(|(index, previous)| {
+                keys[*index]
+                    .as_ref()
+                    .is_ok_and(|previous| previous == signature)
                     && !program
                         .symbols
                         .source_scopes_separate(previous.symbol, operator.symbol)
             })
+            .map(|(_, previous)| previous)
             .collect::<Vec<_>>();
         if previous.is_empty() {
             continue;

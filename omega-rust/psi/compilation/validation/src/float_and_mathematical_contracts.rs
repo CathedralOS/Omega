@@ -3120,7 +3120,7 @@ pub mod mathematical_applications {
             }
         }
 
-        pub(crate) fn application_spine(
+        pub fn application_spine(
             view: PreparedMathematicalView<'_>,
             mut term: TermHandle,
         ) -> Option<(u32, Vec<TermHandle>)> {
@@ -3385,7 +3385,7 @@ pub mod mathematical_applications {
         }
     }
     pub use float_predicates::{MathematicalFloatPredicate, float_predicates};
-    pub(crate) use prepared::application_spine;
+    pub use prepared::application_spine;
     pub use prepared::{
         PreparedApplication, PreparedCapture, PreparedConstant, PreparedConstantMeaning,
         PreparedIdentityValue, PreparedIndexedTheorem, PreparedMathematicalApplications,
@@ -3726,35 +3726,6 @@ pub mod mathematical_applications {
                 })
             })
             .collect()
-    }
-
-    pub fn source_operations_have_same_meaning(
-        program: &dyn crate::CheckingInput,
-        owner: SymbolHandle,
-        left: ExpressionHandle,
-        right: ExpressionHandle,
-    ) -> bool {
-        let parameters = if let Some(definition) = program
-            .mathematical_definitions()
-            .iter()
-            .find(|definition| definition.symbol == owner)
-        {
-            ordinary_parameters(program, definition)
-        } else if let Some(machine) = program.machine_by_symbol(owner) {
-            let Some(entry) = program.machine_states(machine).first() else {
-                return false;
-            };
-            program.state_parameters(entry).to_vec()
-        } else {
-            return false;
-        };
-        crate::proof_contracts::contract_entailment::source_operations_have_same_meaning(
-            program,
-            owner,
-            &parameters,
-            left,
-            right,
-        )
     }
 
     pub fn is_source_evidence_carrier(

@@ -948,46 +948,15 @@ pub(crate) mod contract_plans {
         use std::hash::{Hash, Hasher};
         use typed_trees::type_identity::{NormalizedTypeIdentity, TypeIdentityTable};
 
-        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-        pub enum DeclaredContractFact {
-            Expression(String),
-            Membership {
-                value: String,
-                domain: String,
-                arguments: Vec<NormalizedTypeIdentity>,
-            },
-            Proposition(String),
-            ContentConservation(Vec<u8>),
-        }
-
-        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        pub enum DeclaredContractKind {
-            Requires,
-            Ensures,
-            EnsuresForResultCase { data: String, case: String },
-            Crashes(super::CrashCause),
-        }
-
-        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-        pub struct DeclaredContractClause {
-            pub kind: DeclaredContractKind,
-            pub fact: Option<DeclaredContractFact>,
-        }
-
-        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-        pub struct DeclaredContractParameter {
-            pub mutable: bool,
-            pub constant: bool,
-            pub relevance: language_core::BindingRelevance,
-            pub type_identity: NormalizedTypeIdentity,
-        }
-
-        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-        pub struct DeclaredCallableContract {
-            pub parameters: Vec<DeclaredContractParameter>,
-            pub result: NormalizedTypeIdentity,
-            pub clauses: Vec<DeclaredContractClause>,
-        }
+        pub use typed_trees::contract_structure::{
+            DeclaredContractFact, DeclaredContractParameter,
+        };
+        pub type DeclaredContractKind =
+            typed_trees::contract_structure::DeclaredContractKind<super::CrashCause>;
+        pub type DeclaredContractClause =
+            typed_trees::contract_structure::DeclaredContractClause<super::CrashCause>;
+        pub type DeclaredCallableContract =
+            typed_trees::contract_structure::DeclaredCallableContract<super::CrashCause>;
 
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct DeclaredContractStructure {

@@ -456,8 +456,9 @@ pub(crate) mod statement {
                 return Ok(None);
             };
             let root_type = lower_type_reference_into_table(lowerer, &declared_root)?;
+            let mut projection =
+                typed::type_system::source_projections::SourceTypeCursor::new(root_type);
             let mut current = root_type;
-            let mut path = Vec::with_capacity(steps.len());
             for step in steps.into_iter().rev() {
                 match step {
                     ProjectionStep::Element(selector) => {
@@ -465,9 +466,11 @@ pub(crate) mod statement {
                             crate::expressions::expression::lower_executable_expression_handle(
                                 lowerer, selector,
                             )?;
-                        path.push(facts::PlaceSegment::Index {
-                            expression: selector,
-                        });
+                        let _ = selector;
+                        let Some(projected) = projection.element(&lowerer.typed_trees) else {
+                            return Ok(None);
+                        };
+                        current = projected;
                     }
                     ProjectionStep::Field(member) => {
                         let Some(symbol) =
@@ -475,17 +478,12 @@ pub(crate) mod statement {
                         else {
                             return Ok(None);
                         };
-                        path.push(facts::PlaceSegment::Field { symbol });
+                        let Some(projected) = projection.field(&lowerer.typed_trees, symbol) else {
+                            return Ok(None);
+                        };
+                        current = projected;
                     }
                 }
-                let Some(projected) = validation::project_type_reference_from_segments(
-                    &lowerer.typed_trees,
-                    root_type,
-                    &path,
-                ) else {
-                    return Ok(None);
-                };
-                current = projected;
             }
             Ok(Some(current))
         }
@@ -500,7 +498,7 @@ pub(crate) mod statement {
                 .peeled_type_reference(reference);
             let owner = program.closed_data_definition(reference).or_else(|| {
                 let symbol = program.type_reference_table.type_head_symbol(reference)?;
-                validation::unique_data_definition_by_symbol(program, symbol)
+                program.unique_data_definition_by_symbol(symbol)
             })?;
             if owner.generic_instance.is_some() {
                 return program

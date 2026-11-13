@@ -772,11 +772,7 @@ pub(crate) mod operand {
         pub projection: HandleSpan<facts::PlaceSegment>,
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
-    pub enum ViewReturnInputSource {
-        Referent,
-        Stored,
-    }
+    pub use typed_trees::source_borrow_contracts::ViewReturnInputSource;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
     pub struct FlowOperandLifetimeContract {

@@ -601,7 +601,8 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
         | E::Borrow { place: base, .. }
         | E::Not(base)
         | E::BitwiseNot(base)
-        | E::Cast(base) => collect_expression(base, calls),
+        | E::Cast(base)
+        | E::Requalify(base) => collect_expression(base, calls),
         E::Record { fields } | E::Case { fields, .. } => {
             for (_, field) in fields {
                 collect_expression(field, calls);

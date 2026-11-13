@@ -221,6 +221,7 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
                 obligation,
                 &goal.proposition,
                 &declarations,
+                &mut Default::default(),
             )
             .map_err(|detail| {
                 crate::refusal(

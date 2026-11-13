@@ -1,7 +1,7 @@
 //! Controls for evaluated code values, using the production Terminal projection.
 
 use super::*;
-use semantic_vocabulary::{ContractId, ScalarQualificationSetId, StructuralPlaceKind};
+use semantic_vocabulary::{ContractId, ScalarQualificationSetId, ServiceId, StructuralPlaceKind};
 use terminal_psi::{
     Block, BoundaryMachineResult, BoundaryParameterKind, MachineContract, Operation,
     OperationKind as O, OperationResult, RegisterTargetApplicability, StructuralAccess,
@@ -430,4 +430,103 @@ fn stale_descriptor_contract_and_missing_callee_ssa_are_errors() {
         reachable_callable_invocations(&projected, [machine_id(1)]),
         Err("callable provenance SSA type disagrees with its exact contract")
     );
+}
+
+fn service_summary_module() -> TerminalModule {
+    let mut module = module();
+    module.services = vec![
+        terminal_psi::ServiceDeclaration {
+            id: ServiceId::new(1).unwrap(),
+            identity: TerminalIdentityIndex(1),
+            parents: Vec::new(),
+        },
+        terminal_psi::ServiceDeclaration {
+            id: ServiceId::new(2).unwrap(),
+            identity: TerminalIdentityIndex(2),
+            parents: vec![ServiceId::new(1).unwrap()],
+        },
+        terminal_psi::ServiceDeclaration {
+            id: ServiceId::new(3).unwrap(),
+            identity: TerminalIdentityIndex(3),
+            parents: Vec::new(),
+        },
+    ];
+    module.machines = (1..=5).map(machine).collect();
+    module
+}
+
+#[test]
+fn body_service_summary_closes_cycles_without_counting_unused_constructed_code() {
+    let mut module = service_summary_module();
+    module.machines[0].published_service_ceiling =
+        module.services.iter().map(|row| row.id).collect();
+    module.machines[0].blocks[0].operations = vec![select(1, 1, 1), direct_call(2, 2, Vec::new())];
+    module.machines[1].blocks[0].operations = vec![
+        direct_call(1, 1, Vec::new()),
+        Operation::unsuspended(
+            operation_id(2),
+            OperationResult::Unit,
+            O::PortWrite {
+                service: ServiceId::new(2).unwrap(),
+                port: 1,
+                value: 1,
+            },
+        ),
+    ];
+    module.machines[2].blocks[0].operations = vec![Operation::unsuspended(
+        operation_id(1),
+        OperationResult::Unit,
+        O::PortWrite {
+            service: ServiceId::new(3).unwrap(),
+            port: 1,
+            value: 1,
+        },
+    )];
+    let summaries = crate::body_services::body_service_reaches(&module).unwrap();
+    assert_eq!(
+        summaries.get(machine_id(1)).unwrap(),
+        &[ServiceId::new(1).unwrap(), ServiceId::new(2).unwrap()]
+    );
+    assert_eq!(
+        summaries.get(machine_id(3)).unwrap(),
+        &[ServiceId::new(3).unwrap()]
+    );
+}
+
+#[test]
+fn body_service_summary_retains_the_full_unknown_callable_ceiling() {
+    let mut module = service_summary_module();
+    module.callables.contracts[0].envelope.service_reach =
+        vec![ServiceId::new(1).unwrap(), ServiceId::new(2).unwrap()];
+    module.machines[0].parameters.push(value(1));
+    module.machines[0]
+        .parameter_order
+        .push(BoundaryParameterKind::Scalar);
+    module.machines[0].blocks[0]
+        .operations
+        .push(indirect_call(1, value(1).id));
+    let summaries = crate::body_services::body_service_reaches(&module).unwrap();
+    assert_eq!(
+        summaries.get(machine_id(1)).unwrap(),
+        &[ServiceId::new(1).unwrap(), ServiceId::new(2).unwrap()]
+    );
+    module.callables.contracts.clear();
+    assert!(crate::body_services::body_service_reaches(&module).is_err());
+}
+
+#[test]
+fn body_service_summary_refuses_an_unknown_instruction_service() {
+    let mut module = service_summary_module();
+    module.machines[0].blocks[0]
+        .operations
+        .push(Operation::unsuspended(
+            operation_id(1),
+            OperationResult::Unit,
+            O::PortWrite {
+                service: ServiceId::new(99).unwrap(),
+                port: 1,
+                value: 1,
+            },
+        ));
+    assert!(crate::body_services::body_service_reaches(&module).is_err());
 }

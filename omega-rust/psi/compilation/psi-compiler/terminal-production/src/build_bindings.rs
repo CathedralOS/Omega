@@ -74,6 +74,7 @@ pub enum TerminalBuildBindingOperation {
 
 #[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalBuildBindingCall {
+    pub machine: semantic_vocabulary::MachineId,
     pub operation: OperationId,
     pub boundary: BoundaryMachineId,
     pub action: TerminalBuildBindingOperation,
@@ -159,6 +160,7 @@ pub(crate) mod build_filesystem {
 
     #[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
     pub struct TerminalBuildFilesystemCall {
+        pub machine: semantic_vocabulary::MachineId,
         pub operation: semantic_vocabulary::OperationId,
         pub boundary: semantic_vocabulary::BoundaryMachineId,
         pub action: TerminalBuildFilesystemOperation,
@@ -202,6 +204,7 @@ pub(crate) mod build_queries {
 
     #[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
     pub struct TerminalBuildQueryCall {
+        pub machine: semantic_vocabulary::MachineId,
         pub operation: semantic_vocabulary::OperationId,
         pub boundary: semantic_vocabulary::BoundaryMachineId,
         pub action: TerminalBuildQueryOperation,
@@ -225,6 +228,7 @@ pub(crate) mod build_requests {
 
     #[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
     pub struct TerminalBuildRequestCall {
+        pub machine: semantic_vocabulary::MachineId,
         pub operation: OperationId,
         pub boundary: BoundaryMachineId,
         pub action: TerminalBuildRequestOperation,

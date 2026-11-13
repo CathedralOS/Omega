@@ -141,35 +141,6 @@ fn selected_constant_evaluation_belongs_to_psi() {
 }
 
 #[test]
-fn reused_product_selection_shares_the_checked_program() {
-    use std::sync::Arc;
-
-    let program = Arc::new(checked_trees::CheckedTrees::default());
-    let mut selections = psi_compiler::ProductSelections::default();
-    let first = selections
-        .select(
-            psi_compiler::CheckedSource {
-                program: Arc::clone(&program),
-                retained: None,
-                reused: false,
-            },
-            None,
-        )
-        .expect("first root selection");
-    let second = selections
-        .select(
-            psi_compiler::CheckedSource {
-                program: Arc::clone(&program),
-                retained: None,
-                reused: true,
-            },
-            None,
-        )
-        .expect("reused root selection");
-    assert!(Arc::ptr_eq(&first.program, &second.program));
-}
-
-#[test]
 fn canonical_proof_completion_has_no_source_rewrite_api() {
     let coordinator =
         include_str!("../../../build-system/build-settings/src/activation/scalar_completion.rs");

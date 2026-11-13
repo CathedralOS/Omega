@@ -60,7 +60,7 @@ mod invocations {
     use typed_trees::types::TypeReferenceHandle;
     use validation::expression_result_type_reference;
 
-    pub(crate) struct CheckedInitializers {
+    pub(crate) struct PreparedInitializers {
         typed: TypedTrees,
         admission: BuildTimeAdmissionPlan,
         authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
@@ -68,7 +68,7 @@ mod invocations {
         operators: Vec<crate::SelectedBuildTimeBinaryOperator>,
     }
 
-    impl CheckedInitializers {
+    impl PreparedInitializers {
         pub(crate) fn prepare(
             prepared: &crate::PreparedBuildMachineProgram,
             authority: Option<Arc<dyn crate::BuildTimeSelectionAuthority>>,
@@ -130,12 +130,12 @@ mod invocations {
                 super::probe_projection::ProbeProjection::new(execution, probe_symbols);
             let bodies = projection.helper_bodies();
             let preparation_request = typed_trees_to_typed_trees::PreparationRequest::settled();
-            let checking = typed_trees_to_checked_trees::CheckingRequest::new();
-            let (bodies, preparation) =
+            let (bodies, _preparation) =
                 typed_trees_to_typed_trees::prepare_typed_trees(bodies, &preparation_request)?;
-            let checked =
-                typed_trees_to_checked_trees::lower_typed_trees(bodies, preparation, &checking)?;
-            let typed = projection.rejoin_unjudged(checked.typed.into_inner());
+            // This prepares source, including formation obligations, without
+            // claiming a body verdict. The restored probes are judged at their
+            // exact invocation with their actual arguments before execution.
+            let typed = projection.rejoin_unjudged(bodies.into_inner());
             let typed = prepare_selected_execution(&typed, &[], &operators)
                 .map_err(|reason| super::failure(SourceSpan::default(), reason))?
                 .unwrap_or(typed);
@@ -179,12 +179,12 @@ mod invocations {
             });
             let machine = machines
                 .next()
-                .ok_or("checked initializer probe lost its source owner")?;
+                .ok_or("initializer probe lost its source owner")?;
             if machines.next().is_some() {
-                return Err("checked initializer probe source owner is ambiguous".into());
+                return Err("initializer probe source owner is ambiguous".into());
             }
             let [state] = typed.machine_states(machine) else {
-                return Err("checked initializer probe lost its single state".into());
+                return Err("initializer probe lost its single state".into());
             };
             Ok(self.calls(machine, state))
         }
@@ -215,7 +215,7 @@ mod invocations {
     }
 
     pub(crate) struct Invocation<'program> {
-        program: &'program CheckedInitializers,
+        program: &'program PreparedInitializers,
         machine: &'program Machine,
         state: &'program State,
         lexical_owner: SymbolHandle,
@@ -247,7 +247,6 @@ mod invocations {
                 self.machine.symbol,
                 "@const-invocation",
                 &typed_trees_to_typed_trees::PreparationRequest::settled(),
-                &typed_trees_to_checked_trees::CheckingRequest::new(),
                 expression,
                 &callee,
                 return_type,
@@ -2358,14 +2357,14 @@ mod replay {
         let replay_execution =
             PreparedEvaluationInputs::domain_for_program(&probe, &replay_roots, &[])?;
         let prepared = crate::PreparedBuildMachineProgram::prepare_in(&probe, &replay_execution)?;
-        let checked = super::invocations::CheckedInitializers::prepare(
+        let initializers = super::invocations::PreparedInitializers::prepare(
             &prepared,
             authority.clone(),
             &probe_symbols,
             domain,
             selected.operators,
         )?;
-        let program = checked.typed();
+        let program = initializers.typed();
         let mut dependency_jobs = Vec::new();
         for declaration in &replay_declarations {
             let owner = replay_owners
@@ -2378,7 +2377,7 @@ mod replay {
                     )
                 })?
                 .1;
-            let dependencies = checked
+            let dependencies = initializers
             .calls_for_retained_initializer(owner, declaration.symbol)
             .and_then(|calls| calls.validate_custody(declaration))
             .map_err(|reason| {
@@ -2422,7 +2421,7 @@ mod replay {
             dependency_jobs.push((declaration, owner, dependencies));
         }
         for (declaration, owner, dependencies) in dependency_jobs {
-            let calls = checked
+            let calls = initializers
                 .calls_for_retained_initializer(owner, declaration.symbol)
                 .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
             if let Some((_, destination)) = floating_declarations
@@ -2450,9 +2449,10 @@ mod replay {
         }
         for (leaf, (original_owner, materialized_owner)) in leaves.iter().zip(owners) {
             let result = (|| {
-                let calls = checked.calls_for_retained_initializer(original_owner, leaf.owner)?;
+                let calls =
+                    initializers.calls_for_retained_initializer(original_owner, leaf.owner)?;
                 let materialized_calls =
-                    checked.calls_for_retained_initializer(materialized_owner, leaf.owner)?;
+                    initializers.calls_for_retained_initializer(materialized_owner, leaf.owner)?;
                 if let Some(destination) = scalar_probe_destination(program, leaf.destination) {
                     let original = decode_scalar(calls.evaluate_probe_scalar(destination)?.0)?;
                     let materialized =
@@ -3292,7 +3292,7 @@ mod replay {
     }
 }
 mod target_observations {
-    use super::invocations::CheckedInitializers;
+    use super::invocations::PreparedInitializers;
     use crate::build_time_evaluation::{EvaluationDomain, expression_table};
     use crate::const_evaluation::const_generic_expressions::{scalar_probe_destination, value};
     use diagnostics::Diagnostic;
@@ -3471,14 +3471,14 @@ mod target_observations {
             let work = work.demanded_roots(&execution_probes, &[owner])?;
             let prepared =
                 crate::PreparedBuildMachineProgram::prepare_in(&execution_probes, &work)?;
-            let checked = CheckedInitializers::prepare(
+            let initializers = PreparedInitializers::prepare(
                 &prepared,
                 authority.clone(),
                 &[owner],
                 &work,
                 selected.operators,
             )?;
-            let execution = checked.typed();
+            let execution = initializers.typed();
             let machine = execution.machine(owner).ok_or_else(|| {
                 failure("target constant lost its private evaluation owner".into())
             })?;
@@ -3487,7 +3487,7 @@ mod target_observations {
                     "target constant lost its private value exit".into(),
                 ));
             };
-            let calls = checked
+            let calls = initializers
                 .calls_for_retained_initializer(owner, declaration.symbol)
                 .map_err(&failure)?;
             let (value, warnings) = value::evaluate_scalar_with_policy(
@@ -3629,7 +3629,7 @@ mod target_observations {
     }
 }
 
-pub(crate) use invocations::CheckedInitializers;
+pub(crate) use invocations::PreparedInitializers;
 pub(crate) use replay::validate as validate_retained_invocations;
 pub(crate) use target_observations::retain_entries as retain_deferred_entries;
 pub(crate) use target_observations::settle as settle_target_observations;
@@ -4231,7 +4231,7 @@ pub(crate) fn evaluate(
                 .map_err(|reason| failure(syntax.expressions.source_span(expression), reason))?;
             authored_probes.push((expression, custody));
         }
-        let checked = ready
+        let initializers = ready
             .iter()
             .any(|ordinal| {
                 declarations[*ordinal]
@@ -4263,7 +4263,7 @@ pub(crate) fn evaluate(
                 let independent = domain.demanded_roots(&typed, &symbols)?;
                 let prepared =
                     crate::PreparedBuildMachineProgram::prepare_in(&typed, &independent)?;
-                invocations::CheckedInitializers::prepare(
+                invocations::PreparedInitializers::prepare(
                     &prepared,
                     authority.clone(),
                     &symbols,
@@ -4272,9 +4272,9 @@ pub(crate) fn evaluate(
                 )
             })
             .transpose()?;
-        let typed = checked
+        let typed = initializers
             .as_ref()
-            .map_or(&typed, invocations::CheckedInitializers::typed);
+            .map_or(&typed, invocations::PreparedInitializers::typed);
         for ordinal in ready {
             let authored_expression = declarations[ordinal].definition.value;
             let mut replacements = HashMap::new();
@@ -4289,7 +4289,7 @@ pub(crate) fn evaluate(
                     .iter()
                     .find(|(expression, _)| *expression == leaf.expression)
                     .ok_or_else(|| {
-                        failure(reference, "initializer lost its checked source custody")
+                        failure(reference, "initializer lost its prepared source custody")
                     })?
                     .1;
                 let expected = dependency_origins(
@@ -4300,10 +4300,10 @@ pub(crate) fn evaluate(
                     InitializerCustodyPurpose::Value,
                 )?;
                 if leaf.structured {
-                    let checked = checked
+                    let initializers = initializers
                         .as_ref()
-                        .expect("aggregate leaf has checked preparation");
-                    let calls = checked
+                        .expect("aggregate leaf has source preparation");
+                    let calls = initializers
                         .calls_for_source(reference)
                         .map_err(|reason| failure(reference, reason))?;
                     let evaluation = calls
@@ -4348,10 +4348,10 @@ pub(crate) fn evaluate(
                         &syntax,
                     )
                 } else {
-                    let checked = checked
+                    let initializers = initializers
                         .as_ref()
-                        .expect("call-bearing declaration has checked preparation");
-                    let calls = checked
+                        .expect("call-bearing declaration has source preparation");
+                    let calls = initializers
                         .calls_for_source(reference)
                         .map_err(|reason| failure(reference, reason))?;
                     crate::const_evaluation::const_generic_expressions::evaluate_probe_with_calls(
