@@ -81,7 +81,12 @@ impl AcceptedTerminalSource {
                 .symbol_source_span(self.source.symbols.authored_origin(*symbol));
             provenance.name(machine, name.machine.clone(), span);
         }
-        let provenance = provenance.for_root(&elaboration.module, elaboration.module.entry, None);
+        let entry = self.entry().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "no product route yet: accepted source module has no machine entry",
+            )]
+        })?;
+        let provenance = provenance.for_root(&elaboration.module, entry, None);
         let applications = custody
             .applications
             .iter()
@@ -127,6 +132,13 @@ impl AcceptedTerminalSource {
         self.publication
     }
 
+    pub fn entry(&self) -> Option<semantic_vocabulary::MachineId> {
+        match self.closure.elaboration.module.entry {
+            Some(terminal_psi::TargetMachineCallable::Machine(machine)) => Some(machine),
+            _ => None,
+        }
+    }
+
     pub fn is_invocation(&self) -> bool {
         self.publication == terminal_codec::TerminalPublication::Invocation
     }
@@ -159,21 +171,17 @@ fn accept_compilation(
                 diagnostics.extend(unestablished.iter().map(|entry| entry.reject_diagnostic()));
                 diagnostics.extend(conflicts.iter().map(|entry| entry.reject_diagnostic()));
                 if before == diagnostics.len() {
-                    diagnostics.push(Diagnostic::error(
-                        "no product route yet: lowered rejection names no failure",
-                    ));
+                    diagnostics.push(route_defect("a rejection names no failure"));
                 }
             }
             Ok(RouteVerdict::Incomplete(unproved)) => {
                 if unproved.is_empty() {
-                    diagnostics.push(Diagnostic::error(
-                        "no product route yet: incomplete lowered verdict names no goal",
-                    ));
+                    diagnostics.push(route_defect("an incomplete verdict names no goal"));
                 }
                 diagnostics.extend(unproved.iter().map(|entry| {
                     let mut diagnostic = entry.reject_diagnostic();
                     diagnostic.message = format!(
-                        "no product route yet: {}; the checker cannot decide this goal form",
+                        "not supported yet: {}; the checker cannot prove a goal of this form yet, so the program is refused, with no claim that it is wrong",
                         diagnostic.message
                     );
                     diagnostic
@@ -181,23 +189,23 @@ fn accept_compilation(
             }
             Ok(RouteVerdict::FallBack(refused)) => {
                 diagnostics.push(Diagnostic::error(format!(
-                    "no product route yet: {}",
+                    "not supported yet: {}; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong",
                     refused.detail
                 )));
             }
-            Err(defect) => diagnostics.push(Diagnostic::error(format!(
-                "no product route yet: lowered checker defect: {defect:?}"
-            ))),
+            Err(defect) => diagnostics.push(route_defect(&format!("{defect:?}"))),
         }
     }
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    first.ok_or_else(|| {
-        vec![Diagnostic::error(
-            "no product route yet: no accepted compilation root",
-        )]
-    })
+    first.ok_or_else(|| vec![route_defect("no accepted compilation root")])
+}
+
+fn route_defect(detail: &str) -> Diagnostic {
+    Diagnostic::error(format!(
+        "not supported yet: the checker could not judge this program ({detail}); this is a defect of the checker, and the program is refused rather than accepted without a verdict"
+    ))
 }
 
 #[cfg(test)]
@@ -206,7 +214,7 @@ mod tests {
     use semantic_vocabulary::{IdTable, MachineId};
     use structure_elaboration::{Body, CrashCeiling, Signature, Termination};
 
-    fn accepted() -> RouteVerdict {
+    fn elaboration() -> structure_elaboration::Elaboration {
         let mut bodies = IdTable::default();
         bodies.push(Body {
             slots: Vec::new(),
@@ -223,13 +231,40 @@ mod tests {
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
         });
-        lowered_discharge::judge(structure_elaboration::lower_bodies(
+        structure_elaboration::lower_bodies(
             MachineId::new(1).unwrap(),
             &bodies,
             &signatures,
             &IdTable::default(),
-        ))
+        )
         .unwrap()
+    }
+
+    fn accepted() -> RouteVerdict {
+        lowered_discharge::judge(Ok(elaboration())).unwrap()
+    }
+
+    #[test]
+    fn invocation_publication_keeps_the_judged_module_and_scope() {
+        let mut stated = elaboration();
+        // Raw test bodies declare no identities. Supply the real scope before
+        // judgment; production receives it from structural lowering itself.
+        stated.module.identities =
+            terminal_psi::TerminalIdentityTableBuilder::for_invocation().build();
+        let closure = accept_compilation(vec![
+            lowered_discharge::judge(Ok(stated)).map_err(CompilationRefusal::Elaboration),
+        ])
+        .unwrap();
+        let published = closure.publish_invocation().unwrap();
+        assert_eq!(
+            published.artifact.view().module(),
+            &closure.elaboration.module
+        );
+        assert_eq!(published.seals.module, published.artifact.view().identity());
+        assert_eq!(published.seals.seals, closure.seals);
+        assert!(closure.publish().is_err());
+        let portable = accept_compilation(vec![Ok(accepted())]).unwrap();
+        assert!(portable.publish_invocation().is_err());
     }
 
     #[test]
@@ -240,11 +275,11 @@ mod tests {
             Ok(RouteVerdict::Incomplete(Vec::new())),
         ])
         .unwrap_err();
-        assert!(
-            diagnostics
-                .iter()
-                .any(|entry| entry.message.contains("incomplete lowered verdict"))
-        );
+        assert!(diagnostics.iter().any(|entry| {
+            entry
+                .message
+                .contains("an incomplete verdict names no goal")
+        }));
         assert!(accept_compilation(Vec::new()).is_err());
     }
 }

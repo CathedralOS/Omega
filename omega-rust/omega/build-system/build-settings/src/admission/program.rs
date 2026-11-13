@@ -1,17 +1,8 @@
 /*
-Bind the admitted `Build` entry, operational reach, and host filesystem scope
-into an activation-local `AdmittedBuildProgram` checkpoint before any authored
-code runs (`admit_build_program`).
-
-`AdmittedBuildProgram` is the sole capability token accepted by
-`PreparedBuildExecution::prepare`:
-- `restricted_build_requests` projects the normalized `RestrictedBuildRequest`
-  list in issue order (using package vocabulary rather than host paths or live
-  handles) so `prepare_build_evaluation` can enforce caller consent before
-  execution.
-- `pure_consumption_inputs` constructs the immutable `CompletedPureBuildInputs`
-  lookup key only when the `Build` machine is `Pure`, has no reachable
-  filesystem operations, and projects no restricted host requests.
+Bind the exact accepted invocation source and selected Build entry to the actual
+host filesystem scope before authored code runs. The source-owned selection,
+structural protocol rows and independently admitted host grants each retain
+separate authority; an old checked result cannot replace any of them.
 */
 
 use build_time_evaluation::BuildEvaluationSponsor;
@@ -42,17 +33,6 @@ impl AdmittedBuildProgram {
             self.artifact_only,
             &self.machine.execution_mode,
         )
-    }
-
-    pub(crate) fn pure_consumption_inputs(
-        &self,
-        _packages: Option<&package_compilation::PackageCompilationInputs>,
-        _snapshot: Option<&package_compilation::BuildSnapshotRequest>,
-        _retained_check: Option<psi_compiler::RetainedCheck>,
-    ) -> Option<crate::activation::completed_pure_build::CompletedPureBuildInputs> {
-        // Legacy keys retain a CheckedTrees owner. Until a key binds this
-        // actual accepted module and source, no old key can authorize reuse.
-        None
     }
 }
 

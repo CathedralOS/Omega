@@ -1,42 +1,10 @@
 /*
-Check the `Build` program that a `TerminalBuildActivation` will actually consume
-(`prepare_checked_build`).
-
-Semantic admission is mandatory with or without package inputs; package authority
-adds declaration-selection restrictions on top of the semantic floor rather than
-toggling whether checking runs.
-
-How we project, fold, and check the `Build` slice without corrupting the Product
-continuation:
-1. Retain the canonical float catalog and public requirements supplied by the
-   target realization table when projecting the Build slice. Ordinary provider
-   defaults remain declared by their supplying package.
-2. Project the `Build` slice (`project_build_program`) and verify that source
-   code cannot manufacture a counterfeit `Build` value
-   (`admit_toolchain_build_activation`) before ordinary borrow checking runs.
-3. Evaluate or defer pending type-dependent `PreCheckEvaluation` continuations
-   against the canonical `TypedTrees` arena (never a throwaway clone, which
-   would leave `Build` types unresolved in the continuation), then settle
-   `Build`-scope provider plans (`derive_satisfies_plans`,
-   `select_derived_provider_plans`) and fold any remaining deferred constant
-   evaluations (`SelectedConstantEvaluation::evaluate_pending`).
-4. Run `psi_compiler::CheckRequest` on the settled `Build` projection, reusing
-   `priors` only when the projected `Build` program matches, install
-   `Build`-specific comparison dispatch (`settle_selected_comparison_execution`)
-   on an owned copy of `CheckedTrees`, and discharge the completed `Build`
-   pre-checks from `pre_checks` so the subsequent Product compilation only
-   evaluates its complement.
-
-Steps 1-3 are `settle_build_slice` and the discharge is `discharge_build_slice`,
-because the Product is not always completed from the frontier Build ran on.
-When Product sources were deferred until Build finished, they are typed as a
-new frontier that holds the Build source again with its constants unsettled.
-`settle_rejoined_build_slice` runs the same settlement and discharge there, so
-a Build constant that needs Build's providers is folded under them and never
-left for the Product's targets to evaluate. The caller asks for it when
-admission reports such a fold (`provider_folded_constants`) or when package
-inputs joined after Build ran; a constant that needs no provider folds the
-same way on either frontier.
+Admit the exact settled Build projection through structural elaboration and the
+lowered-form checker before any authored Build code or host effect runs.
+Settlement retains real provider declarations and folds Build constants on the
+canonical source frontier. The frozen source owner is captured before judgment;
+only a wholly accepted compilation can publish its invocation-scoped module.
+The Product continuation discharges exactly this completed source slice.
 */
 
 use diagnostics::Diagnostic;
@@ -265,7 +233,7 @@ pub(crate) fn prepare_admitted_build(
     packages: Option<&PackageCompilationInputs>,
     dependency_activation: bool,
     execution_profile: Option<target::TargetProfile>,
-    _timings: &mut artifacts::compile_timings::CompileTimings,
+    timings: &mut artifacts::compile_timings::CompileTimings,
     _priors: &[&RetainedCheck],
     _retain: bool,
     _checked_slices: Option<&dyn psi_compiler::CheckedSliceStore>,
@@ -299,6 +267,15 @@ pub(crate) fn prepare_admitted_build(
             "Build admission settled its slice without provider plans",
         )]
     })?;
+    // The old source-admission checker normalized these package authority
+    // obligations into checked facts. Exact call-target identity alone does
+    // not establish visibility or a direct dependency. Until the structural
+    // producer retains that real authorization roster, refuse its presence.
+    if packages.is_some() && !program.authored_declaration_selections().is_empty() {
+        return Err(vec![Diagnostic::error(
+            "no product route yet: package Build declaration-selection authority has no structural receipt",
+        )]);
+    }
     // Capture the source owner before the route judges it. Neither a prior
     // checked tree nor a later source clone can substitute for this owner.
     let program = std::sync::Arc::new(typed_trees::FrozenTypedTrees::from(program));
@@ -307,15 +284,24 @@ pub(crate) fn prepare_admitted_build(
         selected_provider_plan_facts,
         &provenance,
     )?;
-    let accepted = psi_compiler::AcceptedTerminalSource::judge(
-        program,
-        psi_compiler::TerminalSourceCompilation {
-            entries: &[entry],
-            subject: packages.map(|inputs| inputs.root()),
-            selected: &[],
-            bindings: &[],
+    let accepted = timings.record_result(
+        artifacts::compile_timings::StageMeta::new(
+            "Lowered Build admission",
+            "FrozenTypedTrees",
+            "AcceptedTerminalModule",
+        ),
+        || {
+            psi_compiler::AcceptedTerminalSource::judge(
+                program,
+                psi_compiler::TerminalSourceCompilation {
+                    entries: &[entry],
+                    subject: packages.map(|inputs| inputs.root()),
+                    selected: &[],
+                    bindings: &[],
+                },
+                terminal_codec::TerminalPublication::Invocation,
+            )
         },
-        terminal_codec::TerminalPublication::Invocation,
     )?;
     discharge_build_slice(typed, pre_checks, accepted.source())?;
     Ok((

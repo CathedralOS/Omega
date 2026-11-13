@@ -1,10 +1,6 @@
-// Selection and admission of the authored `Build` entry machine
-// (`select_build_machine`, `admit_build_machine`). Rejects programs with more
-// than one build machine or build machines that reach runtime boundary services
-// outside compiler-owned `Build` protocols (`project_request` and
-// `BuildFilesystemOperations`), and selects `BuildMachineExecutionMode::Pure`
-// or `BuildMachineExecutionMode::Granted` based on transitive
-// `BuildFilesystemOperations` reach.
+// Admit the selected source-owned Build entry and its original Build value
+// against the actual accepted invocation module. Host effects remain bounded
+// by structurally emitted compiler-owned Build protocol companions.
 
 use super::BuildMachineFilesystemScope;
 use super::build_value::{BuildValueAdmission, is_build_machine};
@@ -53,7 +49,10 @@ pub fn admit_build_machine(
     let typed = prepared.source();
     let elaboration = &prepared.closure().elaboration;
     if !prepared.is_invocation()
-        || elaboration.machines.get(elaboration.module.entry) != Some(&machine_symbol)
+        || prepared
+            .entry()
+            .and_then(|entry| elaboration.machines.get(entry))
+            != Some(&machine_symbol)
     {
         return Err(vec![Diagnostic::error(
             "Build entry differs from its accepted invocation root",
@@ -79,12 +78,19 @@ pub fn admit_build_machine(
     // module. Every currently served Build boundary has a genuine request
     // row emitted beside it. Other protocols (including filesystem) refuse
     // in structural reading until their source companions exist.
+    let requests = elaboration
+        .build_requests
+        .iter()
+        .map(|request| {
+            (
+                semantic_vocabulary::InvocationSite::Operation(request.operation),
+                request.boundary,
+            )
+        })
+        .collect::<std::collections::BTreeSet<_>>();
     for body in &elaboration.module.machines {
         for invocation in body.boundary_invocations() {
-            if !elaboration.build_requests.iter().any(|request| {
-                invocation.site == semantic_vocabulary::InvocationSite::Operation(request.operation)
-                    && invocation.boundary == request.boundary
-            }) {
+            if !requests.contains(&(invocation.site, invocation.boundary)) {
                 return Err(vec![Diagnostic::error(format!(
                     "`{machine_name}` reaches a boundary outside admitted compiler-owned Build requests"
                 ))]);

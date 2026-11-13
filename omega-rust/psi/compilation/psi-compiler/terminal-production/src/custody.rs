@@ -36,7 +36,7 @@ pub struct ProducedTerminalProgram {
     pub(crate) build_filesystem: TerminalBuildFilesystem,
     pub(crate) applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
     pub(crate) provenance: terminal_psi::TerminalMachineProvenance,
-    pub(crate) source_records: Vec<checked_trees::typed_trees::SourceRecordCorrespondence>,
+    pub(crate) source_records: Vec<typed_trees::SourceRecordCorrespondence>,
 }
 
 impl compiler_storage::Record for ProducedTerminalProgram {
@@ -185,14 +185,14 @@ pub struct PortableTerminalProgram {
     build_filesystem: TerminalBuildFilesystem,
     applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
     provenance: terminal_psi::TerminalMachineProvenance,
-    source_records: Vec<checked_trees::typed_trees::SourceRecordCorrespondence>,
+    source_records: Vec<typed_trees::SourceRecordCorrespondence>,
 }
 
 impl PortableTerminalProgram {
     pub const fn evidence(&self) -> Option<&Arc<terminal_codec::EvidenceSeals>> {
         self.evidence.as_ref()
     }
-    pub fn source_records(&self) -> &[checked_trees::typed_trees::SourceRecordCorrespondence] {
+    pub fn source_records(&self) -> &[typed_trees::SourceRecordCorrespondence] {
         &self.source_records
     }
     pub fn attach_application(

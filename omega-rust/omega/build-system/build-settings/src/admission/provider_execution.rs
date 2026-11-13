@@ -1,16 +1,8 @@
 /*
-Retain and admit selected `Build`-scope provider implementations across Terminal
-artifact production and `Pure` build reuse (`BuildProviderPlans`,
-`BuildProviderInstallation`).
-
-Psi's `CheckedTrees` remain target-neutral. `BuildProviderPlans` sits alongside
-the checked `Build` program, participates in the `CompletedPureBuildInputs`
-equality key, and validates its selected provider adapters and numeric
-intrinsics against the lowered `TerminalExecutionView` before the interpreter
-starts (`BuildProviderPlans::admit`). Because `Build` execution has no admitted
-host/device review identities, numeric rows close their sealed meaning through
-the external catalog while any demanded non-numeric intrinsic remains explicitly
-unsettled and fails closed.
+Retain source-issued Build provider declarations and selected plans beside the
+accepted module. Before the Terminal interpreter starts, admit their actual
+adapters, numeric intrinsics and runtime supplies against that exact execution
+view. Source selection alone supplies no host/device authority.
 */
 
 use diagnostics::Diagnostic;
