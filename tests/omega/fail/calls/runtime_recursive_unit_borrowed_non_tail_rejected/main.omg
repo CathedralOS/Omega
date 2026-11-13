@@ -1,6 +1,6 @@
 // Reborrowing caller-owned storage does not admit non-tail runtime recursion.
 // Work after the recursive call would retain one activation per depth.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Counter { value: u64 in Trapping; }
 machine visit(counter: &mut Counter, depth: u64) {
     transition depth > 0 { true -> next(counter, depth) false -> done() }

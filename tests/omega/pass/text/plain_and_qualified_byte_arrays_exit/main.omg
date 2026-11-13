@@ -5,7 +5,7 @@
 // reaches the other's representation. Both are read in place, lent to a
 // helper, and lent whole into a state cycle that writes through the plain
 // loan and reads through both. "GATE" lowered matches "gate": exit 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 domain [u8]::Utf8
 requires

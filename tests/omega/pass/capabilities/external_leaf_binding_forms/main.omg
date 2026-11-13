@@ -4,7 +4,8 @@
 // VtableField without retaining the retired
 // authored `provides` table surface. Provider constants are ordinary format or
 // layout facts, independent of the retired Binding::Value carrier.
-use omega::language::core::external_binding;
+use omega::language::core::DllImport;
+use omega::language::core::ForeignBinding;
 
 boundary trait Mixed {
     machine via_syscall() reaches Mixed;

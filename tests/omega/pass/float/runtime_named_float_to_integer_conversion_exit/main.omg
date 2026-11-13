@@ -1,8 +1,23 @@
 // Public destination-owned float-to-integer matrix. Exact calls prove their
 // source values locally and truncate toward zero. Result-domain context picks
 // the Trapping and Saturating overloads without changing the requirement path.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega::language::core::I8::from_f32;
+use omega::language::core::I8::from_f64;
+use omega::language::core::I16::from_f32;
+use omega::language::core::I16::from_f64;
+use omega::language::core::I32::from_f32;
+use omega::language::core::I32::from_f64;
+use omega::language::core::I64::from_f32;
+use omega::language::core::I64::from_f64;
+use omega::language::core::U8::from_f32;
+use omega::language::core::U8::from_f64;
+use omega::language::core::U16::from_f32;
+use omega::language::core::U16::from_f64;
+use omega::language::core::U32::from_f32;
+use omega::language::core::U32::from_f64;
+use omega::language::core::U64::from_f32;
+use omega::language::core::U64::from_f64;
+use omega_language_std::Console;
 
 data Main { }
 

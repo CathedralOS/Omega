@@ -3,7 +3,7 @@
 // edge, so a one-case dispatch still selects its sole case without a test.
 // The never-selected arm may name a state no other edge reaches. Owned and
 // borrowed subjects take the same route. Exits 70 when 30 + 40 arrive.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Only [copy] {
     case Sole;

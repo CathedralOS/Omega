@@ -1,7 +1,10 @@
 // Expected exit: 0
 // Independent byte frames exercise sorted tags, narrow carrier bounds and
 // malformed input; decoded words supply no destination predicate authority.
-use omega::language::core::wire;
+use omega::language::core::CompactBinary;
+use omega::language::core::ScalarSlot;
+use omega::language::core::FrameRead;
+use omega::language::core::CompactBinary::read_scalar_fields;
 machine slot(number: u64, signed: bool) -> ScalarSlot {
     ScalarSlot { number: number, is_signed: signed, is_payload: false, start: 0u64, end: 0u64, minimum: -128i64,
         maximum: 127i64, unsigned_maximum: 4294967295u64,

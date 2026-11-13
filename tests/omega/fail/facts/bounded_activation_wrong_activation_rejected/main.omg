@@ -1,4 +1,8 @@
-use omega::language::core::activation;
+use omega::language::core::Activation;
+use omega::language::core::ActivationClaim;
+use omega::language::core::ActivationClaimAttempt;
+use omega::language::core::Activation::try_claim;
+use omega::language::core::ActivationClaim::release;
 machine release_elsewhere(claim: ActivationClaim) { ActivationClaim::release(claim); }
 machine main() crashes Trap {
     transition Activation::try_claim<8>(3) {

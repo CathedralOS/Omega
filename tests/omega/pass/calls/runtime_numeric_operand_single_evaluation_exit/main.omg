@@ -1,4 +1,4 @@
-use omega::language::core::math;
+use omega::language::core::abs_i32;
 
 data Counter { calls: u32 in Wrapping; }
 

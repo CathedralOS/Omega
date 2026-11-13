@@ -1,5 +1,5 @@
 // Every normal return arm contributes backing, including the non-tail arm.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cell requires value >= 0 && value <= 100 { stamp: i32; value: i32; ready: bool; }
 data Pair { first: Cell; second: Cell; }

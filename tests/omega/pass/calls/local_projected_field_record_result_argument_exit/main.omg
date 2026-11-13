@@ -4,7 +4,7 @@
 // report holds only plain numeric fields, so the loan ends with each call.
 // Exits 70 only when both reports and the caller's own field agree.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Tally { hits: i32 in Wrapping; misses: i32 in Wrapping; }
 data Report { total: i32 in Wrapping; }

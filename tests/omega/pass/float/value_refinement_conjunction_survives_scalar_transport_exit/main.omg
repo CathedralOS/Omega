@@ -1,5 +1,4 @@
 // Expected exit: 0. Complete value predicates survive scalar locals, parameters and results.
-use omega::language::core::float_operations;
 
 domain f64::Reflexive
 requires self == self;

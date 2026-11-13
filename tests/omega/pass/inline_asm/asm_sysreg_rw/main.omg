@@ -1,7 +1,6 @@
 // EL1 system-register access uses the structured `read_<sysreg>` /
 // `write_<sysreg>` spellings with exact-u64 value flow and exposes the
 // realized scratch clobbers.
-use omega::language::core::assembly;
 
 data Main {
     value: u64;

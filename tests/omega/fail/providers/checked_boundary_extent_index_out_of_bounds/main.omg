@@ -1,6 +1,6 @@
 // The checked provider computes an extent of 8, so slot 8 does not exist.
 // This retains the positive provider-dispatch fixture's store and calling shape.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 
 public boundary trait CheckedMath {

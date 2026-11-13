@@ -1,5 +1,4 @@
 // Infinity is reflexive but not finite; neither conjunct may erase the other.
-use omega::language::core::float_operations;
 
 domain f64::Reflexive
 requires self == self;

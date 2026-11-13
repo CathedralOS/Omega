@@ -1,6 +1,6 @@
 // Expected exit: 0.
 // An effectful selector runs once while its fixed coordinate carries the exact owned claim.
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::drop;
 
 data Receipt [linear] dropped by drop_receipt { code: u64; }

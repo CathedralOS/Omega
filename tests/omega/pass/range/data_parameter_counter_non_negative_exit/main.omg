@@ -2,7 +2,7 @@
 // Its initial zero and increment establish the lower bound without an authored
 // nonnegative guard. Index proofs must follow each block's parameter identity.
 // The final observed element is 11, which is also the expected exit code.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main {
     nums: [i32; 2];
     i: i32;

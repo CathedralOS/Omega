@@ -1,5 +1,5 @@
 // Expected exit: 0; stdout: independently frozen selected and copied rows.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     rows: [[i32; 2]; 2];

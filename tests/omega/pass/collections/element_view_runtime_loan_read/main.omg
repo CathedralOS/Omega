@@ -2,7 +2,7 @@
 // `&Cell` element whose selector is a structural field of the borrowed
 // parameter. The loan mints a runtime-indexed element read — the view's live
 // length discharges the bound.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cell {
     value: i32;

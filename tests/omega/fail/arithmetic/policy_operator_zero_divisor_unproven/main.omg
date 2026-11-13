@@ -3,7 +3,7 @@
 // `requires divisor != 0`. Wrapping and Saturating define the unrepresentable
 // quotient; neither invents a result for a zero divisor, so every one of the
 // four operations still owes the nonzero-divisor proof.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 
 machine minimum_quotient(value: i32, divisor: i32) -> bool {

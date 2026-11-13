@@ -4,7 +4,7 @@
 // record and is addressed in page steps, and the release returns `sp` in page
 // steps. `Big::fill` writes the record's last byte through the loaned
 // pointer; exits 70 when that byte reads back.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Big {
     bytes: [u8; 33554432] in Trapping;

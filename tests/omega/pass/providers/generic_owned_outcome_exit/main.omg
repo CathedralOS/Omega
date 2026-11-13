@@ -1,6 +1,5 @@
 // Expected exit: 0. Qualified owned payloads survive generic outcomes,
 // provider states, nested records, calls and caller-side case selection.
-use omega_language_std::process_exit;
 
 public data Token { value: u64; }
 public domain Token::Issued established by Issuer::issue, Issuer::nested, mint;

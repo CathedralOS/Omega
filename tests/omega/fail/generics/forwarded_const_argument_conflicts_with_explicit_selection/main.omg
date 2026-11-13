@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Pair { case Both(a: u64 in Wrapping, b: u64 in Wrapping); }
 data FixedBuffer<const N: u64> requires N >= 2, selected <= 1 {

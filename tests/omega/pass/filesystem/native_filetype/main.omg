@@ -1,4 +1,8 @@
-use omega::language::core::filesystem_authority;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::FilesystemNamespaceMutation;
 // NATIVE file-type classification (Rust FileType / os::unix::fs::FileTypeExt) via
 // stat's st_mode format bits. `read_metadata` fills the buffer with the TARGET's
 // raw `struct stat`, so each bound target decodes its own layout: Darwin keeps
@@ -9,8 +13,8 @@ use omega::language::core::filesystem_authority;
 // system; a freshly-created regular file is S_IFREG (0o100000 = 32768). Proves
 // is_char_device()/is_file() decode real device nodes, not just regular files.
 
-use omega_language_std::posix_filesystem_host;
-use omega::language::core::numeric_conversion;
+use omega_language_std::PosixFilesystemHost;
+use omega::language::core::widen_u8_to_i32;
 
 data Main {
     mode: i32;

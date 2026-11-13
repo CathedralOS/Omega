@@ -1,7 +1,7 @@
 // Signed narrowing has two invalid regions. This explicit conversion body
 // crashes for either region, while its contract covers only the upper one.
 // Carrying the original input into the crash state must preserve that debt.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine narrow(input: i16) -> i8
 crashes Trap input > 127i16 {

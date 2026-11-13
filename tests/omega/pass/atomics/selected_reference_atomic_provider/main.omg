@@ -1,7 +1,7 @@
 // Native publication must type the selected provider independently of main.
 // Its nested generic pointer path supplies concrete storage demands; the
 // source declaration of a stored pointer alone supplies only an identity.
-use omega::language::core::assembly_model;
+use omega::language::core::atomic_release_written;
 data Cell { value: AtomicU64; }
 data Holder<T> { word: &T; }
 data Ack [linear] { holder: &Holder<Cell>; }

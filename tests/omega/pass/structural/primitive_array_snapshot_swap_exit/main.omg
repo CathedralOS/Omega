@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { values: [i32; 2]; }
 machine Main::swap(main: &mut Main) {
     main.values = [main.values[1], main.values[0]];

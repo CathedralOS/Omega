@@ -1,6 +1,6 @@
 // The destination selector completes before the RHS mutates its source.
 // The write still targets cell one; the cursor's live value becomes two.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Grid { cells: [u8; 2]; }
 data Cursor { index: u64; }
 

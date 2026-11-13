@@ -1,6 +1,6 @@
 // Unit and scalar calls consume the same copy payload in a cycle, whether
 // the payload is constructed here or returned by another ordinary call.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Kind [copy] { case First; case Second; }
 data Counter { observed: u64; total: u64 in Wrapping; }

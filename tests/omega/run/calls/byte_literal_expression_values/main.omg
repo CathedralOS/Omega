@@ -1,5 +1,5 @@
 // Expected exit: 0.
-use omega::language::core::option;
+use omega::language::core::Optional;
 domain [u8]::Utf8 requires valid_utf8(self);
 data Text [copy] { bytes: &[u8] in Utf8; }
 

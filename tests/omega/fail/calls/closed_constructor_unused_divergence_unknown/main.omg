@@ -1,5 +1,5 @@
 // The invalid take requirement rejects before final specification-call totality admission.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Point [copy] { x: u64; y: u64; }
 data Main { }
 machine diverge() -> u64 { transition { _ -> again() } machine again() -> u64 { transition { _ -> again() } } }

@@ -7,7 +7,7 @@
 // `pass/ownership/linear_transfer_and_consume` declares (each bound target's
 // C library `abs`). `fail/ownership/linear_transparent_record_member_scope_loss`
 // is the same frontier with one member left unconsumed.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Receipt [linear] {
     code: i32;

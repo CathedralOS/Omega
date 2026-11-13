@@ -1,7 +1,6 @@
 // Two closed slice-range providers retain their own requirement identities
 // beside a root-assumed Required -> Middle -> Supplied call returning 7.
 // Expected exit: 0.
-use omega::language::core::slice;
 
 data Narrow { value: i32; }
 data Wide { value: u64; }

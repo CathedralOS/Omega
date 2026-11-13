@@ -5,7 +5,7 @@
 // exits: 70 = both writes ran through the direct requirement with the stored
 // count; 71 = the count did not arrive.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     count: u64;

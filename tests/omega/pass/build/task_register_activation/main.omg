@@ -1,14 +1,34 @@
 // Activate the task register only when the CPU GDT and TSS descriptor match
 // the borrowed storage. The CPU harness checks the busy write, TR, refusals,
 // ordinary preserved registers and neighboring bytes. Hosted main is not run.
-use std::calling;
-use omega::language::core::layout;
-use omega::language::core::process_exit;
+use std::AbiValueClass;
+use std::AbiValueShape;
+use std::BoundarySignature;
+use std::MachineRegister;
+use std::ValueLocation;
+use std::CallingConvention;
+use std::EntryControl;
+use std::MachineRegime;
+use std::EntryStack;
+use std::Preemption;
+use std::BoundaryEntryPlan;
+use std::CallingPolicyRejection;
+use std::BoundaryPlanResult;
+use std::CallingPolicy;
+use std::Calling;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::PrivateCallbackSlot;
+use omega::language::core::LayoutPlan::place_private;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
+use omega::language::core::ProcessExit;
 
 
-use omega::language::core::assembly;
-use omega::language::core::assembly_model;
-use omega::language::core::task_register;
+use omega::language::core::TaskRegisterControl;
 
 // The harness retains the GDT and task-state bytes across every call.
 // It checks the loaded selector and busy descriptor without releasing storage.

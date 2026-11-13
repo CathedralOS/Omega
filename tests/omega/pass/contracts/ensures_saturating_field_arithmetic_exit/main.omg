@@ -2,7 +2,7 @@
 // arm(4) stores 5; tick consumes its guarantees and returns 4.
 // Exits 70 only when the returned field has the authored value.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Countdown {
     remaining: u32 in Saturating;

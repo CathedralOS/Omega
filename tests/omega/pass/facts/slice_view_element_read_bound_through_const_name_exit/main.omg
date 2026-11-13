@@ -2,7 +2,6 @@
 // Place: const name. A named constant defines the index and subtrahend.
 // Expected exit: 0
 
-use omega::language::core::slice;
 
 const INDEX: u64 = 2;
 const SUBTRAHEND: u64 = 3;

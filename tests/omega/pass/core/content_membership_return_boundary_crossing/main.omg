@@ -4,7 +4,10 @@
 // shows that a direct call to a checked realization of the same requirement
 // may not, because the realization guarantees only what its own contract
 // declares.
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::VacantContentTransfer;
+use omega::language::core::Extent::Granted;
 machine direct(storage: Extent in Granted) -> Extent
 ensures result in Granted & Vacant
 { VacantContentTransfer::transfer(storage) }

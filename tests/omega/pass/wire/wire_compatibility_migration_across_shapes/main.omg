@@ -4,7 +4,7 @@
 // current-shape decoder rejecting the old era is irrelevant to this demand:
 // historical compatibility is the lineage route, not the codec round-trip law.
 
-use omega::language::core::format_lineage;
+use omega::language::core::FormatMigration;
 
 data ArchiveStore {
 }

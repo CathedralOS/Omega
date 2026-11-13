@@ -1,7 +1,13 @@
 // Expected exit: 0
 // Schema reflection must preserve an array's full byte size, not impose a
 // historical 4 KiB pilot bound. LayoutPlan validation still owns extent checks.
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 
 data Payload { bytes: [u8; 65536]; }
 

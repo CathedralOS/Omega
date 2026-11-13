@@ -1,5 +1,5 @@
 // Checked-only: release-store evidence retains Boolean identity, without integer arithmetic.
-use omega::language::core::assembly_model;
+use omega::language::core::atomic_release_written;
 data Cell { value: AtomicBool; }
 data Ack [linear] { nonce: bool; }
 boundary trait Completion {

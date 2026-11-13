@@ -1,7 +1,7 @@
 // An owned affine record transfers into whichever successor a guard selects.
 // One successor reads it into a borrowed record, the other discards it; the
 // cleanup frontier differs per edge.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Token { id: u32; }
 data Tally { count: u64; }

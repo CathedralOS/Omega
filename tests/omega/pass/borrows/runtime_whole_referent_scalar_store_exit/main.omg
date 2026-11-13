@@ -2,7 +2,7 @@
 // received the loan as a block parameter. exits: 70 = the store reached
 // the caller; 71 = it did not.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     count: u64;

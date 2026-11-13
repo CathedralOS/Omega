@@ -3,7 +3,7 @@
 // earlier one read, the loan still selects the row the earlier read produced:
 // the cell at row 1 holds 10, the cell at row 0 holds 20, and the program exits
 // 70 only when it reads 10 and the call left the cursor on row 0.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cell { value: u64 in Wrapping; }
 data Holder { cells: [Cell; 4]; }

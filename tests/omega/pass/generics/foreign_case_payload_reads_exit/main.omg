@@ -1,5 +1,5 @@
-use omega::language::core::option;
-use omega_language_std::console;
+use omega::language::core::Optional;
+use omega_language_std::Console;
 
 data First { value: i32; }
 data Second { padding: u64; value: i32; }

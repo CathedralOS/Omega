@@ -11,9 +11,10 @@
 // zero and/or the field-mutation re-materialized the first leaf terminal). PASS
 // iff the bad path is Error AND the good path is Ok.
 
-use omega_language_std::console;
-use omega_language_std::filesystem;
-use omega_language_std::filesystem_host;
+use omega_language_std::Console;
+use omega_language_std::UnitResult;
+use omega_language_std::Filesystem;
+use omega_language_std::Filesystem::write_all;
 
 data Main {
     fs: Filesystem;

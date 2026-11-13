@@ -1,6 +1,6 @@
 // Measured mutual Unit tail calls preserve the caller's borrowed data.
 // Main resumes after the complete cycle with its separate local still intact.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Counter { value: u64 in Trapping; }
 machine left(counter: &mut Counter, depth: u64)
 terminates by depth

@@ -1,5 +1,4 @@
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Sample32 { case Reading(value: f32); case Empty; }
 data Sample64 { case Reading(value: f64); case Empty; }

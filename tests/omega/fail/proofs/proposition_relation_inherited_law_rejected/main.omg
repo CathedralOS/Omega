@@ -2,7 +2,7 @@
 // than the conformance edge selects still owes the instantiated law:
 // Reflexive<Carrier, related> requires related(value, value), not
 // different(value, value).
-use omega::language::core::relation;
+use omega::language::core::Reflexive;
 
 data Carrier {
 }

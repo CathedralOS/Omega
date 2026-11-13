@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 public boundary trait ScalarIo {
     machine read(descriptor: i32, value: &mut f32, count: u64) -> i64 reaches blocks;

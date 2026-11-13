@@ -1,4 +1,3 @@
-use omega::language::core::assembly;
 
 machine selector(fail: bool) -> u32 crashes Trap {
     transition fail {

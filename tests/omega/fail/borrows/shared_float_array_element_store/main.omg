@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 machine replace(values: &[f64; 2], position: u64, value: f64)
 requires position < 2

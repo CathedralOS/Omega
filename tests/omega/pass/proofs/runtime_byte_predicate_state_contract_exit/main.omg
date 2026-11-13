@@ -1,5 +1,5 @@
 // Expected: evaluated UTF-8 verdicts survive exact state-parameter rebinding.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 

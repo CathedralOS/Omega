@@ -1,4 +1,5 @@
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 // Decimal output is computed from the result, with no expected-value strings.
 machine number(value: i32 in Wrapping) reaches Console {
     transition value < 0 {

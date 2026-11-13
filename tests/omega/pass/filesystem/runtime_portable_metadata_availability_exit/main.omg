@@ -1,7 +1,21 @@
 // Expected exit: 0
 // Missing POSIX information is not a zero identity. Portable read-only requests
 // remain distinct from exact modes, whose sticky/set-ID bits survive updates.
-use omega_language_std::filesystem;
+use omega_language_std::File;
+use omega_language_std::ErrorKind;
+use omega_language_std::Permissions;
+use omega_language_std::Permissions::readonly;
+use omega_language_std::Permissions::set_readonly;
+use omega_language_std::TimestampResult;
+use omega_language_std::FileKind;
+use omega_language_std::PosixMetadata;
+use omega_language_std::PosixMetadataResult;
+use omega_language_std::Metadata;
+use omega_language_std::Metadata::is_file;
+use omega_language_std::Metadata::is_dir;
+use omega_language_std::Metadata::readonly;
+use omega_language_std::Metadata::posix;
+use omega_language_std::Metadata::modified;
 
 machine main() crashes Trap {
     let mut permissions: Permissions;

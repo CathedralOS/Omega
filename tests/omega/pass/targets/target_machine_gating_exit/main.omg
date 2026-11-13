@@ -4,7 +4,7 @@
 // native shape does not supply another profile's implementation.
 // Exit 70 still requires both results (63 and 7), while the unselected
 // same-name siblings must neither collide nor supply the selected calls.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Helper { seed: i32; }
 

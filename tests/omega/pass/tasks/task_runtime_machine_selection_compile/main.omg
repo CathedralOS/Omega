@@ -1,6 +1,11 @@
 // Expected exit: 0. Native publication admits the retained task plans; this
 // witness does not execute the separately unfinished task executor runtime.
-use omega::language::core::task;
+use omega::language::core::Task;
+use omega::language::core::StartRejection;
+use omega::language::core::TaskOutcome;
+use omega::language::core::StartOutcome;
+use omega::language::core::TaskLifecycle;
+use omega::language::core::TaskRuntime;
 
 // MP6/TR3: task activation consumes the ordinary compile-time machine-symbol
 // parameter surface. `Worker::run` is selected statically and survives as the

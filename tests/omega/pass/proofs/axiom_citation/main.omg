@@ -2,7 +2,8 @@
 // machine's `ensures` states `(mul(a,b)) == (mul(b,a))` where `mul`
 // itself is never defined — the citation delivers the accepted fact
 // into the lemma's hypothesis base.
-use omega::language::core::nat;
+use omega::language::core::Nat;
+use omega::language::core::mul;
 boundary machine mul_comm_axiom(a: Nat, b: Nat) -> Nat
 ensures
     (mul(a, b)) == (mul(b, a));

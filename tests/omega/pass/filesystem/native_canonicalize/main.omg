@@ -3,8 +3,13 @@
 // Resolve a real file and a distinct symlink to it. Their complete canonical
 // absolute paths must agree. This retains the original /tmp symlink pressure
 // without assuming that every host spells its target /private/tmp.
-use omega_language_std::filesystem;
-use omega_language_std::console;
+use omega_language_std::UnitResult;
+use omega_language_std::Filesystem;
+use omega_language_std::Filesystem::write_all;
+use omega_language_std::Filesystem::remove;
+use omega_language_std::Filesystem::symlink;
+use omega_language_std::Filesystem::canonicalize;
+use omega_language_std::Console;
 
 data Main {
     filesystem: Filesystem;

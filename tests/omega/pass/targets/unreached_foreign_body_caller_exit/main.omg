@@ -8,7 +8,7 @@
 // `fail/targets/reached_foreign_family_relay_rejected` and
 // `fail/targets/reached_foreign_body_through_selected_provider_rejected` are
 // the reached twins.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Helper { seed: i32; }
 

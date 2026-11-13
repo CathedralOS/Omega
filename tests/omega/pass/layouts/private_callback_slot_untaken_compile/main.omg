@@ -1,6 +1,14 @@
 // COMPILE CANARY. Private-layout receipts describe executed build-time
 // operations, not syntactic call sites in untaken policy branches.
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::PrivateCallbackSlot;
+use omega::language::core::LayoutPlan::place_private;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 
 boundary trait Callback {
     machine call(value: u64) -> u64 reaches;

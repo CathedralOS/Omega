@@ -1,6 +1,7 @@
 // The same rootless library cannot select a same-signature external leaf
 // whose valid satisfaction edge names another requirement.
-use omega::language::core::float_operations;
+use omega::language::core::F32::square_root;
+use omega::language::core::F32::is_nan;
 
 public trait NumericProviderMember {
     machine native_negate(value: f32) -> f32;

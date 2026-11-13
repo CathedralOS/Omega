@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 data Observation<Value [copy]> [copy] { value: Value; }
 trait Arithmetic<Value [copy]> { machine plus(left: Value, right: Value) -> Value; }
 Integer satisfies Arithmetic<i32> { machine plus(left: i32, right: i32) -> i32 { left + right } }

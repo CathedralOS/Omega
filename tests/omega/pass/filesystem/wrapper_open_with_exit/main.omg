@@ -15,9 +15,23 @@
 // failed; 74 leg-2 bytes wrong; 75 leg-3 truncate len != 4; 76 leg-4 append
 // len != 8 or tail wrong; 77 leg-5 not AlreadyExists; 78 leg-6 not NotFound;
 // 79 cleanup failed.
-use omega_language_std::filesystem;
-use omega_language_std::filesystem_host;
-use omega_language_std::console;
+use omega_language_std::File;
+use omega_language_std::ErrorKind;
+use omega_language_std::OpenResult;
+use omega_language_std::IoResult;
+use omega_language_std::UnitResult;
+use omega_language_std::OpenOptions;
+use omega_language_std::Metadata;
+use omega_language_std::MetadataResult;
+use omega_language_std::Filesystem;
+use omega_language_std::Filesystem::read;
+use omega_language_std::Filesystem::write;
+use omega_language_std::Filesystem::close;
+use omega_language_std::Filesystem::read_all;
+use omega_language_std::Filesystem::metadata_path;
+use omega_language_std::Filesystem::remove;
+use omega_language_std::Filesystem::open_with;
+use omega_language_std::Console;
 data Main {
     fs: Filesystem;
     open_result: OpenResult;

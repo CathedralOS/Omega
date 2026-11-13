@@ -28,7 +28,7 @@ public machine retain_claim<
 }
 
 public machine forward_claim<
-    const Renamed: machine(value: u32) -> u32 suspends
+    const Renamed: machine
 >(value: u32) -> u32 suspends {
     suspend retain_claim<Renamed>(value)
 }

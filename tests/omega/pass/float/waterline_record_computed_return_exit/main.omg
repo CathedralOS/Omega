@@ -1,8 +1,6 @@
 // Complete real customer cut: control-dependent record returns contain nested
 // IEEE calls over copy-record field operands and a local scalar result.
-use profile;
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {

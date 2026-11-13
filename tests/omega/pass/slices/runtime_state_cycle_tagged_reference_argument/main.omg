@@ -1,7 +1,7 @@
 // Expected exit: 0.
 // A normal-return state cycle preserves a tagged reference result supplied
 // directly as another call's argument. The entry reorders the two inputs.
-use omega::language::core::option;
+use omega::language::core::Optional;
 data Held<'input> { bytes: &'input [u8]; }
 machine select<'input>(noise: &[u8], bytes: &'input [u8], remaining: u64)
     -> Optional<Held<'input>>

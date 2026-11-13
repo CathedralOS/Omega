@@ -2,7 +2,9 @@
 // untouched tail keeps its `#` sentinel, and the next unread byte follows.
 // Variant of runtime_console_bounded_line_exit with an ASCII `#` (35)
 // sentinel so expected_stdout.txt can compare the exact bytes.
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::LineReadResult;
+use omega_language_std::Console;
 
 data Main {
     line: [u8; 4];

@@ -5,7 +5,7 @@
 // select 42 and 23 (not their transposes); exits 70 only when the reads
 // return 65.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 
 machine pair_sum(numbers: &[i32; 6], first: u64, second: u64) -> i32

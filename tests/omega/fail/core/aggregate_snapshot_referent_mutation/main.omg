@@ -1,5 +1,6 @@
 // Observing a reference-bearing value captures its descriptor, not future referent contents.
-use omega::language::core::content;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
 data Unit {}
 data Cell { value: u64; }
 data View<'storage> [linear] { target: &'storage mut Cell; }

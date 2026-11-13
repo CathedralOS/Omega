@@ -3,7 +3,7 @@
 // `remaining`, so the edge is weak (`remaining` unchanged) and the strict
 // `step -> count(n - 1)` edge completes every cycle's descent.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {}
 

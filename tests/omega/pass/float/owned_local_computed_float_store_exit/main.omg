@@ -1,8 +1,7 @@
 // Owned local fields retain their scalar computation and call ownership.
 // Both float carriers, direct calls, arithmetic, and later dense scalar locals
 // must compose. Exit 70 witnesses all values; an incorrect store exits 71.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega_language_std::Console;
 data Pair [copy] { wide: f64; narrow: f32; }
 data Main { }
 machine make64(value: f64) -> f64 { value * 2.0 }

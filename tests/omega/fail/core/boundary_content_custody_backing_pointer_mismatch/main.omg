@@ -1,7 +1,8 @@
 // Invalid: preserving the quantity does not preserve the declared backing correspondence..
 // The initial account enters only through the selected admitted InitialSupply
 // invocation after its provider has obtained a successful fresh allocation.
-use omega::language::core::content;
+use omega::language::core::CountedQuantity;
+use omega::language::core::Content;
 
 public data ByteUnit {}
 public data Buffer [linear] { pointer: addr; }

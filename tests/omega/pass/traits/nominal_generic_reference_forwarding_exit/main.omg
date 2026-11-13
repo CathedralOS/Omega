@@ -1,7 +1,7 @@
 // A stored mutable reference forwards through distinct generic telescopes.
 // The caller observes the selected increment after both helpers return.
 // Expected exit: 1.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 trait Incrementable<T> {
     machine increment(counter: &mut T);

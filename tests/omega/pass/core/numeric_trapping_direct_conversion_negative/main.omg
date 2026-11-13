@@ -1,6 +1,6 @@
 // The named conversion rejects a negative signed source before producing a
 // u8 result. Both engines must trap rather than wrap -1 to 255.
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_i16_to_u8_trapping;
 
 data Inputs { source: i16; }
 

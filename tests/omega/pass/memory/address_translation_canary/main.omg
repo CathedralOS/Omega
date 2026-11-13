@@ -76,8 +76,8 @@
 // (wiki/spec/resources/placed_access.md), so the hardware crossings remain
 // boundary requirements; demand-grown intermediate tables and multi-page
 // installation are the package's next edges.
-use omega::language::core::assembly;
-use omega::language::core::extent;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Granted;
 use translation::BorrowedMapping;
 use translation::BorrowedMapping::Pending;
 use translation::BorrowedMapping::Installed;

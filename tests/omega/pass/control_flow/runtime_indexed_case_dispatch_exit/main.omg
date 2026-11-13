@@ -14,7 +14,7 @@
 // The three elements hold three different cases and `w` selects the last,
 // so reading the wrong element or stride dispatches to another arm.
 // `items[2]` is `White` -> exit 2.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Color { case Red; case White; case Blue; }
 

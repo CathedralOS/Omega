@@ -1,6 +1,6 @@
 // Expected exit: 0.
 // The first selected endpoint still contains 11 after operand evaluation.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Cell [copy] { value: u64 in Wrapping; }
 data Held<'source> [copy] { target: &'source [Cell; 1]; }
 machine observe(value: Cell) -> u64 in Wrapping { value.value }

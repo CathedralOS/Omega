@@ -1,6 +1,5 @@
 // `count` arrives from the caller with no upper bound: neither the guard nor
 // `run`'s requirement bounds it by the 8-element backing the window borrows.
-use omega::language::core::float_operations;
 data Context { residuals: [f64; 8]; offset: i32; count: i32; }
 machine shifted(values: &mut [f64], amount: f64) {
     transition { _ -> scan(values, amount, 0) }

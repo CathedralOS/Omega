@@ -1,7 +1,7 @@
 // RUNTIME-index slice-descriptor element read into a machine field
 // (`main.got = s[i]`, i a ranged param) -- the runtime twin of the fixed
 // copy, same width-0 history. Report shows the indexed copy op. -> exit 1.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main {
     arr: [i32; 4];
     got: i32;

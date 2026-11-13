@@ -2,8 +2,8 @@
 // A checked inline sleep member must retain the exact kernel32 Sleep import.
 // Real clocks use inequalities; no fixed native timestamp is assumed.
 // Expected exit: 70.
-use omega_language_std::time_host;
-use omega_language_std::console;
+use omega_language_std::TimeHost;
+use omega_language_std::Console;
 
 data Main {}
 

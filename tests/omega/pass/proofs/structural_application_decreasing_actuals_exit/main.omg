@@ -1,6 +1,6 @@
 // A repeated proof callable with different decreasing arguments remains available.
 // Expected exit: 0
-use omega::language::core::nat;
+use omega::language::core::Nat;
 machine collapse(value: Nat) -> Nat
 terminates by value
 {

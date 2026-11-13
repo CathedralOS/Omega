@@ -2,8 +2,10 @@
 // Repeated F64 demand must deduplicate; multiply-then-add remains a separate
 // semantic operation and must not enter the FMA association set.
 
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega::language::core::F32::multiply_then_add;
+use omega::language::core::F32::fused_multiply_add;
+use omega::language::core::F64::fused_multiply_add;
+use omega_language_std::Console;
 
 data Main {
     result64: f64;

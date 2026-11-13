@@ -5,7 +5,9 @@
 // trait requirement whose proposition parameter the edge selects; its body
 // may be a conjunction or another proposition's application. Identity
 // equality of a record is the conjunction of its field equalities.
-use omega::language::core::relation;
+use omega::language::core::Symmetric;
+use omega::language::core::Transitive;
+use omega::language::core::Antisymmetric;
 
 data Point {
     x: u32;

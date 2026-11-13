@@ -1,5 +1,5 @@
 // The initial accumulator 100 cannot enter the original signed 0..=99 state.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine modular_power(base: i32, exponent: i32) -> i32
 requires base >= 0

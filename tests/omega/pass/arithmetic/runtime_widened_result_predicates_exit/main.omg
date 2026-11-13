@@ -1,5 +1,17 @@
-use omega::language::core::numeric_conversion;
-use omega_language_std::console;
+use omega::language::core::widen_u8_to_u16;
+use omega::language::core::widen_u8_to_u32;
+use omega::language::core::widen_u8_to_u64;
+use omega::language::core::widen_u16_to_u32;
+use omega::language::core::widen_u16_to_u64;
+use omega::language::core::widen_u32_to_u64;
+use omega::language::core::widen_u8_to_i16;
+use omega::language::core::widen_u8_to_i32;
+use omega::language::core::widen_u8_to_i64;
+use omega::language::core::widen_u16_to_i32;
+use omega::language::core::widen_u16_to_i64;
+use omega::language::core::widen_u32_to_i64;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 
 // All historical widening-result bounds establish ordinary record predicates.
 // Keep the input runtime-dependent and transport the complete record through

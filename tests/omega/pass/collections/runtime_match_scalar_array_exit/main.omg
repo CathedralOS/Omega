@@ -1,7 +1,6 @@
 // A match selects one closed primitive array. Arms may be calls, literals,
 // or names. Only the selected arm runs. The result is observed through a
 // local, a parameter, a field, and a later state.
-use omega::language::core::float_operations;
 
 data Holder { values: [f64; 3]; }
 

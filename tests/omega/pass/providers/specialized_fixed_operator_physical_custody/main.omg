@@ -2,7 +2,7 @@
 // not only through an exact fixed-token use: the generic default adapter
 // selects one specialized concrete local provider whose own receiver-fixed
 // call reaches the selected checked provider.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data IntegerMath {}
 

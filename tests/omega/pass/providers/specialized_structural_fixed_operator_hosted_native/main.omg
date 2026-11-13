@@ -4,7 +4,7 @@
 // and produces a scalar through the selected checked provider.
 // Expected exit: 29.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Buffer<Element, const Count: u64> {
     value: Element

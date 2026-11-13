@@ -5,7 +5,7 @@
 // establishment admits only as a non-linear result, so the check-only
 // fixtures `pass/ownership/linear_{assignment_establishes,bare_establish}`
 // checked while native production refused the same program.
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::drop;
 
 data Receipt [linear] dropped by drop_receipt { code: i32; }

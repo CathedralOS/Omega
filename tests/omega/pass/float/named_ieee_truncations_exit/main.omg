@@ -18,8 +18,20 @@
 //   narrow carriers: 1000 -> i8 127, -1000 -> i8 -128, -1e6 -> i16
 //        -32768, -1234.9 -> i16 -1234, 300 -> u8 255, NaN -> u8 0,
 //        -5.5 -> u16 0, 70000 -> u16 65535.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega::language::core::I8::from_f64;
+use omega::language::core::I16::from_f32;
+use omega::language::core::I16::from_f64;
+use omega::language::core::I32::from_f32;
+use omega::language::core::I32::from_f64;
+use omega::language::core::I64::from_f32;
+use omega::language::core::I64::from_f64;
+use omega::language::core::U8::from_f32;
+use omega::language::core::U8::from_f64;
+use omega::language::core::U16::from_f32;
+use omega::language::core::U16::from_f64;
+use omega::language::core::U32::from_f32;
+use omega::language::core::U32::from_f64;
+use omega_language_std::Console;
 
 data Main {
     negative_huge64: f64;

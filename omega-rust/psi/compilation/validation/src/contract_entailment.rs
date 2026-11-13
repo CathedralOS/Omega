@@ -15332,12 +15332,35 @@ pub(crate) mod contract_refinement {
         pub(crate) result: TypeReferenceHandle,
     }
 
-    pub(crate) struct CallableContractRefinement {
-        required: ContractFacts,
-        actual: ContractFacts,
+    pub(crate) enum CallableContractRefinement {
+        Lowered {
+            verdict: terminal_check_tables::Checked<()>,
+        },
+        Source {
+            required: ContractFacts,
+            actual: ContractFacts,
+        },
     }
 
     impl CallableContractRefinement {
+        pub(crate) fn prepare_lowered<'a>(
+            program: &'a typed_trees::TypedTrees,
+            required: &'a StateSignature,
+            actual: structure_elaboration::CallableDeclaration<'a>,
+        ) -> Option<Self> {
+            use terminal_check_tables::RefusalReason;
+            let verdict = lowered_discharge::prove_callable_refinement(program, required, actual);
+            match &verdict {
+                Err(refused)
+                    if refused.reason == RefusalReason::Unsupported
+                        || matches!(refused.reason, RefusalReason::Unproved(cause) if cause.is_incomplete()) =>
+                {
+                    None
+                }
+                _ => Some(Self::Lowered { verdict }),
+            }
+        }
+
         pub(crate) fn prepare(
             program: &dyn crate::CheckingInput,
             required: CallableContract<'_>,
@@ -15379,7 +15402,7 @@ pub(crate) mod contract_refinement {
                     return None;
                 }
             }
-            Some(Self {
+            Some(Self::Source {
                 required: ContractFacts::collect(
                     program,
                     required.owner,
@@ -15401,24 +15424,37 @@ pub(crate) mod contract_refinement {
             })
         }
 
+        pub(crate) fn refusal_detail(&self) -> Option<&str> {
+            match self {
+                Self::Lowered {
+                    verdict: Err(refused),
+                } => Some(&refused.detail),
+                _ => None,
+            }
+        }
+
         pub(crate) fn proves(
             &self,
             program: &dyn crate::CheckingInput,
             kind: &SignatureContractKind,
         ) -> bool {
+            let (required, actual) = match self {
+                Self::Lowered { verdict } => {
+                    return verdict.is_ok()
+                        && matches!(
+                            kind,
+                            SignatureContractKind::Requires | SignatureContractKind::Ensures
+                        );
+                }
+                Self::Source { required, actual } => (required, actual),
+            };
             let (premises, premise_scope, goals, goal_scope) = match kind {
-                SignatureContractKind::Requires => (
-                    &self.required.requires,
-                    &self.required,
-                    &self.actual.requires,
-                    &self.actual,
-                ),
-                SignatureContractKind::Ensures => (
-                    &self.actual.ensures,
-                    &self.actual,
-                    &self.required.ensures,
-                    &self.required,
-                ),
+                SignatureContractKind::Requires => {
+                    (&required.requires, required, &actual.requires, actual)
+                }
+                SignatureContractKind::Ensures => {
+                    (&actual.ensures, actual, &required.ensures, required)
+                }
                 _ => return false,
             };
             goals
@@ -60875,6 +60911,21 @@ pub(crate) mod structural_judgment {
                     self.meaning == CapturedEquationMeaning::CompletedCall
                 }
 
+                /// The declared result type of the call a completed-call identity
+                /// row names; `None` for every other row.
+                pub(crate) fn completed_call_result_type(
+                    &self,
+                ) -> Option<typed_trees::types::TypeReferenceHandle> {
+                    match &self.right {
+                        StructuralTerm::Application { result_type, .. }
+                            if self.is_completed_call_identity() =>
+                        {
+                            Some(*result_type)
+                        }
+                        _ => None,
+                    }
+                }
+
                 pub(crate) fn public_scalar_replacement(
                     &self,
                     observed: &StructuralTerm,
@@ -64638,8 +64689,14 @@ pub(crate) mod structural_judgment {
                         // call's identity row names its executed occurrence; rewriting
                         // that result into its application would detach the result's
                         // own guarantees from the value a later case match observes.
+                        // A scalar result has no cases to match, and a guard on it
+                        // must still reach the state its value is forwarded to, so
+                        // only a non-scalar call result keeps its occurrence.
                         .filter(|equation| {
-                            !equation.is_data_identity() && !equation.is_completed_call_identity()
+                            !equation.is_data_identity()
+                                && equation.completed_call_result_type().is_none_or(|result| {
+                                    self.program.primitive_type_reference(result).is_some()
+                                })
                         })
                         .map(|equation| (&equation.left, &equation.right))
                         // A completed owned read already records the exact value it

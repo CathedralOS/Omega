@@ -1,7 +1,18 @@
 // Source-positive only: a closed boundary callback retains its nominal contract.
 // A preceding supplied Type must not shift the machine-only callback ordinal.
 // The callback does not dereference either foreign input; no RAM fact is assumed.
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::Exposure;
+use omega::language::core::ExternalRead;
+use omega::language::core::FieldAccess;
+use omega::language::core::BoundaryReach;
+use omega::language::core::AccessPlan;
+use omega::language::core::AccessPlan::inaccessible;
+use omega::language::core::AccessPlan::with;
+use omega::language::core::AccessPlan::with_reach;
 
 public data Registers {
     status: u32;
@@ -84,7 +95,21 @@ machine RegPlacement::plan(schema: Schema) -> AccessPlan {
 // The host establishes the backing and binds these exact generated accessors.
 // Delegation retains the original backing; neither wrapper stages contents.
 
-use omega_language_std::calling;
+use omega_language_std::AbiValueClass;
+use omega_language_std::BoundarySignature;
+use omega_language_std::MachineRegister;
+use omega_language_std::ValueLocation;
+use omega_language_std::ValuePlacement;
+use omega_language_std::CallingConvention;
+use omega_language_std::EntryControl;
+use omega_language_std::MachineRegime;
+use omega_language_std::EntryStack;
+use omega_language_std::Preemption;
+use omega_language_std::BoundaryEntryPlan;
+use omega_language_std::CallingPolicyRejection;
+use omega_language_std::BoundaryPlanResult;
+use omega_language_std::CallingPolicy;
+use omega_language_std::Calling;
 public data SortPolicies { }
 public ComparatorCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
@@ -235,7 +260,7 @@ satisfies Comparator::compare
     0
 }
 
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 machine Main::main(main: &mut Main) reaches SortRegistrar + Comparator + Console
 invokes SortRegistrar

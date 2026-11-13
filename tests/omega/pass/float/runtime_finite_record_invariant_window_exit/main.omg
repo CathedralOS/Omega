@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 
 data Reading { amount: f32 in Finite; }
 

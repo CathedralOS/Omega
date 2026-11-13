@@ -8,7 +8,7 @@
 // `i32` arithmetic whose operand bounds are the rows. The fact-only
 // `cell_is_bit` citations emit no call. Two live board cells make cell 0
 // live, so the count is 1 and the code is 1 + 69.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine cells_valid(cells: &[i32; 4]) -> bool {
     transition cells[0] == 0 || cells[0] == 1 {

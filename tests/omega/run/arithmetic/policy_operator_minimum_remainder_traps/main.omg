@@ -1,7 +1,7 @@
 // `%!` traps on signed `MIN % -1`: the remainder would be zero, but the
 // quotient it belongs to does not fit `i32`. `%%` and `%|` return zero for
 // the same operands in run/arithmetic/policy_operators_match_policy_domains.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 
 machine rest(value: i32, divisor: i32) -> i32 crashes Trap

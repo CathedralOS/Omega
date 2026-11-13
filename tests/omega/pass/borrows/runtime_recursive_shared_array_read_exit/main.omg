@@ -3,7 +3,7 @@
 // the loan on every iteration; the invocation lends that header the
 // signature's shared view, so the header keeps the shared declaration rather
 // than claiming the exclusive loan its backedge forwards.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Stack { items: [u32; 8]; count: u64; }
 

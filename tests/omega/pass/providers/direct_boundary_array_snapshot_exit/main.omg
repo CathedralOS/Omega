@@ -1,7 +1,7 @@
 // A boundary receives an owned primitive array between scalar arguments.
 // The later scalar operand mutates the source; the provider must observe the
 // array snapshot captured earlier, while the caller observes the later write.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 // ThingTake::take is a one-member boundary trait with an empty reach.
 // Expected exit: 70.

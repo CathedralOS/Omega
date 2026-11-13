@@ -17,7 +17,7 @@
 // The scan stops at the first element that is ready and unarmed. Reading a
 // wrong element, the wrong field or the wrong stride stops elsewhere (exit
 // 71) or nowhere (exit 72). Stopping at element 2 -> exit 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cell {
     hp: i32;

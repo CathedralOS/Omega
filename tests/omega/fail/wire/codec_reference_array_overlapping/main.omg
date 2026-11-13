@@ -1,4 +1,9 @@
-use omega::language::core::wire;
+use omega::language::core::CompactBinary;
+use omega::language::core::EncodeResult;
+use omega::language::core::EncodedField;
+use omega::language::core::EncodeContext;
+use omega::language::core::CompactBinary::encode;
+use omega::language::core::CompactBinary::scalar_field;
 use omega::language::core::reflect;
 // Negative twin of pass/wire/codec_reference_array_exit: the reference field
 // now borrows `index` itself, so encoding overwrites it and the guard's index

@@ -8,8 +8,7 @@
 // Migrated from `pending/float/float_range_attached_field`, whose bracketed
 // field range `f32 [0.0..=1.0]` omitted the machine's unit plan at the
 // attached data shape and left the field unused.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main
 requires

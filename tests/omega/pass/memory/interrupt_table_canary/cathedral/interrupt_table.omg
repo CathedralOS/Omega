@@ -34,7 +34,12 @@
 // stride product the writer composes with the gate's interior plan; the
 // package never spells a numeric slot offset itself.
 
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::FixedLayout;
 
 // One x86-64 long-mode interrupt or trap gate descriptor, as the semantic
 // record the package stages and validates. `entry` is the sealed entry

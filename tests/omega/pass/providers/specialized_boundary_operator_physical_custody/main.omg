@@ -2,7 +2,7 @@
 // selection: the call is only notated as a boundary operator while the
 // generic adapter supplies a specialized concrete local provider for this
 // exact application, then reaches the selected checked provider.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data GenericMath {}
 

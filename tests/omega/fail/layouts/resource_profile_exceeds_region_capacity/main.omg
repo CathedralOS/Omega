@@ -1,4 +1,5 @@
-use omega::language::core::layout;
+use omega::language::core::ResourceRegion;
+use omega::language::core::ResourceProfile;
 
 machine main() {
     let regions: [ResourceRegion; 32];

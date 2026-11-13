@@ -1,7 +1,13 @@
 // The validator must reject its false guarantee.
 // A policy reads ordinary fields through selected storage geometry; its checked
 // result must distinguish the matching and nonmatching field values.
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 data Payload [copy] { left: u64; value: u64; right: u64; }
 Policy satisfies FixedLayout<Payload> {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {

@@ -3078,4 +3078,5 @@ pub struct RootBinding {
     pub slot: String,
     pub implementation: String,
     pub implementation_symbol: SymbolHandle,
+    pub source_span: Option<SourceSpan>,
 }

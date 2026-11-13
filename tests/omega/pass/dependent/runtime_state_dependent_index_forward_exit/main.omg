@@ -1,7 +1,7 @@
 // A guarded arrival establishes a dependent index proposition. Capturing and
 // forwarding that scalar retains the proposition while the count is unchanged;
 // the final indexed read must consume it through ordinary operand normalization.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main requires count <= 11 {
     items: [u8; 12];

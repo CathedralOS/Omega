@@ -2,7 +2,7 @@
 // the package-local boundary slot, its map and the per-target families are
 // declared in the sibling module `gate`, and the build selects the provider
 // before binding the entries. The realized member must still answer the call.
-use omega_language_std::console;
+use omega_language_std::Console;
 use gate::Gate;
 
 data Main { ticket: i32; code: i32; }

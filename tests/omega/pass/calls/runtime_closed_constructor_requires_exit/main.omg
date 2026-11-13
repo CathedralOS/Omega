@@ -2,7 +2,7 @@
 // Expression and transition tails, local and parameter returns share one body evaluator.
 // Expected exit: 0.
 // Expected output contains: constructor checks=8
-use omega_language_std::console;
+use omega_language_std::Console;
 data Point [copy] { x: u64; y: u64; }
 data Main { point: Point; }
 machine Point::zero() -> Point { Point { x: 0, y: 0 } }

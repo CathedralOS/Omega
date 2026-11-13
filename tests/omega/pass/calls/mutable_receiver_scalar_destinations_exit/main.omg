@@ -1,6 +1,6 @@
 // Every scalar destination evaluates the inner receiver call before the outer
 // call, exactly once. Result, hit count and decimal trace all contribute to 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     hits: u64 in Wrapping;

@@ -17,7 +17,7 @@
 // fails as an ordinary unresolved name, never reaching this rule. Only a real
 // profile that is nobody's development host produces an inert sibling that
 // SURVIVES into typed trees.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Helper { seed: i32; }
 

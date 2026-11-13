@@ -8,7 +8,7 @@
 // a borrowed subject and on a local one. Exits 70 only when every arm's
 // payload scalars arrive at their named states.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data NextToken {
     case Token(start: u64, end: u64);

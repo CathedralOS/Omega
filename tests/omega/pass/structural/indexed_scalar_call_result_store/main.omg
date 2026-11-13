@@ -1,5 +1,6 @@
-use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega_language_std::Console;
+use omega::language::core::F64::from_i32;
+use omega::language::core::I32::from_f64;
 
 data Main { values: [f64; 4]; }
 machine store(main: &mut Main, index: i32, value: i32) {

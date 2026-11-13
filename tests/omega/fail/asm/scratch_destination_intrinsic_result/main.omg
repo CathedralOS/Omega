@@ -1,5 +1,4 @@
 // Reject a composite scratch destination before scalar versioning.
-use omega::language::core::assembly;
 machine main() reaches MachineControl crashes Trap {
  let mut output: u32 = 99;
  asm {

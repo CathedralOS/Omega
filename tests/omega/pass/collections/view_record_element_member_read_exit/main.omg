@@ -8,7 +8,7 @@
 // place left source custody with an authored leaf the retained read never
 // carries, and native production refused the program. The sum over
 // [8, 12, 10, 5, 15, 10, 10] is 70; a wrong element read exits 71.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Entry {
     value: i32 in Wrapping;

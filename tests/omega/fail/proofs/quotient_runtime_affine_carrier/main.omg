@@ -1,5 +1,5 @@
 // Invalid control for executable custody-free quotient realization.
-use omega::language::core::relation;
+use omega::language::core::Equivalence;
 
 data Representative { value: i32; }
 

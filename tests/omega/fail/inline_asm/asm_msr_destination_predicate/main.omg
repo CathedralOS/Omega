@@ -1,4 +1,3 @@
-use omega::language::core::assembly;
 data Main requires value <= 1 { index: u32; value: u64; }
 machine Main::main(main: &mut Main) reaches MachineControl {
     asm clobbers rax, rcx, rdx, r10, r11, r15 { rdmsr main.value, main.index; }

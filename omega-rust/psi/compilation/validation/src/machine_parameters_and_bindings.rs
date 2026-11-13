@@ -124,6 +124,7 @@ pub mod machine_parameters {
         use binder_scope::CallableBinderScope;
 
         pub(crate) struct CallableParts<'a> {
+            pub(crate) declaration: structure_elaboration::CallableDeclaration<'a>,
             pub(crate) lexical_owner: SymbolHandle,
             pub(crate) contract_owner: SymbolHandle,
             pub(crate) lifetime_parameters: &'a [typed_trees::name::Identifier],
@@ -141,6 +142,7 @@ pub mod machine_parameters {
                 signature: &'a StateSignature,
             ) -> Self {
                 Self {
+                    declaration: structure_elaboration::CallableDeclaration::Signature(signature),
                     lexical_owner: crate::borrow_contracts::lexical_region_owner(
                         program,
                         signature.symbol,
@@ -358,6 +360,9 @@ pub mod machine_parameters {
                 parameter,
                 requirement,
                 &CallableParts {
+                    declaration: structure_elaboration::CallableDeclaration::Machine(
+                        actual_machine.symbol,
+                    ),
                     lexical_owner: actual_machine.symbol,
                     contract_owner: actual_machine.symbol,
                     lifetime_parameters: &actual_machine.lifetime_parameters,
@@ -440,36 +445,24 @@ pub mod machine_parameters {
             binder_bindings: &mut CallableBinderScope,
             diagnostics: &mut Vec<Diagnostic>,
         ) {
+            use typed_trees::callable_signature_shapes::{
+                CallableShapeMismatch, CallableSignatureShape, compare_callable_signature_shapes,
+            };
             let formation_diagnostic_count = diagnostics.len();
             let actual_parameters = actual.parameters;
             let required_types = program.state_signature_type_parameters(requirement);
-            if required_types.len() != actual.type_parameters.len() {
-                diagnostics.push(Diagnostic::error(format!(
-            "{label} does not refine `{}`: its callable signature expects {} generic parameter(s), got {}",
-            parameter.name, required_types.len(), actual.type_parameters.len(),
-        )));
-                return;
+            if required_types.len() == actual.type_parameters.len() {
+                binder_bindings.static_bindings.extend(
+                    required_types
+                        .iter()
+                        .zip(actual.type_parameters)
+                        .map(|(required, actual)| BinderBinding {
+                            required: required.symbol,
+                            actual: actual.symbol,
+                        }),
+                );
             }
-            binder_bindings.static_bindings.extend(
-                required_types
-                    .iter()
-                    .zip(actual.type_parameters)
-                    .map(|(required, actual)| BinderBinding {
-                        required: required.symbol,
-                        actual: actual.symbol,
-                    }),
-            );
             let required_parameters = program.state_signature_parameters(requirement);
-            if required_parameters.len() != actual_parameters.len() {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{label} does not refine `{}`: expected {} parameter(s), got {}",
-                    parameter.name,
-                    required_parameters.len(),
-                    actual_parameters.len()
-                )));
-                return;
-            }
-
             let mut formation_binders = binder_bindings.static_bindings.clone();
             formation_binders.extend(required_parameters.iter().zip(actual_parameters).map(
                 |(required, actual)| BinderBinding {
@@ -478,53 +471,68 @@ pub mod machine_parameters {
                 },
             ));
 
-            for (index, (required, actual)) in required_parameters
-                .iter()
-                .zip(actual_parameters)
-                .enumerate()
-            {
-                if required.is_mutable != actual.is_mutable
-                    || required.is_const != actual.is_const
-                    || required.relevance != actual.relevance
-                {
-                    diagnostics.push(Diagnostic::error(format!(
+            let mismatches = compare_callable_signature_shapes(
+                CallableSignatureShape {
+                    generic_arity: required_types.len(),
+                    parameters: required_parameters,
+                    return_type: requirement.return_type,
+                },
+                CallableSignatureShape {
+                    generic_arity: actual.type_parameters.len(),
+                    parameters: actual_parameters,
+                    return_type: actual.return_type,
+                },
+                |actual, required| {
+                    Ok::<_, std::convert::Infallible>(complete_callable_type_matches(
+                        program,
+                        actual,
+                        required,
+                        generic_types,
+                        bindings,
+                        &formation_binders,
+                    ))
+                },
+            )
+            .unwrap_or_else(|never| match never {});
+            for mismatch in mismatches {
+                match mismatch {
+                    CallableShapeMismatch::GenericArity { required, actual } => {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "{label} does not refine `{}`: its callable signature expects {} generic parameter(s), got {}",
+                            parameter.name, required, actual,
+                        )));
+                    }
+                    CallableShapeMismatch::ParameterArity { required, actual } => {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "{label} does not refine `{}`: expected {} parameter(s), got {}",
+                            parameter.name, required, actual,
+                        )));
+                    }
+                    CallableShapeMismatch::ParameterMode { position: index } => {
+                        diagnostics.push(Diagnostic::error(format!(
                         "{label} does not refine `{}`: parameter {} has a different calling mode",
                         parameter.name, index
                     )));
-                    continue;
+                    }
+                    CallableShapeMismatch::ParameterType { position: index } => {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "{label} does not refine `{}`: parameter {} expects `{}`, got `{}`",
+                            parameter.name,
+                            index,
+                            program
+                                .display_type_reference(required_parameters[index].type_reference),
+                            program.display_type_reference(actual_parameters[index].type_reference)
+                        )));
+                    }
+                    CallableShapeMismatch::ReturnType => {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "{label} does not refine `{}`: expected return `{}`, got `{}`",
+                            parameter.name,
+                            program.display_type_reference(requirement.return_type),
+                            program.display_type_reference(actual.return_type)
+                        )));
+                    }
                 }
-                if !complete_callable_type_matches(
-                    program,
-                    actual.type_reference,
-                    required.type_reference,
-                    generic_types,
-                    bindings,
-                    &formation_binders,
-                ) {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "{label} does not refine `{}`: parameter {} expects `{}`, got `{}`",
-                        parameter.name,
-                        index,
-                        program.display_type_reference(required.type_reference),
-                        program.display_type_reference(actual.type_reference)
-                    )));
-                }
-            }
-
-            if !complete_callable_type_matches(
-                program,
-                actual.return_type,
-                requirement.return_type,
-                generic_types,
-                bindings,
-                &formation_binders,
-            ) {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{label} does not refine `{}`: expected return `{}`, got `{}`",
-                    parameter.name,
-                    program.display_type_reference(requirement.return_type),
-                    program.display_type_reference(actual.return_type)
-                )));
             }
 
             if diagnostics.len() != formation_diagnostic_count {
@@ -634,6 +642,7 @@ pub mod machine_parameters {
                 label,
                 parameter,
                 requirement,
+                actual.declaration,
                 actual.contracts,
                 required_parameters,
                 actual_parameters,
@@ -1912,6 +1921,7 @@ pub mod machine_parameters {
             label: &str,
             parameter: &TypeParameter,
             requirement: &typed_trees::signature::StateSignature,
+            actual_declaration: structure_elaboration::CallableDeclaration<'_>,
             actual_contracts: &[SignatureContract],
             required_parameters: &[StateParameter],
             actual_parameters: &[StateParameter],
@@ -1927,6 +1937,19 @@ pub mod machine_parameters {
         ) {
             let required_contracts = program.state_signature_contracts(requirement);
             let prepare_implication = || {
+                // The typed application owner must have spent every outer
+                // substitution before this witness reads the two contracts.
+                // An open correspondence keeps its existing checking route;
+                // it is never silently dropped from a lowered proof request.
+                if substitutions.is_empty()
+                    && binder_pairs.is_empty()
+                    && proof_scope.types.is_empty()
+                    && let Some(judgment) = crate::proof_contracts::contract_entailment::CallableContractRefinement::prepare_lowered(
+                        program.typed_program(), requirement, actual_declaration,
+                    )
+                {
+                    return Some(judgment);
+                }
                 crate::proof_contracts::contract_entailment::CallableContractRefinement::prepare(
                     program,
                     crate::proof_contracts::contract_entailment::CallableContract {
@@ -2043,11 +2066,15 @@ pub mod machine_parameters {
                     {
                         continue;
                     }
+                    let detail = implication
+                        .as_ref()
+                        .and_then(|judgment| judgment.refusal_detail())
+                        .map_or(String::new(), |detail| format!(": {detail}"));
                     diagnostics.push(Diagnostic::error(format!(
-                "{label} does not refine `{}`: its {} facts are not a conservative refinement",
-                requirement_identity,
-                contract_kind_name(&kind)
-            )));
+                        "{label} does not refine `{}`: its {} facts are not a conservative refinement{detail}",
+                        requirement_identity,
+                        contract_kind_name(&kind)
+                    )));
                 }
             }
             validate_crash_contract_refinement(

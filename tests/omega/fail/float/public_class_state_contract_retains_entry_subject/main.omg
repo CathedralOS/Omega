@@ -1,4 +1,5 @@
-use omega::language::core::float_operations;
+use omega::language::core::FloatClass;
+use omega::language::core::F32::classify;
 
 // The owning guarantee names the entry value. The next state's same-spelled
 // parameter receives other and must retain its distinct declaration identity.

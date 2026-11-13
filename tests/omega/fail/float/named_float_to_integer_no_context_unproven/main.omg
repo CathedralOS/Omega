@@ -1,6 +1,6 @@
 // The empty-dispatch overload selected without an expected result retains its
 // Exact proof obligation even when the value is explicitly discarded.
-use omega::language::core::float_operations;
+use omega::language::core::I32::from_f64;
 
 data Main { value: f64; }
 

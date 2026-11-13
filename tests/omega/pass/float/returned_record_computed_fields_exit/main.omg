@@ -1,7 +1,6 @@
 // Nested selected float results keep the exact occurrence policy when
 // consumed by the fields of a returned aggregate.
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 public data Pair [copy] { first: f64; second: f64; }
 machine make_pair(x: f64, y: f64) -> Pair {

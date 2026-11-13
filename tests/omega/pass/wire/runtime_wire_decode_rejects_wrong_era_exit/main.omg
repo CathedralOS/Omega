@@ -1,4 +1,9 @@
-use omega::language::core::wire;
+use omega::language::core::DecodeResult;
+use omega::language::core::CompactBinary;
+use omega::language::core::ScalarSlot;
+use omega::language::core::ScalarPlanContext;
+use omega::language::core::CompactBinary::plan_scalar;
+use omega::language::core::CompactBinary::decode_record;
 use omega::language::core::reflect;
 // Wire stage 2b: decode only accepts the schema's CURRENT era
 // (historical eras decode through format-package lineage sums). The buffer
@@ -17,7 +22,7 @@ use omega::language::core::reflect;
 //   flag varint reads 0x00     -> false
 // read = 7, ok = false -- the canary takes the failure path and exits 70.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data CounterMessage {
     #0 counter: u32;

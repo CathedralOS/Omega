@@ -4,7 +4,7 @@
 // `byte_at(text, index)` in the arms after it, and so does its negated
 // spelling `!(index < text.len)`. The word counter recurses from three arms.
 // Expected exit: 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main { }
 

@@ -13,7 +13,7 @@
 //
 // Reduced from `samples/cli/collections/matrix_multiply`, whose `dot` state
 // passes `acc + main.a[i][k] * main.b[k][j]` in the same position.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     a: [[i32 in Wrapping; 3]; 3];

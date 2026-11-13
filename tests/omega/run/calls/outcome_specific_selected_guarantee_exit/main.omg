@@ -4,7 +4,7 @@
 // term from the named `Fresh` implementation; the caller's matching arm
 // binds that term as `proof` so lowering can retain the evidence on the
 // call's `CallStructural` operation.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Outcome [copy] {
     case Success;

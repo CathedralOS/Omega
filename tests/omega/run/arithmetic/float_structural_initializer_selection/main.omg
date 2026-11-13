@@ -1,5 +1,4 @@
-use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega_language_std::Console;
 
 // Both carriers retain boundary requirement selections below their initializer.
 data Pair { left: f64; right: f64; }

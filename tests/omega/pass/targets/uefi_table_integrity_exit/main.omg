@@ -1,5 +1,5 @@
-use omega_language_std::console;
-use omega_language_std::targets::uefi_x86_64::integrity;
+use omega_language_std::Console;
+use omega_language_std::validate_table;
 
 data Main { table: [u8; 33]; }
 

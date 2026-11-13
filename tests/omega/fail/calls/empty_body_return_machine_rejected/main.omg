@@ -1,5 +1,5 @@
 // V2: value-returning machine with an EMPTY body -- `machine get -> i32 { }`.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main {
 }
 machine Main::get() -> i32 {

@@ -1,4 +1,3 @@
-use blocking;
 
 public boundary trait Read {}
 public boundary trait Write {}

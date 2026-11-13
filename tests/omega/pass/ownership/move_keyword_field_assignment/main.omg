@@ -1,7 +1,7 @@
 // Chapter 2: an owned value may be explicitly spelled as moved into another
 // location via `move` (`main.inventory = move replacement;`). The ownership
 // lane still infers the actual move from value flow.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Inventory {
     slots: i32;

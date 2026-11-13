@@ -2,7 +2,6 @@
 // Place: local. The slice view is transported through intermediate local bindings.
 // Expected exit: 0
 
-use omega::language::core::slice;
 
 machine read_guarded(view: &[u64]) -> i32
     requires view.len >= 3

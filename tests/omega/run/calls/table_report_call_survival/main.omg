@@ -1,5 +1,5 @@
 // Table projections and four carried arguments survive repeated native calls.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Row { cost: u64 in Wrapping; score: u64 in Wrapping;
     feasible: u64 in Wrapping; code: u64 in Wrapping; }
 data Table { rows: [Row; 8]; }

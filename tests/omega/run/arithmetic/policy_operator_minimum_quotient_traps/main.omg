@@ -2,7 +2,7 @@
 // divisor is proved nonzero, so this is the only trap left; `/%` and `/|`
 // return `MIN` and `MAX` for the same operands in
 // run/arithmetic/policy_operators_match_policy_domains.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 
 machine quotient(value: i32, divisor: i32) -> i32 crashes Trap

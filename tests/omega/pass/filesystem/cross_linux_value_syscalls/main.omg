@@ -1,12 +1,29 @@
-use omega::language::core::filesystem_authority;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataQuery;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::DirectoryEnumeration;
+use omega::language::core::FilesystemNamespaceMutation;
 // Linux raw-filesystem syscall slice. Both targets lower the semantic
 // open/open_create operations through openat(AT_FDCWD, ...), preserve
 // value-returning read/write/close results, and adapt the portable four-argument
 // read_dir seam to Linux getdents64(fd, buffer, count).
 // Expected native exit: 70.
-use omega_language_std::posix_filesystem_host;
-use omega_language_std::filesystem;
-use omega_language_std::console;
+use omega_language_std::PosixFilesystemHost;
+use omega_language_std::File;
+use omega_language_std::ErrorKind;
+use omega_language_std::OpenResult;
+use omega_language_std::IoResult;
+use omega_language_std::DirEntryResult;
+use omega_language_std::UnitResult;
+use omega_language_std::OpenOptions;
+use omega_language_std::Filesystem;
+use omega_language_std::Filesystem::read;
+use omega_language_std::Filesystem::remove;
+use omega_language_std::Filesystem::open_with;
+use omega_language_std::Filesystem::read_dir_nth;
+use omega_language_std::Filesystem::remove_dir_all;
+use omega_language_std::Console;
 
 data Main {
     semantic_fs: Filesystem;

@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 machine number(value: i32 in Wrapping) reaches Console {
     Console::write_byte((value / 1000 % 10 + 48) as i32);

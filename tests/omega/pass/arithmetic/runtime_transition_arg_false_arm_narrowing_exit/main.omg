@@ -3,7 +3,7 @@
 // proves EXACT without an annotation even though i32 + 1 could otherwise
 // overflow at the type's upper bound. climb(0) walks 0..70 through the false
 // arm, then the true arm exits 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 machine Main::climb(context: &mut Main, n: i32) reaches Console {
     transition n >= 70 {

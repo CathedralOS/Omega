@@ -2,8 +2,13 @@
 // modes select the neighboring results while ordinary division remains
 // nearest-even after each local floating-control-state envelope.
 
-use omega::language::core::float_operations;
-use omega_language_std::console;
+use omega::language::core::F32::divide_toward_zero;
+use omega::language::core::F64::divide_toward_zero;
+use omega::language::core::F32::divide_toward_positive;
+use omega::language::core::F64::divide_toward_positive;
+use omega::language::core::F32::divide_toward_negative;
+use omega::language::core::F64::divide_toward_negative;
+use omega_language_std::Console;
 
 data Main {
 }

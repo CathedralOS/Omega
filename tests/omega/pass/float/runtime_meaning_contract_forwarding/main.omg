@@ -1,4 +1,10 @@
-use omega::language::core::float_operations;
+use omega::language::core::F32::meaning;
+use omega::language::core::FloatSemantics::negate;
+use omega::language::core::FloatSemantics::minimum;
+use omega::language::core::FloatSemantics::maximum;
+use omega::language::core::F32::negate;
+use omega::language::core::F32::minimum;
+use omega::language::core::F32::maximum;
 
 // Runtime results retain invocation identity, while mathematical projections
 // in their public guarantees still normalize through ordinary proof wrappers.

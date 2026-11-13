@@ -2,7 +2,7 @@
 // its own selected implementation; the join invents no representative table.
 // The counter starts at 5. `Increment` adds 1 and `Double` doubles it; the
 // branch below takes `Double`, so the counter ends at 10 -> exit 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 trait Step<T> {
     machine apply(counter: &mut T);

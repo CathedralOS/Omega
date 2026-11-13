@@ -1,6 +1,5 @@
 // Expected exit: 0. Whole primitive observations retain their exact IEEE
 // format; capturing a NaN's bits does not make its IEEE comparison reflexive.
-use omega::language::core::float_operations;
 
 machine nonnegative64(value: &f64) -> bool
 requires value >= 0.0 {

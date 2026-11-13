@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Bundle<'storage> { prefix: i32; value: &'storage i32; flag: &'storage bool; }
 data Main { }

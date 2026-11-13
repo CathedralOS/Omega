@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 data Context { values: [f64; 3]; flags: [u16; 2]; }
 machine generic_extent<T>(values: &[T]) -> u64 ensures result == values.len { values.len }
 machine generic_read(values: &[u16]) -> u16 {

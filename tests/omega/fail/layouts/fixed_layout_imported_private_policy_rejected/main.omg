@@ -1,6 +1,6 @@
 // Imported selected generic policy: the exact policy and its own Const argument survive named constant materialization.
 // Expected exit: 0
-use omega::language::core::layout;
+use omega::language::core::LayoutStorage;
 use leaf::values;
 const ZERO: u64 = 0u64;
 const EIGHT: u64 = 8u64;

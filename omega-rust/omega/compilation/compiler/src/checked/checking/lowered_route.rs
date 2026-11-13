@@ -35,14 +35,16 @@
 //
 // A rejection the current checker places in the Build program or an
 // entry-contract source is its own to decide, and stands. A diagnostic with
-// no source file cannot be placed, so it counts as one of those.
+// no source file cannot be placed, so it counts as one of those. When the
+// route independently rejects too, its diagnostics follow the current
+// checker's intact diagnostics; preserving verdict authority does not hide
+// another established source error.
 
 use diagnostics::Diagnostic;
 use lowered_discharge::RouteVerdict;
 use semantic_vocabulary::PackageKeyIdentity;
 use source::{SourceId, SourceMap};
 use symbols::SymbolHandle;
-use terminal_check_tables::Checked;
 
 /// What the route judges: the declarations the request claims, which are
 /// the same `structure_elaboration::elaborate` roots.
@@ -50,6 +52,7 @@ pub(super) struct RouteScope<'a> {
     pub(super) entries: &'a [SymbolHandle],
     pub(super) subject: Option<PackageKeyIdentity>,
     pub(super) selected: &'a [SymbolHandle],
+    pub(super) bindings: &'a [typed_trees::callable_signature_shapes::BoundCallableShape],
 }
 
 impl RouteScope<'_> {
@@ -70,6 +73,7 @@ impl RouteScope<'_> {
                     entries: self.entries,
                     subject: self.subject,
                     selected: self.selected,
+                    bindings: self.bindings,
                 },
             )
             .into_iter()
@@ -125,7 +129,7 @@ impl RouteJudgment {
         rejected.map_or(Self::Accepted, Self::Rejected)
     }
 
-    pub(super) fn of(verdict: Checked<RouteVerdict>) -> Self {
+    pub(super) fn of<E>(verdict: Result<RouteVerdict, E>) -> Self {
         let Ok(verdict) = verdict else {
             return Self::Undecided;
         };
@@ -133,11 +137,13 @@ impl RouteJudgment {
             RouteVerdict::Accepted(_) => Self::Accepted,
             RouteVerdict::FallBack(_) | RouteVerdict::Incomplete(_) => Self::Undecided,
             RouteVerdict::Rejected {
+                formations,
                 unproved,
                 unestablished,
                 conflicts,
             } => {
                 let mut reported = Vec::new();
+                reported.extend(formations.iter().map(|entry| entry.reject_diagnostic()));
                 // A rejection may list goals of a form the prover has no
                 // rule for beside the ones it failed; those are no claim
                 // about the program and are left out.
@@ -168,13 +174,19 @@ pub(super) fn govern<T>(
     let Some(route) = route else {
         return current;
     };
-    if let Err(rejection) = &current
-        && !rejection
-            .iter()
-            .all(|diagnostic| outside_current_scope(scope, diagnostic))
-    {
-        return current;
-    }
+    let current = match current {
+        Err(mut rejection)
+            if !rejection
+                .iter()
+                .all(|diagnostic| outside_current_scope(scope, diagnostic)) =>
+        {
+            if let RouteJudgment::Rejected(additional) = route {
+                rejection.extend(additional);
+            }
+            return Err(rejection);
+        }
+        other => other,
+    };
     match route {
         RouteJudgment::Undecided => current,
         // The route's rejection is the compilation's. When the current
@@ -306,17 +318,21 @@ mod tests {
 
     /// A current rejection that cannot be placed outside the Build program
     /// and the entry contract is the current checker's to decide: neither
-    /// the route's acceptance nor its rejection replaces it.
+    /// the route's acceptance nor its rejection replaces it. An independent
+    /// route rejection adds its diagnostics after the current checker's.
     #[test]
     fn an_unplaced_current_rejection_stands() {
-        for route in [RouteJudgment::Accepted, rejected("route")] {
+        for (route, expected) in [
+            (RouteJudgment::Accepted, vec!["current"]),
+            (rejected("route"), vec!["current", "route"]),
+        ] {
             assert_eq!(
                 messages(govern(
                     Err(vec![Diagnostic::error("current")]),
                     Some(route),
                     &NONE
                 )),
-                ["current"]
+                expected
             );
         }
     }

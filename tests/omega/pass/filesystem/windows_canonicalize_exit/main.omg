@@ -17,9 +17,16 @@
 // 76 directory creation failed; 77 directory canonicalize refused; 78 the
 // resolved directory buffer starts with neither model's spelling.
 
-use omega_language_std::filesystem;
+use omega_language_std::ErrorKind;
+use omega_language_std::UnitResult;
+use omega_language_std::Filesystem;
+use omega_language_std::Filesystem::write_all;
+use omega_language_std::Filesystem::remove;
+use omega_language_std::Filesystem::create_dir;
+use omega_language_std::Filesystem::remove_dir;
+use omega_language_std::Filesystem::canonicalize;
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 // Separate entry for the host-call-count regression: failed acquisition must
 // observe its error without querying or closing the invalid handle.

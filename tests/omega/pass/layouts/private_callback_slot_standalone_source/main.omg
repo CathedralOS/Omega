@@ -2,7 +2,15 @@
 // FixedLayout policy and its exact private callback slot need no extra per-layout
 // Build registration. Actual callback placement and publication still validate
 // retained hermetic identities, exact policy/requirement joins and destination.
-use omega::language::core::layout;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::PrivateCallbackSlot;
+use omega::language::core::LayoutPlan::place_private;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 
 boundary trait WindowProcedure {
     machine call(message: u64) -> u64 reaches;

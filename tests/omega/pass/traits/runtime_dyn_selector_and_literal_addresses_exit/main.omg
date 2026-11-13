@@ -2,7 +2,7 @@
 // Expected output contains: selected image addresses
 // A function interleaves literal and implementation-table addresses. Their
 // shared relocation roster must preserve both referent identities and order.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 trait Scale<T> {
     machine scale(value: &T) -> i32;

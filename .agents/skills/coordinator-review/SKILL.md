@@ -130,8 +130,11 @@ the five checks below fail:
     restructuring work with its measurement in the PR body. Any other repair
     with no observable outcome goes back to the worker.
 - **`TASKS.md` closure:** Delete a bullet only when its full stated acceptance
-  is demonstrated. For a fact row, check its existing nine places and reject
-  twins; other outcomes follow their own acceptance. Never rewrite completed
+  is demonstrated. For a fact row that is its existing nine places and reject
+  twins; other outcomes follow their own acceptance. This is the test for a
+  pull request that deletes the bullet. A progress pull request toward it is
+  judged on the repair it makes and the checks that establish that repair, not
+  on the whole matrix. Never rewrite completed
   work into `"preserving / keeping / now passes"` history prose.
 
 ## 3. Review Verdict Actions

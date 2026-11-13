@@ -1,6 +1,6 @@
 // Two branches rejoin one state carrying the same borrowed record. The join
 // observes the write of whichever branch ran.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Tally { count: u64; }
 data Main { tally: Tally; }

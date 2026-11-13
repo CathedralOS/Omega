@@ -1,7 +1,7 @@
 // Each row/column selector is captured at its argument position. Later scalar
 // effects must not change an earlier loan; moving the effect first selects the
 // new cell. Distinct extents and indices also detect exchanged snapshots.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Cell { value: u64 in Wrapping; }
 data Holder { cells: [Cell; 4]; }

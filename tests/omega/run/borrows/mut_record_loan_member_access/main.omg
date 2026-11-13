@@ -2,7 +2,7 @@
 // `let m: &mut Desc = &mut main.desc` then `m.tag = v` writes and `m.tag`
 // reads resolve through the captured established place plus the referee's
 // structural declaration, the mutable sibling of the shared-loan arm.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Desc {
     tag: u32;

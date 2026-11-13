@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 // Floating match subjects dispatch through ordinary value patterns in
 // both formats; a parameter name used as a pattern means "subject equals
 // this value", `_` catches the rest.

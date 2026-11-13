@@ -2,7 +2,11 @@
 // separate machine satisfaction edge. Its authored policy rejection still
 // prevents boundary realization. The callee does not satisfy CallingPolicy::plan,
 // and adding that edge would stop testing a plan map with no satisfaction edge.
-use omega_language_std::calling;
+use omega_language_std::BoundarySignature;
+use omega_language_std::CallingPolicyRejection;
+use omega_language_std::BoundaryPlanResult;
+use omega_language_std::CallingPolicy;
+use omega_language_std::Calling;
 
 data LocalPolicy { }
 LocalPolicyCalling satisfies CallingPolicy {

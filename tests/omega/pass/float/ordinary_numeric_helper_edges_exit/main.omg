@@ -1,6 +1,14 @@
-use omega::language::core::math;
-use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::max_f32;
+use omega::language::core::sqrt_f32;
+use omega::language::core::abs_f32;
+use omega::language::core::min_f64;
+use omega::language::core::max_f64;
+use omega::language::core::clamp_f64;
+use omega::language::core::sqrt_f64;
+use omega::language::core::abs_f64;
+use omega_language_std::Console;
+use omega::language::core::F32::negate;
+use omega::language::core::F64::negate;
 
 // Runtime input prevents a closed NaN-bit materialization from replacing
 // observations. IEEE tests do not identify NaN payloads or erase zero signs.

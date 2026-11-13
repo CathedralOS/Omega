@@ -1,7 +1,30 @@
 // Expected exit: 0
 // All 33 private handlers are materialized into three fragments each; neighbors survive.
-use omega_language_std::calling;
-use omega::language::core::layout;
+use omega_language_std::AbiValueClass;
+use omega_language_std::AbiValueShape;
+use omega_language_std::BoundarySignature;
+use omega_language_std::MachineRegister;
+use omega_language_std::ValueLocation;
+use omega_language_std::ValuePlacement;
+use omega_language_std::CallingConvention;
+use omega_language_std::EntryControl;
+use omega_language_std::MachineRegime;
+use omega_language_std::EntryStack;
+use omega_language_std::Preemption;
+use omega_language_std::BoundaryEntryPlan;
+use omega_language_std::CallingPolicyRejection;
+use omega_language_std::BoundaryPlanResult;
+use omega_language_std::CallingPolicy;
+use omega_language_std::Calling;
+use omega::language::core::Schema;
+use omega::language::core::FieldPlan;
+use omega::language::core::FieldEntry;
+use omega::language::core::LayoutPlan;
+use omega::language::core::PrivateCallbackSlot;
+use omega::language::core::LayoutPlan::place_private;
+use omega::language::core::LayoutTarget;
+use omega::language::core::LayoutStorage;
+use omega::language::core::FixedLayout;
 public data CallbackPolicy {}
 public DescriptorCalling satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {

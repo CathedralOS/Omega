@@ -1,7 +1,9 @@
 // CR is data, not a line ending: input A CR B LF stores the CR literally
 // (LineComplete(4), exit 14); cooked-mode translation would shorten the line.
 // Variant of runtime_console_bounded_line_full_exit covering a lone CR.
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::LineReadResult;
+use omega_language_std::Console;
 
 data Main {
     line: [u8; 4];

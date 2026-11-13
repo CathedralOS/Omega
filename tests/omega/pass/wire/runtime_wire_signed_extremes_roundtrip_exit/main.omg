@@ -1,4 +1,19 @@
-use omega::language::core::wire;
+use omega::language::core::DecodeResult;
+use omega::language::core::CompactBinary;
+use omega::language::core::EncodeResult;
+use omega::language::core::EncodedField;
+use omega::language::core::EncodeContext;
+use omega::language::core::CompactBinary::encode;
+use omega::language::core::CompactBinary::scalar_field;
+use omega::language::core::ScalarSlot;
+use omega::language::core::ScalarPlanContext;
+use omega::language::core::CompactBinary::plan_scalar;
+use omega::language::core::CompactBinary::decode_record;
+use omega::language::core::CompactBinary::packed_field;
+use omega::language::core::CompactBinary::plan_payload;
+use omega::language::core::PackedRead;
+use omega::language::core::CompactBinary::read_packed;
+use omega::language::core::CompactBinary::signed_from_word;
 use omega::language::core::reflect;
 // Signed zigzag is a bit operation, including at the full carrier extremes.
 data Extremes {

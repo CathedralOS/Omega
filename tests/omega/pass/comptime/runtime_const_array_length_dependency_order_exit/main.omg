@@ -1,7 +1,6 @@
 // The outer length job must settle its own array-type prerequisite before
 // checking and executing. Declaration order deliberately places the caller first.
-use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega_language_std::Console;
 
 data Main {
     slots: [u8; table_size()];

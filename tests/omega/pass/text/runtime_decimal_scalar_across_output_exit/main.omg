@@ -1,6 +1,7 @@
 // A scalar needed by repeated fixed-view divisions stays live across output.
 // The input selects runtime values; a second call observes caller mutation.
-use omega_language_std::console;
+use omega_language_std::LineReadResult;
+use omega_language_std::Console;
 data Main { input: [u8; 2]; value: i32 in Wrapping; }
 machine digits(main: &mut Main, value: i32 in Wrapping) reaches Console {
     Console::write_byte((value / 100 % 10 + 48) as i32);

@@ -1,5 +1,5 @@
 // A single-attempt exchange reports success or the instruction-observed failure value at its exact atomic cell.
-use omega::language::core::layout;
+use omega::language::core::AtomicCompareExchangeOnceOutcome;
 data Cells { selected: AtomicU64; untouched: AtomicU64; }
 machine attempt64(cells: &Cells, expected: u64) -> AtomicCompareExchangeOnceOutcome<u64> {
     let outcome: AtomicCompareExchangeOnceOutcome<u64> = cells.selected.compare_exchange_once(expected, 8589934691u64, ReceivePublish, Publish);

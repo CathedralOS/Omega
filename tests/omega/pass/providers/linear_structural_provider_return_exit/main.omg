@@ -1,5 +1,5 @@
 // Expected output: token=7, fresh=9, pair=45, choices=06 (one row each).
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::drop;
 
 public data Token [linear] dropped by drop_token { value: i32 in Wrapping; }

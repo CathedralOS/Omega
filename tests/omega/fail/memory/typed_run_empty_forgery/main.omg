@@ -1,5 +1,7 @@
-use omega::language::core::extent;
-use omega::language::core::run;
+use omega::language::core::Extent;
+use omega::language::core::Extent::Vacant;
+use omega::language::core::Extent::Granted;
+use omega::language::core::Run;
 
 // Zero count and geometry do not authorize a caller to establish Live.
 machine counterfeit<P, T>(storage: Extent in Granted & Vacant) -> Run<P, T> in Live<P, T>
