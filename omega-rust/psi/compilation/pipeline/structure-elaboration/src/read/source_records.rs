@@ -99,18 +99,40 @@ impl Program<'_> {
         if self.records.len() != self.record_sources.len() {
             return Err(malformed(machine, "record/source catalogs differ"));
         }
-        self.records
-            .iter()
-            .map(|(record, declaration)| {
-                let source = terminal_check_tables::row(
-                    &self.record_sources,
-                    record,
-                    machine,
-                    Construct::Machine,
-                )?;
-                correspondence(record, declaration, source, machine)
-            })
-            .collect()
+        let mut found = Vec::new();
+        for (record, declaration) in self.records.iter() {
+            let source = terminal_check_tables::row(
+                &self.record_sources,
+                record,
+                machine,
+                Construct::Machine,
+            )?;
+            if matches!(
+                declaration.shape,
+                crate::StorageShape::FixedArray { .. }
+                    | crate::StorageShape::PrimitiveScalar { .. }
+            ) {
+                // These physical shapes have no nominal declaration or
+                // field schema. Their actual type reference is retained,
+                // but cannot mint nominal source authority.
+                if source.declaration.is_valid()
+                    || !source.fields.is_empty()
+                    || !source.cases.is_empty()
+                    || !source.application.as_ref().is_some_and(|application| {
+                        self.typed.contains_type_reference(application.reference)
+                            && application.substitutions.is_empty()
+                    })
+                {
+                    return Err(malformed(
+                        machine,
+                        "physical array storage has nominal or missing source custody",
+                    ));
+                }
+                continue;
+            }
+            found.push(correspondence(record, declaration, source, machine)?);
+        }
+        Ok(found)
     }
 }
 
@@ -136,12 +158,12 @@ fn correspondence(
             Unserved::Spelling("record without a source application"),
         )
     })?;
-    if source.fields.len() != declaration.fields.len()
-        || source.cases.len() != declaration.cases.len()
+    if source.fields.len() != declaration.fields().len()
+        || source.cases.len() != declaration.cases().len()
         || source
             .cases
             .iter()
-            .zip(&declaration.cases)
+            .zip(declaration.cases())
             .any(|((_, fields), case)| fields.len() != case.fields.len())
     {
         return Err(malformed(machine, "record/source member rosters differ"));
@@ -161,8 +183,8 @@ fn correspondence(
             }
             Ok(())
         };
-    append(&declaration.fields, &source.fields)?;
-    for (case, (symbol, symbols)) in declaration.cases.iter().zip(&source.cases) {
+    append(declaration.fields(), &source.fields)?;
+    for (case, (symbol, symbols)) in declaration.cases().iter().zip(&source.cases) {
         if !symbol.is_valid() {
             return Err(malformed(machine, "record case has no declaration"));
         }
@@ -247,7 +269,7 @@ mod tests {
         let declaration = RecordType {
             copyable: false,
             identity: "source-owned-storage".into(),
-            fields: vec![
+            shape: crate::StorageShape::Record(vec![
                 RecordField {
                     id: StructuralFieldId::new(3).unwrap(),
                     identity: "first".into(),
@@ -258,8 +280,7 @@ mod tests {
                     identity: "second".into(),
                     value_type: scalar,
                 },
-            ],
-            cases: Vec::new(),
+            ]),
             requires: Vec::new(),
         };
         let source = RecordSource {

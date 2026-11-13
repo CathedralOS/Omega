@@ -218,7 +218,7 @@ impl Program<'_> {
                 return unserved("case test of something that is not a sum");
             };
             let case = self.case_position(id, sum, case)?;
-            let case = self.data_type(id, sum)?.cases[case].id;
+            let case = self.data_type(id, sum)?.cases()[case].id;
             return Ok(Proposition::StructuralCaseMembership {
                 subject: StructuralCaseSubject::new(root, path),
                 case,
@@ -889,11 +889,13 @@ impl Program<'_> {
         let data = self.data_type(id, record)?;
         let value_type = match self.member_of(id, record, symbol)? {
             Member::Field(field) => {
-                path.push(CanonicalStructuralPathSegment::Field(data.fields[field].id));
-                data.fields[field].value_type
+                path.push(CanonicalStructuralPathSegment::Field(
+                    data.fields()[field].id,
+                ));
+                data.fields()[field].value_type
             }
             Member::Payload { case, field } => {
-                let owner = &data.cases[case];
+                let owner = data.cases()[case];
                 path.push(CanonicalStructuralPathSegment::Case(owner.id));
                 path.push(CanonicalStructuralPathSegment::Field(
                     owner.fields[field].id,

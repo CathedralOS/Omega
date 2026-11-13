@@ -50,8 +50,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     records.push(RecordType {
         copyable: true,
         identity: String::from("Pair"),
-        fields: vec![field(1, "a"), field(2, "b")],
-        cases: Vec::new(),
+        shape: structure_elaboration::StorageShape::Record(vec![field(1, "a"), field(2, "b")]),
         requires: Vec::new(),
     });
     records
@@ -140,7 +139,10 @@ pub(super) fn invoke(callee: u64, arguments: Vec<Expression>) -> Statement {
 pub(super) fn store(slot: usize, path: Vec<usize>, value: Expression) -> Statement {
     Statement::Store {
         slot,
-        path,
+        path: path
+            .into_iter()
+            .map(structure_elaboration::Projection::Field)
+            .collect(),
         value,
         source: nowhere(),
     }

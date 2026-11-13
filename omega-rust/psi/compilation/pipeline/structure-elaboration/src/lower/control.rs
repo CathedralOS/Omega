@@ -251,7 +251,8 @@ impl Lowering<'_> {
                 source,
             } => {
                 let cases: Vec<usize> = arms.iter().map(|(case, _, _)| *case).collect();
-                let (blocks, rest) = self.select(subject, &cases, default.is_some(), *source)?;
+                let (blocks, rest) =
+                    self.select(subject, &cases, default.is_some(), *source, None)?;
                 // Each arm completes the machine, so what one binds (the home
                 // a loan gives a local) is no other arm's.
                 let bound = self.slots.clone();
@@ -448,9 +449,10 @@ impl Lowering<'_> {
         default: Option<&Expression>,
         scalar_type: ScalarType,
         source: SourceOrigin,
+        capture: Option<arena::Handle<typed_trees::expression::CompletedValueCapture>>,
     ) -> Checked<Value> {
         let cases: Vec<usize> = arms.iter().map(|(case, _)| *case).collect();
-        let (blocks, rest) = self.select(subject, &cases, default.is_some(), source)?;
+        let (blocks, rest) = self.select(subject, &cases, default.is_some(), source, capture)?;
         let join = self.block(SourceOrigin::Unpositioned(Unpositioned::MatchJoin));
         let result = self.value(
             scalar_type,

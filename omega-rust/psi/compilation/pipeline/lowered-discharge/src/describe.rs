@@ -104,8 +104,16 @@ pub(crate) fn unproved(
                 None => format!("cannot prove ensures clause {}", u64::from(clause) + 1),
             }
         }
-        ObligationKind::OperationSafety { operation } => {
-            operation_safety(elaboration, machine, names, operation, site)
+        ObligationKind::OperationSafety {
+            site: terminal_check_tables::obligations::ExecutionSite::Operation(operation),
+        } => operation_safety(elaboration, machine, names, operation, site),
+        ObligationKind::OperationSafety {
+            site: terminal_check_tables::obligations::ExecutionSite::Block(_),
+        } => {
+            format!(
+                "cannot prove storage index bounds in {}",
+                owner(names, site)
+            )
         }
         ObligationKind::DataDomain { clause, .. } => format!(
             "cannot prove requires clause {} of a data type in {}",

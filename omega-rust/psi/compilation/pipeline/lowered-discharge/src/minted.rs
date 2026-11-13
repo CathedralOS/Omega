@@ -341,10 +341,30 @@ pub(crate) fn follow_the_lowered_form(
                 minted.claim(
                     semantics.obligation(),
                     ObligationKind::OperationSafety {
-                        operation: operation.id,
+                        site: terminal_check_tables::obligations::ExecutionSite::Operation(
+                            operation.id,
+                        ),
                     },
                     before,
                 )?;
+            }
+            for projection in operation.kind.structural_projections() {
+                for segment in projection.path {
+                    if let terminal_psi::StructuralPathSegment::RuntimeIndex {
+                        obligation, ..
+                    } = segment
+                    {
+                        minted.claim(
+                            *obligation,
+                            ObligationKind::OperationSafety {
+                                site: terminal_check_tables::obligations::ExecutionSite::Operation(
+                                    operation.id,
+                                ),
+                            },
+                            before,
+                        )?;
+                    }
+                }
             }
             if let Some(inputs) = operation.kind.module_invocation() {
                 minted.call(
@@ -377,6 +397,23 @@ pub(crate) fn follow_the_lowered_form(
                 }
             }
             before = ProgramPoint::AfterOperation(operation.id);
+        }
+        for projection in block.terminator.storage_uses() {
+            for segment in projection.path {
+                if let terminal_psi::StructuralPathSegment::RuntimeIndex { obligation, .. } =
+                    segment
+                {
+                    minted.claim(
+                        *obligation,
+                        ObligationKind::OperationSafety {
+                            site: terminal_check_tables::obligations::ExecutionSite::Block(
+                                block.id,
+                            ),
+                        },
+                        before,
+                    )?;
+                }
+            }
         }
         if let Some(inputs) = block.terminator.module_invocation() {
             minted.call(

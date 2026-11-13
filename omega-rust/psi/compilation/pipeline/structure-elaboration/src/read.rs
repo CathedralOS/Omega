@@ -23,6 +23,7 @@ subset is refused with `Unsupported` and its name. A field the subset does not
 serve is refused when it is set, never ignored.
 */
 
+mod arrays;
 mod calls;
 mod casts;
 mod contracts;
@@ -384,7 +385,7 @@ mod tests {
         let remainder = binary(&mut typed, seven, BinaryOperator::Modulo, two);
         let mut program = Program::new(&typed, false);
         let read = |program: &mut Program<'_>, handle| {
-            program.expression(machine(), &[], handle, Some(i32_type))
+            program.expression(machine(), &[], handle, Some(ValueType::Scalar(i32_type)))
         };
         let landed = read(&mut program, exact).unwrap();
         assert!(matches!(

@@ -843,7 +843,7 @@ impl<'t> Program<'t> {
                 lenders.push((actual, lender));
                 lent
             } else {
-                self.expression(id, slots, *argument, formal.scalar())?
+                self.expression(id, slots, *argument, Some(*formal))?
             });
         }
         lent_storage_is_untouched(id, &read)?;
@@ -934,7 +934,9 @@ impl<'t> Program<'t> {
         let slot = loop {
             match &at.kind {
                 ExpressionKind::Slot(slot) => break *slot,
-                ExpressionKind::Field { base, .. } => at = base,
+                ExpressionKind::Field { base, .. } | ExpressionKind::Index { base, .. } => {
+                    at = base
+                }
                 _ => return unserved("borrow of a case payload"),
             }
         };
@@ -984,9 +986,9 @@ impl<'t> Program<'t> {
 pub(super) fn root_slot(place: &Expression) -> Option<usize> {
     match &place.kind {
         ExpressionKind::Slot(slot) => Some(*slot),
-        ExpressionKind::Field { base, .. } | ExpressionKind::Payload { base, .. } => {
-            root_slot(base)
-        }
+        ExpressionKind::Field { base, .. }
+        | ExpressionKind::Payload { base, .. }
+        | ExpressionKind::Index { base, .. } => root_slot(base),
         _ => None,
     }
 }
@@ -1012,7 +1014,14 @@ fn lent_storage_is_untouched(id: MachineId, arguments: &[Expression]) -> Checked
         return Ok(());
     }
     for argument in arguments {
-        if matches!(argument.kind, ExpressionKind::Borrow { .. }) {
+        if let ExpressionKind::Borrow { place, .. } = &argument.kind {
+            if selectors_mention(place, &lent) {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Call("loan selector that names storage another argument lends"),
+                ));
+            }
             continue;
         }
         if mentions(argument, &lent) {
@@ -1026,11 +1035,27 @@ fn lent_storage_is_untouched(id: MachineId, arguments: &[Expression]) -> Checked
     Ok(())
 }
 
+/// Capturing a loan does not read its root, but its selectors still evaluate
+/// while earlier arguments' loans are live.
+fn selectors_mention(place: &Expression, slots: &[usize]) -> bool {
+    match &place.kind {
+        ExpressionKind::Index { base, index } => {
+            selectors_mention(base, slots) || mentions(index, slots)
+        }
+        ExpressionKind::Field { base, .. } | ExpressionKind::Payload { base, .. } => {
+            selectors_mention(base, slots)
+        }
+        _ => false,
+    }
+}
+
 /// Whether an expression names any of `slots`, anywhere inside it.
 fn mentions(expression: &Expression, slots: &[usize]) -> bool {
     match &expression.kind {
         ExpressionKind::Slot(slot) => slots.contains(slot),
-        ExpressionKind::Integer(_) | ExpressionKind::Boolean(_) => false,
+        ExpressionKind::SavedSubject(_)
+        | ExpressionKind::Integer(_)
+        | ExpressionKind::Boolean(_) => false,
         ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
@@ -1041,6 +1066,10 @@ fn mentions(expression: &Expression, slots: &[usize]) -> bool {
             subject: operand, ..
         }
         | ExpressionKind::Borrow { place: operand, .. } => mentions(operand, slots),
+        ExpressionKind::Array { elements } => {
+            elements.iter().any(|element| mentions(element, slots))
+        }
+        ExpressionKind::Index { base, index } => mentions(base, slots) || mentions(index, slots),
         ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {
             fields.iter().any(|(_, operand)| mentions(operand, slots))
         }
@@ -1048,6 +1077,7 @@ fn mentions(expression: &Expression, slots: &[usize]) -> bool {
             subject,
             arms,
             default,
+            ..
         } => {
             mentions(subject, slots)
                 || arms.iter().any(|(_, arm)| mentions(arm, slots))

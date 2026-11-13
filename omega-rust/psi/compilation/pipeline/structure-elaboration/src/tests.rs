@@ -330,7 +330,7 @@ fn strict_operands_and_call_arguments_evaluate_left_to_right() {
     assert_eq!(
         row.kind,
         ObligationKind::OperationSafety {
-            operation: operations[3].id
+            site: terminal_check_tables::obligations::ExecutionSite::Operation(operations[3].id)
         }
     );
     assert_eq!(
@@ -653,7 +653,9 @@ fn a_cast_is_one_exact_conversion_and_only_a_partial_one_owes_safety() {
         let operation = block(&machine, 1).operations[0].id;
         assert_eq!(
             obligations(&tables),
-            [ObligationKind::OperationSafety { operation }]
+            [ObligationKind::OperationSafety {
+                site: terminal_check_tables::obligations::ExecutionSite::Operation(operation)
+            }]
         );
         assert_eq!(obligation, id(1));
         assert_module_and_tables_agree(&machine, &tables);
@@ -1300,18 +1302,19 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     records.push(RecordType {
         copyable: true,
         identity: String::from("Point"),
-        fields: vec![
+        shape: crate::StorageShape::Record(vec![
             field(1, "x", ValueType::Scalar(u32_type())),
             field(2, "y", ValueType::Scalar(u32_type())),
-        ],
-        cases: Vec::new(),
+        ]),
         requires: Vec::new(),
     });
     records.push(RecordType {
         copyable: true,
         identity: String::from("Line"),
-        fields: vec![field(3, "from", point()), field(4, "to", point())],
-        cases: Vec::new(),
+        shape: crate::StorageShape::Record(vec![
+            field(3, "from", point()),
+            field(4, "to", point()),
+        ]),
         requires: Vec::new(),
     });
     records
@@ -1507,20 +1510,18 @@ fn a_nested_read_interns_one_place_per_projection_and_reuses_it() {
         .operations
         .iter()
         .filter_map(|operation| match &operation.kind {
-            OperationKind::ScalarStructuralField {
-                source,
-                path,
-                field,
-            } => Some((*source, path.clone(), *field)),
+            OperationKind::PrimitiveScalarRead { source, path } => Some((*source, path.clone())),
             _ => None,
         })
         .collect();
-    // Both reads name the whole formal, the carrier path `to` and the final
-    // field `y`, all by dense identity.
+    // Both reads name the whole formal and complete `to.y` projection.
+    // The declared identity table places `to` at 5 and `y` at 2.
     let expected = (
         formal,
-        vec![CanonicalStructuralPathSegment::Field(id(4))],
-        id::<StructuralFieldId>(2),
+        vec![
+            terminal_psi::StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(5)),
+            terminal_psi::StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(2)),
+        ],
     );
     assert_eq!(reads, [expected.clone(), expected]);
     // The root, `l.to` and `l.to.y`: three places for two reads.
@@ -1612,7 +1613,7 @@ fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
             OperationKind::EstablishRecord { .. } => "establish",
             OperationKind::StructuralLeafCopy { path, .. } if path.is_empty() => "copy",
             OperationKind::CallStructuralWithScalarArguments { .. } => "call",
-            OperationKind::ScalarStructuralField { .. } => "read",
+            OperationKind::PrimitiveScalarRead { .. } => "read",
             other => panic!("unexpected operation {other:?}"),
         })
         .collect();
@@ -1681,8 +1682,8 @@ fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
     // The read names `r`'s root directly; a local has no place of its own.
     assert!(matches!(
         &operations[6].kind,
-        OperationKind::ScalarStructuralField { source, path, field }
-            if *source == r && path.is_empty() && *field == id(1)
+        OperationKind::PrimitiveScalarRead { source, path }
+            if *source == r && path.as_slice() == [terminal_psi::StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(1))]
     ));
 }
 
@@ -1847,7 +1848,7 @@ fn a_module_with_records_declares_them_and_encodes() {
 fn store(slot: usize, path: &[usize], value: Expression) -> Statement {
     Statement::Store {
         slot,
-        path: path.to_vec(),
+        path: path.iter().copied().map(crate::Projection::Field).collect(),
         value,
         source: nowhere(),
     }
@@ -1897,7 +1898,7 @@ fn a_field_store_is_one_operation_and_one_row_on_its_exact_leaf() {
             OperationKind::StructuralLeafCopy { .. } => "copy",
             OperationKind::StructuralScalarFieldStore { .. } => "store",
             OperationKind::StoreStructuralField { .. } => "replace",
-            OperationKind::ScalarStructuralField { .. } => "read",
+            OperationKind::PrimitiveScalarRead { .. } => "read",
             other => panic!("unexpected operation {other:?}"),
         })
         .collect();
@@ -2006,8 +2007,8 @@ fn a_whole_assignment_constructs_its_value_then_names_the_fresh_root() {
     let old_y = operations[3].result.scalar().unwrap().id;
     assert!(matches!(
         &operations[3].kind,
-        OperationKind::ScalarStructuralField { source, field, .. }
-            if *source == first && *field == id(2)
+        OperationKind::PrimitiveScalarRead { source, path }
+            if *source == first && path.as_slice() == [terminal_psi::StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(2))]
     ));
     // The new root's leaves hold exactly the constructed operands.
     let after = ProgramPoint::AfterOperation(operations[4].id);
@@ -2022,8 +2023,8 @@ fn a_whole_assignment_constructs_its_value_then_names_the_fresh_root() {
     // From the assignment on, the local names the new root.
     assert!(matches!(
         &operations[5].kind,
-        OperationKind::ScalarStructuralField { source, field, .. }
-            if *source == second && *field == id(1)
+        OperationKind::PrimitiveScalarRead { source, path }
+            if *source == second && path.as_slice() == [terminal_psi::StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(1))]
     ));
     // Nothing was written to the old root after its construction.
     assert_eq!(written(&tables, projected(&tables, first, &[1])).len(), 1);
@@ -2194,15 +2195,13 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
     records.push(RecordType {
         copyable: true,
         identity: String::from("Point"),
-        fields: vec![field(1, "x", scalar), field(2, "y", scalar)],
-        cases: Vec::new(),
+        shape: crate::StorageShape::Record(vec![field(1, "x", scalar), field(2, "y", scalar)]),
         requires: Vec::new(),
     });
     records.push(RecordType {
         copyable: true,
         identity: String::from("Shape"),
-        fields: Vec::new(),
-        cases: vec![
+        shape: crate::StorageShape::Sum(vec![
             case(1, "Dot", vec![field(3, "at", scalar)]),
             case(
                 2,
@@ -2211,7 +2210,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
             ),
             case(3, "Boxed", vec![field(6, "inner", point())]),
             case(4, "Empty", Vec::new()),
-        ],
+        ]),
         requires: Vec::new(),
     });
     records
@@ -2485,6 +2484,7 @@ fn a_value_match_joins_its_arms_with_the_result_as_one_block_parameter() {
     let scalar = ValueType::Scalar(u32_type());
     let matched = of_type(
         ExpressionKind::Match {
+            capture: None,
             subject: Box::new(place(0, shape())),
             arms: vec![(DOT, payload(place(0, shape()), DOT, 0, scalar))],
             default: Some(Box::new(integer(7))),
@@ -2572,10 +2572,9 @@ fn a_case_test_observes_the_sum_in_place_and_a_payload_read_ends_its_carrier_in_
     };
     assert!(matches!(
         &read.kind,
-        OperationKind::ScalarStructuralField { source, path, field }
+        OperationKind::PrimitiveScalarRead { source, path }
             if *source == id::<PlaceId>(1)
-                && path.as_slice() == [CanonicalStructuralPathSegment::Case(id(1))]
-                && *field == id(3)
+                && path.as_slice() == [terminal_psi::StructuralPathSegment::Case(id(1)), terminal_psi::StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(4))]
     ));
 }
 

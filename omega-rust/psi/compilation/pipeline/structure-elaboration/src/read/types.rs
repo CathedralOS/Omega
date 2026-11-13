@@ -292,6 +292,14 @@ impl Program<'_> {
         id: MachineId,
         handle: TypeReferenceHandle,
     ) -> Checked<ValueType> {
+        if handle.is_valid()
+            && let TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } = self.typed.type_reference_table.type_reference(handle)
+        {
+            return self.array_type(id, handle, *element_type, length);
+        }
         // A type parameter in scope is what the scope says it stands for,
         // found by the binder's symbol.
         if handle.is_valid()
