@@ -196,8 +196,6 @@ pub(crate) fn check_product_source(
         provider_inventory,
         native_bindings,
         terminal_publication,
-        calling_program: Arc::default(),
-        binding_declarations: Arc::default(),
         provider_defaults: provider_defaults.into(),
         computed_build_config,
         admission,

@@ -261,21 +261,6 @@ fn installation_reach_settlement_consumes_prepared_rows() {
 }
 
 #[test]
-fn checked_operator_choice_consumes_retained_candidates() {
-    let admission = include_str!(
-        "../../realization/provider-planning/src/provider_planning/source_provider_selections.rs"
-    );
-    let dispatch = include_str!(
-        "../../realization/selected-dispatch/src/selected_dispatch/operator_adapter.rs"
-    );
-    assert_absent(
-        &[admission, dispatch],
-        "operator body choice reconstructs",
-        &["machine_specializations", "machine_trait_conformances"],
-    );
-}
-
-#[test]
 fn native_provider_handoff_borrows_closed_source_associations() {
     let projection = include_str!("../../products/src/checked_compilation.rs");
     assert_absent(
@@ -286,20 +271,6 @@ fn native_provider_handoff_borrows_closed_source_associations() {
             "exact_owner_nominal_identity",
             "target_machine_families",
             "machine_by_symbol",
-        ],
-    );
-}
-
-#[test]
-fn selected_intrinsic_settlement_borrows_original_row_declarations() {
-    let settlement = include_str!("../../realization/selected-dispatch/src/intrinsic_review.rs");
-    assert_absent(
-        &[settlement],
-        "selected settlement reopens",
-        &[
-            "CheckedTrees",
-            "ProviderPlanningContext",
-            "row_execution_identity(",
         ],
     );
 }

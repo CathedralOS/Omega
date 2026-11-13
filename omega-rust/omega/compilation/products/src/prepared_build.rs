@@ -88,16 +88,6 @@ pub struct CheckedProductSource {
     pub provider_inventory: Arc<typed_trees::provider_declarations::PreparedProviderInventory>,
     pub native_bindings: Arc<provider_planning::native_bindings::PreparedNativeBuildBindings>,
     pub terminal_publication: Arc<crate::ProductTerminalPublication>,
-    pub calling_program: Arc<
-        std::sync::OnceLock<
-            Result<
-                Arc<provider_planning::calling_policy_plans::CallingProgram>,
-                Vec<diagnostics::Diagnostic>,
-            >,
-        >,
-    >,
-    pub binding_declarations:
-        Arc<std::sync::OnceLock<Arc<selected_dispatch::PreparedBindingDeclarations>>>,
     pub provider_defaults:
         Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
     pub computed_build_config: Arc<ComputedBuildConfig>,
@@ -124,7 +114,5 @@ impl CheckedProductSource {
     pub fn adopt_derived_code(&mut self, canonical: &Self) {
         debug_assert!(canonical.shares_terminal_publication(self));
         self.terminal_publication = Arc::clone(&canonical.terminal_publication);
-        self.calling_program = Arc::clone(&canonical.calling_program);
-        self.binding_declarations = Arc::clone(&canonical.binding_declarations);
     }
 }

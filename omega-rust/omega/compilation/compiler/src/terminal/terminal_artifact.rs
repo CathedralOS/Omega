@@ -513,7 +513,10 @@ fn produce_shared_terminal(
             "executable Terminal production has no authored ProgramEntry root",
         )]);
     }
-    view.publication.require_published(first.request.selections)
+    ProductCodeSource {
+        publication: view.publication,
+    }
+    .publish(first.request.selections, &mut PsiStageTimings::new(timings))
 }
 
 fn admit_terminal_production<'a>(

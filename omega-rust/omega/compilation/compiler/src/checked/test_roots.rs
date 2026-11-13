@@ -168,8 +168,6 @@ pub(crate) fn select_test_roots(
             test_source.computed_build_config = Arc::new(computed);
             test_source.terminal_publication =
                 Arc::new(source.terminal_publication.for_other_roots());
-            test_source.calling_program = Default::default();
-            test_source.binding_declarations = Default::default();
             roots.push(TestRootSource {
                 identity: TestRootIdentity {
                     group: group_path.clone(),

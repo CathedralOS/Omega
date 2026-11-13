@@ -1,7 +1,7 @@
 // Every product consumes the same accepted source and its published module.
 // No old producer can replace a failed publication or a different root selection.
 
-use compilation_products::{CheckedProductSource, ProductTerminalPublication};
+use compilation_products::ProductTerminalPublication;
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationSelections;
 use psi_compiler::{PortableTerminalProgram, PsiCompilationObserver};
@@ -13,12 +13,6 @@ pub(crate) struct ProductCodeSource<'a> {
 }
 
 impl<'a> ProductCodeSource<'a> {
-    pub(crate) fn checked(source: &'a CheckedProductSource) -> Self {
-        Self {
-            publication: &source.terminal_publication,
-        }
-    }
-
     pub(crate) fn publish(
         &self,
         selections: &OptimizationSelections,
