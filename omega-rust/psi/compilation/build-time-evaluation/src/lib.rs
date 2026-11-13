@@ -958,12 +958,9 @@ pub use machine_execution::selected_operators::{
     SelectedBuildTimeProviderBody, validate_selected_operators, validate_selected_provider_bodies,
 };
 pub use reflection::{
-    CaseDescription, DeclarationDescription, FieldDescription, FieldInfo, MemberKind,
-    MemberSelectionKey, NominalReferenceDescription, RuntimeVisitationPlan, SchemaNode,
-    SchemaNodeHandle, SchemaQueryAuthority, SchemaShape, ScopedSelectionReceiver, SelectionChoice,
-    SelectionCoverage, SelectionProjection, SelectionRecord, SelectionRequirement,
-    SelectionSnapshot, SemanticSchemaGraph, TypeParameterDescription, VisitationCall,
-    VisitationOperation, construct_semantic_schema_graph, replay_runtime_visitation_plan,
+    FieldInfo, MemberKind, MemberSelectionKey, RuntimeVisitationPlan, ScopedSelectionReceiver,
+    SelectionChoice, SelectionCoverage, SelectionProjection, SelectionRecord, SelectionRequirement,
+    SelectionSnapshot, VisitationCall, VisitationOperation, replay_runtime_visitation_plan,
     replay_selection_snapshot, replay_semantic_schema_graph,
 };
 

@@ -32,6 +32,7 @@ without re-running type inference or inspecting surface syntax.
   - `callable_signature_shapes.rs`: source calling-shape correspondence before body or proof elaboration.
   - `calls_and_control_flow.rs`: typed call signatures, dynamic/static dispatch families, machines, states, statements, and names.
   - `declaration_tables_and_index.rs`: declaration tables, relationship indexes, type parameters, and type-reference queries.
+  - `declaration_reflection.rs`: semantic schema graphs, selected applications, nominal edges, and deterministic query images.
   - `declarations.rs`, `operator_declarations.rs`, `product_and_trait_declarations.rs`: typed domain, data, wire, visibility, operator, product-operand, and trait declarations.
   - `evidence_and_inspection.rs`: typed propositions, mathematical definitions, ranking functions, and `TypedTreesSnapshot`.
   - `type_system.rs`, `type_identity.rs`: typed `TypeReference`, closed numerics, type predicates, and canonical `TypeIdentity` construction.
@@ -767,7 +768,10 @@ pub(crate) use declaration_tables_and_index::{
     data_definitions, declaration_tables, machine_declarations, machine_parameter_signatures,
     spelled_declarations, type_parameters, type_reference_queries,
 };
+mod declaration_reflection;
 pub mod declarations;
+pub use declaration_reflection::reflection;
+
 mod evidence_and_inspection;
 mod operator_declarations;
 mod product_and_trait_declarations;
