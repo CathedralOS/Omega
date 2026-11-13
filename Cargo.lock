@@ -1576,7 +1576,6 @@ dependencies = [
  "cap-fs-ext",
  "cap-primitives",
  "cap-std",
- "checked-trees",
  "compiler-storage",
  "diagnostics",
  "effects",
@@ -2161,26 +2160,17 @@ dependencies = [
 name = "selected-dispatch"
 version = "0.1.0"
 dependencies = [
- "arena",
  "backend-plan",
- "checked-trees",
  "diagnostics",
  "effects",
- "language-core",
  "language-semantics",
- "numerics",
  "package-compilation",
- "program-entry-plan",
  "provider-planning",
- "provider-selection",
  "psi-terminal-production",
- "semantic-vocabulary",
- "source",
  "symbols",
  "target",
  "terminal-psi",
  "trust-model",
- "typed-trees",
 ]
 
 [[package]]

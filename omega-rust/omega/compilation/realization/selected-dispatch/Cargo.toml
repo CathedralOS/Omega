@@ -9,23 +9,14 @@ name = "selected_dispatch"
 path = "src/lib.rs"
 
 [dependencies]
-provider-selection = { path = "../provider-selection" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
 trust-model = { path = "../trust-model" }
 effects = { path = "../../backend/plans/effects" }
 package-compilation = { path = "../../../packages/package-compilation" }
-program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 provider-planning = { path = "../provider-planning" }
 psi-terminal-production = { path = "../../../../psi/compilation/psi-compiler/terminal-production" }
 target = { path = "../../backend/target" }
-arena = { path = "../../../../psi/foundation/arena" }
-checked-trees = { path = "../../../../psi/compilation/representations/checked-trees" }
-semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
-language-core = { path = "../../../../psi/foundation/language-core" }
 language-semantics = { path = "../../../../psi/foundation/language-semantics" }
-numerics = { path = "../../../../psi/foundation/numerics" }
-source = { path = "../../../../psi/foundation/source" }
 symbols = { path = "../../../../psi/foundation/symbols" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
-typed-trees = { path = "../../../../psi/compilation/representations/typed-trees" }
