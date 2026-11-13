@@ -1,0 +1,15 @@
+{
+  "cluster": "c03",
+  "witness": "pass/borrows/runtime_stored_reference_case_residual_retirement_exit",
+  "members": [
+    "pass/borrows/runtime_stored_reference_case_residual_retirement_exit"
+  ],
+  "good": "a48219f5cf97b2d7d766d07c48e1d8946a2b6477",
+  "status": "bisect-failed",
+  "breaking": "",
+  "pr": "",
+  "parent_runs": [],
+  "bad_runs": [],
+  "mechanism": "mechanism not established",
+  "note": "git bisect run did not name a first bad commit (exit 2). See c03-bisect.log."
+}
