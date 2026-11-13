@@ -52,6 +52,7 @@ mod declare;
 mod lower;
 mod names;
 mod outcome;
+mod policy;
 mod proof_scope;
 mod read;
 

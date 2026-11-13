@@ -950,7 +950,7 @@ impl<'t> Program<'t> {
                 Some(ValueType::Scalar(scalar_type, qualification))
                     if qualification.domains.is_empty() =>
                 {
-                    ResultTerm::Named(result_value, scalar_type)
+                    ResultTerm::Named(result_value, scalar_type, qualification.policy)
                 }
                 // domains.md, "Operands": a builtin operator or comparison
                 // takes unqualified operands, in `ensures` too.

@@ -101,8 +101,29 @@ impl Prover<'_> {
         let fixed = |operand: &ScalarTerm| {
             matches!(operand, ScalarTerm::Integer { .. }) || self.landing(operand, axiom).is_some()
         };
+        if unbounded_operation(definition) {
+            return false;
+        }
         match definition {
-            ScalarTerm::IntegerBitwiseAnd { .. }
+            ScalarTerm::ExactIntegerDivide { right, .. }
+            | ScalarTerm::ExactIntegerRemainder { right, .. } => fixed(right),
+            ScalarTerm::ExactIntegerShiftRight { count, .. } => fixed(count),
+            // Add, subtract, multiply, a cast and a left shift map their
+            // operands' intervals exactly; a copy, a read, a literal or a
+            // Boolean is read through its own equation. A failure on these
+            // is a failure of the program's facts.
+            _ => true,
+        }
+    }
+}
+
+/// Whether `term` is an operation the rules give no interval that says what
+/// it computes, whatever its operands: an exclusive or, a mask, a bitwise
+/// not and every wrapping or saturating operation.
+fn unbounded_operation(term: &ScalarTerm) -> bool {
+    matches!(
+        term,
+        ScalarTerm::IntegerBitwiseAnd { .. }
             | ScalarTerm::IntegerBitwiseOr { .. }
             | ScalarTerm::IntegerBitwiseXor { .. }
             | ScalarTerm::IntegerBitwiseNot { .. }
@@ -117,15 +138,15 @@ impl Prover<'_> {
             | ScalarTerm::SaturatingIntegerSubtract { .. }
             | ScalarTerm::SaturatingIntegerMultiply { .. }
             | ScalarTerm::SaturatingIntegerDivide { .. }
-            | ScalarTerm::SaturatingIntegerRemainder { .. } => false,
-            ScalarTerm::ExactIntegerDivide { right, .. }
-            | ScalarTerm::ExactIntegerRemainder { right, .. } => fixed(right),
-            ScalarTerm::ExactIntegerShiftRight { count, .. } => fixed(count),
-            // Add, subtract, multiply, a cast and a left shift map their
-            // operands' intervals exactly; a copy, a read, a literal or a
-            // Boolean is read through its own equation. A failure on these
-            // is a failure of the program's facts.
-            _ => true,
-        }
-    }
+            | ScalarTerm::SaturatingIntegerRemainder { .. }
+    )
+}
+
+/// Whether a goal that compares `term` is one the rules can decide from its
+/// form: no such operation stands in it at any depth. A clause may state one
+/// directly (`requires left +% right == total`), which says what a goal over
+/// the value a body computes by it says, and is `Incomplete` for the same
+/// reason when it has no derivation.
+pub(crate) fn within_rules(term: &ScalarTerm) -> bool {
+    !unbounded_operation(term) && term.operands().into_iter().all(within_rules)
 }

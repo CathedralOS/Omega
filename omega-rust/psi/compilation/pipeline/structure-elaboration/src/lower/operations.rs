@@ -285,23 +285,11 @@ impl Lowering<'_> {
         source: SourceOrigin,
     ) -> Checked<Value> {
         let operation = self.operation_identity(source);
+        // The total operations are the ones a clause's term names too.
+        if let Some(kind) = crate::policy::total(strict, policy, left, right) {
+            return self.emit(operation, result, kind);
+        }
         let kind = match (strict, policy) {
-            (Strict::Add, Policy::Wrapping) => OperationKind::WrappingIntegerAdd { left, right },
-            (Strict::Add, Policy::Saturating) => {
-                OperationKind::SaturatingIntegerAdd { left, right }
-            }
-            (Strict::Subtract, Policy::Wrapping) => {
-                OperationKind::WrappingIntegerSubtract { left, right }
-            }
-            (Strict::Subtract, Policy::Saturating) => {
-                OperationKind::SaturatingIntegerSubtract { left, right }
-            }
-            (Strict::Multiply, Policy::Wrapping) => {
-                OperationKind::WrappingIntegerMultiply { left, right }
-            }
-            (Strict::Multiply, Policy::Saturating) => {
-                OperationKind::SaturatingIntegerMultiply { left, right }
-            }
             (Strict::Divide, Policy::Wrapping) => OperationKind::WrappingIntegerDivide {
                 left,
                 right,
@@ -322,14 +310,6 @@ impl Lowering<'_> {
                 right,
                 obligation: self.safety(operation, source)?,
             },
-            (Strict::ShiftLeft, Policy::Wrapping) => OperationKind::WrappingIntegerShiftLeft {
-                value: left,
-                count: right,
-            },
-            (Strict::ShiftRight, Policy::Wrapping) => OperationKind::WrappingIntegerShiftRight {
-                value: left,
-                count: right,
-            },
             (Strict::ShiftLeft | Strict::ShiftRight, Policy::Saturating) => {
                 return Err(refuse(
                     self.id,
@@ -337,9 +317,15 @@ impl Lowering<'_> {
                     Unserved::Expression("saturating shift"),
                 ));
             }
-            // The reader gives no other operation a policy-qualified result.
+            // The reader gives no other operation a policy-qualified result,
+            // and `policy::total` named every total one above.
             (
-                Strict::BitwiseAnd
+                Strict::Add
+                | Strict::Subtract
+                | Strict::Multiply
+                | Strict::ShiftLeft
+                | Strict::ShiftRight
+                | Strict::BitwiseAnd
                 | Strict::BitwiseOr
                 | Strict::BitwiseXor
                 | Strict::Equal

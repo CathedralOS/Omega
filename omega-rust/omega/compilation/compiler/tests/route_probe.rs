@@ -133,6 +133,115 @@ fn an_operator_suffix_chooses_the_policy_of_one_operation() {
     }
 }
 
+/// A suffixed operator in `requires` or `ensures` means what it means in a
+/// body (`wiki/spec/language/domains.md`, "Operands": "The rule is the same
+/// in executable code, `requires` and `ensures`"), and the Wrapping and
+/// Saturating add, subtract and multiply are total, so each forms a term
+/// (`wiki/spec/proofs/contracts.md`, "Total arithmetic").
+///
+/// A guarantee that states the Wrapping sum is established by a body that
+/// computes it. A body that computes the Saturating sum does not establish
+/// it, and a caller that knows nothing of its arguments does not establish a
+/// `requires` over a Wrapping sum: the term is never read as the other
+/// policy's or as Exact arithmetic. Neither failing program is `rejected`:
+/// the prover has no rule that says what a Wrapping or Saturating operation
+/// computes, so a goal over one that has no derivation is `incomplete`, as a
+/// goal over a value a body computes by one already is.
+///
+/// Refused by name: `+!`, which "can transfer control" and "cannot form a
+/// proof term"; `/%`, which still owes its divisor before it is total; and
+/// an operand whose type carries a policy, since both operands of a suffixed
+/// operator are unqualified.
+#[test]
+fn a_suffixed_operator_in_a_contract_is_the_operation_a_body_computes() {
+    let pair = |contract: &str, body: &str| {
+        format!(
+            "machine spare(left: u32, right: u32) -> u32 {contract} {{ {body} }}
+             machine main() {{ }}
+"
+        )
+    };
+    let gate = |clause: &str, caller: &str| {
+        format!(
+            "machine gate(left: u32, right: u32) requires {clause} {{ }}
+             {caller}
+"
+        )
+    };
+    let mut wrong = Vec::new();
+    for (name, source, expected) in [
+        (
+            "ensures_wrapping_sum",
+            pair("ensures result == left +% right", "left +% right"),
+            "accepted",
+        ),
+        (
+            "ensures_wrapping_sum_of_saturating_body",
+            pair("ensures result == left +% right", "left +| right"),
+            "incomplete",
+        ),
+        (
+            "ensures_saturating_product",
+            pair("ensures result == left *| right", "left *| right"),
+            "accepted",
+        ),
+        (
+            "requires_wrapping_sum_established",
+            gate(
+                "left +% right == right +% left",
+                "machine main() { gate(3, 4) }",
+            ),
+            "accepted",
+        ),
+        (
+            "requires_wrapping_sum_unestablished",
+            gate(
+                "left +% right == 8",
+                "machine spare(left: u32, right: u32) { gate(left, right) }
+machine main() { }",
+            ),
+            "incomplete",
+        ),
+        (
+            "ensures_trapping_sum",
+            pair("ensures result == left +! right", "left +% right"),
+            "contract Trapping policy operator in a clause, where an operation that can crash forms no term",
+        ),
+        (
+            "ensures_wrapping_quotient",
+            pair(
+                "requires right > 0 ensures result == left /% right",
+                "left /% right",
+            ),
+            "contract policy operator in a clause term that owes a condition before it is total",
+        ),
+        (
+            "requires_policy_qualified_operand",
+            "machine spare(left: u32 in Wrapping, right: u32) requires left +% right == right { }
+             machine main() { }
+"
+            .to_string(),
+            "contract policy operator on an operand that is not an unqualified integer",
+        ),
+    ] {
+        // A refusal is compared with the reason it names.
+        let judged: Vec<String> = judged(name, &source)
+            .iter()
+            .map(|verdict| match verdict {
+                Ok(RouteVerdict::Accepted(_)) => "accepted".to_string(),
+                Ok(RouteVerdict::Rejected { .. }) => "rejected".to_string(),
+                Ok(RouteVerdict::Incomplete(_)) => "incomplete".to_string(),
+                Ok(RouteVerdict::FallBack(refusal)) => refusal.detail.clone(),
+                Err(_) => "defect".to_string(),
+            })
+            .collect();
+        if judged != [expected] {
+            wrong.push(format!("{name}: {judged:?}, expected {expected}"));
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
+}
+
 #[test]
 fn an_uncalled_defect_of_a_standalone_program_is_rejected() {
     assert_eq!(
