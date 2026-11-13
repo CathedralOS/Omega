@@ -3,24 +3,26 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 DIR = Path(__file__).resolve().parents[1]
+WORK = Path(os.environ.get("LEDGER_BISECT_WORK", DIR / "work"))
 PIN = "51e8c45c793007f211d0d9baee7de16767172444"
 
 
 def load_verifies() -> dict[int, dict]:
     out = {}
-    for p in sorted(DIR.glob("work/verify_c[0-9].json")):
+    for p in sorted(WORK.glob("verify_c[0-9].json")):
         d = json.loads(p.read_text())
         out[d["cluster"]] = d
     return out
 
 
 def main() -> int:
-    clusters = json.loads((DIR / "work/pin_clusters.json").read_text())
+    clusters = json.loads((WORK / "pin_clusters.json").read_text())
     verifies = load_verifies()
-    meta = json.loads((DIR / "work/part26_meta.json").read_text())
+    meta = json.loads((WORK / "part26_meta.json").read_text())
     fixed = set(meta.get("fixed", []))
 
     lines = [
@@ -76,7 +78,7 @@ def main() -> int:
                 f"- parent trials {v.get('parent_trials',{}).get('results')}; "
                 f"bad trials {v.get('bad_trials',{}).get('results')}"
             )
-            br = (DIR / f"work/bracket_{c['witness'].split('/')[-1]}.json")
+            br = WORK / f"bracket_{c['witness'].split('/')[-1]}.json"
             if br.is_file():
                 b = json.loads(br.read_text())
                 if not b.get("isolated"):

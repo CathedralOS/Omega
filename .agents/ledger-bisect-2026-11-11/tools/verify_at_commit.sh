@@ -7,10 +7,12 @@ TRIALS="${3:-1}"
 ROOT="$(git rev-parse --show-toplevel)"
 TOOLCACHE="/tmp/ledger-bisect-tools"
 mkdir -p "$TOOLCACHE"
-if [[ -f "$ROOT/.agents/ledger-bisect-2026-11-11/tools/pin_bisect_context.py" ]]; then
-  cp -a "$ROOT/.agents/ledger-bisect-2026-11-11/tools/." "$TOOLCACHE/"
-fi
+cp -a "$ROOT/.agents/ledger-bisect-2026-11-11/tools/." "$TOOLCACHE/" 2>/dev/null || \
+  git -C "$ROOT" archive HEAD .agents/ledger-bisect-2026-11-11/tools | tar -x -C /tmp/.agents-tools-extract && \
+  cp -a /tmp/.agents-tools-extract/.agents/ledger-bisect-2026-11-11/tools/. "$TOOLCACHE/"
 export BISECT_TOOLCACHE="$TOOLCACHE"
+
+WORK_ROOT="${LEDGER_BISECT_WORK:-$ROOT/.agents/ledger-bisect-2026-11-11/work}"
 
 protect_agents() {
   while IFS= read -r f; do
@@ -25,9 +27,9 @@ unprotect_agents() {
 
 AGENT_BACKUP="/tmp/ledger-bisect-agents-backup"
 rm -rf "$AGENT_BACKUP"
-if [[ -d "$ROOT/.agents/ledger-bisect-2026-11-11/work" ]]; then
+if [[ -d "$WORK_ROOT" ]]; then
   mkdir -p "$AGENT_BACKUP"
-  cp -a "$ROOT/.agents/ledger-bisect-2026-11-11/work" "$AGENT_BACKUP/"
+  cp -a "$WORK_ROOT" "$AGENT_BACKUP/"
 fi
 unprotect_agents
 git checkout -qf "$COMMIT"
@@ -39,19 +41,34 @@ export BISECT_TOOLCACHE="$TOOLCACHE"
 export MBX_SCHEDULER_CPUS=4 CARGO_BUILD_JOBS=4 OMEGA_CORPUS_JOBS=1
 export CARGO_PROFILE_DEV_OPT_LEVEL=1 CARGO_TARGET_DIR="$TD"
 
-if [[ ! -f /tmp/ledger-bisect-context.json ]]; then
-  MEASURE="$ROOT/.agents/ledger-bisect-2026-11-11/work/pin_measure.txt"
-  if [[ -f "$MEASURE" ]] && grep -q "^${WITNESS} " "$MEASURE"; then
-    python3 "$TOOLCACHE/pin_bisect_context.py" "$WITNESS" "$MEASURE" >/dev/null
-  else
-    python3 "$TOOLCACHE/pin_bisect_context.py" "$WITNESS" >/dev/null
-  fi
+emit_json_fail() {
+  local reason="$1"
+  python3 - "$SHA" "$TRIALS" "$reason" <<'PY'
+import json, sys
+sha, trials, reason = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+print(json.dumps({
+    "commit": sha,
+    "results": [125] * trials,
+    "status_line": "",
+    "first_diag": "",
+    "error": reason,
+}))
+PY
+  exit 0
+}
+
+MEASURE="$WORK_ROOT/pin_measure.txt"
+rm -f /tmp/ledger-bisect-context.json
+if [[ -f "$MEASURE" ]] && grep -q "^${WITNESS} " "$MEASURE"; then
+  python3 "$TOOLCACHE/pin_bisect_context.py" "$WITNESS" "$MEASURE" >/dev/null
+else
+  python3 "$TOOLCACHE/pin_bisect_context.py" "$WITNESS" >/dev/null
 fi
 
-nice -n 19 mbx build -p omega < /dev/null >/dev/null 2>&1 || { echo "build_fail"; exit 125; }
-nice -n 19 mbx test --no-run -p compiler --test corpus_runner < /dev/null >/dev/null 2>&1 || { echo "runner_fail"; exit 125; }
+nice -n 19 mbx build -p omega < /dev/null >/dev/null 2>&1 || emit_json_fail build_fail
+nice -n 19 mbx test --no-run -p compiler --test corpus_runner < /dev/null >/dev/null 2>&1 || emit_json_fail runner_fail
 RUNNER=$(ls -t "$TD"/debug/build/compiler/*/out/corpus_runner-* 2>/dev/null | head -1)
-[[ -x "$RUNNER" ]] || { echo "no_runner"; exit 125; }
+[[ -x "$RUNNER" ]] || emit_json_fail no_runner
 
 results=()
 status_line=""
@@ -72,9 +89,9 @@ for ((t = 1; t <= TRIALS; t++)); do
   fi
 done
 git checkout -qf work/ledger-bisect-part-26
-if [[ -d "$AGENT_BACKUP/work" ]]; then
-  mkdir -p "$ROOT/.agents/ledger-bisect-2026-11-11"
-  cp -a "$AGENT_BACKUP/work" "$ROOT/.agents/ledger-bisect-2026-11-11/"
+if [[ -d "$AGENT_BACKUP" ]]; then
+  mkdir -p "$ROOT/.agents/ledger-bisect-2026-11-11/work"
+  cp -a "$AGENT_BACKUP/." "$ROOT/.agents/ledger-bisect-2026-11-11/work/"
 fi
 if [[ ! -f "$ROOT/.agents/ledger-bisect-2026-11-11/tools/bisect_test.py" ]]; then
   git -C "$ROOT" archive HEAD .agents/ledger-bisect-2026-11-11/tools | tar -x -C "$ROOT"

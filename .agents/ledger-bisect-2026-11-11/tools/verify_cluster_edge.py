@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -10,11 +11,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 DIR = Path(__file__).resolve().parents[1]
+WORK = Path(os.environ.get("LEDGER_BISECT_WORK", DIR / "work"))
 TOOLCACHE = Path("/tmp/ledger-bisect-tools")
 shutil.copytree(DIR / "tools", TOOLCACHE, dirs_exist_ok=True)
 TOOL = TOOLCACHE / "verify_at_commit.sh"
 PIN = "51e8c45c793007f211d0d9baee7de16767172444"
-MEASURE = DIR / "work" / "pin_measure.txt"
+MEASURE = WORK / "pin_measure.txt"
 
 
 def sh(*args: str) -> str:
@@ -22,17 +24,13 @@ def sh(*args: str) -> str:
 
 
 def verify(commit: str, witness: str, trials: int = 1) -> dict:
-    subprocess.run(
-        ["python3", str(TOOLCACHE / "pin_bisect_context.py"), witness, str(MEASURE)],
-        cwd=ROOT,
-        check=True,
-        stdout=subprocess.DEVNULL,
-    )
+    env = {**os.environ, "LEDGER_BISECT_WORK": str(WORK)}
     proc = subprocess.run(
         [str(TOOL), commit, witness, str(trials)],
         text=True,
         cwd=ROOT,
         capture_output=True,
+        env=env,
     )
     if not proc.stdout.strip():
         raise RuntimeError(proc.stderr or f"verify rc={proc.returncode}")
@@ -55,7 +53,7 @@ def hunk_quote(commit: str, cluster: int) -> str:
 
 def main() -> int:
     cluster = int(sys.argv[1])
-    bjson = DIR / f"work/bisect_c{cluster}.json"
+    bjson = WORK / f"bisect_c{cluster}.json"
     data = json.loads(bjson.read_text())
     bad = data["breaking_commit"]
     if not bad:
@@ -64,7 +62,7 @@ def main() -> int:
     parent = sh("git", "rev-parse", f"{bad}^1")
     good = sh("git", "rev-parse", data["good"]) if data.get("good") else ""
     witness = data["witness"]
-    clusters = json.loads((DIR / "work/pin_clusters.json").read_text())
+    clusters = json.loads((WORK / "pin_clusters.json").read_text())
     members = clusters[cluster]["members"]
     pr = ""
     subj = sh("git", "log", "-1", "--format=%s", bad)
@@ -86,7 +84,7 @@ def main() -> int:
             }
         )
     bracket_name = witness.split("/")[-1]
-    bracket_path = DIR / f"work/bracket_{bracket_name}.json"
+    bracket_path = WORK / f"bracket_{bracket_name}.json"
     bracket = {}
     if bracket_path.is_file():
         bracket = json.loads(bracket_path.read_text())
@@ -104,7 +102,7 @@ def main() -> int:
         "mechanism_hunk_excerpt": hunk_quote(bad, cluster),
         "bracket": bracket or None,
     }
-    path = DIR / f"work/verify_c{cluster}.json"
+    path = WORK / f"verify_c{cluster}.json"
     path.write_text(json.dumps(out, indent=2) + "\n")
     print(f"wrote {path}")
     return 0
