@@ -1649,7 +1649,7 @@ pub(crate) mod definitions_and_contracts {
             .map(|path| {
                 parsed
                     .items
-                    .identifier_path_members(path.members)
+                    .identifier_path_members(*path)
                     .iter()
                     .map(|member| member.as_str(&parsed))
                     .collect::<Vec<_>>()
