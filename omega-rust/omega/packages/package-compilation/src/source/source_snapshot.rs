@@ -70,67 +70,10 @@ use std::sync::Arc;
 const CANONICAL_BUILD_SOURCE_CONTENT_DOMAIN: &[u8] = b"OMEGA-CANONICAL-BUILD-SOURCE-CONTENT-V1\0";
 const CANONICAL_BUILD_SOURCE_CONTENT_BYTE_LIMIT: u64 = 512 * 1024 * 1024;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BuildSourceCaptureObligation {
-    Required, // Member must exist under the captured root; absence fails capture.
-    Optional, // Absence is committed cleanly without failing capture.
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BuildSourceCaptureRequest {
-    entries: BTreeMap<Vec<u8>, BuildSourceCaptureObligation>, // Canonical relative paths mapped to their capture obligations.
-}
-
-impl BuildSourceCaptureRequest {
-    pub fn new(
-        entries: impl IntoIterator<Item = (Vec<u8>, BuildSourceCaptureObligation)>,
-    ) -> Result<Self, String> {
-        let mut request = BTreeMap::new();
-        for (relative_path, obligation) in entries {
-            let drive_qualified = relative_path.split(|byte| *byte == b'/').any(|component| {
-                component.first().is_some_and(u8::is_ascii_alphabetic)
-                    && component.get(1) == Some(&b':')
-            });
-            if std::str::from_utf8(&relative_path).is_err()
-                || drive_qualified
-                || !filesystem_authority::canonical_filesystem_metadata_path_is_canonical(
-                    &relative_path,
-                    false,
-                )
-            {
-                return Err(format!(
-                    "source capture entry is not a canonical relative path: {relative_path:?}"
-                ));
-            }
-            if request.insert(relative_path.clone(), obligation).is_some() {
-                return Err(format!(
-                    "source capture entry is declared twice: {relative_path:?}"
-                ));
-            }
-        }
-        for relative_path in request.keys() {
-            for (end, _) in relative_path
-                .iter()
-                .enumerate()
-                .filter(|(_, byte)| **byte == b'/')
-            {
-                if request.contains_key(&relative_path[..end]) {
-                    return Err(format!(
-                        "source capture entry {relative_path:?} nests inside declared entry {:?}",
-                        &relative_path[..end]
-                    ));
-                }
-            }
-        }
-        Ok(Self { entries: request })
-    }
-
-    pub fn entries(&self) -> impl Iterator<Item = (&[u8], BuildSourceCaptureObligation)> {
-        self.entries
-            .iter()
-            .map(|(path, obligation)| (path.as_slice(), *obligation))
-    }
-}
+pub use filesystem_authority::{
+    SourceCaptureObligation as BuildSourceCaptureObligation,
+    SourceCaptureRequest as BuildSourceCaptureRequest,
+};
 
 #[derive(Debug)]
 struct CapturedSourceMetadataRow {
@@ -168,20 +111,27 @@ pub(crate) fn retained_scoped_source_input(
         .map(|(path, entry)| (path.to_vec(), entry))
         .collect::<BTreeMap<_, _>>();
     available.insert(Vec::new(), &root);
-    let selected = select_scoped_members(
+    let selected = filesystem_authority::select_source_members(
         request,
+        CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,
+        FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT,
         |path| Ok(available.get(path).copied()),
         |entry| matches!(entry, CapturedSourceEntry::Directory),
         |path| {
             let mut prefix = path.to_vec();
-            prefix.push(b'/');
+            if !prefix.is_empty() {
+                prefix.push(b'/');
+            }
             Ok(available
                 .range(prefix.clone()..)
                 .take_while(|(child, _)| child.starts_with(&prefix))
-                .filter(|(child, _)| !child[prefix.len()..].contains(&b'/'))
+                .filter(|(child, _)| {
+                    child.len() > prefix.len() && !child[prefix.len()..].contains(&b'/')
+                })
                 .map(|(child, _)| child.clone())
                 .collect())
         },
+        std::convert::identity,
     )?;
     require_source_members(&selected, required_members)?;
     retained_entries_input(
@@ -415,8 +365,10 @@ fn capture_scoped_rows<T>(
         &mut u64,
     ) -> Result<(CapturedSourceMetadataRow, T), String>,
 ) -> Result<(CanonicalFilesystemMetadataIndex, Vec<(Vec<u8>, T)>), String> {
-    let selected = select_scoped_members(
+    let selected = filesystem_authority::select_source_members(
         request,
+        CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,
+        FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT,
         |relative| {
             let path = join_capture_path(&canonical_root, relative)?;
             match std::fs::symlink_metadata(path) {
@@ -452,6 +404,7 @@ fn capture_scoped_rows<T>(
             }
             Ok(child_paths)
         },
+        std::convert::identity,
     )?;
     let mut rows = BTreeMap::new();
     let mut retained = Vec::new();
@@ -469,111 +422,6 @@ fn capture_scoped_rows<T>(
         )?;
     }
     Ok((finish_capture_index(rows)?, retained))
-}
-
-fn select_scoped_members<Member>(
-    request: &BuildSourceCaptureRequest,
-    mut lookup: impl FnMut(&[u8]) -> Result<Option<Member>, String>,
-    is_directory: impl Fn(&Member) -> bool,
-    mut children: impl FnMut(&[u8]) -> Result<Vec<Vec<u8>>, String>,
-) -> Result<BTreeMap<Vec<u8>, Member>, String> {
-    let root = lookup(&[])?
-        .filter(&is_directory)
-        .ok_or_else(|| "canonical Source root is not a directory".to_owned())?;
-    let mut selected = BTreeMap::from([(Vec::new(), root)]);
-    let mut pending = Vec::new();
-    let mut aggregate_path_bytes = 0usize;
-    for (declared, obligation) in request.entries() {
-        let mut reachable = true;
-        for (end, _) in declared
-            .iter()
-            .enumerate()
-            .filter(|(_, byte)| **byte == b'/')
-        {
-            let ancestor = &declared[..end];
-            if let Some(member) = selected.get(ancestor) {
-                if !is_directory(member) {
-                    reachable = false;
-                    break;
-                }
-                continue;
-            }
-            let Some(member) = lookup(ancestor)?.filter(&is_directory) else {
-                reachable = false;
-                break;
-            };
-            charge_scoped_member(
-                &selected,
-                pending.len(),
-                &mut aggregate_path_bytes,
-                ancestor,
-            )?;
-            selected.insert(ancestor.to_vec(), member);
-        }
-        let member = if reachable { lookup(declared)? } else { None };
-        match member {
-            Some(member) => {
-                charge_scoped_member(
-                    &selected,
-                    pending.len(),
-                    &mut aggregate_path_bytes,
-                    declared,
-                )?;
-                pending.push((declared.to_vec(), member));
-            }
-            None if obligation == BuildSourceCaptureObligation::Required => {
-                return Err(format!(
-                    "required source capture entry `{}` is absent",
-                    String::from_utf8_lossy(declared)
-                ));
-            }
-            None => {}
-        }
-    }
-    while let Some((path, member)) = pending.pop() {
-        if is_directory(&member) {
-            for child in children(&path)? {
-                charge_scoped_member(
-                    &selected,
-                    pending.len() + 1,
-                    &mut aggregate_path_bytes,
-                    &child,
-                )?;
-                let member = lookup(&child)?.ok_or_else(|| {
-                    format!(
-                        "source capture member `{}` disappeared during capture",
-                        String::from_utf8_lossy(&child)
-                    )
-                })?;
-                pending.push((child, member));
-            }
-        }
-        if selected.insert(path.clone(), member).is_some() {
-            return Err(format!("Source selection duplicated a path: {path:?}"));
-        }
-    }
-    Ok(selected)
-}
-
-fn charge_scoped_member<Member>(
-    selected: &BTreeMap<Vec<u8>, Member>,
-    pending_count: usize,
-    aggregate_path_bytes: &mut usize,
-    path: &[u8],
-) -> Result<(), String> {
-    if selected
-        .len()
-        .checked_add(pending_count)
-        .is_none_or(|count| count >= CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT)
-    {
-        return Err(format!(
-            "canonical Source metadata exceeds its {CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT}-row ceiling"
-        ));
-    }
-    if !filesystem_authority::canonical_filesystem_metadata_path_is_canonical(path, false) {
-        return Err(format!("Source path is not canonical metadata: {path:?}"));
-    }
-    charge_capture_path_bytes(aggregate_path_bytes, path)
 }
 
 fn admit_capture_row<T>(
