@@ -29,11 +29,13 @@ public boundary trait Console {
     machine write_line(text: &[u8])
     reaches
         Console
-    invokes WindowsConsoleIo;
+    invokes WindowsConsoleIo
+    crashes none;
     machine write(text: &[u8])
     reaches
         Console
-    invokes WindowsConsoleIo;
+    invokes WindowsConsoleIo
+    crashes none;
     // Fill the existing writable extent without resizing it. Preserve every
     // byte, including CR and the terminating LF; callers interpret the prefix.
     // Hosted input may occupy the worker while waiting and traps on a failed
@@ -59,10 +61,12 @@ public boundary trait Console {
     machine write_byte(byte: i32)
     reaches
         Console
-    invokes WindowsConsoleIo;
+    invokes WindowsConsoleIo
+    crashes none;
     machine exit_process(return_code: i32)
     reaches
-        Console;
+        Console
+    crashes none;
 }
 
 // Storage for target-default declarations and the namespace of the exact

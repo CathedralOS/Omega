@@ -561,3 +561,10 @@ own to defend. Say what you saw, not what you would build.
 - Saw: the old checker's deletion left each admission as a function that takes the typed program and the Build activation, ignores both, and either refuses or returns an empty list. Until 2026-11-13 each refused any program whose Build ran at all, so six unrelated refusals stood between every project and its Product; the callers still prepare operands and thread results as if producers existed.
 - Cost: nobody can tell from the code which Build operations work; the unused parameters and the result types (`AdmittedProductDeclarations`, `NativeBindingSelection`) describe a design that has no implementation and will drift from whatever replaces it
 - Reported: 2026-11-13, Claude Code, while taking the witness's finished Build to its Product
+
+### Boundary requirements must write `crashes`, and 390 of the library's 401 do not
+- Category: a verdict with nothing behind it
+- Where: `source/library/{core,std,blocking-executor}` boundary traits; `01_tokens-to-syntax-trees` (refuses a boundary requirement without `reaches`, says nothing about `crashes`); `structure-elaboration/src/read/calls.rs` (`boundary`)
+- Saw: effects.md says a boundary requirement "must likewise write `crashes`" because it has no body to infer from and no selection to defer to. The parser enforces the `reaches` half only, so the library grew 394 requirements with no crash ceiling (core 68, std 316, blocking-executor 10), and the lowered-form checker refuses a call to each one. `Console`'s four were written as `crashes none` on 2026-11-13 because their default provider's public bodies promise that; the rest need the ceiling their providers actually have, which is not a mechanical edit
+- Cost: every program that calls a library service other than `Console`'s write and exit operations is refused as not supported, and nothing tells a library author at the declaration that the clause is missing
+- Reported: 2026-11-13, Claude Code, while taking the Console program through the route probe
