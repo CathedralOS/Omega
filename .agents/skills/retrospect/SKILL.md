@@ -24,10 +24,9 @@ diffs, and check results, and inspect the underlying records behind summaries.
 The repository is evidence too. Read what the period's work left on `main`:
 commits by subject and author, lines and fixtures added, and what later work
 had to fold, revert or delete. A pattern can be invisible inside every
-transcript and plain in the history; in the week to 2026-11-01, 170 of 647
-commits were per-production "preserve/retain/carry" repairs, and about 300,000
-lines of repeated fact rows were added, each from a run that looked
-productive.
+transcript and plain in the history: a run of per-production
+"preserve/retain/carry" repairs or repeated fact rows, each from a run that
+looked productive.
 
 Identify which runs and revisions were examined and any missing history. If only
 one run is available, report its observations as hypotheses and name what

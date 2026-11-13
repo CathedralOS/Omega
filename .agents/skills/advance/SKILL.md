@@ -72,9 +72,9 @@ framing for compiler completion live in [AGENTS.md](../../../AGENTS.md)
 
 ## Step 3: Implement Across the Full Path & Challenge Assumptions
 
-Before editing, apply the [stop rule](../../../AGENTS.md#decision-making-framing-for-compiler-completion):
-if the fix would add another carrier, case or per-place branch for a mechanism
-that already has one, stop and write the cluster report instead.
+Before editing, apply rule 6 of the [decision-making framing](../../../AGENTS.md#decision-making-framing-for-compiler-completion):
+if the fix wants another carrier, case or per-place branch for a mechanism
+that already has one, widen that mechanism and make the general fix in this PR.
 
 1. **Generalize the mechanism end to end:** Apply
    [compositional lowering](../../../omega-rust/pipeline.md#compositional-lowering)
