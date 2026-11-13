@@ -45,7 +45,6 @@ impl TypedTrees {
 
 struct ApplicationPreparation<'source> {
     source: &'source mut TypedTrees,
-    closed: Vec<Option<bool>>,
     active_references: Vec<TypeReferenceHandle>,
     active_declarations: Vec<SymbolHandle>,
 }
@@ -53,7 +52,6 @@ struct ApplicationPreparation<'source> {
 impl<'source> ApplicationPreparation<'source> {
     fn new(source: &'source mut TypedTrees) -> Self {
         Self {
-            closed: vec![None; source.type_reference_table.type_reference_count()],
             source,
             active_references: Vec::new(),
             active_declarations: Vec::new(),
@@ -68,23 +66,12 @@ impl<'source> ApplicationPreparation<'source> {
         {
             return Err("data application refers to a missing type reference".into());
         }
-        let position = reference.arena_index() as usize;
-        self.closed.resize(
-            self.source.type_reference_table.type_reference_count(),
-            None,
-        );
-        if let Some(closed) = self.closed[position] {
-            return Ok(closed);
-        }
         if self.active_references.contains(&reference) {
             return Err("data application has a cyclic type-reference graph".into());
         }
         self.active_references.push(reference);
         let result = self.form(reference);
         self.active_references.pop();
-        if let Ok(closed) = result {
-            self.closed[position] = Some(closed);
-        }
         result
     }
 
@@ -184,10 +171,27 @@ impl<'source> ApplicationPreparation<'source> {
                     "data application has a foreign or duplicated declaration binder".into(),
                 );
             }
-            if !self.reference(argument)? {
-                return Ok(false);
+            if !self
+                .source
+                .type_reference_table
+                .contains_type_reference(argument)
+            {
+                return Err("data application refers to a missing type reference".into());
             }
             substitutions.push((parameter.symbol, argument));
+        }
+        // Normalized source references remain immutable while this owner
+        // appends their views. Reuse that exact association, not a second
+        // whole-program scratch table for each receiving occurrence.
+        if let Some(retained) = self.source.data_application_definition(reference) {
+            if retained.symbol != owner || retained.generic_instance != Some(reference) {
+                return Err("data application view belongs to another source occurrence".into());
+            }
+            return Ok(self.source.data_application_is_closed(reference));
+        }
+        let mut closed = true;
+        for (_, argument) in &substitutions {
+            closed &= self.reference(*argument)?;
         }
         let mut definition = template.clone();
         definition.type_parameters = HandleSpan::empty();
@@ -226,22 +230,25 @@ impl<'source> ApplicationPreparation<'source> {
         definition.members = self.source.tables.data_members.insert_many(members);
         // Keep the authored member symbols, requirements, storage properties
         // and source origins. Only the type telescope is applied here.
+        closed &= children
+            .iter()
+            .all(|child| crate::domain::index_argument_is_closed(self.source, *child));
         self.source
-            .retain_data_application_definition(reference, definition, true);
+            .retain_data_application_definition(reference, definition, closed);
         if self.active_declarations.contains(&owner) {
             // Repeated declarations through their member definitions may
             // describe recursive storage. Retain this exact shallow view;
             // do not expand an unbounded family or grant it a finite layout.
             // Actual type arguments were prepared before entering the owner,
             // so finite nested applications still retain all their views.
-            return Ok(true);
+            return Ok(closed);
         }
         self.active_declarations.push(owner);
         let prepared = (|| {
             for child in children {
                 self.reference(child)?;
             }
-            Ok(true)
+            Ok(closed)
         })();
         self.active_declarations.pop();
         prepared

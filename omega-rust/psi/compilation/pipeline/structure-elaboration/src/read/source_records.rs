@@ -637,21 +637,22 @@ mod tests {
             };
             let mut builder = SymbolTableBuilder::with_sources(Some(Arc::new(sources)));
             let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
-            let builtins = SymbolTableBuilder::child_handles(builder.insert_children(
-                root,
-                BuiltinTypeAtom::ALL.iter().map(|atom| {
-                    (
-                        SymbolKind::BuiltinType,
-                        SymbolNameRef::Static(atom.symbol_name()),
-                    )
-                }),
-            ))
-            .collect::<Vec<_>>();
-            let owner = SymbolTableBuilder::child_handles(
-                builder.insert_children(root, [(SymbolKind::Data, token("Container"))]),
+            let mut builtins = SymbolTableBuilder::child_handles(
+                builder.insert_children(
+                    root,
+                    BuiltinTypeAtom::ALL
+                        .iter()
+                        .map(|atom| {
+                            (
+                                SymbolKind::BuiltinType,
+                                SymbolNameRef::Static(atom.symbol_name()),
+                            )
+                        })
+                        .chain([(SymbolKind::Data, token("Container"))]),
+                ),
             )
-            .next()
-            .unwrap();
+            .collect::<Vec<_>>();
+            let owner = builtins.pop().unwrap();
             let children = SymbolTableBuilder::child_handles(builder.insert_children(
                 owner,
                 [
@@ -885,12 +886,8 @@ mod tests {
         // An ambient interpretation of T cannot close the source tuple.
         program.scope.push((
             fixture.parameter,
-            ValueType::Scalar(semantic_vocabulary::ScalarType::Integer(
-                semantic_vocabulary::IntegerType::new(
-                    semantic_vocabulary::IntegerSign::Unsigned,
-                    64,
-                )
-                .unwrap(),
+            ValueType::Scalar(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
             )),
         ));
         let refusal = program.record_at(machine(), open).unwrap_err();
