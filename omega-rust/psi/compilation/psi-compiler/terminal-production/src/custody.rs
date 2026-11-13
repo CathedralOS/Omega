@@ -20,6 +20,31 @@ use terminal_codec::entry_receipt::rejoin_program_entry_receipt;
 use terminal_codec::{CanonicalTerminalArtifact, CanonicalTerminalArtifactError};
 use terminal_psi::CheckedProgramEntryTerminalReceipt;
 
+// Companion coordinates now include the emitting machine and block. Old
+// records must be rebuilt, never interpreted under the wider lookup key.
+const PRODUCTION_COMPANION_FORMAT: u32 = 2;
+
+fn require_saved_build_correspondence(
+    bindings: &[crate::TerminalBuildBindingCall],
+    declarations: &[Arc<ProductDeclarationRequest>],
+    queries: &[crate::TerminalBuildQueryCall],
+    native_formations: &[NativeBindingFormation],
+    requests: &[crate::TerminalBuildRequestCall],
+    filesystem: &[TerminalBuildFilesystemCall],
+) -> Result<(), &'static str> {
+    if bindings.is_empty()
+        && declarations.is_empty()
+        && queries.is_empty()
+        && native_formations.is_empty()
+        && requests.is_empty()
+        && filesystem.is_empty()
+    {
+        Ok(())
+    } else {
+        Err("saved Build companions require their accepted source protocol correspondence")
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
 pub struct ProducedTerminalApplication {
     pub receipt: Result<Option<CheckedProgramEntryTerminalReceipt>, Vec<Diagnostic>>,
@@ -42,24 +67,39 @@ pub struct ProducedTerminalProgram {
 impl compiler_storage::Record for ProducedTerminalProgram {
     fn write(&self, output: &mut RecordWriter) -> Result<(), compiler_storage::RecordError> {
         output.record(|output| {
-            self.artifact()
-                .map_err(|error| output.error(error.to_string()))?
-                .to_bytes()
-                .write(output)?;
             let view = self.view();
             macro_rules! companion {
                 ($value:expr) => {
                     $value
                         .ok_or_else(|| output.error("Terminal companion lost its artifact owner"))?
-                        .write(output)?
                 };
             }
-            companion!(self.build_bindings.calls_for(view));
-            companion!(self.build_bindings.declarations_for(view));
-            companion!(self.build_bindings.queries_for(view));
-            companion!(self.build_bindings.native_formations_for(view));
-            companion!(self.build_requests.calls_for(view));
-            companion!(self.build_filesystem.calls_for(view));
+            let calls = companion!(self.build_bindings.calls_for(view));
+            let declarations = companion!(self.build_bindings.declarations_for(view));
+            let queries = companion!(self.build_bindings.queries_for(view));
+            let native_formations = companion!(self.build_bindings.native_formations_for(view));
+            let requests = companion!(self.build_requests.calls_for(view));
+            let filesystem = companion!(self.build_filesystem.calls_for(view));
+            require_saved_build_correspondence(
+                calls,
+                declarations,
+                queries,
+                native_formations,
+                requests,
+                filesystem,
+            )
+            .map_err(|reason| output.error(reason))?;
+            PRODUCTION_COMPANION_FORMAT.write(output)?;
+            self.artifact()
+                .map_err(|error| output.error(error.to_string()))?
+                .to_bytes()
+                .write(output)?;
+            calls.write(output)?;
+            declarations.write(output)?;
+            queries.write(output)?;
+            native_formations.write(output)?;
+            requests.write(output)?;
+            filesystem.write(output)?;
             self.applications.write(output)?;
             self.provenance.write(output)?;
             self.source_records.write(output)
@@ -71,6 +111,9 @@ impl compiler_storage::Record for ProducedTerminalProgram {
     ) -> Result<Self, compiler_storage::RecordError> {
         use compiler_storage::Record;
         input.record(|input| {
+            if u32::read(input)? != PRODUCTION_COMPANION_FORMAT {
+                return Err(input.error("unsupported Terminal production companion format"));
+            }
             let bytes = Vec::<u8>::read(input)?;
             let artifact = CanonicalTerminalArtifact::from_bytes(&bytes)
                 .map_err(|error| input.error(error.to_string()))?;
@@ -80,6 +123,20 @@ impl compiler_storage::Record for ProducedTerminalProgram {
             let native_formations: Arc<[NativeBindingFormation]> = Record::read(input)?;
             let requests: Arc<[crate::TerminalBuildRequestCall]> = Record::read(input)?;
             let filesystem: Arc<[TerminalBuildFilesystemCall]> = Record::read(input)?;
+            // Code identity authenticates the emitted call, not the independently
+            // decoded protocol action or Product operands. Only accepted source
+            // currently establishes that correspondence. Portable Product code
+            // with no Build companions remains loadable; nonempty Build records
+            // need that source-issued provenance rejoined before host admission.
+            require_saved_build_correspondence(
+                &calls,
+                &declarations,
+                &queries,
+                &native_formations,
+                &requests,
+                &filesystem,
+            )
+            .map_err(|reason| input.error(reason))?;
             let applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>> =
                 Record::read(input)?;
             let provenance = Record::read(input)?;
@@ -100,6 +157,14 @@ impl compiler_storage::Record for ProducedTerminalProgram {
                 }
             }
             let view = artifact.view().into();
+            crate::build_bindings::validate_companions(
+                view,
+                &calls,
+                &queries,
+                &requests,
+                &filesystem,
+            )
+            .map_err(|reason| input.error(reason))?;
             let build_bindings =
                 TerminalBuildBindings::new(view, calls, declarations, queries, native_formations);
             let build_requests = TerminalBuildRequests::new(view, requests);

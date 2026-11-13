@@ -151,7 +151,7 @@ pub(super) fn call_operands<'effect, E>(
     refuse: impl FnOnce() -> E,
 ) -> Result<CallOperands<'effect>, E> {
     let TerminalEffect::BoundaryCall {
-        boundary,
+        site: terminal_interpreter::TerminalEffectWait { boundary, .. },
         arguments,
         structural_arguments,
         byte_sequence_arguments,
