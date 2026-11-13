@@ -1821,7 +1821,7 @@ pub(crate) mod reflection {
             subject: TypeReferenceHandle,
             context: TypeReferenceHandle,
             subject_data: &DataDefinition,
-            graph: &validation::reflection::SemanticSchemaGraph,
+            graph: &typed_trees::reflection::SemanticSchemaGraph,
             field_info: &DataDefinition,
             info_type: TypeReferenceHandle,
             owner_identity: &str,
@@ -2067,7 +2067,7 @@ pub(crate) mod reflection {
                         .payload_fields
                         .iter()
                         .find_map(|handle| {
-                            let validation::reflection::SchemaNode::Field(field) =
+                            let typed_trees::reflection::SchemaNode::Field(field) =
                                 graph.node(*handle)
                             else {
                                 return None;
@@ -2411,11 +2411,11 @@ pub(crate) mod reflection {
                 .symbols
                 .same_symbol_source_package(author, subject.symbol)
             {
-                validation::reflection::SchemaQueryAuthority::OwningScope { requester_identity }
+                typed_trees::reflection::SchemaQueryAuthority::OwningScope { requester_identity }
             } else {
-                validation::reflection::SchemaQueryAuthority::ForeignScope { requester_identity }
+                typed_trees::reflection::SchemaQueryAuthority::ForeignScope { requester_identity }
             };
-            let graph = validation::reflection::construct_semantic_schema_graph(
+            let graph = typed_trees::reflection::construct_semantic_schema_graph(
                 program,
                 subject.symbol,
                 authority,
@@ -2677,11 +2677,11 @@ pub(crate) mod reflection {
                 .symbols
                 .same_symbol_source_package(selection.lexical_owner, subject_data.symbol)
             {
-                validation::reflection::SchemaQueryAuthority::OwningScope { requester_identity }
+                typed_trees::reflection::SchemaQueryAuthority::OwningScope { requester_identity }
             } else {
-                validation::reflection::SchemaQueryAuthority::ForeignScope { requester_identity }
+                typed_trees::reflection::SchemaQueryAuthority::ForeignScope { requester_identity }
             };
-            let graph = validation::reflection::construct_semantic_schema_graph(
+            let graph = typed_trees::reflection::construct_semantic_schema_graph(
                 program,
                 subject_data.symbol,
                 authority,
@@ -2990,7 +2990,7 @@ pub(crate) mod reflection {
         fields: Vec<(
             usize,
             DataField,
-            validation::reflection::FieldDescription,
+            typed_trees::reflection::FieldDescription,
             Option<Identifier>,
             &str,
         )>,

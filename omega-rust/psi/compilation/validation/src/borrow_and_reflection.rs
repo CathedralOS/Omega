@@ -3734,517 +3734,32 @@ pub mod borrow_contracts {
 }
 
 pub mod reflection {
-    pub(crate) mod fingerprint {
-        pub(crate) const OFFSET_BASIS: u64 = semantic_vocabulary::Fnv1a::OFFSET_BASIS;
-
-        pub(crate) fn byte(hash: &mut u64, value: u8) {
-            *hash ^= u64::from(value);
-            *hash = hash.wrapping_mul(semantic_vocabulary::Fnv1a::PRIME);
-        }
-        pub(crate) fn bytes(hash: &mut u64, value: &[u8]) {
-            for value in value {
-                byte(hash, *value);
-            }
-        }
-        pub(crate) fn uint(hash: &mut u64, value: u64) {
-            bytes(hash, &value.to_le_bytes());
-        }
-        pub(crate) fn text(hash: &mut u64, value: &str) {
-            uint(hash, value.len() as u64);
-            bytes(hash, value.as_bytes());
-        }
-        pub(crate) fn optional_text(hash: &mut u64, value: &Option<String>) {
-            match value {
-                Some(value) => {
-                    byte(hash, 1);
-                    text(hash, value);
-                }
-                None => byte(hash, 0),
-            }
-        }
-        pub(crate) fn optional_uint(hash: &mut u64, value: Option<u64>) {
-            match value {
-                Some(value) => {
-                    byte(hash, 1);
-                    uint(hash, value);
-                }
-                None => byte(hash, 0),
-            }
-        }
-
-        pub(crate) fn query_authority(hash: &mut u64, authority: &super::SchemaQueryAuthority) {
-            match authority {
-                super::SchemaQueryAuthority::OwningScope { requester_identity } => {
-                    byte(hash, 0);
-                    text(hash, requester_identity);
-                }
-                super::SchemaQueryAuthority::ForeignScope { requester_identity } => {
-                    byte(hash, 1);
-                    text(hash, requester_identity);
-                }
-            }
-        }
-    }
     pub(crate) mod schema_graph {
-        pub(crate) mod graph_construction {
-            use crate::reflection::schema_graph::graph_replay::graph_revision;
-            use crate::reflection::schema_graph::{
-                CaseDescription, DeclarationDescription, FieldDescription,
-                NominalReferenceDescription, SchemaNode, SchemaNodeHandle, SchemaQueryAuthority,
-                SchemaShape, SemanticSchemaGraph, TypeParameterDescription,
-            };
-            use symbols::{SymbolHandle, SymbolKind};
-            use typed_trees::TypedTrees;
-            use typed_trees::data::{
-                DataDefinition, DataField, DataMember, DataShapeKind, TypeParameter,
-                TypeParameterKind,
-            };
-            use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
-
-            pub(crate) fn exact_symbol_identity(
-                typed: &TypedTrees,
-                symbol: SymbolHandle,
-            ) -> Result<(String, bool), String> {
-                if !symbol.is_valid() {
-                    return Err("a schema identity requires a resolved declaration".to_owned());
-                }
-                if let Ok(identity) = typed.normalized_hermetic_symbol_identity(symbol) {
-                    return Ok((identity, true));
-                }
-                let path = typed.symbols.display_path(symbol, "::");
-                if path.is_empty() {
-                    return Err("a schema identity requires a named declaration".to_owned());
-                }
-                Ok((path, false))
-            }
-
-            #[derive(Debug, Clone, PartialEq)]
-            pub(crate) struct NominalExpectation {
-                pub(crate) owner_identity: String,
-                pub(crate) owner_kind: String,
-                pub(crate) name: String,
-                pub(crate) application_identity: String,
-                pub(crate) is_self_edge: bool,
-            }
-
-            fn nominal_expectations(
-                typed: &TypedTrees,
-                type_reference: TypeReferenceHandle,
-                root_owner_identity: &str,
-                root_application_identity: Option<&str>,
-            ) -> Result<Vec<NominalExpectation>, String> {
-                let mut found = Vec::new();
-                collect_nominal_expectations(
-                    typed,
-                    type_reference,
-                    root_owner_identity,
-                    root_application_identity,
-                    &mut found,
-                )?;
-                Ok(found)
-            }
-
-            fn collect_nominal_expectations(
-                typed: &TypedTrees,
-                type_reference: TypeReferenceHandle,
-                root_owner_identity: &str,
-                root_application_identity: Option<&str>,
-                found: &mut Vec<NominalExpectation>,
-            ) -> Result<(), String> {
-                let mut intern = |symbol: SymbolHandle,
-                                  name: &str,
-                                  application: TypeReferenceHandle,
-                                  bare_named: bool|
-                 -> Result<(), String> {
-                    let (owner_identity, _) =
-                        exact_symbol_identity(typed, symbol).map_err(|message| {
-                            format!(
-                                "{message}: nominal reference `{name}` in `{}`",
-                                typed.package_qualified_type_identity_text(application)
-                            )
-                        })?;
-                    let application_identity =
-                        typed.package_qualified_type_identity_text(application);
-                    let is_self_edge = owner_identity == root_owner_identity
-                        && match root_application_identity {
-                            Some(root_application) => application_identity == root_application,
-                            None => bare_named,
-                        };
-                    found.push(NominalExpectation {
-                        owner_identity,
-                        owner_kind: format!("{:?}", typed.symbols.get(symbol).kind),
-                        name: name.to_owned(),
-                        application_identity,
-                        is_self_edge,
-                    });
-                    Ok(())
-                };
-
-                match typed.type_reference_table.type_reference(type_reference) {
-                    TypeReferenceNode::Named { symbol, name } => {
-                        intern(*symbol, name.as_str(), type_reference, true)?;
-                    }
-                    TypeReferenceNode::Generic {
-                        base_symbol,
-                        base_name,
-                        arguments,
-                        ..
-                    } => {
-                        intern(*base_symbol, base_name.as_str(), type_reference, false)?;
-                        let parameters = typed.declaration_type_parameters(*base_symbol);
-                        for (index, argument) in typed
-                            .type_reference_table
-                            .type_reference_handles(*arguments)
-                            .iter()
-                            .enumerate()
-                        {
-                            if parameters
-                                .get(index)
-                                .is_some_and(|parameter| parameter.kind.is_const_or_value())
-                            {
-                                continue;
-                            }
-                            collect_nominal_expectations(
-                                typed,
-                                *argument,
-                                root_owner_identity,
-                                root_application_identity,
-                                found,
-                            )?;
-                        }
-                    }
-                    TypeReferenceNode::DynamicTrait { symbol, name, .. } => {
-                        intern(*symbol, name.as_str(), type_reference, false)?;
-                    }
-                    TypeReferenceNode::Constrained { base_type, .. } => {
-                        collect_nominal_expectations(
-                            typed,
-                            *base_type,
-                            root_owner_identity,
-                            root_application_identity,
-                            found,
-                        )?;
-                    }
-                    TypeReferenceNode::Reference { referee, .. } => {
-                        collect_nominal_expectations(
-                            typed,
-                            *referee,
-                            root_owner_identity,
-                            root_application_identity,
-                            found,
-                        )?;
-                    }
-                    TypeReferenceNode::FixedArray { element_type, .. }
-                    | TypeReferenceNode::Slice { element_type } => {
-                        collect_nominal_expectations(
-                            typed,
-                            *element_type,
-                            root_owner_identity,
-                            root_application_identity,
-                            found,
-                        )?;
-                    }
-                    TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => {}
-                }
-                Ok(())
-            }
-
-            pub(crate) fn describe_field(
-                typed: &TypedTrees,
-                field: &DataField,
-                owner_identity: &str,
-                declaration_position: u32,
-                owner_case: SchemaNodeHandle,
-                root_application_identity: Option<&str>,
-            ) -> Result<(FieldDescription, Vec<NominalExpectation>), String> {
-                let member_identity = if field.symbol.is_valid() {
-                    exact_symbol_identity(typed, field.symbol)?.0
-                } else {
-                    format!("{owner_identity}::{}", field.name.as_str())
-                };
-                let expectations = nominal_expectations(
-                    typed,
-                    field.type_reference,
-                    owner_identity,
-                    root_application_identity,
-                )?;
-                Ok((
-                    FieldDescription {
-                        member_identity,
-                        name: field.name.as_str().to_owned(),
-                        declaration_position,
-                        stable_number: field.identity,
-                        erased: field.relevance.is_erased(),
-                        qualified_type: typed
-                            .package_qualified_type_identity_text(field.type_reference),
-                        nominal_references: Vec::new(),
-                        owner_case,
-                    },
-                    expectations,
-                ))
-            }
-
-            pub(crate) fn describe_type_parameter(
-                typed: &TypedTrees,
-                parameter: &TypeParameter,
-            ) -> TypeParameterDescription {
-                let (kind, type_reference) = match &parameter.kind {
-                    TypeParameterKind::Type => ("type", None),
-                    TypeParameterKind::Const { type_reference } => ("const", Some(*type_reference)),
-                    TypeParameterKind::Value { type_reference } => ("value", Some(*type_reference)),
-                    TypeParameterKind::Machine { .. } => ("machine", None),
-                    TypeParameterKind::Implementation => ("implementation", None),
-                    TypeParameterKind::Proposition { .. } => ("proposition", None),
-                };
-                TypeParameterDescription {
-                    name: parameter.name.as_str().to_owned(),
-                    kind,
-                    type_identity: type_reference
-                        .map(|reference| typed.package_qualified_type_identity_text(reference)),
-                    bounds: format!("{:?}", parameter.bounds),
-                }
-            }
-
-            pub(crate) fn resolve_subject<'program>(
-                typed: &'program TypedTrees,
-                owner_identity: &str,
-            ) -> Result<&'program DataDefinition, String> {
-                let mut matches = typed.data_definitions().iter().filter(|data| {
-                    exact_symbol_identity(typed, data.symbol)
-                        .is_ok_and(|(identity, _)| identity == owner_identity)
-                });
-                let Some(data) = matches.next() else {
-                    return Err(format!(
-                        "schema owner `{owner_identity}` does not resolve to a data declaration in this program"
-                    ));
-                };
-                if matches.next().is_some() {
-                    return Err(format!(
-                        "schema owner `{owner_identity}` resolves to more than one data declaration"
-                    ));
-                }
-                Ok(data)
-            }
-
-            pub fn construct_semantic_schema_graph(
-                typed: &TypedTrees,
-                subject: SymbolHandle,
-                authority: SchemaQueryAuthority,
-            ) -> Result<SemanticSchemaGraph, String> {
-                if !subject.is_valid() || typed.symbols.get(subject).kind != SymbolKind::Data {
-                    return Err(
-            "a semantic schema query selects an exact data declaration, not another symbol kind"
-                .to_owned(),
-        );
-                }
-                let data = typed.data_definition_by_symbol(subject).ok_or_else(|| {
-                    format!(
-                        "schema subject `{}` has no retained data definition",
-                        typed.symbols.display_path(subject, "::")
-                    )
-                })?;
-                if data.quotient.is_some() {
-                    return Err(format!(
-                        "schema reflection cannot observe quotient `{}`: a quotient does not expose its representative outside its checked quotient contract",
-                        data.name.as_str()
-                    ));
-                }
-                let (owner_identity, identity_is_hermetic) = exact_symbol_identity(typed, subject)?;
-                if let SchemaQueryAuthority::ForeignScope { .. } = &authority {
-                    let visible = typed_trees::visibility::declaration_visibility(typed, subject)
-                        .is_some_and(|visibility| visibility.is_public());
-                    if !visible {
-                        return Err(format!(
-                            "schema subject `{}` is not public to a foreign package; a query may not hide inaccessible members while claiming complete coverage",
-                            data.name.as_str()
-                        ));
-                    }
-                }
-                let application_identity = data
-                    .generic_instance
-                    .map(|instance| typed.package_qualified_type_identity_text(instance));
-
-                let mut nodes = vec![SchemaNode::Invalid, SchemaNode::Invalid];
-                let root = SchemaNodeHandle(1);
-                let mut interned: Vec<(String, String, SchemaNodeHandle)> = Vec::new();
-                let mut member_handles = Vec::new();
-                for (position, member) in typed.data_members(data).iter().enumerate() {
-                    match member {
-                        DataMember::Field(field) => {
-                            let handle = push_field_node(
-                                typed,
-                                field,
-                                &owner_identity,
-                                position as u32,
-                                SchemaNodeHandle::INVALID,
-                                application_identity.as_deref(),
-                                root,
-                                &mut interned,
-                                &mut nodes,
-                            )?;
-                            member_handles.push(handle);
-                        }
-                        DataMember::Variant(variant) => {
-                            let case_handle = nodes.len() as u32;
-                            nodes.push(SchemaNode::Invalid);
-                            let case_handle = SchemaNodeHandle(case_handle);
-                            let mut payload_handles = Vec::new();
-                            for (payload_position, payload_field) in
-                                typed.data_payload_fields(variant).iter().enumerate()
-                            {
-                                payload_handles.push(push_field_node(
-                                    typed,
-                                    payload_field,
-                                    &owner_identity,
-                                    payload_position as u32,
-                                    case_handle,
-                                    application_identity.as_deref(),
-                                    root,
-                                    &mut interned,
-                                    &mut nodes,
-                                )?);
-                            }
-                            let (member_identity, _) = exact_symbol_identity(typed, variant.symbol)
-                                .unwrap_or_else(|_| {
-                                    (
-                                        format!("{owner_identity}::{}", variant.name.as_str()),
-                                        false,
-                                    )
-                                });
-                            nodes[case_handle.index()] = SchemaNode::Case(CaseDescription {
-                                member_identity,
-                                name: variant.name.as_str().to_owned(),
-                                declaration_position: position as u32,
-                                stable_number: variant.identity,
-                                payload_fields: payload_handles,
-                                retired_payload_identities: sorted(
-                                    variant.retired_payload_identities.clone(),
-                                ),
-                            });
-                            member_handles.push(case_handle);
-                        }
-                    }
-                }
-
-                nodes[root.index()] = SchemaNode::Declaration(DeclarationDescription {
-                    owner_identity,
-                    identity_is_hermetic,
-                    name: data.name.as_str().to_owned(),
-                    shape: match DataDefinition::shape_kind_from_members(typed.data_members(data)) {
-                        DataShapeKind::Empty => SchemaShape::Empty,
-                        DataShapeKind::Record => SchemaShape::Record,
-                        DataShapeKind::Enum => SchemaShape::Sum,
-                        DataShapeKind::Mixed => SchemaShape::Mixed,
-                    },
-                    supply: format!("{:?}", data.supply_mode),
-                    multiplicity: format!("{:?}", data.properties.multiplicity),
-                    carry: data.properties.carry.map(|carry| format!("{carry:?}")),
-                    type_parameters: typed
-                        .data_type_parameters(data)
-                        .iter()
-                        .map(|parameter| describe_type_parameter(typed, parameter))
-                        .collect(),
-                    lifetime_parameters: data
-                        .lifetime_parameters
-                        .iter()
-                        .map(|name| name.as_str().to_owned())
-                        .collect(),
-                    application_identity,
-                    members: member_handles,
-                    retired_identities: sorted(data.retired_identities.clone()),
-                });
-                let revision = graph_revision(&authority, &nodes);
-                Ok(SemanticSchemaGraph {
-                    nodes,
-                    root,
-                    authority,
-                    revision,
-                })
-            }
-
-            #[allow(clippy::too_many_arguments)]
-            fn push_field_node(
-                typed: &TypedTrees,
-                field: &DataField,
-                owner_identity: &str,
-                declaration_position: u32,
-                owner_case: SchemaNodeHandle,
-                root_application_identity: Option<&str>,
-                root: SchemaNodeHandle,
-                interned: &mut Vec<(String, String, SchemaNodeHandle)>,
-                nodes: &mut Vec<SchemaNode>,
-            ) -> Result<SchemaNodeHandle, String> {
-                let (mut description, expectations) = describe_field(
-                    typed,
-                    field,
-                    owner_identity,
-                    declaration_position,
-                    owner_case,
-                    root_application_identity,
-                )?;
-                description.nominal_references = expectations
-                    .iter()
-                    .map(|expectation| {
-                        if expectation.is_self_edge {
-                            return Ok(root);
-                        }
-                        if let Some((_, _, handle)) =
-                            interned.iter().find(|(owner, application, _)| {
-                                owner == &expectation.owner_identity
-                                    && application == &expectation.application_identity
-                            })
-                        {
-                            return Ok(*handle);
-                        }
-                        let handle = SchemaNodeHandle(nodes.len() as u32);
-                        nodes.push(SchemaNode::NominalReference(NominalReferenceDescription {
-                            owner_identity: expectation.owner_identity.clone(),
-                            owner_kind: expectation.owner_kind.clone(),
-                            name: expectation.name.clone(),
-                            application_identity: expectation.application_identity.clone(),
-                        }));
-                        interned.push((
-                            expectation.owner_identity.clone(),
-                            expectation.application_identity.clone(),
-                            handle,
-                        ));
-                        Ok(handle)
-                    })
-                    .collect::<Result<_, String>>()?;
-                let handle = SchemaNodeHandle(nodes.len() as u32);
-                nodes.push(SchemaNode::Field(description));
-                Ok(handle)
-            }
-
-            pub(crate) fn sorted(mut identities: Vec<u64>) -> Vec<u64> {
-                identities.sort_unstable();
-                identities
-            }
-        }
         pub(crate) mod graph_replay {
             use crate::reflection::extend_unique;
-            use crate::reflection::schema_graph::graph_construction::{
-                NominalExpectation, describe_field, describe_type_parameter, exact_symbol_identity,
-                resolve_subject, sorted,
-            };
-            use crate::reflection::schema_graph::{
-                CaseDescription, DeclarationDescription, FieldDescription, SchemaNode,
-                SchemaNodeHandle, SchemaQueryAuthority, SchemaShape, SemanticSchemaGraph,
-            };
             use symbols::SymbolHandle;
             use typed_trees::TypedTrees;
             use typed_trees::data::{DataDefinition, DataField, DataMember, DataShapeKind};
+            use typed_trees::reflection::construction::{
+                NominalExpectation, describe_field, describe_type_parameter, exact_symbol_identity,
+                resolve_subject, sorted,
+            };
+            use typed_trees::reflection::graph_revision;
+            use typed_trees::reflection::{
+                CaseDescription, DeclarationDescription, FieldDescription, SchemaNode,
+                SchemaNodeHandle, SchemaQueryAuthority, SchemaShape, SemanticSchemaGraph,
+            };
 
             pub fn replay_semantic_schema_graph(
                 typed: &TypedTrees,
                 graph: &SemanticSchemaGraph,
             ) -> Result<(), String> {
-                let SchemaNode::Declaration(root) = graph.node(graph.root) else {
+                let SchemaNode::Declaration(root) = graph.node(graph.root()) else {
                     return Err("schema graph root is not a declaration node".to_owned());
                 };
                 let data = resolve_subject(typed, &root.owner_identity)?;
 
-                check_authority_claim(typed, data, &graph.authority, "schema", &root.name)?;
+                check_authority_claim(typed, data, graph.authority(), "schema", &root.name)?;
                 check_subject_application(
                     typed,
                     data,
@@ -4448,8 +3963,8 @@ pub mod reflection {
                     }
                 }
 
-                let mut reachable = vec![false; graph.nodes.len()];
-                reachable[graph.root.index()] = true;
+                let mut reachable = vec![false; graph.nodes().len()];
+                reachable[graph.root().index()] = true;
                 for handle in &root.members {
                     reachable[handle.index()] = true;
                     if let SchemaNode::Case(case) = graph.node(*handle) {
@@ -4458,11 +3973,11 @@ pub mod reflection {
                         }
                     }
                 }
-                let mut referenced_nominals = vec![false; graph.nodes.len()];
-                for node in graph.nodes.iter() {
+                let mut referenced_nominals = vec![false; graph.nodes().len()];
+                for node in graph.nodes().iter() {
                     if let SchemaNode::Field(field) = node {
                         for reference in &field.nominal_references {
-                            if !reference.is_valid() || reference.index() >= graph.nodes.len() {
+                            if !reference.is_valid() || reference.index() >= graph.nodes().len() {
                                 return Err(format!(
                                     "schema `{}` field `{}` references a node outside the owned graph",
                                     root.name, field.name
@@ -4472,7 +3987,7 @@ pub mod reflection {
                         }
                     }
                 }
-                for (index, _) in graph.nodes.iter().enumerate() {
+                for (index, _) in graph.nodes().iter().enumerate() {
                     if index > 1 && !reachable[index] && !referenced_nominals[index] {
                         return Err(format!(
                             "schema `{}` contains an orphan member node `{index}` reachable through no member list",
@@ -4481,7 +3996,7 @@ pub mod reflection {
                     }
                 }
                 let mut stored_nominals: Vec<(String, String)> = Vec::new();
-                for (index, node) in graph.nodes.iter().enumerate() {
+                for (index, node) in graph.nodes().iter().enumerate() {
                     let SchemaNode::NominalReference(reference) = node else {
                         continue;
                     };
@@ -4512,7 +4027,7 @@ pub mod reflection {
                     ));
                 }
 
-                if graph.revision != graph_revision(&graph.authority, &graph.nodes) {
+                if graph.revision() != graph_revision(graph.authority(), graph.nodes()) {
                     return Err(format!(
                         "schema `{}` report fingerprint does not match its frozen contents",
                         root.name
@@ -4641,7 +4156,7 @@ pub mod reflection {
                     stored.nominal_references.iter().zip(expectations.iter())
                 {
                     if expectation.is_self_edge {
-                        if *handle != graph.root {
+                        if *handle != graph.root() {
                             return Err(format!(
                                 "schema `{}` field `{}` self-references the selected application through a non-root handle",
                                 root.name, stored.name
@@ -4696,430 +4211,12 @@ pub mod reflection {
                 }
                 Ok(found)
             }
-
-            pub(crate) fn graph_revision(
-                authority: &SchemaQueryAuthority,
-                nodes: &[SchemaNode],
-            ) -> u64 {
-                use crate::reflection::fingerprint::{
-                    byte, bytes, optional_text, optional_uint, query_authority, text, uint,
-                };
-                fn handle(hash: &mut u64, value: SchemaNodeHandle) {
-                    uint(hash, value.0 as u64);
-                }
-                fn handles(hash: &mut u64, values: &[SchemaNodeHandle]) {
-                    uint(hash, values.len() as u64);
-                    for value in values {
-                        handle(hash, *value);
-                    }
-                }
-                fn identities(hash: &mut u64, values: &[u64]) {
-                    uint(hash, values.len() as u64);
-                    for value in values {
-                        uint(hash, *value);
-                    }
-                }
-
-                let mut hash = crate::reflection::fingerprint::OFFSET_BASIS;
-                bytes(&mut hash, b"omega.reflect.schema.v1");
-                query_authority(&mut hash, authority);
-                uint(&mut hash, nodes.len() as u64);
-                for node in nodes {
-                    match node {
-                        SchemaNode::Invalid => byte(&mut hash, 0),
-                        SchemaNode::Declaration(declaration) => {
-                            byte(&mut hash, 1);
-                            text(&mut hash, &declaration.owner_identity);
-                            byte(&mut hash, declaration.identity_is_hermetic as u8);
-                            text(&mut hash, &declaration.name);
-                            byte(
-                                &mut hash,
-                                match declaration.shape {
-                                    SchemaShape::Empty => 0,
-                                    SchemaShape::Record => 1,
-                                    SchemaShape::Sum => 2,
-                                    SchemaShape::Mixed => 3,
-                                },
-                            );
-                            text(&mut hash, &declaration.supply);
-                            text(&mut hash, &declaration.multiplicity);
-                            optional_text(&mut hash, &declaration.carry);
-                            uint(&mut hash, declaration.type_parameters.len() as u64);
-                            for parameter in &declaration.type_parameters {
-                                text(&mut hash, parameter.name.as_str());
-                                text(&mut hash, parameter.kind);
-                                optional_text(&mut hash, &parameter.type_identity);
-                                text(&mut hash, &parameter.bounds);
-                            }
-                            uint(&mut hash, declaration.lifetime_parameters.len() as u64);
-                            for name in &declaration.lifetime_parameters {
-                                text(&mut hash, name);
-                            }
-                            optional_text(&mut hash, &declaration.application_identity);
-                            handles(&mut hash, &declaration.members);
-                            identities(&mut hash, &declaration.retired_identities);
-                        }
-                        SchemaNode::Field(field) => {
-                            byte(&mut hash, 2);
-                            text(&mut hash, &field.member_identity);
-                            text(&mut hash, &field.name);
-                            uint(&mut hash, u64::from(field.declaration_position));
-                            optional_uint(&mut hash, field.stable_number);
-                            byte(&mut hash, field.erased as u8);
-                            text(&mut hash, &field.qualified_type);
-                            handles(&mut hash, &field.nominal_references);
-                            handle(&mut hash, field.owner_case);
-                        }
-                        SchemaNode::Case(case) => {
-                            byte(&mut hash, 3);
-                            text(&mut hash, &case.member_identity);
-                            text(&mut hash, &case.name);
-                            uint(&mut hash, u64::from(case.declaration_position));
-                            optional_uint(&mut hash, case.stable_number);
-                            handles(&mut hash, &case.payload_fields);
-                            identities(&mut hash, &case.retired_payload_identities);
-                        }
-                        SchemaNode::NominalReference(reference) => {
-                            byte(&mut hash, 4);
-                            text(&mut hash, &reference.owner_identity);
-                            text(&mut hash, &reference.owner_kind);
-                            text(&mut hash, &reference.name);
-                            text(&mut hash, &reference.application_identity);
-                        }
-                    }
-                }
-                if hash == 0 { 1 } else { hash }
-            }
         }
-        pub(crate) mod runtime_image {
-            use super::{SchemaNode, SchemaQueryAuthority, SchemaShape, SemanticSchemaGraph};
-
-            const HEADER_WORDS: usize = 8;
-            const NODE_WORDS: usize = 34;
-
-            fn word(bytes: &mut [u8], slot: usize, value: u64) {
-                bytes[slot * 8..slot * 8 + 8].copy_from_slice(&value.to_le_bytes());
-            }
-
-            fn span(bytes: &mut Vec<u8>, slot: usize, value: &[u8]) {
-                let start = bytes.len() as u64;
-                bytes.extend_from_slice(value);
-                word(bytes, slot, start);
-                word(bytes, slot + 1, value.len() as u64);
-            }
-
-            fn numbers(values: impl IntoIterator<Item = u64>) -> Vec<u8> {
-                values.into_iter().flat_map(u64::to_le_bytes).collect()
-            }
-
-            fn strings(values: impl IntoIterator<Item = impl AsRef<str>>) -> Vec<u8> {
-                let mut bytes = Vec::new();
-                for value in values {
-                    let value = value.as_ref().as_bytes();
-                    bytes.extend_from_slice(&(value.len() as u64).to_le_bytes());
-                    bytes.extend_from_slice(value);
-                }
-                bytes
-            }
-
-            fn record(node: &SchemaNode) -> Vec<u8> {
-                let mut bytes = vec![0; NODE_WORDS * 8];
-                match node {
-                    SchemaNode::Invalid => {}
-                    SchemaNode::Declaration(value) => {
-                        word(&mut bytes, 0, 1);
-                        word(
-                            &mut bytes,
-                            6,
-                            match value.shape {
-                                SchemaShape::Empty => 0,
-                                SchemaShape::Record => 1,
-                                SchemaShape::Sum => 2,
-                                SchemaShape::Mixed => 3,
-                            },
-                        );
-                        word(&mut bytes, 7, u64::from(value.identity_is_hermetic));
-                        span(&mut bytes, 8, value.owner_identity.as_bytes());
-                        span(&mut bytes, 10, value.name.as_bytes());
-                        span(
-                            &mut bytes,
-                            16,
-                            value
-                                .application_identity
-                                .as_deref()
-                                .unwrap_or("")
-                                .as_bytes(),
-                        );
-                        span(&mut bytes, 18, value.supply.as_bytes());
-                        span(&mut bytes, 20, value.multiplicity.as_bytes());
-                        span(
-                            &mut bytes,
-                            22,
-                            value.carry.as_deref().unwrap_or("").as_bytes(),
-                        );
-                        span(
-                            &mut bytes,
-                            24,
-                            &numbers(value.members.iter().map(|h| h.index() as u64)),
-                        );
-                        span(
-                            &mut bytes,
-                            26,
-                            &numbers(value.retired_identities.iter().copied()),
-                        );
-                        let mut parameters = Vec::new();
-                        for parameter in &value.type_parameters {
-                            parameters.extend(strings([
-                                parameter.name.as_str(),
-                                parameter.kind,
-                                parameter.type_identity.as_deref().unwrap_or(""),
-                                parameter.bounds.as_str(),
-                            ]));
-                        }
-                        span(&mut bytes, 30, &parameters);
-                        span(&mut bytes, 32, &strings(&value.lifetime_parameters));
-                    }
-                    SchemaNode::Field(value) => {
-                        word(&mut bytes, 0, 2);
-                        word(&mut bytes, 1, u64::from(value.declaration_position));
-                        word(&mut bytes, 2, u64::from(value.stable_number.is_some()));
-                        word(&mut bytes, 3, value.stable_number.unwrap_or(0));
-                        word(&mut bytes, 4, u64::from(value.erased));
-                        word(&mut bytes, 5, value.owner_case.index() as u64);
-                        span(&mut bytes, 8, value.member_identity.as_bytes());
-                        span(&mut bytes, 10, value.name.as_bytes());
-                        span(&mut bytes, 12, value.qualified_type.as_bytes());
-                        span(
-                            &mut bytes,
-                            28,
-                            &numbers(value.nominal_references.iter().map(|h| h.index() as u64)),
-                        );
-                    }
-                    SchemaNode::Case(value) => {
-                        word(&mut bytes, 0, 3);
-                        word(&mut bytes, 1, u64::from(value.declaration_position));
-                        word(&mut bytes, 2, u64::from(value.stable_number.is_some()));
-                        word(&mut bytes, 3, value.stable_number.unwrap_or(0));
-                        span(&mut bytes, 8, value.member_identity.as_bytes());
-                        span(&mut bytes, 10, value.name.as_bytes());
-                        span(
-                            &mut bytes,
-                            24,
-                            &numbers(value.payload_fields.iter().map(|h| h.index() as u64)),
-                        );
-                        span(
-                            &mut bytes,
-                            26,
-                            &numbers(value.retired_payload_identities.iter().copied()),
-                        );
-                    }
-                    SchemaNode::NominalReference(value) => {
-                        word(&mut bytes, 0, 4);
-                        span(&mut bytes, 8, value.owner_identity.as_bytes());
-                        span(&mut bytes, 10, value.name.as_bytes());
-                        span(&mut bytes, 14, value.owner_kind.as_bytes());
-                        span(&mut bytes, 16, value.application_identity.as_bytes());
-                    }
-                }
-                bytes
-            }
-
-            impl SemanticSchemaGraph {
-                pub fn runtime_image(&self) -> Vec<u8> {
-                    let mut bytes = vec![0; HEADER_WORDS * 8 + self.nodes.len() * 16];
-                    word(&mut bytes, 0, 1);
-                    word(&mut bytes, 1, self.nodes.len() as u64);
-                    word(&mut bytes, 2, self.root.index() as u64);
-                    word(&mut bytes, 3, self.revision);
-                    let (authority, requester) = match &self.authority {
-                        SchemaQueryAuthority::OwningScope { requester_identity } => {
-                            (0, requester_identity)
-                        }
-                        SchemaQueryAuthority::ForeignScope { requester_identity } => {
-                            (1, requester_identity)
-                        }
-                    };
-                    word(&mut bytes, 4, authority);
-                    span(&mut bytes, 5, requester.as_bytes());
-                    for (index, node) in self.nodes.iter().enumerate() {
-                        span(&mut bytes, HEADER_WORDS + index * 2, &record(node));
-                    }
-                    bytes
-                }
-            }
-        }
-        pub(crate) mod schema_nodes {
-            #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-            pub struct SchemaNodeHandle(pub(crate) u32);
-
-            impl SchemaNodeHandle {
-                pub const INVALID: Self = Self(0);
-
-                pub const fn invalid() -> Self {
-                    Self::INVALID
-                }
-
-                pub const fn is_valid(self) -> bool {
-                    self.0 != 0
-                }
-
-                pub const fn index(self) -> usize {
-                    self.0 as usize
-                }
-            }
-
-            #[derive(Debug, Clone, PartialEq)]
-            pub enum SchemaNode {
-                Invalid,
-                Declaration(DeclarationDescription),
-                Field(FieldDescription),
-                Case(CaseDescription),
-                NominalReference(NominalReferenceDescription),
-            }
-
-            #[derive(Debug, Clone, PartialEq)]
-            pub struct DeclarationDescription {
-                pub owner_identity: String,
-                pub identity_is_hermetic: bool,
-                pub name: String,
-                pub shape: SchemaShape,
-                pub supply: String,
-                pub multiplicity: String,
-                pub carry: Option<String>,
-                pub type_parameters: Vec<TypeParameterDescription>,
-                pub lifetime_parameters: Vec<String>,
-                pub application_identity: Option<String>,
-                pub members: Vec<SchemaNodeHandle>,
-                pub retired_identities: Vec<u64>,
-            }
-
-            #[derive(Debug, Clone, PartialEq)]
-            pub struct TypeParameterDescription {
-                pub name: String,
-                pub kind: &'static str,
-                pub type_identity: Option<String>,
-                pub bounds: String,
-            }
-
-            #[derive(Debug, Clone, PartialEq)]
-            pub struct FieldDescription {
-                pub member_identity: String,
-                pub name: String,
-                pub declaration_position: u32,
-                pub stable_number: Option<u64>,
-                pub erased: bool,
-                pub qualified_type: String,
-                pub nominal_references: Vec<SchemaNodeHandle>,
-                pub owner_case: SchemaNodeHandle,
-            }
-
-            #[derive(Debug, Clone, PartialEq)]
-            pub struct CaseDescription {
-                pub member_identity: String,
-                pub name: String,
-                pub declaration_position: u32,
-                pub stable_number: Option<u64>,
-                pub payload_fields: Vec<SchemaNodeHandle>,
-                pub retired_payload_identities: Vec<u64>,
-            }
-
-            #[derive(Debug, Clone, PartialEq)]
-            pub struct NominalReferenceDescription {
-                pub owner_identity: String,
-                pub owner_kind: String,
-                pub name: String,
-                pub application_identity: String,
-            }
-
-            #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-            pub enum SchemaShape {
-                Empty,
-                Record,
-                Sum,
-                Mixed,
-            }
-
-            #[derive(Debug, Clone, PartialEq)]
-            pub enum SchemaQueryAuthority {
-                OwningScope { requester_identity: String },
-                ForeignScope { requester_identity: String },
-            }
-
-            impl SchemaQueryAuthority {}
-        }
-
-        pub use graph_construction::construct_semantic_schema_graph;
-        pub(crate) use graph_construction::{
-            describe_field, exact_symbol_identity, resolve_subject,
-        };
         pub use graph_replay::replay_semantic_schema_graph;
         pub(crate) use graph_replay::{
             check_authority_claim, check_subject_application, member_identity_or_name,
         };
-        pub use schema_nodes::{
-            CaseDescription, DeclarationDescription, FieldDescription, NominalReferenceDescription,
-            SchemaNode, SchemaNodeHandle, SchemaQueryAuthority, SchemaShape,
-            TypeParameterDescription,
-        };
-
-        #[derive(Debug, Clone, PartialEq)]
-        pub struct SemanticSchemaGraph {
-            nodes: Vec<SchemaNode>,
-            root: SchemaNodeHandle,
-            authority: SchemaQueryAuthority,
-            revision: u64,
-        }
-
-        impl SemanticSchemaGraph {
-            pub fn root(&self) -> SchemaNodeHandle {
-                self.root
-            }
-
-            pub fn authority(&self) -> &SchemaQueryAuthority {
-                &self.authority
-            }
-
-            pub fn revision(&self) -> u64 {
-                self.revision
-            }
-
-            pub fn node(&self, handle: SchemaNodeHandle) -> &SchemaNode {
-                self.nodes
-                    .get(handle.index())
-                    .unwrap_or(&SchemaNode::Invalid)
-            }
-
-            pub fn declaration(&self) -> &DeclarationDescription {
-                let SchemaNode::Declaration(declaration) = self.node(self.root) else {
-                    unreachable!("the schema root is always a declaration node");
-                };
-                declaration
-            }
-
-            pub fn fields(&self) -> impl Iterator<Item = (SchemaNodeHandle, &FieldDescription)> {
-                self.declaration()
-                    .members
-                    .iter()
-                    .copied()
-                    .filter_map(|handle| match self.node(handle) {
-                        SchemaNode::Field(field) => Some((handle, field)),
-                        _ => None,
-                    })
-            }
-
-            pub fn cases(&self) -> impl Iterator<Item = (SchemaNodeHandle, &CaseDescription)> {
-                self.declaration()
-                    .members
-                    .iter()
-                    .copied()
-                    .filter_map(|handle| match self.node(handle) {
-                        SchemaNode::Case(case) => Some((handle, case)),
-                        _ => None,
-                    })
-            }
-        }
     }
-
     fn extend_unique<T: PartialEq>(target: &mut Vec<T>, additions: impl IntoIterator<Item = T>) {
         for addition in additions {
             if !target.contains(&addition) {
@@ -5129,7 +4226,6 @@ pub mod reflection {
     }
     pub(crate) mod selection {
         pub(crate) mod requirement_resolution {
-            use crate::reflection::schema_graph::exact_symbol_identity;
             use crate::reflection::selection::scoped_members::ScopedMember;
             use crate::reflection::selection::{
                 DemandedTraitApplication, SelectionChoice, SelectionRequirement,
@@ -5138,6 +4234,7 @@ pub mod reflection {
             use symbols::SymbolHandle;
             use typed_trees::TypedTrees;
             use typed_trees::machine::Machine;
+            use typed_trees::reflection::construction::exact_symbol_identity;
             use typed_trees::trait_definition::{Conformance, TraitDefinition};
             use typed_trees::types::TypeReferenceHandle;
 
@@ -5415,15 +4512,16 @@ pub mod reflection {
             }
         }
         pub(crate) mod scoped_members {
-            use crate::reflection::schema_graph::{
-                FieldDescription, SchemaNode, SchemaNodeHandle, SemanticSchemaGraph,
-                describe_field, member_identity_or_name,
-            };
+            use crate::reflection::schema_graph::member_identity_or_name;
             use crate::reflection::selection::{
                 SelectionChoice, SelectionProjection, SelectionRecord,
             };
             use typed_trees::TypedTrees;
             use typed_trees::data::{DataDefinition, DataMember};
+            use typed_trees::reflection::construction::describe_field;
+            use typed_trees::reflection::{
+                FieldDescription, SchemaNode, SchemaNodeHandle, SemanticSchemaGraph,
+            };
 
             #[derive(Debug, Clone, PartialEq, Eq)]
             pub struct MemberSelectionKey {
@@ -5706,7 +4804,6 @@ pub mod reflection {
             }
         }
         pub(crate) mod selection_receiver {
-            use crate::reflection::schema_graph::{SchemaQueryAuthority, SemanticSchemaGraph};
             use crate::reflection::selection::requirement_resolution::{
                 check_choice_refines, resolve_requirement,
             };
@@ -5719,6 +4816,7 @@ pub mod reflection {
                 SelectionRecord, SelectionRequirement, SelectionSnapshot,
             };
             use typed_trees::TypedTrees;
+            use typed_trees::reflection::{SchemaQueryAuthority, SemanticSchemaGraph};
 
             #[derive(Debug)]
             pub struct ScopedSelectionReceiver<'program> {
@@ -5881,8 +4979,7 @@ pub mod reflection {
         }
         pub(crate) mod snapshots {
             use crate::reflection::schema_graph::{
-                SchemaQueryAuthority, check_authority_claim, check_subject_application,
-                resolve_subject,
+                check_authority_claim, check_subject_application,
             };
             use crate::reflection::selection::requirement_resolution::{
                 check_conformance_refines, check_machine_refines, resolve_requirement,
@@ -5895,6 +4992,8 @@ pub mod reflection {
                 SelectionRequirement,
             };
             use typed_trees::TypedTrees;
+            use typed_trees::reflection::SchemaQueryAuthority;
+            use typed_trees::reflection::construction::resolve_subject;
 
             #[derive(Debug, Clone, PartialEq)]
             pub struct SelectionSnapshot {
@@ -6029,11 +5128,11 @@ pub mod reflection {
             }
 
             pub(crate) fn snapshot_revision(snapshot: &SelectionSnapshot) -> u64 {
-                use crate::reflection::fingerprint::{
+                use typed_trees::reflection::fingerprint::{
                     byte, bytes, optional_text, query_authority, text, uint,
                 };
 
-                let mut hash = crate::reflection::fingerprint::OFFSET_BASIS;
+                let mut hash = typed_trees::reflection::fingerprint::OFFSET_BASIS;
                 bytes(&mut hash, b"omega.reflect.selection.v1");
                 text(&mut hash, &snapshot.subject_owner_identity);
                 optional_text(&mut hash, &snapshot.subject_application_identity);
@@ -6104,7 +5203,7 @@ pub mod reflection {
         use symbols::SymbolHandle;
         use typed_trees::TypedTrees;
 
-        use super::schema_graph::exact_symbol_identity;
+        use typed_trees::reflection::construction::exact_symbol_identity;
 
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub enum SelectionProjection {
@@ -6189,11 +5288,12 @@ pub mod reflection {
     pub(crate) mod visitation {
         use typed_trees::TypedTrees;
 
-        use super::schema_graph::{SchemaQueryAuthority, resolve_subject};
         use super::selection::{
             MemberKind, ScopedMember, SelectionChoice, SelectionRecord, SelectionRequirement,
             SelectionSnapshot, expected_members, project, replay_selection_snapshot,
         };
+        use typed_trees::reflection::SchemaQueryAuthority;
+        use typed_trees::reflection::construction::resolve_subject;
 
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct FieldInfo {
@@ -6428,11 +5528,11 @@ pub mod reflection {
         }
 
         fn plan_revision(plan: &RuntimeVisitationPlan) -> u64 {
-            use crate::reflection::fingerprint::{
+            use typed_trees::reflection::fingerprint::{
                 byte, bytes, optional_text, optional_uint, query_authority, text, uint,
             };
 
-            let mut hash = crate::reflection::fingerprint::OFFSET_BASIS;
+            let mut hash = typed_trees::reflection::fingerprint::OFFSET_BASIS;
             bytes(&mut hash, b"omega.reflect.visitation.v1");
             text(&mut hash, &plan.subject_owner_identity);
             optional_text(&mut hash, &plan.subject_application_identity);
@@ -6474,11 +5574,7 @@ pub mod reflection {
         }
     }
 
-    pub use schema_graph::{
-        CaseDescription, DeclarationDescription, FieldDescription, NominalReferenceDescription,
-        SchemaNode, SchemaNodeHandle, SchemaQueryAuthority, SchemaShape, SemanticSchemaGraph,
-        TypeParameterDescription, construct_semantic_schema_graph, replay_semantic_schema_graph,
-    };
+    pub use schema_graph::replay_semantic_schema_graph;
     pub use selection::{
         MemberKind, MemberSelectionKey, ScopedSelectionReceiver, SelectionChoice,
         SelectionCoverage, SelectionProjection, SelectionRecord, SelectionRequirement,
