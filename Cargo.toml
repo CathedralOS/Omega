@@ -67,7 +67,7 @@ members = [
     "omega-rust/psi/compilation/representations/terminal-psi/work",
     "omega-rust/psi/compilation/representations/terminal-psi/semantics",
     "omega-rust/psi/compilation/representations/terminal-psi/check-tables",
-    "omega-rust/psi/compilation/validation/terminal-installation",
+    "omega-rust/psi/compilation/terminal-installation",
     "omega-rust/psi/interpreter/terminal-interpreter",
     "omega-rust/psi/interpreter/checked-interpreter",
     "omega-rust/psi/compilation/build-time-evaluation",

@@ -24,4 +24,4 @@ psi-work = { path = "../../compilation/representations/terminal-psi/work" }
 terminal-semantics = { path = "../../compilation/representations/terminal-psi/semantics" }
 proof-admission = { path = "../../compilation/proof/admission" }
 
-terminal-installation = { path = "../../compilation/validation/terminal-installation" }
+terminal-installation = { path = "../../compilation/terminal-installation" }
