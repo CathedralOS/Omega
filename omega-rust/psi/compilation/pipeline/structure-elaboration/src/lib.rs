@@ -173,6 +173,32 @@ pub struct Compilation<'a> {
     /// One visible-continuation shape obligation per executed Build binding.
     /// Deduplicating machine roots must not discard distinct slot contracts.
     pub bindings: &'a [typed_trees::callable_signature_shapes::BoundCallableShape],
+    /// The providers chosen to supply boundary slots of this compilation:
+    /// the Build's own selections, and the supply settlement chose for each
+    /// requirement the compilation reaches. The check claims each provider's
+    /// machines for the slot as roots and owes, for each, the proof that the
+    /// machine refines the requirement it supplies (`Supply`).
+    pub supplies: &'a [Supply],
+}
+
+/// One chosen provider of a boundary slot. `slot` is the declaration the
+/// selection names: a boundary trait, which the provider must then cover
+/// requirement by requirement, or one requirement of a boundary trait.
+/// `provider` is the named implementation or the data type whose machines
+/// state `satisfies` for the slot's requirements. Both are declarations of
+/// the judged source, compared by identity and never by spelling.
+///
+/// provider_selection.md: "The assembled record must satisfy the slot's
+/// complete schema, operation contracts and evidence constraints", and
+/// "Checked providers must fit that row". So each supplied requirement must
+/// be given exactly one machine by the provider, that machine and everything
+/// it calls is judged like any other root, and the machine must refine the
+/// requirement: signature, contracts, service reach, callback entries and
+/// crash routes (`Elaboration::conformance_witnesses`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Supply {
+    pub slot: SymbolHandle,
+    pub provider: SymbolHandle,
 }
 
 /// The result of elaborating everything one compilation is responsible for:
@@ -410,6 +436,7 @@ pub fn elaborate_for(
         None
     };
     program.selected_declarations(first, compilation.selected)?;
+    program.supplied_slots(first, compilation.supplies)?;
     program.subject_declarations(first, compilation.subjects, compilation.purpose)?;
     let mut elaboration = finish_reading(program, entry, IdTable::default(), Some(typed))?;
     proof_scope::declare(typed, &mut elaboration)?;

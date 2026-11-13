@@ -116,6 +116,7 @@ fn verdicts(name: &str, machines: &str) -> Vec<String> {
             purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
             bindings: &frontier.bindings,
+            supplies: &[],
         },
     )
     .iter()

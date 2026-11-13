@@ -73,6 +73,12 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Two proofs of "this machine refines that contract"
+- Category: zombie machinery
+- Where: `omega-rust/psi/compilation/pipeline/lowered-discharge/src/refinement.rs` (`prove_callable_refinement`) and `lowered-discharge/src/verdict.rs` (`judge_compilation_for`, which judges each `ConformanceWitness` row through `elaborate_witness`)
+- Saw: both build a witness machine that has the required contract and calls the supplied one. The first has no caller outside its own test and adds a ceiling check by hand; the second is what every implementation row, `satisfies` clause and chosen provider goes through
+- Cost: a rule added to one (a new ceiling axis, a new clause form) is missing from the other, and a reader cannot tell which one decides
+- Reported: 2026-11-13, Claude Code, while having chosen providers judged against the requirement they supply
 ### A view passed from a place is lent as that place, so it conflicts with a loan of its holder
 - Category: one idea, several implementations
 - Where: `structure-elaboration/src/read/calls.rs` (`lent`, `lent_storage_is_untouched` with `holds_view`), `lower/calls.rs` (`arguments`, the `Borrow` arm), `lowered-discharge/src/places/loans.rs`

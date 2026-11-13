@@ -359,6 +359,7 @@ impl PreparedBuildMachineProgram {
                 purpose: source::DependencyScope::Product,
                 selected: &[],
                 bindings: &[],
+                supplies: &[],
             },
             terminal_codec::TerminalPublication::Invocation,
         )
@@ -1456,6 +1457,7 @@ pub(crate) mod tests {
                         purpose: source::DependencyScope::Product,
                         selected: &[],
                         bindings: &[],
+                        supplies: &[],
                     },
                     terminal_codec::TerminalPublication::Portable,
                 )

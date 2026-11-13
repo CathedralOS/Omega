@@ -18,6 +18,7 @@ fn judged(text: &str, select_first: bool) -> RouteVerdict {
             purpose: source::DependencyScope::Product,
             selected: &selected,
             bindings: &[],
+            supplies: &[],
         },
         terminal_codec::TerminalPublication::Invocation,
     );
