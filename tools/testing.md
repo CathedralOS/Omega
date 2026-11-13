@@ -207,8 +207,11 @@ capacity is not compiler failure. Receipts retain elapsed time and use a null
 retain their explicit/default limits; fixture, native execution and Psi work
 budgets are unchanged.
 
-Every shared command runs in its own Unix process group or suspended-start
-Windows Job Object. On timeout, wait failure, normal completion or unwinding,
+Every shared command reuses `bounded-process`'s native owner through its trusted
+tooling API, with a Unix process group or suspended-start Windows Job Object.
+Windows assignment/resume failure uses the same stop-and-reap path as bounded
+runtime launches; runtime resource-capped constructors remain unchanged.
+On timeout, wait failure, normal completion or unwinding,
 the owner terminates remaining descendants and reaps the command, preserving
 peer jobs. Receipts retain the actual command status, original stdout/stderr,
 container identity and cleanup errors; a cleanup failure cannot become a pass.

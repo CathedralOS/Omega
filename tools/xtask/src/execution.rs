@@ -6,7 +6,7 @@ use std::path::Path;
 use std::process::{Command, ExitStatus, Output, Stdio};
 use std::time::{Duration, Instant};
 
-use command_group::{CommandGroup, GroupChild};
+use bounded_process::ToolCommandChild;
 
 pub fn write_json(path: &Path, value: &impl serde::Serialize) -> Result<(), String> {
     let bytes = serde_json::to_vec_pretty(value).map_err(|e| e.to_string())?;
@@ -43,45 +43,31 @@ pub fn run_unlimited(
 /// and outputs. Close the container on every return, including a leader that
 /// has already exited, and retain a drop fallback for errors after spawning.
 struct OwnedCommand {
-    child: GroupChild,
+    child: Option<ToolCommandChild>,
     closed: bool,
 }
 
 impl OwnedCommand {
     fn spawn(command: &mut Command) -> std::io::Result<Self> {
-        let mut group = command.group();
-        #[cfg(windows)]
-        group.kill_on_drop(true);
         Ok(Self {
-            child: group.spawn()?,
+            child: Some(ToolCommandChild::spawn(command)?),
             closed: false,
         })
     }
 
+    fn child(&mut self) -> &mut ToolCommandChild {
+        self.child.as_mut().expect("live command container")
+    }
+
     fn cleanup(&mut self) -> (Option<ExitStatus>, serde_json::Value) {
-        let killed = self.child.kill();
-        // macOS can report EPERM for a group containing only exiting/zombie
-        // processes. Reap the leader and retry, as the bounded-process owner does.
-        #[cfg(unix)]
-        let killed = if killed.as_ref().is_err_and(|e| e.raw_os_error() == Some(1)) {
-            let _ = self.child.try_wait();
-            self.child.kill()
-        } else {
-            killed
-        };
-        let killed = killed.or_else(|error| {
-            #[cfg(unix)]
-            let absent = error.raw_os_error() == Some(3);
-            #[cfg(not(unix))]
-            let absent = error.kind() == std::io::ErrorKind::InvalidInput;
-            if absent { Ok(()) } else { Err(error) }
-        });
+        let child = self.child();
+        let killed = child.terminate();
         // If termination itself failed, never block forever waiting for a live
         // command. Report both failures and let the owned drop fallback retry.
         let reaped = if killed.is_ok() {
-            self.child.wait()
+            child.wait()
         } else {
-            self.child.try_wait().and_then(|status| {
+            child.try_wait().and_then(|status| {
                 status.ok_or_else(|| {
                     std::io::Error::new(
                         std::io::ErrorKind::WouldBlock,
@@ -90,12 +76,22 @@ impl OwnedCommand {
                 })
             })
         };
-        self.closed = killed.is_ok() && reaped.is_ok();
+        let completion = if killed.is_ok() && reaped.is_ok() {
+            self.child
+                .take()
+                .expect("reaped command container")
+                .finish()
+                .map(|_| ())
+        } else {
+            Ok(())
+        };
+        self.closed = killed.is_ok() && reaped.is_ok() && completion.is_ok();
         let cleanup = serde_json::json!({
             "scope": "owned_process_tree",
             "kill_error": killed.err().map(|e| e.to_string()),
             "wait_error": reaped.as_ref().err().map(|e| e.to_string()),
             "reaped": reaped.is_ok(),
+            "completion_error": completion.err().map(|e| e.to_string()),
         });
         (reaped.ok(), cleanup)
     }
@@ -103,7 +99,7 @@ impl OwnedCommand {
 
 impl Drop for OwnedCommand {
     fn drop(&mut self) {
-        if !self.closed {
+        if !self.closed && self.child.is_some() {
             let (_, cleanup) = self.cleanup();
             if !self.closed {
                 eprintln!("command container cleanup failed: {cleanup}");
@@ -181,15 +177,15 @@ fn run_bounded(
     let started = Instant::now();
     let result = (|| {
         let mut owner = OwnedCommand::spawn(command).map_err(|e| format!("start {name}: {e}"))?;
-        receipt["child_id"] = serde_json::json!(owner.child.id());
+        receipt["child_id"] = serde_json::json!(owner.child().id());
         receipt["process_container"] = serde_json::json!({
             "kind": if cfg!(windows) { "windows_job" } else { "unix_process_group" },
-            "leader_id": owner.child.id(),
+            "leader_id": owner.child().id(),
         });
         let mut echoed = 0;
         let result = (|| loop {
             let finished = owner
-                .child
+                .child()
                 .try_wait()
                 .map_err(|e| format!("wait {name}: {e}"))?;
             if echo_stderr {
