@@ -4,6 +4,7 @@ The type family of the reader: which typed-tree type is a scalar, by the
 (`places`), and the type and value an integer literal lands on.
 */
 
+use crate::body::Qualification;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, MachineId, ScalarType};
 use symbols::BuiltinTypeAtom;
 use terminal_check_tables::{Checked, Construct};
@@ -155,10 +156,12 @@ impl Program<'_> {
                     if let Some((_, bound)) = self.scope.iter().find(|(binder, _)| binder == symbol)
                     {
                         return match bound {
-                            ValueType::Scalar(scalar_type) => Some(Closed::Scalar(*scalar_type)),
-                            ValueType::Rigid(_)
-                            | ValueType::Record(_)
-                            | ValueType::Qualified(..) => None,
+                            ValueType::Scalar(scalar_type, Qualification::NONE) => {
+                                Some(Closed::Scalar(*scalar_type))
+                            }
+                            ValueType::Scalar(..)
+                            | ValueType::Rigid(_)
+                            | ValueType::Record(_, _) => None,
                         };
                     }
                     self.typed
@@ -401,45 +404,144 @@ impl Program<'_> {
             // for every nominal record, however its type was written.
             return self.record_at(id, handle);
         }
-        self.scalar_type(id, handle).map(ValueType::Scalar)
+        self.scalar_type(id, handle).map(ValueType::plain)
     }
 
-    /// `T in Wrapping` and `T in Saturating` over a builtin integer `T`: the
-    /// one constraint is an arithmetic policy, read from the constraint
-    /// node's kind and never from its spelling. numeric_values.md, "Overflow
-    /// policies": "A type may carry any number of value qualifications but
-    /// at most one arithmetic policy."
+    /// `T in D & E`: the carrier `T` and the domains its type carries, read
+    /// from each constraint node's kind and symbol and never from a spelling.
+    /// An arithmetic policy and a declared domain are members of the one
+    /// qualification (`body::Qualification`), on a scalar or a data carrier.
     ///
-    /// Everything else a type can be constrained by stays refused by name:
-    /// `Trapping`, whose every operation is its own `Trap` site; a declared
-    /// domain, alone or beside a policy; and a policy on anything but a
-    /// builtin integer.
+    /// numeric_values.md, "Overflow policies": "A type may carry any number
+    /// of value qualifications but at most one arithmetic policy", and a
+    /// policy qualifies an integer.
+    ///
+    /// Refused by name: `Trapping`, whose every operation is its own `Trap`
+    /// site; a compiler-owned domain; and the declared domains whose meaning
+    /// needs more than their own declaration (`declared_domain`).
     fn qualified_type(
-        &self,
+        &mut self,
         id: MachineId,
         base_type: TypeReferenceHandle,
         constraints: arena::HandleSpan<typed_trees::types::TypeConstraintNode>,
     ) -> Checked<ValueType> {
         use numerics::arithmetic::ArithmeticDomain;
-        use typed_trees::types::TypeConstraintNode;
+        use typed_trees::types::{DomainConstraintSubject, TypeConstraintNode};
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
-        let policy = match self.typed.type_reference_table.constraints(constraints) {
-            [TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Wrapping)] => Policy::Wrapping,
-            [TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Saturating)] => {
-                Policy::Saturating
+        let carrier = self.value_type(id, base_type)?;
+        let mut qualification = carrier.qualification();
+        let typed = self.typed;
+        for constraint in typed.type_reference_table.constraints(constraints) {
+            match constraint {
+                TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Exact) => {}
+                TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Trapping) => {
+                    return unserved("constrained by Trapping");
+                }
+                TypeConstraintNode::ArithmeticDomain(
+                    policy @ (ArithmeticDomain::Wrapping | ArithmeticDomain::Saturating),
+                ) => {
+                    if qualification.policy.is_some() {
+                        return unserved("constrained by more than one arithmetic policy");
+                    }
+                    if !matches!(carrier, ValueType::Scalar(ScalarType::Integer(_), _)) {
+                        return unserved("arithmetic policy on a type that is not an integer");
+                    }
+                    qualification.policy = Some(match policy {
+                        ArithmeticDomain::Wrapping => Policy::Wrapping,
+                        _ => Policy::Saturating,
+                    });
+                }
+                TypeConstraintNode::Domain(domain)
+                    if domain.subject == DomainConstraintSubject::Declared =>
+                {
+                    if !domain.arguments.is_empty() {
+                        return unserved("constrained by a domain applied at arguments");
+                    }
+                    self.declared_domain(id, domain.symbol, carrier)?;
+                    let Some(domains) = qualification.domains.with(domain.symbol) else {
+                        return unserved(
+                            "constrained by one domain twice or by more than four declared domains",
+                        );
+                    };
+                    qualification.domains = domains;
+                }
+                TypeConstraintNode::Domain(_) => {
+                    return unserved("constrained by a compiler-owned domain");
+                }
+                TypeConstraintNode::Named(_) => {
+                    return unserved("constrained by a name no declaration answers");
+                }
             }
-            [TypeConstraintNode::ArithmeticDomain(ArithmeticDomain::Trapping)] => {
-                return unserved("constrained by Trapping");
-            }
-            _ => return unserved("constrained by a domain that is not one arithmetic policy"),
-        };
-        match self.scalar_type(id, base_type) {
-            Ok(carrier @ ScalarType::Integer(_)) => Ok(ValueType::Qualified(carrier, policy)),
-            Ok(ScalarType::Boolean | ScalarType::IeeeFloat(_)) => {
-                unserved("arithmetic policy on a type that is not an integer")
-            }
-            Err(refusal) => Err(refusal),
         }
+        match carrier.qualified(qualification) {
+            Some(qualified) => Ok(qualified),
+            None => unserved("domain on a type parameter"),
+        }
+    }
+
+    /// Whether the checker reads the declared domain `domain` on `carrier`:
+    /// it must be a domain of exactly that carrier (domains.md,
+    /// "Carrier-exact membership": "form membership against the domain's
+    /// exact resolved applied carrier"), with nothing typing left unserved
+    /// on it.
+    ///
+    /// A domain whose meaning is not on its own declaration is refused by
+    /// name until the checker reads that meaning: an alias (its expansion),
+    /// a child (a type carrying it carries every ancestor), an indexed or
+    /// carrier-generic family (its application), and a domain that selects
+    /// a cleanup machine.
+    pub(super) fn declared_domain(
+        &mut self,
+        id: MachineId,
+        domain: symbols::SymbolHandle,
+        carrier: ValueType,
+    ) -> Checked<()> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
+        let typed = self.typed;
+        let Some(definition) = typed.domain_definition(domain) else {
+            return unserved("constrained by a domain with no declaration");
+        };
+        self.served(id, domain)?;
+        if definition.alias.is_some() {
+            return unserved("constrained by a domain alias");
+        }
+        // domains.md, "Governed subjects and operations": "Reading stored
+        // contents, including discriminants, comparisons, codecs, and
+        // runtime reflection, requires read authority." Who may read or
+        // write is in the policy's plan, which nothing evaluates, and no
+        // reader of a value asks, so a governed domain is refused whole.
+        if definition.access_policy.is_some() {
+            return unserved("constrained by a domain governed by an access policy");
+        }
+        if !typed.domain_type_parameters(definition).is_empty()
+            || !definition.index_arguments.is_empty()
+        {
+            return unserved("constrained by a generic or indexed domain family");
+        }
+        if definition.cleanup_selection.is_some() {
+            return unserved("constrained by a domain that selects a cleanup machine");
+        }
+        if typed_trees::domain::subject_membership_facts(typed, definition)
+            .any(|membership| membership.domain_symbol != domain)
+        {
+            return unserved("constrained by a domain that refines another domain");
+        }
+        // domains.md, "Governed subjects and operations": a qualified whole
+        // record "protects its contained fields", and reading or changing
+        // them needs the authority its domain's policy grants. Nothing in
+        // the reader asks that where a data value is taken apart (a member,
+        // a pattern, a case test, a field write), so a declared domain on a
+        // data carrier is refused until each of those asks.
+        if matches!(carrier, ValueType::Record(..)) {
+            return unserved("declared domain on a data type");
+        }
+        let Some(plain) = carrier.qualified(crate::body::Qualification::NONE) else {
+            return unserved("domain on a type parameter");
+        };
+        if self.value_type(id, definition.target_type)? != plain {
+            return unserved("constrained by a domain declared on another carrier");
+        }
+        Ok(())
     }
 
     /// A state's result: the invalid handle and `Unit` are both a Unit

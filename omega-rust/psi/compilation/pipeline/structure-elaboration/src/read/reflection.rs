@@ -2,6 +2,7 @@
 //! The selected declaration and its source stay explicit; no callable body is
 //! instantiated, and these byte values grant no permission.
 
+use crate::body::Qualification;
 use language_core::core_vocabulary::{CoreVocabulary, ReflectionDeclaration};
 use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
@@ -123,7 +124,7 @@ impl Program<'_> {
         {
             return Err(fail("a schema query lost its toolchain result type"));
         }
-        let ValueType::Record(record) = self.value_type(machine, result_type)? else {
+        let ValueType::Record(record, _) = self.value_type(machine, result_type)? else {
             return Err(fail("a schema description requires structured storage"));
         };
         let fields = self.data_type(machine, record)?.fields();
@@ -140,7 +141,7 @@ impl Program<'_> {
             kind: ExpressionKind::Record {
                 fields: vec![(0, value)],
             },
-            result: Some(ValueType::Record(record)),
+            result: Some(ValueType::Record(record, Qualification::NONE)),
             source,
         })
     }
@@ -251,7 +252,8 @@ impl Program<'_> {
                 "callable description lost its toolchain result vocabulary",
             ));
         }
-        let Some(ValueType::Record(record)) = Some(self.value_type(machine, result_type)?) else {
+        let Some(ValueType::Record(record, _)) = Some(self.value_type(machine, result_type)?)
+        else {
             return Err(fail(
                 "callable description result is not structured storage",
             ));
@@ -307,7 +309,7 @@ impl Program<'_> {
                 case: case_index,
                 fields,
             },
-            result: Some(ValueType::Record(record)),
+            result: Some(ValueType::Record(record, Qualification::NONE)),
             source,
         }))
     }

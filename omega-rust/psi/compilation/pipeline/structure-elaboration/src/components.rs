@@ -289,7 +289,7 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
 /// log that follows them, which a later slice of the loops lane serves.
 fn uses_storage(body: &Body, signature: &Signature) -> bool {
     fn stored(value: &Expression) -> bool {
-        if matches!(value.result, Some(ValueType::Record(_))) {
+        if matches!(value.result, Some(ValueType::Record(_, _))) {
             return true;
         }
         match &value.kind {
@@ -322,7 +322,7 @@ fn uses_storage(body: &Body, signature: &Signature) -> bool {
             Target::Unit | Target::Crash(_) => false,
         }
     }
-    let data = |value_type: &ValueType| matches!(value_type, ValueType::Record(_));
+    let data = |value_type: &ValueType| matches!(value_type, ValueType::Record(_, _));
     signature.parameters.iter().any(data)
         || !signature.borrowed.is_empty()
         || signature.result.as_ref().is_some_and(data)

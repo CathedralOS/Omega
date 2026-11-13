@@ -34,6 +34,7 @@ common fields beside cases (`type mixed data`). Stores into a record's fields ar
 `statements`, dispatch over a sum in `transitions`.
 */
 
+use crate::body::Qualification;
 use semantic_vocabulary::{
     MachineId, ScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId,
 };
@@ -160,7 +161,7 @@ impl Program<'_> {
             if let Some(application) = &application {
                 self.record_application(id, record, application.reference)?;
             }
-            return Ok(ValueType::Record(record));
+            return Ok(ValueType::Record(record, Qualification::NONE));
         }
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Type(what));
         if self
@@ -296,7 +297,7 @@ impl Program<'_> {
             .get_mut(record)
             .ok_or_else(|| unserved("record identity"))?
             .requires = requires;
-        Ok(ValueType::Record(record))
+        Ok(ValueType::Record(record, Qualification::NONE))
     }
 
     /// The fields and cases of a data declaration, each with its symbols,
@@ -385,10 +386,7 @@ impl Program<'_> {
         // the field. A slice that adds a field type storing a view some
         // other way adds its lifetime accounting with the arm it adds here.
         match value_type {
-            ValueType::Scalar(_)
-            | ValueType::Qualified(..)
-            | ValueType::Record(_)
-            | ValueType::Rigid(_) => {}
+            ValueType::Scalar(..) | ValueType::Record(_, _) | ValueType::Rigid(_) => {}
         }
         let identity = field.member_identity().spelling();
         if identity.is_empty() {
@@ -547,7 +545,7 @@ impl Program<'_> {
                 "record pattern over a value that is not a place",
             )));
         }
-        let Some(ValueType::Record(record)) = subject.result else {
+        let Some(ValueType::Record(record, _)) = subject.result else {
             return Err(refused(Unserved::Typing(
                 "record pattern over a value that is not a record",
             )));
@@ -608,7 +606,7 @@ impl Program<'_> {
             ));
         }
         let base = self.expression(id, slots, member.receiver, None)?;
-        let Some(ValueType::Record(record)) = base.result else {
+        let Some(ValueType::Record(record, _)) = base.result else {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -692,7 +690,7 @@ impl Program<'_> {
             }
             None => self.record(id, literal.type_symbol)?,
         };
-        let ValueType::Record(record) = result else {
+        let ValueType::Record(record, _) = result else {
             return Err(typing("record literal of a scalar type"));
         };
         for reference in applications {
@@ -822,7 +820,7 @@ impl Program<'_> {
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let subject = self.expression(id, slots, subject, None)?;
-        let Some(ValueType::Record(record)) = subject.result else {
+        let Some(ValueType::Record(record, _)) = subject.result else {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -835,7 +833,7 @@ impl Program<'_> {
                 subject: Box::new(subject),
                 case,
             },
-            result: Some(ValueType::Scalar(ScalarType::Boolean)),
+            result: Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
             source,
         })
     }
@@ -1105,8 +1103,8 @@ fn copy_field_is_unrestricted(
 ) -> bool {
     match field {
         // A policy changes no payload: the integer copies as its carrier does.
-        ValueType::Scalar(_) | ValueType::Qualified(..) => true,
-        ValueType::Record(record) => records.get(record).is_some_and(|record| record.copyable),
+        ValueType::Scalar(..) => true,
+        ValueType::Record(record, _) => records.get(record).is_some_and(|record| record.copyable),
         ValueType::Rigid(_) => false,
     }
 }
@@ -1131,16 +1129,16 @@ mod tests {
             requires: Vec::new(),
         });
         assert!(!copy_field_is_unrestricted(
-            ValueType::Record(owned),
+            ValueType::Record(owned, Qualification::NONE),
             &records
         ));
         records.get_mut(owned).unwrap().copyable = true;
         assert!(copy_field_is_unrestricted(
-            ValueType::Record(owned),
+            ValueType::Record(owned, Qualification::NONE),
             &records
         ));
         assert!(!copy_field_is_unrestricted(
-            ValueType::Record(StructuralTypeId::new(2).unwrap()),
+            ValueType::Record(StructuralTypeId::new(2).unwrap(), Qualification::NONE),
             &records,
         ));
     }
