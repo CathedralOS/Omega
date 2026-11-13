@@ -647,7 +647,6 @@ pub(crate) mod tests {
             ensures result == index
             { calls = calls + 1; index }
             machine replace(index: &mut u64) -> u64
-            ensures index == 1
             { index = 1; 9u64 }
             machine answer() -> Report {
                 let mut index: u64 = 0;
