@@ -126,6 +126,17 @@ Now `a + b` on two `u32::Degrees` wraps at 360. The arithmetic policies of
 [Chapter 5](chapter_5_expressions_evaluation.md#integer-arithmetic),
 `Wrapping`, `Saturating` and `Trapping`, are core domains of this kind.
 
+Domains may be combined even when each defines operators. A distance may
+carry both a unit and a `Small` predicate; adding a comparison to `Small`
+does not make that type illegal. At an actual operator use, one declaration
+must match the operands' complete qualified types. The compiler neither picks
+one domain's operator by priority nor combines their implementations.
+
+A named call may also select an overload by its declared expected result's
+complete domain set. Named predicate domains count even without operators;
+merely proving membership does not select anything. Adding an operator does
+not change that selection. See [composition and result selection](../spec/language/domains.md#domain-composition-and-operators).
+
 ## Zero and defaults
 
 ```omega

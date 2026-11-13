@@ -308,9 +308,10 @@ operands only ([operands](domains.md#operands)).
 Association with a domain grants no authority to establish its membership;
 the domain's access policy independently controls establishment. Inactive same-carrier
 declarations may coexist; competing participating meanings at a use reject.
-[Domain semantic roles](domains.md#semantic-roles-and-operators) separately
-determine which contributions one type may carry; no two declarations compose
-into one operation meaning.
+[Domain composition](domains.md#domain-composition-and-operators) does not
+reject a type merely because several qualifications own operators. Select
+one exact operation at its use; no two declarations compose into one meaning.
+The existing core arithmetic-policy exclusion remains independent.
 
 Operator families are closed by default. An open family designates a dispatch-
 owner operand position, with one owner per implementation key. A third party
