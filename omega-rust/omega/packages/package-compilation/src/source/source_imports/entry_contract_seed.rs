@@ -196,3 +196,102 @@ mod tests {
         std::fs::remove_dir_all(root).unwrap();
     }
 }
+
+/// Resolve the selected target schema inside its admitted contract source.
+pub fn selected_program_entry_boundary(
+    typed: &typed_trees::TypedTrees,
+    slot: target::ProgramEntrySlotDeclaration,
+    package_inputs: Option<&crate::PackageCompilationInputs>,
+    exact_sources: &[(source::SourceId, [u8; 32])],
+) -> Result<symbols::SymbolHandle, Vec<diagnostics::Diagnostic>> {
+    use diagnostics::Diagnostic;
+    use typed_trees::service_declarations::{
+        PreparedServiceCatalog, ProviderSchemaDeclaration,
+        provider_declarations::ProviderPlanningContext,
+    };
+    let failure = |message| vec![Diagnostic::error(message)];
+    if slot != slot.owner.program_entry_slot() {
+        return Err(failure(
+            "selected entry slot differs from its target declaration",
+        ));
+    }
+    let contract = slot
+        .physical_contract_package
+        .ok_or_else(|| failure("selected target has no source physical entry contract"))?;
+    let schema = slot
+        .boundary_schema
+        .ok_or_else(|| failure("selected target has no calling boundary schema"))?;
+    let selected_owner = EntryContractSource::select(contract, package_inputs);
+    if selected_owner == EntryContractSource::Unavailable {
+        return Err(failure(
+            "selected target entry contract has no unambiguous accepted supplier",
+        ));
+    }
+    let catalog = PreparedServiceCatalog::prepare(
+        ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+        exact_sources,
+    );
+    let mut matching = Vec::new();
+    for declaration in catalog.declared_traits() {
+        let ProviderSchemaDeclaration::BoundaryTrait(symbol) = declaration.schema else {
+            continue;
+        };
+        let definition = typed
+            .traits()
+            .iter()
+            .find(|row| row.symbol == symbol)
+            .ok_or_else(|| failure("catalog boundary has no actual typed declaration"))?;
+        // Slot schema is an unqualified name inside the authenticated contract source.
+        if definition.name.as_str() != schema {
+            continue;
+        }
+        let owns = match selected_owner {
+            EntryContractSource::Package(package) => {
+                declaration.package == Some(package)
+                    && typed
+                        .symbols
+                        .symbol_provenance_source_span(symbol)
+                        .and_then(|span| typed.symbols.source_file(span))
+                        .is_some_and(|file| {
+                            file.path.strip_prefix(&file.package_root).ok()
+                                == Some(std::path::Path::new(contract.package_relative_source()))
+                        })
+            }
+            EntryContractSource::Bundled => typed
+                .symbols
+                .symbol_provenance_source_span(symbol)
+                .and_then(|span| typed.symbols.source_file(span))
+                .is_some_and(|file| {
+                    file.origin == source::SourceOrigin::ToolchainContract
+                        && file.path.ends_with(contract.package_relative_source())
+                        && exact_sources
+                            .iter()
+                            .any(|(source, _)| *source == file.source_id)
+                }),
+            EntryContractSource::Unavailable => false,
+        };
+        if !owns {
+            continue;
+        }
+        // PreparedServiceCatalog authenticated this exact package/toolchain
+        // nominal owner with the supplied digest registry. Text is not enough.
+        declaration
+            .nominal_identity
+            .as_ref()
+            .map_err(|error| vec![error.clone()])?;
+        let surface = declaration
+            .surface
+            .ok_or_else(|| failure("selected entry boundary lost its actual source surface"))?;
+        surface.exact_requirements().map_err(|error| vec![error])?;
+        matching.push(symbol);
+    }
+    match matching.as_slice() {
+        [symbol] => Ok(*symbol),
+        [] => Err(failure(
+            "selected entry source does not publish its exact target boundary schema",
+        )),
+        _ => Err(failure(
+            "selected entry source publishes competing target boundary declarations",
+        )),
+    }
+}

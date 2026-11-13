@@ -268,6 +268,7 @@ fn route_verdict(
     let elaborated = elaborate(
         &frontier.typed,
         Compilation {
+            declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &[frontier.subject],
             purpose: source::DependencyScope::Product,
@@ -470,6 +471,7 @@ fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
     let as_dependency = judge(elaborate(
         &frontier.typed,
         Compilation {
+            declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &[Some(another)],
             purpose: source::DependencyScope::Product,
@@ -503,6 +505,7 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
         judge(elaborate(
             typed,
             Compilation {
+                declaration_metadata: &[],
                 entries: &frontier.entries,
                 subjects: &[Some(another)],
                 purpose: source::DependencyScope::Product,
@@ -698,6 +701,7 @@ fn judged_parts(name: &str, declaration: &str) -> Vec<Verdict> {
     lowered_discharge::judge_compilation(
         &frontier.typed,
         Compilation {
+            declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &[frontier.subject],
             purpose: source::DependencyScope::Product,

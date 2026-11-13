@@ -49,6 +49,7 @@ structure-elaboration = { path = "../../../psi/compilation/pipeline/structure-el
 lowered-discharge = { path = "../../../psi/compilation/pipeline/lowered-discharge" }
 terminal-check-tables = { path = "../../../psi/compilation/representations/terminal-psi/check-tables" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
+terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-installation = { path = "../../../psi/compilation/terminal-installation" }
 target-operations = { path = "../representations/target-operations" }
@@ -84,7 +85,6 @@ bounded-process = { path = "../../foundation/bounded-process" }
 orchestration = { path = "../../build-system/orchestration" }
 terminal-runtime = { path = "../../interpreter/terminal-runtime" }
 numerics = { path = "../../../psi/foundation/numerics" }
-terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }
 terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
 access-plans = { path = "../../../psi/foundation/access-plans" }
 extents = { path = "../../../psi/foundation/extents" }

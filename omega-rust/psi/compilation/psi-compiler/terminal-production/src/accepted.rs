@@ -12,6 +12,20 @@ pub struct AcceptedTerminalSource {
     source: Arc<FrozenTypedTrees>,
     closure: Box<AcceptedClosure>,
     publication: terminal_codec::TerminalPublication,
+    request: CompilationRequest,
+}
+
+// Own the original request so an executable child's additional declaration
+// metadata can be judged with the complete original scope, before publication.
+// This is input custody; it carries no verdict or cached proof projection.
+#[derive(Debug)]
+struct CompilationRequest {
+    entries: Vec<symbols::SymbolHandle>,
+    subjects: Vec<Option<semantic_vocabulary::PackageKeyIdentity>>,
+    purpose: source::DependencyScope,
+    selected: Vec<symbols::SymbolHandle>,
+    bindings: Vec<typed_trees::callable_signature_shapes::BoundCallableShape>,
+    declaration_metadata: Vec<symbols::SymbolHandle>,
 }
 
 /// One boundary requirement a machine of an accepted module calls.
@@ -34,13 +48,49 @@ impl AcceptedTerminalSource {
         compilation: structure_elaboration::Compilation<'_>,
         publication: terminal_codec::TerminalPublication,
     ) -> Result<Self, Vec<Diagnostic>> {
+        let request = CompilationRequest {
+            entries: compilation.entries.to_vec(),
+            subjects: compilation.subjects.to_vec(),
+            purpose: compilation.purpose,
+            selected: compilation.selected.to_vec(),
+            bindings: compilation.bindings.to_vec(),
+            declaration_metadata: compilation.declaration_metadata.to_vec(),
+        };
         let verdicts = lowered_discharge::judge_compilation_for(&source, compilation, publication);
         let closure = accept_compilation(verdicts)?;
         Ok(Self {
             source,
             closure,
             publication,
+            request,
         })
+    }
+
+    /// Judge an explicit metadata demand using this request's same source and
+    /// complete claimed scope. The caller must publish this new result and
+    /// derive its artifact-bound receipts anew; an old artifact is not amended.
+    pub fn with_declaration_metadata(
+        &self,
+        declarations: &[symbols::SymbolHandle],
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let mut metadata = self.request.declaration_metadata.clone();
+        for declaration in declarations {
+            if !metadata.contains(declaration) {
+                metadata.push(*declaration);
+            }
+        }
+        Self::judge(
+            Arc::clone(&self.source),
+            structure_elaboration::Compilation {
+                entries: &self.request.entries,
+                subjects: &self.request.subjects,
+                purpose: self.request.purpose,
+                selected: &self.request.selected,
+                bindings: &self.request.bindings,
+                declaration_metadata: &metadata,
+            },
+            self.publication,
+        )
     }
 
     /// Binds source companions to this exact accepted code owner. The Build

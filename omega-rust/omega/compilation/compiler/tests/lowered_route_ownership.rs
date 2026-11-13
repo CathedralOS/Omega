@@ -39,6 +39,7 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
     let mut verdicts = judge_compilation(
         &frontier.typed,
         Compilation {
+            declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &[frontier.subject],
             purpose: source::DependencyScope::Product,
@@ -108,6 +109,7 @@ fn borrowing_after_an_earlier_operand_moves_the_local_is_rejected() {
     let verdicts = judge_compilation(
         &frontier.typed,
         Compilation {
+            declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &[frontier.subject],
             purpose: source::DependencyScope::Product,

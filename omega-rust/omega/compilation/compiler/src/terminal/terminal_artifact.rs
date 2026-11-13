@@ -122,7 +122,7 @@ impl<'a> TerminalProductRequest<'a> {
 
 pub(crate) struct ProducedTerminalProduct {
     pub(crate) program: Arc<psi_compiler::PortableTerminalProgram>,
-    proposal: backend_plan::TerminalTargetProviderProposal,
+    pub(super) proposal: backend_plan::TerminalTargetProviderProposal,
 }
 
 impl ProducedTerminalProduct {

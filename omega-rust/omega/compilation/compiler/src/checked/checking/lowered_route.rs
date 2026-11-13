@@ -36,6 +36,7 @@ impl RouteScope<'_> {
         psi_compiler::AcceptedTerminalSource::judge(
             typed,
             structure_elaboration::Compilation {
+                declaration_metadata: &[],
                 entries: self.entries,
                 subjects: &[self.subject],
                 purpose: source::DependencyScope::Product,

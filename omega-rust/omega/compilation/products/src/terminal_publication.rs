@@ -40,6 +40,21 @@ impl ProductTerminalPublication {
         self
     }
 
+    /// An executable child's metadata is part of its judgment, rather than a
+    /// patch to shared code. Already published code remains immutable.
+    pub fn with_declaration_metadata(
+        &self,
+        declarations: &[symbols::SymbolHandle],
+    ) -> Result<Self, Vec<Diagnostic>> {
+        if self.program.get().is_some() {
+            return Err(vec![Diagnostic::error(
+                "declaration metadata must be judged before Terminal publication",
+            )]);
+        }
+        let accepted = self.accepted()?.with_declaration_metadata(declarations)?;
+        Ok(Self::new(self.optimizations.clone()).with_accepted(Arc::new(accepted)))
+    }
+
     pub fn require_source_owner(
         &self,
         source: &Arc<typed_trees::FrozenTypedTrees>,

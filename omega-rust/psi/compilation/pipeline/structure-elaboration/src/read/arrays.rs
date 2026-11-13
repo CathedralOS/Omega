@@ -195,7 +195,7 @@ impl Program<'_> {
         Ok(ValueType::Record(id, Qualification::NONE))
     }
 
-    fn storage_type(
+    pub(super) fn storage_type(
         &mut self,
         machine: MachineId,
         reference: TypeReferenceHandle,

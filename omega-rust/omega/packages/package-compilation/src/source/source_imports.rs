@@ -45,6 +45,7 @@ pub(crate) use bindings::{
 pub(crate) use build_prelude::prepare_build_prelude;
 pub(crate) use entry_contract_seed::EntryContractSource;
 pub(crate) use entry_contract_seed::entry_contract_seeds;
+pub use entry_contract_seed::selected_program_entry_boundary;
 pub(crate) use frontier::{
     SourceStorage, ToolchainContractCustody, validate_package_source_frontier,
 };

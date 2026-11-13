@@ -116,6 +116,7 @@ pub(crate) fn prepare_admitted_build(
         psi_compiler::AcceptedTerminalSource::judge(
             source.program,
             psi_compiler::TerminalSourceCompilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: subject.as_slice(),
                 purpose: source::DependencyScope::Build,

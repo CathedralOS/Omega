@@ -111,6 +111,7 @@ impl CompilationSession {
         run_on_compile_thread(|| {
             source.require_product_policy(&product)?;
             let root = source.root().to_path_buf();
+            let package_inputs = source.package_inputs().cloned();
             let selected = self
                 .select_completed_source(source, returned, None)
                 .result
@@ -121,6 +122,7 @@ impl CompilationSession {
                 (),
                 Ok(crate::product_execution::ProductRequest::Requested {
                     realization: selected,
+                    package_inputs,
                     root,
                     product,
                     permissions: None,

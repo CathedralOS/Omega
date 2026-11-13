@@ -419,8 +419,9 @@ impl CompilationSession {
                 .into_iter()
                 .map(|(owner, request)| {
                     let root = request.build.source.root_path().to_path_buf();
+                    let inputs = request.build.source.package_inputs().clone();
                     (
-                        (owner, root, request.product, request.permissions),
+                        (owner, root, request.product, request.permissions, inputs),
                         request.build.source,
                     )
                 })
@@ -431,7 +432,7 @@ impl CompilationSession {
             // execute them before the application report succeeds.
             let mut requests = Vec::new();
             let mut applications = Vec::new();
-            for ((owner, root, product, permissions), selected) in
+            for ((owner, root, product, permissions, inputs), selected) in
                 self.select_build_batch(builds, None)
             {
                 let position = applications.len();
@@ -460,6 +461,7 @@ impl CompilationSession {
                                 .map(|realization| {
                                     crate::product_execution::ProductRequest::Requested {
                                         realization,
+                                        package_inputs: Some(inputs.clone()),
                                         root: root.clone(),
                                         product: test_product.clone(),
                                         permissions: permissions.clone(),
@@ -479,6 +481,7 @@ impl CompilationSession {
                     .map(
                         |realization| crate::product_execution::ProductRequest::Requested {
                             realization,
+                            package_inputs: Some(inputs.clone()),
                             root,
                             product,
                             permissions,

@@ -146,6 +146,10 @@ pub struct MachineSources {
 /// set is decided by the request, not by where source lives").
 #[derive(Debug, Clone, Copy)]
 pub struct Compilation<'a> {
+    /// Exact source declarations whose canonical metadata this product needs.
+    /// This nominates descriptors, not executable roots or outbound service
+    /// demand, and grants no compatibility or installation authority.
+    pub declaration_metadata: &'a [SymbolHandle],
     /// The Build's bound program entries. The first is the module's entry.
     pub entries: &'a [SymbolHandle],
     /// Full checks explicitly requested in addition to the entry/selection
@@ -386,6 +390,7 @@ pub fn elaborate_for(
 ) -> Checked<Elaboration> {
     let mut program = read::Program::new(typed, false);
     program.publication = publication;
+    program.declaration_metadata = compilation.declaration_metadata.to_vec();
     let first = MachineId::new(1).expect("1 is nonzero");
     let Some((entry, others)) = compilation.entries.split_first() else {
         // A Terminal module names one entry machine, so a compilation that
@@ -648,6 +653,8 @@ fn finish_reading(
     }
     let private_inputs = program.private_input_contracts(entry)?;
     let local_results = program.local_result_bodies(entry)?;
+    let declarations = program.declaration_metadata.clone();
+    let calling_abis = program.prepare_calling_abis(entry, &declarations)?;
     let mut elaboration = lower_generic_for(
         entry,
         &bodies,
@@ -661,6 +668,7 @@ fn finish_reading(
         program.publication,
         Some(&program),
     )?;
+    calling_abis.publish(&mut elaboration.module)?;
     if let Some(typed) = declared {
         declare::declare(
             typed,

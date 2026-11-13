@@ -16,6 +16,7 @@ fn judged(text: &str) -> RouteVerdict {
     let mut verdicts = crate::judge_compilation_for(
         &frozen,
         structure_elaboration::Compilation {
+            declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
             purpose: source::DependencyScope::Product,

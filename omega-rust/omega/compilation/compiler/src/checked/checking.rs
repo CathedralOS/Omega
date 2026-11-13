@@ -367,6 +367,9 @@ pub struct SourceCompilation {
 }
 
 impl SourceCompilation {
+    pub(crate) fn package_inputs(&self) -> Option<&PackageCompilationInputs> {
+        self.inputs.as_ref()
+    }
     pub fn product_queries(&self) -> ProductQueries {
         self.source.product_queries()
     }

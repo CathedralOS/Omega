@@ -78,6 +78,7 @@ fn roster<'a>(
     purpose: DependencyScope,
 ) -> structure_elaboration::Compilation<'a> {
     structure_elaboration::Compilation {
+        declaration_metadata: &[],
         entries,
         subjects,
         purpose,

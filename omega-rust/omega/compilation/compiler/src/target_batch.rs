@@ -139,6 +139,7 @@ fn select_target_product(
     prepared: PreparedProductTarget,
 ) -> Result<ProductRequest, Vec<Diagnostic>> {
     let realization = SelectedProductTarget::select(source, prepared)?;
+    let package_inputs = target.package_inputs().cloned();
     let product = match shared.requested_product {
         RequestedCompileProduct::Check => CompilationProduct::Check,
         RequestedCompileProduct::TerminalArtifact => {
@@ -150,6 +151,7 @@ fn select_target_product(
     };
     Ok(ProductRequest::Requested {
         realization,
+        package_inputs,
         root: shared.root_path.clone(),
         product,
         permissions: None,

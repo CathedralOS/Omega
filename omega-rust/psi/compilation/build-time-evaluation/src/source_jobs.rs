@@ -179,6 +179,7 @@ impl PreparedBuildMachineEntry {
         let accepted = psi_terminal_production::AcceptedTerminalSource::judge(
             source,
             psi_terminal_production::TerminalSourceCompilation {
+                declaration_metadata: &[],
                 entries: &[caller],
                 // Evaluating this call requests its dependency closure, not a
                 // full check of the requester's package or standalone source.
@@ -1371,6 +1372,7 @@ pub(crate) mod tests {
                 psi_terminal_production::AcceptedTerminalSource::judge(
                     Arc::clone(&source),
                     psi_terminal_production::TerminalSourceCompilation {
+                        declaration_metadata: &[],
                         entries: &[callee],
                         subjects: &[subject],
                         purpose: source::DependencyScope::Product,

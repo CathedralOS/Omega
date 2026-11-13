@@ -102,6 +102,7 @@ fn accepted(
     let accepted = AcceptedTerminalSource::judge(
         Arc::new(frozen),
         TerminalSourceCompilation {
+            declaration_metadata: &[],
             entries: &[entry],
             subjects: &[Some(package())],
             purpose: source::DependencyScope::Product,

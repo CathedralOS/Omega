@@ -26,6 +26,7 @@ serve is refused when it is set, never ignored.
 mod arrays;
 mod authority;
 mod bytes;
+mod calling_abis;
 mod calls;
 mod casts;
 mod contracts;
@@ -51,6 +52,7 @@ use crate::{Unserved, refuse};
 
 pub(crate) struct Program<'t> {
     pub publication: terminal_codec::TerminalPublication,
+    pub declaration_metadata: Vec<SymbolHandle>,
     typed: &'t TypedTrees,
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
@@ -186,6 +188,7 @@ impl<'t> Program<'t> {
     pub fn new(typed: &'t TypedTrees, rigid: bool) -> Self {
         Self {
             publication: terminal_codec::TerminalPublication::Portable,
+            declaration_metadata: Vec::new(),
             typed,
             symbols: IdTable::default(),
             signatures: IdTable::default(),

@@ -184,6 +184,7 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
     let mut verdicts = crate::judge_compilation_for(
         &typed,
         structure_elaboration::Compilation {
+            declaration_metadata: &[],
             entries: &[entry],
             subjects: &[None],
             purpose: source::DependencyScope::Product,
@@ -229,6 +230,7 @@ fn source_application_cannot_change_its_payload_type() {
     let verdicts = crate::judge_compilation_for(
         &typed,
         structure_elaboration::Compilation {
+            declaration_metadata: &[],
             entries: &[entry],
             subjects: &[None],
             purpose: source::DependencyScope::Product,
@@ -265,6 +267,7 @@ fn a_local_generic_data_template_remains_unserved() {
     let verdicts = crate::judge_compilation_for(
         &typed,
         structure_elaboration::Compilation {
+            declaration_metadata: &[],
             entries: &[entry],
             subjects: &[None],
             purpose: source::DependencyScope::Product,

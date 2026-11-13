@@ -79,6 +79,7 @@ fn probe(
     let verdicts = lowered_discharge::judge_compilation(
         &frontier.typed,
         structure_elaboration::Compilation {
+            declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &[frontier.subject],
             purpose: source::DependencyScope::Product,

@@ -77,6 +77,7 @@ fn accepted(
     match judge(elaborate(
         &frontier.typed,
         Compilation {
+            declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &[frontier.subject],
             purpose: source::DependencyScope::Product,

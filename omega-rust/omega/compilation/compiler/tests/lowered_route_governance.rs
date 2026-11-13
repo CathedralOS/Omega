@@ -46,6 +46,7 @@ fn rejected(fixture: &str) -> (Vec<String>, RouteVerdict) {
     let mut verdicts = judge_compilation(
         &frontier.typed,
         Compilation {
+            declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &[frontier.subject],
             purpose: source::DependencyScope::Product,

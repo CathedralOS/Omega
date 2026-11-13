@@ -87,6 +87,35 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                 .unwrap_err()
                 .contains("source declaration")
             );
+
+            // Executable metadata is a new, fully judged request over the same
+            // source, not a patch to this already published Check artifact.
+            let schema = package_compilation::selected_program_entry_boundary(
+                accepted.source(),
+                signature.target_slot(),
+                None,
+                checked.sources().exact_toolchain_sources(),
+            )
+            .expect("the selected target's authenticated source schema");
+            assert!(checked.terminal_publication().with_declaration_metadata(&[schema])
+                .unwrap_err()[0].message.contains("before Terminal publication"));
+            let executable = accepted.with_declaration_metadata(&[schema])
+                .expect("all original scope is judged with the requested descriptors");
+            assert!(std::sync::Arc::ptr_eq(accepted.source(), executable.source()));
+            assert_eq!(accepted.boundary_requirements_reached().unwrap(),
+                       executable.boundary_requirements_reached().unwrap());
+            assert!(module.calling_abi_signatures.is_empty());
+            let native_code = executable.produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
+                .unwrap().into_shared_portable().unwrap();
+            let native_module = native_code.artifact().semantic_module();
+            assert_eq!(native_module, executable.module());
+            assert_eq!(native_module.calling_abi_signatures.len(), 2);
+            assert!(native_module.calling_abi_signatures.iter().all(|row| row.storage.is_err()),
+                    "addr/linear storage must remain a concrete refusal until its shared projector serves it");
+            assert_ne!(native_code.artifact().manifest().semantic(), program.artifact().manifest().semantic());
+            assert_eq!(native_code.evidence().unwrap().module, native_code.artifact().manifest().semantic());
+            assert_eq!(program.artifact().semantic_module(), accepted.module());
+            assert!(accepted.with_declaration_metadata(&[symbols::SymbolHandle::invalid()]).is_err());
         })
         .unwrap()
         .join()

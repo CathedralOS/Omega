@@ -41,6 +41,7 @@ fn invocation(typed: typed_trees::TypedTrees) -> Checked<structure_elaboration::
     structure_elaboration::elaborate_for(
         &frozen,
         structure_elaboration::Compilation {
+            declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
             purpose: source::DependencyScope::Product,

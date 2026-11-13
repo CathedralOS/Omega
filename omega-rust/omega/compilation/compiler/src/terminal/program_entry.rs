@@ -10,6 +10,51 @@ use psi_compiler::{
     ProducedTerminalApplication, TerminalApplicationCustody, TerminalCompositionRoots,
 };
 
+pub(crate) fn prepare_entry_metadata(
+    custody: &mut crate::execution_settlement::SelectedProviderCustody,
+    inputs: Option<&package_compilation::PackageCompilationInputs>,
+) -> Result<(), Vec<Diagnostic>> {
+    let publication = &custody.terminal_publication;
+    publication
+        .require_source_owner(custody.source_inspection.program())
+        .map_err(|error| vec![error])?;
+    let original = publication.accepted()?;
+    let profile = custody
+        .execution
+        .target_profile()
+        .unwrap_or_else(target::TargetProfile::host);
+    let selected = provider_planning::program_entry::selected_program_entry_machine(
+        &custody.build.config.root_bindings,
+        Some(profile),
+    )?
+    .ok_or_else(|| {
+        vec![Diagnostic::error(
+            "executable product has no selected program entry",
+        )]
+    })?;
+    let declaration = package_compilation::selected_program_entry_boundary(
+        original.source(),
+        selected.slot,
+        inputs,
+        custody.sources.exact_toolchain_sources(),
+    )?;
+    let replacement = publication.with_declaration_metadata(&[declaration])?;
+    let accepted = replacement.accepted()?;
+    if original
+        .boundary_requirements_reached()
+        .map_err(|error| vec![error])?
+        != accepted
+            .boundary_requirements_reached()
+            .map_err(|error| vec![error])?
+    {
+        return Err(vec![Diagnostic::error(
+            "declaration metadata changed the product's settled boundary demand",
+        )]);
+    }
+    custody.terminal_publication = std::sync::Arc::new(replacement);
+    Ok(())
+}
+
 /// Prepare the selected target's entry receipt on its already published code.
 /// Calling plans and installation authority remain separate admissions.
 pub fn prepare_program_entry(

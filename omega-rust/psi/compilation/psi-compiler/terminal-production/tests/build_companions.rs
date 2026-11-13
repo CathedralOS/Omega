@@ -97,6 +97,7 @@ fn accepted_for(
     AcceptedTerminalSource::judge(
         Arc::new(frozen),
         structure_elaboration::Compilation {
+            declaration_metadata: &[],
             entries: &[entry],
             subjects: &[Some(package())],
             purpose: DependencyScope::Build,

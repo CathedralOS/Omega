@@ -151,6 +151,7 @@ impl CompilationProductError {
 pub(crate) enum ProductRequest {
     Requested {
         realization: SelectedProductTarget,
+        package_inputs: Option<package_compilation::PackageCompilationInputs>,
         root: PathBuf,
         product: CompilationProduct,
         permissions: Option<TerminalPermissionAcceptance>,
@@ -165,6 +166,7 @@ pub(crate) enum TerminalCompilation {
 
 pub(crate) struct CheckingCompilation {
     realization: SelectedProductTarget,
+    package_inputs: Option<package_compilation::PackageCompilationInputs>,
     report: ProductReportPlan,
     permissions: Option<TerminalPermissionAcceptance>,
     selections: OptimizationSelections,
@@ -173,6 +175,7 @@ pub(crate) struct CheckingCompilation {
 impl CheckingCompilation {
     pub(crate) fn new(
         realization: SelectedProductTarget,
+        package_inputs: Option<package_compilation::PackageCompilationInputs>,
         report: ProductReportPlan,
         permissions: Option<TerminalPermissionAcceptance>,
     ) -> Self {
@@ -183,6 +186,7 @@ impl CheckingCompilation {
             .clone();
         Self {
             realization,
+            package_inputs,
             report,
             permissions,
             selections,
@@ -213,18 +217,89 @@ impl CheckingCompilation {
         }
         let runtime_policy = std::sync::Arc::clone(&self.realization.runtime_policy);
         let checked = self.realization.into_checked_compilation()?;
-        let accounting = checked.source_completion_accounting().clone();
+        let mut accounting = checked.source_completion_accounting().clone();
         let report = (|| {
-            admit_permissions(&checked, &runtime_policy, self.permissions.as_ref(), false)?;
+            admit_permissions(
+                &checked,
+                &runtime_policy,
+                self.permissions.as_ref(),
+                self.report.needs_terminal(checked.build_admission()),
+            )?;
             checked
                 .admit_trust()
                 .map_err(CompilationProductError::TrustAdmission)?;
             match self.report.prepare(&checked)? {
                 CheckedProductReport::Complete(report) => Ok(CompilationOutput::Report(report)),
-                _ => Err(vec![Diagnostic::error(
-                    "declaration checking unexpectedly requested executable production",
-                )]
-                .into()),
+                CheckedProductReport::Terminal {
+                    mut settlement,
+                    rollback,
+                } => {
+                    let (signature, application) =
+                        crate::terminal::prepare_program_entry(&checked)?;
+                    let plans = crate::terminal::prepare_entry_calling_plans(
+                        &checked,
+                        &produced.program,
+                        self.package_inputs.as_ref(),
+                        &signature,
+                        &mut accounting,
+                    )?;
+                    let (terminal, _, _) = crate::terminal::prepare_native_application(
+                        &checked,
+                        produced,
+                        &signature,
+                        application,
+                        &plans,
+                        settlement.application().clone(),
+                        rollback.effective(),
+                        None,
+                    )?;
+                    *settlement.source_completion_accounting_mut() = accounting.clone();
+                    settlement
+                        .finish_terminal(terminal, rollback.into_receipt())
+                        .map(CompilationOutput::Report)
+                        .map_err(Into::into)
+                }
+                CheckedProductReport::Native {
+                    mut settlement,
+                    request,
+                    rollback,
+                } => {
+                    let (signature, application) =
+                        crate::terminal::prepare_program_entry(&checked)?;
+                    let plans = crate::terminal::prepare_entry_calling_plans(
+                        &checked,
+                        &produced.program,
+                        self.package_inputs.as_ref(),
+                        &signature,
+                        &mut accounting,
+                    )?;
+                    let (terminal, accepted_package_permissions, retained_native_inputs) =
+                        crate::terminal::prepare_native_application(
+                            &checked,
+                            produced,
+                            &signature,
+                            application,
+                            &plans,
+                            settlement.application().clone(),
+                            rollback.effective(),
+                            Some(&request),
+                        )?;
+                    *settlement.source_completion_accounting_mut() = accounting.clone();
+                    Ok(CompilationOutput::Native(Box::new(
+                        compilation_products::PendingNativeProduct {
+                            terminal,
+                            retained_native_inputs,
+                            components: Ok(Vec::new()),
+                            accepted_package_permissions,
+                            request,
+                            rollback,
+                            subsystem: settlement.application().subsystem,
+                            settlement,
+                            tests: Vec::new(),
+                            test_notes: Vec::new(),
+                        },
+                    )))
+                }
             }
         })();
         report.map_err(|error: CompilationProductError| {
@@ -238,13 +313,14 @@ impl CheckingCompilation {
 
 impl ProductRequest {
     pub(crate) fn plan(self) -> Result<TerminalCompilation, CompilationProductError> {
-        let (realization, root, product, permissions) = match self {
+        let (mut realization, package_inputs, root, product, permissions) = match self {
             Self::Requested {
                 realization,
+                package_inputs,
                 root,
                 product,
                 permissions,
-            } => (realization, root, product, permissions),
+            } => (realization, package_inputs, root, product, permissions),
             Self::Component(checked) => {
                 if checked.sources().package_identity().is_none() {
                     return Err(vec![Diagnostic::error(
@@ -267,17 +343,16 @@ impl ProductRequest {
         };
         let report = ProductReportPlan::new(root, requested, &realization.custody.build);
         if report.needs_terminal(&realization.custody.build_admission) {
-            return Err(refuse_executable_product(if report.is_native() {
-                "a native"
-            } else {
-                "a Terminal"
-            })
-            .into());
+            crate::terminal::prepare_entry_metadata(
+                &mut realization.custody,
+                package_inputs.as_ref(),
+            )?;
         }
         // The accepted Terminal module always exists on this route, so every
         // non-executing stop checks its target-local conditions against it.
         Ok(TerminalCompilation::Checking(CheckingCompilation::new(
             realization,
+            package_inputs,
             report,
             permissions,
         )))
