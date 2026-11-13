@@ -38,6 +38,7 @@ mod lifetime_elision;
 mod machine_lifetimes;
 mod mathematical_clauses;
 mod mutable_formals;
+mod owned_dispatch;
 mod proof_scope;
 mod ranges;
 mod reach;

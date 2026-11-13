@@ -345,6 +345,17 @@ pub fn verify(
                 {
                     return Err(Error::Malformed("cleanup root is outside the machine"));
                 }
+                // The schedule owns every disposal of an affine root, and
+                // the comparison below holds the edge to it. Any other
+                // storage has nothing to dispose of: its home is retired,
+                // and no edge discards it or runs a machine over it.
+                if !plan.affine_roots.contains(action.place())
+                    && !matches!(action, TerminalAffineCleanupAction::RetireHome(_))
+                {
+                    return Err(Error::Unsupported(
+                        "disposal of storage the affine schedule does not own",
+                    ));
+                }
             }
             let actual = actions
                 .iter()
