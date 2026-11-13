@@ -170,9 +170,7 @@ impl PreparedBuildMachineEntry {
             machine,
             &self.call,
             arguments,
-            self.source
-                .expression_table
-                .try_source_span(self.call_source),
+            self.call_source,
         )?;
         // The call's source reaches the checker the way every program does,
         // through typed preparation; there is no second way to freeze it.
@@ -393,6 +391,14 @@ impl PreparedBuildMachineProgram {
             .expression_table
             .call_node(expression)
             .ok_or("source job requires a retained call expression")?;
+        if call.authored_machine_application.is_valid()
+            && !self
+                .source
+                .expression_table
+                .static_machine_application_is_valid(call.authored_machine_application)
+        {
+            return Err("source job call has no retained static application".into());
+        }
         if typed_trees::references::StaticArgumentCall::Expression(expression, call)
             .lexical_owner(&self.source)
             != requester
@@ -626,6 +632,175 @@ mod tests {
         assert!(
             error.contains("an applied declaration operand requires a machine or requirement"),
             "{error}"
+        );
+        assert_eq!(meter.usage().total_units(), 0);
+    }
+
+    #[test]
+    fn source_schema_query_materializes_its_bare_type_operand() {
+        let source = with_reflection(
+            "use omega::language::core::reflect;
+            data Cell { value: u32; }
+            machine answer() -> reflect::TypeSchema { reflect::schema<Cell>() }
+            machine other() -> reflect::TypeSchema { reflect::schema<Cell>() }",
+        );
+        let (requester, expression) = returned_source_call(&source, "answer");
+        let (another, _) = returned_source_call(&source, "other");
+        let original = source.expression_table.call_node(expression).unwrap();
+        let request = typed_trees::references::StaticArgumentCall::Expression(expression, original);
+        let [operand] = request.arguments(&source) else {
+            panic!("one actual type operand")
+        };
+        assert_eq!(
+            operand.type_reference,
+            typed_trees::types::TypeReferenceHandle::invalid()
+        );
+        let selected = source.data_definition_by_symbol(operand.symbol).unwrap();
+        assert_eq!(selected.name.as_str(), "Cell");
+        let selected_symbol = selected.symbol;
+        let application = request.application();
+        let program = PreparedBuildMachineProgram::prepare(&source, None).unwrap();
+        let error = program.entry_call(another, expression).err().unwrap();
+        assert_eq!(error, "source job call has another requesting declaration");
+        let mut accounting = crate::SourceCompletionAccounting::default();
+        let result = program
+            .entry_call(requester, expression)
+            .unwrap()
+            .invoke_recorded(target(), &[], &mut accounting)
+            .expect("the actual bare declaration produces its schema");
+        let [crate::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+            panic!("one actual query invocation")
+        };
+        receipt.validate_charge().unwrap();
+        assert_eq!(receipt.requester(), requester);
+        let call = receipt.call().unwrap();
+        let retained = typed_trees::references::StaticArgumentCall::Expression(
+            typed_trees::expression::ExpressionHandle::invalid(),
+            call,
+        );
+        assert_eq!(retained.lexical_owner(receipt.source()), requester);
+        let [operand] = retained.arguments(receipt.source()) else {
+            panic!("one normalized type operand")
+        };
+        assert_eq!(operand.symbol, selected_symbol);
+        assert!(
+            receipt
+                .source()
+                .type_reference_table
+                .contains_type_reference(operand.type_reference)
+        );
+        assert!(
+            matches!(receipt.source().type_reference_table.type_reference(operand.type_reference),
+            typed_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == selected_symbol)
+        );
+        assert_eq!(
+            receipt
+                .source()
+                .closed_data_definition(operand.type_reference)
+                .unwrap()
+                .symbol,
+            selected_symbol
+        );
+        if !call.machine_arguments.is_empty() {
+            assert_eq!(
+                call.machine_arguments.as_ref(),
+                retained.arguments(receipt.source())
+            );
+            assert_eq!(
+                receipt
+                    .source()
+                    .expression_table
+                    .call_node(expression)
+                    .unwrap()
+                    .machine_arguments,
+                call.machine_arguments
+            );
+        }
+        let rows = receipt
+            .program()
+            .source_records()
+            .iter()
+            .filter(|row| {
+                row.declaration == selected_symbol
+                    && row
+                        .application
+                        .as_ref()
+                        .is_some_and(|application| application.reference == operand.type_reference)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            rows.len(),
+            1,
+            "the same request registers its actual structural home"
+        );
+        let BuildTimeValue::Struct { fields, .. } = result.value() else {
+            panic!("the ordinary schema result")
+        };
+        assert!(
+            matches!(fields.as_slice(), [(field, BuildTimeValue::Text(bytes))]
+            if field == "storage" && !bytes.is_empty())
+        );
+
+        let mut stale_application_source = source.clone();
+        let stale_application =
+            typed_trees::static_applications::StaticMachineApplicationHandle::from_parts(
+                application.arena_index(),
+                application.generation() + 1,
+            );
+        assert!(
+            !stale_application_source
+                .expression_table
+                .static_machine_application_is_valid(stale_application)
+        );
+        let typed_trees::expression::ExpressionNode::Call(call) = stale_application_source
+            .expression_table
+            .expression_mut(expression)
+        else {
+            panic!("the same source call")
+        };
+        call.authored_machine_application = stale_application;
+        let error = PreparedBuildMachineProgram::prepare(&stale_application_source, None)
+            .unwrap()
+            .entry_call(requester, expression)
+            .err()
+            .expect("a stale application cannot supply an argument tuple or lexical owner");
+        assert_eq!(error, "source job call has no retained static application");
+
+        // A supplied reference with the wrong generation must not be rebuilt
+        // from the still-correct declaration symbol, or reach execution.
+        let mut stale_source = source.clone();
+        let (reference, _) = source.type_reference_table.references().next().unwrap();
+        let stale = typed_trees::types::TypeReferenceHandle::from_parts(
+            reference.arena_index(),
+            reference.generation() + 1,
+        );
+        assert!(
+            !stale_source
+                .type_reference_table
+                .contains_type_reference(stale)
+        );
+        stale_source
+            .expression_table
+            .static_machine_application_arguments_mut(application)[0]
+            .type_reference = stale;
+        let typed_trees::expression::ExpressionNode::Call(call) =
+            stale_source.expression_table.expression_mut(expression)
+        else {
+            panic!("the same source occurrence")
+        };
+        if !call.machine_arguments.is_empty() {
+            call.machine_arguments[0].type_reference = stale;
+        }
+        let mut meter = psi_work::WorkMeter::unbounded();
+        let error = PreparedBuildMachineProgram::prepare(&stale_source, None)
+            .unwrap()
+            .entry_call(requester, expression)
+            .unwrap()
+            .invoke(target(), &[], &mut meter)
+            .expect_err("malformed supplied references remain unavailable");
+        assert_eq!(
+            error,
+            "source invocation type argument has no retained reference"
         );
         assert_eq!(meter.usage().total_units(), 0);
     }
