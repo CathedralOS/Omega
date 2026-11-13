@@ -407,6 +407,8 @@ one implementation.
 | A second prover with no production caller | PA-2 |
 | Three answers to one domain spelling | RS-1, RS-2, RS-3 |
 | A second layout of a plan the previous stage stored | IS-1, IS-2, IS-3 |
+| A walker with no production caller | TT-1, TT-2, TT-3, TT-4, SM-1, SM-3 |
+| An obligation the discharge stage does not state | SM-2 |
 | Storage whose producer never writes it | LF-2, LF-3 |
 | A named surface with no caller | LF-4, LF-5 |
 
@@ -1152,6 +1154,128 @@ equality as a local refusal of a plan selection is about to encode. The
 spec still says the default path does not re-validate output the same
 compile just produced.
 
+### TT-1. Plan-laid geometry copies offsets nothing in production writes
+
+Pattern: a second offset table. Category: likely unnecessary. Confidence:
+high. Owner: typed trees. About 177 lines: `PlanLaidGeometry` is
+`access_views_and_commitments.rs` 1253–1354 (102), and the table methods
+are `lib.rs` 317–391 (75).
+
+[Reflection](wiki/spec/language/reflection.md) says there is no second
+offset calculator. `LayoutPlanReport` already carries `offsets`, `size`,
+and `align`. `PlanLaidGeometry` stores that report and a second copy.
+`authored_field_storage` rebuilds field storage from the copy. The only
+`plan_laid_layouts.push` is a test in `layout/src/boundary_values.rs`.
+The producer lowerer drops the field. `source_frontier` refuses a
+nonempty table.
+
+Follow-up: keep `LayoutPlanReport`. Drop the parallel offset vectors and
+`authored_field_storage`.
+
+### TT-2. Static type-context and boolean walkers have no production caller
+
+Pattern: a second boolean judgment. Category: likely unnecessary.
+Confidence: high. Owner: typed trees. About 989 lines in `type_system.rs`:
+606–697 (92), 902–1511 (610), 1577–1679 (103), and 1694–1877 (184).
+
+[Pipeline](omega-rust/pipeline.md) says typed structure is no acceptance
+certificate. Boolean normalization belongs to the proof owner's
+`predicate_denotation.rs::normalize`. `prepare_static_type_contexts`,
+`elide_unreachable_case_arms`, `static_boolean_value`, and
+`static_boolean_normal_form` appear only in this file. The production
+readers in `type_identity.rs` see the default empty table.
+`source_frontier` refuses a non-default table.
+
+Follow-up: delete the walkers. Leave the empty-table readers, or stop
+consulting `static_type_contexts` until a stage fills it.
+
+### TT-3. Two proposition normalizers disagree, and neither is called
+
+Pattern: two normalizers of one application. Category: likely unnecessary.
+Confidence: high. Owner: typed trees. About 822 lines,
+`evidence_and_inspection.rs` 846–1667.
+
+On a transparent Boolean body, `normalize_nominal_proposition_application`
+returns `None` (`evidence_and_inspection.rs` 1362–1364).
+`normalize_proposition_application` returns a rendered Boolean label
+(1585–1596). Both are reached only from this file. The proof-owner
+`normalize` does not call them.
+
+Follow-up: delete both walkers and the evidence-interface renderer only
+they use. Do not keep one of them. Proposition identity stays on the
+proof-owner denotation.
+
+### TT-4. Open-index identity still distributes, and production stores no selection
+
+Pattern: a canonical rewrite the spec removed. Category: likely
+unnecessary. Confidence: high. Owner: typed trees. About 382 lines,
+`type_identity.rs` 3349–3730.
+
+[Contracts](wiki/spec/proofs/contracts.md) says canonical index identity
+has no distributive expansion, factoring, user-law search, or expansion
+budget. `IndexTerm::expanded` rewrites `distributes_over` products and
+skips the rewrite past 64 summands, so the key depends on the cutoff.
+The two `.operation = Some(OpenIndexOperationSelection …)` stores are
+inside `#[cfg(test)]` (`references.rs` 605 and `type_identity.rs` 3732).
+The live `normalize_index_expression` reaches the expansion only when a
+selection is attached.
+
+Follow-up: keep the structural index path. Delete `IndexTerm::expanded`,
+the 64 cutoff, and the unwritten selection slot.
+
+### SM-1. The scalar-demand rewrite of a Terminal machine has no production caller
+
+Pattern: a mutator of the published machine. Category: likely unnecessary.
+Confidence: high. Owner: terminal semantics. 898 lines before the tests,
+`scalars.rs` 1790–2687. The module including tests is 1,255 lines
+(1790–3044).
+
+[Product](wiki/spec/terminal-psi/product.md) says an empty selection is
+the identity transformation, and later phases cannot mutate the published
+module. `complete_scalar_demand` deletes total scalar operations whose
+results are unused, then unused block parameters. Every call is a test
+assert in the same file. `rg complete_scalar_demand` outside that file is
+empty.
+
+Follow-up: delete `scalar_demand`, its tests, the re-export, and
+`is_unconditionally_total_scalar` if nothing else calls it. This is not a
+discharge path.
+
+### SM-2. Concatenation capacity and length goals are never called
+
+Pattern: an obligation the discharge stage does not state. Category: spec
+question. Confidence: high that nothing calls the functions, medium on
+whether discharge is supposed to. Owner: terminal semantics. 62 lines,
+`bytes.rs` 68–129.
+
+[Structural access](wiki/spec/terminal-psi/structural_access.md) says
+`EstablishByteSequenceConcatenation` owns a proof that the sum of the two
+lengths is at most the result capacity, and that the live length is that
+sum. `byte_sequence_concatenation_capacity_goal` and
+`byte_sequence_concatenation_length_equation` are the re-export in
+`lib.rs` and the definitions. `lowered-discharge` has no match for the
+operation. The interpreter rejects an over-capacity concatenation at run
+time. That is execution, not this obligation.
+
+Follow-up: do not delete the functions as a duplicate of the interpreter.
+Either discharge states the two propositions, or the served slice says
+concatenation capacity is not a lowered-form obligation yet.
+
+### SM-3. The proposition roster index is never constructed
+
+Pattern: an index beside the fact store discharge uses. Category: likely
+unnecessary. Confidence: high. Owner: terminal semantics. 265 lines,
+`substitution.rs` 393–657.
+
+`FactIndex`, `SharedRoster`, and `push_unique_fact` appear only in that
+span. Discharge stores facts in `Known` and calls
+`check_value_equality_denotation`. Substitution itself stays:
+`substitute_proposition_values` and `substitute_crash_routes` have callers
+in the interpreter, the codec, and abstract-operation validation.
+
+Follow-up: delete lines 393–657 and the unused `HashMap` import. Leave the
+substitute functions.
+
 ## 4. Independent review
 
 This pass re-read the callers of each finding above and tried to break the
@@ -1185,6 +1309,13 @@ simplification. It did not re-open the directory census.
 | IS-1 | Stands. `StructuralCaseMembership` stores `case_tag` and `tag_byte_offset`. `project_structural_case_membership` ignores that row and calls `membership_layout`. The off-path checker in `legalization_target.rs` stays off the default path. |
 | IS-2 | Stands. Selection rebuilds the same layout and errors when the copy differs. The pointer-slot list is the part the legalized row dropped. |
 | IS-3 | Stands as likely unnecessary, medium confidence. `validate` re-runs `evaluate_call_plan` and errors when the plans differ. That is one ABI function run again, not a second ABI. |
+| TT-1 | Stands. The only `plan_laid_layouts.push` is a test. The lowerer drops the field. `LayoutPlanReport` already stores the offsets. |
+| TT-2 | Stands. `prepare_static_type_contexts` and `static_boolean_value` appear only in `type_system.rs`. Production readers see the empty table. |
+| TT-3 | Stands. On a transparent Boolean body the nominal walker returns `None` and the other returns a rendered label. Both are reached only from `evidence_and_inspection.rs`. Delete both. |
+| TT-4 | Stands. Both `OpenIndexOperationSelection` stores are under `#[cfg(test)]`. `IndexTerm::expanded` still distributes and stops at 64, which the contracts page rules out of canonical identity. |
+| SM-1 | Stands. `complete_scalar_demand` is called only from tests in `scalars.rs`. |
+| SM-2 | Stands as a spec question. The two goal functions have no caller outside their re-export. The interpreter's length check is execution, not this obligation. |
+| SM-3 | Stands. `FactIndex` and `SharedRoster` have no constructor. The substitute functions stay. |
 
 Confirmed duplication is no longer only LF-1. Similar names
 (`CheckedCompilation`, `compiler/src/checked/`, `PsiOptimization`) are the
@@ -1203,9 +1334,10 @@ delete (OC-3) come after those. Spec questions come last, ordered by the
 lines that would go if the answer is to delete. Confidence breaks ties.
 
 Confirmed duplication: 7 (LF-1, PA-1, RS-1, RS-2, RS-3, IS-1, IS-2).
-Likely unnecessary: 12 (TL-1, TL-2, OC-2, DOCS-1, OC-3, TL-4, TL-5, LF-2,
-LF-3, LF-5, PA-2, IS-3). Unresolved spec questions: 6 (OC-1, FD-1, PL-1,
-PL-2, OC-4, LF-4). Dropped by review: 1 (TL-3).
+Likely unnecessary: 18 (TL-1, TL-2, OC-2, DOCS-1, OC-3, TL-4, TL-5, LF-2,
+LF-3, LF-5, PA-2, IS-3, TT-1, TT-2, TT-3, TT-4, SM-1, SM-3). Unresolved
+spec questions: 7 (OC-1, FD-1, PL-1, PL-2, OC-4, LF-4, SM-2). Dropped by
+review: 1 (TL-3).
 
 | Rank | Id | Lines a follow-up can delete | Why this order |
 | --- | --- | ---: | --- |
@@ -1216,33 +1348,42 @@ PL-2, OC-4, LF-4). Dropped by review: 1 (TL-3).
 | 5 | RS-1 | 104 | Confirmed. Three domain lookups do not share a collapse rule. |
 | 6 | RS-3 | 45 | Confirmed. The static call keeps only `entry`. The first scan prefers a state named the call target. |
 | 7 | PA-1 | 40 | Confirmed. `normalize` decides an IEEE relation the spec says stays unchanged. |
-| 8 | PA-2 | 760 | The source-integer theory search. Constructed only in tests. |
-| 9 | TL-1 | 499 | `stage_coverage.rs` plus its `main.rs` arm. |
-| 10 | LF-3 | 390 | `elision` in `semantics/src/scalars.rs`, lines 802–1191. No caller. |
-| 11 | LF-2 | 146 | `may_sets.rs` is 93 lines. `Summary` through `Termination` in `edges.rs` is lines 127–179 (53). Nothing constructs them. The module ceiling stays. |
-| 12 | TL-5 | 107 | The three `.codex` slot scripts. |
-| 13 | LF-5 | 28 | The `OBSERVATION_LABELS` table. A relabel, not a deleted stage. |
-| 14 | OC-2 | 23 | Two unread stage constants (4) and the uncalled preliminary-check recorder (19). |
-| 15 | IS-3 | 22 | The calling-convention equality. One ABI function, run again. Medium confidence. |
-| 16 | OC-1 | 10 | The uncalled helper. The wire tag stays until the spec question is answered, so only the helper is in this count. |
-| 17 | TL-2 | 2 | Two missing roots. The stage 04 scan stays. |
-| 18 | TL-4 | 0 | The testing guide's Python commands. A rewrite of instructions. |
-| 19 | DOCS-1 | 0 | Stale sentences. No behavior. |
-| 20 | OC-3 | 0 | Retarget. The parser implements spellings the spec forbids. |
-| 21 | LF-4 | 961 | Spec question. Package `proof` has no caller. `pipeline.md` still names the directory. |
-| 22 | OC-4 | 72 | Spec question. The legacy snapshot scan re-verifies. |
-| 23 | FD-1 | 0 | Spec question. Keep the decode arm and the refusal fence. |
-| 24 | PL-1 | 0 | Spec question. Do not delete the Psi passes. |
-| 25 | PL-2 | 0 | Spec question. Keep the phase refusal. |
+| 8 | TT-2 | 989 | The static type-context and boolean walkers. No production caller. |
+| 9 | SM-1 | 898 | `scalar_demand` before its tests. It mutates a Terminal machine and only tests call it. |
+| 10 | TT-3 | 822 | Both proposition normalizers. They disagree, and neither is called. |
+| 11 | PA-2 | 760 | The source-integer theory search. Constructed only in tests. |
+| 12 | TL-1 | 499 | `stage_coverage.rs` plus its `main.rs` arm. |
+| 13 | LF-3 | 390 | `elision` in `semantics/src/scalars.rs`, lines 802–1191. No caller. |
+| 14 | TT-4 | 382 | `IndexTerm::expanded` and the 64 cutoff. Production stores no selection. |
+| 15 | SM-3 | 265 | `FactIndex` and `SharedRoster`. Nothing constructs them. Substitution stays. |
+| 16 | TT-1 | 177 | The plan-laid offset copy. The only push is a test. |
+| 17 | LF-2 | 146 | `may_sets.rs` is 93 lines. `Summary` through `Termination` in `edges.rs` is lines 127–179 (53). Nothing constructs them. The module ceiling stays. |
+| 18 | TL-5 | 107 | The three `.codex` slot scripts. |
+| 19 | LF-5 | 28 | The `OBSERVATION_LABELS` table. A relabel, not a deleted stage. |
+| 20 | OC-2 | 23 | Two unread stage constants (4) and the uncalled preliminary-check recorder (19). |
+| 21 | IS-3 | 22 | The calling-convention equality. One ABI function, run again. Medium confidence. |
+| 22 | OC-1 | 10 | The uncalled helper. The wire tag stays until the spec question is answered, so only the helper is in this count. |
+| 23 | TL-2 | 2 | Two missing roots. The stage 04 scan stays. |
+| 24 | TL-4 | 0 | The testing guide's Python commands. A rewrite of instructions. |
+| 25 | DOCS-1 | 0 | Stale sentences. No behavior. |
+| 26 | OC-3 | 0 | Retarget. The parser implements spellings the spec forbids. |
+| 27 | LF-4 | 961 | Spec question. Package `proof` has no caller. `pipeline.md` still names the directory. |
+| 28 | OC-4 | 72 | Spec question. The legacy snapshot scan re-verifies. |
+| 29 | SM-2 | 62 | Spec question. Concatenation goals have no caller. Do not delete them as a duplicate of the interpreter. |
+| 30 | FD-1 | 0 | Spec question. Keep the decode arm and the refusal fence. |
+| 31 | PL-1 | 0 | Spec question. Do not delete the Psi passes. |
+| 32 | PL-2 | 0 | Spec question. Keep the phase refusal. |
 
 Lines the deletion follow-ups can remove, from the rank table: 213 (IS-1)
-+ 158 (RS-2) + 142 (IS-2) + 104 (RS-1) + 45 (RS-3) + 40 (PA-1) + 760 (PA-2)
-+ 499 (TL-1) + 390 (LF-3) + 146 (LF-2) + 107 (TL-5) + 23 (OC-2) + 22 (IS-3)
-+ 10 (OC-1's helper) + 2 (TL-2) = 2,661. LF-5 rewrites its 28-line label
-table. LF-1 keeps one walker. OC-3 rewrites the parser. Generated,
-vendored, and fixture reduction: 0. Documentation rewrites are the
-stage-coverage section in `tools/testing.md` (lines 440–497), the Python
-baseline commands (TL-4), and DOCS-1.
++ 158 (RS-2) + 142 (IS-2) + 104 (RS-1) + 45 (RS-3) + 40 (PA-1) + 989 (TT-2)
++ 898 (SM-1) + 822 (TT-3) + 760 (PA-2) + 499 (TL-1) + 390 (LF-3) + 382
+(TT-4) + 265 (SM-3) + 177 (TT-1) + 146 (LF-2) + 107 (TL-5) + 23 (OC-2)
++ 22 (IS-3) + 10 (OC-1's helper) + 2 (TL-2) = 6,194. LF-5 rewrites its
+28-line label table. LF-1 keeps one walker. OC-3 rewrites the parser.
+SM-2 stays until the spec says whether discharge states those goals.
+Generated, vendored, and fixture reduction: 0. Documentation rewrites are
+the stage-coverage section in `tools/testing.md` (lines 440–497), the
+Python baseline commands (TL-4), and DOCS-1.
 
 ### Follow-up 1. Remove `stage-coverage`
 
@@ -1455,6 +1596,52 @@ Checks:
 - `mbx clippy -p syntax-trees-to-symbol-resolved-trees --all-targets -- -D warnings < /dev/null`
 - `mbx xtask fmt --check`
 
+### Follow-up 15. Delete the uncalled static type and boolean walkers
+
+`psi: drop the uncalled static type and boolean walkers`
+
+Delete `prepare_static_type_contexts`, `elide_unreachable_case_arms`,
+`static_boolean_value`, and `static_boolean_normal_form`. Leave the
+empty-table readers, or stop consulting `static_type_contexts` from type
+identity. Boolean normalization stays in `predicate_denotation.rs`.
+
+Checks:
+
+- `mbx test -p typed-trees --lib < /dev/null`
+- `mbx clippy -p typed-trees --all-targets -- -D warnings < /dev/null`
+- `mbx xtask fmt --check`
+- `rg -n 'prepare_static_type_contexts|static_boolean_value' omega-rust --glob '*.rs'`
+
+### Follow-up 16. Delete the uncalled scalar-demand rewrite
+
+`psi: drop the uncalled scalar-demand rewrite`
+
+Delete `pub mod scalar_demand`, its tests, the re-export, and
+`is_unconditionally_total_scalar` if nothing else calls it. Do not fold
+it into discharge.
+
+Checks:
+
+- `mbx test -p terminal-semantics --lib < /dev/null`
+- `mbx clippy -p terminal-semantics --all-targets -- -D warnings < /dev/null`
+- `mbx xtask fmt --check`
+- `rg -n 'complete_scalar_demand' omega-rust --glob '*.rs'`
+
+### Follow-up 17. Delete both uncalled proposition normalizers
+
+`psi: drop both uncalled proposition normalizers`
+
+Delete `normalize_nominal_proposition_application`,
+`normalize_proposition_application`, and the evidence-interface renderer
+only they use. Do not keep the one that returns a Boolean label.
+
+Checks:
+
+- `mbx test -p typed-trees --lib < /dev/null`
+- `mbx clippy -p typed-trees --all-targets -- -D warnings < /dev/null`
+- `mbx xtask fmt --check`
+- `rg -n 'normalize_proposition_application|normalize_nominal_proposition_application' omega-rust --glob '*.rs'`
+
 ## 6. Large-crate coverage
 
 Each of the six crates named below gets its own pass. A clean result means
@@ -1519,6 +1706,30 @@ Not line-read: `selection_access_lifecycles.rs`,
 `selection_views_and_bytes.rs`, `legalization_reference_custody.rs`, and
 `legalization_target.rs` beyond the case and layout matches. No `mbx` run.
 
+### Typed trees, four findings
+
+`omega-rust/psi/compilation/representations/typed-trees` is 71,141 lines.
+`git diff --stat a93022df945edf9147d3e75332c7ee944594029a --`
+that directory is empty. TT-1 through TT-4 are unused second judgments.
+Instruction selection does not import this crate. Shared integer
+arithmetic is `semantic_vocabulary::IntegerType`, one implementation.
+
+Not line-read: `callable_applications.rs`, `declaration_tables_and_index.rs`,
+`values.rs`, and `type_identity.rs` past the identity and open-index
+walks. No `mbx` run.
+
+### Terminal semantics, three findings
+
+`omega-rust/psi/compilation/representations/terminal-psi/semantics` is
+53,446 lines. `git diff --stat a93022df945edf9147d3e75332c7ee944594029a --`
+that directory is empty. LF-3 still holds. SM-1, SM-2, and SM-3 are the
+new rows. No second live walker of scalar goals, integer certificates,
+crash guards, or proposition normalization turned up in the four
+neighboring crates. `fn closed_guard` is still only the LF-1 pair.
+
+Not line-read: the scalar-goal and descriptor bodies beyond the caller
+searches named in SM-1 through SM-3. No `mbx` run.
+
 ### What this pass could not verify
 
 - Whether any on-disk build record still encodes measurement tag 0. The
@@ -1531,9 +1742,10 @@ Not line-read: `selection_access_lifecycles.rs`,
   elaboration and discharge. This pass did not walk every command flag to
   that function, so the stage READMEs' "not wired" claim is contradicted
   for the product route and unverified for every other route.
-- Two large crates are still unread: typed-trees (71,141) and terminal
-  semantics (53,446). Proof admission's integer-affine, quotient, and
-  typing-arm bodies were not line-read. The resolver and instruction
-  selection files named in section 6 were searched, not line-read. The
-  interpreter's storage files listed in section 6 were searched, not
-  line-read.
+- Each of the six large crates has had a pass. The files named in
+  section 6 were searched, not line-read: interpreter storage, proof
+  admission's integer-affine, quotient, and typing arms, the rest of the
+  resolver, the unread selection and legalization files, typed-trees
+  `callable_applications.rs`, `declaration_tables_and_index.rs`,
+  `values.rs`, and the rest of `type_identity.rs`, and the scalar-goal
+  bodies in terminal semantics.
