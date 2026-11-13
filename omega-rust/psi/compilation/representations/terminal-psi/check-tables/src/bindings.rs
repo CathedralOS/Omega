@@ -116,10 +116,11 @@ pub enum Content {
     /// recursive summary uses the conservative ownership ceiling, never an
     /// empty write set."
     Overwritten,
-    /// No valid contents: an owned move out of borrowed storage left a hole.
+    /// No valid contents: an owned move transferred this region's value.
     /// `wiki/spec/language/ownership.md`: "Zero-filled or stale bytes do not
-    /// fill the hole." The matching restoration debt is an obligation
-    /// (`obligations::ObligationKind::RestorationWindow`).
+    /// fill the hole." A borrowed-storage extraction additionally carries
+    /// restoration debt (`obligations::ObligationKind::RestorationWindow`);
+    /// an ordinary owned transfer ends its source value.
     Vacated,
 }
 

@@ -1,7 +1,7 @@
 /*
 The place family of lowering: structural roots, projections interned on first
 use, the forward write log, record construction, field reads, stores, whole
-copies and locals declared without an initializer. This is where
+copies, affine transfers and local storage homes. This is where
 `MachineTables::places`, `roots` and `writes` are filled, in lockstep with
 the Terminal Psi operations that create or change the storage.
 
@@ -9,10 +9,13 @@ Roots. One Terminal `PlaceId` and one `PlaceRow { origin: Root }` per record
 formal, per operation that produces storage (a literal, a whole copy, a call
 with a record result, the home of a local declared without an initializer)
 and for a record machine's result place; `roots` maps the `PlaceId` to its
-row. A record local has no place of its own: its slot holds the root its
-initializer, or the last whole value assigned to it, produced.
-ownership.md: "Parameter, named-local, and call-result roots retain distinct
-establishment identities."
+row. An affine named local reserves a distinct home and receives its
+initializer through a checked whole store. A continuing transfer retains
+an explicit continuation even when whole transport consumed its source home.
+Projected moves leave a home whose residuals and retirement belong to its
+normal continuation. A copy local can
+retain its initializer's unrestricted root. ownership.md: "Parameter,
+named-local, and call-result roots retain distinct establishment identities."
 
 Projections. `r.a` is the row `(r, Segment::Field(a))`, found by binary
 search of the parent's sorted `children` and pushed only when absent, so a
@@ -109,8 +112,9 @@ pub(crate) struct Declared<'a> {
 
 /// The Terminal Psi declarations of the record types, in identity order.
 ///
-/// Every flag states what a copy-eligible plain record is by structure:
-/// `copyable` because its type is unrestricted; `no_code_affine_cleanup`
+/// Copy permission follows the declaration; affine plain data is never
+/// promoted to copyable because its fields happen to be scalars.
+/// `no_code_affine_cleanup`
 /// because its "represented owned contents require no executable disposal"
 /// and `descriptor_cleanup` because it is "a closed value containing only
 /// owned storage and reference descriptors, with no nominal cleanup hook or
@@ -229,7 +233,7 @@ pub(crate) fn declare<'a>(
             id,
             identity: identities.intern(&record.identity),
             owns_linear_claim: false,
-            copyable: true,
+            copyable: record.copyable,
             no_code_affine_cleanup: true,
             descriptor_cleanup: true,
             shape,
@@ -412,6 +416,25 @@ pub(crate) fn borrowed_access(access: language_core::ReferenceAccess) -> Option<
 }
 
 impl Records<'_> {
+    pub(super) fn multiplicity(
+        &self,
+        record: StructuralTypeId,
+        machine: MachineId,
+    ) -> Checked<StructuralMultiplicity> {
+        if self
+            .primitives
+            .iter()
+            .any(|(_, primitive)| *primitive == record)
+        {
+            return Ok(StructuralMultiplicity::Unrestricted);
+        }
+        let record = terminal_check_tables::row(self.types, record, machine, Construct::Machine)?;
+        Ok(if record.copyable {
+            StructuralMultiplicity::Unrestricted
+        } else {
+            StructuralMultiplicity::Affine
+        })
+    }
     /// The primitive structural type `declare` declared for `scalar_type`.
     pub(super) fn primitive(
         &self,
@@ -517,11 +540,15 @@ enum Operand {
     Record(PlaceId),
 }
 
-fn unrestricted_result(place: PlaceId, record: StructuralTypeId) -> StructuralOperationResult {
+fn owned_result(
+    place: PlaceId,
+    record: StructuralTypeId,
+    multiplicity: StructuralMultiplicity,
+) -> StructuralOperationResult {
     StructuralOperationResult {
         place,
         structural_type: record,
-        multiplicity: StructuralMultiplicity::Unrestricted,
+        multiplicity,
         qualifications: Vec::new(),
         projected_qualifications: Vec::new(),
         additional_input_qualifications: Vec::new(),
@@ -748,9 +775,10 @@ impl<'a> Lowering<'a> {
             },
             record,
         )?;
+        let multiplicity = self.records.multiplicity(record, self.id)?;
         self.draft()?.operations.push(Operation::unsuspended(
             operation,
-            OperationResult::Structural(unrestricted_result(place, record)),
+            OperationResult::Structural(owned_result(place, record, multiplicity)),
             kind,
         ));
         self.point = Some(ProgramPoint::AfterOperation(operation));
@@ -868,22 +896,41 @@ impl<'a> Lowering<'a> {
 
     /// Evaluates a record-typed expression to a root that holds its value
     /// and that nothing else names. A literal or call is its own fresh root;
-    /// a slot or member path is copied whole into one (`StructuralLeafCopy`),
-    /// which is what `let b = a;`, passing by value and returning do.
+    /// a slot or member path is copied only with declared copy permission.
+    /// Otherwise `MoveStructuralValue` vacates exactly that region; its
+    /// continuation owns any remaining cleanup and home retirement.
     pub(super) fn record(&mut self, expression: &Expression) -> Checked<PlaceId> {
         let at = self.located(expression)?;
         if at.fresh && at.path.is_empty() {
             return Ok(at.root);
         }
         let path = self.storage_path(&at.path)?;
+        let moving = !self.record_type(at.record)?.copyable;
+        if moving && self.borrowed_roots.contains(&at.root) {
+            return Err(refuse(
+                self.id,
+                Construct::Machine,
+                Unserved::Expression("owned extraction from borrowed storage"),
+            ));
+        }
         self.name_entry(at.root, at.place, ValueType::Record(at.record))?;
         let operation = self.operation_identity(expression.source);
         let (root, exact) = self.produce(
             operation,
             at.record,
-            OperationKind::StructuralLeafCopy {
-                source: at.root,
-                path,
+            if moving {
+                OperationKind::MoveStructuralValue {
+                    source: StructuralArgument {
+                        place: at.root,
+                        path,
+                        access: StructuralAccess::Owned,
+                    },
+                }
+            } else {
+                OperationKind::StructuralLeafCopy {
+                    source: at.root,
+                    path,
+                }
             },
         )?;
         // The copy's source is the operation's own `source` and `path`; the
@@ -893,7 +940,60 @@ impl<'a> Lowering<'a> {
             ProgramPoint::AfterOperation(operation),
             Content::Overwritten,
         )?;
+        if moving {
+            self.write(
+                at.place,
+                ProgramPoint::AfterOperation(operation),
+                Content::Vacated,
+            )?;
+            if at.path.is_empty() {
+                self.retire_homes(&[], expression.source)?;
+            }
+        }
         Ok(root)
+    }
+
+    /// A named affine local has its own home: the initializer transfers into
+    /// it rather than becoming another name for a call result or parameter.
+    /// Capture all operands before the continuation can dispose the previous
+    /// binding. The admitted plain slice stores no persistent reference
+    /// descriptors, so rebinding has no retained loan of the previous home.
+    pub(super) fn bind_record(&mut self, expression: &Expression) -> Checked<PlaceId> {
+        let Some(ValueType::Record(record)) = expression.result else {
+            return Err(self.internal("a scalar initializer is used as a record"));
+        };
+        let value = self.record(expression)?;
+        if self.record_type(record)?.copyable {
+            return Ok(value);
+        }
+        self.retire_homes(&[], expression.source)?;
+        let reserve = self.operation_identity(expression.source);
+        let (home, exact) =
+            self.produce(reserve, record, OperationKind::EstablishStructuralLocal {})?;
+        self.write(
+            exact,
+            ProgramPoint::AfterOperation(reserve),
+            Content::Vacated,
+        )?;
+        let store = self.operation_identity(expression.source);
+        self.emit(
+            store,
+            None,
+            OperationKind::StoreStructuralField {
+                disposition: StructuralStoreDisposition::Vacant,
+                destination: home,
+                path: Vec::new(),
+                field: None,
+                value: StructuralArgument::whole(value, StructuralAccess::Owned),
+            },
+        )?;
+        self.write(
+            exact,
+            ProgramPoint::AfterOperation(store),
+            Content::Overwritten,
+        )?;
+        self.retire_homes(&[value], expression.source)?;
+        Ok(home)
     }
 
     /// The place a loan lends, as the call passes it: the lent place's root
@@ -1683,7 +1783,7 @@ impl<'a> Lowering<'a> {
                     operation,
                     None,
                     OperationKind::StoreStructuralField {
-                        disposition: StructuralStoreDisposition::Vacant,
+                        disposition: StructuralStoreDisposition::ReplaceDiscardable,
                         destination: root,
                         path: storage,
                         field: Some(declared.id),
@@ -1784,8 +1884,10 @@ impl<'a> Lowering<'a> {
         Ok(())
     }
 
-    /// Ends the block after a call that consumed record arguments and
-    /// retires their homes on the edge into its continuation. ownership.md:
+    /// Retains a normal continuation after record argument staging. Copy
+    /// temporaries still need explicit retirement; the ownership plan replaces
+    /// affine actions, omitting a second retirement when whole transport has
+    /// already consumed the source home. ownership.md:
     /// "A dying temporary's normal continuation owns its remaining cleanup.
     /// ... a continuing body uses an explicit continuation edge." and "The
     /// checked dying-owner partition publishes `RetireHome` after its

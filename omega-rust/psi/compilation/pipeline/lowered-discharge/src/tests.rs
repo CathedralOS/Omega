@@ -1277,6 +1277,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     };
     let mut records = IdTable::default();
     records.push(RecordType {
+        copyable: true,
         identity: String::from("Point"),
         fields: vec![
             field(1, "x", ValueType::Scalar(u32_type())),
@@ -1286,6 +1287,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         requires: Vec::new(),
     });
     records.push(RecordType {
+        copyable: true,
         identity: String::from("Line"),
         fields: vec![field(3, "from", point()), field(4, "to", point())],
         cases: Vec::new(),
@@ -1353,6 +1355,379 @@ fn bounded() -> Shaped {
 
 fn elaborate_places(machines: Vec<Shaped>) -> structure_elaboration::Elaboration {
     elaborate_over(machines, &records())
+}
+
+fn affine_records() -> IdTable<StructuralTypeId, RecordType> {
+    let mut records = records();
+    let ids: Vec<_> = records.iter().map(|(id, _)| id).collect();
+    for id in ids {
+        records.get_mut(id).unwrap().copyable = false;
+    }
+    records
+}
+
+#[test]
+fn affine_plain_values_transfer_once_and_publish_their_disposal() {
+    let caller = |again| Shaped {
+        parameters: vec![point()],
+        locals: vec![point()],
+        result: u32_type().into(),
+        requires: Vec::new(),
+        statements: vec![
+            bind(1, place(0, point())),
+            returns(read(place(if again { 0 } else { 1 }, point()), 0)),
+        ],
+    };
+    let valid = elaborate_over(vec![caller(false)], &affine_records());
+    let homes = valid.module.machines[0]
+        .operations()
+        .filter(|operation| matches!(operation.kind, OperationKind::EstablishStructuralLocal {}))
+        .map(|operation| operation.result.as_structural().unwrap().place)
+        .collect::<Vec<_>>();
+    assert_eq!(homes.len(), 1);
+    assert!(valid.module.machines[0].operations().any(|operation|
+        matches!(&operation.kind, OperationKind::StoreStructuralField { destination, field: None, value, .. }
+            if *destination == homes[0] && value.place != *destination)));
+    assert!(matches!(judge(Ok(valid)), Ok(RouteVerdict::Accepted(_))));
+    let invalid = elaborate_over(vec![caller(true)], &affine_records());
+    assert!(
+        matches!(judge(Ok(invalid)), Ok(RouteVerdict::Rejected { unestablished, .. }) if !unestablished.is_empty())
+    );
+
+    let mut omitted = elaborate_over(vec![caller(false)], &affine_records());
+    for block in &mut omitted.module.machines[0].blocks {
+        if let terminal_psi::Terminator::Return {
+            cleanup_actions, ..
+        } = &mut block.terminator
+        {
+            cleanup_actions.clear();
+        }
+    }
+    assert!(
+        matches!(
+            judge(Ok(omitted)),
+            Err(Refusal {
+                reason: RefusalReason::ForeignIdentity,
+                ..
+            })
+        ),
+        "an omitted disposal cannot silently become an accepted frontier"
+    );
+}
+
+#[test]
+fn a_partial_affine_move_keeps_the_disjoint_sibling_established() {
+    let branch = |field| {
+        of_type(
+            ExpressionKind::Field {
+                base: Box::new(place(0, line())),
+                field,
+            },
+            point(),
+        )
+    };
+    let caller = |read_field| Shaped {
+        parameters: vec![line()],
+        locals: vec![point()],
+        result: u32_type().into(),
+        requires: Vec::new(),
+        statements: vec![bind(1, branch(0)), returns(read(branch(read_field), 0))],
+    };
+    assert!(matches!(
+        judge(Ok(elaborate_over(vec![caller(1)], &affine_records()))),
+        Ok(RouteVerdict::Accepted(_))
+    ));
+    assert!(
+        matches!(judge(Ok(elaborate_over(vec![caller(0)], &affine_records()))), Ok(RouteVerdict::Rejected { unestablished, .. }) if !unestablished.is_empty())
+    );
+}
+
+#[test]
+fn an_affine_empty_case_cannot_be_moved_twice() {
+    let mut records = IdTable::default();
+    records.push(RecordType {
+        copyable: false,
+        identity: "EmptyCase".into(),
+        fields: Vec::new(),
+        cases: vec![structure_elaboration::CaseType {
+            id: id(1),
+            identity: "Empty".into(),
+            fields: Vec::new(),
+        }],
+        requires: Vec::new(),
+    });
+    let caller = |again| Shaped {
+        parameters: vec![point()],
+        locals: vec![point(), point()],
+        result: u32_type().into(),
+        requires: Vec::new(),
+        statements: if again {
+            vec![
+                bind(1, place(0, point())),
+                bind(2, place(0, point())),
+                returns(unsigned(0)),
+            ]
+        } else {
+            vec![bind(1, place(0, point())), returns(unsigned(0))]
+        },
+    };
+    assert!(matches!(
+        judge(Ok(elaborate_over(vec![caller(false)], &records))),
+        Ok(RouteVerdict::Accepted(_))
+    ));
+    assert!(
+        matches!(judge(Ok(elaborate_over(vec![caller(true)], &records))), Ok(RouteVerdict::Rejected { unestablished, .. }) if !unestablished.is_empty())
+    );
+}
+
+#[test]
+fn affine_cleanup_replay_rejects_order_type_and_custody_drift() {
+    let caller = || Shaped {
+        parameters: vec![point(), point()],
+        locals: Vec::new(),
+        result: u32_type().into(),
+        requires: Vec::new(),
+        statements: vec![returns(unsigned(0))],
+    };
+    let mut reversed = elaborate_over(vec![caller()], &affine_records());
+    for block in &mut reversed.module.machines[0].blocks {
+        if let terminal_psi::Terminator::Return {
+            cleanup_actions, ..
+        } = &mut block.terminator
+        {
+            assert_eq!(cleanup_actions.len(), 2);
+            cleanup_actions.reverse();
+        }
+    }
+    assert!(matches!(
+        judge(Ok(reversed)),
+        Err(Refusal {
+            reason: RefusalReason::ForeignIdentity,
+            ..
+        })
+    ));
+
+    let mut drift = elaborate_over(vec![caller()], &affine_records());
+    drift.module.structural_types[0].copyable = true;
+    // A parent must not become copyable by hiding an affine child either.
+    drift.module.structural_types[1].copyable = true;
+    assert!(matches!(
+        judge(Ok(drift)),
+        Err(Refusal {
+            reason: RefusalReason::ForeignIdentity,
+            ..
+        })
+    ));
+
+    let mut parent = elaborate_over(vec![caller()], &affine_records());
+    parent.module.structural_types[1].copyable = true;
+    assert!(matches!(
+        judge(Ok(parent)),
+        Err(Refusal {
+            reason: RefusalReason::ForeignIdentity,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn affine_residual_replay_rejects_a_wrong_subtree_type() {
+    let moved = of_type(
+        ExpressionKind::Field {
+            base: Box::new(place(0, line())),
+            field: 0,
+        },
+        point(),
+    );
+    let mut elaboration = elaborate_over(
+        vec![Shaped {
+            parameters: vec![line()],
+            locals: vec![point()],
+            result: u32_type().into(),
+            requires: Vec::new(),
+            statements: vec![bind(1, moved), returns(unsigned(0))],
+        }],
+        &affine_records(),
+    );
+    let mut array = elaboration.module.clone();
+    array.structural_types[1].shape = terminal_psi::StructuralTypeShape::FixedArray {
+        element: id(1),
+        length: terminal_psi::ArrayExtent::Literal(100_000),
+    };
+    for block in &mut array.machines[0].blocks {
+        for operation in &mut block.operations {
+            if let OperationKind::MoveStructuralValue { source } = &mut operation.kind
+                && source.place == id(1)
+            {
+                source.path = vec![terminal_psi::StructuralPathSegment::FixedIndex(0)];
+            }
+        }
+        match &mut block.terminator {
+            terminal_psi::Terminator::Jump {
+                cleanup_actions, ..
+            }
+            | terminal_psi::Terminator::Return {
+                cleanup_actions, ..
+            } => cleanup_actions.clear(),
+            _ => {}
+        }
+    }
+    assert!(
+        matches!(
+            terminal_semantics::plain_affine::verify(&array.machines[0], &array.structural_types),
+            Err(terminal_semantics::plain_affine::Error::Malformed(detail))
+                if detail.contains("exceeds its output")
+        ),
+        "a short supplied roster must bound reconstruction before array enumeration"
+    );
+    array.structural_types[1].shape = terminal_psi::StructuralTypeShape::FixedArray {
+        element: id(1),
+        length: terminal_psi::ArrayExtent::Literal(2),
+    };
+    for block in &mut array.machines[0].blocks {
+        if let terminal_psi::Terminator::Return {
+            cleanup_actions, ..
+        } = &mut block.terminator
+        {
+            cleanup_actions.push(terminal_psi::TerminalAffineCleanupAction::DiscardResidual(
+                terminal_psi::StructuralAffineDiscard {
+                    place: id(1),
+                    path: vec![terminal_psi::StructuralPathSegment::FixedIndex(1)],
+                    structural_type: id(1),
+                },
+            ));
+        }
+    }
+    assert!(
+        matches!(terminal_semantics::plain_affine::verify(&array.machines[0], &array.structural_types),
+        Err(terminal_semantics::plain_affine::Error::Malformed(detail)) if detail.contains("exceeds its output")),
+        "an unrelated edge's forged output cannot inflate this edge's reconstruction budget"
+    );
+    let mut changed = false;
+    for block in &mut elaboration.module.machines[0].blocks {
+        let rosters = match &mut block.terminator {
+            terminal_psi::Terminator::Jump {
+                cleanup_actions, ..
+            }
+            | terminal_psi::Terminator::Return {
+                cleanup_actions, ..
+            } => cleanup_actions,
+            _ => continue,
+        };
+        for action in rosters {
+            if let terminal_psi::TerminalAffineCleanupAction::DiscardResidual(discard) = action {
+                discard.structural_type = id(2);
+                changed = true;
+            }
+        }
+    }
+    assert!(
+        changed,
+        "the partial move must publish its surviving sibling"
+    );
+    assert!(matches!(
+        judge(Ok(elaboration)),
+        Err(Refusal {
+            reason: RefusalReason::ForeignIdentity,
+            ..
+        })
+    ));
+}
+
+#[test]
+fn affine_cleanup_does_not_allocate_up_to_an_untrusted_edge_identity() {
+    let mut elaboration = elaborate_over(
+        vec![Shaped {
+            parameters: vec![point()],
+            locals: Vec::new(),
+            result: u32_type().into(),
+            requires: Vec::new(),
+            statements: vec![returns(unsigned(0))],
+        }],
+        &affine_records(),
+    );
+    for block in &mut elaboration.module.machines[0].blocks {
+        if let terminal_psi::Terminator::Return { edge, .. } = &mut block.terminator {
+            *edge = id(u64::MAX);
+        }
+    }
+    // Identity/table correspondence belongs to the route graph; planning must
+    // remain bounded before that validation can report the bad correspondence.
+    assert!(
+        terminal_semantics::plain_affine::plan(
+            &elaboration.module.machines[0],
+            &elaboration.module.structural_types
+        )
+        .is_ok()
+    );
+    assert!(judge(Ok(elaboration)).is_err());
+}
+
+#[test]
+fn affine_terminal_boundaries_transfer_custody_once() {
+    let mut exiting = elaborate_over(
+        vec![Shaped {
+            parameters: vec![point()],
+            locals: Vec::new(),
+            result: u32_type().into(),
+            requires: Vec::new(),
+            statements: vec![returns(unsigned(0))],
+        }],
+        &affine_records(),
+    );
+    let argument =
+        terminal_psi::StructuralArgument::whole(id(1), terminal_psi::StructuralAccess::Owned);
+    exiting.module.machines[0].blocks[0].terminator = terminal_psi::Terminator::InvokeNoNormal {
+        edge: id(1),
+        static_reach_binding: None,
+        callee: id(1),
+        arguments: Vec::new(),
+        erased_arguments: Vec::new(),
+        erased_proof_arguments: Vec::new(),
+        structural_arguments: vec![argument.clone(), argument],
+        claim_transfers: Vec::new(),
+        requirement_obligations: Vec::new(),
+        crash_continuations: Vec::new(),
+    };
+    let plan = terminal_semantics::plain_affine::plan(
+        &exiting.module.machines[0],
+        &exiting.module.structural_types,
+    )
+    .unwrap();
+    assert_eq!(
+        plan.unavailable.len(),
+        1,
+        "a no-normal consumer cannot receive the same affine value twice"
+    );
+
+    let mut borrowed = elaborate_over(
+        vec![Shaped {
+            parameters: vec![point()],
+            locals: Vec::new(),
+            result: point(),
+            requires: Vec::new(),
+            statements: vec![returns(place(0, point()))],
+        }],
+        &affine_records(),
+    );
+    let machine = &mut borrowed.module.machines[0];
+    machine.structural_parameters[0].access = terminal_psi::StructuralAccess::SharedBorrow;
+    machine.structural_parameters[0].multiplicity =
+        terminal_psi::StructuralMultiplicity::Unrestricted;
+    machine.structural_places.truncate(2);
+    machine.blocks.truncate(1);
+    machine.blocks[0].operations.clear();
+    machine.blocks[0].terminator = terminal_psi::Terminator::ReturnStructural {
+        edge: id(1),
+        source: id(1),
+        returned_claims: Vec::new(),
+        cleanup_actions: Vec::new(),
+    };
+    assert!(
+        matches!(terminal_semantics::plain_affine::plan(machine, &borrowed.module.structural_types),
+        Err(terminal_semantics::plain_affine::Error::Unsupported(detail)) if detail.contains("borrowed storage")),
+        "a borrowed affine referent cannot escape as an owned result"
+    );
 }
 
 fn elaborate_over(
@@ -2465,6 +2840,7 @@ fn every_use_of_storage_has_exactly_one_verdict() {
     // `Gated { v } requires 1 <= v` beside `Point` and `Line`.
     let mut types = records();
     types.push(RecordType {
+        copyable: true,
         identity: String::from("Gated"),
         fields: vec![RecordField {
             id: id(5),
@@ -2615,12 +2991,14 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
     let scalar = ValueType::Scalar(u32_type());
     let mut records = IdTable::default();
     records.push(RecordType {
+        copyable: true,
         identity: String::from("Point"),
         fields: vec![field(1, "x", scalar), field(2, "y", scalar)],
         cases: Vec::new(),
         requires: Vec::new(),
     });
     records.push(RecordType {
+        copyable: true,
         identity: String::from("Shape"),
         fields: Vec::new(),
         cases: vec![
@@ -2636,6 +3014,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         requires: Vec::new(),
     });
     records.push(RecordType {
+        copyable: true,
         identity: String::from("Holder"),
         fields: vec![field(7, "shape", shape())],
         cases: Vec::new(),
@@ -3262,6 +3641,7 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
         value_type,
     };
     let record = |spelled: &str, fields, requires| RecordType {
+        copyable: true,
         identity: spelled.to_owned(),
         fields,
         cases: Vec::new(),
@@ -3290,6 +3670,7 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
         )],
     ));
     records.push(RecordType {
+        copyable: true,
         identity: String::from("ByteRead"),
         fields: Vec::new(),
         cases: vec![
@@ -4785,18 +5166,21 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
     let at_least_one = |raw| Proposition::LessOrEqual(number(1), field_of_self(raw));
     let mut records = constrained();
     records.push(RecordType {
+        copyable: true,
         identity: String::from("Both"),
         fields: vec![field(10, "a"), field(11, "b")],
         cases: Vec::new(),
         requires: vec![at_least_one(10), at_least_one(11)],
     });
     records.push(RecordType {
+        copyable: true,
         identity: String::from("Half"),
         fields: vec![field(12, "a"), field(13, "b")],
         cases: Vec::new(),
         requires: vec![at_least_one(12)],
     });
     records.push(RecordType {
+        copyable: true,
         identity: String::from("Limits"),
         fields: vec![field(14, "a"), field(15, "b")],
         cases: Vec::new(),

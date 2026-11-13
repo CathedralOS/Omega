@@ -211,7 +211,7 @@ pub(crate) fn machine(
                     place,
                     position: lane,
                     structural_type: record,
-                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    multiplicity: records.multiplicity(record, id)?,
                     access: StructuralAccess::Owned,
                     qualifications: Vec::new(),
                     projected_qualifications: Vec::new(),
@@ -245,7 +245,7 @@ pub(crate) fn machine(
             TerminalMachineResult::Structural(StructuralResultDeclaration {
                 place,
                 structural_type: record,
-                multiplicity: StructuralMultiplicity::Unrestricted,
+                multiplicity: records.multiplicity(record, id)?,
                 qualifications: Vec::new(),
                 projected_qualifications: Vec::new(),
                 reference_sources: Vec::new(),

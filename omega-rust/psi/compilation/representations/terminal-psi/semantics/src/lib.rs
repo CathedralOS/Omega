@@ -33,6 +33,7 @@ pub use content_transformations::{domain_preservation, quotients};
 pub mod control_graph;
 mod descriptor_replay;
 pub mod descriptors;
+pub mod plain_affine;
 pub mod references;
 pub mod scalars;
 pub mod storage;

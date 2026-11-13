@@ -62,6 +62,8 @@ use terminal_check_tables::RefusalReason;
 
 /// What one store put into its place.
 pub(super) enum Stored {
+    /// The exact region transferred its value to another owner.
+    Vacated,
     /// Exactly this scalar value.
     Value(ValueId),
     /// What this other place held just before the store, leaf for leaf.
@@ -83,6 +85,7 @@ impl Stored {
     /// for a source place, a case or a call, so those are all "new contents".
     fn content(&self) -> Content {
         match self {
+            Self::Vacated => Content::Vacated,
             Self::Value(value) => Content::Value(*value),
             Self::Moved(_) | Self::Case(_) | Self::Zeroed | Self::Returned => Content::Overwritten,
         }
@@ -276,6 +279,9 @@ impl Storage<'_> {
         };
         let mut rows = Vec::new();
         match &operation.kind {
+            OperationKind::EstablishStructuralLocal {} => {
+                rows.push((fresh()?, Stored::Vacated));
+            }
             OperationKind::EstablishRecord { fields } => {
                 let root = fresh()?;
                 for field in fields {
@@ -343,6 +349,11 @@ impl Storage<'_> {
                     Stored::Moved(self.stored_at(*source, path, concerns)?),
                 ));
             }
+            OperationKind::MoveStructuralValue { source } => {
+                let source = self.argument(source, concerns)?;
+                rows.push((fresh()?, Stored::Moved(source.clone())));
+                rows.push((source, Stored::Vacated));
+            }
             OperationKind::WriteOnlyPrimitiveStore {
                 destination,
                 path,
@@ -380,8 +391,17 @@ impl Storage<'_> {
                     Stored::Moved(self.argument(value, concerns)?),
                 ));
             }
-            OperationKind::StoreStructuralField { field: None, .. } => {
-                return Err(self.unsupported(concerns, "a whole store that names no field"));
+            OperationKind::StoreStructuralField {
+                destination,
+                path,
+                field: None,
+                value,
+                ..
+            } => {
+                rows.push((
+                    self.stored_at(*destination, path, concerns)?,
+                    Stored::Moved(self.argument(value, concerns)?),
+                ));
             }
             OperationKind::EstablishPrimitiveLocal { value, .. } => {
                 rows.push((fresh()?, Stored::Value(*value)));
