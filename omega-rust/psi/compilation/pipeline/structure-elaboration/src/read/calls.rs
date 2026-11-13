@@ -82,9 +82,13 @@ impl<'t> Program<'t> {
                 "boundary requirement must declare its reach ceiling",
             ));
         }
+        // effects.md, "Open callable contracts": "A boundary requirement and
+        // a runtime callable type must write the clause", with `crashes none`
+        // for no crash route. It has no body to infer from and no static
+        // selection to defer to.
         if matches!(signature.crashes, crate::CrashCeiling::Inferred) {
             return Err(unserved(
-                "boundary requirement needs its selected published crash contract",
+                "boundary requirement must declare its crash ceiling",
             ));
         }
         let service = self.declared_service(caller, owner)?;
