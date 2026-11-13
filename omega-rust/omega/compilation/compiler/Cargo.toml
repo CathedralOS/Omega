@@ -15,7 +15,6 @@ compiler-storage = { path = "../../../psi/foundation/compiler-storage" }
 task-plans = { path = "../backend/runtime/task-plans" }
 runtime-abi = { path = "../backend/runtime/runtime-abi" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
-checked-trees = { path = "../../../psi/compilation/representations/checked-trees" }
 effects = { path = "../backend/plans/effects" }
 package-evidence = { path = "../../packages/review-evidence" }
 arena = { path = "../../../psi/foundation/arena" }

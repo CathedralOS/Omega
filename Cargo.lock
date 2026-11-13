@@ -465,7 +465,6 @@ dependencies = [
  "build-time-evaluation",
  "calling-conventions",
  "cap-std",
- "checked-trees",
  "compilation-products",
  "compiler-storage",
  "component-description",
