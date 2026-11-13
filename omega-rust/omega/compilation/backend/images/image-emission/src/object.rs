@@ -489,6 +489,7 @@ pub(crate) mod private_object_composition {
                 || !demands.contains(&private.identity)
                 || private.identity.callback_thunk_placement_index().is_none()
                 || private.body.target != linked.target
+                || private.body.profile != linked.profile
                 || private.body.hosted_receiver.is_some()
                 || private.body.physical_entry.is_some()
                 || private.body.composition_source.is_some()
