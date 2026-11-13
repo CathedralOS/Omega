@@ -5,6 +5,13 @@ typed declaration and application for later provider selection.
 */
 
 pub mod provider_declarations {
+    use diagnostics::Diagnostic;
+    use language_semantics::direct_calls::DirectCallDeclarations;
+    use language_semantics::provider_declarations::SelectedTargetMachineOrigin;
+    use language_semantics::trust_declarations::TrustDeclarations;
+    use std::sync::{Arc, OnceLock};
+    use symbols::SymbolHandle;
+
     pub(crate) mod context {
         use crate::TypedTrees;
         use source::DependencyScope;
@@ -29,6 +36,218 @@ pub mod provider_declarations {
         }
     }
     pub use context::ProviderPlanningContext;
+
+    /// Declaration catalogs share the exact immutable source owner. Preparing
+    /// them grants no checking or admission authority: the product factory must
+    /// separately retain the route's acceptance of that same source.
+    pub struct PreparedProviderInventory<Owner: AsRef<crate::TypedTrees> = crate::FrozenTypedTrees> {
+        owner: Arc<Owner>,
+        origins: OnceLock<Vec<SelectedTargetMachineOrigin>>,
+        direct_calls: OnceLock<Arc<DirectCallDeclarations<SymbolHandle>>>,
+        trust: OnceLock<Result<TrustDeclarations, Diagnostic>>,
+        services: Arc<super::PreparedServiceCatalog>,
+    }
+
+    impl<Owner: AsRef<crate::TypedTrees>> PreparedProviderInventory<Owner> {
+        pub fn new(
+            owner: Arc<Owner>,
+            exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+        ) -> Self {
+            let services = super::PreparedServiceCatalog::prepare(
+                ProviderPlanningContext::new(
+                    owner.as_ref().as_ref(),
+                    source::DependencyScope::Product,
+                ),
+                exact_toolchain_sources,
+            );
+            Self {
+                owner,
+                origins: OnceLock::new(),
+                direct_calls: OnceLock::new(),
+                trust: OnceLock::new(),
+                services: Arc::new(services),
+            }
+        }
+
+        pub fn program(&self) -> &Arc<Owner> {
+            &self.owner
+        }
+
+        pub fn retained_service_catalog(&self) -> Arc<super::PreparedServiceCatalog> {
+            Arc::clone(&self.services)
+        }
+
+        pub fn service_declarations(
+            &self,
+        ) -> impl Iterator<Item = super::PreparedServiceDeclaration<'_>> {
+            self.services.declared_traits()
+        }
+
+        pub fn services_for(&self, owner: &Owner) -> Result<super::ServiceCatalog<'_>, Diagnostic> {
+            self.require_owner(owner)?;
+            self.services.bind(ProviderPlanningContext::new(
+                self.owner.as_ref().as_ref(),
+                source::DependencyScope::Product,
+            ))
+        }
+
+        pub fn direct_calls_for(
+            &self,
+            owner: &Owner,
+        ) -> Result<&DirectCallDeclarations<SymbolHandle>, Diagnostic> {
+            self.require_owner(owner)?;
+            Ok(self.direct_calls())
+        }
+
+        pub fn direct_calls(&self) -> &DirectCallDeclarations<SymbolHandle> {
+            self.direct_call_declarations()
+        }
+
+        pub fn retained_direct_calls_for(
+            &self,
+            owner: &Owner,
+        ) -> Result<Arc<DirectCallDeclarations<SymbolHandle>>, Diagnostic> {
+            self.require_owner(owner)?;
+            Ok(Arc::clone(self.direct_call_declarations()))
+        }
+
+        fn direct_call_declarations(&self) -> &Arc<DirectCallDeclarations<SymbolHandle>> {
+            self.direct_calls.get_or_init(|| {
+                Arc::new(crate::direct_calls::collect(
+                    self.owner.as_ref().as_ref(),
+                    source::DependencyScope::Product,
+                ))
+            })
+        }
+
+        pub fn origins_for(
+            &self,
+            owner: &Owner,
+        ) -> Result<&[SelectedTargetMachineOrigin], Diagnostic> {
+            self.require_owner(owner)?;
+            Ok(self.origins())
+        }
+
+        pub fn origins(&self) -> &[SelectedTargetMachineOrigin] {
+            self.origins.get_or_init(|| {
+                provider_target_declarations(
+                    self.owner.as_ref().as_ref(),
+                    source::DependencyScope::Product,
+                )
+            })
+        }
+
+        fn require_owner(&self, owner: &Owner) -> Result<(), Diagnostic> {
+            if !std::ptr::eq(self.owner.as_ref(), owner) {
+                return Err(Diagnostic::error(
+                    "provider declarations belong to another source program",
+                ));
+            }
+            Ok(())
+        }
+
+        /// The old checker's template and contract plans are not route evidence.
+        /// Keep the complete source census and refuse when an admitted machine
+        /// needs trust declarations the route does not yet publish. An empty
+        /// census requires no such custody and makes no admission claim.
+        pub fn trust_declarations(&self) -> Result<&TrustDeclarations, Diagnostic> {
+            self.trust
+                .get_or_init(|| {
+                    let claims = self
+                        .owner
+                        .as_ref()
+                        .as_ref()
+                        .machines()
+                        .iter()
+                        .filter(|machine| {
+                            machine.supply_mode
+                                == language_semantics::MachineSupplyMode::AdmissionClaim
+                        })
+                        .map(|machine| machine.name.as_str())
+                        .collect::<Vec<_>>();
+                    if claims.is_empty() {
+                        Ok(TrustDeclarations::default())
+                    } else {
+                        Err(Diagnostic::error(format!(
+                            "no product route yet: admitted machines require route-owned \
+                             template and contract trust declarations: {}",
+                            claims.join(", ")
+                        )))
+                    }
+                })
+                .as_ref()
+                .map_err(Clone::clone)
+        }
+    }
+
+    #[cfg(test)]
+    mod inventory_tests {
+        use super::PreparedProviderInventory;
+        use crate::{FrozenTypedTrees, TypedTrees};
+        use std::sync::Arc;
+
+        #[test]
+        fn catalogs_require_the_exact_immutable_owner_even_for_equal_source() {
+            let owner = Arc::new(FrozenTypedTrees::from(TypedTrees::default()));
+            let other = Arc::new(owner.as_ref().clone());
+            let inventory = PreparedProviderInventory::new(Arc::clone(&owner), &[]);
+            assert!(Arc::ptr_eq(inventory.program(), &owner));
+            assert!(inventory.services_for(&owner).is_ok());
+            assert!(inventory.direct_calls_for(&owner).is_ok());
+            assert!(inventory.origins_for(&owner).is_ok());
+            assert!(inventory.services_for(&other).is_err());
+            assert!(inventory.direct_calls_for(&other).is_err());
+            assert!(inventory.retained_direct_calls_for(&other).is_err());
+            assert!(inventory.origins_for(&other).is_err());
+        }
+
+        #[test]
+        fn retained_catalogs_and_empty_trust_are_shared_for_one_owner() {
+            let owner = Arc::new(FrozenTypedTrees::from(TypedTrees::default()));
+            let inventory = PreparedProviderInventory::new(Arc::clone(&owner), &[]);
+            assert!(Arc::ptr_eq(
+                &inventory.retained_service_catalog(),
+                &inventory.retained_service_catalog()
+            ));
+            assert!(Arc::ptr_eq(
+                &inventory.retained_direct_calls_for(&owner).unwrap(),
+                &inventory.retained_direct_calls_for(&owner).unwrap()
+            ));
+            let trust = inventory.trust_declarations().unwrap();
+            assert!(trust.machines.is_empty());
+            assert!(std::ptr::eq(trust, inventory.trust_declarations().unwrap()));
+        }
+
+        #[test]
+        fn admission_claims_cannot_recover_old_checker_trust() {
+            let mut symbols = symbols::SymbolTableBuilder::new();
+            let first = symbols.insert_root(
+                symbols::SymbolKind::Machine,
+                symbols::SymbolNameRef::Static("First"),
+            );
+            let second = symbols.insert_root(
+                symbols::SymbolKind::Machine,
+                symbols::SymbolNameRef::Static("Second"),
+            );
+            let mut typed = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            for (symbol, name) in [(first, "First"), (second, "Second")] {
+                typed.push_machine(crate::machine::Machine {
+                    symbol,
+                    name: name.into(),
+                    supply_mode: language_semantics::MachineSupplyMode::AdmissionClaim,
+                    ..Default::default()
+                });
+            }
+            let inventory =
+                PreparedProviderInventory::new(Arc::new(FrozenTypedTrees::from(typed)), &[]);
+            let error = inventory.trust_declarations().unwrap_err();
+            assert!(error.message.contains("no product route yet"));
+            assert!(error.message.contains("First, Second"));
+        }
+    }
 
     pub fn independent_satisfactions<'program>(
         typed: &'program crate::TypedTrees,
