@@ -895,7 +895,7 @@ impl Program<'_> {
                 data.fields()[field].value_type
             }
             Member::Payload { case, field } => {
-                let owner = data.cases()[case];
+                let owner = &data.cases()[case];
                 path.push(CanonicalStructuralPathSegment::Case(owner.id));
                 path.push(CanonicalStructuralPathSegment::Field(
                     owner.fields[field].id,

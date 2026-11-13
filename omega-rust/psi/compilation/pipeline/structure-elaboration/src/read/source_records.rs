@@ -119,7 +119,9 @@ impl Program<'_> {
                     || !source.fields.is_empty()
                     || !source.cases.is_empty()
                     || !source.application.as_ref().is_some_and(|application| {
-                        self.typed.contains_type_reference(application.reference)
+                        self.typed
+                            .type_reference_table
+                            .contains_type_reference(application.reference)
                             && application.substitutions.is_empty()
                     })
                 {

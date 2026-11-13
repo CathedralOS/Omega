@@ -1233,10 +1233,13 @@ impl<'t> Program<'t> {
             if !data.requires.is_empty() {
                 return true;
             }
+            if let crate::StorageShape::FixedArray { element, .. } = data.shape {
+                pending.push(element);
+            }
             for field in data
-                .fields
+                .fields()
                 .iter()
-                .chain(data.cases.iter().flat_map(|case| &case.fields))
+                .chain(data.cases().iter().flat_map(|case| &case.fields))
             {
                 if let ValueType::Record(nested) = field.value_type {
                     pending.push(nested);

@@ -76,7 +76,7 @@ impl Program<'_> {
         };
         let (element, _) = self.array_element(machine, array)?;
         let result = self.storage_value_type(machine, element)?;
-        let index_type = IntegerType::new(IntegerSign::Unsigned, 64).ok_or_else(|| {
+        let index_type = IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| {
             refuse(
                 machine,
                 Construct::Machine,
