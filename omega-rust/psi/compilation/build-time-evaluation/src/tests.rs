@@ -312,9 +312,17 @@ machine served() { }
     );
     assert!(pending.activate_sources(&typed).is_ok());
 
+    // The step that would evaluate layout policies has no evaluator
+    // either: it records the same requests and stops nothing.
+    let mut prepared = typed.clone();
+    prepared.deferred_refusals.clear();
+    crate::evaluate_fixed_layout_applications(&mut prepared, &[], None).unwrap();
+    assert_eq!(prepared.deferred_refusals, typed.deferred_refusals);
+
     // The twin: the same program as written requests nothing.
     let mut plain = base.typed().clone();
     crate::PreCheckEvaluation::defer_declared_requests(&mut plain).unwrap();
+    crate::evaluate_fixed_layout_applications(&mut plain, &[], None).unwrap();
     assert!(plain.deferred_refusals.is_empty());
 }
 

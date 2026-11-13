@@ -784,12 +784,7 @@ impl PreparedSource {
         &self,
         executed: &[language_semantics::declaration_selection::ExecutedRootBinding],
     ) -> Result<Vec<language_semantics::declaration_selection::RootBinding>, Vec<Diagnostic>> {
-        if executed.is_empty() {
-            return Ok(Vec::new());
-        }
-        Err(vec![Diagnostic::error(
-            "no product route yet: product root binding admission",
-        )])
+        crate::root_bindings::collect_root_bindings(&self.typed, executed)
     }
 }
 
