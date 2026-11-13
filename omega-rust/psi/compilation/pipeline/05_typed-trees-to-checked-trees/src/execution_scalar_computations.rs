@@ -10438,6 +10438,9 @@ mod builder {
             call_ordinal: u32,
             count: usize,
         ) -> bool {
+            if !target_machine.is_valid() || !target_state.is_valid() {
+                return false;
+            }
             let mut calls = self
                 .proof
                 .contract_calls

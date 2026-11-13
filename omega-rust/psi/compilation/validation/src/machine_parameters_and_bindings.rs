@@ -316,7 +316,7 @@ pub mod machine_parameters {
             validate_callable_formation(
                 program,
                 label,
-                parameter,
+                parameter.name.as_str(),
                 applied.required,
                 &CallableParts {
                     lexical_owner: applied.lexical_owner,
@@ -355,7 +355,7 @@ pub mod machine_parameters {
             validate_callable_formation(
                 program,
                 &label,
-                parameter,
+                parameter.name.as_str(),
                 requirement,
                 &CallableParts {
                     lexical_owner: actual_machine.symbol,
@@ -397,7 +397,7 @@ pub mod machine_parameters {
             validate_callable_formation(
                 program,
                 label,
-                parameter,
+                parameter.name.as_str(),
                 requirement,
                 actual,
                 None,
@@ -413,7 +413,7 @@ pub mod machine_parameters {
             validate_callable_effects(
                 program,
                 label,
-                parameter,
+                parameter.name.as_str(),
                 requirement,
                 actual.parameters,
                 &crate::machine_calls::effect_inference::signature_service_reach(
@@ -431,7 +431,7 @@ pub mod machine_parameters {
         fn validate_callable_formation(
             program: &dyn crate::CheckingInput,
             label: &str,
-            parameter: &TypeParameter,
+            required_name: &str,
             requirement: &StateSignature,
             actual: &CallableParts<'_>,
             applied: Option<&AppliedMachineCallable<'_>>,
@@ -446,7 +446,7 @@ pub mod machine_parameters {
             if required_types.len() != actual.type_parameters.len() {
                 diagnostics.push(Diagnostic::error(format!(
             "{label} does not refine `{}`: its callable signature expects {} generic parameter(s), got {}",
-            parameter.name, required_types.len(), actual.type_parameters.len(),
+            required_name, required_types.len(), actual.type_parameters.len(),
         )));
                 return;
             }
@@ -463,7 +463,7 @@ pub mod machine_parameters {
             if required_parameters.len() != actual_parameters.len() {
                 diagnostics.push(Diagnostic::error(format!(
                     "{label} does not refine `{}`: expected {} parameter(s), got {}",
-                    parameter.name,
+                    required_name,
                     required_parameters.len(),
                     actual_parameters.len()
                 )));
@@ -489,7 +489,7 @@ pub mod machine_parameters {
                 {
                     diagnostics.push(Diagnostic::error(format!(
                         "{label} does not refine `{}`: parameter {} has a different calling mode",
-                        parameter.name, index
+                        required_name, index
                     )));
                     continue;
                 }
@@ -503,7 +503,7 @@ pub mod machine_parameters {
                 ) {
                     diagnostics.push(Diagnostic::error(format!(
                         "{label} does not refine `{}`: parameter {} expects `{}`, got `{}`",
-                        parameter.name,
+                        required_name,
                         index,
                         program.display_type_reference(required.type_reference),
                         program.display_type_reference(actual.type_reference)
@@ -521,7 +521,7 @@ pub mod machine_parameters {
             ) {
                 diagnostics.push(Diagnostic::error(format!(
                     "{label} does not refine `{}`: expected return `{}`, got `{}`",
-                    parameter.name,
+                    required_name,
                     program.display_type_reference(requirement.return_type),
                     program.display_type_reference(actual.return_type)
                 )));
@@ -565,7 +565,7 @@ pub mod machine_parameters {
                 Err(reason) => {
                     diagnostics.push(Diagnostic::error(format!(
                         "{label} does not refine `{}`: {reason}",
-                        parameter.name
+                        required_name
                     )));
                     return;
                 }
@@ -575,7 +575,7 @@ pub mod machine_parameters {
             validate_callable_type_parameters(
                 program,
                 label,
-                parameter,
+                required_name,
                 requirement,
                 actual.type_parameters,
                 generic_types,
@@ -604,7 +604,7 @@ pub mod machine_parameters {
             ) {
                 diagnostics.push(Diagnostic::error(format!(
                     "{label} does not refine `{}`: {message}",
-                    parameter.name
+                    required_name
                 )));
                 return;
             }
@@ -612,7 +612,7 @@ pub mod machine_parameters {
             if requirement.termination_guarantee.promises_termination() && !actual.terminates {
                 diagnostics.push(Diagnostic::error(format!(
                     "{label} does not refine `{}`: the requirement guarantees termination",
-                    parameter.name
+                    required_name
                 )));
             }
 
@@ -632,7 +632,7 @@ pub mod machine_parameters {
             validate_contract_facts(
                 program,
                 label,
-                parameter,
+                required_name,
                 requirement,
                 actual.contracts,
                 required_parameters,
@@ -649,6 +649,27 @@ pub mod machine_parameters {
                     site: actual.proof_site,
                     types: &actual_types,
                 },
+                diagnostics,
+            );
+        }
+
+        pub(crate) fn validate_runtime_callable_formation(
+            program: &dyn crate::CheckingInput,
+            label: &str,
+            requirement: &StateSignature,
+            actual: &CallableParts<'_>,
+            diagnostics: &mut Vec<Diagnostic>,
+        ) {
+            validate_callable_formation(
+                program,
+                label,
+                "runtime callable",
+                requirement,
+                actual,
+                None,
+                &[],
+                &mut Vec::new(),
+                &mut CallableBinderScope::default(),
                 diagnostics,
             );
         }
@@ -897,7 +918,7 @@ pub mod machine_parameters {
             service_reaches: &flow_effects::ServiceReachInferencePlan,
             invocations: &flow_effects::InvocationInferencePlan,
             label: &str,
-            parameter: &TypeParameter,
+            required_name: &str,
             requirement: &StateSignature,
             actual_machine: &Machine,
             actual_state: &State,
@@ -928,7 +949,7 @@ pub mod machine_parameters {
             validate_callable_effects(
                 program,
                 label,
-                parameter,
+                required_name,
                 requirement,
                 program.state_parameters(actual_state),
                 services,
@@ -943,7 +964,7 @@ pub mod machine_parameters {
         fn validate_callable_effects(
             program: &dyn crate::CheckingInput,
             label: &str,
-            parameter: &TypeParameter,
+            required_name: &str,
             requirement: &StateSignature,
             actual_parameters: &[StateParameter],
             services: &[language_semantics::ServiceReachId],
@@ -970,7 +991,7 @@ pub mod machine_parameters {
                     .unwrap_or("<unknown boundary service>");
                 diagnostics.push(Diagnostic::error(format!(
             "{label} does not refine `{}`: service reach `{name}` exceeds its authored ceiling",
-            parameter.name
+            required_name
         )));
             }
 
@@ -987,7 +1008,7 @@ pub mod machine_parameters {
                 let name = match invocation {
                     flow_effects::InvocationTarget::Parameter(index) => actual_parameters
                         .get(*index as usize)
-                        .map(|parameter| parameter.name.as_str())
+                        .map(|_| required_name)
                         .unwrap_or("<unknown binding>"),
                     flow_effects::InvocationTarget::Service(symbol) => program
                         .trait_definition_by_symbol(*symbol)
@@ -996,20 +1017,20 @@ pub mod machine_parameters {
                 };
                 diagnostics.push(Diagnostic::error(format!(
             "{label} does not refine `{}`: synchronous invocation `{name}` exceeds its authored `invokes` ceiling",
-            parameter.name
+            required_name
         )));
             }
 
             if may_suspend && !operational.may_suspend {
                 diagnostics.push(Diagnostic::error(format!(
             "{label} does not refine `{}`: it may suspend, but the requirement omits `suspends`",
-            parameter.name
+            required_name
         )));
             }
             if may_block && !operational.may_block {
                 diagnostics.push(Diagnostic::error(format!(
             "{label} does not refine `{}`: it may block, but the requirement omits `blocks`",
-            parameter.name
+            required_name
         )));
             }
         }
@@ -1068,7 +1089,7 @@ pub mod machine_parameters {
         fn validate_callable_type_parameters(
             program: &dyn crate::CheckingInput,
             label: &str,
-            parameter: &TypeParameter,
+            required_name: &str,
             requirement: &StateSignature,
             actual_parameters: &[TypeParameter],
             generic_types: &[&TypeParameter],
@@ -1080,7 +1101,7 @@ pub mod machine_parameters {
             if required_parameters.len() != actual_parameters.len() {
                 diagnostics.push(Diagnostic::error(format!(
             "{label} does not refine `{}`: its callable signature expects {} generic parameter(s), got {}",
-            parameter.name,
+            required_name,
             required_parameters.len(),
             actual_parameters.len()
         )));
@@ -1119,7 +1140,7 @@ pub mod machine_parameters {
                         ) {
                             diagnostics.push(Diagnostic::error(format!(
                         "{label} does not refine `{}`: generic parameter {} demands stronger type properties",
-                        parameter.name, index
+                        required_name, index
                     )));
                         }
                     }
@@ -1162,13 +1183,13 @@ pub mod machine_parameters {
                             ) {
                                 diagnostics.push(Diagnostic::error(format!(
                             "{label} does not refine `{}`: const generic parameter {} has a different type",
-                            parameter.name, index
+                            required_name, index
                         )));
                             }
                         } else {
                             diagnostics.push(Diagnostic::error(format!(
                         "{label} does not refine `{}`: generic parameter {} has a different kind",
-                        parameter.name, index
+                        required_name, index
                     )));
                         }
                     }
@@ -1870,7 +1891,6 @@ pub mod machine_parameters {
         use diagnostics::Diagnostic;
         use symbols::JoinedPath;
         use symbols::SymbolHandle;
-        use typed_trees::data::TypeParameter;
         use typed_trees::domain::ProofFact;
         use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
         use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
@@ -1910,7 +1930,7 @@ pub mod machine_parameters {
         pub(crate) fn validate_contract_facts(
             program: &dyn crate::CheckingInput,
             label: &str,
-            parameter: &TypeParameter,
+            required_name: &str,
             requirement: &typed_trees::signature::StateSignature,
             actual_contracts: &[SignatureContract],
             required_parameters: &[StateParameter],
@@ -1947,7 +1967,7 @@ pub mod machine_parameters {
             validate_callable_contract_refinement(
                 program,
                 label,
-                parameter.name.as_str(),
+                required_name,
                 required_contracts,
                 actual_contracts,
                 required_parameters,
@@ -4276,13 +4296,36 @@ pub mod machine_parameters {
         pending_effects: Vec<StaticMachineContractObligation>,
     }
 
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum CallableInputIdentity {
+        StaticMachine {
+            application: typed_trees::static_applications::StaticMachineApplicationHandle,
+            ordinal: usize,
+        },
+        RuntimeCallable {
+            construction: ExpressionHandle,
+            contract: typed_trees::callable_values::RuntimeCallableContractHandle,
+        },
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    enum CallableContractOrigin {
+        StaticMachine {
+            parameter: arena::Handle<TypeParameter>,
+            applied: typed_trees::typed_trees::AppliedMachineCallableId,
+            ordinal: usize,
+        },
+        RuntimeCallable {
+            contract: typed_trees::callable_values::RuntimeCallableContractHandle,
+            construction: ExpressionHandle,
+        },
+    }
+
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct StaticMachineContractObligation {
-        parameter: arena::Handle<TypeParameter>,
-        applied: typed_trees::typed_trees::AppliedMachineCallableId,
+        origin: CallableContractOrigin,
         selected: SymbolHandle,
         application: typed_trees::static_applications::StaticMachineApplicationHandle,
-        ordinal: usize,
         original_selected: SymbolHandle,
         label: String,
     }
@@ -4305,19 +4348,84 @@ pub mod machine_parameters {
                 return None;
             }
             let obligation = Self {
-                parameter: handle,
-                applied: applied.identity,
+                origin: CallableContractOrigin::StaticMachine {
+                    parameter: handle,
+                    applied: applied.identity,
+                    ordinal: applied.ordinal,
+                },
                 selected: crate::call_target_state(program, applied.selected_entry)?.symbol,
                 application: applied.invocation,
-                ordinal: applied.ordinal,
                 original_selected: applied.selected_entry,
                 label: "selected callable input".to_owned(),
             };
-            (std::ptr::eq(
+            std::ptr::eq(
                 obligation.required_signature(program).ok()?,
                 applied.required,
-            ))
+            )
             .then_some(obligation)
+        }
+
+        pub(crate) fn runtime_contract_at(
+            program: &dyn crate::CheckingInput,
+            construction: ExpressionHandle,
+        ) -> Result<typed_trees::callable_values::RuntimeCallableContractHandle, &'static str>
+        {
+            if !program.expression_table.expression_is_valid(construction) {
+                return Err("runtime callable input lost its construction expression");
+            }
+            let ExpressionNode::MachineValue(value) =
+                program.expression_table.expression(construction)
+            else {
+                return Err("runtime callable input no longer names a machine value construction");
+            };
+            if !program
+                .type_reference_table
+                .contains_type_reference(value.type_reference)
+            {
+                return Err("runtime callable construction lost its required value type");
+            }
+            let carrier = program
+                .type_reference_table
+                .unconstrained_type_reference(value.type_reference);
+            let typed_trees::types::TypeReferenceNode::Callable { contract } =
+                program.type_reference_table.type_reference(carrier)
+            else {
+                return Err("runtime callable construction has no structural callable contract");
+            };
+            if !program.runtime_callable_contracts.is_valid(*contract) {
+                return Err("runtime callable construction lost its exact required contract row");
+            }
+            Ok(*contract)
+        }
+
+        pub(crate) fn from_runtime_callable(
+            program: &dyn crate::CheckingInput,
+            construction: ExpressionHandle,
+            contract: typed_trees::callable_values::RuntimeCallableContractHandle,
+        ) -> Result<Self, &'static str> {
+            if Self::runtime_contract_at(program, construction)? != contract {
+                return Err("runtime callable input belongs to another construction contract");
+            }
+            let ExpressionNode::MachineValue(value) =
+                program.expression_table.expression(construction)
+            else {
+                return Err("runtime callable input lost its machine value construction");
+            };
+            let selected = crate::call_target_state(program, value.selected.symbol)
+                .ok_or("runtime callable construction has no exact selected entry")?
+                .symbol;
+            let obligation = Self {
+                origin: CallableContractOrigin::RuntimeCallable {
+                    contract,
+                    construction,
+                },
+                selected,
+                application: value.application,
+                original_selected: value.selected.symbol,
+                label: "runtime machine value".to_owned(),
+            };
+            obligation.required_signature(program)?;
+            Ok(obligation)
         }
 
         pub(crate) fn supplies(
@@ -4328,10 +4436,18 @@ pub mod machine_parameters {
             demand: SymbolHandle,
             selected: SymbolHandle,
         ) -> bool {
+            let CallableContractOrigin::StaticMachine {
+                parameter,
+                ordinal: own_ordinal,
+                ..
+            } = self.origin
+            else {
+                return false;
+            };
             program.applied_machine_callable_origin(application) == Some(self.application)
-                && self.ordinal == ordinal
+                && own_ordinal == ordinal
                 && self.original_selected == selected
-                && program.data_type_parameters.get(self.parameter).symbol == demand
+                && program.data_type_parameters.get(parameter).symbol == demand
         }
 
         pub fn bounds_static_call(
@@ -4339,19 +4455,30 @@ pub mod machine_parameters {
             program: &dyn crate::CheckingInput,
             site: crate::CallSite<'_>,
         ) -> bool {
-            site.static_machine_parameter()
-                == program.data_type_parameters.get(self.parameter).symbol
+            let CallableContractOrigin::StaticMachine { parameter, .. } = self.origin else {
+                return false;
+            };
+            site.static_machine_parameter() == program.data_type_parameters.get(parameter).symbol
                 && crate::call_target_entry_symbol(program, site.target_symbol(program))
                     == self.selected
         }
 
-        pub fn input_identity(
-            &self,
-        ) -> (
-            typed_trees::static_applications::StaticMachineApplicationHandle,
-            usize,
-        ) {
-            (self.application, self.ordinal)
+        pub fn input_identity(&self) -> CallableInputIdentity {
+            match self.origin {
+                CallableContractOrigin::StaticMachine { ordinal, .. } => {
+                    CallableInputIdentity::StaticMachine {
+                        application: self.application,
+                        ordinal,
+                    }
+                }
+                CallableContractOrigin::RuntimeCallable {
+                    construction,
+                    contract,
+                } => CallableInputIdentity::RuntimeCallable {
+                    construction,
+                    contract,
+                },
+            }
         }
 
         pub fn selected_entry(&self) -> SymbolHandle {
@@ -4360,22 +4487,60 @@ pub mod machine_parameters {
         pub fn label(&self) -> &str {
             &self.label
         }
+        fn required_name<'p>(&self, program: &'p dyn crate::CheckingInput) -> &'p str {
+            match self.origin {
+                CallableContractOrigin::StaticMachine { parameter, .. } => {
+                    program.data_type_parameters.get(parameter).name.as_str()
+                }
+                CallableContractOrigin::RuntimeCallable { .. } => "runtime callable",
+            }
+        }
 
         pub fn required_signature<'p>(
             &self,
             program: &'p dyn crate::CheckingInput,
         ) -> Result<&'p typed_trees::signature::StateSignature, &'static str> {
-            let parameter = program.data_type_parameters.get(self.parameter);
+            let (parameter, applied, ordinal) = match self.origin {
+                CallableContractOrigin::StaticMachine {
+                    parameter,
+                    applied,
+                    ordinal,
+                } => (parameter, applied, ordinal),
+                CallableContractOrigin::RuntimeCallable {
+                    contract,
+                    construction,
+                } => {
+                    if Self::runtime_contract_at(program, construction)? != contract {
+                        return Err("runtime callable input lost its exact construction contract");
+                    }
+                    let ExpressionNode::MachineValue(value) =
+                        program.expression_table.expression(construction)
+                    else {
+                        return Err("runtime callable input lost its machine value construction");
+                    };
+                    if value.selected.symbol != self.original_selected
+                        || value.application != self.application
+                        || crate::call_target_entry_symbol(program, value.selected.symbol)
+                            != self.selected
+                    {
+                        return Err(
+                            "runtime callable input belongs to another selected application",
+                        );
+                    }
+                    return Ok(&program.runtime_callable_contracts.get(contract).signature);
+                }
+            };
+            let parameter = program.data_type_parameters.get(parameter);
             let TypeParameterKind::Machine { contract } = &parameter.kind else {
                 return Err("the selected callable lost its machine binder");
             };
             let required = machine_parameter_signature(program, contract);
-            if self.applied.is_valid() {
+            if applied.is_valid() {
                 let applied = program
-                    .applied_machine_callable_at(self.applied)
+                    .applied_machine_callable_at(applied)
                     .ok_or("the selected callable lost its retained applied input row")?;
                 if applied.invocation != self.application
-                    || applied.ordinal != self.ordinal
+                    || applied.ordinal != ordinal
                     || applied.selected_entry != self.original_selected
                     || applied.demand != parameter.symbol
                     || applied.source_required != required
@@ -4388,7 +4553,7 @@ pub mod machine_parameters {
             }
             if let Some(applied) = program.applied_machine_callable(
                 self.application,
-                self.ordinal,
+                ordinal,
                 self.original_selected,
                 parameter.symbol,
                 required,
@@ -4397,7 +4562,7 @@ pub mod machine_parameters {
             }
             if program.has_applied_machine_selection(
                 self.application,
-                self.ordinal,
+                ordinal,
                 self.original_selected,
             ) {
                 return Err("the selected callable lost its exact applied requirement");
@@ -4428,6 +4593,87 @@ pub mod machine_parameters {
         (suspensions, blockings)
     }
 
+    fn form_runtime_machine_value(
+        program: &dyn crate::CheckingInput,
+        index: &MachineStateIndex,
+        construction: ExpressionHandle,
+        diagnostics: &mut Vec<Diagnostic>,
+        selections: &mut FormedStaticMachineSelections,
+    ) {
+        let input = StaticMachineContractObligation::runtime_contract_at(program, construction)
+            .and_then(|contract| {
+                StaticMachineContractObligation::from_runtime_callable(
+                    program,
+                    construction,
+                    contract,
+                )
+            });
+        let input = match input {
+            Ok(input) => input,
+            Err(reason) => {
+                diagnostics.push(
+                    Diagnostic::error(format!(
+                        "runtime machine value has no admitted construction contract: {reason}"
+                    ))
+                    .with_source_span(program.expression_table.source_span(construction)),
+                );
+                return;
+            }
+        };
+        let requirement = match input.required_signature(program) {
+            Ok(requirement) => requirement,
+            Err(reason) => {
+                diagnostics.push(
+                    Diagnostic::error(format!(
+                        "runtime machine value lost its required callable contract: {reason}"
+                    ))
+                    .with_source_span(program.expression_table.source_span(construction)),
+                );
+                return;
+            }
+        };
+        let Some((machine, state)) = machine_and_state(program, index, input.selected) else {
+            diagnostics.push(
+                Diagnostic::error("runtime machine value has no exact concrete callable entry")
+                    .with_source_span(program.expression_table.source_span(construction)),
+            );
+            return;
+        };
+        if machine.supply_mode.is_boundary_declaration() {
+            diagnostics.push(Diagnostic::error(
+                "runtime machine value requires a local callable; use a local proxy for a boundary requirement",
+            ).with_source_span(program.expression_table.source_span(construction)));
+            return;
+        }
+        let parameters = program.requirement_callable_parameters(
+            requirement,
+            &program.machine_callable_parameters(machine),
+        );
+        callable_shape::validate_runtime_callable_formation(
+            program,
+            input.label(),
+            requirement,
+            &callable_shape::CallableParts {
+                lexical_owner: machine.symbol,
+                contract_owner: machine.symbol,
+                lifetime_parameters: &machine.lifetime_parameters,
+                type_parameters: &parameters,
+                parameters: program.state_parameters(state),
+                return_type: state.return_type,
+                terminates: matches!(
+                    &machine.termination_plan.interface,
+                    language_semantics::TerminationInterface::Published(
+                        language_semantics::TerminationGuarantee::Terminates { .. }
+                    )
+                ),
+                contracts: program.machine_contracts(machine),
+                proof_site: Some(ValidatedNominalMachineUseSite::Expression(construction)),
+            },
+            diagnostics,
+        );
+        selections.pending_effects.push(input);
+    }
+
     pub(crate) fn form_static_machine_selections(
         program: &dyn crate::CheckingInput,
         diagnostics: &mut Vec<Diagnostic>,
@@ -4437,6 +4683,9 @@ pub mod machine_parameters {
         let mathematical_expressions = crate::mathematical_applications::expression_nodes(program);
         let index = machine_state_index(program);
         for (handle, expression) in expression_table(program).iter_expressions() {
+            if matches!(expression, ExpressionNode::MachineValue(_)) {
+                form_runtime_machine_value(program, &index, handle, diagnostics, &mut selections);
+            }
             if let ExpressionNode::Call(call) = expression {
                 if mathematical_expressions.contains(&handle) {
                     continue;
@@ -4555,21 +4804,32 @@ pub mod machine_parameters {
         let (suspensions, blockings) = project_operational_rows(operational);
         let index = machine_state_index(program);
         for obligation in &formed.pending_effects {
-            let parameter = program.data_type_parameters.get(obligation.parameter);
-            let TypeParameterKind::Machine { contract } = &parameter.kind else {
-                unreachable!("formed machine selection has a machine binder")
+            let requirement = match obligation.required_signature(program) {
+                Ok(requirement) => requirement,
+                Err(reason) => {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{} lost its required callable contract: {reason}",
+                        obligation.label(),
+                    )));
+                    continue;
+                }
             };
-            let requirement = machine_parameter_signature(program, contract);
-            let (machine, state) = machine_and_state(program, &index, obligation.selected)
-                .expect("formed concrete selection retains its callable entry");
+            let Some((machine, state)) = machine_and_state(program, &index, obligation.selected)
+            else {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{} lost its exact selected callable entry",
+                    obligation.label(),
+                )));
+                continue;
+            };
             validate_selected_callable_effects(
                 program,
                 &suspensions,
                 &blockings,
                 &service_reaches,
                 &invocations,
-                &obligation.label,
-                parameter,
+                obligation.label(),
+                obligation.required_name(program),
                 requirement,
                 machine,
                 state,
@@ -4968,26 +5228,30 @@ pub mod machine_parameters {
                 selections
                     .pending_effects
                     .push(StaticMachineContractObligation {
-                        parameter: program
-                            .data_type_parameters
-                            .iter()
-                            .find_map(|(handle, candidate)| {
-                                std::ptr::eq(candidate, parameter).then_some(handle)
-                            })
-                            .expect("formed contract binder belongs to the typed parameter arena"),
-                        applied: program
-                            .applied_machine_callable(
-                                application,
-                                static_machine_ordinal,
-                                selected.symbol,
-                                parameter.symbol,
-                                requirement,
-                            )
-                            .map(|view| view.identity)
-                            .unwrap_or_default(),
+                        origin: CallableContractOrigin::StaticMachine {
+                            parameter: program
+                                .data_type_parameters
+                                .iter()
+                                .find_map(|(handle, candidate)| {
+                                    std::ptr::eq(candidate, parameter).then_some(handle)
+                                })
+                                .expect(
+                                    "formed contract binder belongs to the typed parameter arena",
+                                ),
+                            applied: program
+                                .applied_machine_callable(
+                                    application,
+                                    static_machine_ordinal,
+                                    selected.symbol,
+                                    parameter.symbol,
+                                    requirement,
+                                )
+                                .map(|view| view.identity)
+                                .unwrap_or_default(),
+                            ordinal: static_machine_ordinal,
+                        },
                         selected: selection_symbol,
                         application,
-                        ordinal: static_machine_ordinal,
                         original_selected: selected.symbol,
                         label: format!("machine argument `{}` for `{target_name}`", machine.name),
                     });
@@ -5145,7 +5409,7 @@ pub mod machine_parameters {
                 &service_reaches,
                 &invocations,
                 &label,
-                parameter,
+                parameter.name.as_str(),
                 applied_requirement,
                 machine,
                 state,

@@ -324,6 +324,9 @@ pub mod expression {
                         expression.target.display_name()
                     ),
                     Expression::Name(path) => display_name_path(path, "::"),
+                    Expression::MachineValue(value) => {
+                        display_name_path(&value.selected.path, "::")
+                    }
                     Expression::Range(range) => range.display_name(),
                     Expression::StructLiteral(struct_literal) => {
                         struct_literal.type_name.to_string()
@@ -437,6 +440,9 @@ pub mod expression {
                     }
                     Self::Name(path) => {
                         write_display_name_path(table.name_path_members(path.members), "::", out)
+                    }
+                    Self::MachineValue(value) => {
+                        write_display_name_path(&value.selected.path, "::", out)
                     }
                     Self::Range(range) => {
                         if range.start.is_valid() {
@@ -639,7 +645,9 @@ pub mod expression {
             pub fn display_name(&self) -> String {
                 let arguments = comma_join_display(&*self.arguments, Expression::display_name);
 
-                if let Some(receiver) = &self.receiver {
+                if let Some(binding) = &self.runtime_call {
+                    format!("({})({arguments})", binding.callee.display_name())
+                } else if let Some(receiver) = &self.receiver {
                     format!("{}.{}({arguments})", receiver.display_name(), self.target)
                 } else {
                     format!("{}({arguments})", self.target)
@@ -652,11 +660,17 @@ pub mod expression {
 
             fn write_display_name_with(&self, table: &ExpressionDisplay<'_>, out: &mut String) {
                 use std::fmt::Write as _;
-                if self.receiver.is_valid() {
+                if let Some(binding) = self.runtime_call {
+                    out.push('(');
+                    table.write_display_name(binding.callee, out);
+                    out.push(')');
+                } else if self.receiver.is_valid() {
                     table.write_display_name(self.receiver, out);
                     out.push('.');
                 }
-                let _ = write!(out, "{}", self.target);
+                if self.runtime_call.is_none() {
+                    let _ = write!(out, "{}", self.target);
+                }
                 let private_slot = self
                     .private_layout_operation
                     .as_ref()
@@ -931,7 +945,8 @@ pub mod expression {
 
         impl TableCallExpression {
             pub fn selects_only_nominal_route(&self) -> bool {
-                self.static_requirement_dispatch.is_none()
+                self.runtime_call.is_none()
+                    && self.static_requirement_dispatch.is_none()
                     && self.quotient_operation.is_none()
                     && self.private_layout_operation.is_none()
                     && self.installed_interrupt_operation.is_none()
@@ -1578,6 +1593,15 @@ pub mod expression {
                 self.remap_symbols_in_inner(root, symbols, &mut visited);
             }
 
+            pub(crate) fn remap_symbols_in_with_visited(
+                &mut self,
+                root: ExpressionHandle,
+                symbols: crate::SymbolRebinding<'_>,
+                visited: &mut Vec<ExpressionHandle>,
+            ) {
+                self.remap_symbols_in_inner(root, symbols, visited);
+            }
+
             fn remap_symbols_in_inner(
                 &mut self,
                 root: ExpressionHandle,
@@ -1659,7 +1683,23 @@ pub mod expression {
                     ExpressionNode::Cast(cast) => {
                         self.remap_symbols_in_inner(cast.value, symbols, visited)
                     }
+                    ExpressionNode::MachineValue(value) => {
+                        let mut value = value;
+                        self.remap_static_argument_symbols(
+                            &mut value.selected,
+                            symbols.execution(),
+                        );
+                        self.remap_call_static_applications(value.application, None, symbols);
+                        value.conformance = remapped(value.conformance, symbols);
+                        value.requirement = remapped(value.requirement, symbols);
+                        if let ExpressionNode::MachineValue(current) = self.expression_mut(root) {
+                            *current = value;
+                        }
+                    }
                     ExpressionNode::Call(call) => {
+                        if let Some(binding) = call.runtime_call {
+                            self.remap_symbols_in_inner(binding.callee, symbols, visited);
+                        }
                         self.remap_symbols_in_inner(call.receiver, symbols, visited);
                         self.remap_call_static_applications(
                             call.authored_machine_application,
@@ -2002,7 +2042,30 @@ pub mod expression {
                             form: cast.form,
                         }))
                     }
+                    ExpressionNode::MachineValue(value) => {
+                        let mut value = value;
+                        value.selected = match source {
+                            CopySource::Own => self.copy_static_argument_from_self(&value.selected),
+                            CopySource::Table(table) => {
+                                self.copy_static_argument_from(table, &value.selected)
+                            }
+                        };
+                        value.application =
+                            self.copy_static_machine_application(source, value.application, copies);
+                        self.insert(ExpressionNode::MachineValue(value))
+                    }
                     ExpressionNode::Call(call) => {
+                        let runtime_call = call.runtime_call.map(|binding| {
+                            crate::callable_values::RuntimeCallBinding {
+                                callee: self.copy_subtree_with_occurrences(
+                                    source,
+                                    binding.callee,
+                                    retain,
+                                    copies,
+                                ),
+                                contract: binding.contract,
+                            }
+                        });
                         let receiver =
                             self.copy_optional_subtree(source, call.receiver, retain, copies);
                         let arguments =
@@ -2040,6 +2103,7 @@ pub mod expression {
                                 copies,
                             );
                         self.insert(ExpressionNode::Call(TableCallExpression {
+                            runtime_call,
                             authored_call_selection: call.authored_call_selection,
                             authored_call_binding: call.authored_call_binding,
                             authored_machine_application,
@@ -2720,7 +2784,16 @@ pub mod expression {
                             form: cast.form,
                         }))
                     }
+                    Expression::MachineValue(value) => {
+                        self.insert(ExpressionNode::MachineValue(value.clone()))
+                    }
                     Expression::Call(call) => {
+                        let runtime_call = call.runtime_call.as_ref().map(|binding| {
+                            crate::callable_values::RuntimeCallBinding {
+                                callee: self.insert_tree(&binding.callee),
+                                contract: binding.contract,
+                            }
+                        });
                         let receiver = call
                             .receiver
                             .as_ref()
@@ -2729,6 +2802,7 @@ pub mod expression {
                         let arguments =
                             self.insert_expression_handle_span_from_trees(&call.arguments);
                         self.insert(ExpressionNode::Call(TableCallExpression {
+                            runtime_call,
                             authored_call_selection: call.authored_call_selection,
                             authored_call_binding: call.authored_call_binding,
                             authored_machine_application: Default::default(),
@@ -2866,6 +2940,7 @@ pub mod expression {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum Expression {
+        MachineValue(crate::callable_values::MachineValue),
         TypeExpression(crate::types::TypeReferenceHandle),
         Match(Box<MatchExpression>),
         ArrayLiteral(Arc<[Expression]>),
@@ -4155,7 +4230,11 @@ pub mod expression {
                         && self.optional_expression_structurally_equal(x.end, y.end)
                 }
                 (ExpressionNode::Call(x), ExpressionNode::Call(y)) => {
-                    x.target_symbol == y.target_symbol
+                    // Descriptor identity and an effect-free signature do not
+                    // establish a mathematical function or repeatable result.
+                    x.runtime_call.is_none()
+                        && y.runtime_call.is_none()
+                        && x.target_symbol == y.target_symbol
                         && x.exact_coercion_target == y.exact_coercion_target
                         && x.target.as_str() == y.target.as_str()
                         && self.expressions_structurally_equal(x.receiver, y.receiver)
@@ -4263,6 +4342,7 @@ pub mod expression {
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub enum ExpressionNode {
+        MachineValue(crate::callable_values::MachineValue),
         TypeExpression(crate::types::TypeReferenceHandle),
         Match(TableMatchExpression),
         SavedSubject(TableSavedSubject),
@@ -4383,6 +4463,7 @@ pub mod expression {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct CallExpression {
+        pub runtime_call: Option<crate::callable_values::RuntimeCallExpression>,
         pub authored_call_selection: Option<
             language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
         >,
@@ -4398,8 +4479,9 @@ pub mod expression {
         pub operational_acknowledgement: language_semantics::CallOperationalAcknowledgement,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct TableCallExpression {
+        pub runtime_call: Option<crate::callable_values::RuntimeCallBinding>,
         pub authored_call_selection: Option<
             language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
         >,
@@ -5330,7 +5412,11 @@ pub mod subtrees {
                     let _ = child(binary.left) || child(binary.right);
                 }
                 ExpressionNode::Call(call) => {
-                    let _ = child(call.receiver)
+                    let _ = call
+                        .runtime_call
+                        .as_ref()
+                        .is_some_and(|runtime| child(runtime.callee))
+                        || child(call.receiver)
                         || table
                             .expression_handles(call.arguments)
                             .iter()
@@ -5360,7 +5446,9 @@ pub mod subtrees {
                         .iter()
                         .any(|field| child(field.value));
                 }
-                ExpressionNode::TypeExpression(_) | crate::literal_expression_pattern!() => {}
+                ExpressionNode::MachineValue(_)
+                | ExpressionNode::TypeExpression(_)
+                | crate::literal_expression_pattern!() => {}
             }
         }
     }

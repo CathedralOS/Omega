@@ -384,6 +384,7 @@ pub(crate) mod conformance {
             visiting: &mut Vec<SymbolHandle>,
         ) -> Option<PrivateNativeCarrier> {
             match program.type_reference_table.type_reference(type_reference) {
+                TypeReferenceNode::Callable { .. } => None,
                 TypeReferenceNode::Constrained { base_type, .. } => {
                     private_native_carrier(program, *base_type, visiting)
                 }
@@ -6113,6 +6114,7 @@ pub(crate) mod dynamic {
             };
         }
         match expression_table(program).expression(expression) {
+            ExpressionNode::MachineValue(_) => {}
             ExpressionNode::Match(dispatch) => {
                 for child in
                     crate::queries::expression_traversal::match_children(program, *dispatch)
@@ -6135,6 +6137,14 @@ pub(crate) mod dynamic {
             }
             ExpressionNode::Cast(cast) => visit!(cast.value),
             ExpressionNode::Call(call) => {
+                if call.runtime_call.is_some() {
+                    visit!(call.evaluated_callee());
+                    for argument in expression_table(program).expression_handles(call.arguments) {
+                        visit!(*argument);
+                    }
+                    return;
+                }
+
                 let receiver_expression = call.receiver;
                 let receiver_type = match crate::receiver_projections::expression(
                     program,
@@ -7729,7 +7739,18 @@ pub(crate) mod requirements {
             let Some(spelling) = requirement.spelling else {
                 continue;
             };
-            let operands = trait_operator_operand_signature(program, trait_definition, requirement);
+            let operands =
+                match trait_operator_operand_signature(program, trait_definition, requirement) {
+                    Ok(operands) => operands,
+                    Err(error) => {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "trait `{}` operator `{}` has no resolved operand identity: {error}",
+                            trait_definition.name,
+                            spelling.symbol(),
+                        )));
+                        continue;
+                    }
+                };
             if seen.iter().any(|(prior_spelling, prior_operands)| {
                 *prior_spelling == spelling && prior_operands == &operands
             }) {

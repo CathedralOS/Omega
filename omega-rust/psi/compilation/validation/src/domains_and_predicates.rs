@@ -14466,41 +14466,16 @@ pub mod domains {
             program: &dyn crate::CheckingInput,
             reference: TypeReferenceHandle,
         ) -> bool {
-            use typed_trees::types::TypeReferenceNode;
-            let mut pending = vec![reference];
-            let mut seen = Vec::new();
-            while let Some(reference) = pending.pop() {
-                if !reference.is_valid() || seen.contains(&reference) {
-                    continue;
-                }
-                seen.push(reference);
-                match program.type_reference_table.type_reference(reference) {
-                    TypeReferenceNode::Named { symbol, .. } => {
-                        if symbol.is_valid()
-                            && program.symbols.get(*symbol).kind
-                                == symbols::SymbolKind::TypeParameter
-                        {
-                            return true;
-                        }
-                    }
-                    TypeReferenceNode::Generic { arguments, .. }
-                    | TypeReferenceNode::DynamicTrait { arguments, .. } => {
-                        pending.extend(
-                            program
-                                .type_reference_table
-                                .type_reference_handles(*arguments)
-                                .iter()
-                                .copied(),
-                        );
-                    }
-                    TypeReferenceNode::Reference { referee, .. } => pending.push(*referee),
-                    TypeReferenceNode::Constrained { base_type, .. } => pending.push(*base_type),
-                    TypeReferenceNode::FixedArray { element_type, .. }
-                    | TypeReferenceNode::Slice { element_type } => pending.push(*element_type),
-                    TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => {}
-                }
-            }
-            false
+            let inputs =
+                typed_trees::references::type_reference_inputs(program.typed_program(), reference);
+            let parameters = inputs
+                .symbols
+                .into_iter()
+                .filter(|symbol| {
+                    program.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
+                })
+                .collect::<Vec<_>>();
+            program.type_reference_mentions_any(reference, &parameters)
         }
 
         fn executable_domain_carrier(

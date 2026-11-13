@@ -674,6 +674,25 @@ pub(crate) mod proof {
             use diagnostics::Diagnostic;
             use symbols::SymbolHandle;
 
+            fn source_identity(
+                source: &validation::CallContractSource<'_>,
+            ) -> checked_trees::CallContractSignatureSource {
+                match source {
+                    validation::CallContractSource::Requirement { declaration, .. } => {
+                        checked_trees::CallContractSignatureSource::Requirement {
+                            declaring_trait: declaration.symbol,
+                        }
+                    }
+                    validation::CallContractSource::Runtime { binding, contract } => {
+                        checked_trees::CallContractSignatureSource::Runtime {
+                            contract: binding.contract,
+                            lexical_owner: contract.lexical_owner,
+                            callee: binding.callee,
+                        }
+                    }
+                }
+            }
+
             #[allow(clippy::too_many_arguments)]
             pub(crate) fn retain(
                 program: &dyn validation::CheckingInput,
@@ -687,21 +706,15 @@ pub(crate) mod proof {
                 site: &validation::CallSite<'_>,
             ) -> Result<Handle<CallContractSignature>, Diagnostic> {
                 let source_target = site.target_symbol(program);
-                let is_requirement = site.static_requirement_dispatch().is_some()
-                    || validation::selected_requirement_signature(program, source_target).is_some();
-                if !is_requirement {
+                let Some(source) =
+                    validation::call_contract_source(program, caller_machine_symbol, site)
+                        .map_err(Diagnostic::error)?
+                else {
                     return Ok(Handle::invalid());
-                }
-                let (declaration, signature) = validation::requirement_contract_signature(
-                    program,
-                    caller_machine_symbol,
-                    site,
-                )
-                .ok_or_else(|| {
-                    Diagnostic::error(
-                        "source invocation lost its exact public logical requirement contract",
-                    )
-                })?;
+                };
+                let signature = source.signature();
+                let source_owner = source.lexical_owner();
+                let retained_source = source_identity(&source);
                 let state = program
                     .state_by_symbol(caller_state_symbol)
                     .filter(|_| {
@@ -736,7 +749,7 @@ pub(crate) mod proof {
                     source_statement,
                     source_expression,
                     source_target,
-                    declaring_trait: declaration.symbol,
+                    source: retained_source,
                     signature: signature.clone(),
                 };
                 if let Some((handle, _)) = applications
@@ -748,10 +761,10 @@ pub(crate) mod proof {
                 let application = applications.append(record);
                 super::append_signature_contract_facts(
                     program,
-                    declaration.symbol,
+                    source_owner,
                     signature,
                     ContractProofFactOwner::CallSignature {
-                        owner_symbol: declaration.symbol,
+                        owner_symbol: source_owner,
                         state_symbol: signature.symbol,
                         application,
                     },
@@ -769,31 +782,29 @@ pub(crate) mod proof {
                     return None;
                 }
                 let selected = applications.get(application);
+                let owner_symbol = match selected.source {
+                    checked_trees::CallContractSignatureSource::Invalid => return None,
+                    checked_trees::CallContractSignatureSource::Requirement { declaring_trait } => {
+                        declaring_trait
+                    }
+                    checked_trees::CallContractSignatureSource::Runtime {
+                        lexical_owner, ..
+                    } => lexical_owner,
+                };
                 Some(ContractProofFactOwner::CallSignature {
-                    owner_symbol: selected.declaring_trait,
+                    owner_symbol,
                     state_symbol: selected.signature.symbol,
                     application,
                 })
             }
 
-            /*
-                A retained logical view grants facts only to the invocation that selected it.
-                Both source coordinates and the complete current signature must still join;
-                a nominal requirement symbol alone is never a fallback owner.
-            */
-            pub(crate) fn owns_contract(
+            pub(crate) fn source_is_current(
                 program: &dyn validation::CheckingInput,
                 proof: &checked_trees::ProofFacts,
                 call: &checked_trees::ContractCallFact,
-                contract: &ContractProofFact,
+                site: &validation::CallSite<'_>,
             ) -> bool {
-                if !call.signature.is_valid() {
-                    return !matches!(contract.owner, ContractProofFactOwner::CallSignature { .. });
-                }
-                let Some(expected) = owner(&proof.call_contract_signatures, call.signature) else {
-                    return false;
-                };
-                if contract.owner != expected {
+                if owner(&proof.call_contract_signatures, call.signature).is_none() {
                     return false;
                 }
                 let retained = proof.call_contract_signatures.get(call.signature);
@@ -807,12 +818,46 @@ pub(crate) mod proof {
                 let Some(state) = program.state_by_symbol(call.caller_state_symbol) else {
                     return false;
                 };
-                let source_statement = if call.statement_index < state.statement_nodes.len() {
+                if program
+                    .machine_holding_state(call.caller_state_symbol)
+                    .is_none_or(|machine| machine.symbol != call.caller_machine_symbol)
+                {
+                    return false;
+                }
+                let statement = if call.statement_index < state.statement_nodes.len() {
                     state.statement_nodes.handle_at(call.statement_index as u32)
                 } else {
                     Default::default()
                 };
-                if source_statement != retained.source_statement {
+                let expression = match site {
+                    validation::CallSite::Expression { expression, .. } => *expression,
+                    _ => Default::default(),
+                };
+                if statement != retained.source_statement
+                    || expression != retained.source_expression
+                    || site.target_symbol(program) != retained.source_target
+                {
+                    return false;
+                }
+                let Ok(Some(source)) =
+                    validation::call_contract_source(program, call.caller_machine_symbol, site)
+                else {
+                    return false;
+                };
+                source_identity(&source) == retained.source
+                    && *source.signature() == retained.signature
+            }
+
+            pub(crate) fn owns_contract(
+                program: &dyn validation::CheckingInput,
+                proof: &checked_trees::ProofFacts,
+                call: &checked_trees::ContractCallFact,
+                contract: &ContractProofFact,
+            ) -> bool {
+                if !call.signature.is_valid() {
+                    return !matches!(contract.owner, ContractProofFactOwner::CallSignature { .. });
+                }
+                if owner(&proof.call_contract_signatures, call.signature) != Some(contract.owner) {
                     return false;
                 }
                 let Some(site) = validation::find_call_site(
@@ -824,48 +869,38 @@ pub(crate) mod proof {
                 ) else {
                     return false;
                 };
-                if site.target_symbol(program) != retained.source_target {
+                if !source_is_current(program, proof, call, &site) {
                     return false;
                 }
-                let source_expression = match site {
-                    validation::CallSite::Expression { expression, .. } => expression,
-                    _ => Default::default(),
-                };
-                if source_expression != retained.source_expression {
-                    return false;
-                }
-                let Some((declaration, signature)) = validation::requirement_contract_signature(
-                    program,
-                    call.caller_machine_symbol,
-                    &site,
-                ) else {
-                    return false;
-                };
-                declaration.symbol == retained.declaring_trait
-                    && *signature == retained.signature
-                    && program
-                        .state_signature_contracts(signature)
-                        .iter()
-                        .any(|clause| {
-                            let same_kind = matches!(
-                                (&clause.kind, contract.kind),
-                                (
-                                    typed_trees::signature::SignatureContractKind::Requires,
-                                    checked_trees::ContractProofFactKind::Requires
-                                ) | (
-                                    typed_trees::signature::SignatureContractKind::Ensures,
-                                    checked_trees::ContractProofFactKind::Ensures
-                                )
-                            );
-                            same_kind
-                                && fact_handles(clause.facts).any(|fact| fact == contract.fact)
-                        })
+                let signature = &proof.call_contract_signatures.get(call.signature).signature;
+                program
+                    .state_signature_contracts(signature)
+                    .iter()
+                    .any(|clause| {
+                        matches!(
+                            (&clause.kind, contract.kind),
+                            (
+                                typed_trees::signature::SignatureContractKind::Requires,
+                                checked_trees::ContractProofFactKind::Requires
+                            ) | (
+                                typed_trees::signature::SignatureContractKind::Ensures,
+                                checked_trees::ContractProofFactKind::Ensures
+                            )
+                        ) && fact_handles(clause.facts).any(|fact| fact == contract.fact)
+                    })
             }
 
-            pub(crate) fn signature(
-                proof: &checked_trees::ProofFacts,
+            pub(crate) fn signature<'program>(
+                program: &'program dyn validation::CheckingInput,
+                proof: &'program checked_trees::ProofFacts,
                 selected: ContractProofFactOwner,
-            ) -> Option<&typed_trees::signature::StateSignature> {
+            ) -> Option<&'program typed_trees::signature::StateSignature> {
+                if let ContractProofFactOwner::RuntimeCallableContract { contract } = selected {
+                    return program
+                        .runtime_callable_contracts
+                        .is_valid(contract)
+                        .then(|| &program.runtime_callable_contracts.get(contract).signature);
+                }
                 let ContractProofFactOwner::CallSignature { application, .. } = selected else {
                     return None;
                 };
@@ -903,18 +938,6 @@ pub(crate) mod proof {
 
                 for state in borrow.states.iter().map(|(_, state)| state) {
                     for call in borrow.calls.span_or_empty(state.calls) {
-                        let Some(contract_owner) =
-                            contract_target_from_state_symbol(program, call.target_symbol)
-                        else {
-                            continue;
-                        };
-                        let (target_machine_symbol, target_state_symbol) =
-                            if program.dynamic_slot_by_symbol(call.target_symbol).is_some() {
-                                (call.target_symbol, call.target_symbol)
-                            } else {
-                                contract_owner
-                            };
-
                         let call_site = validation::find_call_site(
                             program,
                             state.machine_symbol,
@@ -922,6 +945,42 @@ pub(crate) mod proof {
                             call.statement_index,
                             call.call_ordinal,
                         );
+                        if call_site.as_ref().and_then(|site| site.runtime_call())
+                            != call.runtime_call
+                        {
+                            return Err(vec![diagnostics::Diagnostic::error(
+                                "call contract lost its exact borrowed runtime callee and contract row",
+                            )]);
+                        }
+                        let runtime = call_site
+                            .as_ref()
+                            .filter(|site| site.runtime_call().is_some())
+                            .map(|site| {
+                                validation::call_contract_source(
+                                    program,
+                                    state.machine_symbol,
+                                    site,
+                                )
+                            })
+                            .transpose()
+                            .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?
+                            .flatten();
+                        let contract_owner = if let Some(source) = &runtime {
+                            (source.lexical_owner(), source.signature().symbol)
+                        } else if let Some(owner) =
+                            contract_target_from_state_symbol(program, call.target_symbol)
+                        {
+                            owner
+                        } else {
+                            continue;
+                        };
+                        let (target_machine_symbol, target_state_symbol) = if runtime.is_some() {
+                            (SymbolHandle::invalid(), SymbolHandle::invalid())
+                        } else if program.dynamic_slot_by_symbol(call.target_symbol).is_some() {
+                            (call.target_symbol, call.target_symbol)
+                        } else {
+                            contract_owner
+                        };
                         if call_site.is_none()
                             && validation::selected_requirement_signature(
                                 program,
@@ -1233,6 +1292,7 @@ pub(crate) mod proof {
                                     })
                             }
                             ContractProofFactOwner::Unknown
+                            | ContractProofFactOwner::RuntimeCallableContract { .. }
                             | ContractProofFactOwner::CallSignature { .. }
                             | ContractProofFactOwner::OperatorDeclaration { .. }
                             | ContractProofFactOwner::OperatorUse { .. } => false,
@@ -2070,6 +2130,24 @@ pub(crate) mod proof {
             One builder retains the entire logical signature and both ordered evidence
             lanes. An invocation-qualified owner changes identity, never its clauses.
         */
+        pub(crate) fn append_runtime_callable_contract_facts(
+            program: &dyn validation::CheckingInput,
+            contract_facts: &mut arena::Arena<ContractProofFact>,
+            evidence_terms: &mut arena::Arena<CheckedEvidenceTerm>,
+        ) -> Result<(), diagnostics::Diagnostic> {
+            for (contract, row) in program.runtime_callable_contracts.iter() {
+                append_signature_contract_facts(
+                    program,
+                    row.lexical_owner,
+                    &row.signature,
+                    ContractProofFactOwner::RuntimeCallableContract { contract },
+                    contract_facts,
+                    evidence_terms,
+                )?;
+            }
+            Ok(())
+        }
+
         pub(crate) fn append_signature_contract_facts(
             program: &dyn ::validation::CheckingInput,
             owner_symbol: SymbolHandle,
@@ -2617,6 +2695,7 @@ pub(crate) mod proof {
                                                         program,
                                                         proof,
                                                         path.symbol,
+                                                        None,
                                                         program
                                                             .statement_table
                                                             .expression_handles(*arguments),
@@ -2723,6 +2802,7 @@ pub(crate) mod proof {
                                 program,
                                 proof,
                                 call.target_symbol,
+                                call.runtime_call,
                                 program.expression_table.expression_handles(call.arguments),
                             )
                         }
@@ -2859,8 +2939,53 @@ pub(crate) mod proof {
             program: &dyn ::validation::CheckingInput,
             proof: &ProofFacts,
             target_symbol: SymbolHandle,
+            runtime_call: Option<typed_trees::callable_values::RuntimeCallBinding>,
             arguments: &[typed_trees::expression::ExpressionHandle],
         ) -> Option<TerminalCallGuarantees> {
+            if let Some(binding) = runtime_call {
+                let signature = binding.signature(program.typed_program()).ok()?;
+                let parameters = program.state_signature_parameters(signature);
+                if parameters.len() != arguments.len() {
+                    return None;
+                }
+                let substitutions = parameters
+                    .iter()
+                    .zip(arguments)
+                    .map(|(parameter, argument)| {
+                        (
+                            parameter.symbol,
+                            parameter.name.to_string(),
+                            program.render_proof_expression(
+                                *argument,
+                                typed_trees::proposition::ProofSubstitutions::None,
+                            ),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                let mut rows = Vec::new();
+                for contract in program.state_signature_contracts(signature) {
+                    let result_case = match contract.kind {
+                        typed_trees::signature::SignatureContractKind::Ensures => None,
+                        typed_trees::signature::SignatureContractKind::EnsuresForResultCase {
+                            result_data,
+                            result_case,
+                        } => Some((result_data, result_case)),
+                        _ => continue,
+                    };
+                    for fact in fact_handles(contract.facts) {
+                        rows.push(TerminalCallGuarantee {
+                            result_case,
+                            label: fact_label(program, fact, &substitutions)?,
+                            supplies_evidence: contract.binding.is_some(),
+                        });
+                    }
+                }
+                return Some(TerminalCallGuarantees {
+                    callee_name: "runtime callable".to_owned(),
+                    rows,
+                    result_cases: None,
+                });
+            }
             let (callee, entry) = program
                 .machine_by_symbol(target_symbol)
                 .and_then(|machine| {
@@ -5376,9 +5501,37 @@ pub(crate) mod proof {
                     ));
                     continue;
                 };
+                let source_site = validation::CallSite::Expression {
+                    expression: package.call,
+                    call,
+                };
+                let runtime_source = if call.runtime_call.is_some() {
+                    match validation::call_contract_source(
+                        program,
+                        package.machine_symbol,
+                        &source_site,
+                    ) {
+                        Ok(Some(source @ validation::CallContractSource::Runtime { .. })) => {
+                            Some(source)
+                        }
+                        Ok(_) => {
+                            diagnostics.push(diagnostics::Diagnostic::error(
+                                "runtime evidence invocation has no exact callable contract",
+                            ));
+                            continue;
+                        }
+                        Err(reason) => {
+                            diagnostics.push(diagnostics::Diagnostic::error(reason));
+                            continue;
+                        }
+                    }
+                } else {
+                    None
+                };
                 let machine_target = validation::find_state(program, call.target_symbol);
                 let open_requirement = program
                     .machine_by_symbol(package.machine_symbol)
+                    .filter(|_| runtime_source.is_none())
                     .map(|machine| {
                         validation::named_conformance_target_requirement(
                             program,
@@ -5408,7 +5561,9 @@ pub(crate) mod proof {
                             continue;
                         }
                     }
-                } else if open_requirement.is_some() && call.static_requirement_dispatch.is_none() {
+                } else if runtime_source.is_some()
+                    || (open_requirement.is_some() && call.static_requirement_dispatch.is_none())
+                {
                     None
                 } else {
                     diagnostics.push(diagnostics::Diagnostic::error(format!("proof-output call `{}` must target a checked machine state or exact generic requirement", call.target)));
@@ -5489,7 +5644,9 @@ pub(crate) mod proof {
                     &proof.call_contract_signatures,
                     signature_application,
                 );
-                if (open_requirement.is_some() || static_requirement.is_some())
+                if (runtime_source.is_some()
+                    || open_requirement.is_some()
+                    || static_requirement.is_some())
                     && public_owner.is_none()
                 {
                     diagnostics.push(diagnostics::Diagnostic::error(
@@ -5509,18 +5666,12 @@ pub(crate) mod proof {
                         expression: package.call,
                         call,
                     };
-                    let matches = validation::requirement_contract_signature(
-                        program,
-                        package.machine_symbol,
-                        &source_site,
-                    )
-                    .is_some_and(|(declaration, selected)| {
-                        selected == signature
-                            && public_owner.is_some_and(|owner| {
-                                matches!(owner, ContractProofFactOwner::CallSignature { owner_symbol, .. }
-                                    if owner_symbol == declaration.symbol)
+                    let matches = validation::call_contract_source(program, package.machine_symbol, &source_site)
+                        .ok().flatten().is_some_and(|source| {
+                            source.signature() == signature && public_owner.is_some_and(|owner| {
+                                matches!(owner, ContractProofFactOwner::CallSignature { owner_symbol, .. } if owner_symbol == source.lexical_owner())
                             })
-                    });
+                        });
                     if !matches {
                         diagnostics.push(diagnostics::Diagnostic::error(
                             "proof-output package does not select its ordinary invocation's complete logical contract",
@@ -5537,6 +5688,13 @@ pub(crate) mod proof {
                             program.machine_states(machine).len() == 1
                                 && machine.supply_mode
                                     == language_semantics::MachineSupplyMode::CheckedBody,
+                        )
+                    } else if let Some(source) = runtime_source.as_ref() {
+                        (
+                            SymbolHandle::invalid(),
+                            SymbolHandle::invalid(),
+                            source.signature().return_type,
+                            true,
                         )
                     } else if let Some(requirement) = open_requirement.as_ref() {
                         (
@@ -6433,6 +6591,34 @@ pub(crate) mod proof {
             call: &typed_trees::statement::TableCall,
             known: &mut std::collections::BTreeSet<String>,
         ) {
+            if let Some(binding) = call.runtime_call {
+                let Ok(signature) = binding.signature(program.typed_program()) else {
+                    return;
+                };
+                let parameters = program.state_signature_parameters(signature);
+                let arguments = program.statement_table.expression_handles(call.arguments);
+                if parameters.len() != arguments.len() {
+                    return;
+                }
+                let substitutions = parameters
+                    .iter()
+                    .zip(arguments)
+                    .map(|(parameter, argument)| {
+                        (
+                            parameter.symbol,
+                            parameter.name.to_string(),
+                            program.render_proof_expression(*argument, ProofSubstitutions::None),
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                known.extend(contract_proposition_labels(
+                    program,
+                    program.state_signature_contracts(signature),
+                    typed_trees::signature::SignatureContractKind::Ensures,
+                    &substitutions,
+                ));
+                return;
+            }
             let Some((callee, state)) = program
                 .machine_by_symbol(call.target_symbol)
                 .and_then(|machine| {
@@ -6851,6 +7037,12 @@ pub(crate) mod proof {
             )
             .map_err(|error| vec![error])?;
         }
+        contracts::append_runtime_callable_contract_facts(
+            program,
+            &mut contract_facts,
+            &mut evidence_terms,
+        )
+        .map_err(|error| vec![error])?;
         for operator in program.all_operators() {
             append_operator_declaration_contract_facts(program, operator, &mut contract_facts);
         }
@@ -7268,6 +7460,7 @@ pub(crate) mod semantic {
 
                 pub(super) fn append_result(
                     program: &dyn validation::CheckingInput,
+                    proof: &checked_trees::ProofFacts,
                     facts: &mut FactPlan,
                     call: &ContractCallFact,
                     contract: &ContractProofFact,
@@ -7277,39 +7470,79 @@ pub(crate) mod semantic {
                     if contract.kind != ContractProofFactKind::Ensures {
                         return;
                     }
-                    let owns_selected_result = match contract.owner {
-                        ContractProofFactOwner::Machine { machine_symbol } => {
-                            machine_symbol == call.target_machine_symbol
-                        }
-                        ContractProofFactOwner::MachineState {
-                            machine_symbol,
-                            state_symbol,
-                        } => {
-                            machine_symbol == call.target_machine_symbol
-                                && state_symbol == call.target_state_symbol
-                        }
-                        _ => false,
-                    };
-                    if !owns_selected_result {
-                        return;
-                    }
-                    let Some(machine) = program.machine_by_symbol(call.target_machine_symbol)
-                    else {
-                        return;
-                    };
-                    let Some(state) = program.state_in_machine(machine, call.target_state_symbol)
-                    else {
-                        return;
-                    };
-                    for (subject_expression, variant) in
-                        selected_cases(program, machine, state, contract)
-                    {
-                        let Some(subject) =
+                    let (cases, callable, runtime) =
+                        if let ContractProofFactOwner::CallSignature { application, .. } =
+                            contract.owner
+                        {
+                            let Some(signature) =
+                                crate::published::proof::contracts::call_signatures::signature(
+                                    program,
+                                    proof,
+                                    contract.owner,
+                                )
+                            else {
+                                return;
+                            };
+                            let retained = proof.call_contract_signatures.get(application);
+                            let runtime = match retained.source {
+                                checked_trees::CallContractSignatureSource::Runtime {
+                                    contract,
+                                    ..
+                                } => Some(contract),
+                                _ => None,
+                            };
+                            (
+                                selected_signature_cases(program, signature, contract),
+                                signature.symbol,
+                                runtime,
+                            )
+                        } else {
+                            let owns = match contract.owner {
+                                ContractProofFactOwner::Machine { machine_symbol } => {
+                                    machine_symbol == call.target_machine_symbol
+                                }
+                                ContractProofFactOwner::MachineState {
+                                    machine_symbol,
+                                    state_symbol,
+                                } => {
+                                    machine_symbol == call.target_machine_symbol
+                                        && state_symbol == call.target_state_symbol
+                                }
+                                _ => false,
+                            };
+                            if !owns {
+                                return;
+                            }
+                            let Some(machine) =
+                                program.machine_by_symbol(call.target_machine_symbol)
+                            else {
+                                return;
+                            };
+                            let Some(state) =
+                                program.state_in_machine(machine, call.target_state_symbol)
+                            else {
+                                return;
+                            };
+                            (
+                                selected_cases(program, machine, state, contract),
+                                machine.symbol,
+                                None,
+                            )
+                        };
+                    for (subject_expression, variant) in cases {
+                        let subject = if let Some(contract) = runtime {
+                            validation::runtime_reserved_result_place(
+                                program,
+                                contract,
+                                subject_expression,
+                            )
+                        } else {
                             validation::reserved_result_place(program, subject_expression)
-                        else {
+                        };
+                        let Some(subject) = subject else {
                             continue;
                         };
-                        if subject.machine_symbol != machine.symbol
+                        if subject.machine_symbol != callable
                             || !detached_result_projection(program, &subject)
                         {
                             continue;
@@ -7359,10 +7592,19 @@ pub(crate) mod semantic {
                     program: &dyn validation::CheckingInput,
                     subject: &validation::ReservedResultPlace,
                 ) -> bool {
-                    let Some((_, root_type)) =
-                        validation::reserved_result_owner(program, subject.root)
-                    else {
-                        return false;
+                    let root_type = if let Some(contract) = subject.runtime_contract {
+                        program
+                            .runtime_callable_contracts
+                            .get(contract)
+                            .signature
+                            .return_type
+                    } else {
+                        let Some((_, root_type)) =
+                            validation::reserved_result_owner(program, subject.root)
+                        else {
+                            return false;
+                        };
+                        root_type
                     };
                     (0..=subject.segments.len()).all(|length| {
                         validation::project_type_reference_from_segments(
@@ -7484,6 +7726,50 @@ pub(crate) mod semantic {
                     cases
                 }
 
+                fn selected_signature_cases(
+                    program: &dyn validation::CheckingInput,
+                    signature: &typed_trees::signature::StateSignature,
+                    contract: &ContractProofFact,
+                ) -> Vec<(
+                    typed_trees::expression::ExpressionHandle,
+                    symbols::SymbolHandle,
+                )> {
+                    let typed_trees::domain::ProofFact::Expression(expression) =
+                        program.proof_facts.get(contract.fact)
+                    else {
+                        return Vec::new();
+                    };
+                    let parameters = program.state_signature_parameters(signature);
+                    let mut cases = Vec::new();
+                    let mut pending = vec![*expression];
+                    while let Some(expression) = pending.pop() {
+                        let Some(binary) = program.expression_table.binary_node(expression) else {
+                            continue;
+                        };
+                        if binary.operator == typed_trees::expression::BinaryOperator::And
+                            && validation::has_builtin_parameter_bound_expression_meaning(
+                                program,
+                                signature.symbol,
+                                parameters,
+                                expression,
+                            )
+                        {
+                            pending.extend([binary.left, binary.right]);
+                            continue;
+                        }
+                        if let Some(case) = validation::applied_declaration_case_membership_variant(
+                            program,
+                            signature.symbol,
+                            parameters,
+                            expression,
+                            binary,
+                        ) {
+                            cases.push((binary.left, case));
+                        }
+                    }
+                    cases
+                }
+
                 /*
                     Index operands choose which discriminator the observation names. They keep
                     whole-value dependencies even though writes below the selected sum do not.
@@ -7540,13 +7826,30 @@ pub(crate) mod semantic {
                     target: SymbolHandle,
                     declared: SymbolHandle,
                 ) -> Result<Option<usize>, ()> {
-                    let parameters =
-                        validation::call_target_parameters(program, target).ok_or(())?;
-                    if let checked_trees::ContractProofFactOwner::CallSignature { .. } =
-                        contract.owner
+                    if let checked_trees::ContractProofFactOwner::RuntimeCallableContract {
+                        contract: handle,
+                    } = contract.owner
+                    {
+                        if target.is_valid()
+                            || contract.inherited_scope.is_some()
+                            || !program.runtime_callable_contracts.is_valid(handle)
+                        {
+                            return Err(());
+                        }
+                        let row = program.runtime_callable_contracts.get(handle);
+                        return Ok(typed_trees::signature::state_parameter_position(
+                            program.state_signature_parameters(&row.signature),
+                            declared,
+                        ));
+                    }
+                    if let checked_trees::ContractProofFactOwner::CallSignature {
+                        application,
+                        ..
+                    } = contract.owner
                     {
                         let signature =
                             crate::published::proof::contracts::call_signatures::signature(
+                                program,
                                 proof,
                                 contract.owner,
                             )
@@ -7557,10 +7860,25 @@ pub(crate) mod semantic {
                         else {
                             return Ok(None);
                         };
-                        return (required.len() == parameters.len() && position < parameters.len())
-                            .then_some(Some(position))
-                            .ok_or(());
+                        let retained = proof.call_contract_signatures.get(application);
+                        return match retained.source {
+                            checked_trees::CallContractSignatureSource::Runtime { .. }
+                                if !target.is_valid() =>
+                            {
+                                Ok(Some(position))
+                            }
+                            checked_trees::CallContractSignatureSource::Requirement { .. } => {
+                                let parameters =
+                                    validation::call_target_parameters(program, target).ok_or(())?;
+                                (required.len() == parameters.len() && position < parameters.len())
+                                    .then_some(Some(position))
+                                    .ok_or(())
+                            }
+                            _ => Err(()),
+                        };
                     }
+                    let parameters =
+                        validation::call_target_parameters(program, target).ok_or(())?;
                     if let Some(position) =
                         typed_trees::signature::state_parameter_position(parameters, declared)
                     {
@@ -7831,8 +8149,31 @@ pub(crate) mod semantic {
                         return None;
                     }
 
-                    if let Some(result) = validation::reserved_result_place(program, expression) {
+                    let runtime_contract = match contract.owner {
+                        FactOwner::RuntimeCallableContract { contract } => Some(contract),
+                        FactOwner::CallSignature { application, .. }
+                            if proof.call_contract_signatures.is_valid(application) =>
+                        {
+                            match proof.call_contract_signatures.get(application).source {
+                                checked_trees::CallContractSignatureSource::Runtime {
+                                    contract,
+                                    ..
+                                } => Some(contract),
+                                _ => None,
+                            }
+                        }
+                        _ => None,
+                    };
+                    let result = if let Some(contract) = runtime_contract {
+                        validation::runtime_reserved_result_place(program, contract, expression)
+                    } else {
+                        validation::reserved_result_place(program, expression)
+                    };
+                    if let Some(result) = result {
                         let owner_matches = match contract.owner {
+                            FactOwner::RuntimeCallableContract { contract } => {
+                                result.runtime_contract == Some(contract)
+                            }
                             FactOwner::Machine { machine_symbol }
                             | FactOwner::MachineState { machine_symbol, .. } => {
                                 machine_symbol == result.machine_symbol
@@ -8034,10 +8375,13 @@ pub(crate) mod semantic {
                     owner: FactOwner,
                     mut matches: impl FnMut(&typed_trees::signature::StateParameter) -> bool,
                 ) -> Option<&'program typed_trees::signature::StateParameter> {
-                    if let FactOwner::CallSignature { .. } = owner {
+                    if matches!(
+                        owner,
+                        FactOwner::CallSignature { .. } | FactOwner::RuntimeCallableContract { .. }
+                    ) {
                         let signature =
                             crate::published::proof::contracts::call_signatures::signature(
-                                proof, owner,
+                                program, proof, owner,
                             )?;
                         return program
                             .state_signature_parameters(signature)
@@ -8071,6 +8415,7 @@ pub(crate) mod semantic {
                         }
                         FactOwner::Unknown
                         | FactOwner::OperatorUse { .. }
+                        | FactOwner::RuntimeCallableContract { .. }
                         | FactOwner::CallSignature { .. } => {
                             return None;
                         }
@@ -8956,7 +9301,7 @@ pub(crate) mod semantic {
                     facts.append_ref(refs, fact);
                     if origin == FactOrigin::CallEnsures {
                         case_observations::append_result(
-                            program, facts, call, contract, point, evidence,
+                            program, proof, facts, call, contract, point, evidence,
                         );
                     }
                     if origin == FactOrigin::CallEnsures
@@ -10172,7 +10517,9 @@ pub(crate) mod semantic {
                         statement_index,
                     },
                     FactOwner::OperatorUse { .. } => ProgramPoint::Global,
-                    FactOwner::CallSignature { .. } => return None,
+                    FactOwner::RuntimeCallableContract { .. } | FactOwner::CallSignature { .. } => {
+                        return None;
+                    }
                     FactOwner::Unknown => ProgramPoint::Global,
                 })
             }
@@ -10214,7 +10561,9 @@ pub(crate) mod semantic {
                             FactOrigin::OperatorEnsures { operator_symbol }
                         }
                     },
-                    FactOwner::CallSignature { .. } => return None,
+                    FactOwner::RuntimeCallableContract { .. } | FactOwner::CallSignature { .. } => {
+                        return None;
+                    }
                     FactOwner::Unknown => FactOrigin::Unknown,
                 })
             }
@@ -10382,6 +10731,29 @@ pub(crate) mod semantic {
         use crate::published::semantic::facts::contract_fact_place;
         use checked_trees::{ContractCallFact, ContractProofFact, ProofFacts};
         use facts::{FactPlace, FactPlan};
+        fn call_contract_parameters<'program>(
+            program: &'program dyn validation::CheckingInput,
+            call: &ContractCallFact,
+        ) -> Option<&'program [typed_trees::signature::StateParameter]> {
+            let site = validation::find_call_site(
+                program,
+                call.caller_machine_symbol,
+                call.caller_state_symbol,
+                call.statement_index,
+                call.call_ordinal,
+            )?;
+            if site.runtime_call().is_some() {
+                let validation::CallContractSource::Runtime { contract, .. } =
+                    validation::call_contract_source(program, call.caller_machine_symbol, &site)
+                        .ok()??
+                else {
+                    return None;
+                };
+                return Some(program.state_signature_parameters(&contract.signature));
+            }
+            validation::call_target_parameters(program, call.target_state_symbol)
+        }
+
         mod expression {
             use crate::flow::expressions;
             use crate::published::places::place_at;
@@ -10438,8 +10810,7 @@ pub(crate) mod semantic {
                         call.statement_index,
                         call.call_ordinal,
                     )
-                    && let Some(parameters) =
-                        super::call_target_parameters(program, call.target_state_symbol)
+                    && let Some(parameters) = super::call_contract_parameters(program, call)
                     && let Some((value, remaining)) = call_contract_argument_projection(
                         program,
                         parameters,
@@ -10574,8 +10945,7 @@ pub(crate) mod semantic {
                     call.statement_index,
                     call.call_ordinal,
                 )?;
-                let target_parameters =
-                    super::call_target_parameters(program, call.target_state_symbol)?;
+                let target_parameters = super::call_contract_parameters(program, call)?;
                 let first_member = members.first().map(|member| member.as_str());
 
                 let mut place = if first_member.is_some_and(language_core::is_reserved_result) {
@@ -10604,10 +10974,7 @@ pub(crate) mod semantic {
                             .copied();
                         argument_index = argument_index.saturating_add(1);
 
-                        if first_member == Some(parameter.name.as_str())
-                            || path.head_symbol == parameter.symbol
-                            || path.symbol == parameter.symbol
-                        {
+                        if path.head_symbol == parameter.symbol || path.symbol == parameter.symbol {
                             matched = argument.and_then(|expression| {
                                 call_argument_place(program, facts, call, expression)
                             });
@@ -11026,8 +11393,7 @@ pub(crate) mod semantic {
                     call.call_ordinal,
                 )?;
                 let argument = *call_site_argument_expressions(program, &site).get(position)?;
-                let parameter =
-                    call_target_parameters(program, call.target_state_symbol)?.get(position)?;
+                let parameter = call_contract_parameters(program, call)?.get(position)?;
                 crate::published::semantic::facts::projected_argument_place(
                     program,
                     call.caller_state_symbol,

@@ -252,6 +252,7 @@ pub(crate) mod control {
         pub completed_storage: arena::Handle<super::FlowStorageSnapshot>,
         pub operands: HandleSpan<super::FlowOperandFact>,
         pub authored_expression: typed_trees::expression::ExpressionHandle,
+        pub runtime_call: Option<typed_trees::callable_values::RuntimeCallBinding>,
         pub authored_site: FlowCallSite,
         pub authored_target: SymbolHandle,
         pub authored_arguments: HandleSpan<typed_trees::expression::ExpressionHandle>,
@@ -289,7 +290,9 @@ pub(crate) mod control {
 
     impl FlowCallFact {
         pub fn argument_operands(&self) -> HandleSpan<super::FlowOperandFact> {
-            if !self.authored_receiver.is_valid() || self.operands.is_empty() {
+            if (self.runtime_call.is_none() && !self.authored_receiver.is_valid())
+                || self.operands.is_empty()
+            {
                 return self.operands;
             }
             HandleSpan::from_parts_or_empty(self.operands.handle_at(1), self.operands.count() - 1)

@@ -318,6 +318,7 @@ pub mod carrier_contents {
             }
             TypeReferenceNode::Reference { .. }
             | TypeReferenceNode::Slice { .. }
+            | TypeReferenceNode::Callable { .. }
             | TypeReferenceNode::DynamicTrait { .. }
             | TypeReferenceNode::ConstExpression(_) => {
                 Some(CarrierFenceViolation::UnshareableType(
@@ -476,6 +477,7 @@ pub mod contract_results {
     #[derive(Debug, Clone)]
     pub struct ReservedResultPlace {
         pub machine_symbol: symbols::SymbolHandle,
+        pub runtime_contract: Option<typed_trees::callable_values::RuntimeCallableContractHandle>,
         pub root: ExpressionHandle,
         pub type_reference: TypeReferenceHandle,
         pub segments: Vec<facts::PlaceSegment>,
@@ -496,6 +498,25 @@ pub mod contract_results {
         program: &dyn crate::CheckingInput,
         expression: ExpressionHandle,
     ) -> Option<ReservedResultPlace> {
+        reserved_result_place_from_source(program, expression, None)
+    }
+
+    pub fn runtime_reserved_result_place(
+        program: &dyn crate::CheckingInput,
+        contract: typed_trees::callable_values::RuntimeCallableContractHandle,
+        expression: ExpressionHandle,
+    ) -> Option<ReservedResultPlace> {
+        if !program.runtime_callable_contracts.is_valid(contract) {
+            return None;
+        }
+        reserved_result_place_from_source(program, expression, Some(contract))
+    }
+
+    fn reserved_result_place_from_source(
+        program: &dyn crate::CheckingInput,
+        expression: ExpressionHandle,
+        runtime_contract: Option<typed_trees::callable_values::RuntimeCallableContractHandle>,
+    ) -> Option<ReservedResultPlace> {
         let mut root = expression;
         let mut projections = Vec::new();
         loop {
@@ -515,9 +536,14 @@ pub mod contract_results {
                 _ => return None,
             }
         }
-        let (machine_symbol, mut type_reference) = reserved_result_owner(program, root)?;
+        if !expression_table(program).names_reserved_result(root) {
+            return None;
+        }
+        let (machine_symbol, mut type_reference) =
+            contract_occurrence_owner_from_source(program, root, root, runtime_contract)?;
         if expression != root
-            && let Some(owner) = contract_occurrence_owner(program, root, expression)
+            && let Some(owner) =
+                contract_occurrence_owner_from_source(program, root, expression, runtime_contract)
             && owner != (machine_symbol, type_reference)
         {
             return None;
@@ -556,7 +582,13 @@ pub mod contract_results {
                     return None;
                 }
                 let index = usize::try_from(literal.value_u64()?).ok()?;
-                let parameters = source_contract_parameters(program, machine_symbol, root)?;
+                let parameters = if let Some(contract) = runtime_contract {
+                    program.state_signature_parameters(
+                        &program.runtime_callable_contracts.get(contract).signature,
+                    )
+                } else {
+                    source_contract_parameters(program, machine_symbol, root)?
+                };
                 let index_type = crate::parameter_expression_result_type_reference(
                     program,
                     machine_symbol,
@@ -672,6 +704,7 @@ pub mod contract_results {
         }
         Some(ReservedResultPlace {
             machine_symbol,
+            runtime_contract,
             root,
             type_reference,
             segments,
@@ -833,34 +866,22 @@ pub mod contract_results {
         root: ExpressionHandle,
         expression: ExpressionHandle,
     ) -> Option<(symbols::SymbolHandle, TypeReferenceHandle)> {
+        contract_occurrence_owner_from_source(program, root, expression, None)
+    }
+
+    fn contract_occurrence_owner_from_source(
+        program: &dyn crate::CheckingInput,
+        root: ExpressionHandle,
+        expression: ExpressionHandle,
+        runtime_contract: Option<typed_trees::callable_values::RuntimeCallableContractHandle>,
+    ) -> Option<(symbols::SymbolHandle, TypeReferenceHandle)> {
         if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
             return memos
                 .contract_occurrences
                 .get_or_init(|| std::sync::Arc::new(ContractOccurrenceIndex::of(program)))
-                .owner(root, expression);
+                .owner(root, expression, runtime_contract);
         }
-        let mut owner = None;
-        let (mut nodes, mut seen) = (Vec::new(), ContractNodeSet::default());
-        for (callable, return_type, parameters, _, contract) in callable_contract_scopes(program) {
-            contract_nodes(program, contract, &mut nodes, &mut seen);
-            if !seen.contains(&expression) || !seen.contains(&root) {
-                continue;
-            }
-            if !owns_result(
-                program,
-                callable,
-                return_type,
-                program.state_parameters.span_or_empty(parameters),
-                contract,
-            ) {
-                return None;
-            }
-            if owner.is_some_and(|candidate| candidate != (callable, return_type)) {
-                return None;
-            }
-            owner = Some((callable, return_type));
-        }
-        owner
+        ContractOccurrenceIndex::of(program).owner(root, expression, runtime_contract)
     }
 
     pub(crate) fn source_contract_parameters(
@@ -1088,8 +1109,10 @@ pub mod contract_results {
         parameters: &[StateParameter],
         contract: &SignatureContract,
     ) -> bool {
-        contract.kind == SignatureContractKind::Ensures
-            && callable.is_valid()
+        matches!(
+            contract.kind,
+            SignatureContractKind::Ensures | SignatureContractKind::EnsuresForResultCase { .. }
+        ) && callable.is_valid()
             && program
                 .type_reference_table
                 .contains_type_reference(return_type)
@@ -1104,6 +1127,7 @@ pub mod contract_results {
             TypeReferenceHandle,
             bool,
             arena::HandleSpan<StateParameter>,
+            Option<typed_trees::callable_values::RuntimeCallableContractHandle>,
         )>,
         containing: symbols::SymbolKeyMap<ExpressionHandle, Vec<u32>>,
     }
@@ -1115,12 +1139,17 @@ pub mod contract_results {
             expression: ExpressionHandle,
         ) -> Option<arena::HandleSpan<StateParameter>> {
             let mut parameters = None;
+            let mut previous_source = None;
             for position in self.containing.get(&expression)? {
-                let (callable, _, _, candidate) = self.contracts[*position as usize];
-                if callable != owner || parameters.is_some_and(|prior| prior != candidate) {
+                let (callable, _, _, candidate, source) = self.contracts[*position as usize];
+                if callable != owner
+                    || parameters.is_some_and(|prior| prior != candidate)
+                    || previous_source.is_some_and(|previous| previous != source)
+                {
                     return None;
                 }
                 parameters = Some(candidate);
+                previous_source = Some(source);
             }
             parameters
         }
@@ -1129,27 +1158,43 @@ pub mod contract_results {
             let mut contracts = Vec::new();
             let mut containing = symbols::SymbolKeyMap::<ExpressionHandle, Vec<u32>>::default();
             let (mut nodes, mut seen) = (Vec::new(), ContractNodeSet::default());
+            let mut retain =
+                |callable, return_type, parameters, contract: &SignatureContract, source| {
+                    let position = u32::try_from(contracts.len())
+                        .expect("callable contract position overflow");
+                    contract_nodes(program, contract, &mut nodes, &mut seen);
+                    for node in nodes.iter().copied() {
+                        containing.entry(node).or_default().push(position);
+                    }
+                    contracts.push((
+                        callable,
+                        return_type,
+                        owns_result(
+                            program,
+                            callable,
+                            return_type,
+                            program.state_parameters.span_or_empty(parameters),
+                            contract,
+                        ),
+                        parameters,
+                        source,
+                    ));
+                };
             for (callable, return_type, parameters, _, contract) in
                 callable_contract_scopes(program)
             {
-                let position =
-                    u32::try_from(contracts.len()).expect("callable contract position overflow");
-                contract_nodes(program, contract, &mut nodes, &mut seen);
-                for node in nodes.iter().copied() {
-                    containing.entry(node).or_default().push(position);
-                }
-                contracts.push((
-                    callable,
-                    return_type,
-                    owns_result(
-                        program,
-                        callable,
-                        return_type,
-                        program.state_parameters.span_or_empty(parameters),
+                retain(callable, return_type, parameters, contract, None);
+            }
+            for (source, row) in program.runtime_callable_contracts.iter() {
+                for contract in program.state_signature_contracts(&row.signature) {
+                    retain(
+                        row.signature.symbol,
+                        row.signature.return_type,
+                        row.signature.parameters,
                         contract,
-                    ),
-                    parameters,
-                ));
+                        Some(source),
+                    );
+                }
             }
             Self {
                 contracts,
@@ -1162,12 +1207,17 @@ pub mod contract_results {
             expression: ExpressionHandle,
         ) -> Result<symbols::SymbolHandle, ()> {
             let mut owner = symbols::SymbolHandle::default();
+            let mut previous_source = None;
             for position in self.containing.get(&expression).into_iter().flatten() {
-                let (callable, _, _, _) = self.contracts[*position as usize];
-                if !callable.is_valid() || (owner.is_valid() && owner != callable) {
+                let (callable, _, _, _, source) = self.contracts[*position as usize];
+                if !callable.is_valid()
+                    || (owner.is_valid() && owner != callable)
+                    || previous_source.is_some_and(|previous| previous != source)
+                {
                     return Err(());
                 }
                 owner = callable;
+                previous_source = Some(source);
             }
             Ok(owner)
         }
@@ -1176,22 +1226,31 @@ pub mod contract_results {
             &self,
             root: ExpressionHandle,
             expression: ExpressionHandle,
+            expected_source: Option<typed_trees::callable_values::RuntimeCallableContractHandle>,
         ) -> Option<(symbols::SymbolHandle, TypeReferenceHandle)> {
             let with_expression = self.containing.get(&expression)?;
             let with_root = self.containing.get(&root)?;
             let mut owner = None;
+            let mut previous_source = None;
             for position in with_expression
                 .iter()
                 .filter(|position| with_root.binary_search(position).is_ok())
             {
-                let (callable, return_type, owns_result, _) = self.contracts[*position as usize];
+                let (callable, return_type, owns_result, _, source) =
+                    self.contracts[*position as usize];
+                if expected_source.is_some() && source != expected_source {
+                    continue;
+                }
                 if !owns_result {
                     return None;
                 }
-                if owner.is_some_and(|candidate| candidate != (callable, return_type)) {
+                if owner.is_some_and(|candidate| candidate != (callable, return_type))
+                    || previous_source.is_some_and(|previous| previous != source)
+                {
                     return None;
                 }
                 owner = Some((callable, return_type));
+                previous_source = Some(source);
             }
             owner
         }
@@ -1199,14 +1258,12 @@ pub mod contract_results {
 }
 
 pub mod contract_structure {
-    use crate::frozen_program::expression_table;
     use checked_trees::{
         DeclaredCallableContract, DeclaredContractClause, DeclaredContractFact,
-        DeclaredContractKind, DeclaredContractParameter, DeclaredProgressPremise,
-        DeclaredTermination,
+        DeclaredProgressPremise, DeclaredTermination,
     };
     use symbols::SymbolHandle;
-    use typed_trees::signature::{SignatureContract, SignatureContractKind, StateParameter};
+    use typed_trees::signature::{SignatureContract, StateParameter};
     use typed_trees::type_identity::{TypeIdentityRequest, normalized_expression_identity};
 
     pub(crate) mod correspondence {
@@ -1390,29 +1447,7 @@ pub mod contract_structure {
     }
     pub(crate) use correspondence::{CorrespondenceFact, correspondence_fact};
 
-    pub fn generic_binders(
-        parameters: &[typed_trees::data::TypeParameter],
-    ) -> Vec<(SymbolHandle, String)> {
-        parameters
-            .iter()
-            .enumerate()
-            .map(|(position, parameter)| (parameter.symbol, format!("$G{position}")))
-            .collect()
-    }
-
-    pub fn callable_binders(
-        generics: &[(SymbolHandle, String)],
-        parameters: &[StateParameter],
-    ) -> Vec<(SymbolHandle, String)> {
-        let mut binders = generics.to_vec();
-        binders.extend(
-            parameters
-                .iter()
-                .enumerate()
-                .map(|(position, parameter)| (parameter.symbol, format!("$V{position}"))),
-        );
-        binders
-    }
+    pub use typed_trees::contract_structure::{callable_binders, generic_binders};
 
     pub fn signature_generic_binders(
         program: &dyn crate::CheckingInput,
@@ -1460,31 +1495,31 @@ pub mod contract_structure {
         include_crashes: bool,
     ) -> Result<DeclaredCallableContract, diagnostics::Diagnostic> {
         let binders = callable_binders(generics, parameters);
-        Ok(DeclaredCallableContract {
-            parameters: parameters
-                .iter()
-                .map(|parameter| DeclaredContractParameter {
-                    mutable: parameter.is_mutable,
-                    constant: parameter.is_const,
-                    relevance: parameter.relevance,
-                    type_identity: program.type_identity(TypeIdentityRequest {
-                        binders: &binders,
-                        ..TypeIdentityRequest::ordinary(parameter.type_reference)
-                    }),
-                })
-                .collect(),
-            result: program.type_identity(TypeIdentityRequest {
-                binders: &binders,
-                ..TypeIdentityRequest::ordinary(result)
-            }),
-            clauses: declared_contracts(
-                program,
-                contracts,
-                &binders,
-                content_conservation,
-                include_crashes,
-            )?,
-        })
+        let mut projection = typed_trees::contract_structure::ContractProjection {
+            type_identity: |reference, binders: &[(SymbolHandle, String)]| {
+                Ok(program.type_identity(TypeIdentityRequest {
+                    binders,
+                    ..TypeIdentityRequest::ordinary(reference)
+                }))
+            },
+            fact_identity: |fact: &typed_trees::domain::ProofFact,
+                            binders: &[(SymbolHandle, String)]| {
+                declared_fact(program, fact, binders, content_conservation)
+            },
+            symbol_identity: |symbol, binders: &[(SymbolHandle, String)]| {
+                symbol_identity(program, symbol, binders)
+            },
+            crash_cause: checked_trees::CrashCause::from,
+        };
+        typed_trees::contract_structure::declared_callable_with(
+            program.typed_program(),
+            parameters,
+            result,
+            contracts,
+            &binders,
+            include_crashes,
+            &mut projection,
+        )
     }
 
     pub fn declared_contracts(
@@ -1494,71 +1529,24 @@ pub mod contract_structure {
         content_conservation: &[crate::ContentConservationSourcePlan],
         include_crashes: bool,
     ) -> Result<Vec<DeclaredContractClause>, diagnostics::Diagnostic> {
-        let mut clauses = Vec::new();
-        let mut crashes =
-            Vec::<(checked_trees::CrashCause, bool, Vec<DeclaredContractFact>)>::new();
-        for contract in contracts {
-            let facts = program.proof_facts.span_or_empty(contract.facts);
-            let project = || {
-                facts
-                    .iter()
-                    .map(|fact| declared_fact(program, fact, binders, content_conservation))
-                    .collect::<Result<Vec<_>, _>>()
-            };
-            let kind = match contract.kind {
-                SignatureContractKind::Requires => DeclaredContractKind::Requires,
-                SignatureContractKind::Ensures => DeclaredContractKind::Ensures,
-                SignatureContractKind::EnsuresForResultCase {
-                    result_data,
-                    result_case,
-                } => DeclaredContractKind::EnsuresForResultCase {
-                    data: symbol_identity(program, result_data, binders),
-                    case: symbol_identity(program, result_case, binders),
-                },
-                SignatureContractKind::Crashes { cause } => {
-                    if !include_crashes {
-                        continue;
-                    }
-                    let cause = checked_trees::CrashCause::from(cause);
-                    let position = crashes
-                        .iter()
-                        .position(|bucket| bucket.0 == cause)
-                        .unwrap_or_else(|| {
-                            crashes.push((cause, false, Vec::new()));
-                            crashes.len() - 1
-                        });
-                    let bucket = &mut crashes[position];
-                    let projected = project()?;
-                    if facts.is_empty()
-                        || facts.iter().any(|fact| is_true_crash_route(program, fact))
-                    {
-                        bucket.1 = true;
-                    } else {
-                        bucket.2.extend(projected);
-                    }
-                    continue;
-                }
-            };
-            clauses.extend(project()?.into_iter().map(|fact| DeclaredContractClause {
-                kind: kind.clone(),
-                fact: Some(fact),
-            }));
-        }
-        for (cause, unconditional, mut routes) in crashes {
-            let kind = DeclaredContractKind::Crashes(cause);
-            if unconditional {
-                clauses.push(DeclaredContractClause { kind, fact: None });
-            } else {
-                routes.sort();
-                routes.dedup();
-                clauses.extend(routes.into_iter().map(|fact| DeclaredContractClause {
-                    kind: kind.clone(),
-                    fact: Some(fact),
-                }));
-            }
-        }
-        clauses.sort();
-        Ok(clauses)
+        let mut projection = typed_trees::contract_structure::ContractProjection {
+            type_identity: (),
+            fact_identity: |fact: &typed_trees::domain::ProofFact,
+                            binders: &[(SymbolHandle, String)]| {
+                declared_fact(program, fact, binders, content_conservation)
+            },
+            symbol_identity: |symbol, binders: &[(SymbolHandle, String)]| {
+                symbol_identity(program, symbol, binders)
+            },
+            crash_cause: checked_trees::CrashCause::from,
+        };
+        typed_trees::contract_structure::declared_contracts_with(
+            program.typed_program(),
+            contracts,
+            binders,
+            include_crashes,
+            &mut projection,
+        )
     }
 
     pub fn declared_fact(
@@ -1601,67 +1589,28 @@ pub mod contract_structure {
         content_conservation: &[crate::ContentConservationSourcePlan],
         expression_identity: impl Fn(typed_trees::expression::ExpressionHandle) -> Option<String>,
     ) -> Option<DeclaredContractFact> {
-        use typed_trees::domain::ProofFact;
-        Some(match fact {
-            ProofFact::Expression(expression) => {
-                if let Some(conservation) = content_conservation
+        typed_trees::contract_structure::project_declared_fact_with(
+            program.typed_program(),
+            fact,
+            expression_identity,
+            |reference| {
+                Some(program.type_identity(TypeIdentityRequest {
+                    binders,
+                    ..TypeIdentityRequest::ordinary(reference)
+                }))
+            },
+            |symbol| symbol_identity(program, symbol, binders),
+            |expression| {
+                content_conservation
                     .iter()
-                    .find(|candidate| candidate.source_expression == *expression)
-                {
-                    return Some(DeclaredContractFact::ContentConservation(
+                    .find(|candidate| candidate.source_expression == expression)
+                    .map(|conservation| {
                         language_semantics::content::content_conservation_plan_bytes(
                             &conservation.plan,
-                        ),
-                    ));
-                }
-                DeclaredContractFact::Expression(expression_identity(*expression)?)
-            }
-            ProofFact::Membership(membership) => DeclaredContractFact::Membership {
-                value: expression_identity(membership.value)?,
-                domain: symbol_identity(program, membership.domain_symbol, binders),
-                arguments: program
-                    .type_reference_table
-                    .type_reference_handles(membership.domain_arguments)
-                    .iter()
-                    .map(|argument| {
-                        program.type_identity(TypeIdentityRequest {
-                            binders,
-                            ..TypeIdentityRequest::ordinary(*argument)
-                        })
+                        )
                     })
-                    .collect(),
             },
-            ProofFact::Proposition(application) => {
-                let binder_labels = application
-                    .binder_arguments
-                    .iter()
-                    .map(|argument| {
-                        if let Some(literal) = &argument.const_literal {
-                            return literal.value_bignum().map(|value| value.to_string());
-                        }
-                        let identity = symbol_identity(program, argument.symbol, binders);
-                        if let Some(projection) = &argument.evidence_projection {
-                            Some(format!("{identity}.{}", projection.member))
-                        } else {
-                            Some(identity)
-                        }
-                    })
-                    .collect::<Option<Vec<_>>>()?;
-                let argument_labels = expression_table(program)
-                    .expression_handles(application.arguments)
-                    .iter()
-                    .map(|argument| expression_identity(*argument))
-                    .collect::<Option<Vec<_>>>()?;
-                let formula = program.normalize_proposition_application(
-                    application,
-                    Some(typed_trees::proposition::PropositionLabels {
-                        binder_labels: &binder_labels,
-                        argument_labels: &argument_labels,
-                    }),
-                )?;
-                DeclaredContractFact::Proposition(formula.identity_label())
-            }
-        })
+        )
     }
 
     fn symbol_identity(
@@ -1715,14 +1664,7 @@ pub mod contract_structure {
         program: &dyn crate::CheckingInput,
         fact: &typed_trees::domain::ProofFact,
     ) -> bool {
-        matches!(
-            fact,
-            typed_trees::domain::ProofFact::Expression(expression)
-                if matches!(
-                    expression_table(program).expression(*expression),
-                    typed_trees::expression::ExpressionNode::Boolean(true)
-                )
-        )
+        typed_trees::contract_structure::is_true_crash_route(program.typed_program(), fact)
     }
 
     #[cfg(test)]
@@ -3655,6 +3597,14 @@ pub mod expression_owners {
             }
             visited.push(type_reference);
             match program.type_reference_table.type_reference(type_reference) {
+                TypeReferenceNode::Callable { .. } => {
+                    let inputs = typed_trees::references::type_reference_inputs(
+                        program.typed_program(),
+                        type_reference,
+                    );
+                    reached.extend(inputs.expressions);
+                    visited.extend(inputs.types);
+                }
                 TypeReferenceNode::Reference { referee, .. } => {
                     collect_type_reference_expressions(program, *referee, visited, reached)
                 }
@@ -3970,6 +3920,14 @@ pub mod expression_owners {
             }
             visited.push(type_reference);
             match program.type_reference_table.type_reference(type_reference) {
+                TypeReferenceNode::Callable { .. } => {
+                    typed_trees::references::type_reference_inputs(
+                        program.typed_program(),
+                        type_reference,
+                    )
+                    .expressions
+                    .contains(&expression)
+                }
                 TypeReferenceNode::Reference { referee, .. } => {
                     type_reference_contains_expression(program, *referee, expression, visited)
                 }
@@ -4115,6 +4073,9 @@ pub mod expression_owners {
             }
             visited.push(expression);
             match program.expression_table.expression(expression) {
+                ExpressionNode::MachineValue(value) => {
+                    Some(InferredType::TypeReference(value.type_reference))
+                }
                 ExpressionNode::SavedSubject(saved) => {
                     program.saved_value_source(saved).and_then(|subject| {
                         infer_expression_type(program, subject, environment, visited)
@@ -6954,6 +6915,11 @@ pub mod proof_facts {
             return false;
         }
         match program.type_reference_table.type_reference(argument) {
+            TypeReferenceNode::Callable { .. } => program
+                .runtime_callable_type_identity(
+                    typed_trees::type_identity::TypeIdentityRequest::ordinary(argument),
+                )
+                .is_ok(),
             TypeReferenceNode::Named { symbol, .. } => symbol.is_valid(),
             TypeReferenceNode::Reference { referee, .. } => {
                 evidence_argument_is_resolved(program, *referee)
@@ -7225,6 +7191,7 @@ pub mod proof_facts {
             return Some(member.to_owned());
         }
         match expression_table(program).expression(expression) {
+            ExpressionNode::MachineValue(_) => None,
             ExpressionNode::Match(dispatch) => {
                 crate::queries::expression_traversal::match_children(program, *dispatch).find_map(
                     |child| abstract_trait_self_member_in_expression(program, child, visited),
@@ -7496,6 +7463,7 @@ pub mod proof_facts {
         expression: ExpressionHandle,
     ) -> bool {
         match expression_table(program).expression(expression) {
+            ExpressionNode::MachineValue(_) => false,
             ExpressionNode::SavedSubject(_) | ExpressionNode::Match(_) => false,
             ExpressionNode::Atomic(atomic) => is_boolean_fact_expression(program, atomic.value),
             ExpressionNode::Binary(binary) => match binary.operator {
@@ -8084,9 +8052,9 @@ pub mod properties {
                             .to_vec();
                         self.derive_named_data(base_symbol, base_name.as_str(), Some(&arguments))
                     }
-                    TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => {
-                        CarryPolicy::PERMISSIVE
-                    }
+                    TypeReferenceNode::Callable { .. }
+                    | TypeReferenceNode::ConstExpression(_)
+                    | TypeReferenceNode::Unit => CarryPolicy::PERMISSIVE,
                     TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => {
                         self.requires_borrow_preservation = true;
                         CarryPolicy::STRICT
@@ -10299,6 +10267,7 @@ pub mod relevance {
                 return None;
             }
             match program.type_reference_table.type_reference(handle) {
+                TypeReferenceNode::Callable { .. } => None,
                 TypeReferenceNode::Reference { referee, .. } => {
                     unresolved_erased_generic_base(program, *referee)
                 }

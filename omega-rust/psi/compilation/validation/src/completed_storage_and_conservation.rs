@@ -6163,7 +6163,11 @@ pub mod content_conservation {
                 is_old_call(program, call)
                     || is_separate_call(program, call)
                     || projection_plan_for_call(program, projections, call).is_some()
-                    || expression_uses_content_surface(program, projections, call.receiver)
+                    || expression_uses_content_surface(
+                        program,
+                        projections,
+                        call.evaluated_callee(),
+                    )
                     || expression_table(program)
                         .expression_handles(call.arguments)
                         .iter()
@@ -6206,7 +6210,8 @@ pub mod content_conservation {
                 .struct_fields(literal.fields)
                 .iter()
                 .any(|field| expression_uses_content_surface(program, projections, field.value)),
-            ExpressionNode::TypeExpression(_)
+            ExpressionNode::MachineValue(_)
+            | ExpressionNode::TypeExpression(_)
             | ExpressionNode::SavedSubject(_)
             | typed_trees::literal_expression_pattern!() => false,
         }

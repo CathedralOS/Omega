@@ -153,11 +153,11 @@ pub mod calls {
     pub mod dynamic_traits {
         use crate::TypedTrees;
         use crate::domain::ProofFact;
-        use crate::expression::{ExpressionHandle, ExpressionNode, StaticMachineArgument};
+        use crate::expression::ExpressionHandle;
         use crate::name::Identifier;
         use crate::signature::StateSignature;
         use crate::trait_definition::{DynamicSignatureIneligibility, TraitDefinition};
-        use crate::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
+        use crate::types::{TypeReferenceHandle, TypeReferenceNode};
         use symbols::SymbolHandle;
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -329,137 +329,10 @@ pub mod calls {
                 expression: ExpressionHandle,
                 symbols: &mut Vec<SymbolHandle>,
             ) {
-                if !expression.is_valid() {
-                    return;
-                }
-                match self.expression_table.expression(expression) {
-                    ExpressionNode::Match(dispatch) => {
-                        self.collect_expression_symbols(dispatch.subject, symbols);
-                        for arm in self.expression_table.match_arms(dispatch.arms) {
-                            for pattern in self
-                                .expression_table
-                                .match_pattern_dependencies(arm.pattern)
-                            {
-                                self.collect_expression_symbols(pattern, symbols);
-                            }
-                            self.collect_expression_symbols(arm.value, symbols);
-                        }
-                    }
-                    ExpressionNode::SavedSubject(saved) => {
-                        self.collect_expression_symbols(
-                            self.expression_table.value_capture(saved.capture).subject,
-                            symbols,
-                        );
-                        self.collect_expression_symbols(saved.pattern_head, symbols);
-                    }
-                    ExpressionNode::ArrayLiteral(values) => {
-                        for value in self.expression_table.expression_handles(*values) {
-                            self.collect_expression_symbols(*value, symbols);
-                        }
-                    }
-                    ExpressionNode::Atomic(atomic) => {
-                        self.collect_expression_symbols(atomic.value, symbols);
-                        self.collect_expression_symbols(atomic.result, symbols);
-                    }
-                    ExpressionNode::Binary(binary) => {
-                        self.collect_expression_symbols(binary.left, symbols);
-                        self.collect_expression_symbols(binary.right, symbols);
-                    }
-                    ExpressionNode::Borrow(borrow) => {
-                        self.collect_expression_symbols(borrow.target, symbols);
-                    }
-                    ExpressionNode::Call(call) => {
-                        symbols.push(call.target_symbol);
-                        self.collect_expression_symbols(call.receiver, symbols);
-                        for argument in call.machine_arguments.iter() {
-                            self.collect_static_argument_symbols(argument, symbols);
-                        }
-                        if let Some(operation) = &call.installed_interrupt_operation {
-                            self.collect_static_argument_symbols(&operation.registrar, symbols);
-                            self.collect_static_argument_symbols(&operation.timer_slot, symbols);
-                        }
-                        if let Some(operation) = &call.private_layout_operation {
-                            self.collect_static_argument_symbols(&operation.selected_slot, symbols);
-                        }
-                        if let Some(operation) = &call.quotient_operation {
-                            self.collect_static_argument_symbols(
-                                &operation.representative_operation,
-                                symbols,
-                            );
-                            for theorem in operation.theorem_evidence.iter() {
-                                self.collect_static_argument_symbols(&theorem.application, symbols);
-                            }
-                        }
-                        for argument in self.expression_table.expression_handles(call.arguments) {
-                            self.collect_expression_symbols(*argument, symbols);
-                        }
-                    }
-                    ExpressionNode::Cast(cast) => {
-                        self.collect_expression_symbols(cast.value, symbols);
-                        collect_type_reference_symbols(self, cast.target_type, symbols);
-                        collect_type_reference_symbols(self, cast.result_type, symbols);
-                        symbols.push(cast.semantic_domain_symbol);
-                    }
-                    ExpressionNode::Indexed(indexed) => {
-                        self.collect_expression_symbols(indexed.collection, symbols);
-                        self.collect_expression_symbols(indexed.index, symbols);
-                    }
-                    ExpressionNode::Member(member) => {
-                        self.collect_expression_symbols(member.receiver, symbols);
-                        symbols.push(member.member_symbol);
-                    }
-                    ExpressionNode::Name(path) => {
-                        symbols.push(path.head_symbol);
-                        symbols.push(path.symbol);
-                        symbols.extend(
-                            self.expression_table
-                                .name_path_member_symbols(path.member_symbols)
-                                .iter()
-                                .copied(),
-                        );
-                    }
-                    ExpressionNode::Range(range) => {
-                        self.collect_expression_symbols(range.start, symbols);
-                        self.collect_expression_symbols(range.end, symbols);
-                    }
-                    ExpressionNode::StructLiteral(literal) => {
-                        symbols.push(literal.type_symbol);
-                        if let Some(case) = literal.case_symbol {
-                            symbols.push(case);
-                        }
-                        for field in self.expression_table.struct_fields(literal.fields) {
-                            symbols.push(field.field_symbol);
-                            self.collect_expression_symbols(field.value, symbols);
-                        }
-                    }
-                    ExpressionNode::Unary(unary) => {
-                        self.collect_expression_symbols(unary.operand, symbols);
-                    }
-                    ExpressionNode::TypeExpression(type_reference)
-                    | ExpressionNode::ZeroValue(type_reference) => {
-                        collect_type_reference_symbols(self, *type_reference, symbols);
-                    }
-                    ExpressionNode::Boolean(_)
-                    | ExpressionNode::Float(_)
-                    | ExpressionNode::UndeterminedNaN(_)
-                    | ExpressionNode::Integer(_)
-                    | ExpressionNode::String(_) => {}
-                }
-            }
-
-            fn collect_static_argument_symbols(
-                &self,
-                argument: &StaticMachineArgument,
-                symbols: &mut Vec<SymbolHandle>,
-            ) {
-                symbols.push(argument.symbol);
-                if argument.type_reference.is_valid() {
-                    collect_type_reference_symbols(self, argument.type_reference, symbols);
-                }
-                if let Some(application) = &argument.application {
-                    for nested in application.arguments.iter() {
-                        self.collect_static_argument_symbols(nested, symbols);
-                    }
+                if expression.is_valid() {
+                    symbols.extend(crate::references::collect_expression_symbol_dependencies(
+                        self, expression,
+                    ));
                 }
             }
         }
@@ -520,67 +393,11 @@ pub mod calls {
             type_reference: TypeReferenceHandle,
             symbols: &mut Vec<SymbolHandle>,
         ) {
-            if !type_reference.is_valid() {
-                return;
-            }
-            match program.type_reference_table.type_reference(type_reference) {
-                TypeReferenceNode::Named { symbol, .. } => symbols.push(*symbol),
-                TypeReferenceNode::Reference { referee, .. } => {
-                    collect_type_reference_symbols(program, *referee, symbols)
-                }
-                TypeReferenceNode::Constrained {
-                    base_type,
-                    constraints,
-                } => {
-                    collect_type_reference_symbols(program, *base_type, symbols);
-                    for constraint in program.type_reference_table.constraints(*constraints) {
-                        match constraint {
-                            TypeConstraintNode::Domain(domain) => {
-                                symbols.push(domain.symbol);
-                                for argument in &domain.arguments {
-                                    collect_type_reference_symbols(program, *argument, symbols);
-                                }
-                            }
-
-                            TypeConstraintNode::Named(_)
-                            | TypeConstraintNode::ArithmeticDomain(_) => {}
-                        }
-                    }
-                }
-                TypeReferenceNode::Generic {
-                    base_symbol,
-                    arguments,
-                    ..
-                } => {
-                    symbols.push(*base_symbol);
-                    for argument in program.type_reference_handles(*arguments) {
-                        collect_type_reference_symbols(program, *argument, symbols);
-                    }
-                }
-                TypeReferenceNode::FixedArray {
-                    element_type,
-                    length,
-                } => {
-                    collect_type_reference_symbols(program, *element_type, symbols);
-                    if let crate::types::FixedArrayLength::ConstParameter { symbol, .. } = length {
-                        symbols.push(*symbol);
-                    }
-                }
-                TypeReferenceNode::Slice { element_type } => {
-                    collect_type_reference_symbols(program, *element_type, symbols)
-                }
-                TypeReferenceNode::ConstExpression(expression) => {
-                    program.collect_expression_symbols(*expression, symbols)
-                }
-                TypeReferenceNode::DynamicTrait {
-                    symbol, arguments, ..
-                } => {
-                    symbols.push(*symbol);
-                    for argument in program.type_reference_handles(*arguments) {
-                        collect_type_reference_symbols(program, *argument, symbols);
-                    }
-                }
-                TypeReferenceNode::Unit => {}
+            if type_reference.is_valid() {
+                symbols.extend(crate::references::collect_type_symbol_dependencies(
+                    program,
+                    type_reference,
+                ));
             }
         }
 
@@ -592,38 +409,141 @@ pub mod calls {
             if !type_reference.is_valid() {
                 return;
             }
-            match program.type_reference_table.type_reference(type_reference) {
-                TypeReferenceNode::Reference {
-                    referee, lifetime, ..
-                } => {
-                    if let Some(lifetime) = lifetime {
-                        push_lifetime_name(lifetimes, lifetime);
+            let mut inputs = LifetimeInputs {
+                program,
+                lifetimes,
+                scopes: Vec::new(),
+                pending_lifetimes: Vec::new(),
+                types: std::collections::HashSet::new(),
+                expressions: std::collections::HashSet::new(),
+            };
+            crate::references::visit_type_reference(program, &mut inputs, type_reference);
+        }
+
+        struct LifetimeInputs<'program, 'output> {
+            program: &'program TypedTrees,
+            lifetimes: &'output mut Vec<String>,
+            scopes: Vec<Vec<String>>,
+            pending_lifetimes: Vec<String>,
+            types: std::collections::HashSet<(TypeReferenceHandle, Vec<String>)>,
+            expressions: std::collections::HashSet<(ExpressionHandle, Vec<String>)>,
+        }
+
+        impl LifetimeInputs<'_, '_> {
+            fn context(&self) -> Vec<String> {
+                let mut names = self.scopes.iter().flatten().cloned().collect::<Vec<_>>();
+                names.sort_unstable();
+                names.dedup();
+                names
+            }
+            fn lifetime(&mut self, name: &Identifier) {
+                if !self
+                    .scopes
+                    .iter()
+                    .flatten()
+                    .any(|bound| bound == name.as_str())
+                {
+                    push_lifetime_name(self.lifetimes, name);
+                }
+            }
+            fn argument(&mut self, argument: &crate::expression::StaticMachineArgument) {
+                if let Some(application) = &argument.application {
+                    for lifetime in application.lifetime_arguments.iter() {
+                        self.lifetime(lifetime);
                     }
-                    collect_type_reference_lifetimes(program, *referee, lifetimes);
-                }
-                TypeReferenceNode::Constrained { base_type, .. } => {
-                    collect_type_reference_lifetimes(program, *base_type, lifetimes)
-                }
-                TypeReferenceNode::Generic {
-                    lifetime_arguments,
-                    arguments,
-                    ..
-                } => {
-                    for lifetime in lifetime_arguments {
-                        push_lifetime_name(lifetimes, lifetime);
+                    for nested in application.arguments.iter() {
+                        self.argument(nested);
                     }
-                    for argument in program.type_reference_handles(*arguments) {
-                        collect_type_reference_lifetimes(program, *argument, lifetimes);
+                    let program = self.program;
+                    if let Some(member) = program.expression_table.static_member(application.member)
+                    {
+                        self.argument(member);
                     }
                 }
-                TypeReferenceNode::FixedArray { element_type, .. }
-                | TypeReferenceNode::Slice { element_type } => {
-                    collect_type_reference_lifetimes(program, *element_type, lifetimes)
+            }
+        }
+
+        impl Extend<SymbolHandle> for LifetimeInputs<'_, '_> {
+            fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, _: T) {}
+        }
+
+        impl crate::references::TypedReferences for LifetimeInputs<'_, '_> {
+            fn callable_signature(&mut self, signature: &StateSignature) {
+                self.pending_lifetimes = signature
+                    .lifetime_parameters
+                    .iter()
+                    .map(|name| name.as_str().to_owned())
+                    .collect();
+            }
+            fn enter_lexical_scope(&mut self, _: SymbolHandle) {
+                self.scopes
+                    .push(std::mem::take(&mut self.pending_lifetimes));
+            }
+            fn leave_lexical_scope(&mut self) {
+                self.scopes.pop();
+            }
+            fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
+                let context = self.context();
+                if !self.types.insert((reference, context)) {
+                    return false;
                 }
-                TypeReferenceNode::ConstExpression(_)
-                | TypeReferenceNode::DynamicTrait { .. }
-                | TypeReferenceNode::Named { .. }
-                | TypeReferenceNode::Unit => {}
+                let program = self.program;
+                match program.type_reference_table.type_reference(reference) {
+                    TypeReferenceNode::Reference {
+                        lifetime: Some(name),
+                        ..
+                    } => self.lifetime(name),
+                    TypeReferenceNode::Generic {
+                        lifetime_arguments, ..
+                    } => {
+                        for lifetime in lifetime_arguments {
+                            self.lifetime(lifetime);
+                        }
+                    }
+                    _ => {}
+                }
+                true
+            }
+            fn expression(&mut self, expression: ExpressionHandle) -> bool {
+                let context = self.context();
+                if !self.expressions.insert((expression, context)) {
+                    return false;
+                }
+                let program = self.program;
+                match program.expression_table.expression(expression) {
+                    crate::expression::ExpressionNode::MachineValue(value) => {
+                        self.argument(&value.selected)
+                    }
+                    crate::expression::ExpressionNode::Call(call) => {
+                        for argument in call.machine_arguments.iter() {
+                            self.argument(argument);
+                        }
+                        if let Some(operation) = &call.installed_interrupt_operation {
+                            self.argument(&operation.registrar);
+                            self.argument(&operation.timer_slot);
+                        }
+                        if let Some(operation) = &call.private_layout_operation {
+                            self.argument(&operation.selected_slot);
+                        }
+                        if let Some(operation) = &call.quotient_operation {
+                            self.argument(&operation.representative_operation);
+                            for theorem in operation.theorem_evidence.iter() {
+                                self.argument(&theorem.application);
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+                true
+            }
+            fn static_application(
+                &mut self,
+                application: crate::static_applications::StaticMachineApplicationHandle,
+            ) {
+                let program = self.program;
+                for binding in program.static_machine_application_lifetimes(application) {
+                    self.lifetime(&binding.argument);
+                }
             }
         }
 
@@ -2648,9 +2568,10 @@ pub mod control_flow {
                                 let reflected_field_origin =
                                     call.reflected_field_origin.as_ref().map(|origin| {
                                         let query = self
-                                            .copy_statement_nodes_deep_from(
+                                            .copy_statement_nodes_with_type_expressions(
                                                 source_tables,
                                                 HandleSpan::from_parts(origin.query, 1),
+                                                expressions,
                                             )
                                             .start();
                                         let callback =
@@ -2675,7 +2596,15 @@ pub mod control_flow {
                                             &request.timer_slot,
                                         );
                                 }
+                                let runtime_call = call.runtime_call.as_ref().map(|binding| {
+                                    self.copy_runtime_callable_binding_from(
+                                        source_tables,
+                                        binding,
+                                        expressions,
+                                    )
+                                });
                                 StatementNode::Call(TableCall {
+                                    runtime_call,
                                     installed_interrupt_operation,
                                     authored_machine_application,
                                     static_machine_parameter: call.static_machine_parameter,
@@ -2710,10 +2639,8 @@ pub mod control_flow {
                             ),
                             StatementNode::LocalData(local) => {
                                 let type_reference = local.type_reference.is_valid().then(|| {
-                                    self.type_reference_table.copy_with_expressions(
-                                        &source_tables.type_reference_table,
-                                        &source_tables.expression_table,
-                                        &mut self.expression_table,
+                                    self.copy_type_reference_with_expressions(
+                                        source_tables,
                                         local.type_reference,
                                         expressions,
                                     )
@@ -2726,9 +2653,10 @@ pub mod control_flow {
                                 });
                                 let reflected_query_origin =
                                     local.reflected_query_origin.map(|query| {
-                                        self.copy_statement_nodes_deep_from(
+                                        self.copy_statement_nodes_with_type_expressions(
                                             source_tables,
                                             HandleSpan::from_parts(query, 1),
+                                            expressions,
                                         )
                                         .start()
                                     });
@@ -2861,6 +2789,11 @@ pub mod control_flow {
                                 }
                             }
                             StatementNode::Call(call) => {
+                                if let Some(binding) = &call.runtime_call {
+                                    self.remap_runtime_callable_binding_symbols_in(
+                                        binding, symbols,
+                                    );
+                                }
                                 let reflected_field_origin =
                                     call.reflected_field_origin.map(|mut origin| {
                                         self.remap_statement_symbols(
@@ -2933,11 +2866,7 @@ pub mod control_flow {
                                         symbols,
                                     );
                                 }
-                                self.type_reference_table.remap_symbols_in(
-                                    local.type_reference,
-                                    &mut self.expression_table,
-                                    symbols,
-                                );
+                                self.remap_type_reference_symbols_in(local.type_reference, symbols);
                                 self.expression_table
                                     .remap_symbols_in(local.initial_value, symbols);
                                 // A resolved record pattern names its record
@@ -3027,12 +2956,17 @@ pub mod control_flow {
                             roots.push((Role::AssignmentTarget, assignment.target));
                             roots.push((Role::AssignmentValue, assignment.value));
                         }
-                        StatementNode::Call(call) => roots.extend(
-                            self.statement_table
-                                .expression_handles(call.arguments)
-                                .iter()
-                                .map(|argument| (Role::CallArgument, *argument)),
-                        ),
+                        StatementNode::Call(call) => {
+                            if let Some(binding) = call.runtime_call {
+                                roots.push((Role::CallCallee, binding.callee));
+                            }
+                            roots.extend(
+                                self.statement_table
+                                    .expression_handles(call.arguments)
+                                    .iter()
+                                    .map(|argument| (Role::CallArgument, *argument)),
+                            );
+                        }
                         StatementNode::Expression(expression) => {
                             roots.push((Role::Expression, *expression))
                         }
@@ -3106,14 +3040,7 @@ pub mod control_flow {
                                 .type_reference_table
                                 .type_reference_handles(membership.domain_arguments)
                                 .iter()
-                                .map(|argument| {
-                                    self.type_reference_table.copy_from(
-                                        &source.type_reference_table,
-                                        &source.expression_table,
-                                        &mut self.expression_table,
-                                        *argument,
-                                    )
-                                })
+                                .map(|argument| self.copy_type_reference_from(source, *argument))
                                 .collect::<Vec<_>>();
                             membership.domain_arguments = self
                                 .type_reference_table
@@ -3160,11 +3087,7 @@ pub mod control_flow {
                                 .type_reference_handles(membership.domain_arguments)
                                 .to_vec()
                             {
-                                self.type_reference_table.remap_symbols_in(
-                                    argument,
-                                    &mut self.expression_table,
-                                    symbols,
-                                );
+                                self.remap_type_reference_symbols_in(argument, symbols);
                             }
                         }
                         ProofFact::Proposition(application) => {
@@ -3575,6 +3498,7 @@ pub mod control_flow {
 
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         pub enum StatementRootRole {
+            CallCallee,
             AssemblyFact,
             AssignmentTarget,
             AssignmentValue,
@@ -3668,6 +3592,7 @@ pub mod control_flow {
 
         #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
         pub struct TableCall {
+            pub runtime_call: Option<crate::callable_values::RuntimeCallBinding>,
             pub installed_interrupt_operation:
                 Option<crate::expression::InstalledInterruptOperationRequest>,
             pub authored_machine_application:

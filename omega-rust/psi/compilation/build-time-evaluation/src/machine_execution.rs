@@ -13,6 +13,7 @@ pub(crate) mod admission {
     use crate::unique::push_unique;
     use checked_interpreter::{BuildMachineEvaluationRequest, BuildTimeOperationEvaluation};
     use checked_trees::CheckedTrees;
+    use diagnostics::Diagnostic;
     use std::collections::VecDeque;
     use std::sync::Arc;
     use symbols::SymbolHandle;
@@ -966,7 +967,8 @@ pub(crate) mod admission {
                 return Ok(());
             }
 
-            let domain = PreparedEvaluationInputs::domain_for_program(&checked.typed, &[root], &[]);
+            let domain = PreparedEvaluationInputs::domain_for_program(&checked.typed, &[root], &[])
+                .map_err(|diagnostics| diagnostics::join_messages(&diagnostics))?;
             let demanded = |owner: SymbolHandle| !owner.is_valid() || domain.contains(owner);
             if has_pending_boundary_scalars
                 && checked
@@ -1222,7 +1224,8 @@ pub(crate) mod admission {
             }
         "#,
                     );
-                    let admission = BuildTimeAdmissionPlan::infer(&program, None);
+                    let admission = BuildTimeAdmissionPlan::infer(&program, None)
+                        .expect("runtime callable preflight");
                     let value = evaluate(
                         &admission,
                         BuildTimeProgram::Typed(&program),
@@ -1360,7 +1363,8 @@ pub(crate) mod admission {
                         case_tag_alignment: 4,
                         little_endian: true,
                     };
-                    let admission = BuildTimeAdmissionPlan::infer(&program, None);
+                    let admission = BuildTimeAdmissionPlan::infer(&program, None)
+                        .expect("runtime callable preflight");
                     let machine = program.realized_machine_named("plan").expect("plan");
                     // The compiler-issued target has no value an authored program
                     // could write, so this test stops at the admission judgment
@@ -1417,7 +1421,8 @@ pub(crate) mod admission {
                         .symbol;
                     concrete_invocation::require_empty_failure_summary(&checked, symbol)
                         .expect("the body is crash-free under its declared parameter domain");
-                    let admission = BuildTimeAdmissionPlan::infer(program, None);
+                    let admission = BuildTimeAdmissionPlan::infer(program, None)
+                        .expect("runtime callable preflight");
                     let value = evaluate_under_concrete_premises(
                         &admission,
                         program,
@@ -1464,7 +1469,8 @@ pub(crate) mod admission {
                         .symbol;
                     concrete_invocation::require_empty_failure_summary(&checked, symbol)
                         .expect("the constant body has an empty failure summary");
-                    let admission = BuildTimeAdmissionPlan::infer(program, None);
+                    let admission = BuildTimeAdmissionPlan::infer(program, None)
+                        .expect("runtime callable preflight");
                     let value = evaluate_under_concrete_premises(
                         &admission,
                         program,
@@ -3695,16 +3701,29 @@ pub(crate) mod admission {
             self.accounting = accounting;
             self
         }
+        pub(crate) fn validate_runtime_effects(
+            program: &TypedTrees,
+        ) -> Result<(), Vec<Diagnostic>> {
+            let mut diagnostics = Vec::new();
+            validation::validate_runtime_callable_effects(program, &mut diagnostics);
+            if diagnostics.is_empty() {
+                Ok(())
+            } else {
+                Err(diagnostics)
+            }
+        }
+
         pub fn infer(
             program: &TypedTrees,
             selection_authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
-        ) -> Self {
+        ) -> Result<Self, Vec<Diagnostic>> {
+            Self::validate_runtime_effects(program)?;
             let operational = validation::infer_operational_may(program);
             let service_reaches = validation::infer_service_reaches(program, &operational);
             let operators = validation::derive_pre_flow_operator_selections(program);
             let (suspension, blocking, call_edges) =
                 Self::project_axes_and_operator_edges(program, &operational, &operators);
-            Self {
+            Ok(Self {
                 service_reaches,
                 suspension,
                 blocking,
@@ -3716,18 +3735,20 @@ pub(crate) mod admission {
                 selected_execution: None,
                 accounting: Default::default(),
                 checked_closures: Default::default(),
-            }
+            })
         }
 
         pub(crate) fn infer_execution_dependencies(
             program: &TypedTrees,
             operators: &checked_trees::CheckedOperatorFacts,
             execution: &mut Vec<SymbolHandle>,
-        ) {
+        ) -> Result<(), Vec<Diagnostic>> {
+            Self::validate_runtime_effects(program)?;
             let operational = validation::infer_operational_may(program);
             let (_, _, call_edges) =
                 Self::project_axes_and_operator_edges(program, &operational, operators);
             Self::append_edges_to_execution_dependencies(&call_edges, program, execution);
+            Ok(())
         }
 
         fn project_axes_and_operator_edges(
@@ -3833,6 +3854,8 @@ pub(crate) mod admission {
                 bodies,
                 &self.selected_operators,
             )? {
+                Self::validate_runtime_effects(&execution)
+                    .map_err(|diagnostics| diagnostics::join_messages(&diagnostics))?;
                 let operational = validation::infer_operational_may(&execution);
                 let operators = validation::derive_pre_flow_operator_selections(&execution);
                 self.call_edges =
@@ -4055,6 +4078,7 @@ pub(crate) mod admission {
                 .cloned()
                 .collect::<Vec<_>>();
             Self::infer(execution, self.selection_authority.clone())
+                .map_err(|diagnostics| diagnostics::join_messages(&diagnostics))?
                 .with_selected_operators(execution, &operators)?
                 .with_selected_provider_bodies(execution, &provider_bodies)
         }
@@ -4066,7 +4090,8 @@ pub(crate) mod admission {
         ) -> Result<RecursiveCheckingInput<'input>, String> {
             let prepared = match &self.selected_execution {
                 Some(execution) => {
-                    let admission = Self::infer(execution, self.selection_authority.clone());
+                    let admission = Self::infer(execution, self.selection_authority.clone())
+                        .map_err(|diagnostics| diagnostics::join_messages(&diagnostics))?;
                     let domain = PreparedEvaluationInputs::domain_for_admission(
                         execution,
                         &admission,
@@ -5522,6 +5547,7 @@ pub(crate) mod build_machines {
                 machine.structural_type_equations_pending || !machine.type_parameters.is_empty()
             }) {
                 super::admission::BuildTimeAdmissionPlan::infer(self.typed(), None)
+                    .map_err(|diagnostics| diagnostics::join_messages(&diagnostics))?
                     .require_closed_static_applications(self.typed(), symbol)?;
             }
             Ok(PreparedBuildMachineEntry {
@@ -5945,6 +5971,8 @@ pub(crate) mod selected_operators {
         selected: &[SelectedBuildTimeProviderBody],
         operators: &[SelectedBuildTimeBinaryOperator],
     ) -> Result<Option<TypedTrees>, String> {
+        super::admission::BuildTimeAdmissionPlan::validate_runtime_effects(program)
+            .map_err(|diagnostics| diagnostics::join_messages(&diagnostics))?;
         validate_selected_provider_bodies(program, selected)?;
         validate_selected_operators(program, operators)?;
         if operators.iter().any(|operator| {
@@ -6025,6 +6053,7 @@ pub(crate) mod selected_operators {
                 .insert_expression_handles(row.operands.iter().copied());
             *program.expression_table.expression_mut(row.expression) =
             ExpressionNode::Call(typed_trees::expression::TableCallExpression {
+ runtime_call: None,
  authored_call_selection: None,
  authored_call_binding: None,
                 authored_machine_application: Default::default(),
@@ -6061,6 +6090,8 @@ pub(crate) mod selected_operators {
                     right: row.operands[1],
                 });
         }
+        super::admission::BuildTimeAdmissionPlan::validate_runtime_effects(&program)
+            .map_err(|diagnostics| diagnostics::join_messages(&diagnostics))?;
         Ok(Some(program))
     }
 

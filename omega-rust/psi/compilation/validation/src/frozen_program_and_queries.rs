@@ -2826,7 +2826,7 @@ pub mod queries {
                     }
                 }
                 ExpressionNode::Call(call) => {
-                    child(call.receiver);
+                    child(call.evaluated_callee());
                     for argument in expression_table(program).expression_handles(call.arguments) {
                         child(*argument);
                     }
@@ -2845,7 +2845,8 @@ pub mod queries {
                         child(field.value);
                     }
                 }
-                ExpressionNode::TypeExpression(_)
+                ExpressionNode::MachineValue(_)
+                | ExpressionNode::TypeExpression(_)
                 | ExpressionNode::SavedSubject(_)
                 | typed_trees::literal_expression_pattern!() => {}
             }
@@ -3241,6 +3242,16 @@ pub mod queries {
             }
             visited.push(reference);
             match program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Callable { .. } => {
+                    let inputs = typed_trees::references::type_reference_inputs(
+                        program.typed_program(),
+                        reference,
+                    );
+                    for expression in inputs.expressions {
+                        collect_expression_tree(program, expression, expressions);
+                    }
+                    visited.extend(inputs.types);
+                }
                 TypeReferenceNode::Reference { referee, .. } => {
                     collect_type_expressions(program, *referee, visited, expressions);
                 }

@@ -67,6 +67,13 @@ pub(crate) mod statement {
             lowerer: &mut Lowerer,
             call: &resolved::statement::TableCall,
         ) -> Result<StatementNode, Diagnostic> {
+            if crate::runtime_callables::callee_is_value(
+                Some(lowerer.source_trees),
+                &lowerer.source_trees.tables.bodies.expressions,
+                call.callee,
+            ) {
+                return Ok(StatementNode::Call(lower_ordinary_call(lowerer, call)?));
+            }
             if let Some(operation) = crate::expressions::product_queries::operation(
                 lowerer.source_trees,
                 call.receiver_symbol,
@@ -143,6 +150,40 @@ pub(crate) mod statement {
             lowerer: &mut Lowerer,
             call: &resolved::statement::TableCall,
         ) -> Result<typed::statement::TableCall, Diagnostic> {
+            if crate::runtime_callables::callee_is_value(
+                Some(lowerer.source_trees),
+                &lowerer.source_trees.tables.bodies.expressions,
+                call.callee,
+            ) {
+                let callee = super::arguments::lower_statement_expression(lowerer, call.callee)?;
+                let arguments = lower_statement_argument_span(lowerer, call.arguments)?;
+                let machine_arguments = crate::signatures::lexical_context::call_arguments(
+                    Some(lowerer.source_trees),
+                    &mut lowerer.typed_trees,
+                    lowerer.type_reference_exposure,
+                    symbols::SymbolHandle::invalid(),
+                    &call.machine_arguments,
+                )?;
+                return Ok(typed::statement::TableCall {
+                    runtime_call: Some(typed::callable_values::RuntimeCallBinding {
+                        callee,
+                        contract: Default::default(),
+                    }),
+                    target: crate::lowerer::name::lower_name(&call.target),
+                    machine_arguments,
+                    arguments,
+                    evidence_arguments: call
+                        .evidence_arguments
+                        .iter()
+                        .map(crate::lowerer::name::lower_name)
+                        .collect::<Vec<_>>()
+                        .into_boxed_slice(),
+                    operational_acknowledgement: call.operational_acknowledgement,
+                    discards_result: call.discards_result,
+                    source_span: call.target.source_span(),
+                    ..Default::default()
+                });
+            }
             if is_proposition_call_target(&lowerer.source_trees.symbols, call.target_symbol) {
                 return Err(Diagnostic::error(
                     "a proposition application is proof-only and cannot appear as an executable call statement",
@@ -165,6 +206,7 @@ pub(crate) mod statement {
             let arguments = lower_statement_argument_span(lowerer, call.arguments)?;
 
             Ok(typed::statement::TableCall {
+                runtime_call: None,
                 installed_interrupt_operation,
                 authored_machine_application: Default::default(),
                 receiver_root_symbol: call.receiver_root_symbol,
@@ -1317,7 +1359,11 @@ pub(crate) mod statement {
                 }),
             ),
             resolved::statement::StatementNode::Call(call)
-                if call.target.as_str() == "code_layout"
+                if !crate::runtime_callables::callee_is_value(
+                    Some(lowerer.source_trees),
+                    &lowerer.source_trees.tables.bodies.expressions,
+                    call.callee,
+                ) && call.target.as_str() == "code_layout"
                     && !call.target_symbol.is_valid()
                     && call.receiver.is_empty() =>
             {
@@ -1335,6 +1381,7 @@ pub(crate) mod statement {
                 let expression = lowerer.typed_trees.expression_table.insert(
                     typed::expression::ExpressionNode::Call(
                         typed::expression::TableCallExpression {
+                            runtime_call: None,
                             authored_call_selection: call.authored_call_selection,
                             authored_call_binding: None,
                             authored_machine_application: Default::default(),

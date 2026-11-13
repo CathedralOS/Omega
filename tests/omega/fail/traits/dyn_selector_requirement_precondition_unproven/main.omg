@@ -1,6 +1,5 @@
-// A selector call owes the requirement's `requires` for its own operands,
-// paired after the selector: `value` is the call's third operand, 200, not
-// the borrowed `scale` beside the selector.
+// A machine value call must prove the public precondition for its actuals.
+// The value argument is 200; it cannot satisfy `value <= 100`.
 
 trait Shrink<T> {
     machine shrink(scale: &T, value: u64) -> u64
@@ -23,10 +22,20 @@ TrimOne satisfies Shrink<Scale> {
     }
 }
 
-machine probe(scale: &Scale) -> u64 {
-    let one: dyn Shrink<Scale> = TrimOne as dyn Shrink<Scale>;
-    let first: u64 = Shrink::shrink(one, scale, 200);
+machine probe(one: machine(scale: &Scale, value: u64) -> u64 reaches none crashes none
+    requires value >= 3 && value <= 100
+    ensures result <= value, scale: &Scale) -> u64 {
+    let first: u64 = one(scale, 200);
     transition {
         _ -> first
+    }
+}
+
+machine entry(scale: &Scale) -> u64 {
+    let one: machine(scale: &Scale, value: u64) -> u64 reaches none crashes none
+    requires value >= 3 && value <= 100
+    ensures result <= value = TrimOne::shrink;
+    transition {
+        _ -> probe(one, scale)
     }
 }

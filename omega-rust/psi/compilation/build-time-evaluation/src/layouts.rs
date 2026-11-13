@@ -846,7 +846,7 @@ pub(crate) mod access_lifecycles {
         if demands.is_empty() {
             return Ok(program.into());
         }
-        let admission = BuildTimeAdmissionPlan::infer(&program, None);
+        let admission = BuildTimeAdmissionPlan::infer(&program, None)?;
         let checking = super::plan_laid::checking_target_applications(&program, scopes)?;
         for demand in demands {
             let source = demand.sources[0];
@@ -1032,7 +1032,7 @@ pub(crate) mod access_lifecycles {
         {
             return Ok(());
         }
-        let admission = BuildTimeAdmissionPlan::infer(program, None);
+        let admission = BuildTimeAdmissionPlan::infer(program, None)?;
         for (_, row) in program.access_lifecycle_plans.iter() {
             let AccessLifecyclePlan::Evaluated {
                 policy_machine,
@@ -1620,7 +1620,8 @@ pub(crate) mod access_plans {
         accounting: &crate::evaluation_accounting::EvaluationAccounting,
     ) -> Result<BuildTimeValue, String> {
         let policy_machine = machine.name.as_str();
-        let admission = BuildTimeAdmissionPlan::infer(typed, None);
+        let admission = BuildTimeAdmissionPlan::infer(typed, None)
+            .map_err(|diagnostics| diagnostics::join_messages(&diagnostics))?;
         admission.require_common_floor(typed, machine)?;
         let mut request = super::policy_arguments::policy_request(typed, machine, arguments)?;
         admission.require_invocation_failures(
@@ -3742,7 +3743,7 @@ pub(crate) mod access_views {
             push_unique(&mut roots, schema.symbol);
             push_unique(&mut roots, view.symbol);
         }
-        let evaluation = domain.demanded_roots(typed, &roots);
+        let evaluation = domain.demanded_roots(typed, &roots)?;
         let mut execution = evaluation.execution_program(typed);
         crate::const_evaluation::const_lengths::evaluate_const_array_lengths_in(
             &mut execution,
@@ -3851,7 +3852,8 @@ pub(crate) mod access_views {
         let Some(selection_authority) = selection_authority else {
             return Ok(());
         };
-        let admission = crate::BuildTimeAdmissionPlan::infer(typed, Some(selection_authority));
+        let admission = crate::BuildTimeAdmissionPlan::infer(typed, Some(selection_authority))
+            .map_err(|diagnostics| diagnostics::join_messages(&diagnostics))?;
         for source in invocation_sources {
             admission.require_common_floor_for_invocation(
                 typed,
@@ -5403,7 +5405,7 @@ pub(crate) mod plan_laid {
                 .collect();
             let mut execution = domain.execution_program(typed);
             let admission =
-                crate::BuildTimeAdmissionPlan::infer(&execution, selection_authority.clone());
+                crate::BuildTimeAdmissionPlan::infer(&execution, selection_authority.clone())?;
             'application: for request in requests {
                 let storage = request.storage;
                 let policy_is_closed =
@@ -6128,6 +6130,7 @@ pub(crate) mod plan_laid {
                     .flat_map(|selection| selection.rows.iter().map(|row| row.realization_machine)),
             );
         });
+        crate::BuildTimeAdmissionPlan::validate_runtime_effects(typed)?;
         let operational = validation::infer_operational_may(typed);
         source_checking_applications(typed, scopes, &defaults, &topology, &operational)
             .map_err(|reason| vec![Diagnostic::error(reason)])

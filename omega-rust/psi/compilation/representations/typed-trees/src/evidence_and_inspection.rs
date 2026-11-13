@@ -352,7 +352,8 @@ pub mod evidence {
                         .iter()
                         .find_map(|argument| proof_only_mention_in(reasons, program, *argument))
                 }
-                TypeReferenceNode::ConstExpression(_)
+                TypeReferenceNode::Callable { .. }
+                | TypeReferenceNode::ConstExpression(_)
                 | TypeReferenceNode::DynamicTrait { .. }
                 | TypeReferenceNode::Unit => None,
             }
@@ -451,7 +452,8 @@ pub mod evidence {
                         .type_reference_handles(*arguments)
                         .iter()
                         .any(|argument| self.borrows_proof_only_data(program, *argument)),
-                    TypeReferenceNode::Named { .. }
+                    TypeReferenceNode::Callable { .. }
+                    | TypeReferenceNode::Named { .. }
                     | TypeReferenceNode::ConstExpression(_)
                     | TypeReferenceNode::DynamicTrait { .. }
                     | TypeReferenceNode::Unit => false,
@@ -636,7 +638,8 @@ pub mod evidence {
                         collect_inline_data_edges(program, *argument, edge);
                     }
                 }
-                TypeReferenceNode::Reference { .. }
+                TypeReferenceNode::Callable { .. }
+                | TypeReferenceNode::Reference { .. }
                 | TypeReferenceNode::Slice { .. }
                 | TypeReferenceNode::DynamicTrait { .. }
                 | TypeReferenceNode::ConstExpression(_)
@@ -993,98 +996,97 @@ pub mod evidence {
             requirements
         }
 
+        impl crate::TypedTrees {
+            pub fn type_reference_mentions_any(
+                &self,
+                reference: TypeReferenceHandle,
+                symbols: &[SymbolHandle],
+            ) -> bool {
+                type_reference_mentions_any(self, reference, symbols)
+            }
+        }
+
         fn type_reference_mentions_any(
             program: &crate::TypedTrees,
             type_reference: TypeReferenceHandle,
             symbols: &[SymbolHandle],
         ) -> bool {
-            use crate::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
+            let mut references = FreeInputMentions::new(program, symbols);
+            crate::references::visit_type_reference(program, &mut references, type_reference);
+            references.mentioned
+        }
 
-            match program.type_reference_table.type_reference(type_reference) {
-                TypeReferenceNode::Reference { referee, .. } => {
-                    type_reference_mentions_any(program, *referee, symbols)
+        struct FreeInputMentions<'program, 'query> {
+            program: &'program crate::TypedTrees,
+            symbols: &'query [SymbolHandle],
+            mentioned: bool,
+            scopes: Vec<Vec<SymbolHandle>>,
+            pending_binders: Vec<SymbolHandle>,
+            types: std::collections::HashSet<(TypeReferenceHandle, Vec<SymbolHandle>)>,
+            expressions: std::collections::HashSet<(ExpressionHandle, Vec<SymbolHandle>)>,
+        }
+
+        impl<'program, 'query> FreeInputMentions<'program, 'query> {
+            fn new(program: &'program crate::TypedTrees, symbols: &'query [SymbolHandle]) -> Self {
+                Self {
+                    program,
+                    symbols,
+                    mentioned: false,
+                    scopes: Vec::new(),
+                    pending_binders: Vec::new(),
+                    types: std::collections::HashSet::new(),
+                    expressions: std::collections::HashSet::new(),
                 }
-                TypeReferenceNode::Constrained {
-                    base_type,
-                    constraints,
-                } => {
-                    type_reference_mentions_any(program, *base_type, symbols)
-                        || program
-                            .type_reference_table
-                            .constraints(*constraints)
-                            .iter()
-                            .any(|constraint| match constraint {
-                                TypeConstraintNode::Domain(domain) => {
-                                    domain.arguments.iter().any(|argument| {
-                                        type_reference_mentions_any(program, *argument, symbols)
-                                    })
-                                }
-                                TypeConstraintNode::Named(_)
-                                | TypeConstraintNode::ArithmeticDomain(_) => false,
-                            })
-                }
-                TypeReferenceNode::FixedArray {
-                    element_type,
-                    length,
-                } => {
-                    type_reference_mentions_any(program, *element_type, symbols)
-                        || matches!(
-                            length,
-                            FixedArrayLength::ConstParameter { symbol, .. }
-                                if symbols.contains(symbol)
-                        )
-                }
-                TypeReferenceNode::Slice { element_type } => {
-                    type_reference_mentions_any(program, *element_type, symbols)
-                }
-                TypeReferenceNode::Generic { arguments, .. } => program
-                    .type_reference_handles(*arguments)
-                    .iter()
-                    .any(|argument| type_reference_mentions_any(program, *argument, symbols)),
-                TypeReferenceNode::ConstExpression(expression) => {
-                    expression_mentions_any(program, *expression, symbols)
-                }
-                TypeReferenceNode::Named { symbol, .. } => symbols.contains(symbol),
-                TypeReferenceNode::DynamicTrait { .. } | TypeReferenceNode::Unit => false,
+            }
+            fn context(&self) -> Vec<SymbolHandle> {
+                let mut bound = self.scopes.iter().flatten().copied().collect::<Vec<_>>();
+                bound.sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
+                bound.dedup();
+                bound
             }
         }
 
-        fn expression_mentions_any(
-            program: &crate::TypedTrees,
-            expression: ExpressionHandle,
-            symbols: &[SymbolHandle],
-        ) -> bool {
-            use crate::expression::ExpressionNode;
+        impl Extend<SymbolHandle> for FreeInputMentions<'_, '_> {
+            fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
+                self.mentioned |= symbols.into_iter().any(|symbol| {
+                    self.symbols.contains(&symbol)
+                        && !self.scopes.iter().flatten().any(|bound| *bound == symbol)
+                });
+            }
+        }
 
-            match program.expression_table.expression(expression) {
-                ExpressionNode::Name(path) => symbols.contains(&path.symbol),
-                ExpressionNode::Binary(binary) => {
-                    expression_mentions_any(program, binary.left, symbols)
-                        || expression_mentions_any(program, binary.right, symbols)
+        impl crate::references::TypedReferences for FreeInputMentions<'_, '_> {
+            fn callable_signature(&mut self, signature: &crate::signature::StateSignature) {
+                self.pending_binders = self
+                    .program
+                    .state_signature_type_parameters(signature)
+                    .iter()
+                    .map(|parameter| parameter.symbol)
+                    .chain(
+                        self.program
+                            .state_signature_parameters(signature)
+                            .iter()
+                            .map(|parameter| parameter.symbol),
+                    )
+                    .collect();
+                if signature.symbol.is_valid() {
+                    self.pending_binders.push(signature.symbol);
+                    if let Some(children) = self.program.symbols.child_handles(signature.symbol) {
+                        self.pending_binders.extend(children);
+                    }
                 }
-                ExpressionNode::Unary(unary) => {
-                    expression_mentions_any(program, unary.operand, symbols)
-                }
-                ExpressionNode::Borrow(inner) => {
-                    expression_mentions_any(program, inner.target, symbols)
-                }
-                ExpressionNode::Boolean(_)
-                | ExpressionNode::Float(_)
-                | ExpressionNode::UndeterminedNaN(_)
-                | ExpressionNode::Integer(_)
-                | ExpressionNode::String(_) => false,
-                ExpressionNode::ArrayLiteral(_)
-                | ExpressionNode::Match(_)
-                | ExpressionNode::SavedSubject(_)
-                | ExpressionNode::Atomic(_)
-                | ExpressionNode::Cast(_)
-                | ExpressionNode::Call(_)
-                | ExpressionNode::Indexed(_)
-                | ExpressionNode::Member(_)
-                | ExpressionNode::Range(_)
-                | ExpressionNode::StructLiteral(_)
-                | ExpressionNode::TypeExpression(_)
-                | ExpressionNode::ZeroValue(_) => !symbols.is_empty(),
+            }
+            fn enter_lexical_scope(&mut self, _: SymbolHandle) {
+                self.scopes.push(std::mem::take(&mut self.pending_binders));
+            }
+            fn leave_lexical_scope(&mut self) {
+                self.scopes.pop();
+            }
+            fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
+                !self.mentioned && self.types.insert((reference, self.context()))
+            }
+            fn expression(&mut self, expression: ExpressionHandle) -> bool {
+                !self.mentioned && self.expressions.insert((expression, self.context()))
             }
         }
 
@@ -1183,6 +1185,12 @@ pub mod evidence {
                     .find(|(candidate, _)| candidate == symbol)
                     .map(|(_, replacement)| replacement.clone())
                     .unwrap_or_else(|| name.to_string()),
+                TypeReferenceNode::Callable { .. } => {
+                    program.type_identity_request_text(TypeIdentityRequest {
+                        binders: substitutions,
+                        ..TypeIdentityRequest::ordinary(type_reference)
+                    })
+                }
                 TypeReferenceNode::ConstExpression(_)
                 | TypeReferenceNode::DynamicTrait { .. }
                 | TypeReferenceNode::Unit => program.display_type_reference(type_reference),
@@ -1700,6 +1708,14 @@ pub mod evidence {
                 render_expression(program, expression, substitutions, name_substitutions)
             };
             match program.expression_table.expression(expression) {
+                ExpressionNode::MachineValue(value) => {
+                    crate::type_identity::normalized_expression_identity(
+                        program,
+                        expression,
+                        substitutions,
+                    )
+                    .unwrap_or_else(|| format!("<invalid machine value {value:?}>"))
+                }
                 ExpressionNode::Match(dispatch) => {
                     let arms = program
                         .expression_table
@@ -2018,6 +2034,9 @@ pub mod inspection {
             match statement {
                 StatementNode::Assembly(_) => {}
                 StatementNode::Call(call) => {
+                    if let Some(binding) = call.runtime_call {
+                        collect_expression_callees(typed, binding.callee, visited, called);
+                    }
                     note_callee(called, call.target_symbol);
                     for argument in typed.statement_table.expression_handles(call.arguments) {
                         collect_expression_callees(typed, *argument, visited, called);
@@ -3216,6 +3235,242 @@ pub mod inspection {
             }
 
             #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub enum RuntimeCallableContractSnapshot {
+                Contract {
+                    lexical_owner: String,
+                    resolved_source: Option<(u32, u32)>,
+                    signature: Box<CallableSignatureSnapshot>,
+                },
+                Invalid {
+                    handle: (u32, u32),
+                },
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub struct CallableSignatureSnapshot {
+                pub signature: StateSignatureSnapshot,
+                pub type_parameters: Vec<CallableTypeParameterSnapshot>,
+                pub termination: TerminationInterfaceSnapshot,
+                pub declares_no_crash_route: bool,
+                pub contract_metadata: Vec<CallableContractMetadataSnapshot>,
+                pub invocation_targets: Vec<String>,
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub struct CallableContractMetadataSnapshot {
+                pub keyword_source_span: Option<super::SourceSpanSnapshot>,
+                pub result_case: Option<(String, String)>,
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub struct CallableTypeParameterSnapshot {
+                pub name: String,
+                pub multiplicity: String,
+                pub carry: Option<String>,
+                pub kind: CallableTypeParameterKindSnapshot,
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub enum CallableTypeParameterKindSnapshot {
+                Type,
+                Implementation,
+                Const {
+                    type_reference: TypeReferenceSnapshot,
+                },
+                Value {
+                    type_reference: TypeReferenceSnapshot,
+                },
+                Machine {
+                    contract: Box<CallableMachineParameterSnapshot>,
+                },
+                Proposition {
+                    name: String,
+                    parameters: Vec<StateParameterSnapshot>,
+                },
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub enum CallableMachineParameterSnapshot {
+                RequirementIdentity,
+                Structural {
+                    signature: Box<CallableSignatureSnapshot>,
+                },
+                Nominal {
+                    receiving_trait: String,
+                    receiving_arguments: Vec<TypeReferenceSnapshot>,
+                    trait_definition: String,
+                    requirement: String,
+                    trait_arguments: Vec<TypeReferenceSnapshot>,
+                    instantiated: Option<Box<CallableSignatureSnapshot>>,
+                },
+            }
+
+            pub(crate) fn runtime_callable_contract_snapshot(
+                program: &TypedTrees,
+                handle: crate::callable_values::RuntimeCallableContractHandle,
+            ) -> RuntimeCallableContractSnapshot {
+                if !program.runtime_callable_contracts.is_valid(handle) {
+                    return RuntimeCallableContractSnapshot::Invalid {
+                        handle: (handle.arena_index(), handle.generation()),
+                    };
+                }
+                let contract = program.runtime_callable_contracts.get(handle);
+                RuntimeCallableContractSnapshot::Contract {
+                    lexical_owner: program.symbols.display_path(contract.lexical_owner, "::"),
+                    resolved_source: contract.resolved_source,
+                    signature: Box::new(callable_signature_snapshot(program, &contract.signature)),
+                }
+            }
+
+            fn callable_signature_snapshot(
+                program: &TypedTrees,
+                signature: &StateSignature,
+            ) -> CallableSignatureSnapshot {
+                CallableSignatureSnapshot {
+                    signature: state_signature_snapshot(program, signature),
+                    type_parameters: program
+                        .state_signature_type_parameters(signature)
+                        .iter()
+                        .map(|parameter| {
+                            use crate::data::TypeParameterKind;
+                            let kind = match &parameter.kind {
+                                TypeParameterKind::Type => CallableTypeParameterKindSnapshot::Type,
+                                TypeParameterKind::Implementation => {
+                                    CallableTypeParameterKindSnapshot::Implementation
+                                }
+                                TypeParameterKind::Const { type_reference } => {
+                                    CallableTypeParameterKindSnapshot::Const {
+                                        type_reference: type_reference_snapshot(
+                                            program,
+                                            *type_reference,
+                                        ),
+                                    }
+                                }
+                                TypeParameterKind::Value { type_reference } => {
+                                    CallableTypeParameterKindSnapshot::Value {
+                                        type_reference: type_reference_snapshot(
+                                            program,
+                                            *type_reference,
+                                        ),
+                                    }
+                                }
+                                TypeParameterKind::Machine { contract } => {
+                                    CallableTypeParameterKindSnapshot::Machine {
+                                        contract: Box::new(callable_machine_parameter_snapshot(
+                                            program, contract,
+                                        )),
+                                    }
+                                }
+                                TypeParameterKind::Proposition { contract } => {
+                                    CallableTypeParameterKindSnapshot::Proposition {
+                                        name: contract.name.to_string(),
+                                        parameters: program
+                                            .state_parameters
+                                            .span_or_empty(contract.parameters)
+                                            .iter()
+                                            .map(|parameter| {
+                                                state_parameter_snapshot(program, parameter)
+                                            })
+                                            .collect(),
+                                    }
+                                }
+                            };
+                            CallableTypeParameterSnapshot {
+                                name: parameter.name.to_string(),
+                                multiplicity: format!("{:?}", parameter.bounds.multiplicity),
+                                carry: parameter.bounds.carry.map(|carry| format!("{carry:?}")),
+                                kind,
+                            }
+                        })
+                        .collect(),
+                    termination: termination_interface_snapshot(
+                        &language_semantics::TerminationInterface::Published(
+                            signature.termination_guarantee.clone(),
+                        ),
+                    ),
+                    declares_no_crash_route: signature.declares_no_crash_route,
+                    contract_metadata: program
+                        .state_signature_contracts(signature)
+                        .iter()
+                        .map(|contract| CallableContractMetadataSnapshot {
+                            keyword_source_span: contract
+                                .keyword_source_span
+                                .as_ref()
+                                .map(super::source_span_snapshot),
+                            result_case: match contract.kind {
+                                SignatureContractKind::EnsuresForResultCase {
+                                    result_data,
+                                    result_case,
+                                } => Some((
+                                    program.symbols.display_path(result_data, "::"),
+                                    program.symbols.display_path(result_case, "::"),
+                                )),
+                                _ => None,
+                            },
+                        })
+                        .collect(),
+                    invocation_targets: program
+                        .state_signature_invokes(signature)
+                        .iter()
+                        .map(|invocation| {
+                            use crate::signature::AuthoredInvocationTarget;
+                            match invocation.target {
+                                AuthoredInvocationTarget::Unresolved => "unresolved".to_owned(),
+                                AuthoredInvocationTarget::Parameter { ordinal, symbol } => format!(
+                                    "parameter {ordinal}: {}",
+                                    program.symbols.display_path(symbol, "::")
+                                ),
+                                AuthoredInvocationTarget::Service(symbol) => format!(
+                                    "service: {}",
+                                    program.symbols.display_path(symbol, "::")
+                                ),
+                            }
+                        })
+                        .collect(),
+                }
+            }
+
+            fn callable_machine_parameter_snapshot(
+                program: &TypedTrees,
+                contract: &crate::data::MachineParameterContract,
+            ) -> CallableMachineParameterSnapshot {
+                use crate::data::MachineParameterContract;
+                match contract {
+                    MachineParameterContract::RequirementIdentity => {
+                        CallableMachineParameterSnapshot::RequirementIdentity
+                    }
+                    MachineParameterContract::Structural(signature) => {
+                        CallableMachineParameterSnapshot::Structural {
+                            signature: Box::new(callable_signature_snapshot(program, signature)),
+                        }
+                    }
+                    MachineParameterContract::Nominal {
+                        receiving_trait,
+                        receiving_arguments,
+                        trait_definition,
+                        requirement,
+                        trait_arguments,
+                        instantiated,
+                    } => CallableMachineParameterSnapshot::Nominal {
+                        receiving_trait: program.symbols.display_path(*receiving_trait, "::"),
+                        receiving_arguments: receiving_arguments
+                            .iter()
+                            .map(|reference| type_reference_snapshot(program, *reference))
+                            .collect(),
+                        trait_definition: program.symbols.display_path(*trait_definition, "::"),
+                        requirement: program.symbols.display_path(*requirement, "::"),
+                        trait_arguments: trait_arguments
+                            .iter()
+                            .map(|reference| type_reference_snapshot(program, *reference))
+                            .collect(),
+                        instantiated: instantiated.as_ref().map(|signature| {
+                            Box::new(callable_signature_snapshot(program, signature))
+                        }),
+                    },
+                }
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
             pub struct NativeCallbackParameterSnapshot {
                 pub name: String,
                 pub binder: String,
@@ -3682,6 +3937,268 @@ pub mod inspection {
             }
 
             #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub struct RuntimeCallSnapshot {
+                pub callee: Box<ExpressionSnapshot>,
+                pub contract: Box<super::machine_snapshots::RuntimeCallableContractSnapshot>,
+            }
+
+            fn runtime_call_snapshot(
+                program: &TypedTrees,
+                binding: crate::callable_values::RuntimeCallBinding,
+            ) -> RuntimeCallSnapshot {
+                RuntimeCallSnapshot {
+                    callee: Box::new(expression_snapshot(program, binding.callee)),
+                    contract: Box::new(
+                        super::machine_snapshots::runtime_callable_contract_snapshot(
+                            program,
+                            binding.contract,
+                        ),
+                    ),
+                }
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub struct StaticApplicationGraphSnapshot {
+                pub root: (u32, u32),
+                pub applications: Vec<StaticApplicationSnapshot>,
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub struct StaticApplicationSnapshot {
+                pub handle: (u32, u32),
+                pub callable_contract_source: Option<(u32, u32)>,
+                pub registration_operation: String,
+                pub lexical_owner: String,
+                pub target: String,
+                pub arguments: Vec<StaticArgumentSnapshot>,
+                pub selected_machine_arguments: Vec<StaticArgumentSnapshot>,
+                pub bindings: Vec<(String, StaticBindingSnapshot)>,
+                pub lifetime_bindings: Vec<(String, String)>,
+                pub lifetime_binding_declaration: String,
+                pub binding_declaration: String,
+                pub input_selections: Vec<StaticInputSelectionSnapshot>,
+                pub conformance_selection: Option<StaticConformanceSelectionSnapshot>,
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub struct StaticConformanceSelectionSnapshot {
+                pub ordinal: u32,
+                pub application: Option<ClosedConformanceSelectionSnapshot>,
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub struct ClosedConformanceSelectionSnapshot {
+                pub declaration: String,
+                pub callable_application: Option<(u32, u32)>,
+                pub arguments: Vec<StaticArgumentSnapshot>,
+                pub identity_encoding: Vec<u8>,
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub struct StaticInputSelectionSnapshot {
+                pub occurrence: Option<String>,
+                pub argument_ordinal: u32,
+                pub target: StaticInputTargetSnapshot,
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub enum StaticInputTargetSnapshot {
+                Invalid,
+                Argument {
+                    steps: Vec<String>,
+                },
+                Type {
+                    reference: Box<TypeReferenceSnapshot>,
+                    slot: String,
+                },
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+            pub enum StaticBindingSnapshot {
+                Type(Box<TypeReferenceSnapshot>),
+                Const(Box<TypeReferenceSnapshot>),
+                RuntimeValue {
+                    type_reference: Box<TypeReferenceSnapshot>,
+                    subject: String,
+                    expression: Box<ExpressionSnapshot>,
+                },
+                Machine(StaticArgumentSnapshot),
+                Conformance(StaticArgumentSnapshot),
+            }
+
+            fn static_application_snapshot(
+                program: &TypedTrees,
+                root: crate::static_applications::StaticMachineApplicationHandle,
+            ) -> StaticApplicationGraphSnapshot {
+                let coordinate =
+                    |handle: crate::static_applications::StaticMachineApplicationHandle| {
+                        (handle.arena_index(), handle.generation())
+                    };
+                let mut pending = vec![root];
+                let mut seen = Vec::new();
+                let mut applications = Vec::new();
+                while let Some(handle) = pending.pop() {
+                    if !handle.is_valid() || seen.contains(&handle) {
+                        continue;
+                    }
+                    seen.push(handle);
+                    let application = program.static_machine_application(handle);
+                    pending.push(application.callable_contract_source);
+                    let conformance_selection =
+                        application.conformance_selection.as_ref().map(|selection| {
+                            StaticConformanceSelectionSnapshot {
+                                ordinal: selection.operand_ordinal,
+                                application: selection.application.as_ref().map(|selected| {
+                                    pending.push(selected.callable_application);
+                                    ClosedConformanceSelectionSnapshot {
+                                        declaration: program
+                                            .symbols
+                                            .display_path(selected.declaration, "::"),
+                                        callable_application: selected
+                                            .callable_application
+                                            .is_valid()
+                                            .then(|| coordinate(selected.callable_application)),
+                                        arguments: selected
+                                            .arguments
+                                            .iter()
+                                            .map(|argument| {
+                                                snapshot_static_argument(program, argument)
+                                            })
+                                            .collect(),
+                                        identity_encoding: selected.identity_encoding.to_vec(),
+                                    }
+                                }),
+                            }
+                        });
+                    applications.push(StaticApplicationSnapshot {
+                        handle: coordinate(handle),
+                        callable_contract_source: application
+                            .callable_contract_source
+                            .is_valid()
+                            .then(|| coordinate(application.callable_contract_source)),
+                        registration_operation: program
+                            .symbols
+                            .display_path(application.registration_operation, "::"),
+                        lexical_owner: program
+                            .symbols
+                            .display_path(application.lexical_owner, "::"),
+                        target: application.target.to_string(),
+                        arguments: program
+                            .static_machine_application_arguments(handle)
+                            .iter()
+                            .map(|argument| snapshot_static_argument(program, argument))
+                            .collect(),
+                        selected_machine_arguments: program
+                            .expression_table
+                            .static_machine_application_selected_machines(handle)
+                            .iter()
+                            .map(|argument| snapshot_static_argument(program, argument))
+                            .collect(),
+                        bindings: program
+                            .static_machine_application_bindings(handle)
+                            .iter()
+                            .map(|binding| {
+                                use crate::static_applications::StaticMachineBindingValue;
+                                let value = match &binding.value {
+                                    StaticMachineBindingValue::Type(reference) => {
+                                        StaticBindingSnapshot::Type(Box::new(
+                                            type_reference_snapshot(program, *reference),
+                                        ))
+                                    }
+                                    StaticMachineBindingValue::Const(reference) => {
+                                        StaticBindingSnapshot::Const(Box::new(
+                                            type_reference_snapshot(program, *reference),
+                                        ))
+                                    }
+                                    StaticMachineBindingValue::RuntimeValue {
+                                        type_reference,
+                                        subject,
+                                        expression,
+                                    } => StaticBindingSnapshot::RuntimeValue {
+                                        type_reference: Box::new(type_reference_snapshot(
+                                            program,
+                                            *type_reference,
+                                        )),
+                                        subject: program.symbols.display_path(*subject, "::"),
+                                        expression: Box::new(expression_snapshot(
+                                            program,
+                                            *expression,
+                                        )),
+                                    },
+                                    StaticMachineBindingValue::Machine(argument) => {
+                                        StaticBindingSnapshot::Machine(snapshot_static_argument(
+                                            program, argument,
+                                        ))
+                                    }
+                                    StaticMachineBindingValue::Conformance(argument) => {
+                                        StaticBindingSnapshot::Conformance(
+                                            snapshot_static_argument(program, argument),
+                                        )
+                                    }
+                                };
+                                (program.symbols.display_path(binding.parameter, "::"), value)
+                            })
+                            .collect(),
+                        lifetime_bindings: program
+                            .static_machine_application_lifetimes(handle)
+                            .iter()
+                            .map(|binding| {
+                                (binding.parameter.to_string(), binding.argument.to_string())
+                            })
+                            .collect(),
+                        lifetime_binding_declaration: program
+                            .symbols
+                            .display_path(application.lifetime_binding_declaration, "::"),
+                        binding_declaration: program
+                            .symbols
+                            .display_path(application.binding_declaration, "::"),
+                        input_selections: program
+                            .product_input_selections
+                            .span_or_empty(application.input_selections)
+                            .iter()
+                            .map(|selection| {
+                                use crate::product_operand::ProductInputSelectionTarget;
+                                StaticInputSelectionSnapshot {
+                                    occurrence: selection
+                                        .occurrence
+                                        .map(|occurrence| format!("{occurrence:?}")),
+                                    argument_ordinal: selection.argument_ordinal,
+                                    target: match &selection.target {
+                                        ProductInputSelectionTarget::Invalid => {
+                                            StaticInputTargetSnapshot::Invalid
+                                        }
+                                        ProductInputSelectionTarget::Argument(steps) => {
+                                            StaticInputTargetSnapshot::Argument {
+                                                steps: program
+                                                    .product_input_argument_steps
+                                                    .span_or_empty(*steps)
+                                                    .iter()
+                                                    .map(|step| format!("{step:?}"))
+                                                    .collect(),
+                                            }
+                                        }
+                                        ProductInputSelectionTarget::Type { reference, slot } => {
+                                            StaticInputTargetSnapshot::Type {
+                                                reference: Box::new(type_reference_snapshot(
+                                                    program, *reference,
+                                                )),
+                                                slot: format!("{slot:?}"),
+                                            }
+                                        }
+                                    },
+                                }
+                            })
+                            .collect(),
+                        conformance_selection,
+                    });
+                }
+                StaticApplicationGraphSnapshot {
+                    root: coordinate(root),
+                    applications,
+                }
+            }
+
+            #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
             #[serde(tag = "kind", rename_all = "snake_case")]
             pub enum StatementSnapshot {
                 Assembly {
@@ -3704,6 +4221,8 @@ pub mod inspection {
                     receiving_type: Option<TypeReferenceSnapshot>,
                 },
                 Call {
+                    #[serde(skip_serializing_if = "Option::is_none")]
+                    runtime_call: Option<RuntimeCallSnapshot>,
                     receiver: Option<Vec<String>>,
                     target: String,
                     machine_arguments: Vec<StaticArgumentSnapshot>,
@@ -3839,6 +4358,14 @@ pub mod inspection {
             #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
             #[serde(tag = "kind", rename_all = "snake_case")]
             pub enum ExpressionSnapshot {
+                MachineValue {
+                    type_reference: Box<TypeReferenceSnapshot>,
+                    selected: StaticArgumentSnapshot,
+                    selected_symbol: String,
+                    application: StaticApplicationGraphSnapshot,
+                    conformance: String,
+                    requirement: String,
+                },
                 Match {
                     subject: Box<ExpressionSnapshot>,
                     #[serde(skip_serializing_if = "Option::is_none")]
@@ -3878,6 +4405,8 @@ pub mod inspection {
                     semantic_domain_id: u32,
                 },
                 Call {
+                    #[serde(skip_serializing_if = "Option::is_none")]
+                    runtime_call: Option<RuntimeCallSnapshot>,
                     receiver: Option<Box<ExpressionSnapshot>>,
                     target: String,
                     #[serde(skip_serializing_if = "Option::is_none")]
@@ -4033,6 +4562,7 @@ pub mod inspection {
                 .then(|| type_reference_snapshot(program, assignment.receiving_type)),
         },
         StatementNode::Call(call) => StatementSnapshot::Call {
+            runtime_call: call.runtime_call.map(|binding| runtime_call_snapshot(program, binding)),
             receiver: (!call.receiver.is_empty())
                 .then(|| path_snapshot(program.statement_table.name_path_members(call.receiver))),
             target: call.target.to_string(),
@@ -4197,6 +4727,14 @@ pub mod inspection {
                 }
 
                 match program.expression_table.expression(expression) {
+        ExpressionNode::MachineValue(value) => ExpressionSnapshot::MachineValue {
+            type_reference: Box::new(type_reference_snapshot(program, value.type_reference)),
+            selected: snapshot_static_argument(program, &value.selected),
+            selected_symbol: program.symbols.display_path(value.selected.symbol, "::"),
+            application: static_application_snapshot(program, value.application),
+            conformance: program.symbols.display_path(value.conformance, "::"),
+            requirement: program.symbols.display_path(value.requirement, "::"),
+        },
         ExpressionNode::Match(dispatch) => ExpressionSnapshot::Match {
             subject: Box::new(expression_snapshot(program, dispatch.subject)),
             capture: dispatch.capture.is_valid().then_some((
@@ -4248,6 +4786,7 @@ pub mod inspection {
             semantic_domain_id: cast.semantic_domain_id.0,
         },
         ExpressionNode::Call(call) => ExpressionSnapshot::Call {
+            runtime_call: call.runtime_call.map(|binding| runtime_call_snapshot(program, binding)),
             exact_coercion_target: call
                 .exact_coercion_target
                 .is_valid()
@@ -4527,9 +5066,14 @@ pub mod inspection {
             #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
             #[serde(tag = "kind", rename_all = "snake_case")]
             pub enum TypeReferenceSnapshot {
+                Callable {
+                    contract: Box<super::machine_snapshots::RuntimeCallableContractSnapshot>,
+                },
                 Reference {
                     referee: Box<TypeReferenceSnapshot>,
                     access: &'static str,
+                    #[serde(skip_serializing_if = "Option::is_none")]
+                    lifetime: Option<String>,
                 },
                 Constrained {
                     base_type: Box<TypeReferenceSnapshot>,
@@ -4687,13 +5231,21 @@ pub mod inspection {
                 }
 
                 match program.type_reference_table.type_reference(type_reference) {
+                    TypeReferenceNode::Callable { contract } => TypeReferenceSnapshot::Callable {
+                        contract: Box::new(
+                            super::machine_snapshots::runtime_callable_contract_snapshot(
+                                program, *contract,
+                            ),
+                        ),
+                    },
                     TypeReferenceNode::Reference {
                         referee,
                         access,
-                        lifetime: _,
+                        lifetime,
                     } => TypeReferenceSnapshot::Reference {
                         referee: Box::new(type_reference_snapshot(program, *referee)),
                         access: access.name(),
+                        lifetime: lifetime.as_ref().map(ToString::to_string),
                     },
                     TypeReferenceNode::Constrained {
                         base_type,

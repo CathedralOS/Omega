@@ -1269,6 +1269,47 @@ pub(crate) mod expression {
                                 )))
                         }
                         resolved::expression::ExpressionNode::Call(call) => {
+                            if crate::runtime_callables::callee_is_value(
+                                self.program,
+                                self.source,
+                                call.callee,
+                            ) {
+                                let callee = self.lower_value(call.callee)?;
+                                let arguments =
+                                    self.lower_expression_handle_span(call.arguments)?;
+                                let machine_arguments =
+                                    crate::signatures::lexical_context::call_arguments(
+                                        self.program,
+                                        self.target_trees,
+                                        self.source.authored_expression_exposure(expression),
+                                        symbols::SymbolHandle::invalid(),
+                                        &call.machine_arguments,
+                                    )?;
+                                return Ok(self.target().insert(
+                                    typed::expression::ExpressionNode::Call(
+                                        typed::expression::TableCallExpression {
+                                            runtime_call: Some(
+                                                typed::callable_values::RuntimeCallBinding {
+                                                    callee,
+                                                    contract: Default::default(),
+                                                },
+                                            ),
+                                            target: lower_name(&call.target),
+                                            machine_arguments,
+                                            arguments,
+                                            evidence_arguments: call
+                                                .evidence_arguments
+                                                .iter()
+                                                .map(lower_name)
+                                                .collect::<Vec<_>>()
+                                                .into_boxed_slice(),
+                                            operational_acknowledgement: call
+                                                .operational_acknowledgement,
+                                            ..Default::default()
+                                        },
+                                    ),
+                                ));
+                            }
                             if !call.receiver.is_valid()
                                 && call.target.as_str()
                                     == symbols::BuiltinFunction::IntegerEmbed.name()
@@ -1498,6 +1539,7 @@ pub(crate) mod expression {
                                 .target()
                                 .insert(typed::expression::ExpressionNode::Call(
                                     typed::expression::TableCallExpression {
+                                        runtime_call: None,
                                         authored_call_selection: None,
                                         authored_call_binding: call.authored_call_binding,
                                         authored_machine_application: Default::default(),
@@ -2414,6 +2456,29 @@ pub(crate) mod expression {
                     .unwrap_or_default()
             }
 
+            pub(crate) fn callee_is_value(
+                program: &resolved::SymbolResolvedTrees,
+                expressions: &resolved::expression::ExpressionTable,
+                callee: ExpressionHandle,
+            ) -> bool {
+                if !callee.is_valid() {
+                    return false;
+                }
+                if resolved::callable_values::callee_uses_value_binding(
+                    &program.symbols,
+                    expressions,
+                    callee,
+                ) {
+                    return true;
+                }
+                match expressions.expression(callee) {
+                    ExpressionNode::Member(member) => {
+                        declared_receiver_field(program, expressions, member, 0).is_some()
+                    }
+                    _ => false,
+                }
+            }
+
             impl ExpressionTableLowerer<'_, '_, '_> {
                 pub(crate) fn declared_member(
                     &self,
@@ -2522,7 +2587,25 @@ pub(crate) mod expression {
                     ExpressionNode::Name(path) => {
                         inferred_capture_type(program, expressions, path.symbol, depth)
                     }
-                    ExpressionNode::Call(call) => declared_call_return(program, call.target_symbol),
+                    ExpressionNode::Call(call) => {
+                        if callee_is_value(program, expressions, call.callee) {
+                            let callee =
+                                declared_type(program, expressions, call.callee, depth + 1)?;
+                            if let TypeReference::Callable { contract, .. } = peel(program, callee)
+                            {
+                                return program
+                                    .tables
+                                    .declarations
+                                    .runtime_callable_contracts
+                                    .get(*contract)
+                                    .signature
+                                    .return_type
+                                    .as_ref();
+                            }
+                            return None;
+                        }
+                        declared_call_return(program, call.target_symbol)
+                    }
                     ExpressionNode::ArrayLiteral(_) => {
                         let mut declared = None;
                         for occurrence in expressions.authored_selection_occurrences(expression) {
@@ -3148,6 +3231,7 @@ pub(crate) mod expression {
             .target()
             .insert(typed::expression::ExpressionNode::Call(
                 typed::expression::TableCallExpression {
+             runtime_call: None,
              authored_call_selection: None,
              authored_call_binding: None,
                     authored_machine_application: Default::default(),

@@ -248,7 +248,7 @@ pub(crate) mod callable_identity {
         ) -> CallableIdentityId {
             self.interned_callable_identity(
                 DeclarationKey::Operator(operator as *const OperatorDefinition as usize),
-                || Some(self.operator_callable_identity_parts(operator)),
+                || self.operator_callable_identity_parts(operator),
             )
         }
 
@@ -1731,6 +1731,12 @@ pub(crate) mod identity_context {
         pub(crate) resolved_lifetimes:
             &'binders [(LifetimeParameterIdentity, LifetimeParameterIdentity)],
         pub(crate) lifetime_binders: &'binders [(LifetimeParameterIdentity, usize)],
+        pub(crate) active_runtime_call_expressions: &'binders [ExpressionHandle],
+        pub(crate) active_callable_signatures:
+            &'binders [&'binders crate::signature::StateSignature],
+        pub(crate) callable_scope_owners: &'binders [(SymbolHandle, SymbolHandle)],
+        pub(crate) callable_operand_shape: bool,
+        pub(crate) structural_callable_identity: bool,
         pub(crate) invalid_application: Option<&'binders Cell<bool>>,
         pub(crate) encountered_regions: Option<&'binders Cell<bool>>,
         pub(crate) binders: &'binders [(SymbolHandle, String)],
@@ -1856,6 +1862,48 @@ pub(crate) mod identity_context {
         }
 
         pub(crate) fn lifetime(&self, program: &TypedTrees, name: &str) -> String {
+            if self.structural_callable_identity {
+                let mut owner = program.lifetime_declaration_owner(self.application_owner);
+                let mut visited = Vec::new();
+                while owner.is_valid() && !visited.contains(&owner) {
+                    visited.push(owner);
+                    let parameters = self
+                        .active_callable_signatures
+                        .iter()
+                        .rev()
+                        .find(|signature| signature.symbol == owner)
+                        .map(|signature| signature.lifetime_parameters.as_slice())
+                        .or_else(|| super::declaration_lifetime_parameters(program, owner));
+                    if let Some(ordinal) = parameters.and_then(|parameters| {
+                        parameters
+                            .iter()
+                            .position(|parameter| parameter.as_str() == name)
+                    }) {
+                        let region = LifetimeParameterIdentity {
+                            declaration: owner,
+                            ordinal,
+                        };
+                        if self
+                            .lifetime_binders
+                            .iter()
+                            .any(|(bound, _)| *bound == region)
+                        {
+                            return self.encode_lifetime(program, region);
+                        }
+                        return self.resolved_lifetime(program, region);
+                    }
+                    let parent = self
+                        .callable_scope_owners
+                        .iter()
+                        .rev()
+                        .find(|(signature, _)| *signature == owner)
+                        .map_or_else(
+                            || program.declaration_scope_parent(owner),
+                            |(_, lexical)| *lexical,
+                        );
+                    owner = program.lifetime_declaration_owner(parent);
+                }
+            }
             if let Some((region, _)) = super::applied_lifetime_parameter_identity_with_supplier(
                 program,
                 self.application_owner,
@@ -1925,7 +1973,7 @@ pub(crate) mod identity_context {
             self.encode_lifetime(program, region)
         }
 
-        fn encode_lifetime(
+        pub(crate) fn encode_lifetime(
             &self,
             program: &TypedTrees,
             region: LifetimeParameterIdentity,
@@ -1948,8 +1996,12 @@ pub(crate) mod identity_context {
                     ],
                 );
             }
-            if self.qualification == TypeIdentityQualification::PackageQualified {
-                let identity = if self.portable_machine_applications.is_some() {
+            if self.qualification == TypeIdentityQualification::PackageQualified
+                || self.structural_callable_identity
+            {
+                let identity = if self.portable_machine_applications.is_some()
+                    || self.structural_callable_identity
+                {
                     super::lifetime_parameters::portable_lifetime_parameter_identity_in_context(
                         program, region, self,
                     )
@@ -1989,6 +2041,14 @@ pub(crate) mod identity_context {
             region: Option<LifetimeParameterIdentity>,
         ) -> String {
             if let Some(region) = region.filter(|region| region.declaration.is_valid()) {
+                if self.structural_callable_identity
+                    && self
+                        .lifetime_binders
+                        .iter()
+                        .any(|(bound, _)| *bound == region)
+                {
+                    return self.encode_lifetime(program, region);
+                }
                 self.resolved_lifetime(program, region)
             } else {
                 self.lifetime(program, name.as_str())
@@ -2001,6 +2061,9 @@ pub(crate) mod identity_context {
             symbol: SymbolHandle,
             fallback: &str,
         ) -> String {
+            if self.structural_callable_identity && !symbol.is_valid() {
+                return substitution::rejected(self);
+            }
             if let Some((_, replacement)) = self
                 .binders
                 .iter()
@@ -2132,7 +2195,7 @@ pub(crate) mod identity_context {
                 .chain(
                     context
                         .invalid_application
-                        .filter(|_| !context.declared_carrier)
+                        .filter(|_| !context.declared_carrier && !context.callable_operand_shape)
                         .into_iter()
                         .flat_map(|_| {
                             lifetimes.iter().enumerate().map(|(ordinal, lifetime)| {
@@ -2499,10 +2562,25 @@ pub(crate) mod identity_context {
                 std::iter::once(normalize_type_reference(program, *referee, context)).chain(
                     context
                         .invalid_application
-                        .filter(|_| !context.declared_carrier)
+                        .filter(|_| !context.declared_carrier && !context.callable_operand_shape)
+                        .filter(|_| {
+                            context.active_callable_signatures.is_empty()
+                                || lifetime.is_some()
+                                || !program
+                                    .type_reference_table
+                                    .operand_lifetimes(type_reference)
+                                    .is_empty()
+                        })
                         .map(|_| {
                             lifetime.as_ref().map_or_else(
                                 || {
+                                    if let Some(region) = program
+                                        .type_reference_table
+                                        .operand_lifetimes(type_reference)
+                                        .first()
+                                    {
+                                        return context.resolved_lifetime(program, *region);
+                                    }
                                     if context.qualification
                                         == TypeIdentityQualification::PackageQualified
                                         && let Some(invalid) = context.invalid_application
@@ -2599,6 +2677,10 @@ pub(crate) mod identity_context {
                         .map(|argument| normalize_type_reference(program, *argument, context)),
                 ),
             ),
+            TypeReferenceNode::Callable { contract } => {
+                crate::runtime_callable_identity::normalize_contract(program, *contract, context)
+                    .unwrap_or_else(|_| substitution::rejected(context))
+            }
             TypeReferenceNode::Named { symbol, name } => compound(
                 TypeForm::Named,
                 [normalize_const_or_nominal_name(
@@ -2705,6 +2787,63 @@ pub(crate) mod identity_context {
                     atom(Label::Domain, cast.domain.name()),
                 ],
             ),
+            ExpressionNode::Call(call) if call.runtime_call.is_some() => {
+                let Some(binding) = call.runtime_call else {
+                    return substitution::rejected(context);
+                };
+                if !program.expression_table.expression_is_valid(binding.callee)
+                    || context
+                        .active_runtime_call_expressions
+                        .contains(&expression)
+                {
+                    return substitution::rejected(context);
+                }
+                let mut active = context.active_runtime_call_expressions.to_vec();
+                active.push(expression);
+                let nested = TypeIdentityContext {
+                    active_runtime_call_expressions: &active,
+                    structural_callable_identity: true,
+                    ..*context
+                };
+                let Ok(contract) = crate::runtime_callable_identity::normalize_contract(
+                    program,
+                    binding.contract,
+                    &nested,
+                ) else {
+                    return substitution::rejected(context);
+                };
+                let arguments = crate::references::StaticArgumentCall::Expression(expression, call)
+                    .arguments(program);
+                compound(
+                    IndexForm::RuntimeCall,
+                    [
+                        normalize_index_expression(program, binding.callee, &nested),
+                        contract,
+                    ]
+                    .into_iter()
+                    .chain((!arguments.is_empty()).then(|| {
+                        compound(
+                            Label::StaticArguments,
+                            arguments.iter().map(|argument| {
+                                substitution::index_argument(
+                                    program,
+                                    super::IndexIdentityArgument::StaticArgument(argument),
+                                    &nested,
+                                )
+                            }),
+                        )
+                    }))
+                    .chain(
+                        program
+                            .expression_table
+                            .expression_handles(call.arguments)
+                            .iter()
+                            .map(|argument| {
+                                normalize_index_expression(program, *argument, &nested)
+                            }),
+                    ),
+                )
+            }
             ExpressionNode::Call(call) => compound(
                 IndexForm::Call,
                 std::iter::once(atom(
@@ -2818,6 +2957,10 @@ pub(crate) mod identity_context {
                 IndexForm::ZeroValue,
                 [normalize_type_reference(program, *type_reference, context)],
             ),
+            ExpressionNode::MachineValue(value) => {
+                crate::runtime_callable_identity::normalize_machine_value(program, value, context)
+                    .unwrap_or_else(|_| substitution::rejected(context))
+            }
         }
     }
 
@@ -3066,6 +3209,15 @@ pub(crate) mod lifetime_parameters {
                 program
                     .trait_machine_signature(owner)
                     .map(|(_, signature)| signature.lifetime_parameters.as_slice())
+            })
+            .or_else(|| {
+                let mut rows = program
+                    .runtime_callable_contracts
+                    .iter()
+                    .filter(|(_, contract)| contract.signature.symbol == owner)
+                    .map(|(_, contract)| contract.signature.lifetime_parameters.as_slice());
+                let roster = rows.next()?;
+                rows.all(|other| other == roster).then_some(roster)
             })
             .or_else(|| {
                 program
@@ -4202,6 +4354,7 @@ pub(crate) mod package_policy_reading_tests {
             Generic => TypeReferenceNode::Generic { .. },
             ConstExpression => TypeReferenceNode::ConstExpression(_),
             DynamicTrait => TypeReferenceNode::DynamicTrait { .. },
+            Callable => TypeReferenceNode::Callable { .. },
             Named => TypeReferenceNode::Named { .. },
             Unit => TypeReferenceNode::Unit,
         });
@@ -6022,6 +6175,7 @@ pub(crate) mod result_dispatch_terms {
             | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::Generic { .. }
             | TypeReferenceNode::ConstExpression(_)
+            | TypeReferenceNode::Callable { .. }
             | TypeReferenceNode::DynamicTrait { .. }
             | TypeReferenceNode::Named { .. }
             | TypeReferenceNode::Unit => {}
@@ -8470,7 +8624,7 @@ impl TypedTrees {
     fn operator_callable_identity_parts(
         &self,
         operator: &crate::operator::OperatorDefinition,
-    ) -> callable_identity::CallableIdentityParts {
+    ) -> Option<callable_identity::CallableIdentityParts> {
         let path = self.operator_path_string(operator.name);
         let flags = self
             .operator_parameters(operator)
@@ -8483,14 +8637,14 @@ impl TypedTrees {
             })
             .collect::<Vec<_>>()
             .join(",");
-        callable_identity::CallableIdentityParts {
+        Some(callable_identity::CallableIdentityParts {
             path,
             parameters: format!(
                 "operands({});flags({flags})",
-                crate::operator::operator_operand_signature(self, operator)
+                crate::operator::operator_operand_signature(self, operator).ok()?
             ),
             result_dispatch: self.normalized_result_dispatch_set(operator.return_type),
-        }
+        })
     }
 
     fn named_callable_identity_parts(

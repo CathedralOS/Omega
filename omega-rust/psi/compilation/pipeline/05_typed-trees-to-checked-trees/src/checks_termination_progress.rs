@@ -1417,6 +1417,9 @@ mod machine_summaries {
             call.call_ordinal,
         )
         .ok_or("checked progress call lost its exact source occurrence")?;
+        if site.runtime_call().is_some() {
+            return site.runtime_signature(program);
+        }
         let target = site.target_symbol(program);
         let selected_application = match site {
             validation::CallSite::Expression { call, .. } => {

@@ -20,9 +20,20 @@ pub(crate) mod body_cloning {
             copied: &mut [typed_trees::types::TypeExpressionCopy],
         ) -> Result<(), super::TypeCopyError> {
             for copied in copied {
+                let intermediate_root = copied
+                    .expression
+                    .correspondence
+                    .iter()
+                    .find(|(_, destination)| *destination == copied.expression.root)
+                    .map(|(source, _)| *source)
+                    .ok_or(super::TypeCopyError("type copy lost its expression root"))?;
                 let staged = staged
                     .iter()
-                    .find(|staged| staged.destination == copied.source)
+                    .find(|staged| {
+                        staged.contract_expression == copied.contract_expression
+                            && (copied.contract_expression || staged.destination == copied.source)
+                            && staged.expression.root == intermediate_root
+                    })
                     .ok_or(super::TypeCopyError(
                         "type copy lost its staging occurrence",
                     ))?;
@@ -63,14 +74,38 @@ pub(crate) mod body_cloning {
                         })
                         .map(|(_, destination)| *destination),
                 );
+                let mapped = |original| {
+                    copied
+                        .expression
+                        .correspondence
+                        .iter()
+                        .find(|(source, _)| *source == original)
+                        .map(|(_, destination)| *destination)
+                        .ok_or(super::TypeCopyError(
+                            "copied constant root lost its invocation correspondence",
+                        ))
+                };
                 for (_, recipe) in source_program.constant_recipes.iter() {
-                    let RetainedConstantPosition::ConstApplication { site, .. } = recipe.position
-                    else {
-                        continue;
+                    let position = match recipe.position {
+                        RetainedConstantPosition::ConstApplication { site, .. }
+                            if !copied.contract_expression && site == copied.source =>
+                        {
+                            RetainedConstantPosition::ConstApplication {
+                                site: copied.destination,
+                                root: copied.expression.root,
+                            }
+                        }
+                        RetainedConstantPosition::ContractExpression(root)
+                            if copied
+                                .expression
+                                .correspondence
+                                .iter()
+                                .any(|(source, _)| *source == root) =>
+                        {
+                            RetainedConstantPosition::ContractExpression(mapped(root)?)
+                        }
+                        _ => continue,
                     };
-                    if site != copied.source {
-                        continue;
-                    }
                     let contexts = source_program
                         .constant_expression_contexts
                         .span_or_empty(recipe.contexts);
@@ -79,18 +114,6 @@ pub(crate) mod body_cloning {
                             "copied constant root lost its lexical context span",
                         ));
                     }
-                    let contexts = contexts.to_vec();
-                    let mapped = |original| {
-                        copied
-                            .expression
-                            .correspondence
-                            .iter()
-                            .find(|(source, _)| *source == original)
-                            .map(|(_, destination)| *destination)
-                            .ok_or(super::TypeCopyError(
-                                "copied constant root lost its invocation correspondence",
-                            ))
-                    };
                     let invocations =
                         expressions_of(source_program).expression_handles(recipe.invocations);
                     if invocations.len() != recipe.invocations.len() {
@@ -102,16 +125,10 @@ pub(crate) mod body_cloning {
                         .iter()
                         .map(|invocation| mapped(*invocation))
                         .collect::<Result<Vec<_>, _>>()?;
-                    pending.push((
-                        recipe.clone(),
-                        copied.destination,
-                        copied.expression.root,
-                        contexts,
-                        invocations,
-                    ));
+                    pending.push((recipe.clone(), position, contexts.to_vec(), invocations));
                 }
             }
-            for (recipe, site, root, contexts, invocations) in pending {
+            for (recipe, position, contexts, invocations) in pending {
                 let contexts = contexts
                     .into_iter()
                     .map(|context| {
@@ -127,7 +144,7 @@ pub(crate) mod body_cloning {
                     })
                     .collect::<Result<Vec<_>, super::TypeCopyError>>()?;
                 let recipe = RetainedConstantRecipe {
-                    position: RetainedConstantPosition::ConstApplication { site, root },
+                    position,
                     contexts: program.constant_expression_contexts.insert_many(contexts),
                     invocations: expressions_of_mut(program).insert_expression_handles(invocations),
                     machine: super::remapped_symbol(recipe.machine, &symbols),
@@ -2015,41 +2032,28 @@ pub(crate) mod body_cloning {
         let mut expressions = Vec::new();
         let copied = if let Some(source) = source {
             let tables = &mut program.tables;
-            tables.type_reference_table.copy_with_expressions(
-                &source.type_reference_table,
-                expressions_of(source),
-                &mut tables.expression_table,
+            tables.copy_type_reference_with_expressions(
+                &source.typed_program().tables,
                 type_reference,
                 &mut expressions,
             )
         } else {
             let mut staging = typed_trees::typed_trees::TypedTreeTables::default();
             let mut staged_expressions = Vec::new();
-            let staged = staging.type_reference_table.copy_with_expressions(
-                &program.type_reference_table,
-                expressions_of(program),
-                &mut staging.expression_table,
+            let staged = staging.copy_type_reference_with_expressions(
+                &program.tables,
                 type_reference,
                 &mut staged_expressions,
             );
             let tables = &mut program.tables;
-            let copied = tables.type_reference_table.copy_with_expressions(
-                &staging.type_reference_table,
-                &staging.expression_table,
-                &mut tables.expression_table,
-                staged,
-                &mut expressions,
-            );
+            let copied =
+                tables.copy_type_reference_with_expressions(&staging, staged, &mut expressions);
             constant_roots::compose_type_copies(&staged_expressions, &mut expressions)?;
             copied
         };
         {
             let tables = &mut program.tables;
-            tables.type_reference_table.remap_symbols_in(
-                copied,
-                &mut tables.expression_table,
-                symbols,
-            );
+            tables.remap_type_reference_symbols_in(copied, symbols);
         }
         constant_roots::copy_type_contexts(source, program, &expressions, symbols)?;
         Ok(copied)
@@ -4753,11 +4757,7 @@ pub(crate) mod body_rewriting {
                                 match role {
                                     typed_trees::data::TypeParameterKind::Value { .. } => {
                                         let tables = &mut program.tables;
-                                        tables.type_reference_table.remap_symbols_in(
-                                            argument,
-                                            &mut tables.expression_table,
-                                            realized,
-                                        );
+                                        tables.remap_type_reference_symbols_in(argument, realized);
                                     }
                                     typed_trees::data::TypeParameterKind::Type => {
                                         pending.push(argument)

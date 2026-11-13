@@ -4347,6 +4347,7 @@ pub(crate) mod trait_and_machine_tables {
                         TypeReferenceNode::Constrained { .. }
                         | TypeReferenceNode::FixedArray { .. }
                         | TypeReferenceNode::ConstExpression(_)
+                        | TypeReferenceNode::Callable { .. }
                         | TypeReferenceNode::DynamicTrait { .. } => self.closed = false,
                     }
                 }
@@ -5847,6 +5848,7 @@ pub(crate) mod type_reference_queries {
                         TypeReferenceNode::FixedArray { .. }
                         | TypeReferenceNode::Reference { .. }
                         | TypeReferenceNode::DynamicTrait { .. }
+                        | TypeReferenceNode::Callable { .. }
                         | TypeReferenceNode::Unit => return Some(1),
                         TypeReferenceNode::Named { symbol, .. }
                         | TypeReferenceNode::Generic {
@@ -6568,7 +6570,9 @@ pub(crate) mod type_reference_queries {
                         .map(|definition| definition.properties.multiplicity)
                         .unwrap_or(Multiplicity::Affine)
                 }
-                TypeReferenceNode::DynamicTrait { .. } => Multiplicity::Unrestricted,
+                TypeReferenceNode::Callable { .. } | TypeReferenceNode::DynamicTrait { .. } => {
+                    Multiplicity::Unrestricted
+                }
                 TypeReferenceNode::Slice { .. } => Multiplicity::Affine,
             }
         }

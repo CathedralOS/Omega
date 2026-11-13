@@ -416,7 +416,8 @@ pub mod operator {
                 } => lifetime.is_none() && closed_boundary_application_type(program, *referee),
                 TypeReferenceNode::Constrained { .. }
                 | TypeReferenceNode::ConstExpression(_)
-                | TypeReferenceNode::DynamicTrait { .. } => false,
+                | TypeReferenceNode::DynamicTrait { .. }
+                | TypeReferenceNode::Callable { .. } => false,
                 TypeReferenceNode::FixedArray {
                     element_type,
                     length: FixedArrayLength::Literal(_),
@@ -835,6 +836,9 @@ pub mod operator {
             program: &'program TypedTrees,
             call: &crate::expression::TableCallExpression,
         ) -> Option<&'program OperatorDefinition> {
+            if call.runtime_call.is_some() {
+                return None;
+            }
             if call.target_symbol.is_valid() {
                 return program.operator_definition_by_symbol(call.target_symbol);
             }
@@ -849,6 +853,9 @@ pub mod operator {
             program: &'program TypedTrees,
             call: &crate::expression::TableCallExpression,
         ) -> Vec<&'program OperatorDefinition> {
+            if call.runtime_call.is_some() {
+                return Vec::new();
+            }
             if call.target_symbol.is_valid() {
                 return program
                     .operators()
@@ -1006,6 +1013,9 @@ pub mod operator {
             program: &'program TypedTrees,
             call: &crate::statement::TableCall,
         ) -> Vec<&'program OperatorDefinition> {
+            if call.runtime_call.is_some() {
+                return Vec::new();
+            }
             if call.target_symbol.is_valid() {
                 return program
                     .operators()
@@ -1207,6 +1217,9 @@ pub mod operator {
             program: &TypedTrees,
             call: &'call crate::expression::TableCallExpression,
         ) -> Option<std::borrow::Cow<'call, str>> {
+            if call.runtime_call.is_some() {
+                return None;
+            }
             let receiver = if call.receiver.is_valid() {
                 match program.expression_table.expression(call.receiver) {
                     crate::expression::ExpressionNode::Name(path) => {
@@ -1229,6 +1242,9 @@ pub mod operator {
             program: &TypedTrees,
             call: &'call crate::statement::TableCall,
         ) -> Option<std::borrow::Cow<'call, str>> {
+            if call.runtime_call.is_some() {
+                return None;
+            }
             named_call_family_path(
                 program,
                 call.target.as_str(),
@@ -1282,32 +1298,53 @@ pub mod operator {
         pub fn operator_operand_signature(
             program: &TypedTrees,
             operator: &OperatorDefinition,
-        ) -> String {
-            let mut normalizer = TypeParameterNormalizer::new(
+        ) -> Result<String, crate::runtime_callable_identity::RuntimeCallableIdentityError>
+        {
+            operand_signature(
+                program,
                 program
                     .operator_type_parameters(operator)
                     .iter()
-                    .map(|parameter| parameter.symbol)
-                    .collect(),
-            );
-            let parameters = program.operator_parameters(operator);
-            for parameter in normalized_operand_parameters(parameters) {
-                collect_type_parameter_occurrences(
-                    program,
-                    parameter.type_reference,
-                    &mut normalizer,
-                );
-            }
+                    .map(|parameter| parameter.symbol),
+                program.operator_parameters(operator),
+            )
+        }
+
+        pub(crate) fn operand_signature(
+            program: &TypedTrees,
+            declared: impl Iterator<Item = SymbolHandle>,
+            parameters: &[crate::signature::StateParameter],
+        ) -> Result<String, crate::runtime_callable_identity::RuntimeCallableIdentityError>
+        {
+            let mut normalizer = TypeParameterNormalizer::new(declared.collect());
+            let callable_operands = normalized_operand_parameters(parameters)
+                .map(|parameter| {
+                    collect_type_parameter_occurrences(
+                        program,
+                        parameter.type_reference,
+                        &mut normalizer,
+                    )
+                })
+                .collect::<Vec<_>>();
             let binders = normalizer.bindings();
             normalized_operand_parameters(parameters)
-                .map(|parameter| {
-                    program.type_identity_request_text(TypeIdentityRequest {
+                .zip(callable_operands)
+                .map(|(parameter, contains_callable)| {
+                    if !program.contains_type_reference(parameter.type_reference) {
+                        return Err(crate::runtime_callable_identity::RuntimeCallableIdentityError::UnresolvedType);
+                    }
+                    let request = TypeIdentityRequest {
                         binders: &binders,
                         ..TypeIdentityRequest::ordinary(parameter.type_reference)
-                    })
+                    };
+                    if contains_callable {
+                        program.runtime_callable_operand_shape(request)
+                    } else {
+                        Ok(program.type_identity_request_text(request))
+                    }
                 })
-                .collect::<Vec<_>>()
-                .join(", ")
+                .collect::<Result<Vec<_>, _>>()
+                .map(|operands| operands.join(", "))
         }
 
         pub(crate) fn normalized_operand_parameters(
@@ -1316,44 +1353,238 @@ pub mod operator {
             parameters.iter()
         }
 
+        // Follow free occurrences in the callable's operand telescope, not its
+        // predicates or effects. Its own declarations shadow exact symbols;
+        // surrounding binders keep the order of their first free occurrence.
         pub(crate) fn collect_type_parameter_occurrences(
             program: &TypedTrees,
             type_reference: TypeReferenceHandle,
             normalizer: &mut TypeParameterNormalizer,
-        ) {
-            match program.type_reference_table.type_reference(type_reference) {
-                TypeReferenceNode::Reference { referee, .. } => {
-                    collect_type_parameter_occurrences(program, *referee, normalizer);
+        ) -> bool {
+            let mut occurrences = OperandOccurrences {
+                program,
+                normalizer,
+                active_types: Vec::new(),
+                active_expressions: Vec::new(),
+                active_signatures: Vec::new(),
+                contains_callable: false,
+            };
+            occurrences.reference(type_reference);
+            occurrences.contains_callable
+        }
+
+        struct OperandOccurrences<'program, 'normalizer> {
+            program: &'program TypedTrees,
+            normalizer: &'normalizer mut TypeParameterNormalizer,
+            active_types: Vec<TypeReferenceHandle>,
+            active_expressions: Vec<crate::expression::ExpressionHandle>,
+            active_signatures: Vec<&'program crate::signature::StateSignature>,
+            contains_callable: bool,
+        }
+
+        impl<'program> OperandOccurrences<'program, '_> {
+            fn reference(&mut self, reference: TypeReferenceHandle) {
+                let program = self.program;
+                if !program.contains_type_reference(reference)
+                    || self.active_types.contains(&reference)
+                {
+                    return;
                 }
-                TypeReferenceNode::Constrained { base_type, .. } => {
-                    collect_type_parameter_occurrences(program, *base_type, normalizer);
+                self.active_types.push(reference);
+                match program.type_reference_table.type_reference(reference) {
+                    TypeReferenceNode::Callable { contract } => {
+                        self.contains_callable = true;
+                        if program.runtime_callable_contracts.is_valid(*contract) {
+                            self.signature(
+                                &program.runtime_callable_contracts.get(*contract).signature,
+                            );
+                        }
+                    }
+                    TypeReferenceNode::Reference { referee, .. } => self.reference(*referee),
+                    TypeReferenceNode::Constrained {
+                        base_type,
+                        constraints,
+                    } => {
+                        self.reference(*base_type);
+                        for constraint in program.type_reference_table.constraints(*constraints) {
+                            if let crate::types::TypeConstraintNode::Domain(domain) = constraint {
+                                self.normalizer.canonical_index(domain.symbol);
+                                for argument in &domain.arguments {
+                                    self.reference(*argument);
+                                }
+                            }
+                        }
+                    }
+                    TypeReferenceNode::FixedArray {
+                        element_type,
+                        length,
+                    } => {
+                        self.reference(*element_type);
+                        match length {
+                            crate::types::FixedArrayLength::Literal(_) => {}
+                            crate::types::FixedArrayLength::ConstParameter { symbol, .. } => {
+                                self.normalizer.canonical_index(*symbol);
+                            }
+                            crate::types::FixedArrayLength::ConstCall { machine, .. } => {
+                                self.normalizer.canonical_index(*machine);
+                            }
+                            crate::types::FixedArrayLength::Expression(value) => {
+                                self.reference(*value)
+                            }
+                        }
+                    }
+                    TypeReferenceNode::Slice { element_type } => self.reference(*element_type),
+                    TypeReferenceNode::Generic {
+                        base_symbol,
+                        arguments,
+                        ..
+                    }
+                    | TypeReferenceNode::DynamicTrait {
+                        symbol: base_symbol,
+                        arguments,
+                        ..
+                    } => {
+                        self.normalizer.canonical_index(*base_symbol);
+                        for argument in program.type_reference_handles(*arguments) {
+                            self.reference(*argument);
+                        }
+                    }
+                    TypeReferenceNode::Named { symbol, .. } => {
+                        self.normalizer.canonical_index(*symbol);
+                    }
+                    TypeReferenceNode::ConstExpression(expression) => {
+                        crate::references::visit_expression(program, self, *expression);
+                    }
+                    TypeReferenceNode::Unit => {}
                 }
-                TypeReferenceNode::FixedArray { element_type, .. }
-                | TypeReferenceNode::Slice { element_type } => {
-                    collect_type_parameter_occurrences(program, *element_type, normalizer);
+                let extent = program
+                    .type_reference_table
+                    .array_extent_argument(reference);
+                if extent.is_valid() {
+                    self.reference(extent);
                 }
-                TypeReferenceNode::Generic {
-                    base_symbol,
-                    arguments,
-                    ..
-                } => {
-                    normalizer.canonical_index(*base_symbol);
-                    for argument in program.type_reference_handles(*arguments) {
-                        collect_type_parameter_occurrences(program, *argument, normalizer);
+                for application in program
+                    .type_reference_table
+                    .type_alias_applications(reference)
+                {
+                    for argument in program.type_reference_handles(application.arguments) {
+                        self.reference(*argument);
                     }
                 }
-                TypeReferenceNode::Named { symbol, .. }
-                | TypeReferenceNode::DynamicTrait { symbol, .. } => {
-                    normalizer.canonical_index(*symbol);
+                self.active_types.pop();
+            }
+
+            fn signature(&mut self, signature: &'program crate::signature::StateSignature) {
+                let program = self.program;
+                if self
+                    .active_signatures
+                    .iter()
+                    .any(|active| std::ptr::eq(*active, signature))
+                {
+                    return;
                 }
-                TypeReferenceNode::ConstExpression(_) => {}
-                TypeReferenceNode::Unit => {}
+                self.active_signatures.push(signature);
+                let generics = program.state_signature_type_parameters(signature);
+                let parameters = program.state_signature_parameters(signature);
+                let previous_mask = self.normalizer.masked.len();
+                self.normalizer
+                    .masked
+                    .extend(generics.iter().map(|parameter| parameter.symbol));
+                self.normalizer
+                    .masked
+                    .extend(parameters.iter().map(|parameter| parameter.symbol));
+                self.normalizer.masked.extend(
+                    signature
+                        .conformance_bounds
+                        .iter()
+                        .map(|bound| bound.binder),
+                );
+                for generic in generics {
+                    use crate::data::{MachineParameterContract, TypeParameterKind};
+                    match &generic.kind {
+                        TypeParameterKind::Type | TypeParameterKind::Implementation => {}
+                        TypeParameterKind::Const { type_reference }
+                        | TypeParameterKind::Value { type_reference } => {
+                            self.reference(*type_reference)
+                        }
+                        TypeParameterKind::Machine { contract } => match contract {
+                            MachineParameterContract::Structural(nested) => self.signature(nested),
+                            MachineParameterContract::Nominal {
+                                instantiated: Some(nested),
+                                ..
+                            } => self.signature(nested),
+                            MachineParameterContract::Nominal {
+                                receiving_arguments,
+                                trait_arguments,
+                                ..
+                            } => {
+                                for argument in receiving_arguments.iter().chain(trait_arguments) {
+                                    self.reference(*argument);
+                                }
+                            }
+                            MachineParameterContract::RequirementIdentity => {}
+                        },
+                        TypeParameterKind::Proposition { contract } => {
+                            let formals =
+                                program.state_parameters.span_or_empty(contract.parameters);
+                            let previous = self.normalizer.masked.len();
+                            self.normalizer
+                                .masked
+                                .extend(formals.iter().map(|formal| formal.symbol));
+                            for formal in formals {
+                                self.reference(formal.type_reference);
+                            }
+                            self.normalizer.masked.truncate(previous);
+                        }
+                    }
+                }
+                for parameter in parameters {
+                    self.reference(parameter.type_reference);
+                }
+                self.reference(signature.return_type);
+                self.normalizer.masked.truncate(previous_mask);
+                self.active_signatures.pop();
+            }
+        }
+
+        impl Extend<SymbolHandle> for OperandOccurrences<'_, '_> {
+            fn extend<Symbols: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: Symbols) {
+                for symbol in symbols {
+                    self.normalizer.canonical_index(symbol);
+                }
+            }
+        }
+
+        impl crate::references::TypedReferences for OperandOccurrences<'_, '_> {
+            fn derived_declaration_references(&self) -> bool {
+                false
+            }
+            fn callable_contract(
+                &mut self,
+                _: crate::callable_values::RuntimeCallableContractHandle,
+            ) -> bool {
+                false
+            }
+            fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
+                self.reference(reference);
+                false
+            }
+            fn expression(&mut self, expression: crate::expression::ExpressionHandle) -> bool {
+                if self.active_expressions.contains(&expression) {
+                    return false;
+                }
+                self.active_expressions.push(expression);
+                true
+            }
+            fn leave_expression(&mut self, _: crate::expression::ExpressionHandle) {
+                self.active_expressions.pop();
             }
         }
 
         pub(crate) struct TypeParameterNormalizer {
             declared: Vec<SymbolHandle>,
             canonical: Vec<(SymbolHandle, usize)>,
+            masked: Vec<SymbolHandle>,
         }
 
         impl TypeParameterNormalizer {
@@ -1361,11 +1592,12 @@ pub mod operator {
                 Self {
                     declared,
                     canonical: Vec::new(),
+                    masked: Vec::new(),
                 }
             }
 
             fn canonical_index(&mut self, symbol: SymbolHandle) -> Option<usize> {
-                if !self.declared.contains(&symbol) {
+                if self.masked.contains(&symbol) || !self.declared.contains(&symbol) {
                     return None;
                 }
                 if let Some((_, index)) = self
@@ -2190,6 +2422,11 @@ pub mod operator {
             }
             let closed = |reference| closed_multiplicity_carrier(program, reference, depth + 1);
             match program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Callable { .. } => program
+                    .runtime_callable_type_identity(
+                        crate::type_identity::TypeIdentityRequest::ordinary(reference),
+                    )
+                    .is_ok(),
                 TypeReferenceNode::Unit => true,
                 TypeReferenceNode::Constrained { base_type, .. } => closed(*base_type),
                 TypeReferenceNode::Reference {
@@ -3001,10 +3238,7 @@ pub mod operator {
     }
     pub(crate) mod trait_operators {
         use crate::TypedTrees;
-        use crate::declarations::operator::operand_signatures::{
-            TypeParameterNormalizer, collect_type_parameter_occurrences,
-            normalized_operand_parameters,
-        };
+        use crate::declarations::operator::operand_signatures::normalized_operand_parameters;
         use crate::declarations::operator::type_matching::{
             closed_const_identity_from_type_reference, type_reference_matches_with_policy,
         };
@@ -3436,33 +3670,17 @@ pub mod operator {
             program: &TypedTrees,
             trait_definition: &crate::trait_definition::TraitDefinition,
             requirement: &crate::signature::StateSignature,
-        ) -> String {
-            let mut normalizer = TypeParameterNormalizer::new(
+        ) -> Result<String, crate::runtime_callable_identity::RuntimeCallableIdentityError>
+        {
+            super::operand_signatures::operand_signature(
+                program,
                 program
                     .trait_type_parameters(trait_definition)
                     .iter()
                     .chain(program.state_signature_type_parameters(requirement))
-                    .map(|parameter| parameter.symbol)
-                    .collect(),
-            );
-            let parameters = program.state_signature_parameters(requirement);
-            for parameter in normalized_operand_parameters(parameters) {
-                collect_type_parameter_occurrences(
-                    program,
-                    parameter.type_reference,
-                    &mut normalizer,
-                );
-            }
-            let binders = normalizer.bindings();
-            normalized_operand_parameters(parameters)
-                .map(|parameter| {
-                    program.type_identity_request_text(TypeIdentityRequest {
-                        binders: &binders,
-                        ..TypeIdentityRequest::ordinary(parameter.type_reference)
-                    })
-                })
-                .collect::<Vec<_>>()
-                .join(", ")
+                    .map(|parameter| parameter.symbol),
+                program.state_signature_parameters(requirement),
+            )
         }
 
         pub(crate) fn abstract_requirement_may_have_operator_bound(

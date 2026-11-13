@@ -1,10 +1,7 @@
-// Runtime implementation selection: one helper dispatches through a selector
-// it receives as an ordinary parameter, and two call sites pass different
-// named implementations of `Shape<Item>` with the same explicitly passed
-// data. The selector names an implementation; it carries no data
-// ([dynamic dispatch](../../../../../wiki/spec/terminal-psi/dynamic_dispatch.md)).
-// CircleShape reports 9 and SquareShape reads the item's 4 sides:
-// 9 * 10 + 4 == 94 -> exit 70.
+// One helper calls the machine value it receives with the explicit item.
+// Two selections must remain distinct: 9 * 10 + 4 == 94 -> exit 70.
+// The parameter name also checks that a local callable takes priority over
+// the builtin named `abs`. A fixed target or builtin call takes exit 71.
 use omega_language_std::console;
 
 trait Shape<T> {
@@ -37,8 +34,8 @@ data Main {
 
 machine Main::main(main: &mut Main) reaches Console {
     main.item.sides = 4;
-    let a: i32 = Main::dispatch(CircleShape as dyn Shape<Item>, &mut main.item);
-    let b: i32 = Main::dispatch(SquareShape as dyn Shape<Item>, &mut main.item);
+    let a: i32 = Main::dispatch(CircleShape::code, &mut main.item);
+    let b: i32 = Main::dispatch(SquareShape::code, &mut main.item);
     let n: i32 in Wrapping = (a as i32 in Wrapping) * 10 + (b as i32 in Wrapping);
     transition n == 94 {
         true -> good(main)
@@ -54,8 +51,8 @@ machine Main::main(main: &mut Main) reaches Console {
     }
 }
 
-machine Main::dispatch(shape: dyn Shape<Item>, item: &mut Item) -> i32 {
-    Shape::code(shape, item)
+machine Main::dispatch(abs: machine(subject: &mut Item) -> i32 reaches none crashes none, item: &mut Item) -> i32 {
+    abs(item)
 }
 
 // The entry owns ordinary local state; selection supplies no context.

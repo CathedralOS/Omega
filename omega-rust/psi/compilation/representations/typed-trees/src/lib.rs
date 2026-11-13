@@ -200,6 +200,9 @@ pub mod boundary_values {
                 TypeReferenceNode::ConstExpression(_) => BoundaryValueRecipe::Rejected(
                     "a proof-static index expression is not a boundary value shape".into(),
                 ),
+                TypeReferenceNode::Callable { .. } => BoundaryValueRecipe::Rejected(
+                    "a local machine value needs an explicit callback proxy at a boundary".into(),
+                ),
                 TypeReferenceNode::Unit => {
                     BoundaryValueRecipe::Rejected("unit is not a boundary value shape".into())
                 }
@@ -750,7 +753,11 @@ pub(crate) mod build_selections {
         }
     }
 }
+mod callable_copies;
+pub mod callable_values;
+pub mod contract_structure;
 pub mod references;
+pub mod runtime_callable_identity;
 pub mod service_declarations;
 pub use service_declarations::provider_declarations;
 mod access_views_and_commitments;
@@ -1431,6 +1438,8 @@ pub struct DesignatedStaticTypeArgument {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TypedTreeTables {
+    pub runtime_callable_contracts: Arena<crate::callable_values::RuntimeCallableContract>,
+    pub runtime_callable_lowering: crate::callable_values::RuntimeCallableLowering,
     pub designated_static_type_arguments: Arena<DesignatedStaticTypeArgument>,
     pub retained_product_application_handles: Arena<Handle<ProductOperandApplication>>,
     pub product_input_selections: Arena<crate::product_operand::ProductInputSelection>,

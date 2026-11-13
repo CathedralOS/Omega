@@ -1227,6 +1227,7 @@ pub(crate) mod construction_destinations {
 
     struct ConstructionCall {
         target: SymbolHandle,
+        runtime_contract: Option<typed_trees::callable_values::RuntimeCallableContractHandle>,
         static_arguments: Vec<StaticMachineArgument>,
         arguments: Vec<ExpressionHandle>,
     }
@@ -1279,6 +1280,7 @@ pub(crate) mod construction_destinations {
                         collect_call_destinations(
                             program,
                             call.target_symbol,
+                            call.runtime_call.map(|binding| binding.contract),
                             &call.machine_arguments,
                             arguments,
                             &mut calls,
@@ -1336,6 +1338,7 @@ pub(crate) mod construction_destinations {
                         StatementNode::Call(call) => collect_call_destinations(
                             program,
                             call.target_symbol,
+                            call.runtime_call.map(|binding| binding.contract),
                             &call.machine_arguments,
                             program.statement_table.expression_handles(call.arguments),
                             &mut calls,
@@ -1364,6 +1367,7 @@ pub(crate) mod construction_destinations {
                                         collect_call_destinations(
                                             program,
                                             path.symbol,
+                                            None,
                                             &[],
                                             program.statement_table.expression_handles(*arguments),
                                             &mut calls,
@@ -1383,7 +1387,15 @@ pub(crate) mod construction_destinations {
         }
 
         for call in calls {
-            let binders = program.declaration_type_parameters(call.target).to_vec();
+            let binders = if let Some(contract) = call.runtime_contract {
+                program
+                    .state_signature_type_parameters(
+                        &program.runtime_callable_contracts.get(contract).signature,
+                    )
+                    .to_vec()
+            } else {
+                program.declaration_type_parameters(call.target).to_vec()
+            };
             if binders.len() != call.static_arguments.len() {
                 continue;
             }
@@ -1394,7 +1406,15 @@ pub(crate) mod construction_destinations {
                     .map_err(Diagnostic::error)?;
                 substitutions.push((binder.symbol, actual));
             }
-            let Some(parameters) = validation::call_target_parameters(program, call.target) else {
+            let parameters = if let Some(contract) = call.runtime_contract {
+                program.state_signature_parameters(
+                    &program.runtime_callable_contracts.get(contract).signature,
+                )
+            } else if let Some(parameters) =
+                validation::call_target_parameters(program, call.target)
+            {
+                parameters
+            } else {
                 continue;
             };
             let required: Vec<_> = parameters
@@ -1438,11 +1458,12 @@ pub(crate) mod construction_destinations {
     fn collect_call_destinations(
         program: &TypedTrees,
         target_symbol: SymbolHandle,
+        runtime_contract: Option<typed_trees::callable_values::RuntimeCallableContractHandle>,
         static_arguments: &[StaticMachineArgument],
         arguments: &[ExpressionHandle],
         calls: &mut Vec<ConstructionCall>,
     ) {
-        if !target_symbol.is_valid()
+        if (!target_symbol.is_valid() && runtime_contract.is_none())
             || !arguments
                 .iter()
                 .any(|argument| needs_destination(program, *argument))
@@ -1451,6 +1472,7 @@ pub(crate) mod construction_destinations {
         }
         calls.push(ConstructionCall {
             target: target_symbol,
+            runtime_contract,
             static_arguments: static_arguments.to_vec(),
             arguments: arguments.to_vec(),
         });
@@ -1459,7 +1481,9 @@ pub(crate) mod construction_destinations {
     fn needs_destination(program: &TypedTrees, value: ExpressionHandle) -> bool {
         value.is_valid()
             && match program.expression_table.expression(value) {
-                ExpressionNode::StructLiteral(_)
+                ExpressionNode::Name(_)
+                | ExpressionNode::MachineValue(_)
+                | ExpressionNode::StructLiteral(_)
                 | ExpressionNode::String(_)
                 | ExpressionNode::ArrayLiteral(_)
                 | ExpressionNode::Match(_) => true,
@@ -1476,6 +1500,14 @@ pub(crate) mod construction_destinations {
         cast_destinations: &mut Vec<TypeReferenceHandle>,
     ) -> Result<(), Diagnostic> {
         if !value.is_valid() || !destination.is_valid() {
+            return Ok(());
+        }
+        if crate::runtime_callables::prepare_named_value(
+            program,
+            value,
+            destination,
+            lifetime_owner,
+        )? {
             return Ok(());
         }
         if let Some(dispatch) = program.expression_table.match_node(value) {

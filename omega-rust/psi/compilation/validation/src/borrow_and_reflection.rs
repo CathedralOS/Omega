@@ -1624,6 +1624,7 @@ pub mod borrow_contracts {
                 return true;
             }
             match program.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Callable { .. } => true,
                 TypeReferenceNode::Reference {
                     access,
                     lifetime,
@@ -3881,6 +3882,30 @@ pub mod reflection {
                 };
 
                 match typed.type_reference_table.type_reference(type_reference) {
+                    TypeReferenceNode::Callable { contract } => {
+                        typed
+                            .runtime_callable_type_identity(
+                                typed_trees::type_identity::TypeIdentityRequest::ordinary(
+                                    type_reference,
+                                ),
+                            )
+                            .map_err(|error| error.to_string())?;
+                        let inputs = typed_trees::references::signature_type_inputs(
+                            typed,
+                            &typed.runtime_callable_contract(*contract).signature,
+                        );
+                        for reference in inputs.types {
+                            if reference != type_reference {
+                                collect_nominal_expectations(
+                                    typed,
+                                    reference,
+                                    root_owner_identity,
+                                    root_application_identity,
+                                    found,
+                                )?;
+                            }
+                        }
+                    }
                     TypeReferenceNode::Named { symbol, name } => {
                         intern(*symbol, name.as_str(), type_reference, true)?;
                     }

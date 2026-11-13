@@ -1248,6 +1248,7 @@ pub mod borrow {
         pub statement_index: usize,
         pub call_ordinal: usize,
         pub authored_expression: ExpressionHandle,
+        pub runtime_call: Option<typed_trees::callable_values::RuntimeCallBinding>,
         pub input_reference_loans: Option<HandleSpan<arena::Handle<BorrowLoanFact>>>,
         pub reference_slot_effects: HandleSpan<BorrowCallReferenceSlotEffect>,
         pub completed_reference_loans: HandleSpan<BorrowLoanFact>,

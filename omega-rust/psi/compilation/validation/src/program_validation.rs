@@ -4083,6 +4083,7 @@ fn validate<'program>(
     {
         diagnostics.append(&mut errors);
     }
+    crate::validate_runtime_callable_effects(program, &mut diagnostics);
     if let Err(message) = crate::validate_boundary_completion_declarations(program) {
         diagnostics.push(Diagnostic::error(message));
     }

@@ -948,46 +948,15 @@ pub(crate) mod contract_plans {
         use std::hash::{Hash, Hasher};
         use typed_trees::type_identity::{NormalizedTypeIdentity, TypeIdentityTable};
 
-        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-        pub enum DeclaredContractFact {
-            Expression(String),
-            Membership {
-                value: String,
-                domain: String,
-                arguments: Vec<NormalizedTypeIdentity>,
-            },
-            Proposition(String),
-            ContentConservation(Vec<u8>),
-        }
-
-        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-        pub enum DeclaredContractKind {
-            Requires,
-            Ensures,
-            EnsuresForResultCase { data: String, case: String },
-            Crashes(super::CrashCause),
-        }
-
-        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-        pub struct DeclaredContractClause {
-            pub kind: DeclaredContractKind,
-            pub fact: Option<DeclaredContractFact>,
-        }
-
-        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-        pub struct DeclaredContractParameter {
-            pub mutable: bool,
-            pub constant: bool,
-            pub relevance: language_core::BindingRelevance,
-            pub type_identity: NormalizedTypeIdentity,
-        }
-
-        #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-        pub struct DeclaredCallableContract {
-            pub parameters: Vec<DeclaredContractParameter>,
-            pub result: NormalizedTypeIdentity,
-            pub clauses: Vec<DeclaredContractClause>,
-        }
+        pub use typed_trees::contract_structure::{
+            DeclaredContractFact, DeclaredContractParameter,
+        };
+        pub type DeclaredContractKind =
+            typed_trees::contract_structure::DeclaredContractKind<super::CrashCause>;
+        pub type DeclaredContractClause =
+            typed_trees::contract_structure::DeclaredContractClause<super::CrashCause>;
+        pub type DeclaredCallableContract =
+            typed_trees::contract_structure::DeclaredCallableContract<super::CrashCause>;
 
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct DeclaredContractStructure {
@@ -2727,6 +2696,10 @@ pub(crate) mod contract_plans {
 
         #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
         pub struct CrashContractCapsule {
+            runtime_callable_source: Option<(
+                typed_trees::callable_values::RuntimeCallableContractHandle,
+                SymbolHandle,
+            )>,
             pub(crate) target_machine: SymbolHandle,
             pub(crate) target_state: SymbolHandle,
             target_contract_report_fingerprint: u64,
@@ -2764,6 +2737,7 @@ pub(crate) mod contract_plans {
             ) -> Self {
                 published_buckets = sorted_dedup(published_buckets);
                 Self {
+                    runtime_callable_source: None,
                     target_machine,
                     target_state,
                     target_contract_report_fingerprint,
@@ -2775,6 +2749,24 @@ pub(crate) mod contract_plans {
                     published_termination: TerminationGuarantee::NoGuarantee,
                     published_buckets,
                 }
+            }
+
+            pub fn with_runtime_callable_source(
+                mut self,
+                contract: typed_trees::callable_values::RuntimeCallableContractHandle,
+                lexical_owner: SymbolHandle,
+            ) -> Self {
+                self.runtime_callable_source = Some((contract, lexical_owner));
+                self
+            }
+
+            pub fn runtime_callable_source(
+                &self,
+            ) -> Option<(
+                typed_trees::callable_values::RuntimeCallableContractHandle,
+                SymbolHandle,
+            )> {
+                self.runtime_callable_source
             }
 
             pub fn with_operational_envelope(
@@ -2867,11 +2859,24 @@ pub(crate) mod contract_plans {
                     return Err("requirement call has a mismatched checked executable binding");
                 }
                 let public = proof.call_contract_signatures.get(binding.signature);
+                let declaring_trait = match public.source {
+                    crate::CallContractSignatureSource::Requirement { declaring_trait } => {
+                        declaring_trait
+                    }
+                    crate::CallContractSignatureSource::Runtime { .. } => {
+                        return Err(
+                            "runtime callable requires an indirect executable contract identity",
+                        );
+                    }
+                    crate::CallContractSignatureSource::Invalid => {
+                        return Err("checked call has no public contract source");
+                    }
+                };
                 if public.caller_machine_symbol != caller_machine
                     || public.caller_state_symbol != self.location.state
                     || public.statement_index != self.location.statement_ordinal as usize
                     || public.call_ordinal != self.location.call_ordinal as usize
-                    || self.target_machine != public.declaring_trait
+                    || self.target_machine != declaring_trait
                     || self.target_state != public.signature.symbol
                 {
                     return Err("requirement crash check belongs to another public call");
@@ -3694,8 +3699,23 @@ pub(crate) mod contract_plans {
             target_state: SymbolHandle,
         ) -> Option<&CrashContractCapsule> {
             self.crash_capsules.iter().find(|capsule| {
-                capsule.target_machine == target_machine && capsule.target_state == target_state
+                capsule.runtime_callable_source().is_none()
+                    && capsule.target_machine == target_machine
+                    && capsule.target_state == target_state
             })
+        }
+
+        pub fn runtime_callable_crash_capsule(
+            &self,
+            contract: typed_trees::callable_values::RuntimeCallableContractHandle,
+        ) -> Option<&CrashContractCapsule> {
+            let mut capsules = self.crash_capsules.iter().filter(|capsule| {
+                capsule
+                    .runtime_callable_source()
+                    .is_some_and(|(retained, _)| retained == contract)
+            });
+            let selected = capsules.next()?;
+            capsules.next().is_none().then_some(selected)
         }
 
         pub fn realized_envelope(

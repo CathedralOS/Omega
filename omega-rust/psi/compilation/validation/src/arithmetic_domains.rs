@@ -3133,7 +3133,10 @@ pub(crate) mod cited_element_bounds {
         written: Option<&[String]>,
         environment: &mut ValueEnvironment,
     ) {
-        if !call.receiver.is_empty() || call.static_requirement_dispatch.is_some() {
+        if call.runtime_call.is_some()
+            || !call.receiver.is_empty()
+            || call.static_requirement_dispatch.is_some()
+        {
             return;
         }
         let (target, static_arguments) = if call.authored_machine_application.is_valid() {
@@ -12135,7 +12138,7 @@ pub(crate) mod guard_narrowing {
                         }
                     }
                     ExpressionNode::Call(call) => {
-                        self.expression(source, call.receiver, environment);
+                        self.expression(source, call.evaluated_callee(), environment);
                         let arguments =
                             expression_table(self.program).expression_handles(call.arguments);
                         self.visit_call_or_target(
@@ -12205,7 +12208,8 @@ pub(crate) mod guard_narrowing {
                             }
                         }
                     }
-                    ExpressionNode::TypeExpression(_)
+                    ExpressionNode::MachineValue(_)
+                    | ExpressionNode::TypeExpression(_)
                     | ExpressionNode::SavedSubject(_)
                     | typed_trees::literal_expression_pattern!() => {}
                 }
@@ -12380,7 +12384,7 @@ pub(crate) mod guard_narrowing {
                         if is_machine_state(call.target_symbol) {
                             return true;
                         }
-                        stack.push(call.receiver);
+                        stack.push(call.evaluated_callee());
                         stack.extend_from_slice(
                             expression_table(program).expression_handles(call.arguments),
                         );
@@ -12412,7 +12416,8 @@ pub(crate) mod guard_narrowing {
                             stack.push(field.value);
                         }
                     }
-                    ExpressionNode::TypeExpression(_)
+                    ExpressionNode::MachineValue(_)
+                    | ExpressionNode::TypeExpression(_)
                     | ExpressionNode::SavedSubject(_)
                     | typed_trees::literal_expression_pattern!() => {}
                 }
@@ -24643,7 +24648,7 @@ pub(crate) mod total_specification {
                     numeric_coercion(cast.value, cast.target_type, diagnostics);
                 }
                 ExpressionNode::Call(call) => {
-                    recurse(call.receiver, diagnostics, visited);
+                    recurse(call.evaluated_callee(), diagnostics, visited);
                     for argument in expression_table(program).expression_handles(call.arguments) {
                         recurse(*argument, diagnostics, visited);
                     }

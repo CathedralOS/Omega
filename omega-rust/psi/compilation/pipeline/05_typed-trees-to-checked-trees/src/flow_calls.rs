@@ -216,6 +216,7 @@ pub(super) fn build_call_flow_fact<'plans>(
         invocation_storage: Default::default(),
         completed_storage: Default::default(),
         authored_expression: Default::default(),
+        runtime_call: borrow_call.runtime_call,
         authored_site: Default::default(),
         authored_target: Default::default(),
         authored_arguments: HandleSpan::empty(),

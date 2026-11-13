@@ -786,6 +786,9 @@ pub mod product_operand {
                 }
                 self.active_types.push(reference);
                 let value = match program.type_reference_table.type_reference(reference) {
+                    types::TypeReferenceNode::Callable { .. } => return Err(
+                        "a captured Build type needs the complete machine contract; the static operand format cannot retain it".into(),
+                    ),
                     types::TypeReferenceNode::Unit => ProductOperandType::Unit,
                     types::TypeReferenceNode::Named { symbol, name } => {
                         if !symbol.is_valid()
@@ -1131,6 +1134,9 @@ pub mod product_operand {
                         }
                     }
                     expr::ExpressionNode::Call(call) => {
+                        if call.runtime_call.is_some() {
+                            return Err("a runtime callable invocation must retain its checked materialized value before Product capture".into());
+                        }
                         if call.native_code_layout.is_some() {
                             return Err("an executed static layout actual must retain its materialized value before Product capture".into());
                         }

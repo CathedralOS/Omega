@@ -6564,8 +6564,113 @@ pub(crate) mod evidence_lowering {
             LoweringError,
         > {
             let Some(runtime_call) = invocation.runtime_call else {
+                if !invocation.target_machine_symbol.is_valid()
+                    || !invocation.target_state_symbol.is_valid()
+                {
+                    return unsupported(
+                        "proof-output invocation has no exact executable contract source",
+                    );
+                }
                 return Ok((None, None));
             };
+            let site = validation::find_call_site(
+                &checked.typed,
+                invocation.caller_machine_symbol,
+                invocation.caller_state_symbol,
+                runtime_call.statement_index,
+                runtime_call.call_ordinal,
+            )
+            .ok_or(LoweringError::Unsupported(
+                "proof-output invocation lost its exact typed source occurrence",
+            ))?;
+            let retained_call = checked.facts.proof.contract_call_at(&(
+                invocation.caller_machine_symbol,
+                invocation.caller_state_symbol,
+                runtime_call.statement_index,
+                runtime_call.call_ordinal,
+            ));
+            let retained_source = retained_call
+                .filter(|call| {
+                    checked
+                        .facts
+                        .proof
+                        .call_contract_signatures
+                        .is_valid(call.signature)
+                })
+                .map(|call| {
+                    checked
+                        .facts
+                        .proof
+                        .call_contract_signatures
+                        .get(call.signature)
+                });
+            let source = validation::call_contract_source(
+                &checked.typed,
+                invocation.caller_machine_symbol,
+                &site,
+            )
+            .map_err(LoweringError::Unsupported)?;
+            if let Some(validation::CallContractSource::Runtime { binding, contract }) = source {
+                let retained = retained_source.ok_or(LoweringError::Unsupported(
+                    "runtime proof-output invocation has no retained exact contract row",
+                ))?;
+                let source_expression = match site {
+                    validation::CallSite::Expression { expression, .. } => expression,
+                    _ => Default::default(),
+                };
+                let source_state = checked
+                    .typed
+                    .state_by_symbol(invocation.caller_state_symbol)
+                    .ok_or(LoweringError::Unsupported(
+                        "runtime proof-output caller state is absent",
+                    ))?;
+                let source_statement = (runtime_call.statement_index
+                    < source_state.statement_nodes.len())
+                .then(|| {
+                    source_state
+                        .statement_nodes
+                        .handle_at(runtime_call.statement_index as u32)
+                })
+                .ok_or(LoweringError::Unsupported(
+                    "runtime proof-output source statement is absent",
+                ))?;
+                if retained.source
+                    != (checked_trees::CallContractSignatureSource::Runtime {
+                        contract: binding.contract,
+                        lexical_owner: contract.lexical_owner,
+                        callee: binding.callee,
+                    })
+                    || retained.signature != contract.signature
+                    || retained.caller_machine_symbol != invocation.caller_machine_symbol
+                    || retained.caller_state_symbol != invocation.caller_state_symbol
+                    || retained.statement_index != runtime_call.statement_index
+                    || retained.call_ordinal != runtime_call.call_ordinal
+                    || retained.source_statement != source_statement
+                    || retained.source_expression != source_expression
+                    || retained.source_target.is_valid()
+                    || invocation.target_machine_symbol.is_valid()
+                    || invocation.target_state_symbol.is_valid()
+                    || invocation.static_requirement_dispatch.is_some()
+                {
+                    return unsupported(
+                        "runtime proof-output invocation lost its exact retained contract source",
+                    );
+                }
+                return unsupported(
+                    "runtime proof-output call requires an emitted indirect invocation contract",
+                );
+            }
+            if retained_source.is_some_and(|retained| {
+                matches!(
+                    retained.source,
+                    checked_trees::CallContractSignatureSource::Runtime { .. },
+                )
+            }) {
+                return unsupported(
+                    "proof-output invocation changed its retained runtime contract source",
+                );
+            }
+
             let mut matching = occurrences.iter().filter(|occurrence| {
                 occurrence.matches_statement(
                     invocation.caller_state_symbol,

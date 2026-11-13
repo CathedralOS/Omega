@@ -4087,11 +4087,7 @@ pub(crate) mod result_locals {
                 )
                 .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
             let tables = &mut program.tables;
-            tables.type_reference_table.remap_symbols_in(
-                selected_return,
-                &mut tables.expression_table,
-                &forwarded_symbols,
-            );
+            tables.remap_type_reference_symbols_in(selected_return, &forwarded_symbols);
             let evidence_rewrites =
                 crate::monomorphization::body_rewriting::evidence_argument_rewrites(
                     program, &candidate,
@@ -4223,21 +4219,20 @@ pub(crate) mod result_locals {
         // `Source<Actors>` in the reader's binders: substitution follows
         // declaration identity through field types, const and value arguments
         // included (spec/language/generics.md, closed applications). Instantiate
-        // from the innermost receiver outward. `instantiate` writes new rows only
-        // where a binder changes, so no declaration's own field type is rewritten;
-        // a binder it cannot express (a const array length) keeps the declared type.
+        // from the innermost receiver outward. The complete typed-table owner
+        // also substitutes nested machine contracts without rewriting the
+        // declaration's own field type.
         let updates = updates
             .into_iter()
             .map(|(mut update, receivers)| {
                 for bindings in receivers {
                     update.type_reference = program
-                        .type_reference_table
-                        .instantiate(update.type_reference, &bindings)
-                        .unwrap_or(update.type_reference);
+                        .instantiate_type_reference(update.type_reference, &bindings)
+                        .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
                 }
-                update
+                Ok(update)
             })
-            .collect();
+            .collect::<Result<Vec<_>, Vec<diagnostics::Diagnostic>>>()?;
         Ok(apply_updates(program, updates))
     }
 

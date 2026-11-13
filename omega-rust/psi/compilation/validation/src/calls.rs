@@ -2520,7 +2520,7 @@ pub(crate) mod expression_scanning {
                     self.diagnostics,
                 );
                 match expression_table(program).expression(expression) {
-                    ExpressionNode::SavedSubject(_) => {}
+                    ExpressionNode::SavedSubject(_) | ExpressionNode::MachineValue(_) => {}
                     ExpressionNode::Match(dispatch) => {
                         for arm in expression_table(program).match_arms(dispatch.arms) {
                             if let typed_trees::expression::MatchPattern::Destructure(pattern) =
@@ -2636,6 +2636,9 @@ pub(crate) mod expression_scanning {
                     }
                     ExpressionNode::Call(call) => {
                         let call = call.clone();
+                        if let Some(runtime) = call.runtime_call {
+                            self.scan(runtime.callee, value_environment, executes);
+                        }
                         if executes
                             && call.exact_coercion_target.is_valid()
                             && let [operand] =
@@ -2681,7 +2684,7 @@ pub(crate) mod expression_scanning {
                             self.diagnostics,
                             self.formation_obligations,
                         );
-                        if call.receiver.is_valid()
+                        if call.runtime_call.is_none() && call.receiver.is_valid()
                 && !is_declaration_namespace(program, call.receiver)
                 && !crate::declarations::operators::namespaces::expression_call_has_operator_namespace(program, &call)
                 && !crate::machine_calls::calls::generic_requirement::expression_conformance_receiver(
@@ -3041,6 +3044,29 @@ pub(crate) mod expression_scanning {
         diagnostics: &mut Vec<Diagnostic>,
         formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
     ) {
+        if call.runtime_call.is_some() {
+            let site = CallSite::Expression { expression, call };
+            if let Some(signature) = super::runtime_calls::validate_arguments(
+                program,
+                current_machine,
+                Some(current_state),
+                value_environment,
+                &site,
+                writable_roots,
+                diagnostics,
+                formation_obligations,
+            ) {
+                let unit_completion = matches!(expression_use, CallExpressionUse::Statement)
+                    || (matches!(expression_use, CallExpressionUse::TerminalResult)
+                        && super::unit_type(program, current_state.return_type));
+                if !unit_completion && super::unit_type(program, signature.return_type) {
+                    diagnostics.push(Diagnostic::error(
+                        "machine value does not return a value but is used in a value position",
+                    ));
+                }
+            }
+            return;
+        }
         // A checked mathematical application in an erased initializer has no
         // machine entry or executable call obligations. Relevance still visits
         // every operand and rejects runtime effects or escaped evidence.
@@ -3427,7 +3453,7 @@ pub(crate) mod expression_scanning {
                     signature.name,
                 )));
                 }
-                super::validate_machine_parameter_arguments(
+                super::validate_signature_arguments(
                     program,
                     current_machine,
                     Some(current_state),
@@ -4395,12 +4421,56 @@ pub(crate) mod inline_assembly {
         );
     }
 }
-pub(crate) mod machine_parameter_arguments {
+pub(crate) mod runtime_calls {
+    use super::*;
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn validate_arguments<'program>(
+        program: &'program dyn crate::CheckingInput,
+        machine: &Machine,
+        state: Option<&State>,
+        environment: &ValueEnvironment,
+        site: &CallSite<'program>,
+        writable: &WritableRoots<'_, '_>,
+        diagnostics: &mut Vec<Diagnostic>,
+        formations: &mut Vec<checked_trees::IntegerRangeObligation>,
+    ) -> Option<&'program typed_trees::signature::StateSignature> {
+        let source = match call_contract_source(program, machine.symbol, site) {
+            Ok(Some(source @ CallContractSource::Runtime { .. })) => source,
+            Ok(_) => {
+                diagnostics.push(Diagnostic::error(
+                    "runtime call lost its exact machine value contract",
+                ));
+                return None;
+            }
+            Err(reason) => {
+                diagnostics.push(Diagnostic::error(reason));
+                return None;
+            }
+        };
+        let signature = source.signature();
+        signature_arguments::validate_signature_arguments(
+            program,
+            machine,
+            state,
+            environment,
+            call_site_argument_expressions(program, site),
+            signature,
+            &[],
+            writable,
+            diagnostics,
+            formations,
+        );
+        Some(signature)
+    }
+}
+
+pub(crate) mod signature_arguments {
     use super::*;
     use typed_trees::signature::StateSignature;
 
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn validate_machine_parameter_arguments(
+    pub(crate) fn validate_signature_arguments(
         program: &dyn crate::CheckingInput,
         machine: &Machine,
         state: Option<&State>,
@@ -4793,7 +4863,7 @@ pub(crate) mod type_arguments {
         );
     }
 }
-use machine_parameter_arguments::validate_machine_parameter_arguments;
+use signature_arguments::validate_signature_arguments;
 pub use type_arguments::call_type_arguments;
 pub(crate) use type_arguments::{callable_type_arguments, declaration_call_type_arguments};
 pub(crate) mod receiver_calls {
@@ -5115,7 +5185,7 @@ pub(crate) mod receiverless_calls {
                 signature.return_type,
                 diagnostics,
             );
-            super::validate_machine_parameter_arguments(
+            super::validate_signature_arguments(
                 program,
                 current_machine,
                 current_state,
@@ -6049,7 +6119,7 @@ pub(crate) mod result_use {
             return;
         }
 
-        if call.receiver.is_empty() {
+        if call.runtime_call.is_none() && call.receiver.is_empty() {
             let classification = crate::proof_only_classification(program);
             let is_citation = program
                 .machines()
@@ -6356,6 +6426,12 @@ pub(crate) mod unit_returns {
         expression: ExpressionHandle,
     ) -> Option<DeclaredCallResult<'program>> {
         let call = expression_table(program).call_node(expression)?;
+        if let Some(runtime) = &call.runtime_call {
+            return runtime
+                .signature(program.typed_program())
+                .ok()
+                .map(|signature| DeclaredCallResult::Signature(signature.return_type));
+        }
         if admitted_build_declaration_call(program, expression) {
             return Some(DeclaredCallResult::IntrinsicUnit);
         }
@@ -9146,6 +9222,7 @@ pub(crate) mod write_frames {
                 return Some(false);
             }
             match program.type_reference_table.type_reference(container) {
+                TypeReferenceNode::Callable { .. } => Some(false),
                 TypeReferenceNode::Reference {
                     access, referee, ..
                 } => {
@@ -9325,6 +9402,7 @@ pub(crate) mod write_frames {
                 return Some(false);
             }
             match program.type_reference_table.type_reference(container) {
+                TypeReferenceNode::Callable { .. } => Some(false),
                 TypeReferenceNode::FixedArray { element_type, .. }
                 | TypeReferenceNode::Slice { element_type } => owned_storage_may_hold_inner(
                     program,
@@ -11877,6 +11955,7 @@ pub(crate) mod write_frames {
                     Ok(None)
                 );
                 match program.type_reference_table.type_reference(reference) {
+                    TypeReferenceNode::Callable { .. } => return,
                     TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
                     TypeReferenceNode::Named { symbol, .. } => {
                         match crate::queries::substitutions::actual_for(substitutions, *symbol) {
@@ -18367,6 +18446,7 @@ pub(crate) mod write_frames {
                 return definition_isolated!(definition, proof_values);
             }
             match program.type_reference_table.type_reference(handle) {
+                TypeReferenceNode::Callable { .. } => true,
                 TypeReferenceNode::Constrained { base_type, .. } => {
                     type_is_caller_isolated_local_inner(
                         program,
@@ -18907,6 +18987,7 @@ pub(crate) mod write_frames {
             expression: ExpressionHandle,
         ) -> bool {
             match expression_table(program).expression(expression) {
+                ExpressionNode::MachineValue(_) => false,
                 ExpressionNode::Match(dispatch) => expression_table(program)
                     .match_arms(dispatch.arms)
                     .iter()
@@ -18969,6 +19050,7 @@ pub(crate) mod write_frames {
                 expression_reborrows_transparent_alias_binding(program, child, parameters, aliases)
             };
             match expression_table(program).expression(expression) {
+                ExpressionNode::MachineValue(_) => false,
                 ExpressionNode::Match(dispatch) => {
                     crate::queries::expression_traversal::match_children(program, *dispatch)
                         .any(visit)
@@ -19023,7 +19105,7 @@ pub(crate) mod write_frames {
                 }
                 ExpressionNode::Atomic(atomic) => visit(atomic.value) || visit(atomic.result),
                 ExpressionNode::Call(call) => {
-                    (call.receiver.is_valid() && visit(call.receiver))
+                    (call.evaluated_callee().is_valid() && visit(call.evaluated_callee()))
                         || expression_table(program)
                             .expression_handles(call.arguments)
                             .iter()
@@ -33530,6 +33612,7 @@ pub(crate) mod write_frames {
                 }
                 let table = &program.type_reference_table;
                 match table.type_reference(type_reference) {
+                    TypeReferenceNode::Callable { .. } => false,
                     TypeReferenceNode::Unit | TypeReferenceNode::ConstExpression(_) => false,
                     TypeReferenceNode::Reference { referee, .. } => {
                         type_may_carry_selector(program, *referee, interface, visiting)
@@ -39471,6 +39554,7 @@ pub(crate) mod write_frames {
                 return false;
             }
             match program.type_reference_table.type_reference(handle) {
+                TypeReferenceNode::Callable { .. } => false,
                 TypeReferenceNode::Constrained { base_type, .. }
                 | TypeReferenceNode::FixedArray {
                     element_type: base_type,
@@ -39596,6 +39680,7 @@ pub(crate) mod write_frames {
             }
 
             match program.type_reference_table.type_reference(handle) {
+                TypeReferenceNode::Callable { .. } => false,
                 TypeReferenceNode::Reference { access, .. } if !access.is_exclusive() => false,
                 TypeReferenceNode::Constrained { base_type, .. } => {
                     type_may_carry_write_walk(program, *base_type, bindings)
@@ -40991,6 +41076,29 @@ pub(crate) fn validate_call_node(
     let receiver_members = program.statement_table.name_path_members(call.receiver);
     let arguments = program.statement_table.expression_handles(call.arguments);
 
+    if call.runtime_call.is_some() {
+        let site = CallSite::Statement(call);
+        if let Some(signature) = runtime_calls::validate_arguments(
+            program,
+            current_machine,
+            current_state,
+            value_environment,
+            &site,
+            writable_roots,
+            diagnostics,
+            formation_obligations,
+        ) {
+            validate_result_use(
+                program,
+                call,
+                "machine value",
+                signature.return_type,
+                diagnostics,
+            );
+        }
+        return;
+    }
+
     if call_gates::validate_named_conformance_call(
         &scope,
         arguments,
@@ -41165,6 +41273,12 @@ pub(crate) fn resolved_call_result_type(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<TypeReferenceHandle> {
+    if let Some(runtime) = &call.runtime_call {
+        return runtime
+            .signature(program.typed_program())
+            .ok()
+            .map(|signature| signature.return_type);
+    }
     if call.layout_query.is_some() {
         return crate::proof_contracts::bound_expression_meaning::builtin_type_reference(
             program,
@@ -41179,6 +41293,89 @@ pub(crate) fn resolved_call_result_type(
     }
     requirement_call_result_type(program, call.target_symbol)
         .or_else(|| topology::asm_intrinsic_result_type(program, call.target_symbol))
+}
+
+pub enum CallContractSource<'program> {
+    Requirement {
+        declaration: &'program typed_trees::trait_definition::TraitDefinition,
+        signature: &'program typed_trees::signature::StateSignature,
+    },
+    Runtime {
+        binding: typed_trees::callable_values::RuntimeCallBinding,
+        contract: &'program typed_trees::callable_values::RuntimeCallableContract,
+    },
+}
+
+impl<'program> CallContractSource<'program> {
+    pub fn signature(&self) -> &'program typed_trees::signature::StateSignature {
+        match self {
+            Self::Requirement { signature, .. } => signature,
+            Self::Runtime { contract, .. } => &contract.signature,
+        }
+    }
+    pub fn lexical_owner(&self) -> symbols::SymbolHandle {
+        match self {
+            Self::Requirement { declaration, .. } => declaration.symbol,
+            Self::Runtime { contract, .. } => contract.lexical_owner,
+        }
+    }
+}
+
+pub fn call_contract_source<'program>(
+    program: &'program dyn crate::CheckingInput,
+    caller: symbols::SymbolHandle,
+    site: &crate::CallSite<'_>,
+) -> Result<Option<CallContractSource<'program>>, &'static str> {
+    if let Some(binding) = site.runtime_call() {
+        let consistent = match site {
+            crate::CallSite::Expression { call, .. } => {
+                !call.target_symbol.is_valid()
+                    && !call.static_machine_parameter.is_valid()
+                    && !call.receiver.is_valid()
+                    && call.static_requirement_dispatch.is_none()
+                    && !call.authored_machine_application.is_valid()
+                    && !call.requirement_application.is_valid()
+                    && call.machine_arguments.is_empty()
+            }
+            crate::CallSite::Statement(call) => {
+                !call.target_symbol.is_valid()
+                    && !call.static_machine_parameter.is_valid()
+                    && call.receiver.is_empty()
+                    && !call.receiver_symbol.is_valid()
+                    && call.static_requirement_dispatch.is_none()
+                    && !call.authored_machine_application.is_valid()
+                    && call.machine_arguments.is_empty()
+            }
+            crate::CallSite::TransitionNamed { .. } => false,
+        };
+        if !consistent {
+            return Err("runtime callable invocation retains a conflicting static call payload");
+        }
+        if !program.expression_table.expression_is_valid(binding.callee) {
+            return Err("runtime callable invocation lost its evaluated callee");
+        }
+        if !program
+            .runtime_callable_contracts
+            .is_valid(binding.contract)
+        {
+            return Err("runtime callable invocation lost its exact structural contract row");
+        }
+        return Ok(Some(CallContractSource::Runtime {
+            binding,
+            contract: program.runtime_callable_contracts.get(binding.contract),
+        }));
+    }
+    let requirement = site.static_requirement_dispatch().is_some()
+        || selected_requirement_signature(program, site.target_symbol(program)).is_some();
+    if !requirement {
+        return Ok(None);
+    }
+    let (declaration, signature) = crate::requirement_contract_signature(program, caller, site)
+        .ok_or("source invocation lost its exact public logical requirement contract")?;
+    Ok(Some(CallContractSource::Requirement {
+        declaration,
+        signature,
+    }))
 }
 
 pub(crate) struct CalleeContract<'program> {
@@ -41240,6 +41437,28 @@ pub(crate) fn call_contract<'program>(
     program: &'program dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<CalleeContract<'program>> {
+    if call.runtime_call.is_some() {
+        let Some(CallContractSource::Runtime { contract, .. }) = call_contract_source(
+            program,
+            symbols::SymbolHandle::invalid(),
+            &crate::CallSite::Expression {
+                expression: Default::default(),
+                call,
+            },
+        )
+        .ok()?
+        else {
+            return None;
+        };
+        let signature = &contract.signature;
+        return Some(CalleeContract {
+            callable: signature.symbol,
+            return_type: signature.return_type,
+            parameters: program.state_signature_parameters(signature),
+            contracts: program.state_signature_contracts(signature),
+            leading_operands: 0,
+        });
+    }
     let target = call
         .static_requirement_dispatch
         .as_ref()
@@ -42133,6 +42352,10 @@ pub(crate) mod topology {
         program: &dyn CheckingInput,
         call: &TableCallExpression,
     ) -> SymbolHandle {
+        if call.runtime_call.is_some() {
+            return SymbolHandle::invalid();
+        }
+
         if let Some(request) = &call.quotient_operation {
             return request.representative_operation.symbol;
         }
@@ -44677,6 +44900,14 @@ pub(crate) mod occurrences {
                     traversal
                 }
 
+                pub(crate) fn expression_was_seen(
+                    &self,
+                    expression: typed_trees::expression::ExpressionHandle,
+                ) -> bool {
+                    self.expressions
+                        .contains(&(expression.arena_index(), expression.generation()))
+                }
+
                 /// Site admission shared by every traversal arm: collect mode records the
                 /// site and keeps walking; match mode returns it once the ordinal lines up.
                 pub(crate) fn visit(
@@ -44845,32 +45076,41 @@ pub(crate) mod occurrences {
                             .then(|| find_call_site_in_expression(traversal, range.end))?
                     }
                     ExpressionNode::Call(call) => {
-                        let (receiver_symbol, receiver_path) =
-                            call_receiver_parts(traversal.program, call.receiver);
-                        let selected_target = crate::call_target_symbol(traversal.program, call);
-                        let is_machine_call = resolve_state_call_target(
-                            traversal.program,
-                            traversal.machine,
-                            traversal.state,
-                            receiver_symbol,
-                            selected_target,
-                            receiver_path.as_deref(),
-                            &call.target,
-                        )
-                        .is_valid()
-                            || receiver_can_dispatch_to_machine(
+                        if traversal.expression_was_seen(expression) {
+                            return None;
+                        }
+                        let is_machine_call = if call.runtime_call.is_some() {
+                            true
+                        } else {
+                            let (receiver_symbol, receiver_path) =
+                                call_receiver_parts(traversal.program, call.receiver);
+                            let selected_target =
+                                crate::call_target_symbol(traversal.program, call);
+                            resolve_state_call_target(
                                 traversal.program,
                                 traversal.machine,
                                 traversal.state,
                                 receiver_symbol,
+                                selected_target,
                                 receiver_path.as_deref(),
-                            );
+                                &call.target,
+                            )
+                            .is_valid()
+                                || receiver_can_dispatch_to_machine(
+                                    traversal.program,
+                                    traversal.machine,
+                                    traversal.state,
+                                    receiver_symbol,
+                                    receiver_path.as_deref(),
+                                )
+                        };
 
-                        let is_byte_predicate = typed_trees::byte_predicates::byte_predicate_call(
-                            traversal.program.typed_program(),
-                            expression,
-                        )
-                        .is_some();
+                        let is_byte_predicate = call.runtime_call.is_none()
+                            && typed_trees::byte_predicates::byte_predicate_call(
+                                traversal.program.typed_program(),
+                                expression,
+                            )
+                            .is_some();
                         if (is_machine_call || is_byte_predicate)
                             && let Some(site) =
                                 traversal.visit(CallSite::Expression { expression, call })
@@ -44878,9 +45118,13 @@ pub(crate) mod occurrences {
                             return Some(site);
                         }
 
-                        if call.receiver.is_valid()
-                            && let Some(call_site) =
-                                find_call_site_in_expression(traversal, call.receiver)
+                        // The evaluated callee replaces the legacy receiver lane;
+                        // it is visited once, before the authored arguments.
+                        let callee = call
+                            .runtime_call
+                            .map_or(call.receiver, |binding| binding.callee);
+                        if callee.is_valid()
+                            && let Some(call_site) = find_call_site_in_expression(traversal, callee)
                         {
                             return Some(call_site);
                         }
@@ -44957,14 +45201,22 @@ pub(crate) mod occurrences {
                         find_call_site_in_expression(traversal, assignment.value)
                     }
                     StatementNode::Call(call) => {
-                        let is_machine_call = statement_call_can_dispatch_to_machine(
-                            traversal.program,
-                            traversal.machine,
-                            traversal.state,
-                            call,
-                        );
+                        let is_machine_call = call.runtime_call.is_some()
+                            || statement_call_can_dispatch_to_machine(
+                                traversal.program,
+                                traversal.machine,
+                                traversal.state,
+                                call,
+                            );
                         if is_machine_call
                             && let Some(site) = traversal.visit(CallSite::Statement(call))
+                        {
+                            return Some(site);
+                        }
+
+                        if let Some(binding) = call.runtime_call
+                            && let Some(site) =
+                                find_call_site_in_expression(traversal, binding.callee)
                         {
                             return Some(site);
                         }
@@ -45116,6 +45368,24 @@ pub(crate) mod occurrences {
     }
 
     impl<'program> CallSite<'program> {
+        pub fn runtime_call(&self) -> Option<typed_trees::callable_values::RuntimeCallBinding> {
+            match self {
+                Self::Statement(call) => call.runtime_call,
+                Self::Expression { call, .. } => call.runtime_call,
+                Self::TransitionNamed { .. } => None,
+            }
+        }
+
+        pub fn runtime_signature(
+            &self,
+            program: &'program dyn crate::CheckingInput,
+        ) -> Result<Option<&'program typed_trees::signature::StateSignature>, &'static str>
+        {
+            self.runtime_call()
+                .map(|binding| binding.signature(program.typed_program()))
+                .transpose()
+        }
+
         pub fn authored_application(
             &self,
         ) -> typed_trees::static_applications::StaticMachineApplicationHandle {
@@ -45182,6 +45452,12 @@ pub(crate) mod occurrences {
             program: &'program dyn crate::CheckingInput,
             lexical_owner: SymbolHandle,
         ) -> Option<&'program [typed_trees::signature::StateParameter]> {
+            if let Some(binding) = self.runtime_call() {
+                return binding
+                    .signature(program.typed_program())
+                    .ok()
+                    .map(|signature| program.state_signature_parameters(signature));
+            }
             let signature = match self {
                 Self::Statement(call) => {
                     program.requirement_statement_call_signature(lexical_owner, call)
@@ -45201,6 +45477,9 @@ pub(crate) mod occurrences {
         }
 
         pub fn target_symbol(&self, program: &dyn crate::CheckingInput) -> SymbolHandle {
+            if self.runtime_call().is_some() {
+                return SymbolHandle::invalid();
+            }
             match self {
                 Self::Statement(call) => {
                     let candidates =

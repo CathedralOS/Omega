@@ -1531,6 +1531,7 @@ pub mod claim_frontier {
             TypeReferenceNode::FixedArray { .. } => {}
             TypeReferenceNode::ConstExpression(_)
             | TypeReferenceNode::Reference { .. }
+            | TypeReferenceNode::Callable { .. }
             | TypeReferenceNode::DynamicTrait { .. }
             | TypeReferenceNode::Slice { .. }
             | TypeReferenceNode::Unit => {}
@@ -1684,6 +1685,7 @@ pub mod claim_frontier {
         }
         match program.type_reference_table.type_reference(type_reference) {
             TypeReferenceNode::Reference { .. }
+            | TypeReferenceNode::Callable { .. }
             | TypeReferenceNode::ConstExpression(_)
             | TypeReferenceNode::Unit => Multiplicity::Unrestricted,
             TypeReferenceNode::Constrained { base_type, .. } => {
@@ -2051,6 +2053,7 @@ pub mod cleanup {
                 data_graph_requires_nominal_drop(program, data, &nested_substitutions, visited)
             }
             TypeReferenceNode::ConstExpression(_)
+            | TypeReferenceNode::Callable { .. }
             | TypeReferenceNode::DynamicTrait { .. }
             | TypeReferenceNode::Unit => false,
         }
@@ -3489,6 +3492,11 @@ pub mod constants {
         }
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Unit => true,
+            TypeReferenceNode::Callable { .. } => program
+                .runtime_callable_type_identity(
+                    typed_trees::type_identity::TypeIdentityRequest::ordinary(reference),
+                )
+                .is_ok(),
             TypeReferenceNode::DynamicTrait { symbol, .. } => {
                 program.trait_definition_by_symbol(*symbol).is_some()
             }
@@ -4030,7 +4038,7 @@ pub mod data {
                     })
                     || type_requires_establishment_inner(program, *base_type, index)
             }
-            TypeReferenceNode::DynamicTrait { .. } => true,
+            TypeReferenceNode::Callable { .. } | TypeReferenceNode::DynamicTrait { .. } => true,
             TypeReferenceNode::Reference { .. } => !matches!(
                 crate::byte_sequence_carrier(program, type_reference, &[]),
                 Some(checked_trees::CheckedByteSequenceCarrier::BorrowedView {
@@ -5532,6 +5540,9 @@ pub mod locals {
                         self.expression(atomic.result, diagnostics);
                     }
                     ExpressionNode::Call(call) => {
+                        if let Some(runtime) = &call.runtime_call {
+                            self.expression(runtime.callee, diagnostics);
+                        }
                         if !crate::declarations::operators::namespaces::expression_call_has_operator_namespace(
                     self.program,
                     call,
@@ -5561,6 +5572,9 @@ pub mod locals {
                     ExpressionNode::TypeExpression(reference)
                     | ExpressionNode::ZeroValue(reference) => {
                         self.type_reference(*reference, diagnostics)
+                    }
+                    ExpressionNode::MachineValue(value) => {
+                        self.type_reference(value.type_reference, diagnostics)
                     }
                 }
             }
@@ -9431,7 +9445,9 @@ pub mod source_liveness {
                     || expression_uses_symbol_except(program, binary.right, symbol, completed_value)
             }
             ExpressionNode::Call(call) => {
-                (call.receiver.is_valid()
+                call.runtime_call.as_ref().is_some_and(|runtime| {
+                    expression_uses_symbol_except(program, runtime.callee, symbol, completed_value)
+                }) || (call.receiver.is_valid()
                     && expression_uses_symbol_except(
                         program,
                         call.receiver,
@@ -9512,6 +9528,7 @@ pub mod source_liveness {
                     expression_uses_symbol_except(program, field.value, symbol, completed_value)
                 }),
             ExpressionNode::Boolean(_)
+            | ExpressionNode::MachineValue(_)
             | ExpressionNode::Float(_)
             | ExpressionNode::UndeterminedNaN(_)
             | ExpressionNode::Integer(_)
@@ -9953,6 +9970,7 @@ pub mod storage_contents {
     #[derive(Clone, PartialEq, Eq)]
     pub(crate) enum ContentType {
         Scalar(PrimitiveType),
+        Callable(typed_trees::callable_values::RuntimeCallableContractHandle),
         Atomic(PrimitiveType),
         Array(Box<ContentType>, Option<usize>),
         Slice(Box<ContentType>),
@@ -9974,6 +9992,7 @@ pub mod storage_contents {
         fn size(&self) -> usize {
             match self {
                 Self::Scalar(_)
+                | Self::Callable(_)
                 | Self::Atomic(_)
                 | Self::ConstValue(_)
                 | Self::RuntimeIndex
@@ -10410,6 +10429,10 @@ pub mod storage_contents {
             {
                 Some(ContentType::Scalar(PrimitiveType::Selector))
             }
+            TypeReferenceNode::Callable { contract } => program
+                .runtime_callable_contracts
+                .is_valid(*contract)
+                .then_some(ContentType::Callable(*contract)),
             TypeReferenceNode::Slice { element_type }
                 if matches!(
                     requirement,
@@ -10578,6 +10601,10 @@ pub mod storage_contents {
         else {
             return match resolved {
                 ContentType::Scalar(_) => true,
+                ContentType::Callable(_) => !matches!(
+                    requirement,
+                    ContentsRequirement::NumericOwned | ContentsRequirement::SeamMarshal
+                ),
                 ContentType::Atomic(_) => !matches!(
                     requirement,
                     ContentsRequirement::StableObservation

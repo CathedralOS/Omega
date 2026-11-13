@@ -3137,6 +3137,7 @@ pub mod expression_types {
             }
             let mut substitutions = Vec::new();
             let reference = match expression_table(program).expression(value) {
+                ExpressionNode::MachineValue(value) => value.type_reference,
                 ExpressionNode::Call(_) => {
                     expression_table(program).constructed_value_type_reference(value)
                 }
@@ -4862,7 +4863,7 @@ pub mod expression_types {
                 });
             let Some(telescope) = telescope else {
                 let place_type = |expression| {
-                    telescope_place_type(program, owner_symbol, parameters, expression)
+                    parameter_place_type_reference(program, owner_symbol, parameters, expression)
                 };
                 return result_type(
                     program,
@@ -4888,7 +4889,7 @@ pub mod expression_types {
             )
         }
 
-        fn telescope_place_type(
+        pub fn parameter_place_type_reference(
             program: &dyn crate::CheckingInput,
             owner_symbol: symbols::SymbolHandle,
             parameters: &[typed_trees::signature::StateParameter],
@@ -4953,7 +4954,7 @@ pub mod expression_types {
                 })
         }
 
-        pub(crate) fn declaration_expression_result_type_reference(
+        pub fn declaration_expression_result_type_reference(
             program: &dyn crate::CheckingInput,
             owner_symbol: symbols::SymbolHandle,
             trait_scope: Option<typed_trees::trait_definition::RetainedTraitScope>,
@@ -5173,7 +5174,14 @@ pub mod expression_types {
                         program.common_static_type_reference(&values)
                     })
                 }
+                ExpressionNode::MachineValue(value) => Some(value.type_reference),
                 ExpressionNode::Call(call) => (|| {
+                    if let Some(binding) = call.runtime_call {
+                        return binding
+                            .signature(program.typed_program())
+                            .ok()
+                            .map(|signature| signature.return_type);
+                    }
                     if crate::compiler_operations::storage_address_operand(program, call).is_some()
                     {
                         return builtin_type_reference(program, BuiltinTypeAtom::Address);
@@ -5553,7 +5561,12 @@ pub mod expression_types {
                             owner_symbol,
                             parameters,
                             ..
-                        } => telescope_place_type(program, owner_symbol, parameters, expression),
+                        } => parameter_place_type_reference(
+                            program,
+                            owner_symbol,
+                            parameters,
+                            expression,
+                        ),
                         ExpressionOwner::State { machine, state } => {
                             crate::value_custody::places::declared_place_type_raw(
                                 program,
@@ -6800,7 +6813,7 @@ pub mod expression_types {
     pub use result_type::{
         arithmetic_result_type_reference, expression_result_type_reference,
         join_result_type_references, parameter_expression_result_type_reference,
-        parameter_expression_result_type_reference_in_scope,
+        parameter_expression_result_type_reference_in_scope, parameter_place_type_reference,
     };
 
     pub(crate) use crate::value_custody::places::declared_reference_access;
@@ -6813,7 +6826,7 @@ pub mod expression_types {
         place_forwarded_exclusive_reference_access, place_permits_reference_borrow,
         place_storage_borrow_access, place_storage_write_access, substituted_required_reference,
     };
-    pub(crate) use result_type::declaration_expression_result_type_reference;
+    pub use result_type::declaration_expression_result_type_reference;
     pub(crate) use result_type::domain_expression_result_type_reference;
     pub(crate) use result_type::{
         cast_result_type_reference, operand_arithmetic_domain,
@@ -7220,6 +7233,7 @@ pub mod expression_types {
         }
 
         match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Callable { .. } => false,
             TypeReferenceNode::Reference {
                 referee, access, ..
             } => {
@@ -7443,7 +7457,7 @@ pub mod expression_types {
         }
     }
 
-    pub(crate) fn named_value_type_reference(
+    pub fn named_value_type_reference(
         program: &dyn crate::CheckingInput,
         path: &typed_trees::expression::TableNamePath,
     ) -> Option<TypeReferenceHandle> {
@@ -7671,6 +7685,7 @@ pub mod expression_types {
         argument: ExpressionHandle,
     ) -> &'static str {
         match expression_table(program).expression(argument) {
+            ExpressionNode::MachineValue(_) => "machine value",
             ExpressionNode::Match(_) => "match expression",
             ExpressionNode::SavedSubject(_) => "saved match subject",
             ExpressionNode::Atomic(atomic) => expression_type_name_handle(program, atomic.value),
@@ -8231,6 +8246,7 @@ pub mod field_domains {
             -> Option<&'program typed_trees::data::DataDefinition>,
     ) -> Option<TypeReferenceHandle> {
         match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Callable { .. } => None,
             TypeReferenceNode::Reference { referee, .. }
             | TypeReferenceNode::Constrained {
                 base_type: referee, ..

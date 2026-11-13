@@ -16489,7 +16489,7 @@ pub(crate) mod fact_mentions {
                 .struct_fields(literal.fields)
                 .iter()
                 .find_map(|field| recurse(field.value)),
-            ExpressionNode::Call(call) => recurse(call.receiver).or_else(|| {
+            ExpressionNode::Call(call) => recurse(call.evaluated_callee()).or_else(|| {
                 expression_table(program)
                     .expression_handles(call.arguments)
                     .iter()
@@ -16509,6 +16509,7 @@ pub(crate) mod fact_mentions {
                         }
                         TypeReferenceNode::Reference { .. }
                         | TypeReferenceNode::FixedArray { .. }
+                        | TypeReferenceNode::Callable { .. }
                         | TypeReferenceNode::Slice { .. }
                         | TypeReferenceNode::DynamicTrait { .. }
                         | TypeReferenceNode::ConstExpression(_)
@@ -37457,6 +37458,7 @@ pub(crate) mod scoped_arithmetic {
                                 )
                             }
                             SelectedCallContract::Signature(signature)
+                            | SelectedCallContract::Runtime { signature, .. }
                             | SelectedCallContract::DynamicSlot { signature, .. } => {
                                 crate::has_builtin_parameter_bound_expression_meaning(
                                     self.program,
@@ -37489,6 +37491,7 @@ pub(crate) mod scoped_arithmetic {
                             )
                         }
                         SelectedCallContract::Signature(signature)
+                        | SelectedCallContract::Runtime { signature, .. }
                         | SelectedCallContract::DynamicSlot { signature, .. } => {
                             crate::has_builtin_parameter_bound_expression_meaning(
                                 self.program,
@@ -39642,6 +39645,43 @@ pub(crate) mod specification_calls {
                 owner: &SelectedCallContract<'_>,
                 site: crate::CallSite<'_>,
             ) -> Option<Self> {
+                if let SelectedCallContract::Runtime {
+                    binding,
+                    lexical_owner,
+                    signature,
+                } = owner
+                {
+                    let Some(crate::CallContractSource::Runtime {
+                        binding: current,
+                        contract,
+                    }) = crate::call_contract_source(program, caller, &site).ok()?
+                    else {
+                        return None;
+                    };
+                    if current != *binding
+                        || contract.lexical_owner != *lexical_owner
+                        || !std::ptr::eq(&contract.signature, *signature)
+                    {
+                        return None;
+                    }
+                    // The retained descriptor contract is already applied. Indirect calls
+                    // bind its value formals, without inventing a static application.
+                    let (application, arguments) = match site {
+                        crate::CallSite::Expression { call, .. } => (
+                            call.authored_machine_application,
+                            call.machine_arguments.as_ref(),
+                        ),
+                        crate::CallSite::Statement(call) => (
+                            call.authored_machine_application,
+                            call.machine_arguments.as_ref(),
+                        ),
+                        crate::CallSite::TransitionNamed { .. } => return None,
+                    };
+                    if application.is_valid() || !arguments.is_empty() {
+                        return None;
+                    }
+                    return Some(Self::default());
+                }
                 let mut bindings = if let Some(member) =
                     super::direct_named_member_contract(program, caller, site)
                 {
@@ -40073,6 +40113,9 @@ pub(crate) mod specification_calls {
                     }
                     SelectedCallContract::Concrete(machine, _) => {
                         program.machine_type_parameters(machine)
+                    }
+                    SelectedCallContract::Runtime { signature, .. } => {
+                        program.state_signature_type_parameters(signature)
                     }
                     SelectedCallContract::Signature(signature)
                     | SelectedCallContract::DynamicSlot { signature, .. } => {
@@ -42362,8 +42405,12 @@ pub(crate) mod specification_calls {
         });
         let judge = prior_facts.structural_judge(program, caller, &arguments);
         let named_evidence_count = requirements.iter().filter(|(_, named)| *named).count();
-        let has_named_evidence_lane = matches!(contract_owner, SelectedCallContract::Concrete(..))
-            && named_evidence_count != 0
+        // The checked evidence-actual binder validates these exact lanes before
+        // a checked program can be published, including proof-expression calls.
+        let has_named_evidence_lane = matches!(
+            contract_owner,
+            SelectedCallContract::Concrete(..) | SelectedCallContract::Runtime { .. }
+        ) && named_evidence_count != 0
             && call.is_some_and(|call| {
                 call.static_requirement_dispatch.is_none()
                     && call.quotient_operation.is_none()
@@ -42477,6 +42524,11 @@ pub(crate) mod specification_calls {
     pub(crate) enum SelectedCallContract<'program> {
         Concrete(&'program Machine, &'program State),
         Signature(&'program StateSignature),
+        Runtime {
+            binding: typed_trees::callable_values::RuntimeCallBinding,
+            lexical_owner: SymbolHandle,
+            signature: &'program StateSignature,
+        },
         DynamicSlot {
             slot: &'program typed_trees::dynamic_traits::DynamicSlotSignature,
             signature: &'program StateSignature,
@@ -42597,6 +42649,9 @@ pub(crate) mod specification_calls {
         let caller = program
             .machine_holding_state(caller)
             .map_or(caller, |machine| machine.symbol);
+        if site.runtime_call().is_some() {
+            return selected_contract_past_direct_member(program, caller, site);
+        }
         if let Some(member) = direct_named_member_contract(program, caller, site) {
             return Some(SelectedCallContract::Concrete(member.machine, member.state));
         }
@@ -42610,6 +42665,18 @@ pub(crate) mod specification_calls {
         caller: SymbolHandle,
         site: crate::CallSite<'_>,
     ) -> Option<SelectedCallContract<'program>> {
+        if site.runtime_call().is_some() {
+            let crate::CallContractSource::Runtime { binding, contract } =
+                crate::call_contract_source(program, caller, &site).ok()??
+            else {
+                return None;
+            };
+            return Some(SelectedCallContract::Runtime {
+                binding,
+                lexical_owner: contract.lexical_owner,
+                signature: &contract.signature,
+            });
+        }
         if let Some((_, signature)) = crate::requirement_contract_signature(program, caller, &site)
         {
             return Some(SelectedCallContract::Signature(signature));
@@ -42723,6 +42790,7 @@ pub(crate) mod specification_calls {
         match owner {
             SelectedCallContract::Concrete(_, state) => state.symbol,
             SelectedCallContract::Signature(signature)
+            | SelectedCallContract::Runtime { signature, .. }
             | SelectedCallContract::DynamicSlot { signature, .. } => signature.symbol,
             SelectedCallContract::Operator(operator) => operator.symbol,
         }
@@ -42737,7 +42805,8 @@ pub(crate) mod specification_calls {
             SelectedCallContract::Concrete(machine, _) => {
                 classification.is_proof_machine(program, machine)
             }
-            SelectedCallContract::Signature(signature) => {
+            SelectedCallContract::Signature(signature)
+            | SelectedCallContract::Runtime { signature, .. } => {
                 classification.is_proof_signature(program, signature)
             }
             _ => false,
@@ -42763,6 +42832,7 @@ pub(crate) mod specification_calls {
         match owner {
             SelectedCallContract::Concrete(machine, _) => machine.name.as_str().to_owned(),
             SelectedCallContract::Signature(signature)
+            | SelectedCallContract::Runtime { signature, .. }
             | SelectedCallContract::DynamicSlot { signature, .. } => {
                 signature.name.as_str().to_owned()
             }
@@ -42779,6 +42849,7 @@ pub(crate) mod specification_calls {
         match owner {
             SelectedCallContract::Concrete(_, state) => program.state_parameters(state),
             SelectedCallContract::Signature(signature)
+            | SelectedCallContract::Runtime { signature, .. }
             | SelectedCallContract::DynamicSlot { signature, .. } => {
                 program.state_signature_parameters(signature)
             }
@@ -42984,7 +43055,8 @@ pub(crate) mod specification_calls {
     ) -> typed_trees::types::TypeReferenceHandle {
         match owner {
             SelectedCallContract::Concrete(_, state) => state.return_type,
-            SelectedCallContract::Signature(signature) => signature.return_type,
+            SelectedCallContract::Signature(signature)
+            | SelectedCallContract::Runtime { signature, .. } => signature.return_type,
             SelectedCallContract::DynamicSlot { slot, .. } => slot.return_type,
             SelectedCallContract::Operator(operator) => operator.return_type,
         }
@@ -43008,6 +43080,7 @@ pub(crate) mod specification_calls {
                 program.state_contracts(state),
             ),
             SelectedCallContract::Signature(signature)
+            | SelectedCallContract::Runtime { signature, .. }
             | SelectedCallContract::DynamicSlot { signature, .. } => {
                 (program.state_signature_contracts(signature), &[])
             }
@@ -43078,6 +43151,9 @@ pub(crate) mod specification_calls {
         let parameters = match owner {
             SelectedCallContract::Operator(operator) => program.operator_type_parameters(operator),
             SelectedCallContract::Concrete(machine, _) => program.machine_type_parameters(machine),
+            SelectedCallContract::Runtime { signature, .. } => {
+                program.state_signature_type_parameters(signature)
+            }
             SelectedCallContract::Signature(signature)
             | SelectedCallContract::DynamicSlot { signature, .. } => {
                 program.requirement_invocation_contract_parameters(signature)
@@ -43141,6 +43217,16 @@ pub(crate) mod specification_calls {
             SelectedCallContract::Concrete(machine, _) => program
                 .machine_kind_type_parameters(machine)
                 .collect::<Vec<_>>(),
+            SelectedCallContract::Runtime { signature, .. } => program
+                .state_signature_type_parameters(signature)
+                .iter()
+                .filter(|parameter| {
+                    matches!(
+                        parameter.kind,
+                        typed_trees::data::TypeParameterKind::Machine { .. }
+                    )
+                })
+                .collect(),
             SelectedCallContract::Signature(signature)
             | SelectedCallContract::DynamicSlot { signature, .. } => program
                 .requirement_invocation_contract_parameters(signature)
@@ -48539,6 +48625,7 @@ pub(crate) mod structural_judgment {
                 ),
             ),
             SelectedCallContract::Signature(signature)
+            | SelectedCallContract::Runtime { signature, .. }
             | SelectedCallContract::DynamicSlot { signature, .. } => (
                 signature.symbol,
                 crate::proof_contracts::bound_expression_meaning::has_exact_declaration_case_membership_meaning(
@@ -60411,6 +60498,7 @@ pub(crate) mod structural_judgment {
                     Arc::make_mut(&mut self.normal_content_guarantees).extend(guarantees.content);
                     let selected_signature = match owner {
                         SelectedCallContract::Signature(signature)
+                        | SelectedCallContract::Runtime { signature, .. }
                         | SelectedCallContract::DynamicSlot { signature, .. } => Some(signature),
                         _ => None,
                     };
@@ -66920,6 +67008,7 @@ pub(crate) mod structural_judgment {
             expression: ExpressionHandle,
         ) -> bool {
             match expression_table(program).expression(expression) {
+                ExpressionNode::MachineValue(_) => true,
                 ExpressionNode::Call(_) | ExpressionNode::Atomic(_) | ExpressionNode::Unary(_) => {
                     false
                 }
@@ -71708,6 +71797,7 @@ pub(crate) mod structural_judgment {
                         state.return_type
                     }
                     SelectedCallContract::Signature(_)
+                    | SelectedCallContract::Runtime { .. }
                     | SelectedCallContract::DynamicSlot { .. } => {
                         return Verdict::NoCarrier;
                     }
@@ -85804,6 +85894,7 @@ pub(crate) mod structural_prefix {
                         target_symbols: all_private_targets,
                         owner_scopes: Vec::new(),
                         pending_counts: Default::default(),
+                        pending_code_selections: Default::default(),
                         seen_expressions: Vec::new(),
                         seen_types: Vec::new(),
                         unclosed_symbols: Default::default(),
@@ -85812,7 +85903,11 @@ pub(crate) mod structural_prefix {
                     };
                     if !uses.target_symbols.is_empty() {
                         typed_trees::references::visit_program(program.typed_program(), &mut uses);
-                        for (symbol, count) in uses.pending_counts {
+                        for (symbol, count) in uses
+                            .pending_counts
+                            .into_iter()
+                            .chain(uses.pending_code_selections)
+                        {
                             if count > 0 {
                                 uses.unclosed_symbols.insert(symbol);
                             }
@@ -86190,6 +86285,7 @@ pub(crate) mod structural_prefix {
                 target_symbols: SymbolSet,
                 owner_scopes: Vec<Option<SymbolHandle>>,
                 pending_counts: SymbolKeyMap<SymbolHandle, usize>,
+                pending_code_selections: SymbolKeyMap<SymbolHandle, usize>,
                 seen_expressions: Vec<Vec<(Option<SymbolHandle>, ExpressionHandle)>>,
                 seen_types: Vec<Vec<(Option<SymbolHandle>, TypeReferenceHandle)>>,
                 unclosed_symbols: SymbolSet,
@@ -86204,6 +86300,19 @@ pub(crate) mod structural_prefix {
                 fn private_target(&self, symbol: SymbolHandle) -> bool {
                     self.target_symbols.contains(&symbol)
                 }
+                fn retain_callable_input(&mut self, input: &StaticMachineContractObligation) {
+                    if let Some(machine) = self
+                        .program
+                        .machine_by_own_or_state_symbol(input.selected_entry())
+                        && self.private_target(machine.symbol)
+                    {
+                        let rows = self.contract_inputs.entry(machine.symbol).or_default();
+                        if !rows.contains(input) {
+                            rows.push(input.clone());
+                        }
+                    }
+                }
+
                 fn callable_inputs(
                     &mut self,
                     application: typed_trees::static_applications::StaticMachineApplicationHandle,
@@ -86222,18 +86331,46 @@ pub(crate) mod structural_prefix {
                         })
                         .collect::<Vec<_>>();
                     for input in &inputs {
-                        if let Some(machine) = self
-                            .program
-                            .machine_by_own_or_state_symbol(input.selected_entry())
-                            && self.private_target(machine.symbol)
-                        {
-                            let rows = self.contract_inputs.entry(machine.symbol).or_default();
-                            if !rows.contains(input) {
-                                rows.push(input.clone());
+                        self.retain_callable_input(input);
+                    }
+                    inputs
+                }
+
+                fn runtime_callable_input(
+                    &mut self,
+                    construction: ExpressionHandle,
+                    selected: SymbolHandle,
+                ) {
+                    let input = StaticMachineContractObligation::runtime_contract_at(
+                        self.program,
+                        construction,
+                    )
+                    .and_then(|contract| {
+                        StaticMachineContractObligation::from_runtime_callable(
+                            self.program,
+                            construction,
+                            contract,
+                        )
+                    });
+                    match input {
+                        Ok(input) => {
+                            self.retain_callable_input(&input);
+                            if self.private_target(selected) {
+                                *self.pending_code_selections.entry(selected).or_insert(0) += 1;
+                            }
+                        }
+                        Err(_) => {
+                            if self.private_target(selected) {
+                                self.unclosed_symbols.insert(selected);
+                            }
+                            if let Some(machine) =
+                                self.program.machine_by_own_or_state_symbol(selected)
+                                && self.private_target(machine.symbol)
+                            {
+                                self.unclosed_symbols.insert(machine.symbol);
                             }
                         }
                     }
-                    inputs
                 }
 
                 fn supplied_argument(
@@ -86248,6 +86385,17 @@ pub(crate) mod structural_prefix {
                         input.supplies(self.program, application, ordinal, demand, argument.symbol)
                     }) {
                         self.direct(argument.symbol);
+                    }
+                }
+
+                fn retain_use_owner(&mut self, symbol: SymbolHandle) {
+                    if let Some(owner) = self.owner() {
+                        let owners = self.callable_use_owners.entry(symbol).or_default();
+                        if !owners.contains(&owner) {
+                            owners.push(owner);
+                        }
+                    } else {
+                        self.unclosed_symbols.insert(symbol);
                     }
                 }
 
@@ -86278,15 +86426,21 @@ pub(crate) mod structural_prefix {
                     if !self.private_target(symbol) {
                         return;
                     }
-                    if let Some(owner) = self.owner() {
-                        let owners = self.callable_use_owners.entry(symbol).or_default();
-                        if !owners.contains(&owner) {
-                            owners.push(owner);
-                        }
+                    self.retain_use_owner(symbol);
+                    if let Some(count) = self.pending_counts.get_mut(&symbol)
+                        && *count > 0
+                    {
+                        *count -= 1;
                     } else {
                         self.unclosed_symbols.insert(symbol);
                     }
-                    if let Some(count) = self.pending_counts.get_mut(&symbol)
+                }
+                fn code_selection(&mut self, symbol: SymbolHandle) {
+                    if !self.private_target(symbol) {
+                        return;
+                    }
+                    self.retain_use_owner(symbol);
+                    if let Some(count) = self.pending_code_selections.get_mut(&symbol)
                         && *count > 0
                     {
                         *count -= 1;
@@ -86397,6 +86551,9 @@ pub(crate) mod structural_prefix {
                     }
                     match self.program.expression_table.expression(expression) {
                         ExpressionNode::Call(call) => self.direct(call.target_symbol),
+                        ExpressionNode::MachineValue(value) => {
+                            self.runtime_callable_input(expression, value.selected.symbol);
+                        }
                         ExpressionNode::Name(path) if self.private_target(path.symbol) => {
                             self.unclosed_symbols.insert(path.symbol);
                         }
@@ -92618,19 +92775,34 @@ fn fact_call_targets(
         summary
     };
     match expression_table(program).expression(expression) {
+        ExpressionNode::MachineValue(_) => FactCallTargets {
+            any: false,
+            all_declared: true,
+        },
         ExpressionNode::Match(dispatch) => merge(
             &mut crate::queries::expression_traversal::match_children(program, *dispatch),
         ),
         ExpressionNode::Atomic(atomic) => merge(&mut [atomic.value].into_iter()),
         ExpressionNode::Call(call) => {
-            let declared = call.target_symbol.is_valid()
-                || typed_trees::operator::resolve_named_expression_call(program, call).is_some()
-                || program
-                    .machines()
-                    .iter()
-                    .any(|machine| machine.name.as_str() == call.target.as_str());
+            let declared = if call.runtime_call.is_some() {
+                matches!(
+                    crate::call_contract_source(
+                        program,
+                        symbols::SymbolHandle::invalid(),
+                        &crate::CallSite::Expression { expression, call },
+                    ),
+                    Ok(Some(crate::CallContractSource::Runtime { .. }))
+                )
+            } else {
+                call.target_symbol.is_valid()
+                    || typed_trees::operator::resolve_named_expression_call(program, call).is_some()
+                    || program
+                        .machines()
+                        .iter()
+                        .any(|machine| machine.name.as_str() == call.target.as_str())
+            };
             let mut nested = merge(
-                &mut [call.receiver].into_iter().chain(
+                &mut [call.evaluated_callee()].into_iter().chain(
                     expression_table(program)
                         .expression_handles(call.arguments)
                         .iter()

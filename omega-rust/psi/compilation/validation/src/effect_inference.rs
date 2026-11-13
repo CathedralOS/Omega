@@ -6,6 +6,214 @@ service-reach fixed-point inference (`machine_calls::effect_inference`).
 type ContractDependencyWork<Contribution> =
     flow_effects::ContractDependency<Contribution, Vec<symbols::SymbolHandle>>;
 
+/// Refuse incomplete runtime contracts before any infallible effect preparation.
+/// Code selection validates its retained contract without contributing a call.
+pub fn validate_runtime_callable_effects(
+    program: &dyn crate::CheckingInput,
+    diagnostics: &mut Vec<diagnostics::Diagnostic>,
+) {
+    use typed_trees::expression::ExpressionNode;
+    use typed_trees::types::TypeReferenceNode;
+    let mut validate = |contract: Result<
+        typed_trees::callable_values::RuntimeCallableContractHandle,
+        &'static str,
+    >,
+                        callee: Option<typed_trees::expression::ExpressionHandle>,
+                        span: source::SourceSpan| {
+        let result = contract
+            .and_then(|contract| runtime_effect_contract(program, contract))
+            .and_then(|_| {
+                if callee
+                    .is_some_and(|callee| !program.expression_table.expression_is_valid(callee))
+                {
+                    return Err("runtime invocation has no retained evaluated callee");
+                }
+                Ok(())
+            });
+        if let Err(reason) = result {
+            diagnostics.push(diagnostics::Diagnostic::error(reason).with_source_span(span));
+        }
+    };
+    for (expression, node) in program.expression_table.expression_entries() {
+        match node {
+            ExpressionNode::Call(call) => {
+                if let Some(binding) = call.runtime_call {
+                    let site = crate::CallSite::Expression { expression, call };
+                    validate(
+                        runtime_source_contract(program, symbols::SymbolHandle::invalid(), &site),
+                        Some(binding.callee),
+                        program.expression_table.source_span(expression),
+                    );
+                }
+            }
+            ExpressionNode::MachineValue(value) => {
+                let mut reference = value.type_reference;
+                let mut seen = Vec::new();
+                let contract = loop {
+                    if !program.contains_type_reference(reference) || seen.contains(&reference) {
+                        break Err("machine value has an unresolved or cyclic callable type");
+                    }
+                    seen.push(reference);
+                    match program.type_reference_table.type_reference(reference) {
+                        TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+                        TypeReferenceNode::Callable { contract } => break Ok(*contract),
+                        _ => {
+                            break Err("machine value has no structural callable destination type");
+                        }
+                    }
+                };
+                validate(
+                    contract,
+                    None,
+                    program.expression_table.source_span(expression),
+                );
+            }
+            _ => {}
+        }
+    }
+    for machine in program.machines() {
+        for state in program.machine_states(machine) {
+            for statement in program.statement_table.statements(state.statement_nodes) {
+                if let Some(call) = statement.as_call()
+                    && let Some(binding) = call.runtime_call
+                {
+                    let site = crate::CallSite::Statement(call);
+                    validate(
+                        runtime_source_contract(program, machine.symbol, &site),
+                        Some(binding.callee),
+                        call.source_span,
+                    );
+                }
+            }
+        }
+    }
+}
+
+fn runtime_source_contract(
+    program: &dyn crate::CheckingInput,
+    caller: symbols::SymbolHandle,
+    site: &crate::CallSite<'_>,
+) -> Result<typed_trees::callable_values::RuntimeCallableContractHandle, &'static str> {
+    match crate::calls::call_contract_source(program, caller, site)? {
+        Some(crate::calls::CallContractSource::Runtime { binding, .. }) => Ok(binding.contract),
+        _ => Err("runtime invocation has no exact runtime contract source"),
+    }
+}
+
+fn runtime_effect_contract(
+    program: &dyn crate::CheckingInput,
+    handle: typed_trees::callable_values::RuntimeCallableContractHandle,
+) -> Result<&typed_trees::callable_values::RuntimeCallableContract, &'static str> {
+    if !program.runtime_callable_contracts.is_valid(handle) {
+        return Err("runtime callable lost its exact retained contract row");
+    }
+    let contract = program.runtime_callable_contracts.get(handle);
+    let signature = &contract.signature;
+    if !signature.symbol.is_valid() || !contract.lexical_owner.is_valid() {
+        return Err("runtime callable contract lost its declaration or lexical owner");
+    }
+    let binders = program.state_signature_type_parameters(signature);
+    if binders.iter().any(|binder| {
+        !matches!(
+            binder.kind,
+            typed_trees::data::TypeParameterKind::Const { .. }
+                | typed_trees::data::TypeParameterKind::Value { .. }
+        )
+    }) {
+        return Err(
+            "runtime callable must close its type, machine, implementation and evidence binders before construction",
+        );
+    }
+    if !binders.is_empty()
+        && !matches!(
+            program.finite_signature_family(signature),
+            typed_trees::finite_family::FamilyProbe::Finite { .. }
+        )
+    {
+        return Err(
+            "runtime callable has an unbounded static value family; close its static arguments before construction",
+        );
+    }
+    let mut reach = signature.service_reach_row;
+    let mut seen = Vec::new();
+    loop {
+        if reach.0 == 0 {
+            return Err(
+                "runtime callable has an open service ceiling; state a finite `reaches` clause (`reaches none` is empty)",
+            );
+        }
+        if reach.0 as usize > program.service_reach_rows.len() || seen.contains(&reach) {
+            return Err("runtime callable has an unresolved or cyclic service ceiling");
+        }
+        seen.push(reach);
+        match program.service_reach_rows.abstract_bound(reach) {
+            Some(bound) => reach = bound,
+            None => break,
+        }
+    }
+    if program
+        .service_reach_rows
+        .services(reach)
+        .iter()
+        .any(|service| program.service_reaches.definition(*service).is_none())
+    {
+        return Err("runtime callable service ceiling contains an unresolved service");
+    }
+    let has_crash_routes = program
+        .state_signature_contracts(signature)
+        .iter()
+        .any(|clause| {
+            matches!(
+                clause.kind,
+                typed_trees::signature::SignatureContractKind::Crashes { .. }
+            )
+        });
+    if !signature.declares_no_crash_route && !has_crash_routes {
+        return Err(
+            "runtime callable has an open crash ceiling; state finite crash routes or `crashes none`",
+        );
+    }
+    if signature.declares_no_crash_route && has_crash_routes {
+        return Err("runtime callable combines `crashes none` with a crash route");
+    }
+    let parameters = program.state_signature_parameters(signature);
+    for invocation in program.state_signature_invokes(signature) {
+        use typed_trees::signature::AuthoredInvocationTarget;
+        let valid = match invocation.target {
+            AuthoredInvocationTarget::Parameter { ordinal, symbol } => {
+                parameters.get(ordinal as usize).is_some_and(|parameter| {
+                    parameter.symbol == symbol
+                        && typed_trees::invocations::boundary_service_for_type(
+                            program.typed_program(),
+                            parameter.type_reference,
+                        )
+                        .is_some()
+                })
+            }
+            AuthoredInvocationTarget::Service(symbol) => program
+                .trait_definition_by_symbol(symbol)
+                .is_some_and(|declaration| declaration.is_boundary),
+            AuthoredInvocationTarget::Unresolved => false,
+        };
+        if !valid {
+            return Err("runtime callable has an unresolved synchronous invocation target");
+        }
+    }
+    Ok(contract)
+}
+
+// Publication and Build execution admit runtime contracts before inference.
+// An internal caller that bypasses that boundary must refuse the invariant;
+// an absent row cannot authorize an empty or default operational envelope.
+fn admitted_runtime_signature(
+    program: &dyn crate::CheckingInput,
+    binding: typed_trees::callable_values::RuntimeCallBinding,
+) -> &typed_trees::signature::StateSignature {
+    &runtime_effect_contract(program, binding.contract)
+        .unwrap_or_else(|reason| panic!("runtime callable effect preflight was bypassed: {reason}"))
+        .signature
+}
+
 pub(crate) mod call_sites {
     use arena::HandleSpan;
     use symbols::SymbolHandle;
@@ -53,12 +261,14 @@ pub(crate) mod call_sites {
                 continue;
             }
             let mut ordinal = 0usize;
+            let mut expressions = std::collections::BTreeSet::new();
             visit_statement(
                 program,
                 machine,
                 statement,
                 statement_index,
                 &mut ordinal,
+                &mut expressions,
                 visitor,
             );
         }
@@ -70,6 +280,7 @@ pub(crate) mod call_sites {
         statement: &StatementNode,
         statement_index: usize,
         ordinal: &mut usize,
+        expressions: &mut std::collections::BTreeSet<(u32, u32)>,
         visitor: &mut impl CallSiteVisitor,
     ) {
         match statement {
@@ -80,19 +291,51 @@ pub(crate) mod call_sites {
                     assignment.target,
                     statement_index,
                     ordinal,
+                    expressions,
                     visitor,
                 );
-                visit_expression(program, assignment.value, statement_index, ordinal, visitor);
+                visit_expression(
+                    program,
+                    assignment.value,
+                    statement_index,
+                    ordinal,
+                    expressions,
+                    visitor,
+                );
             }
             StatementNode::Call(call) => {
                 visitor.statement_call(call, statement_index, *ordinal);
                 reserve_ordinal(ordinal);
+                if let Some(binding) = call.runtime_call {
+                    visit_expression(
+                        program,
+                        binding.callee,
+                        statement_index,
+                        ordinal,
+                        expressions,
+                        visitor,
+                    );
+                }
                 for argument in program.statement_table.expression_handles(call.arguments) {
-                    visit_expression(program, *argument, statement_index, ordinal, visitor);
+                    visit_expression(
+                        program,
+                        *argument,
+                        statement_index,
+                        ordinal,
+                        expressions,
+                        visitor,
+                    );
                 }
             }
             StatementNode::Expression(expression) => {
-                visit_expression(program, *expression, statement_index, ordinal, visitor);
+                visit_expression(
+                    program,
+                    *expression,
+                    statement_index,
+                    ordinal,
+                    expressions,
+                    visitor,
+                );
             }
             StatementNode::LocalData(local_data) => {
                 if local_data.initial_value.is_valid() {
@@ -101,13 +344,21 @@ pub(crate) mod call_sites {
                         local_data.initial_value,
                         statement_index,
                         ordinal,
+                        expressions,
                         visitor,
                     );
                 }
             }
             StatementNode::Transition(transition) => {
                 if let TransitionGuardNode::When(guard) = transition.guard {
-                    visit_expression(program, guard, statement_index, ordinal, visitor);
+                    visit_expression(
+                        program,
+                        guard,
+                        statement_index,
+                        ordinal,
+                        expressions,
+                        visitor,
+                    );
                 }
                 visit_transition_target(
                     program,
@@ -115,6 +366,7 @@ pub(crate) mod call_sites {
                     transition.target,
                     statement_index,
                     ordinal,
+                    expressions,
                     visitor,
                 );
                 if transition.continuation.is_valid() {
@@ -124,6 +376,7 @@ pub(crate) mod call_sites {
                         transition.continuation,
                         statement_index,
                         ordinal,
+                        expressions,
                         visitor,
                     );
                 }
@@ -137,6 +390,7 @@ pub(crate) mod call_sites {
         target: typed_trees::statement::TransitionTargetHandle,
         statement_index: usize,
         ordinal: &mut usize,
+        expressions: &mut std::collections::BTreeSet<(u32, u32)>,
         visitor: &mut impl CallSiteVisitor,
     ) {
         if !target.is_valid() {
@@ -170,11 +424,25 @@ pub(crate) mod call_sites {
                 }
                 reserve_ordinal(ordinal);
                 for argument in program.statement_table.expression_handles(*arguments) {
-                    visit_expression(program, *argument, statement_index, ordinal, visitor);
+                    visit_expression(
+                        program,
+                        *argument,
+                        statement_index,
+                        ordinal,
+                        expressions,
+                        visitor,
+                    );
                 }
             }
             TransitionTargetNode::Value(expression) => {
-                visit_expression(program, *expression, statement_index, ordinal, visitor);
+                visit_expression(
+                    program,
+                    *expression,
+                    statement_index,
+                    ordinal,
+                    expressions,
+                    visitor,
+                );
             }
             TransitionTargetNode::Terminal => {}
         }
@@ -185,6 +453,7 @@ pub(crate) mod call_sites {
         expression: ExpressionHandle,
         statement_index: usize,
         ordinal: &mut usize,
+        expressions: &mut std::collections::BTreeSet<(u32, u32)>,
         visitor: &mut impl CallSiteVisitor,
     ) {
         if !expression.is_valid() {
@@ -196,23 +465,103 @@ pub(crate) mod call_sites {
                     program, atomic,
                 );
                 for input in inputs {
-                    visit_expression(program, input, statement_index, ordinal, visitor);
+                    visit_expression(
+                        program,
+                        input,
+                        statement_index,
+                        ordinal,
+                        expressions,
+                        visitor,
+                    );
                 }
             }
             ExpressionNode::Call(call) => {
+                // Call ordinals describe authored invocations. A repeated DAG
+                // edge to one call does not evaluate or count a second call.
+                if !expressions.insert((expression.arena_index(), expression.generation())) {
+                    return;
+                }
                 if !program.static_type_context_is_unreachable(expression) {
                     visitor.expression_call(call, statement_index, *ordinal);
                 }
                 reserve_ordinal(ordinal);
-                visit_expression(program, call.receiver, statement_index, ordinal, visitor);
+                let callee = call.evaluated_callee();
+                visit_expression(
+                    program,
+                    callee,
+                    statement_index,
+                    ordinal,
+                    expressions,
+                    visitor,
+                );
                 for argument in program.expression_table.expression_handles(call.arguments) {
-                    visit_expression(program, *argument, statement_index, ordinal, visitor);
+                    visit_expression(
+                        program,
+                        *argument,
+                        statement_index,
+                        ordinal,
+                        expressions,
+                        visitor,
+                    );
                 }
             }
             other => crate::queries::expression_traversal::children(program, other, |child| {
-                visit_expression(program, child, statement_index, ordinal, visitor);
+                visit_expression(
+                    program,
+                    child,
+                    statement_index,
+                    ordinal,
+                    expressions,
+                    visitor,
+                );
             }),
         }
+    }
+
+    pub(super) fn runtime_bindings(
+        program: &dyn crate::CheckingInput,
+        machine: SymbolHandle,
+        state: &State,
+    ) -> std::collections::BTreeMap<(usize, usize), typed_trees::callable_values::RuntimeCallBinding>
+    {
+        #[derive(Default)]
+        struct Bindings(
+            std::collections::BTreeMap<
+                (usize, usize),
+                typed_trees::callable_values::RuntimeCallBinding,
+            >,
+        );
+        impl CallSiteVisitor for Bindings {
+            fn statement_call(&mut self, call: &TableCall, statement: usize, ordinal: usize) {
+                if let Some(binding) = call.runtime_call {
+                    self.0.insert((statement, ordinal), binding);
+                }
+            }
+            fn expression_call(
+                &mut self,
+                call: &TableCallExpression,
+                statement: usize,
+                ordinal: usize,
+            ) {
+                if let Some(binding) = call.runtime_call {
+                    self.0.insert((statement, ordinal), binding);
+                }
+            }
+            fn named_transfer(
+                &mut self,
+                _: SymbolHandle,
+                _: &TableNamePath,
+                _: HandleSpan<ExpressionHandle>,
+                _: SymbolHandle,
+                _: language_semantics::CallOperationalAcknowledgement,
+                _: usize,
+                _: usize,
+            ) {
+            }
+        }
+        let mut bindings = Bindings::default();
+        visit_state_calls(program, machine, state, &mut bindings);
+        bindings.0
     }
 
     fn reserve_ordinal(ordinal: &mut usize) {
@@ -612,6 +961,15 @@ pub(crate) mod invocations {
 
     impl CallSiteVisitor for InvocationCallSites<'_> {
         fn statement_call(&mut self, call: &TableCall, _statement_index: usize, _ordinal: usize) {
+            if let Some(binding) = call.runtime_call {
+                self.runtime_call(
+                    binding,
+                    self.program
+                        .statement_table
+                        .expression_handles(call.arguments),
+                );
+                return;
+            }
             let receiver =
                 origin_for_statement_receiver(self.program, self.machine, self.state, call);
             self.resolved_call(
@@ -630,6 +988,13 @@ pub(crate) mod invocations {
             _statement_index: usize,
             _ordinal: usize,
         ) {
+            if let Some(binding) = call.runtime_call {
+                self.runtime_call(
+                    binding,
+                    expression_table(self.program).expression_handles(call.arguments),
+                );
+                return;
+            }
             if expression_table(self.program)
                 .build_selection_request(call.build_selection)
                 .is_some()
@@ -700,6 +1065,56 @@ pub(crate) mod invocations {
     }
 
     impl InvocationCallSites<'_> {
+        fn runtime_call(
+            &mut self,
+            binding: typed_trees::callable_values::RuntimeCallBinding,
+            actuals: &[ExpressionHandle],
+        ) {
+            let signature = super::admitted_runtime_signature(self.program, binding);
+            let parameters = self.program.state_signature_parameters(signature);
+            let arguments = actuals
+                .iter()
+                .map(|actual| {
+                    origin_for_expression(self.program, self.machine, self.state, *actual)
+                })
+                .collect::<Vec<_>>();
+            let declared = super::declared_signature_invocations(self.program, signature)
+                .into_iter()
+                .map(|target| match target {
+                    InvocationTarget::Parameter(ordinal) => {
+                        arguments
+                            .get(ordinal as usize)
+                            .copied()
+                            .flatten()
+                            .unwrap_or_else(|| {
+                                // An unknown actual retains the formal's authored service
+                                // ceiling. It cannot silently remove a permitted invocation.
+                                let formal =
+                                    parameters.get(ordinal as usize).unwrap_or_else(|| {
+                                        panic!(
+                                            "runtime invocation target bypassed effect preflight"
+                                        )
+                                    });
+                                let service = typed_trees::invocations::boundary_service_for_type(
+                                    self.program.typed_program(),
+                                    formal.type_reference,
+                                )
+                                .unwrap_or_else(|| {
+                                    panic!("runtime invocation service bypassed effect preflight")
+                                });
+                                InvocationTarget::Service(service)
+                            })
+                    }
+                    target => target,
+                })
+                .collect::<Vec<_>>();
+            self.calls.push(CallWork {
+                target_machine: SymbolHandle::invalid(),
+                arguments,
+                declared,
+            });
+        }
+
         fn resolved_call(
             &mut self,
             target_symbol: SymbolHandle,
@@ -1147,6 +1562,7 @@ pub(crate) mod operational {
         statement_index: usize,
         call_ordinal: usize,
         target_name: String,
+        runtime_call: Option<typed_trees::callable_values::RuntimeCallBinding>,
         target_state_symbol: SymbolHandle,
         requirement_symbol: SymbolHandle,
         static_machine_parameter: SymbolHandle,
@@ -1298,11 +1714,13 @@ pub(crate) mod operational {
 
         if let Some(owner) = program.machine_by_symbol(machine) {
             for call in &mut calls {
-                if let Ok(Some(requirement)) = crate::named_conformance_target_requirement(
-                    program,
-                    owner,
-                    call.target_state_symbol,
-                ) {
+                if call.runtime_call.is_none()
+                    && let Ok(Some(requirement)) = crate::named_conformance_target_requirement(
+                        program,
+                        owner,
+                        call.target_state_symbol,
+                    )
+                {
                     call.target_state_symbol = requirement.signature.symbol;
                     call.requirement_symbol = requirement.signature.symbol;
                     let direct = signature_effects.for_symbol(requirement.signature.symbol);
@@ -1323,7 +1741,9 @@ pub(crate) mod operational {
 
     impl CallSiteVisitor for OperationalCallSites<'_> {
         fn statement_call(&mut self, call: &TableCall, statement_index: usize, ordinal: usize) {
-            let target_operator_symbol = {
+            let target_operator_symbol = if call.runtime_call.is_some() {
+                SymbolHandle::invalid()
+            } else {
                 let candidates =
                     typed_trees::operator::named_statement_call_candidates(self.program, call);
                 match candidates.as_slice() {
@@ -1334,6 +1754,7 @@ pub(crate) mod operational {
             push_call(
                 self.signature_effects,
                 self.program,
+                call.runtime_call,
                 call.target.as_str(),
                 call.target_symbol,
                 call.static_requirement_dispatch
@@ -1357,11 +1778,16 @@ pub(crate) mod operational {
             statement_index: usize,
             ordinal: usize,
         ) {
-            if crate::proof_contracts::proof_embeddings::is_exact_embed_call(self.program, call) {
+            if call.runtime_call.is_none()
+                && crate::proof_contracts::proof_embeddings::is_exact_embed_call(self.program, call)
+            {
                 return;
             }
-            let named_operator =
-                typed_trees::operator::resolve_named_expression_call(self.program, call);
+            let named_operator = call
+                .runtime_call
+                .is_none()
+                .then(|| typed_trees::operator::resolve_named_expression_call(self.program, call))
+                .flatten();
             let target_operator_symbol = named_operator
                 .map(|operator| operator.symbol)
                 .unwrap_or_else(SymbolHandle::invalid);
@@ -1371,6 +1797,7 @@ pub(crate) mod operational {
             push_call(
                 self.signature_effects,
                 self.program,
+                call.runtime_call,
                 call.target.as_str(),
                 target_state_symbol,
                 call.static_requirement_dispatch
@@ -1406,6 +1833,7 @@ pub(crate) mod operational {
             push_call(
                 self.signature_effects,
                 self.program,
+                None,
                 &target_name,
                 target,
                 SymbolHandle::invalid(),
@@ -1423,6 +1851,7 @@ pub(crate) mod operational {
     fn push_call(
         signature_effects: &DirectSignatureEffects,
         program: &dyn CheckingInput,
+        runtime_call: Option<typed_trees::callable_values::RuntimeCallBinding>,
         target_name: &str,
         target_state_symbol: SymbolHandle,
         requirement_symbol: SymbolHandle,
@@ -1434,7 +1863,11 @@ pub(crate) mod operational {
         call_ordinal: usize,
         calls: &mut Vec<CallWork>,
     ) {
-        let authored_target = target_state_symbol;
+        let authored_target = if runtime_call.is_some() {
+            SymbolHandle::invalid()
+        } else {
+            target_state_symbol
+        };
         let target_state_symbol = program
             .machine_by_symbol(authored_target)
             .and_then(|machine| program.machine_states(machine).first())
@@ -1443,20 +1876,30 @@ pub(crate) mod operational {
             .machine_holding_state(target_state_symbol)
             .map(|machine| machine.symbol)
             .unwrap_or_else(SymbolHandle::invalid);
-        let direct = program
-            .retained_static_machine_contract(static_machine_parameter)
-            .map(|contract| signature_operational(program, contract.signature()))
-            .unwrap_or_else(|| {
-                signature_effects.for_symbol(if requirement_symbol.is_valid() {
-                    requirement_symbol
-                } else {
-                    authored_target
+        let direct = if let Some(binding) = runtime_call {
+            let signature = super::admitted_runtime_signature(program, binding);
+            signature_operational_with_parameters(
+                program,
+                signature,
+                program.state_signature_type_parameters(signature),
+            )
+        } else {
+            program
+                .retained_static_machine_contract(static_machine_parameter)
+                .map(|contract| signature_operational(program, contract.signature()))
+                .unwrap_or_else(|| {
+                    signature_effects.for_symbol(if requirement_symbol.is_valid() {
+                        requirement_symbol
+                    } else {
+                        authored_target
+                    })
                 })
-            });
+        };
         calls.push(CallWork {
             statement_index,
             call_ordinal,
             target_name: target_name.to_owned(),
+            runtime_call,
             target_state_symbol,
             requirement_symbol,
             static_machine_parameter,
@@ -1556,13 +1999,25 @@ pub(crate) mod operational {
         program: &dyn CheckingInput,
         signature: &typed_trees::signature::StateSignature,
     ) -> DirectCallOperational {
+        signature_operational_with_parameters(
+            program,
+            signature,
+            super::callback_requirements::opaque_signature_parameters(program, signature),
+        )
+    }
+
+    fn signature_operational_with_parameters(
+        program: &dyn CheckingInput,
+        signature: &typed_trees::signature::StateSignature,
+        parameters: &[typed_trees::data::TypeParameter],
+    ) -> DirectCallOperational {
         let mut operational = DirectCallOperational {
             may_suspend: signature.suspends,
             may_block: signature.blocks,
         };
         super::callback_requirements::visit(
             program,
-            super::callback_requirements::opaque_signature_parameters(program, signature),
+            parameters,
             &super::declared_signature_invocations(program, signature),
             |invoked| {
                 operational.may_suspend |= invoked.suspends;
@@ -1771,6 +2226,16 @@ pub(crate) mod operational {
         state: SymbolHandle,
         call: &CallWork,
     ) -> ResolvedCall {
+        if call.runtime_call.is_some() {
+            return ResolvedCall {
+                envelope: OperationalDependencies {
+                    may_suspend: call.direct_may_suspend.into(),
+                    may_block: call.direct_may_block.into(),
+                },
+                selected_dispatch: false,
+                targets: Vec::new(),
+            };
+        }
         let mut records = captured.calls.iter().filter_map(|(_, record)| {
             (record.caller_state == state
                 && record.statement_index == call.statement_index
@@ -2006,6 +2471,9 @@ pub(crate) mod operational {
                 });
             for state in &mut machine.states {
                 for call in &mut state.calls {
+                    if call.runtime_call.is_some() {
+                        continue;
+                    }
                     let arguments = std::mem::take(&mut call.pending_static_machine_arguments);
                     call.static_machine_bindings = retain_static_machine_bindings(
                         program,
@@ -3146,7 +3614,15 @@ pub(crate) mod service_reach {
                 .map(|index| &operational.machines()[index])
         {
             for state in operational.states.span_or_empty(summary.states) {
+                let declaration = program
+                    .state_by_symbol(state.symbol)
+                    .unwrap_or_else(|| panic!("operational service reach lost its source state"));
+                let runtime_bindings =
+                    super::call_sites::runtime_bindings(program, machine.symbol, declaration);
                 for call in operational.calls.span_or_empty(state.calls) {
+                    let runtime_call = runtime_bindings
+                        .get(&(call.statement_index, call.call_ordinal))
+                        .copied();
                     let resolved = contexts.call(
                         context,
                         state.symbol,
@@ -3154,8 +3630,20 @@ pub(crate) mod service_reach {
                         call.call_ordinal,
                         call.target_state_symbol,
                     );
-                    let selected_dispatch = resolved.is_some_and(|call| call.selected_dispatch);
-                    let call_reach = if selected_dispatch {
+                    let selected_dispatch = runtime_call.is_none()
+                        && resolved.is_some_and(|call| call.selected_dispatch);
+                    let call_reach = if let Some(binding) = runtime_call {
+                        let signature = super::admitted_runtime_signature(program, binding);
+                        let mut reach = DirectServiceReach::default();
+                        extend_signature_service_rows(program, signature, &mut reach);
+                        record_signature_reach_with_parameters(
+                            program,
+                            signature,
+                            program.state_signature_type_parameters(signature),
+                            &mut reach,
+                        );
+                        reach
+                    } else if selected_dispatch {
                         DirectServiceReach::default()
                     } else {
                         direct_service_reach_for_operational_call(
@@ -3181,7 +3669,11 @@ pub(crate) mod service_reach {
                     }
                     calls.push(MachineReachCall {
                         target: call.target_machine_symbol,
-                        selected: resolved.map(|call| selected_targets(contexts, call)),
+                        selected: if runtime_call.is_some() {
+                            Some(Vec::new())
+                        } else {
+                            resolved.map(|call| selected_targets(contexts, call))
+                        },
                         direct: call_reach,
                         bindings: call.static_machine_bindings,
                         cleanup: if call.static_machine_parameter.is_valid()
@@ -3604,8 +4096,27 @@ pub(crate) mod service_reach {
         signature: &typed_trees::signature::StateSignature,
         reach: &mut DirectServiceReach,
     ) {
+        record_signature_reach_with_parameters(
+            program,
+            signature,
+            super::callback_requirements::opaque_signature_parameters(program, signature),
+            reach,
+        );
+    }
+
+    fn record_signature_reach_with_parameters(
+        program: &dyn crate::CheckingInput,
+        signature: &typed_trees::signature::StateSignature,
+        parameters: &[typed_trees::data::TypeParameter],
+        reach: &mut DirectServiceReach,
+    ) {
         record_installation_reach(signature, reach);
-        extend_invoked_binding_services(program, signature, reach);
+        extend_invoked_callback_services(
+            program,
+            parameters,
+            &super::declared_signature_invocations(program, signature),
+            reach,
+        );
     }
 
     fn record_installation_reach(
@@ -3639,19 +4150,6 @@ pub(crate) mod service_reach {
             )
         });
         rows.dedup();
-    }
-
-    fn extend_invoked_binding_services(
-        program: &dyn crate::CheckingInput,
-        signature: &typed_trees::signature::StateSignature,
-        reach: &mut DirectServiceReach,
-    ) {
-        extend_invoked_callback_services(
-            program,
-            super::callback_requirements::opaque_signature_parameters(program, signature),
-            &super::declared_signature_invocations(program, signature),
-            reach,
-        );
     }
 
     fn extend_machine_invoked_binding_services(

@@ -5203,6 +5203,7 @@ pub(crate) mod declared_symbols {
         type_reference: typed_trees::types::TypeReferenceHandle,
     ) -> SymbolHandle {
         match program.type_reference_table.type_reference(type_reference) {
+            typed_trees::types::TypeReferenceNode::Callable { .. } => SymbolHandle::invalid(),
             typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
                 machine_symbol_from_type_reference_handle(program, *referee)
             }
@@ -8548,6 +8549,7 @@ pub(crate) mod projection_types {
     ) -> Option<typed_trees::types::TypeReferenceHandle> {
         let type_reference = substituted_type_reference(program, type_reference, substitutions);
         match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Callable { .. } => None,
             typed_trees::types::TypeReferenceNode::Reference { referee, .. }
             | typed_trees::types::TypeReferenceNode::Constrained {
                 base_type: referee, ..
@@ -8624,6 +8626,7 @@ pub(crate) mod projection_types {
     ) -> Option<typed_trees::types::TypeReferenceHandle> {
         let type_reference = substituted_type_reference(program, type_reference, substitutions);
         let element = match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Callable { .. } => None,
             typed_trees::types::TypeReferenceNode::Reference { referee, .. }
             | typed_trees::types::TypeReferenceNode::Constrained {
                 base_type: referee, ..

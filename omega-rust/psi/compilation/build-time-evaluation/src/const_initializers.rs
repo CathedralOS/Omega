@@ -104,7 +104,7 @@ mod invocations {
             for &symbol in probe_symbols {
                 domain.include(symbol);
             }
-            let domain = domain.demanded_roots(prepared.typed(), probe_symbols);
+            let domain = domain.demanded_roots(prepared.typed(), probe_symbols)?;
             let settled = if crate::const_evaluation::const_lengths::pending_array_lengths(
                 prepared.typed(),
                 &domain,
@@ -139,7 +139,7 @@ mod invocations {
             let typed = prepare_selected_execution(&typed, &[], &operators)
                 .map_err(|reason| super::failure(SourceSpan::default(), reason))?
                 .unwrap_or(typed);
-            let admission = BuildTimeAdmissionPlan::infer(&typed, authority.clone())
+            let admission = BuildTimeAdmissionPlan::infer(&typed, authority.clone())?
                 .with_accounting(domain.accounting.clone())
                 .with_selected_operators(&typed, &operators)
                 .map_err(|reason| super::failure(SourceSpan::default(), reason))?;
@@ -570,6 +570,7 @@ mod invocations {
                         &probe,
                         self.program.authority.clone(),
                     )
+                    .map_err(|diagnostics| diagnostics::join_messages(&diagnostics))?
                     .with_accounting(self.program.admission.accounting.clone())
                     .with_selected_operators(&probe, &self.program.operators)?;
                     admission.evaluate_const_evaluable_machine_symbol_for_invocation(
@@ -808,6 +809,7 @@ mod invocations {
             }
             let (probe, owner) = self.owned_argument_probe(expression, destination)?;
             let admission = BuildTimeAdmissionPlan::infer(&probe, self.program.authority.clone())
+                .map_err(|diagnostics| diagnostics::join_messages(&diagnostics))?
                 .with_accounting(self.program.admission.accounting.clone())
                 .with_selected_operators(&probe, &self.program.operators)?;
             let custody =
@@ -2354,7 +2356,7 @@ mod replay {
             .chain(referenced_constants)
             .collect::<Vec<_>>();
         let replay_execution =
-            PreparedEvaluationInputs::domain_for_program(&probe, &replay_roots, &[]);
+            PreparedEvaluationInputs::domain_for_program(&probe, &replay_roots, &[])?;
         let prepared = crate::PreparedBuildMachineProgram::prepare_in(&probe, &replay_execution)?;
         let checked = super::invocations::CheckedInitializers::prepare(
             &prepared,
@@ -3380,7 +3382,7 @@ mod target_observations {
                     .unwrap_or_else(|| source_probes.clone());
                 let mut work = domain.clone();
                 work.include(owner);
-                let work = work.demanded_roots(&execution_probes, &[owner]);
+                let work = work.demanded_roots(&execution_probes, &[owner])?;
                 let references = work.references(&execution_probes);
                 let pending_dependency =
                     references
@@ -3466,7 +3468,7 @@ mod target_observations {
                         .attach_authored_selection_occurrences(root, [occurrence]);
                 }
             }
-            let work = work.demanded_roots(&execution_probes, &[owner]);
+            let work = work.demanded_roots(&execution_probes, &[owner])?;
             let prepared =
                 crate::PreparedBuildMachineProgram::prepare_in(&execution_probes, &work)?;
             let checked = CheckedInitializers::prepare(
@@ -4067,7 +4069,7 @@ pub(crate) fn evaluate(
         let prepared = crate::PreparedBuildMachineProgram::prepare_in(&typed, &domain)?;
         let execution = prepared.typed();
         let operator_facts = validation::derive_pre_flow_operator_selections(execution);
-        let admission = domain.admission(execution, authority.clone());
+        let admission = domain.admission(execution, authority.clone())?;
         let mut observations = Vec::new();
         let mut pending_choices = Vec::new();
         for ordinal in &ready {
@@ -4258,7 +4260,7 @@ pub(crate) fn evaluate(
                         symbols.push(machine.symbol);
                     }
                 }
-                let independent = domain.demanded_roots(&typed, &symbols);
+                let independent = domain.demanded_roots(&typed, &symbols)?;
                 let prepared =
                     crate::PreparedBuildMachineProgram::prepare_in(&typed, &independent)?;
                 invocations::CheckedInitializers::prepare(

@@ -302,15 +302,24 @@ mod routing {
                     }
                 }
 
-                call.target_symbol = resolve_call_target_symbol(
-                    machine,
-                    parameters,
-                    !call.receiver.is_empty(),
-                    call.receiver_symbol,
-                    &call.target,
-                    child_type_references,
-                    symbols,
-                );
+                call.target_symbol =
+                    if symbol_resolved_trees::callable_values::callee_uses_value_binding(
+                        symbols,
+                        expression_table,
+                        call.callee,
+                    ) {
+                        SymbolHandle::invalid()
+                    } else {
+                        resolve_call_target_symbol(
+                            machine,
+                            parameters,
+                            !call.receiver.is_empty(),
+                            call.receiver_symbol,
+                            &call.target,
+                            child_type_references,
+                            symbols,
+                        )
+                    };
                 crate::symbols::expressions::assign_static_arguments_type_symbols(
                     symbols,
                     machine,

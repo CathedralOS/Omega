@@ -3808,6 +3808,19 @@ mod crash_plan_facts {
                 )
             })
             .collect::<Result<Vec<_>, diagnostics::Diagnostic>>()?;
+        for (contract, row) in program.runtime_callable_contracts.iter() {
+            capsules.push(
+                build_signature_crash_capsule(
+                    program,
+                    symbols::SymbolHandle::invalid(),
+                    symbols::SymbolHandle::invalid(),
+                    &row.signature,
+                    content_conservation,
+                    operators,
+                )?
+                .with_runtime_callable_source(contract, row.lexical_owner),
+            );
+        }
         capsules.extend(
             program
                 .all_operators()
@@ -3828,6 +3841,9 @@ mod crash_plan_facts {
                 capsule.target_machine().generation(),
                 capsule.target_state().arena_index(),
                 capsule.target_state().generation(),
+                capsule
+                    .runtime_callable_source()
+                    .map(|(contract, _)| (contract.arena_index(), contract.generation())),
             )
         });
         capsules.dedup();
@@ -10275,6 +10291,11 @@ pub(crate) mod review_sources {
                         state_symbol,
                     ))]);
                 };
+                if checked_call.runtime_call != call_site.runtime_call() {
+                    return Err(vec![Diagnostic::error(
+                        "checked body call lost its exact runtime callable binding while binding source custody",
+                    )]);
+                }
                 checked_call.authored_expression = match &call_site {
                     CallSite::Expression { expression, .. } => *expression,
                     CallSite::Statement(_) | CallSite::TransitionNamed { .. } => Default::default(),

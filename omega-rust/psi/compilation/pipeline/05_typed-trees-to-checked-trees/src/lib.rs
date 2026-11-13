@@ -67,6 +67,7 @@ pub use products::package_review::{
     derive_authored_machine_crash_buckets, derive_authored_signature_crash_buckets,
     derive_checked_contract_expression_evidence_instantiation,
     derive_checked_contract_expression_evidence_parameters, derive_checked_nominal_call_target,
+    derive_checked_runtime_contract_expression_evidence_parameters,
     derive_checked_semantic_dependencies, infer_checked_crash_causes,
     infer_checked_machine_crash_causes, infer_checked_recursive_machine_terminations,
     infer_machine_termination_summary, late_bound_member_declaration_from_exact_owner,

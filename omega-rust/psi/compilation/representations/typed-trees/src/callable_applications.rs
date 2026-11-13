@@ -1035,6 +1035,7 @@ pub(crate) mod data_cleanup_scopes {
                 selected_providers: Vec::new(),
                 symbols: Vec::new(),
                 active_requirements: Vec::new(),
+                active_runtime_contracts: Vec::new(),
                 source_binders: parameters
                     .iter()
                     .map(|parameter| (parameter.name.clone(), parameter.symbol))
@@ -1137,6 +1138,7 @@ pub(crate) mod domain_scopes {
                     .into_iter()
                     .collect(),
                 active_requirements: Vec::new(),
+                active_runtime_contracts: Vec::new(),
                 source_binders: parameters
                     .iter()
                     .map(|parameter| (parameter.name.clone(), parameter.symbol))
@@ -3344,6 +3346,11 @@ pub(crate) mod payloads {
                 types::TypeReferenceNode::ConstExpression(expression) => {
                     types::TypeReferenceNode::ConstExpression(self.expression(program, expression)?)
                 }
+                types::TypeReferenceNode::Callable { contract } => {
+                    types::TypeReferenceNode::Callable {
+                        contract: self.runtime_contract(program, contract)?,
+                    }
+                }
                 types::TypeReferenceNode::Unit => types::TypeReferenceNode::Unit,
             };
             let mut origins = program
@@ -3568,6 +3575,9 @@ pub(crate) mod payloads {
                     expression::ExpressionNode::ZeroValue(self.type_reference(program, reference)?),
                 ),
                 expression::ExpressionNode::Call(mut call) => {
+                    if let Some(runtime) = &mut call.runtime_call {
+                        runtime.contract = self.runtime_contract(program, runtime.contract)?;
+                    }
                     call.requirement_application =
                         self.type_reference(program, call.requirement_application)?;
                     call.exact_coercion_target =
@@ -3581,81 +3591,21 @@ pub(crate) mod payloads {
                     if let Some(query) = &mut call.native_code_layout {
                         self.static_arguments(program, std::slice::from_mut(&mut query.operand))?;
                     }
-                    for application in
-                        crate::references::StaticArgumentCall::Expression(handle, &call).applications()
-                    {
-                        let lifetimes = program
-                            .static_machine_application_lifetimes(application)
-                            .iter()
-                            .map(
-                                |binding| static_applications::StaticMachineLifetimeBinding {
-                                    parameter: binding.parameter.clone(),
-                                    argument: self.lifetime(&binding.argument),
-                                },
-                            )
-                            .collect::<Vec<_>>();
-                        let declaration = program
-                            .static_machine_application(application)
-                            .lifetime_binding_declaration;
-                        program
-                            .expression_table
-                            .set_static_machine_application_lifetimes(
-                                application,
-                                declaration,
-                                &lifetimes,
-                            );
-                        let mut arguments = program
-                            .static_machine_application_arguments(application)
-                            .to_vec();
-                        self.static_arguments(program, &mut arguments)?;
-                        program
-                            .expression_table
-                            .static_machine_application_arguments_mut(application)
-                            .clone_from_slice(&arguments);
-                        let mut selected = program
-                            .expression_table
-                            .static_machine_application_selected_machines(application)
-                            .to_vec();
-                        self.static_arguments(program, &mut selected)?;
-                        program
-                            .expression_table
-                            .static_machine_application_selected_machines_mut(application)
-                            .clone_from_slice(&selected);
-                        let mut bindings = program
-                            .static_machine_application_bindings(application)
-                            .to_vec();
-                        for binding in &mut bindings {
-                            match &mut binding.value {
-                                static_applications::StaticMachineBindingValue::Type(reference)
-                                | static_applications::StaticMachineBindingValue::Const(
-                                    reference,
-                                ) => *reference = self.type_reference(program, *reference)?,
-                                static_applications::StaticMachineBindingValue::RuntimeValue {
-                                    type_reference,
-                                    ..
-                                } => {
-                                    *type_reference =
-                                        self.type_reference(program, *type_reference)?
-                                }
-                                static_applications::StaticMachineBindingValue::Machine(
-                                    argument,
-                                )
-                                | static_applications::StaticMachineBindingValue::Conformance(
-                                    argument,
-                                ) => {
-                                    self.static_arguments(program, std::slice::from_mut(argument))?
-                                }
-                            }
-                        }
-                        program
-                            .expression_table
-                            .static_machine_application_bindings_mut(application)
-                            .clone_from_slice(&bindings);
+                    for application in crate::references::StaticArgumentCall::Expression(handle, &call).applications() {
+                        self.apply_static_machine_application(program, application)?;
                     }
                     if let Some(target) = call_target {
                         self.apply_call_target(program, &mut call, target)?;
                     }
                     Some(expression::ExpressionNode::Call(call))
+                }
+                expression::ExpressionNode::MachineValue(mut value) => {
+                    value.type_reference = self.type_reference(program, value.type_reference)?;
+                    self.static_arguments(program, std::slice::from_mut(&mut value.selected))?;
+                    self.apply_static_machine_application(program, value.application)?;
+                    value.conformance = self.symbol(value.conformance);
+                    value.requirement = self.symbol(value.requirement);
+                    Some(expression::ExpressionNode::MachineValue(value))
                 }
                 _ => None,
             };
@@ -3705,6 +3655,75 @@ pub(crate) mod payloads {
                 }
             }
             Ok(copied)
+        }
+
+        fn apply_static_machine_application(
+            &mut self,
+            program: &mut TypedTrees,
+            application: static_applications::StaticMachineApplicationHandle,
+        ) -> Result<(), &'static str> {
+            let lifetimes = program
+                .static_machine_application_lifetimes(application)
+                .iter()
+                .map(
+                    |binding| static_applications::StaticMachineLifetimeBinding {
+                        parameter: binding.parameter.clone(),
+                        argument: self.lifetime(&binding.argument),
+                    },
+                )
+                .collect::<Vec<_>>();
+            let declaration = program
+                .static_machine_application(application)
+                .lifetime_binding_declaration;
+            program
+                .expression_table
+                .set_static_machine_application_lifetimes(application, declaration, &lifetimes);
+            let mut arguments = program
+                .static_machine_application_arguments(application)
+                .to_vec();
+            self.static_arguments(program, &mut arguments)?;
+            program
+                .expression_table
+                .static_machine_application_arguments_mut(application)
+                .clone_from_slice(&arguments);
+            let mut selected = program
+                .expression_table
+                .static_machine_application_selected_machines(application)
+                .to_vec();
+            self.static_arguments(program, &mut selected)?;
+            program
+                .expression_table
+                .static_machine_application_selected_machines_mut(application)
+                .clone_from_slice(&selected);
+            let mut bindings = program
+                .static_machine_application_bindings(application)
+                .to_vec();
+            for binding in &mut bindings {
+                match &mut binding.value {
+                    static_applications::StaticMachineBindingValue::Type(reference)
+                    | static_applications::StaticMachineBindingValue::Const(reference) => {
+                        *reference = self.type_reference(program, *reference)?
+                    }
+                    static_applications::StaticMachineBindingValue::RuntimeValue {
+                        type_reference,
+                        expression,
+                        ..
+                    } => {
+                        *type_reference = self.type_reference(program, *type_reference)?;
+                        *expression = self.expression(program, *expression)?;
+                    }
+                    static_applications::StaticMachineBindingValue::Machine(argument)
+                    | static_applications::StaticMachineBindingValue::Conformance(argument) => {
+                        self.static_arguments(program, std::slice::from_mut(argument))?
+                    }
+                }
+            }
+            program
+                .expression_table
+                .static_machine_application_bindings_mut(application)
+                .clone_from_slice(&bindings);
+
+            Ok(())
         }
 
         pub(crate) fn static_arguments(
@@ -5142,6 +5161,14 @@ pub(crate) mod signatures {
                 applied.return_type = self.type_reference(program, declared.return_type)?;
                 applied.contracts = HandleSpan::empty();
                 for mut contract in program.state_signature_contracts(declared).to_vec() {
+                    if let signature::SignatureContractKind::EnsuresForResultCase {
+                        result_data,
+                        result_case,
+                    } = &mut contract.kind
+                    {
+                        *result_data = self.symbol(*result_data);
+                        *result_case = self.symbol(*result_case);
+                    }
                     contract.facts = self.facts(program, contract.facts)?;
                     program
                         .signature_contracts
@@ -7016,6 +7043,18 @@ impl TypedTrees {
             .map(|contract| contract.signature)
     }
 
+    pub fn instantiate_type_reference(
+        &mut self,
+        reference: types::TypeReferenceHandle,
+        substitutions: &[(SymbolHandle, types::TypeReferenceHandle)],
+    ) -> Result<types::TypeReferenceHandle, &'static str> {
+        CallableApplication {
+            types: substitutions.to_vec(),
+            ..Default::default()
+        }
+        .type_reference(self, reference)
+    }
+
     pub fn applied_trait_contracts(
         &self,
         trait_symbol: SymbolHandle,
@@ -7286,6 +7325,10 @@ pub(crate) struct CallableApplication {
     symbols: Vec<(SymbolHandle, SymbolHandle)>,
     active_requirements: Vec<(SymbolHandle, SymbolHandle)>,
     source_binders: Vec<(crate::name::Identifier, SymbolHandle)>,
+    active_runtime_contracts: Vec<(
+        crate::callable_values::RuntimeCallableContractHandle,
+        crate::callable_values::RuntimeCallableContractHandle,
+    )>,
 }
 
 struct CallableLifetimeBinding {
@@ -7309,6 +7352,96 @@ struct ScopedCallableLifetime {
 }
 
 impl CallableApplication {
+    fn runtime_contract(
+        &mut self,
+        program: &mut TypedTrees,
+        source: crate::callable_values::RuntimeCallableContractHandle,
+    ) -> Result<crate::callable_values::RuntimeCallableContractHandle, &'static str> {
+        if let Some((_, destination)) = self
+            .active_runtime_contracts
+            .iter()
+            .rev()
+            .find(|(active, _)| *active == source)
+        {
+            return Ok(*destination);
+        }
+        if !program.runtime_callable_contracts.is_valid(source) {
+            return Err("callable application lost its runtime contract");
+        }
+        let declared = program.runtime_callable_contracts.get(source).clone();
+        let own_symbols = std::iter::once(declared.signature.symbol)
+            .chain(
+                program
+                    .state_signature_type_parameters(&declared.signature)
+                    .iter()
+                    .map(|parameter| parameter.symbol),
+            )
+            .chain(
+                program
+                    .state_signature_parameters(&declared.signature)
+                    .iter()
+                    .map(|parameter| parameter.symbol),
+            )
+            .collect::<Vec<_>>();
+        // The callable's formals bind inside the surrounding application. Keep
+        // outer substitutions, but give these formals their own fresh frame.
+        let previous_types = std::mem::take(&mut self.types);
+        self.types.extend(
+            previous_types
+                .iter()
+                .copied()
+                .filter(|(symbol, _)| !own_symbols.contains(symbol)),
+        );
+        let previous_static = std::mem::take(&mut self.static_arguments);
+        self.static_arguments.extend(
+            previous_static
+                .iter()
+                .filter(|(symbol, _)| !own_symbols.contains(symbol))
+                .cloned(),
+        );
+        let previous_symbols = std::mem::take(&mut self.symbols);
+        self.symbols.extend(
+            previous_symbols
+                .iter()
+                .copied()
+                .filter(|(symbol, _)| !own_symbols.contains(symbol)),
+        );
+        let previous_runtime = std::mem::take(&mut self.runtime_values);
+        self.runtime_values.extend(
+            previous_runtime
+                .iter()
+                .copied()
+                .filter(|symbol| !own_symbols.contains(symbol)),
+        );
+        let previous_owned = self.owned_signature;
+        let owner = program.symbols.insert_generated_root_from(
+            declared.signature.symbol,
+            symbols::SymbolKind::CallableContract,
+            "$callable",
+        );
+        self.symbols.push((declared.signature.symbol, owner));
+        self.owned_signature = owner;
+        let destination = program.runtime_callable_contracts.insert(
+            crate::callable_values::RuntimeCallableContract {
+                lexical_owner: self.symbol(declared.lexical_owner),
+                ..Default::default()
+            },
+        );
+        self.active_runtime_contracts.push((source, destination));
+        let applied = self.signature(program, &declared.signature);
+        self.active_runtime_contracts.pop();
+        self.types = previous_types;
+        self.static_arguments = previous_static;
+        self.symbols = previous_symbols;
+        self.runtime_values = previous_runtime;
+        self.owned_signature = previous_owned;
+        program
+            .runtime_callable_contracts
+            .get_mut(destination)
+            .signature = applied?;
+        Ok(destination)
+    }
+
     fn scoped_lifetime(
         &self,
         program: &TypedTrees,

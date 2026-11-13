@@ -22,6 +22,78 @@ use crate::{
 };
 use symbols::SymbolHandle;
 
+/// Semantic inputs of a type, including contracts carried by machine values.
+/// Physical containment walks deliberately do not use this inventory.
+#[derive(Default)]
+pub struct TypeReferenceInputs {
+    pub types: Vec<TypeReferenceHandle>,
+    pub expressions: Vec<ExpressionHandle>,
+    pub symbols: Vec<SymbolHandle>,
+    contracts: Vec<crate::callable_values::RuntimeCallableContractHandle>,
+    expand_types: bool,
+}
+
+impl Extend<SymbolHandle> for TypeReferenceInputs {
+    fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
+        for symbol in symbols {
+            if symbol.is_valid() && !self.symbols.contains(&symbol) {
+                self.symbols.push(symbol);
+            }
+        }
+    }
+}
+
+impl TypedReferences for TypeReferenceInputs {
+    fn derived_declaration_references(&self) -> bool {
+        false
+    }
+    fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
+        if self.types.contains(&reference) {
+            return false;
+        }
+        self.types.push(reference);
+        self.expand_types
+    }
+    fn expression(&mut self, expression: ExpressionHandle) -> bool {
+        if self.expressions.contains(&expression) {
+            return false;
+        }
+        self.expressions.push(expression);
+        true
+    }
+    fn callable_contract(
+        &mut self,
+        contract: crate::callable_values::RuntimeCallableContractHandle,
+    ) -> bool {
+        if self.contracts.contains(&contract) {
+            return false;
+        }
+        self.contracts.push(contract);
+        true
+    }
+}
+
+pub fn type_reference_inputs(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+) -> TypeReferenceInputs {
+    let mut inputs = TypeReferenceInputs {
+        expand_types: true,
+        ..Default::default()
+    };
+    visit_type_reference(program, &mut inputs, reference);
+    inputs
+}
+
+pub fn signature_type_inputs(
+    program: &TypedTrees,
+    signature: &crate::signature::StateSignature,
+) -> TypeReferenceInputs {
+    let mut inputs = TypeReferenceInputs::default();
+    visit_signature(program, &mut inputs, signature);
+    inputs
+}
+
 pub(crate) mod source_occurrences {
     use super::{
         DeclarationSelection, HashSet, StaticArgumentCall, TypeOccurrence, TypeOccurrences,
@@ -1006,7 +1078,16 @@ pub type StaticArgumentClassifier = fn(&TypedTrees, StaticArgumentCall<'_>) -> S
 
 pub trait TypedReferences: Extend<SymbolHandle> {
     fn callable_use(&mut self, _: SymbolHandle) {}
+    fn code_selection(&mut self, symbol: SymbolHandle) {
+        self.extend([symbol]);
+    }
     fn callable_signature(&mut self, _: &crate::signature::StateSignature) {}
+    fn callable_contract(
+        &mut self,
+        _: crate::callable_values::RuntimeCallableContractHandle,
+    ) -> bool {
+        true
+    }
     fn enter_lexical_scope(&mut self, _: SymbolHandle) {}
     fn leave_lexical_scope(&mut self) {}
     fn authored_selection(&mut self, _: crate::AuthoredDeclarationSelectionOccurrenceId) {}
@@ -1024,6 +1105,7 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     fn expression(&mut self, _: ExpressionHandle) -> bool {
         true
     }
+    fn leave_expression(&mut self, _: ExpressionHandle) {}
     fn statement_handle(&mut self, _: StatementHandle) {}
     fn statement(&mut self, _: &StatementNode) -> bool {
         true
@@ -1049,6 +1131,92 @@ pub trait TypedReferences: Extend<SymbolHandle> {
     }
     fn mathematical_type(&mut self, _: MathematicalTypeHandle) -> bool {
         true
+    }
+}
+
+// Constructing a descriptor retains code and all of its static dependencies.
+// Visiting those dependencies must not turn construction into an invocation.
+struct CodeSelectionReferences<'visit, References>(&'visit mut References);
+
+impl<References: TypedReferences> Extend<SymbolHandle> for CodeSelectionReferences<'_, References> {
+    fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
+        self.0.extend(symbols);
+    }
+}
+
+impl<References: TypedReferences> TypedReferences for CodeSelectionReferences<'_, References> {
+    fn callable_use(&mut self, symbol: SymbolHandle) {
+        self.0.code_selection(symbol);
+    }
+    fn code_selection(&mut self, symbol: SymbolHandle) {
+        self.0.code_selection(symbol);
+    }
+    fn callable_signature(&mut self, signature: &crate::signature::StateSignature) {
+        self.0.callable_signature(signature);
+    }
+    fn callable_contract(
+        &mut self,
+        contract: crate::callable_values::RuntimeCallableContractHandle,
+    ) -> bool {
+        self.0.callable_contract(contract)
+    }
+    fn enter_lexical_scope(&mut self, owner: SymbolHandle) {
+        self.0.enter_lexical_scope(owner);
+    }
+    fn leave_lexical_scope(&mut self) {
+        self.0.leave_lexical_scope();
+    }
+    fn authored_selection(&mut self, occurrence: crate::AuthoredDeclarationSelectionOccurrenceId) {
+        self.0.authored_selection(occurrence);
+    }
+    fn static_application(&mut self, application: StaticMachineApplicationHandle) {
+        self.0.static_application(application);
+    }
+    fn declaration_description_dependency(&mut self, symbol: SymbolHandle) {
+        self.0.declaration_description_dependency(symbol);
+    }
+    fn layout_realization_dependency(&mut self, symbol: SymbolHandle) {
+        self.0.layout_realization_dependency(symbol);
+    }
+    fn derived_declaration_references(&self) -> bool {
+        self.0.derived_declaration_references()
+    }
+    fn declaration(&mut self, symbol: SymbolHandle) -> bool {
+        self.0.declaration(symbol)
+    }
+    fn expression(&mut self, expression: ExpressionHandle) -> bool {
+        self.0.expression(expression)
+    }
+    fn leave_expression(&mut self, expression: ExpressionHandle) {
+        self.0.leave_expression(expression);
+    }
+    fn statement_handle(&mut self, statement: StatementHandle) {
+        self.0.statement_handle(statement);
+    }
+    fn statement(&mut self, statement: &StatementNode) -> bool {
+        self.0.statement(statement)
+    }
+    fn call_arguments(&mut self, program: &TypedTrees, call: StaticArgumentCall<'_>) -> bool {
+        self.0.call_arguments(program, call)
+    }
+    fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
+        self.0.type_reference(reference)
+    }
+    fn type_alias_application(
+        &mut self,
+        program: &TypedTrees,
+        application: &crate::type_aliases::TypeAliasApplication,
+    ) -> bool {
+        self.0.type_alias_application(program, application)
+    }
+    fn type_expression(&mut self, expression: ExpressionHandle) -> bool {
+        self.0.type_expression(expression)
+    }
+    fn proof_fact(&mut self, fact: arena::Handle<ProofFact>) -> bool {
+        self.0.proof_fact(fact)
+    }
+    fn mathematical_type(&mut self, reference: MathematicalTypeHandle) -> bool {
+        self.0.mathematical_type(reference)
     }
 }
 
@@ -2825,6 +2993,23 @@ pub fn visit_signature(
     {
         visit_contract(program, retained, contract);
     }
+    if let language_semantics::TerminationGuarantee::Terminates { premises } =
+        &signature.termination_guarantee
+    {
+        for premise in premises {
+            for profile in program
+                .domain_definitions()
+                .iter()
+                .filter(|definition| definition.semantic_id == premise.profile)
+            {
+                visit_symbol(retained, profile.symbol);
+            }
+            visit_symbol(retained, premise.subject.root);
+            for projection in &premise.subject.projections {
+                visit_symbol(retained, *projection);
+            }
+        }
+    }
     retained.leave_lexical_scope();
 }
 
@@ -2833,6 +3018,14 @@ fn visit_contract(
     retained: &mut impl TypedReferences,
     contract: &SignatureContract,
 ) {
+    if let crate::signature::SignatureContractKind::EnsuresForResultCase {
+        result_data,
+        result_case,
+    } = &contract.kind
+    {
+        visit_symbol(retained, *result_data);
+        visit_symbol(retained, *result_case);
+    }
     visit_proof_facts(program, retained, contract.facts);
 }
 
@@ -2870,6 +3063,15 @@ pub fn visit_type_reference(
         visit_symbol(retained, origin.declaration);
     }
     match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Callable { contract } => {
+            if retained.callable_contract(*contract) {
+                visit_signature(
+                    program,
+                    retained,
+                    &program.runtime_callable_contracts.get(*contract).signature,
+                );
+            }
+        }
         TypeReferenceNode::Reference { referee, .. } => {
             visit_type_reference(program, retained, *referee);
         }
@@ -2970,6 +3172,14 @@ pub fn visit_expression(
         visit_authored_selection(program, retained, occurrence);
     }
     match program.expression_table.expression(expression) {
+        ExpressionNode::MachineValue(value) => {
+            let retained = &mut CodeSelectionReferences(retained);
+            visit_symbol(retained, value.conformance);
+            visit_symbol(retained, value.requirement);
+            visit_type_reference(program, retained, value.type_reference);
+            visit_static_argument(program, retained, &value.selected);
+            visit_static_machine_bindings(program, retained, value.application);
+        }
         ExpressionNode::Match(match_expression) => {
             visit_expression(program, retained, match_expression.subject);
             for arm in program.expression_table.match_arms(match_expression.arms) {
@@ -3056,6 +3266,7 @@ pub fn visit_expression(
             visit_type_reference(program, retained, *type_reference);
         }
     }
+    retained.leave_expression(expression);
 }
 
 fn visit_match_arm(program: &TypedTrees, retained: &mut impl TypedReferences, arm: &TableMatchArm) {
@@ -3122,6 +3333,19 @@ fn visit_call_expression(
     expression: ExpressionHandle,
     call: &TableCallExpression,
 ) {
+    if let Some(binding) = call.runtime_call {
+        visit_expression(program, retained, binding.callee);
+        if binding.contract.is_valid() && retained.callable_contract(binding.contract) {
+            visit_signature(
+                program,
+                retained,
+                &program
+                    .runtime_callable_contracts
+                    .get(binding.contract)
+                    .signature,
+            );
+        }
+    }
     visit_callable_symbol(program, retained, call.target_symbol);
     for operator in crate::operator::named_expression_call_candidates(program, call) {
         visit_symbol(retained, operator.symbol);
@@ -3226,6 +3450,19 @@ fn visit_statement(
     match statement {
         StatementNode::Assembly(_) => {}
         StatementNode::Call(call) => {
+            if let Some(binding) = call.runtime_call
+                && binding.contract.is_valid()
+                && retained.callable_contract(binding.contract)
+            {
+                visit_signature(
+                    program,
+                    retained,
+                    &program
+                        .runtime_callable_contracts
+                        .get(binding.contract)
+                        .signature,
+                );
+            }
             if let Some(occurrence) = call.authored_call_selection {
                 visit_authored_selection(program, retained, occurrence);
             }

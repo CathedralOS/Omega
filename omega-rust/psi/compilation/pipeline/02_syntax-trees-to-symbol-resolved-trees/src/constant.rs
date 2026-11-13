@@ -2191,10 +2191,62 @@ pub(crate) mod initializer_dependencies {
                         super::selected_expression_constant(program, expression)
                     {
                         self.constant(selected, reference)?;
-                    } else if let ExpressionNode::Name(path) = table.expression(expression)
-                        && program.symbols.get(path.symbol).kind == SymbolKind::Variant
-                    {
-                        self.type_declaration(program.symbols.get(path.symbol).parent)?;
+                    } else if let ExpressionNode::Name(path) = table.expression(expression) {
+                        match program.symbols.get(path.symbol).kind {
+                            SymbolKind::Variant => {
+                                self.type_declaration(program.symbols.get(path.symbol).parent)?
+                            }
+                            SymbolKind::Machine | SymbolKind::State => {
+                                // Taking code needs its exact body available,
+                                // without publishing an invocation or provider edge.
+                                let symbol = program.symbols.get(path.symbol);
+                                let direct = if symbol.kind == SymbolKind::Machine {
+                                    Some(path.symbol)
+                                } else if program.symbols.get(symbol.parent).kind
+                                    == SymbolKind::Machine
+                                {
+                                    Some(symbol.parent)
+                                } else {
+                                    None
+                                };
+                                let owner = if let Some(owner) = direct {
+                                    Some(owner)
+                                } else if let Some(conformance) = program
+                                    .conformances
+                                    .iter()
+                                    .find(|conformance| conformance.symbol == path.head_symbol)
+                                {
+                                    let mut rows = conformance
+                                        .rows
+                                        .iter()
+                                        .filter(|row| row.requirement == path.symbol);
+                                    if let Some(row) = rows.next() {
+                                        if rows.next().is_some() {
+                                            return Err("named code dependency has ambiguous implementation rows".into());
+                                        }
+                                        Some(if row.source.owns_realization() {
+                                            crate::symbols::owned_conformance_realization(
+                                                program, row,
+                                            )
+                                            .map_err(str::to_owned)?
+                                        } else {
+                                            row.realization_machine
+                                        })
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    None
+                                };
+                                if let Some(owner) = owner.filter(|owner| owner.is_valid())
+                                    && self.follow_dependencies
+                                    && !self.available_machines.contains(&owner)
+                                {
+                                    self.available_machines.push(owner);
+                                }
+                            }
+                            _ => {}
+                        }
                     }
                 }
                 ExpressionNode::TypeExpression(reference)

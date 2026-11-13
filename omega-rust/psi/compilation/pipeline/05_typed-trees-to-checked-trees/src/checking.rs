@@ -1045,6 +1045,11 @@ fn check_program(
         )
         .with_opaque_representation_selections(&opaque_representation_selections)
         .with_prepared_mathematics(mathematics.prepared_view());
+    let mut callable_diagnostics = Vec::new();
+    validation::validate_runtime_callable_effects(&program, &mut callable_diagnostics);
+    if !callable_diagnostics.is_empty() {
+        return Err(callable_diagnostics);
+    }
     validation::validate_selected_attached_method_bounds(&program)?;
     let declared_content = checks::prepare_retained_content_custody(
         &program,

@@ -481,3 +481,32 @@ impl<'program> ResolvedSignatureInputs<'program> {
         }
     }
 }
+
+/// Value binding takes priority over declaration and builtin call shortcuts.
+pub fn callee_uses_value_binding(
+    symbols: &symbols::SymbolTable,
+    expressions: &crate::expression::ExpressionTable,
+    callee: crate::expression::ExpressionHandle,
+) -> bool {
+    if !callee.is_valid() {
+        return false;
+    }
+    let value_symbol = |symbol: SymbolHandle| {
+        symbol.is_valid()
+            && matches!(
+                symbols.get(symbol).kind,
+                symbols::SymbolKind::Local
+                    | symbols::SymbolKind::Parameter
+                    | symbols::SymbolKind::Field
+                    | symbols::SymbolKind::Const,
+            )
+    };
+    match expressions.expression(callee) {
+        crate::expression::ExpressionNode::Name(path) => {
+            value_symbol(path.head_symbol) || value_symbol(path.symbol)
+        }
+        crate::expression::ExpressionNode::Member(member) => value_symbol(member.member_symbol),
+        crate::expression::ExpressionNode::TypeExpression(_) => false,
+        _ => true,
+    }
+}

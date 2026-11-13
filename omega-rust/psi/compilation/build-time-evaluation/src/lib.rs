@@ -99,9 +99,9 @@ pub(crate) mod build_time_evaluation {
             &self,
             program: &TypedTrees,
             authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
-        ) -> crate::BuildTimeAdmissionPlan {
+        ) -> Result<crate::BuildTimeAdmissionPlan, Vec<diagnostics::Diagnostic>> {
             crate::BuildTimeAdmissionPlan::infer(program, authority)
-                .with_accounting(self.accounting.clone())
+                .map(|admission| admission.with_accounting(self.accounting.clone()))
         }
         pub(crate) fn selected(
             work: DeclarationSelection,
@@ -153,15 +153,19 @@ pub(crate) mod build_time_evaluation {
             &self.work
         }
 
-        pub(crate) fn demanded_roots(&self, program: &TypedTrees, roots: &[SymbolHandle]) -> Self {
+        pub(crate) fn demanded_roots(
+            &self,
+            program: &TypedTrees,
+            roots: &[SymbolHandle],
+        ) -> Result<Self, Vec<diagnostics::Diagnostic>> {
             let execution = self.execution_program(program);
-            let mut domain = PreparedEvaluationInputs::domain_for_program(&execution, roots, &[]);
+            let mut domain = PreparedEvaluationInputs::domain_for_program(&execution, roots, &[])?;
             domain.execution = domain.execution.intersect(&self.execution);
             domain.layout_targets = self.layout_targets.clone();
             domain.layout_applications = self.layout_applications.clone();
             domain.product_frontier = self.product_frontier.clone();
             domain.accounting = self.accounting.clone();
-            domain
+            Ok(domain)
         }
 
         pub(crate) fn execution_program(&self, original: &TypedTrees) -> TypedTrees {

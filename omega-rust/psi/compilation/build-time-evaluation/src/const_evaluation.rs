@@ -65,7 +65,7 @@ pub(crate) mod const_applications {
         let prepared = crate::PreparedBuildMachineProgram::prepare_in(typed, domain)?;
         let execution = prepared.typed();
         let facts = validation::derive_pre_flow_operator_selections(execution);
-        let admission = domain.admission(execution, selection_authority.clone());
+        let admission = domain.admission(execution, selection_authority.clone())?;
         let boundary_use = |selected_operator_symbol: SymbolHandle| {
             execution
                 .operators()
@@ -1674,7 +1674,7 @@ pub(crate) mod const_domain_facts {
         }
         let execution = domain.execution_program(typed);
         let facts = validation::derive_pre_flow_operator_selections(&execution);
-        let admission = domain.admission(&execution, selection_authority);
+        let admission = domain.admission(&execution, selection_authority)?;
         Ok(pending.iter().any(|pending| {
             membership::domain_facts_need_operator_selection(
                 &execution,
@@ -1716,7 +1716,7 @@ pub(crate) mod const_domain_facts {
             domain.execution_program(selected_program.as_ref().unwrap_or(typed));
         let execution = &execution_program;
         let admission = domain
-            .admission(execution, selection_authority)
+            .admission(execution, selection_authority)?
             .with_selected_operators(execution, selected.operators)
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let mut replacements = Vec::new();
@@ -1851,7 +1851,7 @@ pub(crate) mod const_generic_calls {
                             .with_source_span(reference),
                     ]
                 })?;
-                let domain = preparation.domain_for_roots(&[machine.symbol]);
+                let domain = preparation.domain_for_roots(&[machine.symbol])?;
                 let mut required = Vec::new();
                 for &(owner, argument) in &preparation.pending_type_inputs {
                     if !domain.contains(owner) {
@@ -2257,11 +2257,11 @@ pub(crate) mod const_generic_calls {
                 .iter()
                 .map(|ordinal| owner_symbols[*ordinal])
                 .collect::<Vec<_>>();
-            let ready_domain = preparation.domain_for_roots(&probe_symbols);
+            let ready_domain = preparation.domain_for_roots(&probe_symbols)?;
             let prepared =
                 PreparedBuildMachineProgram::prepare_in(&preparation.typed, &ready_domain)?;
             let execution = prepared.typed();
-            let admission = BuildTimeAdmissionPlan::infer(execution, selection_authority.clone());
+            let admission = BuildTimeAdmissionPlan::infer(execution, selection_authority.clone())?;
             let operators = validation::derive_pre_flow_operator_selections(execution);
             let independent = probe_symbols
                 .iter()
@@ -2292,7 +2292,7 @@ pub(crate) mod const_generic_calls {
                 &lexical_selections,
                 selection_authority.as_deref(),
             )?;
-            let independent_domain = preparation.domain_for_roots(&independent);
+            let independent_domain = preparation.domain_for_roots(&independent)?;
             let independent_program =
                 PreparedBuildMachineProgram::prepare_in(&preparation.typed, &independent_domain)?;
             let mut checked_program = None;
@@ -2401,18 +2401,23 @@ pub(crate) mod const_generic_calls {
             return Ok((syntax, true));
         }
 
-        endpoint_leaves.retain(|(_, source)| {
-            let domain = preparation.domain_for_inputs(&[], &[*source]);
-            !preparation
+        let mut retained_endpoint_leaves = Vec::with_capacity(endpoint_leaves.len());
+        for leaf in endpoint_leaves {
+            let domain = preparation.domain_for_inputs(&[], &[leaf.1])?;
+            if !preparation
                 .pending_type_inputs
                 .iter()
                 .any(|(owner, _)| domain.contains(*owner))
-        });
+            {
+                retained_endpoint_leaves.push(leaf);
+            }
+        }
+        endpoint_leaves = retained_endpoint_leaves;
         let endpoint_sources = endpoint_leaves
             .iter()
             .map(|(_, source)| *source)
             .collect::<Vec<_>>();
-        let evaluation_domain = preparation.domain_for_inputs(&[], &endpoint_sources);
+        let evaluation_domain = preparation.domain_for_inputs(&[], &endpoint_sources)?;
         let mut typed = preparation.typed;
         if !endpoint_leaves.is_empty() {
             crate::const_evaluation::range_endpoints::evaluate_selected_range_endpoints(
@@ -2711,9 +2716,9 @@ pub(crate) mod const_lengths {
         ) -> Result<Option<usize>, Vec<Diagnostic>> {
             let domain = EvaluationDomain::all()
                 .with_accounting(self.domain.accounting.clone())
-                .demanded_roots(typed, &[machine]);
+                .demanded_roots(typed, &[machine])?;
             let mut execution = domain.execution_program(typed);
-            let admission = domain.admission(&execution, self.authority.clone());
+            let admission = domain.admission(&execution, self.authority.clone())?;
             if matches!(self.providers, LengthProviderSelection::Pending) {
                 let facts = validation::derive_pre_flow_operator_selections(&execution);
                 if admission.closure_needs_execution_preparation(&execution, machine, &facts) {
@@ -2737,7 +2742,7 @@ pub(crate) mod const_lengths {
             typed_trees_to_typed_trees::prepare_execution_applications(typed)?;
             let domain = EvaluationDomain::all()
                 .with_accounting(self.domain.accounting.clone())
-                .demanded_roots(typed, &[machine]);
+                .demanded_roots(typed, &[machine])?;
             execution = domain.execution_program(typed);
 
             let references = typed_trees::references::collect_program_references(&execution);
@@ -2785,7 +2790,7 @@ pub(crate) mod const_lengths {
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
             let admission = self
                 .domain
-                .admission(execution, self.authority.clone())
+                .admission(execution, self.authority.clone())?
                 .with_selected_operators(execution, &operators)
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
             admission
@@ -3319,7 +3324,10 @@ pub(crate) mod contract_expressions {
         pub invocations: Vec<super::range_endpoints::PendingEndpoint>,
     }
 
-    pub(crate) fn roots(program: &TypedTrees, domain: &EvaluationDomain) -> Vec<ContractRoot> {
+    pub(crate) fn roots(
+        program: &TypedTrees,
+        domain: &EvaluationDomain,
+    ) -> Result<Vec<ContractRoot>, Vec<diagnostics::Diagnostic>> {
         let mut pending = Vec::new();
         for (owner, _, fact) in typed_trees::references::program_scoped_proof_facts(program) {
             if !domain.contains(owner) {
@@ -3402,7 +3410,7 @@ pub(crate) mod contract_expressions {
             ));
         }
         if candidates.is_empty() {
-            return Vec::new();
+            return Ok(Vec::new());
         }
         let mut admission_and_selections = None;
         let mut roots = Vec::new();
@@ -3410,12 +3418,17 @@ pub(crate) mod contract_expressions {
             let keep = if has_recipe {
                 true
             } else {
-                let (admission, selections) = admission_and_selections.get_or_insert_with(|| {
-                    (
-                        crate::BuildTimeAdmissionPlan::infer(program, None),
-                        validation::derive_pre_flow_operator_selections(program),
-                    )
-                });
+                let (admission, selections) = admission_and_selections
+                    .get_or_insert_with(|| {
+                        crate::BuildTimeAdmissionPlan::infer(program, None).map(|admission| {
+                            (
+                                admission,
+                                validation::derive_pre_flow_operator_selections(program),
+                            )
+                        })
+                    })
+                    .as_ref()
+                    .map_err(Clone::clone)?;
                 invocations.iter().any(|call| {
                     admission.closure_needs_execution_preparation(program, call.machine, selections)
                 })
@@ -3446,7 +3459,7 @@ pub(crate) mod contract_expressions {
                 root.context.owner.generation(),
             )
         });
-        roots
+        Ok(roots)
     }
 
     fn subtree(program: &TypedTrees, expression: ExpressionHandle) -> Vec<ExpressionHandle> {
@@ -3529,6 +3542,7 @@ pub(crate) mod contract_expressions {
             assert!(!program.constant_recipes.is_empty());
             let projected = EvaluationDomain::all()
                 .demanded_roots(&program, &[extent])
+                .expect("runtime callable preflight")
                 .execution_program(&program);
             assert!(projected.realized_machine_named("unrelated").is_none());
             assert!(
@@ -4765,7 +4779,7 @@ pub(crate) mod range_endpoints {
         let prepared = crate::PreparedBuildMachineProgram::prepare_in(typed, domain)?;
         let execution = prepared.typed();
         let facts = validation::derive_pre_flow_operator_selections(execution);
-        let admission = domain.admission(execution, selection_authority);
+        let admission = domain.admission(execution, selection_authority)?;
         Ok(pending.iter().any(|endpoint| {
             let machine = resolve_endpoint_callee(execution, endpoint)
                 .map_or(endpoint.machine, |callee| callee.instance);
@@ -5036,7 +5050,7 @@ pub(crate) mod range_endpoints {
     ) -> Result<IntegerRootPlan, Vec<Diagnostic>> {
         let mut pending = Vec::new();
         let mut roots = Vec::new();
-        for root in super::contract_expressions::roots(typed, domain) {
+        for root in super::contract_expressions::roots(typed, domain)? {
             roots.push(IntegerRoot {
                 context: root.context,
                 expression: root.expression,
@@ -5269,7 +5283,7 @@ pub(crate) fn prepared_admission(
     )?;
     let execution = prepared.typed();
     let admission = domain
-        .admission(execution, selection_authority)
+        .admission(execution, selection_authority)?
         .with_selected_operators(execution, operators)
         .map_err(|reason| vec![diagnostics::Diagnostic::error(reason)])?;
     Ok((prepared, admission))

@@ -4677,9 +4677,15 @@ pub mod denotational_calls {
                         body
                     }
                     Some(SelectedCallContract::Signature(signature))
-                    | Some(SelectedCallContract::DynamicSlot { signature, .. }) => {
-                        if let Some(body) =
-                            super::selected_requirement_authored_body(program, caller, call)
+                    | Some(SelectedCallContract::DynamicSlot { signature, .. })
+                    | Some(SelectedCallContract::Runtime { signature, .. }) => {
+                        if let Some(body) = call
+                            .runtime_call
+                            .is_none()
+                            .then(|| {
+                                super::selected_requirement_authored_body(program, caller, call)
+                            })
+                            .flatten()
                         {
                             body
                         } else {
@@ -7855,6 +7861,9 @@ pub mod result_overloads {
                 let ExpressionNode::Call(call) = expression else {
                     continue;
                 };
+                if call.runtime_call.is_some() {
+                    continue;
+                }
                 let owner = expression_owners.get(&handle.arena_index()).copied();
                 if owner.is_some_and(|owner| inherited.is_copy(owner.symbol())) != copies {
                     continue;
@@ -7891,6 +7900,9 @@ pub mod result_overloads {
                     let Some(call) = statement.as_call() else {
                         continue;
                     };
+                    if call.runtime_call.is_some() {
+                        continue;
+                    }
                     let occurrence = call.authored_call_selection;
                     let selected = inherited.inherit(copies, occurrence).or_else(|| {
                         selected_named_statement_callable_symbol(
@@ -8063,6 +8075,7 @@ pub mod result_overloads {
                     .insert(ExpressionNode::Call(TableCallExpression {
                         authored_call_selection,
                         authored_call_binding: None,
+                        runtime_call: None,
                         authored_machine_application: call.authored_machine_application,
                         requirement_application: Default::default(),
                         exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
@@ -8948,6 +8961,7 @@ pub mod result_overloads {
         expected: &mut Vec<(ExpressionHandle, TypeReferenceHandle)>,
     ) {
         match expression_table(program).expression(value) {
+            ExpressionNode::MachineValue(_) => {}
             ExpressionNode::Match(dispatch) => {
                 for arm in expression_table(program).match_arms(dispatch.arms) {
                     push_expected_call(program, arm.value, expected_type, expected);
@@ -9014,6 +9028,7 @@ pub mod result_overloads {
         type_reference: TypeReferenceHandle,
     ) -> Option<TypeReferenceHandle> {
         match program.type_reference_table.type_reference(type_reference) {
+            typed_trees::types::TypeReferenceNode::Callable { .. } => None,
             typed_trees::types::TypeReferenceNode::Reference { referee, .. }
             | typed_trees::types::TypeReferenceNode::Constrained {
                 base_type: referee, ..
@@ -9082,6 +9097,7 @@ pub mod result_overloads {
                     TableCallExpression {
                         authored_call_selection: None,
                         authored_call_binding: None,
+                        runtime_call: None,
                         authored_machine_application: Default::default(),
                         requirement_application: Default::default(),
                         exact_coercion_target: binding.exact_coercion_target,
@@ -9767,6 +9783,7 @@ pub mod terminal_transitions {
                 .insert(ExpressionNode::Call(TableCallExpression {
                     authored_call_selection,
                     authored_call_binding: None,
+                    runtime_call: None,
                     authored_machine_application: application,
                     requirement_application: Default::default(),
                     exact_coercion_target: Default::default(),

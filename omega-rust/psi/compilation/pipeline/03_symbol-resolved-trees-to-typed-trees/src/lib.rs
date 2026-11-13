@@ -29,6 +29,7 @@ mod declarations;
 mod equality_and_exhaustiveness;
 mod expression_lowering;
 mod lowerer;
+mod runtime_callables;
 mod statement_lowering;
 mod type_reference;
 

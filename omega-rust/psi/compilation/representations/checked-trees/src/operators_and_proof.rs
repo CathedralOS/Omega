@@ -1432,6 +1432,9 @@ pub mod proof {
                 owner_symbol: SymbolHandle,
                 state_symbol: SymbolHandle,
             },
+            RuntimeCallableContract {
+                contract: typed_trees::callable_values::RuntimeCallableContractHandle,
+            },
             CallSignature {
                 owner_symbol: SymbolHandle,
                 state_symbol: SymbolHandle,
@@ -1600,6 +1603,8 @@ pub mod proof {
             pub owner: ContractProofFactOwner,
             pub fact: Handle<typed_trees::domain::ProofFact>,
             pub expression: ExpressionHandle,
+            pub runtime_contract:
+                Option<typed_trees::callable_values::RuntimeCallableContractHandle>,
             pub target_machine_symbol: SymbolHandle,
             pub target_state_symbol: SymbolHandle,
             pub evidence_arguments: Vec<ContractExpressionEvidenceArgumentFact>,
@@ -1712,6 +1717,20 @@ pub mod proof {
             pub output: Option<Handle<CheckedEvidenceTerm>>,
         }
 
+        #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+        pub enum CallContractSignatureSource {
+            #[default]
+            Invalid,
+            Requirement {
+                declaring_trait: SymbolHandle,
+            },
+            Runtime {
+                contract: typed_trees::callable_values::RuntimeCallableContractHandle,
+                lexical_owner: SymbolHandle,
+                callee: ExpressionHandle,
+            },
+        }
+
         #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
         pub struct CallContractSignature {
             pub caller_machine_symbol: SymbolHandle,
@@ -1721,7 +1740,7 @@ pub mod proof {
             pub source_statement: typed_trees::statement::StatementHandle,
             pub source_expression: ExpressionHandle,
             pub source_target: SymbolHandle,
-            pub declaring_trait: SymbolHandle,
+            pub source: CallContractSignatureSource,
             pub signature: typed_trees::signature::StateSignature,
         }
 
@@ -2778,8 +2797,8 @@ pub mod proof {
     }
 
     pub use contracts::{
-        BoundaryQualificationAuthorization, CallContractSignature, CheckedEvidenceTerm,
-        ContractCallFact, ContractEvidenceArgument, ContractExitFact,
+        BoundaryQualificationAuthorization, CallContractSignature, CallContractSignatureSource,
+        CheckedEvidenceTerm, ContractCallFact, ContractEvidenceArgument, ContractExitFact,
         ContractExpressionEvidenceArgumentFact, ContractExpressionEvidenceCallFact,
         ContractExpressionStaticConformanceApplicationFact, ContractOperatorUseFact,
         ContractProofFact, ContractProofFactKind, ContractProofFactOwner, ContractProofFactRef,

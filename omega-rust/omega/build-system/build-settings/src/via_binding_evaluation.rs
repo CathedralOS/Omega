@@ -93,7 +93,7 @@ fn evaluate_program_via_bindings(
     let selection_authority = package_inputs
         .cloned()
         .map(|inputs| Arc::new(inputs) as Arc<dyn BuildTimeSelectionAuthority>);
-    let admission = BuildTimeAdmissionPlan::infer(typed, selection_authority);
+    let admission = BuildTimeAdmissionPlan::infer(typed, selection_authority)?;
     let mut rows = EvaluatedViaBindingRows::with_capacity(pending.len());
     let mut diagnostics = Vec::new();
 

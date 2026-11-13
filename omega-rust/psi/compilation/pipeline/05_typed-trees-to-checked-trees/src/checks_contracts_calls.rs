@@ -747,7 +747,29 @@ mod captured_boolean {
         Vec<typed_trees::signature::StateParameter>,
     )> {
         use checked_trees::ContractProofFactOwner;
+        let signature = match contract.owner {
+            ContractProofFactOwner::CallSignature { .. }
+            | ContractProofFactOwner::RuntimeCallableContract { .. } => Some(
+                crate::published::proof::contracts::call_signatures::signature(
+                    program,
+                    &facts.proof,
+                    contract.owner,
+                )?,
+            ),
+            _ => None,
+        };
+        let runtime = match contract.owner {
+            ContractProofFactOwner::RuntimeCallableContract { .. } => true,
+            ContractProofFactOwner::CallSignature { application, .. } => matches!(
+                facts.proof.call_contract_signatures.get(application).source,
+                checked_trees::CallContractSignatureSource::Runtime { .. },
+            ),
+            _ => false,
+        };
         let (owner, declared) = if let Some(scope) = contract.inherited_scope {
+            if runtime {
+                return None;
+            }
             let scope = facts.proof.inherited_contract_scopes.get(scope);
             (scope.requirement, scope.requirement)
         } else {
@@ -763,20 +785,24 @@ mod captured_boolean {
                 | ContractProofFactOwner::CallSignature { state_symbol, .. } => {
                     (state_symbol, state_symbol)
                 }
+                ContractProofFactOwner::RuntimeCallableContract { .. } => {
+                    let signature = signature?;
+                    (signature.symbol, signature.symbol)
+                }
                 _ => return None,
             }
         };
-        let actual = validation::call_target_parameters(program, target)?;
-        let declared_parameters =
-            if let ContractProofFactOwner::CallSignature { .. } = contract.owner {
-                let signature = crate::published::proof::contracts::call_signatures::signature(
-                    &facts.proof,
-                    contract.owner,
-                )?;
-                program.state_signature_parameters(signature)
-            } else {
-                validation::call_target_parameters(program, declared)?
-            };
+        let declared_parameters = signature
+            .map(|signature| program.state_signature_parameters(signature))
+            .or_else(|| validation::call_target_parameters(program, declared))?;
+        let actual = if runtime {
+            if target.is_valid() {
+                return None;
+            }
+            declared_parameters
+        } else {
+            validation::call_target_parameters(program, target)?
+        };
         let parameters = declared_parameters
             .iter()
             .map(|parameter| {

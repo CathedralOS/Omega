@@ -2806,8 +2806,7 @@ pub(crate) mod dynamic_slots {
         let mut end = demand.type_substitutions.len();
         for start in demand.substitution_scope_starts.iter().rev() {
             reference = program
-                .type_reference_table
-                .instantiate(reference, &demand.type_substitutions[*start..end])?;
+                .instantiate_type_reference(reference, &demand.type_substitutions[*start..end])?;
             end = *start;
         }
         Ok(reference)

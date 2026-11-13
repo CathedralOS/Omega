@@ -604,6 +604,7 @@ pub mod access_views {
                     depth + 1,
                 ),
                 TypeReferenceNode::Generic { .. } => true,
+                TypeReferenceNode::Callable { .. } => false,
                 TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::DynamicTrait { .. } => {
                     true
                 }
@@ -1303,6 +1304,7 @@ pub mod access_views {
             }
         }
         match program.expression_table.expression(expression) {
+            ExpressionNode::MachineValue(_) => {}
             ExpressionNode::Match(dispatch) => {
                 for child in
                     crate::queries::expression_traversal::match_children(program, *dispatch)
@@ -1350,8 +1352,15 @@ pub mod access_views {
                 validate_expression(program, machine, state, cast.value, false, diagnostics);
             }
             ExpressionNode::Call(call) => {
-                if call.receiver.is_valid() {
-                    validate_expression(program, machine, state, call.receiver, false, diagnostics);
+                if call.evaluated_callee().is_valid() {
+                    validate_expression(
+                        program,
+                        machine,
+                        state,
+                        call.evaluated_callee(),
+                        false,
+                        diagnostics,
+                    );
                 }
                 for argument in program.expression_table.expression_handles(call.arguments) {
                     validate_expression(program, machine, state, *argument, false, diagnostics);
@@ -2825,6 +2834,16 @@ pub mod write_only_borrows {
                 );
             }
             StatementNode::Call(call) => {
+                if let Some(runtime) = call.runtime_call {
+                    validate_expression(
+                        program,
+                        machine_definition,
+                        state_definition,
+                        runtime.callee,
+                        roots,
+                        diagnostics,
+                    );
+                }
                 validate_opaque_call_inputs(
                     program,
                     machine_definition,
@@ -2840,7 +2859,9 @@ pub mod write_only_borrows {
                     machine_definition,
                     state_definition,
                     call.target_symbol,
+                    call.runtime_call,
                     program.statement_table.expression_handles(call.arguments),
+                    diagnostics,
                 );
                 for (index, argument) in program
                     .statement_table
@@ -3163,8 +3184,23 @@ pub mod write_only_borrows {
         machine: &Machine,
         state: &State,
         target: symbols::SymbolHandle,
+        runtime: Option<typed_trees::callable_values::RuntimeCallBinding>,
         arguments: &[ExpressionHandle],
+        diagnostics: &mut Vec<Diagnostic>,
     ) -> Vec<TypeReferenceHandle> {
+        if let Some(runtime) = runtime {
+            return match runtime.signature(program.typed_program()) {
+                Ok(signature) => program
+                    .state_signature_parameters(signature)
+                    .iter()
+                    .map(|parameter| parameter.type_reference)
+                    .collect(),
+                Err(reason) => {
+                    diagnostics.push(Diagnostic::error(reason));
+                    Vec::new()
+                }
+            };
+        }
         if let Some(parameters) = crate::compiler_operations::global_descriptor_table_operand_types(
             program, machine, state, target, arguments,
         ) {
@@ -3451,15 +3487,24 @@ pub mod write_only_borrows {
             expression_table(program).expression_handles(call.arguments),
             diagnostics,
         );
-        if call.receiver.is_valid() {
-            validate_expression(program, machine, state, call.receiver, roots, diagnostics);
+        if call.evaluated_callee().is_valid() {
+            validate_expression(
+                program,
+                machine,
+                state,
+                call.evaluated_callee(),
+                roots,
+                diagnostics,
+            );
         }
         let declared_parameters = call_receiving_parameters(
             program,
             machine,
             state,
             call.target_symbol,
+            call.runtime_call,
             expression_table(program).expression_handles(call.arguments),
+            diagnostics,
         );
         validate_arguments_against_parameters(
             program,
@@ -3488,6 +3533,7 @@ pub mod write_only_borrows {
         let observes_write_only = !metadata
             && validate_observation_access(program, machine, state, expression, roots, diagnostics);
         match expression_table(program).expression(expression) {
+            ExpressionNode::MachineValue(_) => {}
             ExpressionNode::Match(dispatch) => {
                 walk!(program => machine => state => dispatch.subject => roots => diagnostics);
                 for arm in expression_table(program).match_arms(dispatch.arms) {
@@ -3876,6 +3922,7 @@ pub mod write_only_borrows {
         root: &WriteOnlyRoot,
     ) -> bool {
         match expression_table(program).expression(expression) {
+            ExpressionNode::MachineValue(_) => false,
             ExpressionNode::SavedSubject(saved) => program
                 .saved_value_source(saved)
                 .is_some_and(|subject| expression_mentions_root(program, subject, root)),
@@ -3899,7 +3946,8 @@ pub mod write_only_borrows {
             }
             ExpressionNode::Cast(cast) => expression_mentions_root(program, cast.value, root),
             ExpressionNode::Call(call) => {
-                (call.receiver.is_valid() && expression_mentions_root(program, call.receiver, root))
+                (call.evaluated_callee().is_valid()
+                    && expression_mentions_root(program, call.evaluated_callee(), root))
                     || expression_table(program)
                         .expression_handles(call.arguments)
                         .iter()

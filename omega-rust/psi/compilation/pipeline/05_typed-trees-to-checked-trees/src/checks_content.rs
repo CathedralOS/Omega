@@ -1800,6 +1800,32 @@ mod call_results {
     use typed_trees::expression::{ExpressionHandle, TableCallExpression};
     use typed_trees::signature::StateParameter;
 
+    fn runtime_contract_at<'program>(
+        program: &'program dyn validation::CheckingInput,
+        facts: &CheckFacts,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        statement: usize,
+        ordinal: usize,
+        site: &validation::CallSite<'_>,
+    ) -> Option<&'program typed_trees::callable_values::RuntimeCallableContract> {
+        let validation::CallContractSource::Runtime { contract, .. } =
+            validation::call_contract_source(program, machine, site).ok()??
+        else {
+            return None;
+        };
+        let retained = facts
+            .proof
+            .contract_call_at(&(machine, state, statement, ordinal))?;
+        crate::published::proof::contracts::call_signatures::source_is_current(
+            program,
+            &facts.proof,
+            retained,
+            site,
+        )
+        .then_some(contract)
+    }
+
     mod parameter_qualifications {
         /*
             Exact out-parameter subjects for one completed invocation.
@@ -1841,7 +1867,8 @@ mod call_results {
             target: SymbolHandle,
             parameters: &'program [StateParameter],
             call_flow: &'program FlowCallFact,
-            checked_body: bool,
+            checked_contract: bool,
+            runtime_call: Option<typed_trees::callable_values::RuntimeCallBinding>,
             subjects: Vec<ParameterSubject>,
             retained: Vec<RetainedMembership>,
         }
@@ -1869,12 +1896,31 @@ mod call_results {
                     CallSite::Statement(call) => call.target_symbol,
                     CallSite::TransitionNamed { path, .. } => path.symbol,
                 };
-                let selected = match site {
-                    CallSite::Expression { call, .. } => {
-                        program.requirement_call_signature(machine_symbol, call)
-                    }
-                    _ => None,
+                let runtime_call = site.runtime_call();
+                let runtime = if runtime_call.is_some() {
+                    Some(super::runtime_contract_at(
+                        program,
+                        facts,
+                        machine_symbol,
+                        state_symbol,
+                        statement_index,
+                        call_ordinal,
+                        &site,
+                    )?)
+                } else {
+                    None
                 };
+                let source =
+                    validation::call_contract_source(program, machine_symbol, &site).ok()?;
+                let selected = source
+                    .as_ref()
+                    .map(validation::CallContractSource::signature)
+                    .or_else(|| match site {
+                        CallSite::Expression { call, .. } => {
+                            program.requirement_call_signature(machine_symbol, call)
+                        }
+                        _ => None,
+                    });
                 let parameters = selected
                     .map(|signature| program.state_signature_parameters(signature))
                     .or_else(|| validation::call_target_parameters(program, target))?;
@@ -1889,8 +1935,13 @@ mod call_results {
                     .find(|call| {
                         call.statement_index == statement_index
                             && call.call_ordinal == call_ordinal
-                            && call.target_symbol
-                                == validation::call_target_entry_symbol(program, target)
+                            && call.runtime_call == runtime_call
+                            && if runtime_call.is_some() {
+                                !call.target_symbol.is_valid()
+                            } else {
+                                call.target_symbol
+                                    == validation::call_target_entry_symbol(program, target)
+                            }
                     })?;
                 let operands = facts.flow.control.operands.span(call_flow.operands)?;
                 let receiver = match site {
@@ -1903,12 +1954,16 @@ mod call_results {
                     || !operands
                         .iter()
                         .map(|operand| operand.expression)
-                        .eq(receiver.into_iter().chain(arguments.iter().copied()))
+                        .eq(runtime_call
+                            .map(|binding| binding.callee)
+                            .into_iter()
+                            .chain(receiver)
+                            .chain(arguments.iter().copied()))
                 {
                     return None;
                 }
-                let checked_body =
-                    validation::call_target_has_checked_body_contract(program, target);
+                let checked_contract = runtime.is_some()
+                    || validation::call_target_has_checked_body_contract(program, target);
                 let identities = call_parameter_qualification_identities(program, target, selected);
                 let mut subjects = Vec::new();
                 for (position, parameter) in parameters.iter().enumerate() {
@@ -1929,9 +1984,11 @@ mod call_results {
                         continue;
                     }
                     let storage = if operand_binds_live_view(program, parameter.type_reference) {
-                        let Some(operand) =
-                            operands.get(position + usize::from(receiver.is_some()))
-                        else {
+                        let Some(operand) = operands.get(
+                            position
+                                + usize::from(runtime_call.is_some())
+                                + usize::from(receiver.is_some()),
+                        ) else {
                             continue;
                         };
                         let Some(referents) =
@@ -1980,7 +2037,8 @@ mod call_results {
                     target,
                     parameters,
                     call_flow,
-                    checked_body,
+                    checked_contract,
+                    runtime_call,
                     subjects,
                     retained,
                 })
@@ -1995,8 +2053,12 @@ mod call_results {
                 instance: SemanticDomainId,
             ) -> Option<()> {
                 if evidence.origin != QualificationEvidenceOrigin::Propagated
-                    || (evidence.source_symbol != self.target
-                        && evidence.source_symbol != self.call_flow.target_symbol)
+                    || if self.runtime_call.is_some() {
+                        evidence.source_symbol.is_valid()
+                    } else {
+                        evidence.source_symbol != self.target
+                            && evidence.source_symbol != self.call_flow.target_symbol
+                    }
                     || evidence.requirement_symbol.is_valid()
                 {
                     return None;
@@ -2018,7 +2080,7 @@ mod call_results {
                     .take_while(|row| row.place == subject)
                     .find(|row| row.domain == domain && row.instance == instance)?
                     .position;
-                if self.checked_body {
+                if self.checked_contract {
                     return Some(());
                 }
                 let parameter = self.parameters.get(position)?;
@@ -2238,13 +2300,28 @@ mod call_results {
                     return None;
                 };
                 let target_symbol = validation::call_target_symbol(program, call);
-                let public_contract =
-                    validation::requirement_contract_signature(program, machine_symbol, &site);
-                let exact_source = fact.evidence.source_symbol == target_symbol
-                    || fact.evidence.source_symbol
-                        == validation::call_target_entry_symbol(program, target_symbol)
-                    || public_contract
-                        .is_some_and(|(_, signature)| fact.evidence.source_symbol == signature.symbol);
+                let source = match validation::call_contract_source(program, machine_symbol, &site) {
+                    Ok(source) => source,
+                    Err(reason) => { failure_reason = Some(reason); return None; }
+                };
+                let runtime = if site.runtime_call().is_some() {
+                    Some(runtime_contract_at(program, facts, machine_symbol, state_symbol,
+                        statement_index, call_ordinal, &site)?)
+                } else { None };
+                let public_contract = match source.as_ref() {
+                    Some(validation::CallContractSource::Requirement { declaration, signature }) =>
+                        Some((*declaration, *signature)),
+                    _ => None,
+                };
+                let exact_source = if runtime.is_some() {
+                    // The occurrence and retained row carry identity. This field has
+                    // no nominal issuer for an indirect call.
+                    !fact.evidence.source_symbol.is_valid()
+                } else {
+                    fact.evidence.source_symbol == target_symbol
+                        || fact.evidence.source_symbol == validation::call_target_entry_symbol(program, target_symbol)
+                        || public_contract.is_some_and(|(_, signature)| fact.evidence.source_symbol == signature.symbol)
+                };
                 if fact.evidence.origin != QualificationEvidenceOrigin::Propagated
                     || !exact_source
                     || fact.evidence.requirement_symbol.is_valid()
@@ -2261,8 +2338,7 @@ mod call_results {
                     call,
                     events: InvocationEvents::Published(facts),
                 };
-                let selected = public_contract
-                    .map(|(_, signature)| signature)
+                let selected = source.as_ref().map(validation::CallContractSource::signature)
                     .or_else(|| program.requirement_call_signature(machine_symbol, call));
                 let declared = crate::flow::call_result_qualification_identities(
                     program,
@@ -2280,7 +2356,8 @@ mod call_results {
                     .qualifications
                     .content
                     .for_semantic_domain(semantic_domain);
-                if validation::call_target_has_checked_body_contract(program, target_symbol) {
+                if runtime.is_some()
+                    || validation::call_target_has_checked_body_contract(program, target_symbol) {
                     return Some(());
                 }
                 if public_contract.is_some_and(|(declaration, _)| !declaration.is_boundary) {

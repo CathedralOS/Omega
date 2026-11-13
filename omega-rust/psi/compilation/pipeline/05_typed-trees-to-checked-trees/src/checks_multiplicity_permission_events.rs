@@ -1527,6 +1527,7 @@ fn state_call_writes(
                 statement_index: call.statement_index,
                 call_ordinal: call.call_ordinal,
                 authored_expression: call.authored_expression,
+                runtime_call: call.runtime_call,
                 input_reference_loans: None,
                 reference_slot_effects: Default::default(),
                 completed_reference_loans: Default::default(),

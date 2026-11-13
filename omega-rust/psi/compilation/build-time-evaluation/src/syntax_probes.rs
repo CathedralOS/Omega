@@ -47,7 +47,10 @@ mod evaluation {
     }
 
     impl PreparedEvaluationInputs {
-        pub(crate) fn domain_for_roots(&self, roots: &[SymbolHandle]) -> EvaluationDomain {
+        pub(crate) fn domain_for_roots(
+            &self,
+            roots: &[SymbolHandle],
+        ) -> Result<EvaluationDomain, Vec<Diagnostic>> {
             self.domain_for_inputs(roots, &[])
         }
 
@@ -55,7 +58,7 @@ mod evaluation {
             &self,
             roots: &[SymbolHandle],
             expressions: &[SourceSpan],
-        ) -> EvaluationDomain {
+        ) -> Result<EvaluationDomain, Vec<Diagnostic>> {
             Self::domain_for_program(&self.typed, roots, expressions)
         }
 
@@ -63,9 +66,14 @@ mod evaluation {
             program: &TypedTrees,
             roots: &[SymbolHandle],
             expressions: &[SourceSpan],
-        ) -> EvaluationDomain {
-            let admission = crate::BuildTimeAdmissionPlan::infer(program, None);
-            Self::domain_for_admission(program, &admission, roots, expressions)
+        ) -> Result<EvaluationDomain, Vec<Diagnostic>> {
+            let admission = crate::BuildTimeAdmissionPlan::infer(program, None)?;
+            Ok(Self::domain_for_admission(
+                program,
+                &admission,
+                roots,
+                expressions,
+            ))
         }
 
         pub(crate) fn domain_for_admission(
@@ -258,7 +266,7 @@ mod evaluation {
                 typing.typed(),
                 &operators,
                 &mut execution,
-            );
+            )?;
             let (work, selection) = declaration_dependencies(
                 typing.typed(),
                 &operators,

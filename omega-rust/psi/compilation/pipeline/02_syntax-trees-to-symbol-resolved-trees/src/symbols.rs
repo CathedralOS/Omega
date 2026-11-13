@@ -462,6 +462,7 @@ mod contracts {
                 }
             }
             ExpressionNode::Call(call) => {
+                assign_calls!(call.callee);
                 if call.requirement_application.is_valid() {
                     super::type_references::reassign_type_reference_symbols_and_values(
                         symbols,

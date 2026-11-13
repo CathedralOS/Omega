@@ -864,8 +864,10 @@ pub(crate) mod authored_selections {
             for handle in containing {
                 let contract = facts.proof.contract_facts.get(handle);
                 let resultless = match contract.owner {
-                    ContractProofFactOwner::CallSignature { .. } => {
+                    ContractProofFactOwner::CallSignature { .. }
+                    | ContractProofFactOwner::RuntimeCallableContract { .. } => {
                         crate::published::proof::contracts::call_signatures::signature(
+                            program,
                             &facts.proof,
                             contract.owner,
                         )

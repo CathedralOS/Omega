@@ -2869,6 +2869,7 @@ pub mod type_references {
             visiting: &mut HashSet<String>,
         ) -> Result<(), String> {
             match program.type_reference_table.type_reference(type_reference) {
+                TypeReferenceNode::Callable { .. } => Err("a machine value has no canonical structural index identity".into()),
         TypeReferenceNode::Named { name, .. } => {
             if matches!(
                 name.as_str(),
@@ -4971,6 +4972,7 @@ pub mod type_references {
         diagnostics: &mut Vec<Diagnostic>,
     ) {
         match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Callable { .. } => {}
             TypeReferenceNode::Reference { referee, .. } => {
                 validate_boundary_trait_value_placement(program, *referee, owner, diagnostics);
             }
@@ -5129,6 +5131,24 @@ pub mod type_references {
                 );
             };
         match program.type_reference_table.type_reference(type_reference) {
+            TypeReferenceNode::Callable { contract } => {
+                if let Err(error) = program
+                    .runtime_callable_type_identity(TypeIdentityRequest::ordinary(type_reference))
+                {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "{owner} has an unresolved machine value contract: {error}"
+                    )));
+                    return;
+                }
+                crate::declarations::state_signatures::validate_runtime_callable_type(
+                    program,
+                    *contract,
+                    symbols,
+                    type_parameter_scope,
+                    diagnostics,
+                    formation_obligations,
+                );
+            }
             TypeReferenceNode::Reference {
                 referee, lifetime, ..
             } => {
@@ -6663,6 +6683,12 @@ pub mod wire {
             diagnostics: &mut Vec<Diagnostic>,
         ) {
             match program.type_reference_table.type_reference(type_reference) {
+                TypeReferenceNode::Callable { .. } => {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "wire field `{}` cannot contain a local machine value",
+                        field.name,
+                    )));
+                }
                 TypeReferenceNode::Reference { referee, .. } => validate_field_type_reference(
                     program,
                     symbols,

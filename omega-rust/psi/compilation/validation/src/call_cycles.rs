@@ -1417,7 +1417,10 @@ pub(crate) mod runtime_ranking {
                     })
                 }
                 StatementNode::Call(call) => {
-                    program
+                    call.runtime_call.is_none_or(|binding| {
+                        binding.signature(program.typed_program()).is_ok()
+                            && operand_has_admitted_meaning(program, machine, state, binding.callee)
+                    }) && program
                         .statement_table
                         .expression_handles(call.arguments)
                         .iter()
@@ -1455,7 +1458,10 @@ pub(crate) mod runtime_ranking {
             expression: typed_trees::expression::ExpressionHandle,
         ) -> bool {
             super::expression_is_inert_or_calls(program, machine, state, expression, &|call| {
-                call.target_symbol.is_valid()
+                match call.runtime_call {
+                    Some(binding) => binding.signature(program.typed_program()).is_ok(),
+                    None => call.target_symbol.is_valid(),
+                }
             })
         }
     }
@@ -2841,6 +2847,38 @@ pub(crate) mod runtime_ranking {
                         guards.push((guard, false));
                     }
                     let target_node = program.statement_table.transition_target(transition.target);
+                    if let TransitionTargetNode::Value(value) = target_node
+                        && let Some(call) = expression_table(program).call_node(*value)
+                        && let Some(binding) = call.runtime_call
+                    {
+                        let signature = binding.signature(program.typed_program())?;
+                        if !matches!(&signature.termination_guarantee,
+                            language_semantics::TerminationGuarantee::Terminates { premises } if premises.is_empty())
+                        {
+                            return Err(
+                                "a runtime tail call has no unconditional public termination contract for ranking admission",
+                            );
+                        }
+                        if !prefix::operand_has_admitted_meaning(
+                            program,
+                            machine,
+                            state,
+                            binding.callee,
+                        ) || !expression_table(program)
+                            .expression_handles(call.arguments)
+                            .iter()
+                            .all(|argument| {
+                                prefix::operand_has_admitted_meaning(
+                                    program, machine, state, *argument,
+                                )
+                            })
+                        {
+                            return Err(
+                                "runtime tail call operands have effects or unproven operator meaning",
+                            );
+                        }
+                        continue;
+                    }
                     let tail_arrival =
                         crate::completing_transition_invocation(program, transition.target)
                             .map(|transfer| (transfer.target, transfer.arguments));
@@ -3661,13 +3699,17 @@ fn collect_statement_dependency_symbols(
             collect_expression_dependency_symbols(program, assignment.value, symbols);
         }
         StatementNode::Call(call) => {
-            push_dependency_symbol(symbols, call.target_symbol);
-            symbols.extend(
-                crate::machine_calls::machine_parameters::call_selection_dependency_symbols(
-                    program,
-                    typed_trees::references::StaticArgumentCall::Statement(call),
-                ),
-            );
+            if let Some(binding) = call.runtime_call {
+                collect_expression_dependency_symbols(program, binding.callee, symbols);
+            } else {
+                push_dependency_symbol(symbols, call.target_symbol);
+                symbols.extend(
+                    crate::machine_calls::machine_parameters::call_selection_dependency_symbols(
+                        program,
+                        typed_trees::references::StaticArgumentCall::Statement(call),
+                    ),
+                );
+            }
             for argument in program.statement_table.expression_handles(call.arguments) {
                 collect_expression_dependency_symbols(program, *argument, symbols);
             }
@@ -3711,7 +3753,9 @@ fn collect_expression_dependency_symbols(
         return;
     }
     let node = expression_table(program).expression(expression);
-    if let ExpressionNode::Call(call) = node {
+    if let ExpressionNode::Call(call) = node
+        && call.runtime_call.is_none()
+    {
         push_dependency_symbol(symbols, call.target_symbol);
         symbols.extend(
             crate::machine_calls::machine_parameters::call_selection_dependency_symbols(

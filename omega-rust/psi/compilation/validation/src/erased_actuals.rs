@@ -360,8 +360,7 @@ pub(crate) fn validate(program: &dyn crate::CheckingInput, diagnostics: &mut Vec
                             path, source_span, ..
                         } => (path.symbol, *source_span),
                     };
-                    let Some(target_parameters) =
-                        crate::call_target_parameters(program, target_symbol)
+                    let Some(target_parameters) = call_site.parameters(program, machine.symbol)
                     else {
                         continue;
                     };

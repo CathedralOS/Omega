@@ -1736,6 +1736,7 @@ pub(crate) fn type_resolved_cohort(
     cohort: &TypingCohort<'_>,
 ) -> Result<(), Diagnostic> {
     let source = lowerer.source_trees;
+    crate::runtime_callables::lower_contracts(lowerer)?;
     for declaration in source
         .const_declarations
         .iter()
@@ -1856,6 +1857,18 @@ pub(crate) fn close_typed_cohort(
     lowerer: &mut Lowerer<'_>,
     cohort: &TypingCohort<'_>,
 ) -> Result<(), Diagnostic> {
+    // Result and effect queries must see the signature of the evaluated callee,
+    // including calls in declaration contracts and initializers.
+    let mut callable_admission = crate::runtime_callables::bind_calls(
+        &mut lowerer.typed_trees,
+        cohort.typed_expressions,
+        cohort.typed_type_references,
+    )?;
+    let bound_expressions = lowerer.typed_trees.expression_table.expression_count();
+    let bound_types = lowerer
+        .typed_trees
+        .type_reference_table
+        .type_reference_count();
     settle_satisfied_declarations_from(&mut lowerer.typed_trees, cohort.typed_machines)?;
     normalize_machine_progress_premises(&mut lowerer.typed_trees, cohort.typed_machines)?;
     lowerer
@@ -1875,6 +1888,10 @@ pub(crate) fn close_typed_cohort(
     )?;
     normalize_membership_selections(lowerer.source_trees, &mut lowerer.typed_trees)?;
     crate::contracts::proof_facts::intern_proof_membership_instances(&mut lowerer.typed_trees)?;
+    crate::runtime_callables::validate_pending_token_shapes(
+        lowerer.source_trees,
+        &lowerer.typed_trees,
+    )?;
     let cast_destinations = crate::expressions::construction_destinations::prepare(
         &mut lowerer.typed_trees,
         cohort.typed_expressions,
@@ -1921,7 +1938,13 @@ pub(crate) fn close_typed_cohort(
         cohort.completed_machines,
         |callee| captured_arguments(Some(lowerer.source_trees), callee),
     );
-    bind_dynamic_call_targets(&mut lowerer.typed_trees)
+    bind_dynamic_call_targets(&mut lowerer.typed_trees)?;
+    callable_admission.extend(crate::runtime_callables::bind_calls(
+        &mut lowerer.typed_trees,
+        bound_expressions,
+        bound_types,
+    )?);
+    crate::runtime_callables::admit_types(&lowerer.typed_trees, &callable_admission)
 }
 
 fn lower_authored_service_reach_row(

@@ -1,10 +1,7 @@
-// A requirement's contract governs a selector call exactly as it governs a
-// static call: the caller proves `requires` from its own facts and receives
-// `ensures` without knowing which implementation the selector names. Each
-// implementation refines that contract where it is declared, so the caller's
-// `9 - shrunk` needs no runtime check.
-// TrimOne::shrink(9) == 8 and TrimThree::shrink(9) == 6:
-// (9 - 8) + (9 - 6) == 4 -> exit 70.
+// One helper calls either machine through its public contract.
+// The result bound justifies `9 - shrunk`; the selected results 8 and 6
+// produce differences 1 and 3, whose sum must be 4.
+// Expected exit: 70
 use omega_language_std::console;
 
 trait Shrink<T> {
@@ -44,11 +41,15 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) reaches Console {
-    let one: dyn Shrink<Scale> = TrimOne as dyn Shrink<Scale>;
-    let three: dyn Shrink<Scale> = TrimThree as dyn Shrink<Scale>;
-    let first: u64 = Shrink::shrink(one, &main.scale, 9);
-    let second: u64 = Shrink::shrink(three, &main.scale, 9);
-    let total: u64 = (9 - first) + (9 - second);
+    let one: machine(scale: &Scale, value: u64) -> u64 reaches none crashes none
+    requires value >= 3 && value <= 100
+    ensures result <= value = TrimOne::shrink;
+    let three: machine(scale: &Scale, value: u64) -> u64 reaches none crashes none
+    requires value >= 3 && value <= 100
+    ensures result <= value = TrimThree::shrink;
+    let first: u64 = Main::difference(one, &main.scale);
+    let second: u64 = Main::difference(three, &main.scale);
+    let total: u64 = first + second;
     transition total == 4 {
         true -> good(main)
         _ -> bad(main)
@@ -60,6 +61,17 @@ machine Main::main(main: &mut Main) reaches Console {
 
     machine bad(main: &mut Main) {
         Console::exit_process(71);
+    }
+}
+
+machine Main::difference(operation: machine(input: &Scale, amount: u64) -> u64 reaches none crashes none
+    requires amount >= 3 && amount <= 100
+    ensures result <= amount, scale: &Scale) -> u64
+ensures result <= 9
+{
+    let shrunk: u64 = operation(scale, 9);
+    transition {
+        _ -> (9 - shrunk)
     }
 }
 
