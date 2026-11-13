@@ -1,10 +1,10 @@
 /*
-Checked compilation and the source custody sealed against it.
+Accepted compilation and the immutable source custody sealed against it.
 
-The sealed `CheckedCompilation` record retains each stage product as the unit
-its producer returned: selected execution, the shared evaluated Build, this
-compilation's Build admission, provider settlement, checked-tree product
-selection, and source custody. Consumers borrow the unit they read; the methods
+The sealed `CheckedCompilation` record retains selected execution, the shared
+evaluated Build, this compilation's Build admission, provider settlement, and
+source custody. Its source inspection and accepted Terminal publication must
+name the same frozen source owner. Consumers borrow the unit they read; the methods
 here expose those units, reconstruct explicit root trust obligations, project
 package build handoffs, and assemble the `TerminalNativeProposalRequest` that
 Omega 00 joins against provider selection.
