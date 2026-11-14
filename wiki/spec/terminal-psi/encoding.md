@@ -2330,6 +2330,22 @@ subject field as the new representation.
 | realization callable | source callable identity string + machine id + callable result |
 | conformance row | declaring trait identity string + public requirement identity string + counted family tuple strings + requirement identity string + realization identity string + optional realization callable identity string |
 
+From marker 268, each static method application also retains an optional list
+of declared result lifetime groups. Each group contains counted input lifetime
+dependencies (the existing referent/stored dependency encoding), followed by
+counted structural result paths. One group shares its complete input set among
+its result paths; the encoding does not expand an input-by-result matrix.
+An absent list means that the instantiated frontier remains unavailable. A
+present empty list declares no borrowed result. An empty input set within a
+group denotes a caller-chosen result lifetime and supplies no backing authority.
+
+These groups come from the original public signature and its complete method
+tuple before lifetime erasure. They are included in the conformance application
+commitment. The implementing body's actual return origins remain separate:
+receiving checks must not replace the public input set with those narrower
+origins. Backing formation, access, source correspondence and loan completion
+remain independent obligations; retaining a group does not establish them.
+
 <!-- conformance-parameter-kind-tags -->
 
 | tag | Conformance parameter kind |

@@ -118,6 +118,155 @@ fn a_selected_reference_keeps_its_public_input_and_the_original_loan() {
 }
 
 #[test]
+fn a_selected_reference_keeps_every_public_input_even_when_the_body_returns_left() {
+    let source = r#"
+trait Choose {
+    machine take<'owner>(left: &'owner mut i64, right: &'owner mut i64) -> &'owner mut i64
+        reaches none crashes none terminates;
+}
+public First satisfies Choose {
+    machine take<'owner>(left: &'owner mut i64, right: &'owner mut i64) -> &'owner mut i64
+        reaches none crashes none { left }
+}
+machine use_both<'owner>(left: &'owner mut i64, right: &'owner mut i64) -> i64 crashes none {
+    let child: &mut i64 = First::take(&mut left, &mut right);
+    child = 41;
+    let observed: i64 = child;
+    right = 7;
+    observed
+}
+machine run() -> i64 crashes none {
+    let mut left: i64 = 17;
+    let mut right: i64 = 23;
+    use_both(&mut left, &mut right)
+}
+"#;
+    let (value, accounting) = run_recorded(source)
+        .expect("both independent inputs remain lent until the selected result ends");
+    assert_eq!(value, BuildTimeValue::Int(41));
+    let [crate::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+        panic!("one actual execution retains its invocation receipt")
+    };
+    let module = receipt.program().view().module();
+    let [application] = module.closed_conformance_applications.as_slice() else {
+        panic!("one complete First selection")
+    };
+    let [method] = application.static_applications.as_slice() else {
+        panic!("one complete declared method tuple")
+    };
+    let [lifetime] = method
+        .result_lifetimes
+        .as_deref()
+        .expect("the public frontier is resolved")
+    else {
+        panic!("one declared result lifetime")
+    };
+    assert_eq!(
+        lifetime.results,
+        vec![Vec::<terminal_psi::StructuralPathSegment>::new()]
+    );
+    assert_eq!(
+        lifetime.inputs,
+        vec![
+            terminal_psi::BoundaryLifetimeDependency::Referent {
+                argument_index: 0,
+                access: terminal_psi::StructuralAccess::MutableBorrow
+            },
+            terminal_psi::BoundaryLifetimeDependency::Referent {
+                argument_index: 1,
+                access: terminal_psi::StructuralAccess::MutableBorrow
+            },
+        ]
+    );
+    terminal_semantics::closed_conformances::validate_closed_conformances(module)
+        .expect("receiving validation retains the complete public input set");
+    let physical = module
+        .machine(match method.callable {
+            terminal_psi::TargetMachineCallable::Machine(machine) => machine,
+            _ => panic!("ordinary checked implementation"),
+        })
+        .unwrap();
+    assert_eq!(
+        physical
+            .result
+            .structural()
+            .unwrap()
+            .reference_sources
+            .len(),
+        1
+    );
+    assert_eq!(
+        physical.result.structural().unwrap().reference_sources[0]
+            .sources
+            .len(),
+        1,
+        "the actual body returns only its first input"
+    );
+    let mut narrowed = module.clone();
+    let public = narrowed
+        .declaration_contracts
+        .iter_mut()
+        .find(|contract| {
+            contract
+                .selected_application
+                .as_ref()
+                .is_some_and(|dispatch| dispatch.realization == physical.id)
+        })
+        .expect("the selected call has its own public header");
+    let terminal_psi::TerminalMachineResult::Structural(public_result) = &mut public.result else {
+        panic!("the public result is a reference carrier")
+    };
+    public_result.reference_sources = physical
+        .result
+        .structural()
+        .unwrap()
+        .reference_sources
+        .clone();
+    assert_eq!(
+        terminal_semantics::closed_conformances::validate_closed_conformances(&narrowed),
+        Err("selected public result replaces declared lifetimes with body origins")
+    );
+    // Publish the authored closure, rather than relabeling the temporary
+    // invocation probe as portable. The receiver has no source trees.
+    let (portable, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        typed(source),
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .expect("ordinary source preparation retains the public lifetime family");
+    let entry = portable.realized_machine_named("run").unwrap().symbol;
+    let accepted = psi_terminal_production::AcceptedTerminalSource::judge(
+        std::sync::Arc::new(portable),
+        psi_terminal_production::TerminalSourceCompilation {
+            declaration_metadata: &[],
+            entries: &[entry],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Portable,
+    )
+    .expect("the complete authored reference closure is checked before publication");
+    let bytes = terminal_codec::encode_module(accepted.module())
+        .expect("portable public lifetime groups encode");
+    let decoded = terminal_codec::decode_module(&bytes)
+        .expect("public lifetime groups survive source-free receiving checks");
+    assert_eq!(
+        decoded.closed_conformance_applications,
+        accepted.module().closed_conformance_applications
+    );
+    let conflicting = source.replace("    child = 41;", "    right = 7;\n    child = 41;");
+    assert_ne!(conflicting, source);
+    let refusal = run(&conflicting)
+        .expect_err("the public method may return the independently borrowed right input");
+    assert!(
+        refusal.contains("storage is changed while a conflicting reference remains live"),
+        "{refusal}"
+    );
+}
+
+#[test]
 fn a_named_requirement_instantiates_its_borrowed_inputs_by_owned_lifetime() {
     let source = r#"
 trait Write {

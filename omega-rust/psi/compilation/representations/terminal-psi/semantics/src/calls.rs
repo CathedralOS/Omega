@@ -1363,6 +1363,9 @@ pub mod closed_conformances {
                 return Err("conformance static applications are repeated or not canonical");
             }
             for applied in &application.static_applications {
+                if let Some(groups) = &applied.result_lifetimes {
+                    crate::references::validate_result_lifetime_groups(groups)?;
+                }
                 identity(module, applied.public_requirement_identity)?;
                 identity(module, applied.realization_identity)?;
                 identity(module, applied.source_callable_identity)?;
@@ -1639,6 +1642,27 @@ pub mod closed_conformances {
                             );
                         }
                     }
+                }
+                if contract.result.structural().is_some_and(|result| {
+                    terminal_psi::structural_type_contains_reference_by(
+                        |id| module.structural_type(id),
+                        result.structural_type,
+                    )
+                }) {
+                    let public = crate::selected_reference_result(
+                        module,
+                        machine.id,
+                        invocation.inputs.callee,
+                        required,
+                    )?;
+                    let actual = body
+                        .result
+                        .structural()
+                        .ok_or("selected reference body has no structural result")?;
+                    public.validate_actual_sources(
+                        &body.structural_parameters,
+                        &actual.reference_sources,
+                    )?;
                 }
             }
         }

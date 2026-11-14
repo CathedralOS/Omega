@@ -42,6 +42,8 @@ use super::Program;
 use crate::body::{Regions, ValueType};
 use crate::{Unserved, refuse};
 
+mod result_lifetimes;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Region {
     /// A lifetime parameter of a data declaration or a machine.

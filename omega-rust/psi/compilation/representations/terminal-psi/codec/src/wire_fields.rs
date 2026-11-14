@@ -1015,6 +1015,9 @@ delegated_fields! {
     CallResult: terminal_psi::BoundaryMachineResult
         => super::structural_signature_wire::encode_call_result,
            super::structural_signature_wire::decode_call_result;
+    LifetimeDependency: terminal_psi::BoundaryLifetimeDependency
+        => super::structural_signature_wire::reference_outputs::encode_dependency,
+           super::structural_signature_wire::reference_outputs::decode_dependency;
 }
 
 macro_rules! wire_enum {
