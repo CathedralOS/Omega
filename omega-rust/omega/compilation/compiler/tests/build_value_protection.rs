@@ -296,23 +296,23 @@ fn binding_an_entry_needs_the_mutable_build_value() {
     rejected_with(
         "bind-shared",
         &helper("", "builder"),
-        "is held in storage lent shared: a shared loan admits no mutable child",
+        "as mutable through a shared reference, which grants no mutation",
     );
     rejected_with(
         "bind-mutable-through-shared",
         &helper("", "&mut builder"),
-        "is held in storage lent shared: a shared loan admits no mutable child",
+        "as mutable through a shared reference, which grants no mutation",
     );
-    for (name, argument) in [
-        ("bind-explicit-shared", "&builder"),
-        ("bind-explicit-write-only", "&write builder"),
-    ] {
-        rejected_with(
-            name,
-            &helper("mut ", argument),
-            "Build selection requires a mutable activation borrow",
-        );
-    }
+    rejected_with(
+        "bind-explicit-shared",
+        &helper("mut ", "&builder"),
+        "the caller lends only immutable access to this argument",
+    );
+    rejected_with(
+        "bind-explicit-write-only",
+        &helper("mut ", "&write builder"),
+        "the caller lends write-only access to this argument",
+    );
 }
 
 /// The same rule through a record that keeps the Build it was lent
@@ -355,5 +355,33 @@ machine helper(builder: &mut Build) {{
         "stored-shared-local",
         &holder("", through_local),
         "the reference it is reached through grants shared access only",
+    );
+}
+
+#[test]
+fn binding_requires_the_shared_cohort_to_end_before_exclusive_access() {
+    let helper = |operations: &str| {
+        format!(
+            "machine observe(builder: &Build) -> bool {{ builder.freestanding }}
+machine helper(builder: &mut Build) -> bool {{
+    let view: &Build = builder;
+    {operations}
+}}
+"
+        )
+    };
+    assert_eq!(
+        refusals(
+            "bind-after-observation",
+            &helper(
+                "let observed: bool = observe(view); Build::bind(builder, linux_arm64::ProgramEntry, main); observed"
+            ),
+        ),
+        Vec::<String>::new()
+    );
+    rejected_with(
+        "bind-during-observation",
+        &helper("Build::bind(builder, linux_arm64::ProgramEntry, main); observe(view)"),
+        "conflicting loans",
     );
 }

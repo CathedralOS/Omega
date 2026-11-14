@@ -2131,6 +2131,19 @@ impl<'t> Program<'t> {
                 false,
             ),
         };
+        // A write-only loan cannot supply observation to its callee, even
+        // when the caller's own source place holds stronger access.
+        if explicit
+            && access == ReferenceAccess::WriteOnly
+            && formal.access != ReferenceAccess::WriteOnly
+        {
+            return Err(crate::reject(
+                id,
+                source,
+                "the caller lends write-only access to this argument and its parameter requires \
+                 readable access: a callee cannot read through a write-only loan",
+            ));
+        }
         // ownership.md, "Borrows and aliases": `&T` grants "Shared
         // observation under its loan contract", and "A callee cannot grant
         // writable access that the caller's place lacks." So an argument

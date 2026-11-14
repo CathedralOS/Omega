@@ -92,7 +92,7 @@ pub(crate) mod build_selections {
         BuildOperation, BuildSelectionRequest, RootBindingOperand,
     };
     use typed_trees::expression::{
-        ExpressionHandle, ExpressionNode, TableBorrowExpression, TableCallExpression, TableNamePath,
+        ExpressionHandle, ExpressionNode, TableCallExpression, TableNamePath,
     };
 
     pub(crate) fn lower(
@@ -199,15 +199,15 @@ pub(crate) mod build_selections {
         // Test-group registration is authorized by the Build's own `tests`
         // facet, the operand it was authored on; every other selection by the
         // original Build value.
-        let preparation_name = match &request {
-            BuildSelectionRequest::Declaration(binding) if binding.operation.uses_tests_facet() => {
-                "prepare_tests"
-            }
-            _ => "prepare",
-        };
-        let preparation = find(preparation_name)?;
+        let tests_facet = matches!(&request,
+            BuildSelectionRequest::Declaration(binding) if binding.operation.uses_tests_facet());
+        let preparation = find(if tests_facet {
+            "prepare_tests"
+        } else {
+            "prepare"
+        })?;
         let commit = find(operation)?;
-        let value_helpers = match &request {
+        let mut value_helpers = match &request {
             BuildSelectionRequest::Exclusion(request) => vec![(1, request.vocabulary.helper())],
             _ if operation == "bind_native" => vec![(1, "build_selection_target")],
             _ if operation == "select_provider" => {
@@ -219,31 +219,10 @@ pub(crate) mod build_selections {
             }
             _ => Vec::new(),
         };
-        let table = &mut target.expression_table;
-        // Selection needs exclusive access to the original activation, but
-        // the host only observes its identity. An ordinary exclusive reborrow
-        // attenuated into the shared protocol checks that authority without
-        // pretending an opaque host may rewrite Build's stored references.
-        if preparation_name == "prepare" {
-            match table.expression(arguments[0]) {
-                ExpressionNode::Borrow(borrow) => {
-                    if borrow.access != language_core::ReferenceAccess::Mutable {
-                        return Err(Diagnostic::error(
-                            "Build selection requires a mutable activation borrow, not a shared or write-only borrow",
-                        )
-                        .with_source_span(source_span));
-                    }
-                }
-                _ => {
-                    let borrow = table.insert(ExpressionNode::Borrow(TableBorrowExpression {
-                        target: arguments[0],
-                        access: language_core::ReferenceAccess::Mutable,
-                    }));
-                    table.set_source_span(borrow, source_span);
-                    arguments[0] = borrow;
-                }
-            }
+        if !tests_facet {
+            value_helpers.insert(0, (0, "build_selection_receiver"));
         }
+        let table = &mut target.expression_table;
         let mut members = Default::default();
         let mut member_symbols = Default::default();
         table.push_name_path_member(&mut members, crate::lowerer::name::lower_name(&owner.name));

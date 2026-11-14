@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### An explicit exclusive borrow becomes shared before the checker sees its formation
+- Category: a verdict with nothing behind it
+- Where: `05_typed-trees-to-terminal-psi/src/read/calls.rs`, `lent` and its `attenuated` argument path
+- Saw: with a live `let view: &Build = builder`, an ordinary `observe(&mut builder)` call whose parameter is `&Build` is accepted even when `observe(view)` follows it. Producer SHA256 `4B90BD6AC0F6C1FD459B44388B866CCD5B1B85AA44B96930DCFA204A8737FC41` checked this source with exit 0. This is an ordinary helper call, not Build selection syntax. `lent` checks source access but records the formal's shared access, losing the exclusive formation before the lowered-form checker judges overlapping live loans.
+- Cost: an explicit exclusive borrow can coexist with an already-live shared cohort. Preserve the written formation and its attenuation as real loan ancestry; do not reject legal attenuation or relax cohort checks. The Build selection repair uses a real mutable-parameter call instead, so it does not depend on this path. Acceptance pairs the still-live cohort with one whose last use precedes the exclusive formation, and keeps ordinary shared calls legal while the cohort is live.
+- Reported: 2026-11-14, Codex, while falsifying Build activation access before landing #3207
+
 ### Derived-index freshness keys omit storage and roster identity
 - Category: a verdict with nothing behind it
 - Where: [call-target index key](omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs#L1880), [roster marker](omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs#L1377), [structural fingerprint](omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs#L1561), [index reuse](omega-rust/psi/foundation/arena/src/owned_index.rs#L60)
