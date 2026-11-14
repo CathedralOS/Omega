@@ -199,7 +199,6 @@ pub(crate) mod call_foundations {
         scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
         sources: &terminal_semantics::normal_completion::ReturnSources<'_>,
     ) -> Result<bool, CodecError> {
-        use std::collections::BTreeMap;
         use terminal_semantics::inhabitation::{boolean_value_with, predicates_are_false_with};
 
         if contract.parameters.len() != arguments.len()
@@ -211,7 +210,7 @@ pub(crate) mod call_foundations {
         // Looking a callee result/foreign ID up directly in the caller's
         // constant index would let coincident numeric IDs invent a promise.
         // Bind once, then borrow each retained clause without copying trees.
-        let mut booleans = BTreeMap::new();
+        let mut booleans = Vec::with_capacity(arguments.len() + erased_arguments.len());
         for (formal, actual) in contract.parameters.iter().zip(arguments) {
             if sources.scalar_type(*actual) != Some(formal.scalar_type) {
                 return malformed("no-normal invocation has no exact scalar argument source");
@@ -219,9 +218,7 @@ pub(crate) mod call_foundations {
             let known = (formal.scalar_type == ScalarType::Boolean)
                 .then(|| boolean_actual(*actual, scalar_index, sources))
                 .flatten();
-            if booleans.insert(formal.id, known).is_some() {
-                return malformed("no-normal invocation repeats a scalar formal identity");
-            }
+            booleans.push((formal.id, known));
         }
         for (formal, actual) in contract.erased_scalar_formals.iter().zip(erased_arguments) {
             if actual.scalar_type() != formal.scalar_type {
@@ -232,9 +229,11 @@ pub(crate) mod call_foundations {
                     boolean_value_with(actual, |value| boolean_actual(value, scalar_index, sources))
                 })
                 .flatten();
-            if booleans.insert(formal.id, known).is_some() {
-                return malformed("no-normal invocation repeats a scalar formal identity");
-            }
+            booleans.push((formal.id, known));
+        }
+        booleans.sort_unstable_by_key(|(formal, _)| *formal);
+        if booleans.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+            return malformed("no-normal invocation repeats a scalar formal identity");
         }
         Ok(contract.ensures.iter().any(|clause| {
             predicates_are_false_with(std::slice::from_ref(&clause.proposition), |value| {
@@ -245,7 +244,10 @@ pub(crate) mod call_foundations {
                 {
                     None
                 } else {
-                    booleans.get(&value).copied().flatten()
+                    booleans
+                        .binary_search_by_key(&value, |(formal, _)| *formal)
+                        .ok()
+                        .and_then(|index| booleans[index].1)
                 }
             })
         }))
