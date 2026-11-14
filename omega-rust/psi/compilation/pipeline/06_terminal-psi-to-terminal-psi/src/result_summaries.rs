@@ -74,15 +74,16 @@ use crate::{
 /// Adds a proved result summary to the contract of each machine in
 /// `Elaboration::local_results` that has one, callees first.
 pub(crate) fn infer(
-    elaboration: &mut Elaboration,
+    scope: &mut crate::ReplayScope<'_>,
     knowledge: Knowledge,
     unreached: &mut crate::Unreached,
 ) -> Checked<()> {
+    let elaboration = scope.source();
     if elaboration.local_results.is_empty() {
         return Ok(());
     }
     for id in callees_first(elaboration)? {
-        summarize(elaboration, id, knowledge, unreached)?;
+        summarize(scope, id, knowledge, unreached)?;
     }
     Ok(())
 }
@@ -250,11 +251,12 @@ fn widest(
 }
 
 fn summarize(
-    elaboration: &mut Elaboration,
+    scope: &mut crate::ReplayScope<'_>,
     id: MachineId,
     knowledge: Knowledge,
     unreached: &mut crate::Unreached,
 ) -> Checked<()> {
+    let elaboration = scope.source();
     let module = &elaboration.module;
     let lowered = terminal_machine(&module.machines, id, id)?;
     let TerminalMachineResult::Scalar(declared) = &lowered.result else {
@@ -277,7 +279,13 @@ fn summarize(
     let original =
         terminal_check_tables::row(&elaboration.tables.machines, id, id, Construct::Machine)?;
     let mut scratch = original.clone();
-    let prepared = prepare(module, &elaboration.domains, id, &mut scratch, knowledge)?;
+    let prepared = prepare(
+        scope.formed(),
+        &elaboration.domains,
+        id,
+        &mut scratch,
+        knowledge,
+    )?;
     let declared_joins = joins::prepare(
         lowered,
         id,
@@ -427,6 +435,16 @@ fn summarize(
             return Ok(());
         }
     }
+    scope.summarize(id, summary, &exits)
+}
+
+pub(super) fn publish(
+    elaboration: &mut Elaboration,
+    id: MachineId,
+    summary: Proposition,
+    exits: &[(EdgeId, ValueId)],
+) -> Checked<()> {
+    let lowered = terminal_machine(&elaboration.module.machines, id, id)?;
     let entry = lowered.entry;
     let clause = crate::position(lowered.contract.ensures.len(), id)?;
     // Later callers consume this guarantee during the same inference pass.
@@ -447,7 +465,7 @@ fn summarize(
         .get_mut(id)
         .ok_or_else(|| foreign(id, "a summarized machine has no source correspondence"))?;
     let mut returns = Vec::with_capacity(exits.len());
-    for (edge, _) in &exits {
+    for (edge, _) in exits {
         returns.push(*terminal_check_tables::row(
             &sources.edges,
             *edge,

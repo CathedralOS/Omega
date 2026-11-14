@@ -384,7 +384,8 @@ fn discharge_inner(
     knowledge: Knowledge,
     carried: &[Carried<'_>],
 ) -> Checked<Discharge> {
-    formation::module(&elaboration.module)?;
+    let mut scope = prepare_replay(elaboration)?;
+    let elaboration = scope.source();
     minted::width_questions_are_minted(elaboration)?;
     operational::judge(elaboration)?;
     // A caller may retain old contents only outside the callee's actual
@@ -414,16 +415,18 @@ fn discharge_inner(
     // its callers establish is a further clause. A summary already in the
     // contract is not added twice.
     let mut unreached = Unreached::new(elaboration);
-    result_summaries::infer(elaboration, knowledge, &mut unreached)?;
-    entry_inputs::infer(elaboration, knowledge, &mut unreached)?;
-    result_summaries::infer(elaboration, knowledge, &mut unreached)?;
+    scope.infer_results(knowledge, &mut unreached)?;
+    scope.infer_inputs(knowledge, &mut unreached)?;
+    scope.infer_results(knowledge, &mut unreached)?;
     let branches: Vec<(MachineId, terminal_check_tables::program::Branch)> =
-        elaboration.authored_branches().collect();
-    let module = &elaboration.module;
+        scope.source().authored_branches().collect();
+    let requirements = scope.source().requirements.clone();
+    let (formed, domains, checking) = scope.checking();
+    let module = formed.source();
     let mut machines = IdTable::default();
-    let identities: Vec<MachineId> = elaboration.tables.machines.keys().collect();
+    let identities: Vec<MachineId> = checking.machines.keys().collect();
     for id in identities {
-        let tables = elaboration.tables.machines.get_mut(id).ok_or_else(|| {
+        let tables = checking.machines.get_mut(id).ok_or_else(|| {
             refusal(
                 RefusalReason::ForeignIdentity,
                 id,
@@ -434,7 +437,7 @@ fn discharge_inner(
         // A requirement has a contract and no body, so nothing about it is
         // decided here. Its guarantees are each selected implementation's to
         // prove; leaving them without a verdict would read as vacuously held.
-        if elaboration.requirements.contains(&id) {
+        if requirements.contains(&id) {
             machines.push(MachineDischarge {
                 verdicts: tables.obligations.map(|obligation, _| {
                     Err(refusal(
@@ -454,8 +457,8 @@ fn discharge_inner(
         }
         let beyond = unreached.values(terminal_machine(&module.machines, id, id)?, tables);
         machines.push(machine(
-            module,
-            &elaboration.domains,
+            formed,
+            domains,
             id,
             tables,
             knowledge,
@@ -561,7 +564,7 @@ fn terminal_machine(
 }
 
 fn machine(
-    module: &TerminalModule,
+    formed: formation::FormedModule<'_>,
     domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
     id: MachineId,
     tables: &mut MachineTables,
@@ -570,6 +573,7 @@ fn machine(
     carried: Option<&Carried<'_>>,
     branches: &[terminal_check_tables::program::Branch],
 ) -> Checked<MachineDischarge> {
+    let module = formed.source();
     let machines = &module.machines;
     let invariants = &module.scalar_block_invariants;
     let lowered = terminal_machine(machines, id, id)?;
@@ -586,7 +590,7 @@ fn machine(
         graph,
         context,
         reference_graph,
-    } = prepare(module, domains, id, tables, knowledge)?;
+    } = prepare(formed, domains, id, tables, knowledge)?;
     let references = std::cell::RefCell::new(
         terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
             &module.structural_types,
@@ -1247,12 +1251,13 @@ impl Prepared {
 /// Fills `tables.knowledge` from the lowered form and builds what deciding
 /// needs. Knowledge already present is kept: it is this machine's own.
 pub(crate) fn prepare(
-    module: &TerminalModule,
+    formed: formation::FormedModule<'_>,
     domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
     id: MachineId,
     tables: &mut MachineTables,
     knowledge: Knowledge,
 ) -> Checked<Prepared> {
+    let module = formed.source();
     let machines = &module.machines;
     let structural_types = &module.structural_types;
     let lowered = terminal_machine(machines, id, id)?;

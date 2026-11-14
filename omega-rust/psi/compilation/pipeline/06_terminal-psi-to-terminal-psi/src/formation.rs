@@ -15,8 +15,9 @@ use terminal_semantics::substitution::clauses::{ClauseBindings, substitute_claus
 
 /// An explicit formation entrance may search; replay itself must not. The
 /// exclusive borrow prevents callers from editing declarations while this
-/// scope is live. Its operations mutate checking scratch only, never the
-/// module or its domain declarations, and no admission token is persisted.
+/// scope is live. Replay mutates checking scratch only. Normal inference
+/// uses the two private publishers that form a proposed contract before
+/// changing it; no admission token is persisted.
 pub struct ReplayScope<'a> {
     elaboration: &'a mut terminal_check_tables::program::Elaboration,
 }
@@ -28,21 +29,79 @@ pub fn prepare_replay(
     Ok(ReplayScope { elaboration })
 }
 
+/// A proof preparation borrows this exact formed module. Only the formation
+/// scope can construct the view, and its mutable edit methods cannot run
+/// while a view is borrowed.
+#[derive(Clone, Copy)]
+pub(crate) struct FormedModule<'a> {
+    module: &'a TerminalModule,
+}
+
+impl<'a> FormedModule<'a> {
+    pub(crate) fn source(self) -> &'a TerminalModule {
+        self.module
+    }
+}
+
 impl ReplayScope<'_> {
     pub(crate) fn source(&self) -> &terminal_check_tables::program::Elaboration {
         self.elaboration
     }
+    pub(crate) fn formed(&self) -> FormedModule<'_> {
+        FormedModule {
+            module: &self.elaboration.module,
+        }
+    }
+
+    pub(crate) fn infer_inputs(
+        &mut self,
+        knowledge: crate::Knowledge,
+        unreached: &mut crate::Unreached,
+    ) -> Checked<()> {
+        crate::entry_inputs::infer(self, knowledge, unreached)
+    }
+
+    pub(crate) fn infer_results(
+        &mut self,
+        knowledge: crate::Knowledge,
+        unreached: &mut crate::Unreached,
+    ) -> Checked<()> {
+        crate::result_summaries::infer(self, knowledge, unreached)
+    }
+
+    pub(crate) fn require(
+        &mut self,
+        callee: MachineId,
+        predicate: Proposition,
+        sites: &crate::entry_inputs::CallSites,
+    ) -> Checked<()> {
+        // This publisher forms the proposed contract before changing it.
+        crate::entry_inputs::require(self.elaboration, callee, predicate, sites)
+    }
+
+    pub(crate) fn summarize(
+        &mut self,
+        machine: MachineId,
+        summary: Proposition,
+        exits: &[(semantic_vocabulary::EdgeId, ValueId)],
+    ) -> Checked<()> {
+        // This publisher also forms the complete replacement before use.
+        crate::result_summaries::publish(self.elaboration, machine, summary, exits)
+    }
+
     // Kept private to the replay implementation. No caller can obtain a
     // mutable declaration borrow from a successfully formed scope.
     pub(super) fn checking(
         &mut self,
     ) -> (
-        &TerminalModule,
+        FormedModule<'_>,
         &semantic_vocabulary::IdTable<StructuralTypeId, Vec<Proposition>>,
         &mut terminal_check_tables::CheckTables,
     ) {
         (
-            &self.elaboration.module,
+            FormedModule {
+                module: &self.elaboration.module,
+            },
             &self.elaboration.domains,
             &mut self.elaboration.tables,
         )
@@ -608,7 +667,7 @@ pub(crate) fn module(module: &TerminalModule) -> Checked<()> {
             )?;
         }
     }
-    for domain in &module.scalar_domains {
+    for domain in &module.scalar_qualifications.domains {
         if let Some(predicate) = &domain.predicate
             && owes([&predicate.proposition])
         {

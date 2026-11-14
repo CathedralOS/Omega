@@ -6578,8 +6578,6 @@ mod generic_bodies {
             })
             .collect();
         let mut consumer = lower(vec![advance(bound), implementation]).unwrap();
-        let generic = crate::prepare_replay(&mut form).unwrap();
-        let mut replay = crate::prepare_replay(&mut consumer).unwrap();
         let before = searches();
         let decided = discharge_carrying(&mut consumer, &offered).unwrap();
         let started = searches() - before;
