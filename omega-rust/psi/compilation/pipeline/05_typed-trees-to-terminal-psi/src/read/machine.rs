@@ -2235,6 +2235,11 @@ impl<'t> Program<'t> {
             Some(crate::body::Borrowed {
                 position: 0,
                 access,
+                referent: if is_view {
+                    crate::body::BorrowedReferent::Slice
+                } else {
+                    crate::body::BorrowedReferent::Value
+                },
                 regions,
                 home,
             }),

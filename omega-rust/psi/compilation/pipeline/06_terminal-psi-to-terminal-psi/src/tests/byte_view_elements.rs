@@ -343,6 +343,16 @@ fn fixed_byte_arrays_can_supply_borrowed_view_parameters() {
 fn an_array_loan_keeps_its_element_type_and_requested_access() {
     assert_eq!(
         verdict(
+            r#"machine count(bytes: &mut &mut [u8]) -> u64 { bytes.len }
+            machine build_entry() {
+                let mut bytes: [u8; 3] = [17, 42, 99]; use(count(&mut bytes));
+            }
+            machine use(extent: u64) {}"#
+        ),
+        "typing argument types"
+    );
+    assert_eq!(
+        verdict(
             r#"
         machine count(bytes: &mut [u8]) -> u64 { bytes.len }
         machine build_entry() {

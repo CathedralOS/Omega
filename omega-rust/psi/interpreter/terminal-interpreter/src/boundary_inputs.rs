@@ -1448,12 +1448,23 @@ pub(crate) mod byte_arrays {
             {
                 return Ok(None);
             }
+            if argument.access != parameter.access
+                || crate::engine::custody::place_is_claimed(&self.live_claims, argument.place)
+            {
+                return Err(malformed());
+            }
+            if let Some(presented) = self.prepare_fixed_array_argument_staged(
+                parameter,
+                argument,
+                identity_cursor,
+                local_array_roots,
+            )? {
+                return Ok(Some(presented));
+            }
             if !terminal_semantics::view_descriptor_parameter(
                 parameter,
                 self.structural_types().values(),
-            ) || argument.access != parameter.access
-                || crate::engine::custody::place_is_claimed(&self.live_claims, argument.place)
-            {
+            ) {
                 return Err(malformed());
             }
             if argument.path.is_empty()
@@ -1595,6 +1606,23 @@ pub(crate) mod byte_arrays {
                 let borrowed = borrowed.with_descriptor_home(presented.clone());
                 return Ok(Some((presented, borrowed)));
             }
+            Ok(None)
+        }
+
+        /// A fixed array supplies temporary descriptor storage for this call.
+        /// Authenticate the actual backing before classifying resident views;
+        /// neither this descriptor nor its parameter owns the array.
+        fn prepare_fixed_array_argument_staged(
+            &self,
+            parameter: &StructuralParameterDeclaration,
+            argument: &StructuralArgument,
+            identity_cursor: &mut Option<u64>,
+            local_array_roots: &mut RuntimeRows<
+                semantic_vocabulary::PlaceId,
+                TerminalStructuralValue,
+            >,
+        ) -> Result<Option<(TerminalStructuralValue, ByteSequenceBinding)>, TerminalInterpretError>
+        {
             let root_type = self.live_structural_type(argument.place)?;
             let backing_path = match argument.path.split_last() {
                 Some((StructuralPathSegment::FixedRange { .. }, backing)) => backing,

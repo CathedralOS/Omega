@@ -305,7 +305,6 @@ pub(crate) mod borrowed_calls {
         argument: &terminal_psi::StructuralArgument,
         declaration: &terminal_psi::StructuralParameterDeclaration,
         destination: &TargetStructuralParameter,
-        callee: MachineId,
         function: &AbstractFunction,
         live: &LiveDefinitions,
         types: &StructuralTypeLookup<'_>,
@@ -322,19 +321,6 @@ pub(crate) mod borrowed_calls {
             &live.block_views,
             types,
         )?;
-        if let Some(window) = crate::unit::roster_arguments::fixed_array_view_argument(
-            argument,
-            declaration,
-            destination.shape,
-            &destination.placement,
-            callee,
-            &root.declaration,
-            root.backing_shape.byte_size,
-            root.source.clone(),
-            types,
-        )? {
-            return Ok(window);
-        }
         stored_descriptor_argument(
             argument,
             declaration,
@@ -434,41 +420,12 @@ pub(crate) mod borrowed_calls {
         argument: &terminal_psi::StructuralArgument,
         declaration: &terminal_psi::StructuralParameterDeclaration,
         destination: &TargetStructuralParameter,
-        callee: MachineId,
         function: &AbstractFunction,
         prepared: &PreparedFunctionSignature,
         live: &LiveDefinitions,
         types: &StructuralTypeLookup<'_>,
     ) -> Result<TargetStructuralArgument, LoweringError> {
         let shared = argument.access == StructuralAccess::SharedBorrow;
-        if prepared.parameter(argument.place).is_some()
-            || live.structural_homes.contains_key(&argument.place)
-            || live.block_views.contains(&argument.place)
-            || live.address_joins.contains(&argument.place)
-        {
-            let root = crate::unit::argument_roots::resolve(
-                argument.place,
-                function,
-                prepared.parameters.iter(),
-                &live.structural_homes,
-                &live.address_joins,
-                &live.block_views,
-                types,
-            )?;
-            if let Some(presentation) = crate::unit::roster_arguments::fixed_array_view_argument(
-                argument,
-                declaration,
-                destination.shape,
-                &destination.placement,
-                callee,
-                &root.declaration,
-                root.backing_shape.byte_size,
-                root.source,
-                types,
-            )? {
-                return Ok(presentation);
-            }
-        }
         if !argument.path.is_empty() {
             return self::argument(
                 argument,
@@ -1651,6 +1608,37 @@ pub(crate) mod calls {
             shape: placement.shape,
             placement: placement.placement.clone(),
         };
+        // Present an array's backing before classifying ordinary reference
+        // and descriptor arguments. Every addressable root uses the same
+        // checked window, including a field or a block arrival.
+        if prepared.parameter(argument.place).is_some()
+            || live.structural_homes.contains_key(&argument.place)
+            || live.block_views.contains(&argument.place)
+            || live.address_joins.contains(&argument.place)
+        {
+            let root = crate::unit::argument_roots::resolve(
+                argument.place,
+                function,
+                prepared.parameters.iter(),
+                &live.structural_homes,
+                &live.address_joins,
+                &live.block_views,
+                types,
+            )?;
+            if let Some(presentation) = crate::unit::roster_arguments::fixed_array_view_argument(
+                argument,
+                declaration,
+                destination.shape,
+                &destination.placement,
+                callee,
+                &root.declaration,
+                root.backing_shape.byte_size,
+                root.source,
+                types,
+            )? {
+                return Ok(presentation);
+            }
+        }
         if let Some(argument) = super::byte_arguments::shared_owner_view(
             argument,
             declaration,
@@ -1736,7 +1724,6 @@ pub(crate) mod calls {
                 argument,
                 declaration,
                 destination,
-                callee,
                 function,
                 live,
                 types,
@@ -1751,7 +1738,6 @@ pub(crate) mod calls {
                 argument,
                 declaration,
                 destination,
-                callee,
                 function,
                 prepared,
                 live,

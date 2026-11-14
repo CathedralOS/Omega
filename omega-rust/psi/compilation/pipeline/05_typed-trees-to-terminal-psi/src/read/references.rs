@@ -227,6 +227,7 @@ impl Program<'_> {
         let formal = crate::Borrowed {
             position: 0,
             access,
+            referent: crate::body::BorrowedReferent::Value,
             regions: expected.regions(),
             home,
         };
@@ -500,6 +501,7 @@ mod tests {
                     .insert(TypeReferenceNode::Reference {
                         referee: qualified,
                         access: language_core::ReferenceAccess::Shared,
+                        referent: crate::body::BorrowedReferent::Value,
                         lifetime: Some("a".into()),
                     }),
             );
@@ -594,6 +596,7 @@ mod tests {
                 .map(|(position, regions)| crate::Borrowed {
                     position,
                     access: language_core::ReferenceAccess::Shared,
+                    referent: crate::body::BorrowedReferent::Value,
                     regions: *regions,
                     home: Some("u32".into()),
                 })

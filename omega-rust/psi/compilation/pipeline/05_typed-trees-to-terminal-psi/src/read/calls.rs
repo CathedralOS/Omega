@@ -1687,7 +1687,9 @@ impl<'t> Program<'t> {
         }
         for ((declared, _, borrowed), actual) in formals.iter().zip(&read) {
             let formal = self.substitute(*declared, &bound);
-            let array_view = borrowed.is_some()
+            let array_view = borrowed
+                .as_ref()
+                .is_some_and(|borrowed| borrowed.referent == crate::body::BorrowedReferent::Slice)
                 && matches!(actual.kind, ExpressionKind::Borrow { .. })
                 && self.borrowed_byte_array_matches(actual.result, formal);
             if !self.agrees(actual.result, formal) && !array_view {
