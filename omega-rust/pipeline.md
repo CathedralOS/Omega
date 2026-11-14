@@ -1364,10 +1364,8 @@ product policy refuse nonempty representation inputs until the lowered-form
 route can supply their obligations. Retained application records live in
 [`typed-trees::opaque_representations`](psi/compilation/representations/typed-trees/src/opaque_representations.rs);
 retention itself supplies no checking or layout authority.
-`psi/compilation/proof/` retains syntax-only proof surface and static
-boundary/lemma descriptions; these establish no source judgment or accepted
-certificate. Its independent `admission/` package retains the mathematical kernel
-and supplied-certificate checking. Terminal-specific codec, semantic reconstruction
+`psi/compilation/proof/admission/` owns the mathematical kernel and
+supplied-certificate checking. Terminal-specific codec, semantic reconstruction
 and work schedule packages live beside Terminal Psi under
 `psi/compilation/representations/terminal-psi/`. Each keeps its own manifest and
 dependency direction. Nesting gives these companions a subject; it adds no
@@ -1586,8 +1584,7 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
 - Psi `compilation/pipeline/lowered-discharge/` — the compilation's only program verdict.
 - Psi `compilation/pipeline/04_typed-trees-to-typed-trees/` — retained preparation
   metadata and an empty no-work boundary; nonempty work refuses.
-- Psi `compilation/proof/` — syntax-only proof surface descriptions; independent
-  `compilation/proof/admission/` retains the mathematical checker.
+- Psi `compilation/proof/admission/` — the independent mathematical checker.
 - Terminal companion packages live beneath `compilation/representations/terminal-psi/`:
   `codec/`, `semantics/` and `work/`.
   Representation data and candidate production remain independent of checking.

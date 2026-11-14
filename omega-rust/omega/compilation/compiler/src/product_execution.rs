@@ -246,9 +246,15 @@ impl CheckingCompilation {
                     let (terminal, _, _) = crate::terminal::prepare_native_application(
                         &checked,
                         produced,
-                        &signature,
+                        native_compiler::NativeProgramEntrySettlement::new(
+                            &signature,
+                            Some((
+                                &plans.semantic_calling_application,
+                                &plans.physical_calling_application,
+                                &plans.storage_entry,
+                            )),
+                        ),
                         application,
-                        &plans,
                         settlement.application().clone(),
                         rollback.effective(),
                         None,
@@ -277,9 +283,15 @@ impl CheckingCompilation {
                         crate::terminal::prepare_native_application(
                             &checked,
                             produced,
-                            &signature,
+                            native_compiler::NativeProgramEntrySettlement::new(
+                                &signature,
+                                Some((
+                                    &plans.semantic_calling_application,
+                                    &plans.physical_calling_application,
+                                    &plans.storage_entry,
+                                )),
+                            ),
                             application,
-                            &plans,
                             settlement.application().clone(),
                             rollback.effective(),
                             Some(&request),
@@ -361,7 +373,7 @@ impl ProductRequest {
 
 fn refuse_executable_product(product: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::error(format!(
-        "no product route yet: {product} product needs the selected program entry and the native declarations of its provider plans, which have no producer on this route"
+        "no product route yet: {product} product needs separately accepted component exports and native realization inputs"
     ))]
 }
 

@@ -95,6 +95,26 @@ fn a_heads_invariant_is_proved_on_the_entry_and_on_the_jump_back() {
     ));
 }
 
+/// The head retains a mathematical requirement under its fresh parameter IDs.
+/// A backedge supplying an out-of-range constant still owes that requirement.
+#[test]
+fn a_mathematical_cycle_requirement_is_checked_on_every_arrival() {
+    use semantic_vocabulary::{IntegerMathLiteral, IntegerMathTerm};
+
+    let required = Proposition::IntegerMathLessOrEqual(
+        IntegerMathTerm::embed(formal(1, u32_type())).unwrap(),
+        IntegerMathTerm::IntegerLiteral(IntegerMathLiteral::new(false, 9).unwrap()),
+    );
+    let (elaboration, result) = run(vec![countdown(vec![required.clone()], unsigned(0))]);
+    let arrivals = verdicts(&elaboration, &result, 1, arrival);
+    assert_eq!(arrivals.len(), 2);
+    for (obligation, verdict) in arrivals {
+        assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
+    }
+    let refused = rejected(vec![countdown(vec![required], unsigned(10))]);
+    assert!(refused.iter().any(|row| arrival(&row.kind)), "{refused:?}");
+}
+
 #[test]
 fn a_jump_back_that_does_not_keep_the_invariant_rejects_the_program() {
     // requires remaining <= 9, and the loop calls itself with

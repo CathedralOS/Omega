@@ -1,4 +1,4 @@
-//! Proposed compiler-only coordinator. Not yet compiled or applied.
+//! Coordinate actual source policy invocation for a selected program entry.
 //! Source declaration selection and invocation stay here; the completed plans
 //! consumed by native/provider planning retain canonical metadata only.
 
@@ -233,7 +233,6 @@ pub(crate) fn prepare(
             Arc::new(inputs.clone()) as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>
         }),
     )?;
-    let entry = source_program.entry(boundary, policy).map_err(failure)?;
     let layout = profile
         .layout_target_facts()
         .ok_or_else(|| failure("entry Calling policy target has no retained layout facts"))?;
@@ -254,7 +253,9 @@ pub(crate) fn prepare(
         address_model: address_model.as_ref(),
     };
     let semantic_calling_application = evaluate(
-        &entry,
+        &source_program,
+        boundary,
+        policy,
         invocation_target,
         semantic,
         root_application,
@@ -262,7 +263,9 @@ pub(crate) fn prepare(
     )
     .map_err(|reason| failure(format!("semantic entry Calling policy: {reason}")))?;
     let physical_calling_application = evaluate(
-        &entry,
+        &source_program,
+        boundary,
+        policy,
         invocation_target,
         physical,
         root_application,
@@ -349,14 +352,17 @@ pub(crate) fn prepare(
 }
 
 fn evaluate(
-    entry: &build_time_evaluation::PreparedBuildMachineEntry,
+    program: &PreparedBuildMachineProgram,
+    requester: symbols::SymbolHandle,
+    supply: psi_compiler::TerminalSourceSupply,
     target: InvocationTarget<'_>,
     signature: CanonicalCallingSignature,
     owner: &str,
     accounting: &mut SourceCompletionAccounting,
 ) -> Result<BoundaryCallingApplication, String> {
     let arguments = [encode_calling_policy_signature(&signature.policy)?];
-    let result = entry.invoke_recorded(target, &arguments, accounting)?;
+    let entry = program.entry_for_supply(requester, supply, &arguments)?;
+    let result = entry.invoke_recorded(target, accounting)?;
     let plan = decode_boundary_plan_result(result.value())?;
     let validated = validate_calling_policy_result(plan, &signature.policy)?;
     // These source-declared arrivals have no synthetic dispatch prefix.

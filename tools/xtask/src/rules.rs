@@ -6,7 +6,7 @@
 //! - Diff hygiene (`MAX_NEW_OMG_FILES = 6`, the `samples/cli/facts/` freeze, no new
 //!   files under the retired `tests/omega/`, raw measurements limit)
 //! - Commit title lane (`AGENTS.md` table) and PR `Agent:` provenance
-//! - Compiler-lane PR `Gate:` and `Proof:` lines
+//! - Compiler-lane PR `Gate:`, `Proof:` and `Spec:` lines
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
@@ -1129,6 +1129,41 @@ pub fn proof_violations(title: &str, body: &str) -> Vec<String> {
     }
 }
 
+/// A compiler-lane PR names the specification page it implements, or says why
+/// no page governs the change. The line is `Spec: <wiki/spec page>[#anchor][,
+/// <page>...]` or `Spec: none | <reason>`; each named page must exist, so the
+/// reviewer can open exactly the text the author claims to have followed.
+pub fn spec_violations(title: &str, body: &str, root: &Path) -> Vec<String> {
+    let lane = title.split(':').next().unwrap_or("").trim();
+    if !GATE_LANES.contains(&lane) {
+        return Vec::new();
+    }
+    const FORM: &str = "`Spec: <wiki/spec/...md[#anchor]>[, <page>...]` or `Spec: none | <why no page governs this>` (AGENTS.md 'Explain the change')";
+    let Some(line) = body.lines().find_map(|line| line.strip_prefix("Spec: ")) else {
+        return vec![format!("{lane} pull request description has no {FORM}")];
+    };
+    let fields: Vec<&str> = line.split('|').map(str::trim).collect();
+    if fields[0] == "none" {
+        return if fields.get(1).is_some_and(|why| !why.is_empty()) {
+            Vec::new()
+        } else {
+            vec![format!("`Spec: none` needs a reason, {FORM}")]
+        };
+    }
+    let mut violations = Vec::new();
+    for page in fields[0].split(',').map(str::trim) {
+        let path = page.split('#').next().unwrap_or("");
+        if !path.starts_with("wiki/spec/") || !path.ends_with(".md") {
+            violations.push(format!(
+                "`Spec:` names `{page}`, which is not a page under wiki/spec/; {FORM}"
+            ));
+        } else if !root.join(path).is_file() {
+            violations.push(format!("`Spec:` names `{path}`, which does not exist"));
+        }
+    }
+    violations
+}
+
 // --- TASKS.md board check ---
 
 fn is_tasks_item_line(line: &str) -> bool {
@@ -1559,6 +1594,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         if let Some(t) = &title {
             violations.extend(gate_violations(t, &body));
             violations.extend(proof_violations(t, &body));
+            violations.extend(spec_violations(t, &body, &root));
         }
     }
 
@@ -1879,6 +1915,24 @@ struct Ledger;
         assert!(!check("Proof: unit tests | \n").is_empty());
         // Other lanes carry no proof line.
         assert!(proof_violations("docs: explain a page", "Summary\n").is_empty());
+    }
+
+    #[test]
+    fn spec_line_names_an_existing_page_or_says_why_none_governs() {
+        let root = repo_root();
+        let check = |body: &str| spec_violations("psi: fix", body, &root);
+        assert!(check("Spec: wiki/spec/language/domains.md#domain-only-casts\n").is_empty());
+        assert!(
+            check("Spec: wiki/spec/language/domains.md, wiki/spec/language/ownership.md\n")
+                .is_empty()
+        );
+        assert!(check("Spec: none | refusal placement is not specified\n").is_empty());
+        assert!(!check("Spec: none\n").is_empty());
+        assert!(!check("Spec: none | \n").is_empty());
+        assert!(!check("Spec: wiki/spec/language/no_such_page.md\n").is_empty());
+        assert!(!check("Spec: omega-rust/pipeline.md\n").is_empty());
+        assert!(!check("No spec line\n").is_empty());
+        assert!(spec_violations("docs: explain", "No spec line\n", &root).is_empty());
     }
 
     #[test]

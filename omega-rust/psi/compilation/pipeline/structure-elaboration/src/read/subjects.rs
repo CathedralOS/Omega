@@ -122,8 +122,9 @@ impl Program<'_> {
     /// Makes every declaration the Build's selections name a root, whichever
     /// package declares it. A selected machine is read like an entry and a
     /// selected data type is resolved as a record. A selection of anything
-    /// else (a trait, a requirement, an operator family) is refused: the
-    /// route does not judge a provider against what it provides.
+    /// else (a trait, a requirement, an operator family) is refused here: a
+    /// provider is judged against what it provides as a `Supply`
+    /// (`supplied_slots`), never as a bare selected declaration.
     pub fn selected_declarations(
         &mut self,
         entry: MachineId,
@@ -142,6 +143,71 @@ impl Program<'_> {
                     Construct::Machine,
                     Unserved::Declaration("Build selection that is not a machine or a data type"),
                 ));
+            }
+        }
+        Ok(())
+    }
+
+    /// Claims each chosen provider for the slot it supplies. For every
+    /// requirement the slot names, the provider must give exactly one
+    /// machine: that machine becomes a root with its declared input
+    /// contract, and the statement that it refines the requirement is set
+    /// aside as a conformance witness, exactly as a subject implementation's
+    /// rows are. A supply the route cannot read this way is refused by name,
+    /// so a provider is never accepted without having been judged against
+    /// what it provides.
+    pub fn supplied_slots(&mut self, entry: MachineId, supplies: &[crate::Supply]) -> Checked<()> {
+        let typed = self.typed;
+        let unserved = |what| {
+            Err(refuse(
+                entry,
+                Construct::Machine,
+                Unserved::Declaration(what),
+            ))
+        };
+        for supply in supplies {
+            // The slot is a nominal trait, supplied whole, or one
+            // exact requirement. Ordinary traits grant no boundary capability.
+            let (owner, requirements) = match typed.trait_definition_by_symbol(supply.slot) {
+                Some(owner) => (
+                    owner,
+                    typed
+                        .trait_machine_signatures(owner)
+                        .iter()
+                        .map(|requirement| requirement.symbol)
+                        .collect::<Vec<_>>(),
+                ),
+                None => match typed.trait_machine_signature(supply.slot) {
+                    Some((owner, requirement)) if requirement.symbol == supply.slot => {
+                        (owner, vec![supply.slot])
+                    }
+                    _ => {
+                        return unserved(
+                            "provider supply of a slot that is not a trait or one of its requirements",
+                        );
+                    }
+                },
+            };
+            for requirement in requirements {
+                let machine = match supply.realization(typed, requirement) {
+                    Ok(machine) => machine,
+                    Err(reason) => return unserved(reason),
+                };
+                let witness = crate::ConformanceWitness {
+                    declaring_trait: owner.symbol,
+                    requirement,
+                    implementation: machine.symbol,
+                };
+                let root = self.machine(machine.symbol)?;
+                if !self.fixed_inputs.contains(&root) {
+                    self.fixed_inputs.push(root);
+                }
+                // A machine that states `satisfies` already owes this row
+                // (`satisfied_requirements`), and two supplies may name one
+                // row; it is one obligation.
+                if !self.conformance_witnesses.contains(&witness) {
+                    self.conformance_witnesses.push(witness);
+                }
             }
         }
         Ok(())
@@ -184,17 +250,19 @@ impl Program<'_> {
             }
         }
         for domain in typed.domain_definitions() {
-            if self.owner(entry, domain.symbol, subjects, purpose)? == Owner::Subject
-                && !judged_where_used(typed, domain)
-            {
+            if self.owner(entry, domain.symbol, subjects, purpose)? != Owner::Subject {
+                continue;
+            }
+            if !judged_where_used(typed, domain) {
                 return Err(refuse(
                     entry,
                     Construct::Machine,
-                    Unserved::Declaration(
-                        "domain with predicates, a cleanup machine, operators or parameters",
-                    ),
+                    Unserved::Declaration("domain with a cleanup machine, operators or parameters"),
                 ));
             }
+            // Its predicates are stated wherever a type carries the domain;
+            // a declaration nothing uses must still be one the route reads.
+            self.declared_predicates(entry, domain)?;
         }
         for declared in typed.traits() {
             if self.owner(entry, declared.symbol, subjects, purpose)? == Owner::Subject {
@@ -285,6 +353,19 @@ impl<'t> Program<'t> {
             ));
         }
         for requirement in self.typed.trait_machine_signatures(declared) {
+            // A requirement with value parameters has one contract per tuple
+            // of values (`requirement`), read where a call or a selected
+            // implementation supplies them. Read as a subject it has none,
+            // and the witness its implementations owe for every value at
+            // once is not built: refused by that name, not as a mismatch of
+            // arguments nobody gave.
+            if !self.requirement_binders(entry, requirement)?.is_empty() {
+                return Err(refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Declaration("trait requirement with value parameters"),
+                ));
+            }
             self.requirement_signature(entry, requirement, &[])?;
         }
         Ok(())
@@ -366,10 +447,11 @@ fn names_only(data: &typed_trees::data::DataDefinition) -> bool {
 
 /// Whether everything a domain declaration says is judged where a value of
 /// the domain is used, so that as a subject it is passed over: a tag,
-/// `domain i32::Km;`, optionally with an access policy or establishment
-/// routes. It has no predicate, cleanup selection, operator, alias or
+/// `domain i32::Km;`, optionally with predicates, an access policy or
+/// establishment routes. It has no cleanup selection, operator, alias or
 /// parameter. A type that names it resolves it where the type is read
-/// (`declared_domain`).
+/// (`declared_domain`), and its predicates join the contract of each place
+/// declared in it (`predicates`).
 ///
 /// A policy or a route list restricts who may add the domain, read inside
 /// a value of it and change one. Each of those uses asks the declaration
@@ -383,8 +465,6 @@ fn judged_where_used(
 ) -> bool {
     domain.alias.is_none()
         && domain.cleanup_selection.is_none()
-        && domain.facts.is_empty()
-        && domain.predicate_presence == language_semantics::DomainPredicatePresence::Absent
         && domain.operators.is_empty()
         && domain.index_arguments.is_empty()
         && typed.domain_type_parameters(domain).is_empty()

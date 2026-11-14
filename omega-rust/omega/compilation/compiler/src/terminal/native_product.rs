@@ -8,8 +8,6 @@ use native_compiler::{
     BoundaryApplicationSettlement, NativeProgramEntrySettlement, TerminalNativeProposalRequest,
 };
 use optimization_core::OptimizationSelections;
-use program_entry_plan::SelectedProgramEntrySignature;
-use provider_planning::program_entry::SelectedProgramEntryCallingPlans;
 use psi_compiler::ProducedTerminalApplication;
 
 use super::ProducedTerminalProduct;
@@ -17,9 +15,8 @@ use super::ProducedTerminalProduct;
 pub(crate) fn prepare(
     checked: &CheckedCompilation,
     produced: ProducedTerminalProduct,
-    signature: &SelectedProgramEntrySignature,
+    entry: NativeProgramEntrySettlement<'_>,
     application: ProducedTerminalApplication,
-    plans: &SelectedProgramEntryCallingPlans,
     metadata: target::NativeApplicationMetadata,
     optimizations: &OptimizationSelections,
     request: Option<&compilation_products::NativeProductRequest>,
@@ -104,7 +101,13 @@ pub(crate) fn prepare(
     // No selected provider row exists above, so no package permission can be
     // granted. This is a deny-by-absence policy, not inferred leaf authority.
     let permissions = native_compiler::admit_package_permissions(Vec::new(), Default::default())?;
-    let profile = signature.target_slot().owner;
+    let profile = entry.source().target_slot().owner;
+    let semantic = entry
+        .semantic_calling_application()
+        .ok_or_else(|| failure("native entry lost its semantic calling application"))?;
+    let physical = entry
+        .physical_calling_application()
+        .ok_or_else(|| failure("native entry lost its physical calling application"))?;
     let proposals = vec![proposal.clone()];
     let native = TerminalNativeProposalRequest {
         evaluated_binding_identities: &module.identities,
@@ -115,23 +118,10 @@ pub(crate) fn prepare(
         boundaries: BoundaryApplicationSettlement {
             selected_provider_plans: checked.execution().plans(),
             selected_provider_provenance: Vec::new(),
-            calling_applications: vec![
-                plans.semantic_calling_application.clone(),
-                plans.physical_calling_application.clone(),
-            ],
+            calling_applications: vec![semantic.clone(), physical.clone()],
         },
         native_target: Some(profile.native_target()),
-        program_entry: Some(
-            NativeProgramEntrySettlement::new(
-                signature,
-                Some((
-                    &plans.semantic_calling_application,
-                    &plans.physical_calling_application,
-                    &plans.storage_entry,
-                )),
-            )
-            .with_checked_entry(&receipt),
-        ),
+        program_entry: Some(entry.with_checked_entry(&receipt)),
         application: metadata,
         optimizations: optimizations.project_post_terminal(),
         external_bindings: &[],

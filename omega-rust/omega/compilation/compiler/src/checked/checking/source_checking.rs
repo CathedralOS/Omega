@@ -33,25 +33,17 @@ pub(crate) fn check_product_source(
     let layout_scopes = layout_target_scopes(&typed, build)?;
     let external_roots = build.program_roots();
     let bindings = super::entry_shapes::bound_program_entry_shapes(&typed, &build.root_bindings)?;
-    let mut selected = Vec::new();
-    for selection in layout_scopes
+    // The Build's own provider selections are supplies of this compilation
+    // whether or not the program reaches their slots: each chosen provider
+    // is judged against the slot it names. A target package's defaults join
+    // only when settlement chooses them for a requirement the accepted
+    // module reaches (`PreparedProductTarget::capture`).
+    let supplies = build
+        .provider_selections
         .iter()
-        .flat_map(|scope| &scope.provider_declarations)
-        .chain(&build.provider_selections)
-        .chain(&build.default_provider_selections)
-    {
-        use build_time_evaluation::provider_declarations::ProviderSelectionSubject;
-        selected.push(selection.provider_type.symbol);
-        match &selection.subject {
-            ProviderSelectionSubject::BoundaryTrait(identity)
-            | ProviderSelectionSubject::BoundaryRequirement(identity) => {
-                selected.push(identity.symbol);
-            }
-            ProviderSelectionSubject::BoundaryOperatorFamily(family) => {
-                selected.extend(family.coordinates().iter().map(|row| row.symbol));
-            }
-        }
-    }
+        .flat_map(crate::checked::selected_supplies)
+        .collect::<Vec<_>>();
+    let mut selected = Vec::new();
     for scope in &layout_scopes {
         selected.extend(scope.entry_declarations.iter().flatten().copied());
     }
@@ -127,20 +119,22 @@ pub(crate) fn check_product_source(
     })?;
     let program = source.program;
     let subject = package_inputs.map(PackageCompilationInputs::root);
-    let judged = super::lowered_route::RouteScope {
-        entries: &external_roots,
+    let roster = compilation_products::ProductRoster {
+        declaration_metadata: Vec::new(),
+        entries: external_roots,
         subject,
-        selected: &selected,
-        bindings: &bindings,
-    }
-    .judge(Arc::clone(&program));
+        selected,
+        bindings,
+        supplies,
+    };
+    let judged = roster.judge(Arc::clone(&program));
     if let Some(frontier) = frontier {
         *frontier = Some(super::typed_frontier::TypedFrontier {
             typed: program.as_ref().clone(),
-            entries: external_roots,
+            entries: roster.entries.clone(),
             subject,
-            selected,
-            bindings,
+            selected: roster.selected.clone(),
+            bindings: roster.bindings.clone(),
         });
     }
     let accepted_source = judged.map_err(|mut diagnostics| {
@@ -181,7 +175,7 @@ pub(crate) fn check_product_source(
                 .effective()
                 .clone(),
         )
-        .with_accepted(accepted_source),
+        .with_accepted(accepted_source, roster),
     );
     Ok(CheckedProductSource {
         source_completion_accounting,

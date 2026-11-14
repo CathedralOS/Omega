@@ -12,7 +12,61 @@ use std::sync::{Arc, OnceLock};
 pub struct ProductTerminalPublication {
     optimizations: OptimizationSelections,
     program: OnceLock<Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>>>,
-    accepted: Option<Arc<psi_compiler::AcceptedTerminalSource>>,
+    accepted: Option<(Arc<psi_compiler::AcceptedTerminalSource>, ProductRoster)>,
+}
+
+/// What a Product compilation asks the lowered-form checker to judge: the
+/// roots the evaluated Build states (`psi_compiler::TerminalSourceCompilation`
+/// holds the same fields by reference). It is kept beside the judgment it
+/// produced because provider settlement extends it: the supply chosen for a
+/// requirement the accepted module reaches is a further root of the same
+/// compilation, known only after the first judgment.
+#[derive(Debug, Clone, Default)]
+pub struct ProductRoster {
+    /// Canonical declaration descriptors required by this product.
+    pub declaration_metadata: Vec<symbols::SymbolHandle>,
+    /// The Build's bound program entries. The first is the module's entry.
+    pub entries: Vec<symbols::SymbolHandle>,
+    /// The package whose declarations the check claims; `None` for a source
+    /// checked outside a package.
+    pub subject: Option<semantic_vocabulary::PackageKeyIdentity>,
+    /// Layout-scope entries, native binding declarations and chosen opaque
+    /// representations the Build names.
+    pub selected: Vec<symbols::SymbolHandle>,
+    /// One visible-continuation obligation per executed Build binding.
+    pub bindings: Vec<typed_trees::callable_signature_shapes::BoundCallableShape>,
+    /// The providers chosen to supply boundary slots: the Build's own
+    /// selections first, then what settlement chose for reached requirements.
+    pub supplies: Vec<psi_compiler::TerminalSourceSupply>,
+}
+
+impl ProductRoster {
+    /// The lowered-form checker's judgment of this roster over `typed`: the
+    /// closure of the roots, the check form of each generic machine the
+    /// subject declares, and the refinement witness of each implementation
+    /// row and chosen supply. Its verdict is the only verdict of a product
+    /// compilation: it accepts only when every part does, a roster it does
+    /// not accept produces no module, and a missing publication never
+    /// selects another stage's module.
+    pub fn judge(
+        &self,
+        typed: Arc<typed_trees::FrozenTypedTrees>,
+    ) -> Result<Arc<psi_compiler::AcceptedTerminalSource>, Vec<Diagnostic>> {
+        psi_compiler::AcceptedTerminalSource::judge(
+            typed,
+            psi_compiler::TerminalSourceCompilation {
+                declaration_metadata: &self.declaration_metadata,
+                entries: &self.entries,
+                subjects: &[self.subject],
+                purpose: source::DependencyScope::Product,
+                selected: &self.selected,
+                bindings: &self.bindings,
+                supplies: &self.supplies,
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .map(Arc::new)
+    }
 }
 
 impl std::fmt::Debug for ProductTerminalPublication {
@@ -35,13 +89,18 @@ impl ProductTerminalPublication {
         }
     }
 
-    pub fn with_accepted(mut self, source: Arc<psi_compiler::AcceptedTerminalSource>) -> Self {
-        self.accepted = Some(source);
+    /// Retains the judgment of `roster` and the roster it judged.
+    pub fn with_accepted(
+        mut self,
+        source: Arc<psi_compiler::AcceptedTerminalSource>,
+        roster: ProductRoster,
+    ) -> Self {
+        self.accepted = Some((source, roster));
         self
     }
 
-    /// An executable child's metadata is part of its judgment, rather than a
-    /// patch to shared code. Already published code remains immutable.
+    /// Judge an executable child's descriptors before publication, preserving
+    /// the original roster and every chosen supply on the same frozen owner.
     pub fn with_declaration_metadata(
         &self,
         declarations: &[symbols::SymbolHandle],
@@ -51,15 +110,33 @@ impl ProductTerminalPublication {
                 "declaration metadata must be judged before Terminal publication",
             )]);
         }
-        let accepted = self.accepted()?.with_declaration_metadata(declarations)?;
-        Ok(Self::new(self.optimizations.clone()).with_accepted(Arc::new(accepted)))
+        let mut roster = self.roster()?.clone();
+        for declaration in declarations {
+            if !roster.declaration_metadata.contains(declaration) {
+                roster.declaration_metadata.push(*declaration);
+            }
+        }
+        let accepted = roster.judge(Arc::clone(self.accepted()?.source()))?;
+        Ok(Self::new(self.optimizations.clone()).with_accepted(accepted, roster))
+    }
+
+    /// The roster the retained judgment accepted.
+    pub fn roster(&self) -> Result<&ProductRoster, Vec<Diagnostic>> {
+        self.accepted
+            .as_ref()
+            .map(|(_, roster)| roster)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "no product route yet: this root selection has no accepted source",
+                )]
+            })
     }
 
     pub fn require_source_owner(
         &self,
         source: &Arc<typed_trees::FrozenTypedTrees>,
     ) -> Result<(), Diagnostic> {
-        let accepted = self.accepted.as_ref().ok_or_else(|| {
+        let (accepted, _) = self.accepted.as_ref().ok_or_else(|| {
             Diagnostic::error("no product route yet: the source has no retained accepted judgment")
         })?;
         if !Arc::ptr_eq(source, accepted.source()) {
@@ -78,11 +155,14 @@ impl ProductTerminalPublication {
                 "no product route yet: selected Psi optimizations have no accepted evidence transport",
             )]);
         }
-        self.accepted.as_deref().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "no product route yet: this root selection has no accepted source",
-            )]
-        })
+        self.accepted
+            .as_ref()
+            .map(|(accepted, _)| accepted.as_ref())
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "no product route yet: this root selection has no accepted source",
+                )]
+            })
     }
 
     // A separately selected test root needs its own structural judgment. It

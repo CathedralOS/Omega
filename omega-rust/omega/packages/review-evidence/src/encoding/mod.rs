@@ -8,6 +8,7 @@ Versioned magic headers and schema version constants live at this boundary so bo
 */
 
 mod encode;
+mod intrinsic_tags;
 mod recovery;
 pub use encode::membership::{
     MalformedIdentityExcerpt, PackagePolicyMembershipError, PackagePolicyMembershipFailure,

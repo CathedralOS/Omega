@@ -494,6 +494,7 @@ fn expression_homes<'b>(
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
         | ExpressionKind::Requalify(operand)
+        | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::Field { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {
@@ -1238,6 +1239,9 @@ impl<'a> Lowering<'a> {
             // storage, and nothing is computed (domains.md: "removing `D`
             // with a cast changes no bits or geometry").
             ExpressionKind::Requalify(operand) => self.located(operand),
+            ExpressionKind::Establish { .. } => {
+                Err(self.internal("a cast that proves predicates of a data value"))
+            }
             ExpressionKind::Borrow { .. } => {
                 Err(self.internal("a loan outside a call's arguments"))
             }
@@ -1393,12 +1397,6 @@ impl<'a> Lowering<'a> {
         if actual != value_type {
             return Err(self.internal("a loan has another type than its captured place"));
         }
-        if steps
-            .iter()
-            .any(|step| matches!(step, Step::Payload { .. }))
-        {
-            return Err(self.internal("a loan beneath a case payload"));
-        }
         self.name_entry(root, exact, value_type)?;
         let lender = if self.borrowed_roots.contains(&root) {
             Lender::Incoming
@@ -1471,7 +1469,23 @@ impl<'a> Lowering<'a> {
                 steps.push(step);
                 (root, steps, exact, value_type)
             }
-            ExpressionKind::SavedSubject(_) | ExpressionKind::Payload { .. } => {
+            ExpressionKind::Payload { base, case, field } => {
+                let (root, mut steps, parent, ValueType::Record(owner, _)) =
+                    self.capture_place(base, None)?
+                else {
+                    return Err(self.internal("a payload place crosses scalar storage"));
+                };
+                let step = Step::Payload {
+                    owner,
+                    case: *case,
+                    field: *field,
+                };
+                let value_type = self.declared(step)?.value_type;
+                let exact = self.step(parent, step)?;
+                steps.push(step);
+                (root, steps, exact, value_type)
+            }
+            ExpressionKind::SavedSubject(_) => {
                 let at = self.located(expression)?;
                 if at.fresh {
                     return Err(self.internal("a capture names newly produced storage"));

@@ -61,10 +61,10 @@ enum Carrier {
 }
 
 impl Carrier {
-    fn name(self) -> &'static str {
+    fn name(self) -> String {
         match self {
             Self::Integer(integer) => integer.name(),
-            Self::Boolean => "bool",
+            Self::Boolean => "bool".to_owned(),
         }
     }
 }
@@ -426,14 +426,7 @@ fn closed_shape(
         return None;
     };
     let carrier = match selection.builtin_type(syntax, type_name)? {
-        BuiltinTypeAtom::I8 => Carrier::Integer(LandedIntegerType::I8),
-        BuiltinTypeAtom::I16 => Carrier::Integer(LandedIntegerType::I16),
-        BuiltinTypeAtom::I32 => Carrier::Integer(LandedIntegerType::I32),
-        BuiltinTypeAtom::I64 => Carrier::Integer(LandedIntegerType::I64),
-        BuiltinTypeAtom::U8 => Carrier::Integer(LandedIntegerType::U8),
-        BuiltinTypeAtom::U16 => Carrier::Integer(LandedIntegerType::U16),
-        BuiltinTypeAtom::U32 => Carrier::Integer(LandedIntegerType::U32),
-        BuiltinTypeAtom::U64 => Carrier::Integer(LandedIntegerType::U64),
+        BuiltinTypeAtom::Integer(carrier) => Carrier::Integer(LandedIntegerType::Fixed(carrier)),
         BuiltinTypeAtom::Bool => Carrier::Boolean,
         _ => return None,
     };

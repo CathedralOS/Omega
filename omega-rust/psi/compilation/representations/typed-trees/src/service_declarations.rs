@@ -2484,7 +2484,7 @@ pub mod signatures {
 
         pub struct PreparedCallingInstance {
             pub argument_owner: SymbolHandle,
-            pub policy: Result<SymbolHandle, String>,
+            pub policy: Result<crate::trait_definition::Supply, String>,
             arguments: HandleSpan<TypeReferenceHandle>,
             signatures: HandleSpan<PreparedAppliedBoundarySignature>,
         }
@@ -2591,8 +2591,7 @@ pub mod signatures {
                                 instance.argument_owner,
                                 calling,
                                 policy,
-                            )
-                            .map(|machine| machine.symbol);
+                            );
                             let mut signatures = Vec::new();
                             collect_boundary_signatures(
                                 typed,
@@ -2813,14 +2812,14 @@ pub mod signatures {
             Ok(instances)
         }
 
-        fn prepared_policy_machine<'program>(
-            typed: &'program TypedTrees,
+        fn prepared_policy_machine(
+            typed: &TypedTrees,
             boundary: &crate::trait_definition::TraitDefinition,
             boundary_arguments: &[TypeReferenceHandle],
             argument_owner: symbols::SymbolHandle,
             calling_trait: &crate::trait_definition::TraitDefinition,
             calling_policy: &crate::trait_definition::TraitDefinition,
-        ) -> Result<&'program crate::machine::Machine, String> {
+        ) -> Result<crate::trait_definition::Supply, String> {
             use crate::trait_definition::{AppliedTraitScope, TraitApplicationArguments};
             let boundary_scope = AppliedTraitScope::new(
                 typed,
@@ -2906,7 +2905,10 @@ pub mod signatures {
             {
                 return Err("generic calling-policy realization requires an explicitly specialized machine before policy evaluation".to_owned());
             }
-            Ok(machine)
+            Ok(crate::trait_definition::Supply {
+                slot: requirement.symbol,
+                provider: conformance.symbol,
+            })
         }
 
         fn collect_boundary_signatures<'a>(

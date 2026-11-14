@@ -50,7 +50,7 @@ pub use provider_instances::SelectedProviderSource;
 pub mod publication;
 mod terminal_publication;
 mod test_products;
-pub use terminal_publication::ProductTerminalPublication;
+pub use terminal_publication::{ProductRoster, ProductTerminalPublication};
 pub use test_products::{
     PendingTestProduct, TestFilesystem, TestRootIdentity, TestRosterEntry, TestRosterStatus,
 };

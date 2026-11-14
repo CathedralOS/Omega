@@ -22,6 +22,7 @@ fn judged(text: &str) -> RouteVerdict {
             purpose: source::DependencyScope::Product,
             selected: &[],
             bindings: &[],
+            supplies: &[],
         },
         terminal_codec::TerminalPublication::Invocation,
     );

@@ -281,7 +281,7 @@ before variants are added. Route one is:
 ### The gate
 
 **Superseding ruling, 2026-11-12 (later the same day).** The old checker is
-removed now. The router (`compiler/src/checked/checking/lowered_route.rs`)
+removed now. The router (`products/src/terminal_publication.rs`, `ProductRoster::judge`)
 takes the route's verdict as the compilation's only verdict:
 
 - The route rejects: the compilation fails with the route's diagnostics. The
@@ -363,7 +363,7 @@ that cannot fail cannot hold work back, and work went ahead
      the route accepts everything else; a rejection by either rejects the
      compilation. The split ends when the route can lower Build programs.
      The router implements this in the default compile
-     (`compiler/src/checked/checking/lowered_route.rs`): when the current
+     (`products/src/terminal_publication.rs`, `ProductRoster::judge`): when the current
      checker finds nothing wrong in the Build program or an entry-contract
      source, a route rejection fails the compilation with the route's
      diagnostics (the current checker's follow when it rejects too), and a

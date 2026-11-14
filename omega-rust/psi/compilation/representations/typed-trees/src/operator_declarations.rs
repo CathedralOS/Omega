@@ -1501,7 +1501,8 @@ pub mod operator {
             operator: BinaryOperator,
             [left, right]: [PrimitiveType; 2],
         ) -> Option<PrimitiveType> {
-            use PrimitiveType::{Addr, U64};
+            use PrimitiveType::Addr;
+            const U64: PrimitiveType = PrimitiveType::U64;
             if !left.accepts_integer_literal() || !right.accepts_integer_literal() {
                 return None;
             }

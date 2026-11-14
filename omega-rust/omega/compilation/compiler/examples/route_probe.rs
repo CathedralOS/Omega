@@ -85,6 +85,7 @@ fn probe(
             purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
             bindings: &frontier.bindings,
+            supplies: &[],
         },
     );
     let mut whole = "accepted";

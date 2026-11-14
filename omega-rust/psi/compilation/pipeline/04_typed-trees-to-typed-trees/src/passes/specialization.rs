@@ -22,9 +22,17 @@
 //! An application this pass does not serve keeps the call as typing left it
 //! and records a deferred refusal on the machine holding the call, so only a
 //! program that demands that machine is refused. Served today: type
-//! parameters given plain named types and implementation parameters given
-//! plain named implementations, on a machine that is a single state with a
-//! body and declares nothing else to specialize ([`template`]).
+//! parameters given plain named types, implementation parameters given
+//! plain named implementations and value parameters given one integer
+//! literal, on a machine that is a single state with a body and declares
+//! nothing else to specialize ([`template`]).
+//!
+//! A value parameter (`value<const Units: u64>`) is bound like the others
+//! and is replaced by its literal, landed in the parameter's type, wherever
+//! the copied declaration names it. generics.md, "Value binders and const
+//! requirements": the value "must be statically known within the compiled
+//! specialization". Only a closed scalar the author wrote as a literal is
+//! read here; an argument that would have to be computed is unserved.
 //!
 //! An implementation parameter (`advance<Selected satisfies Step>`) is bound
 //! like a type parameter and differs only in what replaces it. conformances.md,
@@ -100,7 +108,7 @@ type Served<T> = Result<T, Stop>;
 /// parameters was bound to, and the generated machine and its one state.
 struct Generated {
     template: SymbolHandle,
-    arguments: Vec<SymbolHandle>,
+    arguments: Vec<Identity>,
     machine: SymbolHandle,
     state: SymbolHandle,
 }
@@ -114,8 +122,12 @@ enum Site {
 }
 
 /// What a call applies: its target, its static application, and whether the
-/// call has a requirement dispatch or Build selection, which is not this
-/// pass's request. Declaration-query ownership is read before specializing.
+/// call is selected some other way, which is not this pass's request: a
+/// Build selection, or a requirement dispatch that does not enter the
+/// machine realizing the requirement. A dispatched call that does enter it
+/// (`Selected::value<7>(7)` once `Selected` is known) applies that machine
+/// like any authored call. Declaration-query ownership is read before
+/// specializing.
 struct Applied {
     target: SymbolHandle,
     application: StaticMachineApplicationHandle,
@@ -139,14 +151,20 @@ impl Site {
 
     fn applied(self, program: &TypedTrees) -> Option<Applied> {
         let call = self.call(program)?;
+        let elsewhere = |dispatch: &Option<StaticRequirementDispatch>, target| {
+            dispatch
+                .as_ref()
+                .is_some_and(|dispatch| dispatch.realization_state != target)
+        };
         let (target, selected_otherwise) = match &call {
             StaticArgumentCall::Expression(_, call) => (
                 call.target_symbol,
-                call.static_requirement_dispatch.is_some() || call.build_selection.is_valid(),
+                elsewhere(&call.static_requirement_dispatch, call.target_symbol)
+                    || call.build_selection.is_valid(),
             ),
             StaticArgumentCall::Statement(call) => (
                 call.target_symbol,
-                call.static_requirement_dispatch.is_some(),
+                elsewhere(&call.static_requirement_dispatch, call.target_symbol),
             ),
         };
         Some(Applied {
@@ -259,7 +277,7 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut Vec<Generated>) -
         return Ok(());
     }
     let Some(machine) = program.machine_by_symbol(callee) else {
-        return Ok(());
+        return bind_requirement(program, &applied, &arguments);
     };
     // Its type and value parameters, then each implementation parameter
     // its bounds declare: the order a call's static arguments are given in.
@@ -296,7 +314,7 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut Vec<Generated>) -
     }
     let key = operands
         .iter()
-        .map(|operand| operand.declaration)
+        .map(|operand| operand.identity.clone())
         .collect::<Vec<_>>();
     let entry = match generated
         .iter()
@@ -318,18 +336,73 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut Vec<Generated>) -
     Ok(())
 }
 
+/// A call through an implementation parameter to a requirement that takes
+/// value parameters, `Implementation::value<7>(7)`: nothing is generated for
+/// it, because the machine it enters is known only once the implementation
+/// is. Its arguments are bound to the requirement's parameters, so the
+/// requirement's contract can be read at them, and the call is served as an
+/// application when a generated machine points it at a realizing machine.
+/// A requirement with any other kind of parameter is left as typing wrote
+/// it.
+fn bind_requirement(
+    program: &mut TypedTrees,
+    applied: &Applied,
+    arguments: &[StaticMachineArgument],
+) -> Served<()> {
+    let Ok(Some(requirement)) = program.evidence_requirement_declaration(applied.target) else {
+        return Ok(());
+    };
+    let parameters = program
+        .data_type_parameters
+        .span_or_empty(requirement.type_parameters)
+        .iter()
+        .map(|parameter| (parameter.symbol, parameter.kind.clone()))
+        .collect::<Vec<_>>();
+    if !parameters
+        .iter()
+        .all(|(_, kind)| matches!(kind, typed_trees::data::TypeParameterKind::Const { .. }))
+    {
+        return Ok(());
+    }
+    if parameters.len() != arguments.len() {
+        return Err(Stop::Unserved);
+    }
+    let mut operands = Vec::with_capacity(parameters.len());
+    for ((parameter, kind), argument) in parameters.iter().zip(arguments) {
+        operands.push(Operand::read(program, *parameter, kind, argument)?);
+    }
+    bind(program, applied.application, &operands);
+    Ok(())
+}
+
+/// What a static argument is, as the identity an application is keyed by:
+/// two applications of one machine are the same application when each
+/// parameter is given the same declaration or the same value.
+#[derive(Clone, PartialEq, Eq)]
+enum Identity {
+    /// The declaration the argument names: a type, an implementation, or a
+    /// parameter of the enclosing generic machine.
+    Declaration(SymbolHandle),
+    /// A closed scalar value, by its canonical spelling. The parameter it is
+    /// given to fixes its type.
+    Scalar(String),
+}
+
 /// One static argument read for the parameter it is given to. Every kind of
 /// parameter is bound through this one shape; a kind with no reading yet is
 /// unserved.
 struct Operand {
     parameter: SymbolHandle,
-    /// The declaration the argument names: the identity an application is
-    /// keyed by and the one substituted for the parameter.
-    declaration: SymbolHandle,
+    /// What an application is keyed by and what is substituted for the
+    /// parameter.
+    identity: Identity,
     /// The argument as the author wrote it, which replaces the parameter
     /// where a copied body passes it on as a static argument.
     argument: StaticMachineArgument,
     value: StaticMachineBindingValue,
+    /// A value parameter's literal, landed in the parameter's type: what
+    /// replaces the parameter where a copied expression names it.
+    scalar: Option<numerics::literals::IntegerLiteral>,
 }
 
 impl Operand {
@@ -340,39 +413,124 @@ impl Operand {
         argument: &StaticMachineArgument,
     ) -> Served<Self> {
         use typed_trees::data::TypeParameterKind;
-        let value = match kind {
+        let mut scalar = None;
+        let (identity, value) = match kind {
             TypeParameterKind::Type => {
                 let reference = named_type(program, argument)?;
-                (argument.symbol, StaticMachineBindingValue::Type(reference))
+                (
+                    Identity::Declaration(argument.symbol),
+                    StaticMachineBindingValue::Type(reference),
+                )
             }
             TypeParameterKind::Implementation => (
-                named_implementation(program, parameter, argument)?,
+                Identity::Declaration(named_implementation(program, parameter, argument)?),
                 StaticMachineBindingValue::Conformance(argument.clone()),
             ),
-            // A value, a machine and a proposition each need their own
-            // reading of the argument; none is built yet.
-            TypeParameterKind::Const { .. }
-            | TypeParameterKind::Value { .. }
+            TypeParameterKind::Const { type_reference } => {
+                let identity = match closed_scalar(program, *type_reference, argument)? {
+                    Scalar::Literal(literal) => {
+                        let identity = Identity::Scalar(literal.canonical_spelling().to_string());
+                        scalar = Some(literal);
+                        identity
+                    }
+                    Scalar::Parameter(symbol) => Identity::Declaration(symbol),
+                };
+                (identity, StaticMachineBindingValue::Const(*type_reference))
+            }
+            // A runtime value, a machine and a proposition each need their
+            // own reading of the argument; none is built yet.
+            TypeParameterKind::Value { .. }
             | TypeParameterKind::Machine { .. }
             | TypeParameterKind::Proposition { .. } => return Err(Stop::Unserved),
         };
-        let (declaration, value) = value;
         Ok(Self {
             parameter,
-            declaration,
+            identity,
             argument: argument.clone(),
             value,
+            scalar,
         })
     }
 
-    /// Whether the argument names a parameter of the enclosing generic
-    /// machine, of either kind.
-    fn is_open(&self, program: &TypedTrees) -> bool {
-        matches!(
-            program.symbols.get(self.declaration).kind,
-            SymbolKind::TypeParameter | SymbolKind::ConformanceParameter
-        )
+    /// The declaration this operand names, if it names one.
+    fn declaration(&self) -> Option<SymbolHandle> {
+        match &self.identity {
+            Identity::Declaration(symbol) => Some(*symbol),
+            Identity::Scalar(_) => None,
+        }
     }
+
+    /// Whether the argument names a parameter of the enclosing generic
+    /// machine, of any kind.
+    fn is_open(&self, program: &TypedTrees) -> bool {
+        self.declaration().is_some_and(|declaration| {
+            matches!(
+                program.symbols.get(declaration).kind,
+                SymbolKind::TypeParameter | SymbolKind::ConformanceParameter
+            )
+        })
+    }
+
+    /// How this operand is spelled in a generated machine's name.
+    fn spelled(&self, program: &TypedTrees) -> String {
+        match &self.identity {
+            Identity::Declaration(symbol) => program.symbols.name(*symbol).to_owned(),
+            Identity::Scalar(value) => value.clone(),
+        }
+    }
+}
+
+/// A value argument as this pass reads one.
+enum Scalar {
+    /// One integer literal, landed in the parameter's type.
+    Literal(numerics::literals::IntegerLiteral),
+    /// A value parameter of the enclosing generic machine, passed on.
+    Parameter(SymbolHandle),
+}
+
+/// The value a static argument gives a value parameter of type
+/// `parameter_type`, when the argument is closed: one integer literal and
+/// nothing else, for a parameter of a fixed-width builtin integer type, or
+/// only the name of a parameter in scope. A literal that states another type
+/// than the parameter's is not the parameter's value. An argument that
+/// names a constant or would have to be evaluated is unserved: no machine
+/// runs here.
+fn closed_scalar(
+    program: &TypedTrees,
+    parameter_type: TypeReferenceHandle,
+    argument: &StaticMachineArgument,
+) -> Served<Scalar> {
+    if let Some(literal) = &argument.const_literal {
+        let only_a_literal = StaticMachineArgument {
+            const_literal: Some(literal.clone()),
+            ..StaticMachineArgument::default()
+        };
+        let landed_type = program
+            .type_reference_table
+            .primitive_type(parameter_type)
+            .and_then(typed_trees::types::PrimitiveType::landed_landing_fixed);
+        let (true, Some(landed_type)) = (*argument == only_a_literal, landed_type) else {
+            return Err(Stop::Unserved);
+        };
+        let landing = numerics::literals::IntegerLanding {
+            landed_type,
+            domain: numerics::arithmetic::ArithmeticDomain::Exact,
+        };
+        return match literal.landing() {
+            None => Ok(Scalar::Literal(literal.with_landing(landing))),
+            Some(stated) if stated == landing => Ok(Scalar::Literal(literal.clone())),
+            Some(_) => Err(Stop::Unserved),
+        };
+    }
+    let symbol = argument.symbol;
+    if only_a_name(program, argument)
+        && symbol.is_valid()
+        && program.symbols.symbols().nodes().is_valid(symbol)
+        && program.symbols.get(symbol).kind == SymbolKind::TypeParameter
+    {
+        return Ok(Scalar::Parameter(symbol));
+    }
+    Err(Stop::Unserved)
 }
 
 /// Whether a static argument is a name and nothing else, so that replacing
@@ -450,14 +608,18 @@ struct Selection {
 
 /// The operation each implementation operand selects for every requirement
 /// its parameter offers. A requirement the implementation gives no row for,
-/// or one with parameters of its own, leaves the application unserved.
+/// or one with parameters of its own other than value parameters, leaves the
+/// application unserved.
 fn selections(program: &TypedTrees, operands: &[Operand]) -> Served<Vec<Selection>> {
     let mut selected = Vec::new();
     for operand in operands {
         if !matches!(operand.value, StaticMachineBindingValue::Conformance(_)) {
             continue;
         }
-        let Some(implementation) = program.conformance_by_symbol(operand.declaration) else {
+        let Some(implementation) = operand
+            .declaration()
+            .and_then(|declaration| program.conformance_by_symbol(declaration))
+        else {
             return Err(Stop::Unserved);
         };
         let placeholders = program
@@ -469,7 +631,20 @@ fn selections(program: &TypedTrees, operands: &[Operand]) -> Served<Vec<Selectio
             else {
                 return Err(Stop::Unserved);
             };
-            if !requirement.type_parameters.is_empty()
+            // A requirement's own value parameters are bound at each call
+            // through it (`bind_requirement`); any other parameter of its
+            // own is not carried.
+            let only_values = program
+                .data_type_parameters
+                .span_or_empty(requirement.type_parameters)
+                .iter()
+                .all(|parameter| {
+                    matches!(
+                        parameter.kind,
+                        typed_trees::data::TypeParameterKind::Const { .. }
+                    )
+                });
+            if !only_values
                 || !requirement.lifetime_parameters.is_empty()
                 || !requirement.conformance_bounds.is_empty()
             {
@@ -832,7 +1007,7 @@ fn generate(
         .collect::<Vec<_>>();
     let spelled = operands
         .iter()
-        .map(|operand| program.symbols.name(operand.declaration).to_owned())
+        .map(|operand| operand.spelled(program))
         .collect::<Vec<_>>()
         .join("$");
     let name = format!(
@@ -922,6 +1097,7 @@ fn generate(
     }
     copy_expression_types(program, expression_start, symbols)?;
     substitute_types(program, type_start, operands)?;
+    substitute_values(program, expression_start, operands);
     select_requirements(
         program,
         expression_start,
@@ -944,7 +1120,10 @@ fn generate(
         })
     };
     let spellings = of_kind(false)
-        .map(|operand| program.symbols.display_path(operand.declaration, "::"))
+        .map(|operand| match &operand.identity {
+            Identity::Declaration(symbol) => program.symbols.display_path(*symbol, "::"),
+            Identity::Scalar(value) => value.clone(),
+        })
         .collect::<Vec<_>>();
     program.machine_specializations.push(MachineSpecialization {
         template: template_symbol,
@@ -953,13 +1132,16 @@ fn generate(
         binding_application: application,
         type_arguments: spellings.clone(),
         type_argument_identities: spellings,
-        conformance_arguments: of_kind(true).map(|operand| operand.declaration).collect(),
+        conformance_arguments: of_kind(true).filter_map(Operand::declaration).collect(),
         normalized_template_identity: program.symbols.display_path(template_symbol, "::"),
         ..MachineSpecialization::default()
     });
     Ok(Generated {
         template: template_symbol,
-        arguments: operands.iter().map(|operand| operand.declaration).collect(),
+        arguments: operands
+            .iter()
+            .map(|operand| operand.identity.clone())
+            .collect(),
         machine: machine_symbol,
         state: state_symbol,
     })
@@ -1059,6 +1241,37 @@ fn substitute_types(
         );
     }
     Ok(())
+}
+
+/// Replaces each value parameter by its operand's literal in every
+/// expression written since `expression_start`: the generated machine's own
+/// contract and body. A name that is the parameter and nothing more becomes
+/// the literal, which carries the parameter's type as its landing, so it is
+/// typed as the parameter was.
+fn substitute_values(program: &mut TypedTrees, expression_start: usize, operands: &[Operand]) {
+    let literal_of = |symbol: SymbolHandle| {
+        operands
+            .iter()
+            .find(|operand| operand.parameter == symbol)
+            .and_then(|operand| operand.scalar.clone())
+    };
+    let named = program
+        .expression_table
+        .iter_expressions_from(expression_start)
+        .filter_map(|(handle, node)| match node {
+            ExpressionNode::Name(path)
+                if path.symbol.is_valid()
+                    && !path.static_application.is_valid()
+                    && path.members.count() == 1 =>
+            {
+                literal_of(path.symbol).map(|literal| (handle, literal))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    for (handle, literal) in named {
+        *program.expression_table.expression_mut(handle) = ExpressionNode::Integer(literal);
+    }
 }
 
 /// Points each copied call through an implementation parameter at the

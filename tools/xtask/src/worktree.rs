@@ -323,6 +323,49 @@ fn has_unsaved_commits(main_root: &Path, head: &str) -> bool {
     !out.status.success() || String::from_utf8_lossy(&out.stdout).trim().is_empty()
 }
 
+/// Restored checkouts may have fetched only main even though their detached
+/// checkpoint was pushed. Retain its actual origin branch locally before the
+/// normal reset guard runs; an advertised object ID alone is not a saved ref.
+fn fetch_published_head(main_root: &Path, head: &str) -> Result<(), String> {
+    let advertised = Command::new("git")
+        .args(["ls-remote", "--heads", "origin"])
+        .current_dir(main_root)
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|_| "cannot inspect published worktree checkpoints".to_owned())?;
+    if !advertised.status.success() {
+        return Err("cannot inspect published worktree checkpoints".to_owned());
+    }
+    let refs = String::from_utf8_lossy(&advertised.stdout);
+    for line in refs.lines() {
+        let mut fields = line.split_whitespace();
+        if fields.next() != Some(head) {
+            continue;
+        }
+        let Some(branch) = fields
+            .next()
+            .and_then(|name| name.strip_prefix("refs/heads/"))
+        else {
+            continue;
+        };
+        let refspec = format!("+refs/heads/{branch}:refs/remotes/origin/{branch}");
+        let fetched = Command::new("git")
+            .args(["fetch", "--no-tags", "origin", &refspec])
+            .current_dir(main_root)
+            .stdin(Stdio::null())
+            .output()
+            .map_err(|_| format!("cannot retain published worktree branch `{branch}`"))?;
+        return if fetched.status.success() {
+            Ok(())
+        } else {
+            Err(format!(
+                "cannot retain published worktree branch `{branch}`"
+            ))
+        };
+    }
+    Ok(())
+}
+
 /// Why a worktree must not be reset, moved or removed, or `None` when doing so
 /// loses nothing.
 fn reset_refusal(locked: bool, dirty: bool, unsaved: bool) -> Option<&'static str> {
@@ -789,6 +832,16 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 .current_dir(&main_root)
                 .stdin(Stdio::null())
                 .status();
+            // Network access stays outside the pool lock. The locked check below
+            // rereads the slot and still refuses any dirty, locked or unsaved work.
+            let before = list_worktrees(&main_root).map_err(report_error)?;
+            if let Some(wt) = before.iter().find(|w| w.name == target_name)
+                && !wt.locked
+                && !is_dirty(&wt.path)
+                && has_unsaved_commits(&main_root, &wt.head)
+            {
+                fetch_published_head(&main_root, &wt.head).map_err(report_error)?;
+            }
             let _pool = lock_pool(&main_root).map_err(report_error)?;
             let items = list_worktrees(&main_root).map_err(report_error)?;
             let Some(wt) = items.iter().find(|w| w.name == target_name) else {
@@ -1011,8 +1064,9 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 #[cfg(test)]
 mod tests {
     use super::{
-        ListedWorktree, acquire_base, cloud_session, lock_pool_at, parse_worktree_list,
-        published_build_commit, read_topic, reset_refusal, worktree_git_dir, write_topic,
+        ListedWorktree, acquire_base, cloud_session, fetch_published_head, has_unsaved_commits,
+        lock_pool_at, parse_worktree_list, published_build_commit, read_topic, reset_refusal,
+        worktree_git_dir, write_topic,
     };
     use std::fs;
     use std::path::Path;
@@ -1033,8 +1087,8 @@ mod tests {
         }
     }
 
-    // Run the real startup script with already-built slots: this exercises its
-    // host detection without downloading artifacts or changing a user's cache.
+    // Run the real startup script with local manifests and already-built slots:
+    // exercise host detection without fetching archives or changing a user's cache.
     #[cfg(unix)]
     #[test]
     fn warm_startup_recognizes_managed_codex_and_keeps_local_sessions_idle() {
@@ -1064,6 +1118,15 @@ mod tests {
         .unwrap();
         let init = Command::new("git").arg("init").arg(root).output().unwrap();
         assert!(init.status.success());
+        let manifests = root.join("manifests");
+        fs::create_dir(&manifests).unwrap();
+        for slot in ["primary", "worker"] {
+            fs::write(
+                manifests.join(format!("warm-build-{slot}.txt")),
+                "schema=omega-warm-build-v2\ncommit=0000000000000000000000000000000000000000\n",
+            )
+            .unwrap();
+        }
         // Report an existing floor without accessing the user's mbx settings.
         fs::create_dir(root.join("bin")).unwrap();
         let mbx = root.join("bin/mbx");
@@ -1092,7 +1155,10 @@ mod tests {
                 .env("CLAUDE_CODE_REMOTE", claude)
                 .env("CODEX_ENVIRONMENT_ID", codex)
                 .env("CODEX_SESSION_ID", "also-present-locally")
-                .env("OMEGA_WARM_BUILD_SOURCE", "file:///nonexistent")
+                .env(
+                    "OMEGA_WARM_BUILD_SOURCE",
+                    format!("file://{}", manifests.display()),
+                )
                 .output()
                 .unwrap();
             assert!(output.status.success());
@@ -1362,6 +1428,103 @@ mod tests {
                 listed("C:/Temp/session/scratchpad/wt-self", "ccc", false, true),
             ]
         );
+    }
+
+    #[test]
+    fn published_checkpoint_without_tracking_ref_is_retained() {
+        struct Scratch(std::path::PathBuf);
+        impl Drop for Scratch {
+            fn drop(&mut self) {
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+        fn git(root: &Path, arguments: &[&str]) -> String {
+            let output = Command::new("git")
+                .args([
+                    "-c",
+                    "user.name=Worktree test",
+                    "-c",
+                    "user.email=worktree@example.invalid",
+                    "-c",
+                    "commit.gpgsign=false",
+                    "-c",
+                    "core.hooksPath=/nonexistent",
+                ])
+                .args(arguments)
+                .current_dir(root)
+                .stdin(Stdio::null())
+                .output()
+                .unwrap();
+            assert!(
+                output.status.success(),
+                "{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            String::from_utf8_lossy(&output.stdout).trim().to_owned()
+        }
+        let unique = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let scratch = Scratch(std::env::temp_dir().join(format!(
+            "omega-worktree-publication-{}-{unique}",
+            std::process::id(),
+        )));
+        fs::create_dir_all(&scratch.0).unwrap();
+        let root = scratch.0.join("checkout");
+        let origin = scratch.0.join("origin.git");
+        git(&scratch.0, &["init", "--bare", origin.to_str().unwrap()]);
+        git(&scratch.0, &["init", "-b", "main", root.to_str().unwrap()]);
+        git(
+            &root,
+            &["remote", "add", "origin", origin.to_str().unwrap()],
+        );
+        git(&root, &["commit", "--allow-empty", "-m", "main"]);
+        git(&root, &["push", "origin", "main"]);
+        git(&root, &["checkout", "--detach"]);
+        git(&root, &["commit", "--allow-empty", "-m", "published"]);
+        let published = git(&root, &["rev-parse", "HEAD"]);
+        git(
+            &root,
+            &["push", "origin", "HEAD:refs/heads/work/checkpoint"],
+        );
+        // Reproduce a restored checkout that only retained origin/main.
+        git(
+            &root,
+            &["update-ref", "-d", "refs/remotes/origin/work/checkpoint"],
+        );
+        assert!(has_unsaved_commits(&root, &published));
+        fetch_published_head(&root, &published).unwrap();
+        assert!(!has_unsaved_commits(&root, &published));
+        assert_eq!(
+            git(&root, &["rev-parse", "refs/remotes/origin/work/checkpoint"]),
+            published
+        );
+
+        // A real unpublished descendant remains protected, and no checkout or
+        // working file is changed by consulting the remote.
+        git(&root, &["commit", "--allow-empty", "-m", "unpublished"]);
+        let unpublished = git(&root, &["rev-parse", "HEAD"]);
+        fs::write(root.join("keep"), "untracked work").unwrap();
+        fetch_published_head(&root, &unpublished).unwrap();
+        assert!(has_unsaved_commits(&root, &unpublished));
+        assert_eq!(git(&root, &["rev-parse", "HEAD"]), unpublished);
+        assert_eq!(
+            fs::read_to_string(root.join("keep")).unwrap(),
+            "untracked work"
+        );
+
+        git(
+            &root,
+            &[
+                "remote",
+                "set-url",
+                "origin",
+                origin.join("missing").to_str().unwrap(),
+            ],
+        );
+        assert!(fetch_published_head(&root, &unpublished).is_err());
+        assert!(has_unsaved_commits(&root, &unpublished));
     }
 
     // Every way a worktree can hold work blocks a reset; only an empty one passes.

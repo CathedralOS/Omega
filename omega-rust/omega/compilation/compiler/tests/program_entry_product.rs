@@ -203,8 +203,10 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                     .message
                     .contains("before Terminal publication")
             );
-            let executable = accepted
-                .with_declaration_metadata(&[schema])
+            let mut executable_roster = checked.terminal_publication().roster().unwrap().clone();
+            executable_roster.declaration_metadata.push(schema);
+            let executable = executable_roster
+                .judge(std::sync::Arc::clone(accepted.source()))
                 .expect("all original scope is judged with the requested descriptors");
             assert!(std::sync::Arc::ptr_eq(
                 accepted.source(),
@@ -248,9 +250,12 @@ fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners()
                 native_code.artifact().manifest().semantic()
             );
             assert_eq!(program.artifact().semantic_module(), accepted.module());
+            executable_roster
+                .declaration_metadata
+                .push(symbols::SymbolHandle::invalid());
             assert!(
-                accepted
-                    .with_declaration_metadata(&[symbols::SymbolHandle::invalid()])
+                executable_roster
+                    .judge(std::sync::Arc::clone(accepted.source()))
                     .is_err()
             );
         })

@@ -746,7 +746,7 @@ fn examine(
             RefusalReason::Unsupported,
             first,
             Construct::Machine,
-            "machine generic parameters",
+            "machine generic machines not judged as their own check forms",
         ))));
     }
     // Likewise the rows of the subject's implementations, each judged as
@@ -1151,18 +1151,36 @@ pub fn judge_compilation_for(
         }
         .map_err(CompilationRefusal::Elaboration)
     }));
-    verdicts.extend(rows.into_iter().map(
-        |(declaring_trait, requirement, arguments, implementation)| {
-            judge(structure_elaboration::elaborate_witness(
-                typed,
-                declaring_trait,
-                requirement,
-                &arguments,
-                implementation,
-            ))
-            .map_err(CompilationRefusal::Elaboration)
-        },
-    ));
+    // A witness reads the closure of the implementation it calls, so it
+    // meets the `satisfies` clauses of the machines there, the witnessed
+    // machine's own among them. Each is a row of this compilation, judged
+    // once: a row the list does not hold yet joins it.
+    let mut next = 0;
+    while next < rows.len() {
+        let (declaring_trait, requirement, arguments, implementation) = rows[next].clone();
+        next += 1;
+        let mut witness = structure_elaboration::elaborate_witness(
+            typed,
+            declaring_trait,
+            requirement,
+            &arguments,
+            implementation,
+        );
+        if let Ok(witness) = &mut witness {
+            for row in std::mem::take(&mut witness.conformance_witnesses) {
+                let row = (
+                    row.declaring_trait,
+                    row.requirement,
+                    Vec::new(),
+                    row.implementation,
+                );
+                if !rows.contains(&row) {
+                    rows.push(row);
+                }
+            }
+        }
+        verdicts.push(judge(witness).map_err(CompilationRefusal::Elaboration));
+    }
     verdicts
 }
 

@@ -47,10 +47,10 @@ pub use crate::checked::{
     OptimizationRollbackInputError, PackageBuild, PackageBuildInvocation,
     PackageCompilationRequest, PackageCompileFailure, PackageProductOptions,
     PackageProductSourceRequest, PackageSourceRequest, PreparedPackageProduct, ProductCheckOutcome,
-    RestrictedBuildGrants, SourceBuildDeclaration, SourceCompilation, TypedFrontier,
-    TypedFrontierCheck, TypedFrontierRequest, checked_compilation_call_count,
-    preliminary_check_totals, settled_check_totals, source_assembly_invocation_count,
-    typed_frontier_reuse_count,
+    RestrictedBuildGrants, SourceBuildDeclaration, SourceCompilation, SuppliedTarget,
+    TargetSupplySource, TypedFrontier, TypedFrontierCheck, TypedFrontierRequest,
+    checked_compilation_call_count, preliminary_check_totals, prepare_supplied_target,
+    settled_check_totals, source_assembly_invocation_count, typed_frontier_reuse_count,
 };
 pub use build_settings::BuildSnapshotRequest;
 pub use checked::checking::ProductQueries;
@@ -68,9 +68,9 @@ pub use product_execution::{
     CompilationOutput, CompilationProduct, CompilationProductError, TargetProductOutcome,
 };
 pub use psi_compiler::ProducedTerminalProgram;
-pub use terminal::prepare_program_entry;
 pub use target::ExplicitTargetSet;
 pub use target_batch::PreparedCompilation;
+pub use terminal::prepare_program_entry;
 
 pub fn compiler_input_identity() -> Result<[u8; 32], String> {
     let library = package_compilation::toolchain_library::identity()?;

@@ -1650,6 +1650,40 @@ pub mod product_operand {
 }
 
 pub mod trait_definition {
+    /// An exact source requirement binding. Nomination supplies no proof or
+    /// execution authority; the compilation must judge the realization against
+    /// the original requirement before using it.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct Supply {
+        pub slot: symbols::SymbolHandle,
+        pub provider: symbols::SymbolHandle,
+    }
+
+    impl Supply {
+        /// Resolve only within the actual provider's nominal conformance rows.
+        pub fn realization<'a>(
+            &self,
+            typed: &'a crate::TypedTrees,
+            requirement: symbols::SymbolHandle,
+        ) -> Result<&'a crate::machine::Machine, &'static str> {
+            let mut realizing = typed.machines().iter().filter(|machine| {
+                crate::provider_declarations::satisfaction_provider_declaration(typed, machine)
+                    == Some(self.provider)
+                    && (typed
+                        .machine_trait_conformances(machine)
+                        .iter()
+                        .any(|clause| clause.requirement_symbol == requirement)
+                        || typed
+                            .owned_conformance_realization(machine.symbol)
+                            .is_some_and(|(_, row)| row.requirement == requirement))
+            });
+            match (realizing.next(), realizing.next()) {
+                (Some(machine), None) => Ok(machine),
+                _ => Err("provider does not give the supplied requirement exactly one machine"),
+            }
+        }
+    }
+
     pub(crate) mod applications {
         use super::TraitDefinition;
         use crate::TypedTrees;

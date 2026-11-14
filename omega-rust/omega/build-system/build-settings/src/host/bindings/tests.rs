@@ -83,6 +83,7 @@ fn produce(build: &str) -> psi_compiler::ProducedTerminalProgram {
             purpose: source::DependencyScope::Build,
             selected: &[],
             bindings: &[],
+            supplies: &[],
         },
         terminal_codec::TerminalPublication::Invocation,
     )

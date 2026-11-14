@@ -232,6 +232,16 @@ impl Lowering<'_> {
             }
             // The operand's value under another policy: nothing is computed.
             ExpressionKind::Requalify(operand) => self.scalar(operand).map(Value::Scalar),
+            ExpressionKind::Establish {
+                operand,
+                clauses,
+                stated,
+            } => {
+                let scalar_type = self.result_type(operand)?;
+                let operand = self.scalar(operand)?;
+                self.prove_membership(operand, scalar_type, clauses, stated, source)
+                    .map(Value::Scalar)
+            }
             ExpressionKind::Strict {
                 operation,
                 left: left_expression,

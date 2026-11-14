@@ -18,7 +18,6 @@ active compiler worker run inline without spawning additional threads.
 
 pub(crate) mod build_continuation;
 mod entry_shapes;
-mod lowered_route;
 mod product_queries;
 mod product_selections;
 pub(super) mod source_build;

@@ -119,14 +119,7 @@ mod carrier {
             return Ok(());
         };
         let integer_type = match atom {
-            BuiltinTypeAtom::I8 => Some(LandedIntegerType::I8),
-            BuiltinTypeAtom::I16 => Some(LandedIntegerType::I16),
-            BuiltinTypeAtom::I32 => Some(LandedIntegerType::I32),
-            BuiltinTypeAtom::I64 => Some(LandedIntegerType::I64),
-            BuiltinTypeAtom::U8 => Some(LandedIntegerType::U8),
-            BuiltinTypeAtom::U16 => Some(LandedIntegerType::U16),
-            BuiltinTypeAtom::U32 => Some(LandedIntegerType::U32),
-            BuiltinTypeAtom::U64 => Some(LandedIntegerType::U64),
+            BuiltinTypeAtom::Integer(carrier) => Some(LandedIntegerType::Fixed(carrier)),
             BuiltinTypeAtom::Address => Some(LandedIntegerType::Addr),
             _ => None,
         };
@@ -584,14 +577,7 @@ mod declaration_values {
                 .is_some_and(|atom| {
                     matches!(
                         atom,
-                        symbols::BuiltinTypeAtom::I8
-                            | symbols::BuiltinTypeAtom::I16
-                            | symbols::BuiltinTypeAtom::I32
-                            | symbols::BuiltinTypeAtom::I64
-                            | symbols::BuiltinTypeAtom::U8
-                            | symbols::BuiltinTypeAtom::U16
-                            | symbols::BuiltinTypeAtom::U32
-                            | symbols::BuiltinTypeAtom::U64
+                        symbols::BuiltinTypeAtom::Integer(_)
                             | symbols::BuiltinTypeAtom::Bool
                             | symbols::BuiltinTypeAtom::F32
                             | symbols::BuiltinTypeAtom::F64
@@ -2599,10 +2585,7 @@ mod initializer_leaves {
             TypeReferenceNode::Named(name)
                 if matches!(
                     selection.builtin_type(syntax, name),
-                    Some(symbols::BuiltinTypeAtom::I8 | symbols::BuiltinTypeAtom::I16
-                        | symbols::BuiltinTypeAtom::I32 | symbols::BuiltinTypeAtom::I64
-                        | symbols::BuiltinTypeAtom::U8 | symbols::BuiltinTypeAtom::U16
-                        | symbols::BuiltinTypeAtom::U32 | symbols::BuiltinTypeAtom::U64
+                    Some(symbols::BuiltinTypeAtom::Integer(_)
                         | symbols::BuiltinTypeAtom::Bool
                         | symbols::BuiltinTypeAtom::F32 | symbols::BuiltinTypeAtom::F64)
                 ) =>
@@ -3463,8 +3446,7 @@ pub(crate) mod initializer_normalization {
                     .ok_or("materialized initializer integer exceeds canonical storage")?;
                 let integer_type = numerics::literals::LandedIntegerType::from_name(carrier)
                     .ok_or("materialized integer initializer lost its selected carrier")?;
-                let (minimum, maximum) = integer_type.bounds();
-                if value < minimum || value > maximum {
+                if !integer_type.admits_i128(value) {
                     return Err(format!(
                         "materialized const value `{value}` does not fit `{carrier}`"
                     ));

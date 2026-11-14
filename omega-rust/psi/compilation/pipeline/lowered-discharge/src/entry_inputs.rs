@@ -455,7 +455,7 @@ pub(crate) fn describe(
     id: MachineId,
     point: ProgramPoint,
     crossing: &[(ScalarTerm, ValueId)],
-    bindings: &mut dyn Bindings,
+    bindings: &mut dyn Bindings<Error = Unbound>,
 ) -> Checked<Proposition> {
     let mut available = Vec::new();
     for (_, row) in tables.knowledge.iter() {
@@ -544,6 +544,7 @@ struct InputBindings<'a> {
 }
 
 impl Bindings for InputBindings<'_> {
+    type Error = Unbound;
     fn value(&mut self, value: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Unbound> {
         self.actuals
             .iter()

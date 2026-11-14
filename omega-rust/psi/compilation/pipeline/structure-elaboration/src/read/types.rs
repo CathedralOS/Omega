@@ -5,6 +5,7 @@ The type family of the reader: which typed-tree type is a scalar, by the
 */
 
 use crate::body::Qualification;
+use numerics::integer_carrier::FixedInteger;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, MachineId, ScalarType};
 use symbols::BuiltinTypeAtom;
 use terminal_check_tables::{Checked, Construct};
@@ -16,24 +17,19 @@ use super::Program;
 use crate::body::{Policy, ValueType};
 use crate::{Unserved, refuse};
 
-fn integer(sign: IntegerSign, bits: u16, machine: MachineId) -> Checked<ScalarType> {
-    IntegerType::new(sign, bits)
+/// The checker's integer for a source carrier. The checker states integer
+/// values as host 128-bit integers, so a wider carrier is refused by name.
+fn integer(carrier: FixedInteger, machine: MachineId) -> Checked<ScalarType> {
+    IntegerType::from_fixed(carrier)
         .map(ScalarType::Integer)
-        .map_err(|_| refuse(machine, Construct::Machine, Unserved::Type("integer width")))
+        .ok_or_else(|| refuse(machine, Construct::Machine, Unserved::Type("integer width")))
 }
 
 /// The scalar type of a builtin atom, by its compiler-installed slot.
 pub(super) fn atom_type(atom: BuiltinTypeAtom, machine: MachineId) -> Checked<ScalarType> {
     match atom {
         BuiltinTypeAtom::Bool => Ok(ScalarType::Boolean),
-        BuiltinTypeAtom::I8 => integer(IntegerSign::Signed, 8, machine),
-        BuiltinTypeAtom::I16 => integer(IntegerSign::Signed, 16, machine),
-        BuiltinTypeAtom::I32 => integer(IntegerSign::Signed, 32, machine),
-        BuiltinTypeAtom::I64 => integer(IntegerSign::Signed, 64, machine),
-        BuiltinTypeAtom::U8 => integer(IntegerSign::Unsigned, 8, machine),
-        BuiltinTypeAtom::U16 => integer(IntegerSign::Unsigned, 16, machine),
-        BuiltinTypeAtom::U32 => integer(IntegerSign::Unsigned, 32, machine),
-        BuiltinTypeAtom::U64 => integer(IntegerSign::Unsigned, 64, machine),
+        BuiltinTypeAtom::Integer(carrier) => integer(carrier, machine),
         BuiltinTypeAtom::Address => {
             Err(refuse(machine, Construct::Machine, Unserved::Type("addr")))
         }
@@ -73,14 +69,7 @@ fn landed_type(
 ) -> Checked<ScalarType> {
     use numerics::literals::LandedIntegerType as Landed;
     match landed {
-        Landed::I8 => integer(IntegerSign::Signed, 8, machine),
-        Landed::I16 => integer(IntegerSign::Signed, 16, machine),
-        Landed::I32 => integer(IntegerSign::Signed, 32, machine),
-        Landed::I64 => integer(IntegerSign::Signed, 64, machine),
-        Landed::U8 => integer(IntegerSign::Unsigned, 8, machine),
-        Landed::U16 => integer(IntegerSign::Unsigned, 16, machine),
-        Landed::U32 => integer(IntegerSign::Unsigned, 32, machine),
-        Landed::U64 => integer(IntegerSign::Unsigned, 64, machine),
+        Landed::Fixed(carrier) => integer(carrier, machine),
         Landed::Addr => Err(refuse(
             machine,
             Construct::Machine,
@@ -558,6 +547,12 @@ impl Program<'_> {
         };
         if self.value_type(id, definition.target_type)? != plain {
             return unserved("constrained by a domain declared on another carrier");
+        }
+        // A predicate over the fields of a data value has no owning
+        // contract to join when that value is a local or a formal
+        // (`predicates`); only a scalar's is stated yet.
+        if super::authority::has_predicates(definition) && !matches!(plain, ValueType::Scalar(..)) {
+            return unserved("constrained by a domain with predicates on a data carrier");
         }
         Ok(())
     }

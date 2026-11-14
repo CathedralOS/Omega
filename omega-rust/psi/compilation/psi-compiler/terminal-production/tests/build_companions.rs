@@ -103,6 +103,7 @@ fn accepted_for(
             purpose: DependencyScope::Build,
             selected: &[],
             bindings: &[],
+            supplies: &[],
         },
         publication,
     )
