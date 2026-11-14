@@ -130,6 +130,7 @@ pub(crate) fn prepare_admitted_build(
     typed: &typed_trees::TypedTrees,
     entry: symbols::SymbolHandle,
     packages: Option<&PackageCompilationInputs>,
+    anonymous_source: Option<&package_compilation::AnonymousSourceCapture>,
     dependency_activation: bool,
     timings: &mut artifacts::compile_timings::CompileTimings,
 ) -> Result<
@@ -142,6 +143,11 @@ pub(crate) fn prepare_admitted_build(
 > {
     let mut accounting = build_time_evaluation::SourceCompletionAccounting::default();
     let result = (|| -> Result<_, Vec<Diagnostic>> {
+        if packages.is_some() && anonymous_source.is_some() {
+            return Err(vec![Diagnostic::error(
+                "Build scope cannot combine anonymous source custody with supplied package inputs",
+            )]);
+        }
         // A dependency's Build executed for its consumer checks what its entry
         // reaches and never promotes the dependency to a subject
         // (`wiki/spec/build/validation_subjects.md`, "Orchestration").
@@ -159,7 +165,13 @@ pub(crate) fn prepare_admitted_build(
             let source = psi_compiler::SourcePreparationRequest {
                 program: typed.clone(),
                 accounting: Default::default(),
-                admission: psi_compiler::SourceAdmission::default(),
+                admission: psi_compiler::SourceAdmission {
+                    invocation_sources: anonymous_source.map(|capture| {
+                        Arc::new(capture.clone())
+                            as Arc<dyn build_time_evaluation::InvocationSourceConsent>
+                    }),
+                    ..Default::default()
+                },
                 compilation,
             }
             .prepare();

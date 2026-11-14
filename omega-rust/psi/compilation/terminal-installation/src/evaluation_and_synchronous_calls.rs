@@ -837,6 +837,17 @@ pub(crate) mod compiler_evaluation {
         }
     }
 
+    /// Consent to select unowned source inside this exact private invocation.
+    /// This is not a declaration owner, package edge or execution admission.
+    pub trait InvocationSourceSelection {
+        fn allows_selection(
+            &self,
+            artifact: terminal_codec::TerminalExecutionView<'_>,
+            requester: Option<ProofDeclarationId>,
+            declaration: ProofDeclarationId,
+        ) -> bool;
+    }
+
     pub fn admit_compiler_evaluation<'code, 'target>(
         artifact: impl Into<terminal_codec::TerminalExecutionView<'code>>,
         target: impl Into<Option<&'target str>>,
@@ -844,6 +855,20 @@ pub(crate) mod compiler_evaluation {
         providers: crate::AdmittedProviderSelections,
         requester: DeclarationCustody,
         authority: Option<&dyn DeclarationSelectionAuthority>,
+    ) -> Result<AdmittedCompilerEvaluation, String> {
+        admit_compiler_evaluation_with_source_consent(
+            artifact, target, root, providers, requester, authority, None,
+        )
+    }
+
+    pub fn admit_compiler_evaluation_with_source_consent<'code, 'target>(
+        artifact: impl Into<terminal_codec::TerminalExecutionView<'code>>,
+        target: impl Into<Option<&'target str>>,
+        root: ProofDeclarationId,
+        providers: crate::AdmittedProviderSelections,
+        requester: DeclarationCustody,
+        authority: Option<&dyn DeclarationSelectionAuthority>,
+        source_consent: Option<&dyn InvocationSourceSelection>,
     ) -> Result<AdmittedCompilerEvaluation, String> {
         let artifact = artifact.into();
         let target = target.into();
@@ -891,8 +916,14 @@ pub(crate) mod compiler_evaluation {
         }
         let mut effects = CompilerEvaluationEffects::default();
         let mut closure_violation = None;
-        let mut selection_violation =
-            require_selection(requester, root_facts.custody, authority).err();
+        let mut selection_violation = require_invocation_selection(
+            artifact,
+            (requester, None),
+            (root_facts.custody, root),
+            authority,
+            source_consent,
+        )
+        .err();
         for &machine in &closure.machines {
             let facts = declaration(scope, machine)?;
             for service in &facts.effects.services {
@@ -938,7 +969,13 @@ pub(crate) mod compiler_evaluation {
                     declaration(scope, edge.source.machine()),
                     declaration(scope, edge.target.machine()),
                 )
-                && let Err(reason) = require_selection(source.custody, target.custody, authority)
+                && let Err(reason) = require_invocation_selection(
+                    artifact,
+                    (source.custody, Some(edge.source.machine())),
+                    (target.custody, edge.target.machine()),
+                    authority,
+                    source_consent,
+                )
                 && selection_violation.is_none()
             {
                 selection_violation = Some(reason);
@@ -1094,6 +1131,24 @@ pub(crate) mod compiler_evaluation {
             .compiler_evaluation
             .as_ref()
             .map_err(Clone::clone)
+    }
+
+    fn require_invocation_selection(
+        artifact: terminal_codec::TerminalExecutionView<'_>,
+        requester: (DeclarationCustody, Option<ProofDeclarationId>),
+        owner: (DeclarationCustody, ProofDeclarationId),
+        authority: Option<&dyn DeclarationSelectionAuthority>,
+        source_consent: Option<&dyn InvocationSourceSelection>,
+    ) -> Result<(), String> {
+        if requester.0 == DeclarationCustody::UnownedUser
+            && owner.0 == DeclarationCustody::UnownedUser
+            && artifact.module().identities.invocation_scope().is_some()
+            && source_consent
+                .is_some_and(|consent| consent.allows_selection(artifact, requester.1, owner.1))
+        {
+            return Ok(());
+        }
+        require_selection(requester.0, owner.0, authority)
     }
 
     fn require_selection(

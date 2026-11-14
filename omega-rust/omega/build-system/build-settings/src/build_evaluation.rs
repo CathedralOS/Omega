@@ -208,6 +208,7 @@ pub fn prepare_build_evaluation(
         typed,
         selected_machine,
         package_inputs,
+        anonymous_source,
         dependency_activation,
         timings,
     )?;

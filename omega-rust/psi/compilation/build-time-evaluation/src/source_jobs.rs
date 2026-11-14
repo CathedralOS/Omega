@@ -8,9 +8,12 @@ use typed_trees::TypedTrees;
 mod build_activation;
 mod constant_jobs;
 mod invocation;
+mod source_selection;
 
 pub use constant_jobs::{
-    evaluate as evaluate_constant_initializers, validate_constant_evaluations,
+    evaluate as evaluate_constant_initializers,
+    evaluate_with_source_consent as evaluate_constant_initializers_with_source_consent,
+    validate_constant_evaluations,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -70,6 +73,8 @@ pub enum BuildMachineExecutionMode {
 pub struct PreparedBuildMachineProgram {
     source: Arc<TypedTrees>,
     authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    purpose: source::DependencyScope,
+    source_consent: Option<Arc<dyn crate::InvocationSourceConsent>>,
 }
 #[derive(Clone)]
 pub struct PreparedBuildMachineEntry {
@@ -79,6 +84,8 @@ pub struct PreparedBuildMachineEntry {
     call: typed_trees::expression::TableCallExpression,
     call_source: typed_trees::expression::ExpressionHandle,
     authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    purpose: source::DependencyScope,
+    source_consent: Option<Arc<dyn crate::InvocationSourceConsent>>,
     accepted: Arc<psi_terminal_production::AcceptedTerminalSource>,
     arguments: Vec<crate::BuildTimeValue>,
 }
@@ -249,13 +256,17 @@ impl PreparedBuildMachineEntry {
             }
             _ => semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing,
         };
-        let admitted = terminal_installation::admit_compiler_evaluation(
+        let source_selection = source_selection::InvocationSelection::new(self, view);
+        let admitted = terminal_installation::admit_compiler_evaluation_with_source_consent(
             view,
             target.name,
             root,
             providers,
             requester,
             self.authority.as_deref(),
+            source_selection.as_ref().map(|selection| {
+                selection as &dyn terminal_installation::InvocationSourceSelection
+            }),
         )?;
         admitted.require_invocation(view, target.name, selected)?;
         Ok(admitted)
@@ -325,11 +336,24 @@ impl PreparedBuildMachineProgram {
         typed: &TypedTrees,
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     ) -> Result<Self, Vec<Diagnostic>> {
+        Self::prepare_for(typed, authority, source::DependencyScope::Product, None)
+    }
+
+    /// Retain the caller's actual source purpose and captured-source consent.
+    /// A private capture remains unowned; it is not a package-selection grant.
+    pub fn prepare_for(
+        typed: &TypedTrees,
+        authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+        purpose: source::DependencyScope,
+        source_consent: Option<Arc<dyn crate::InvocationSourceConsent>>,
+    ) -> Result<Self, Vec<Diagnostic>> {
         // Retaining source is preparation, not acceptance. Each actual job is
         // checked with its materialized arguments before any execution starts.
         Ok(Self {
             source: Arc::new(typed.clone()),
             authority,
+            purpose,
+            source_consent,
         })
     }
     fn prepare_call(
@@ -372,7 +396,7 @@ impl PreparedBuildMachineProgram {
                 // Evaluating this call requests its dependency closure, not a
                 // full check of the requester's package or standalone source.
                 subjects: &[],
-                purpose: source::DependencyScope::Product,
+                purpose: self.purpose,
                 selected: &[],
                 bindings: &[],
                 supplies: &[],
@@ -411,6 +435,8 @@ impl PreparedBuildMachineProgram {
             call: actual_call,
             call_source: call,
             authority: self.authority.clone(),
+            purpose: self.purpose,
+            source_consent: self.source_consent.clone(),
             accepted: Arc::new(accepted),
             arguments: arguments.to_vec(),
         })

@@ -66,6 +66,33 @@ impl AnonymousSourceCapture {
     }
 }
 
+impl build_time_evaluation::InvocationSourceConsent for AnonymousSourceCapture {
+    fn allows_selection(
+        &self,
+        sources: &Arc<source::SourceMap>,
+        requester: source::SourceSpan,
+        declaration: source::SourceSpan,
+        purpose: source::DependencyScope,
+    ) -> bool {
+        // This is the retained live Build input, not an anonymous package key.
+        // A later Product cohort or another capture cannot borrow its consent.
+        if purpose != source::DependencyScope::Build || !Arc::ptr_eq(sources, &self.sources) {
+            return false;
+        }
+        [requester, declaration].into_iter().all(|span| {
+            sources.get(span.source_id).is_some_and(|file| {
+                sources.source_is_selected(span.source_id)
+                    && file.origin == source::SourceOrigin::User
+                    && file.package_identity.is_none()
+                    && file.package_root == self.root
+                    && file.dependency_scope == purpose
+                    && span.span.start <= span.span.end
+                    && span.span.end <= file.source.len()
+            })
+        })
+    }
+}
+
 fn field(digest: &mut Sha256, bytes: &[u8]) {
     digest.update((bytes.len() as u64).to_le_bytes());
     digest.update(bytes);
