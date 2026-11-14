@@ -12296,14 +12296,31 @@ pub mod descriptor_results {
                                 )?;
                             step.derivations
                                 .push((source_location.clone(), destination.clone()));
-                            if slot_kind.tracks_references()
-                                && capture == CapturedBacking::StorageAddress
-                                && matches!(
-                                    operation.kind,
-                                    OperationKind::EstablishReference { .. }
-                                        | OperationKind::EstablishAccessReference { .. }
-                                )
-                            {
+                            // Inline collections lend their current storage
+                            // address, just as references do. A view of another
+                            // descriptor instead retains that descriptor's
+                            // payload origin, never the descriptor's home.
+                            let captures_storage = match &operation.kind {
+                                element_view_establish_pair_pattern!(source, element, ..) => {
+                                    crate::runtime_structural_path_tip(
+                                        module.structural_types.iter(),
+                                        *graph.place_types.get(&source.place)?,
+                                        &source.path,
+                                    )
+                                    .and_then(|collection| {
+                                        crate::collection_backing(
+                                            module.structural_types.iter(),
+                                            collection.id,
+                                            *element,
+                                        )
+                                    })
+                                    .is_some_and(|backing| {
+                                        backing.storage == crate::CollectionStorage::Inline
+                                    })
+                                }
+                                _ => true,
+                            };
+                            if capture == CapturedBacking::StorageAddress && captures_storage {
                                 graph.storage_derivations.insert((
                                     position,
                                     source_location.clone(),

@@ -94,6 +94,7 @@ use terminal_psi::{
 use crate::graph::Graph;
 use crate::{StorageUse, refusal};
 
+mod byte_payloads;
 mod byte_views;
 mod contents;
 mod loans;
@@ -641,6 +642,7 @@ impl<'a> Storage<'a> {
                 row.stored = Stored::Moved(source);
             }
         }
+        storage.byte_payload_writes()?;
         Ok(storage)
     }
 

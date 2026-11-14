@@ -64,7 +64,7 @@ impl Storage<'_> {
         ))
     }
 
-    fn byte_shape(
+    pub(super) fn byte_shape(
         &self,
         root: PlaceId,
         path: &[StructuralPathSegment],
@@ -130,8 +130,8 @@ impl Storage<'_> {
         Ok(true)
     }
 
-    /// Source custody is independent of whether the array is presented to a
-    /// borrowed parameter or used to form an owned permission descriptor.
+    /// A call and a new view can borrow the same array. Check its original
+    /// input or result here before either route decides how to carry the view.
     fn byte_array_backing(
         &self,
         argument: &StructuralArgument,

@@ -203,6 +203,7 @@ impl Storage<'_> {
     fn source_lender(
         &self,
         raw: &super::Lineage,
+        path: &[terminal_psi::StructuralPathSegment],
         access: ReferenceAccess,
         concerns: Construct,
     ) -> Checked<(
@@ -212,6 +213,34 @@ impl Storage<'_> {
         bool,
     )> {
         use terminal_check_tables::bindings::Segment;
+        let permitted = if let StructuralPlaceKind::ByteSequenceLiteral {
+            structural_type, ..
+        } = self.root_kind(raw.root, concerns)?
+        {
+            access == ReferenceAccess::Shared
+                && self
+                    .declaration(structural_type, concerns)?
+                    .shape
+                    .is_shared_readable_byte_view()
+        } else {
+            let actual = terminal_semantics::structural_argument_source(self.lowered, raw.root, 0)
+                .ok_or_else(|| {
+                    self.unsupported(concerns, "loan source has no actual storage authority")
+                })?;
+            let requested = match access {
+                ReferenceAccess::Shared => StructuralAccess::SharedBorrow,
+                ReferenceAccess::Mutable => StructuralAccess::MutableBorrow,
+                ReferenceAccess::WriteOnly => StructuralAccess::WriteOnlyBorrow,
+            };
+            terminal_semantics::reference_source_projection_accessible(
+                self.types.iter(),
+                actual.structural_type,
+                actual.multiplicity,
+                actual.access,
+                path,
+                requested,
+            )
+        };
         if let Some(crossing) = raw
             .segments
             .iter()
@@ -235,63 +264,19 @@ impl Storage<'_> {
                     "reference parent has no exact static descriptor path",
                 )
             })?;
-            let path = raw
-                .descriptor_location()
-                .and_then(|location| {
-                    terminal_semantics::descriptor_lifetimes::descriptor_path(
-                        self.types,
-                        self.lowered.structural_place_type(raw.root)?,
-                        &location.path,
-                    )
-                })
-                .ok_or_else(|| {
-                    self.unsupported(concerns, "reborrow has no complete typed source path")
-                })?;
-            let (multiplicity, authority) =
-                if let Some(parameter) = self.lowered.structural_parameter(raw.root) {
-                    (parameter.multiplicity, parameter.access)
-                } else if let StructuralPlaceKind::OperationResult { producer, .. } =
-                    self.root_kind(raw.root, concerns)?
-                {
-                    let result = self
-                        .operation(producer, concerns)?
-                        .result
-                        .as_structural()
-                        .filter(|result| result.place == raw.root)
-                        .ok_or_else(|| {
-                            self.foreign(
-                                concerns,
-                                "reference parent lost its actual producing result",
-                            )
-                        })?;
-                    (result.multiplicity, StructuralAccess::Owned)
-                } else {
-                    return Err(self.unsupported(
-                        concerns,
-                        "reference parent has no supported storage authority",
-                    ));
-                };
-            let requested = match access {
-                ReferenceAccess::Shared => StructuralAccess::SharedBorrow,
-                ReferenceAccess::Mutable => StructuralAccess::MutableBorrow,
-                ReferenceAccess::WriteOnly => StructuralAccess::WriteOnlyBorrow,
-            };
-            let permitted = terminal_semantics::reference_source_projection_accessible(
-                self.types.iter(),
-                self.root_type(raw.root, concerns)?,
-                multiplicity,
-                authority,
-                &path,
-                requested,
-            );
             return Ok((None, reference_access(parent), Some(descriptor), permitted));
         }
         if let Some(parent) = self.incoming(raw.root) {
-            return Ok((Some(Lender::Incoming), reference_access(parent), None, true));
+            return Ok((
+                Some(Lender::Incoming),
+                reference_access(parent),
+                None,
+                permitted,
+            ));
         }
         match self.root_kind(raw.root, concerns)? {
             StructuralPlaceKind::Parameter { .. } | StructuralPlaceKind::OperationResult { .. } => {
-                Ok((Some(Lender::Owner), None, None, true))
+                Ok((Some(Lender::Owner), None, None, permitted))
             }
             StructuralPlaceKind::ByteSequenceLiteral {
                 structural_type, ..
@@ -301,7 +286,7 @@ impl Storage<'_> {
                     .shape
                     .is_shared_readable_byte_view() =>
             {
-                Ok((Some(Lender::Owner), None, None, true))
+                Ok((Some(Lender::Owner), None, None, permitted))
             }
             _ => Err(self.unsupported(concerns, "loan source has no supported owning resource")),
         }
@@ -389,7 +374,7 @@ impl Storage<'_> {
             }
             self.byte_array_presentation(argument, parameter, concerns)?;
             let (expected_lender, parent, from, permitted) =
-                self.source_lender(&lent, access, concerns)?;
+                self.source_lender(&lent, &argument.path, access, concerns)?;
             let (obligation, row) = tables
                 .obligations
                 .iter()
@@ -564,7 +549,7 @@ impl Storage<'_> {
             self.foreign(concerns, "reference formation has no captured place row")
         })?;
         let (expected_lender, parent, from, permitted) =
-            self.source_lender(&raw, access, concerns)?;
+            self.source_lender(&raw, &source.path, access, concerns)?;
         let (obligation, row) = tables
             .obligations
             .iter()
@@ -1183,11 +1168,11 @@ impl Storage<'_> {
             let site = used.map_or(Construct::Obligation(loan.obligation), |(at, _)| at);
             let exclusive = loan.access.is_exclusive();
             let mut found = used.map(|(_, conflict)| (None, conflict));
-            if found.is_none() && !loan.permitted {
-                found = Some((None, LoanConflict::AccessExceedsParent));
-            }
             if found.is_none() && exclusive && loan.parent == Some(ReferenceAccess::Shared) {
                 found = Some((None, LoanConflict::ExclusiveOfShared));
+            }
+            if found.is_none() && !loan.permitted {
+                found = Some((None, LoanConflict::AccessExceedsParent));
             }
             if found.is_none() {
                 // The later listed loan reports the conflict. Retained

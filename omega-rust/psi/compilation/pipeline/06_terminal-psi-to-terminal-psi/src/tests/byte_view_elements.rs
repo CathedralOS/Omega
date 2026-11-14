@@ -685,10 +685,84 @@ fn writes_through_array_views_retire_old_backing_facts_not_saved_values() {
         // A later read of changed storage cannot reuse that old fact.
         let changed = source("bytes[0]");
         let refused = judge_build(&changed).unwrap();
+        let call_requirement = matches!(refused, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. })));
         assert!(
-            matches!(refused, RouteVerdict::Rejected { ref unproved, .. }
-            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
-            "{write}: {refused:?}"
+            call_requirement,
+            "{write}: expected an unproved CallRequirement; verdict: {}",
+            verdict(&changed)
         );
     }
+}
+
+#[test]
+fn a_view_write_keeps_facts_about_sibling_fields() {
+    let source = r#"
+        data Packet { before: u8; bytes: [u8; 3]; after: u8; }
+        machine mutate(bytes: &mut [u8]) requires bytes.len > 0 { bytes[0] = 0; }
+        machine before(value: u8) requires value == 17 {}
+        machine after(value: u8) requires value == 99 {}
+        machine build_entry() {
+            let mut packet: Packet = Packet { before: 17, bytes: [17, 42, 99], after: 99 };
+            mutate(&mut packet.bytes[..]);
+            before(packet.before);
+            after(packet.after);
+        }
+    "#;
+    assert_eq!(verdict(source), "accepted");
+    let stale = source.replace("before(packet.before)", "before(packet.bytes[0])");
+    assert!(
+        verdict(&stale).starts_with("rejected"),
+        "{}",
+        verdict(&stale)
+    );
+}
+
+#[test]
+fn a_shared_array_view_cannot_observe_write_only_backing() {
+    use super::build_purpose::{frontier_of, package, roster, symbol};
+    let typed = frontier_of(
+        "machine product_entry() {}",
+        "machine build_entry(bytes: &mut [u8; 3]) { let view: &[u8] = &bytes[..]; }",
+    );
+    let entry = symbol(&typed, "build_entry");
+    let elaborate = || {
+        typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            roster(&[entry], &[Some(package())], source::DependencyScope::Build),
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .unwrap()
+    };
+    assert!(matches!(
+        judge(Ok(elaborate())).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
+    let mut changed = elaborate();
+    let machine = changed
+        .module
+        .machines
+        .iter_mut()
+        .find(|machine| {
+            machine.operations().any(|operation| {
+                matches!(operation.kind, OperationKind::EstablishElementView { .. })
+            })
+        })
+        .unwrap();
+    machine.structural_parameters[0].access = terminal_psi::StructuralAccess::WriteOnlyBorrow;
+    let refused = judge(Ok(changed)).unwrap();
+    let category = match &refused {
+        RouteVerdict::Accepted(_) => "accepted".to_owned(),
+        RouteVerdict::Incomplete(_) => "incomplete".to_owned(),
+        RouteVerdict::FallBack(refusal) => format!("fallback: {}", refusal.detail),
+        RouteVerdict::Rejected { conflicts, .. } => format!(
+            "loan conflicts: {:?}",
+            conflicts.iter().map(|row| row.conflict).collect::<Vec<_>>()
+        ),
+    };
+    assert!(
+        matches!(refused, RouteVerdict::Rejected { ref conflicts, .. }
+        if conflicts.iter().any(|row| row.conflict == crate::LoanConflict::AccessExceedsParent)),
+        "expected the source loan authority check to refuse write-only observation: {category}"
+    );
 }

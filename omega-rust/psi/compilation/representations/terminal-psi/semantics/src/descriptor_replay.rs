@@ -739,9 +739,9 @@ pub(crate) mod analysis {
             self.replay.summary(identity, 0)?.result
         }
 
-        /// A call may change backing contents while returning the identical
-        /// descriptor. Compare the replayed value, including its projection,
-        /// on every normal return; this makes no claim about payload writes.
+        /// A helper can update referenced storage while leaving its descriptor
+        /// unchanged. Every normal return must retain the invocation's original
+        /// descriptor; facts about the stored data still need invalidation.
         pub fn call_preserves_descriptor_storage(
             &mut self,
             caller: MachineId,
