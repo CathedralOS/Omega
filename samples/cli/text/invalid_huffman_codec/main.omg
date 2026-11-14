@@ -2,7 +2,7 @@
 // from the Huffman table (`u8::HuffmanSymbol` requires 'A'..'D' or 'R')
 // must be rejected at compile time.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 domain u8::HuffmanSymbol
 requires

@@ -16,6 +16,18 @@ use super::Program;
 use crate::body::{Policy, ValueType};
 
 impl Program<'_> {
+    pub(super) fn complete_anonymous_operators(
+        &mut self,
+        machine: MachineId,
+        owner: SymbolHandle,
+        operators: &[ExpressionHandle],
+    ) -> Checked<()> {
+        for &expression in operators {
+            self.complete_builtin_operator(machine, owner, expression, [None, None])?;
+        }
+        Ok(())
+    }
+
     /// Reuse the retained source type of a successfully read operand. No type
     /// or declaration is manufactured when its source reference is absent.
     pub(super) fn operator_operand_reference(
@@ -46,23 +58,16 @@ impl Program<'_> {
             ScalarType::Callable(_) => return None,
         };
         let symbol = self.typed.symbols.builtin_atom_symbol(atom)?;
-        let reference = self
-            .typed
+        self.typed
             .type_reference_table
-            .find_named_type_reference(symbol)?;
-        match qualification.policy {
-            None => Some(reference),
-            Some(policy) => self
-                .typed
-                .type_reference_table
-                .find_policy_qualified_type_reference(
-                    reference,
-                    match policy {
-                        Policy::Wrapping => numerics::arithmetic::ArithmeticDomain::Wrapping,
-                        Policy::Saturating => numerics::arithmetic::ArithmeticDomain::Saturating,
-                    },
-                ),
-        }
+            .find_arithmetic_result_type_reference(
+                symbol,
+                match qualification.policy {
+                    None => numerics::arithmetic::ArithmeticDomain::Exact,
+                    Some(Policy::Wrapping) => numerics::arithmetic::ArithmeticDomain::Wrapping,
+                    Some(Policy::Saturating) => numerics::arithmetic::ArithmeticDomain::Saturating,
+                },
+            )
     }
 
     pub(super) fn mathematical_operator_operands(&self) -> [Option<TypeReferenceHandle>; 2] {

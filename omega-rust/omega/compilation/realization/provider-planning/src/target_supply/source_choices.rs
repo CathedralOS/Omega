@@ -35,9 +35,8 @@
 //! none or with several rejects the program
 //! (wiki/spec/build/provider_selection.md, "Missing, duplicate, incompatible,
 //! or unadmitted selected supply rejects rather than choosing a body by
-//! spelling or source order"). The chosen supply then needs its provider plan
-//! checked against the slot; that plan has no producer on this route yet, so
-//! `SettledTargetSupply::plans` refuses each chosen supply by name.
+//! spelling or source order"). Compatibility source choices must rejoin the
+//! already published target choice before canonical provider realization.
 
 use build_time_evaluation::provider_declarations::{
     ProviderSelection, ProviderSelectionSubject, TargetProviderDefaults,
@@ -365,7 +364,11 @@ impl SettledTargetSupply {
     /// The demand walk established that no supply is needed. A nonempty
     /// choice needs the canonical row realization operation instead.
     pub fn realize_no_demand(&self) -> Result<super::RealizedTargetSupply, Vec<Diagnostic>> {
-        let _ = self.plans()?;
+        if !self.requirements.is_empty() {
+            return Err(vec![Diagnostic::error(
+                "nonempty provider supply needs its exact accepted module and execution inputs",
+            )]);
+        }
         super::RealizedTargetSupply::no_demand(self.target())
             .map_err(|reason| vec![Diagnostic::error(reason)])
     }
@@ -378,27 +381,179 @@ impl SettledTargetSupply {
         &self.requirements
     }
 
-    /// The provider plans of the chosen supplies: none for a module that
-    /// demands nothing. A chosen supply needs its provider checked against
-    /// the slot and a calling plan for the selected target; neither has a
-    /// producer on this route, so each is refused by name.
-    pub fn plans(&self) -> Result<Vec<effects::provider_plan::ProviderPlan>, Vec<Diagnostic>> {
+    /// Compatibility source choices can only request the plans already chosen
+    /// and proved in this module. No choice or candidate is inferred here.
+    pub fn realize(
+        &self,
+        planning: SupplyPlanning<'_>,
+    ) -> Result<super::RealizedTargetSupply, Vec<Diagnostic>> {
         if self.requirements.is_empty() {
-            return Ok(Vec::new());
+            return self.realize_no_demand();
         }
-        Err(self
-            .requirements
-            .iter()
-            .map(|requirement| {
-                Diagnostic::error(format!(
-                    "no product route yet: provider settlement for `{}`: `{}` is supplied by `{}`, and no provider or calling plan can be formed for a selected provider on this route",
-                    self.target.as_deref().unwrap_or("<unscoped>"),
-                    requirement.reached.name,
-                    requirement.supply.selection.provider_type.authored_path,
+        let target = self.target.as_deref().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "provider settlement lost its deployment target",
+            )]
+        })?;
+        let module = planning.module;
+        let refuse = |reason: &str| {
+            vec![Diagnostic::error(format!(
+                "provider settlement for `{target}`: {reason}",
+            ))]
+        };
+        let mut reached = Vec::with_capacity(self.requirements.len());
+        let mut diagnostic_choices = Vec::with_capacity(self.requirements.len());
+        for requirement in &self.requirements {
+            let selection = &requirement.supply.selection;
+            let machine = requirement.realization.ok_or_else(|| {
+                refuse(&format!(
+                    "`{}` is supplied by `{}`, which the accepted module does not hold as a judged provider",
+                    requirement.reached.name, selection.provider_type.authored_path,
                 ))
-            })
-            .collect())
+            })?;
+            let ProviderSelectionSubject::BoundaryTrait(slot) = &selection.subject else {
+                return Err(refuse(
+                    "provider plan needs its exact whole boundary trait selection",
+                ));
+            };
+            let mut schemas = planning
+                .schemas
+                .iter()
+                .filter(|schema| schema.slot == slot.symbol);
+            let (Some(source), None) = (schemas.next(), schemas.next()) else {
+                return Err(refuse(
+                    "selected slot has no unique complete schema correspondence",
+                ));
+            };
+            let mut schemas = module
+                .service_schemas
+                .iter()
+                .filter(|schema| schema.surface == source.surface);
+            let (Some(schema), None) = (schemas.next(), schemas.next()) else {
+                return Err(refuse(
+                    "selected slot schema has no unique published declaration application",
+                ));
+            };
+            module
+                .service_schema(schema.declaration, schema.application)
+                .map_err(|reason| refuse(&reason))?;
+            if slot.applied && slot.application_identity.is_none()
+                || slot.application_identity.as_ref().is_some_and(|identity| {
+                    module.identities.text(schema.application) != Some(identity.as_str())
+                })
+            {
+                return Err(refuse(
+                    "selected slot application differs from its published schema",
+                ));
+            }
+            if module
+                .boundary_machine(requirement.reached.boundary)
+                .is_none()
+                || module.machine(machine).is_none()
+            {
+                return Err(refuse(
+                    "selected provider lost its actual boundary or machine",
+                ));
+            }
+            let mut candidates = module.provider_candidates.iter().filter(|candidate| {
+                candidate.boundary == requirement.reached.boundary && candidate.candidate == machine
+            });
+            let (Some(candidate), None) = (candidates.next(), candidates.next()) else {
+                return Err(refuse(
+                    "selected provider realization has no unique exact checked candidate",
+                ));
+            };
+            let mut choices = module.provider_selections.iter().filter(|choice| {
+                choice.target == target
+                    && choice.schema_declaration == schema.declaration
+                    && choice.schema_application == schema.application
+                    && choice.provider_declaration == candidate.provider_declaration.identity()
+                    && choice.provider_identity == candidate.provider_identity
+            });
+            let (Some(choice), None) = (choices.next(), choices.next()) else {
+                return Err(refuse(
+                    "selected provider has no unique prepublished target choice",
+                ));
+            };
+            if choice.composition_mode != selection.composition_mode
+                || choice.provider_package != selection.provider_type.package
+                || selection.provider_type.applied
+                    && selection.provider_type.application_identity.is_none()
+                || choice
+                    .provider_application
+                    .and_then(|identity| module.identities.text(identity))
+                    != selection.provider_type.application_identity.as_deref()
+            {
+                return Err(refuse(
+                    "selected provider application, package or composition differs from its published choice",
+                ));
+            }
+            diagnostic_choices.push((choice, selection.provider_type.authored_path.as_str()));
+            reached.push(requirement.reached.boundary);
+        }
+        reached.sort_unstable();
+        reached.dedup();
+        super::plan_realization::realize_target_supply_detailed(
+            super::TargetSupplyRealizationRequest::from_execution_inputs(
+                module,
+                target,
+                &reached,
+                planning.execution,
+            ),
+        )
+        .map_err(|error| refuse(&realization_diagnostic(error, module, &diagnostic_choices)))
     }
+
+    pub fn plans(
+        &self,
+        planning: SupplyPlanning<'_>,
+    ) -> Result<Vec<backend_plan::TerminalTargetProviderPlan>, Vec<Diagnostic>> {
+        self.realize(planning)
+            .map(|realized| realized.provider_declarations())
+    }
+}
+
+fn realization_diagnostic(
+    error: super::plan_realization::TargetSupplyRealizationError,
+    module: &TerminalModule,
+    choices: &[(&terminal_psi::TerminalProviderSelection, &str)],
+) -> String {
+    use super::plan_realization::TargetSupplyRealizationError;
+
+    let TargetSupplyRealizationError::MissingCheckedRow {
+        provider_declaration,
+        schema_declaration,
+        schema_application,
+        requirement_identity,
+        ..
+    } = &error
+    else {
+        return error.diagnostic(module);
+    };
+    let mut labels = choices.iter().filter(|(choice, _)| {
+        choice.provider_declaration == *provider_declaration
+            && choice.schema_declaration == *schema_declaration
+            && choice.schema_application == *schema_application
+    });
+    let Some((_, provider_path)) = labels.next() else {
+        return error.diagnostic(module);
+    };
+    if provider_path.is_empty() || labels.any(|(_, other)| other != provider_path) {
+        return error.diagnostic(module);
+    }
+    let Ok(schema) = module.service_schema(*schema_declaration, *schema_application) else {
+        return error.diagnostic(module);
+    };
+    let mut methods = schema.surface.methods.iter().filter(|method| {
+        schema.surface.identity_text(method.requirement_identity) == requirement_identity.as_str()
+    });
+    let (Some(method), None) = (methods.next(), methods.next()) else {
+        return error.diagnostic(module);
+    };
+    format!(
+        "`{provider_path}` supplies `{}::{}` with no checked machine the accepted module states",
+        method.requirement_owner, method.name,
+    )
 }
 
 fn refuse(target: &str, demand: &str) -> Diagnostic {
@@ -493,4 +648,18 @@ fn unplanned_boundary(
         return Err("the compiler-executed boundary");
     }
     Ok(())
+}
+
+/// Exact source schema correspondence; the full surface must already be in
+/// the accepted module. The source slot is never used as executable identity.
+#[derive(Debug, Clone)]
+pub struct SlotSchema {
+    pub slot: symbols::SymbolHandle,
+    pub surface: std::sync::Arc<effects::provider_plan::ServiceSurface>,
+}
+
+pub struct SupplyPlanning<'a> {
+    pub module: &'a TerminalModule,
+    pub schemas: &'a [SlotSchema],
+    pub execution: super::TargetSupplyExecutionInputs,
 }

@@ -64,7 +64,7 @@ own compact slot/instruction/origin coordinates within the message budget.
 Routine unrelated main merges invalidated qualified compiler inputs despite a
 successful same-epoch cache restore. Fetch and verify publication read-only,
 then retain the warm branch until an actual conflict or prerequisite requires
-integration, as recorded in `tools/testing.md`.
+integration, as recorded in `tools/docs/testing.md`.
 
 Remaining platform controls and occurrence-specific ordinary-release proofs
 stay open under **FILESYSTEM-PLATFORM-SERVICES**.

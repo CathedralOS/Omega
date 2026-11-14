@@ -62,14 +62,19 @@ pub(crate) fn execute_pass(
         match result {
             Ok(()) => return round.finish(),
             Err(error) => {
+                let mut accounting = round.source_completion_accounting();
+                for prior in &recovered {
+                    accounting.append(prior.source_completion_accounting());
+                }
+                let error = error.with_source_completion_accounting(accounting);
                 recovered.push(round.into_retained());
-                match error {
-                    CompileResolvedPackageReviewsError::ComponentDescriptionNotRetained {
-                        component,
-                        purpose,
-                        ..
-                    } if fresh_components.insert((component, purpose)) => {}
-                    error => return Err(error),
+                let retry = match &error.cause {
+                    package_manager::review::CompileResolvedPackageReviewCause::ComponentDescriptionNotRetained { component, purpose, .. } =>
+                        fresh_components.insert((*component, *purpose)),
+                    _ => false,
+                };
+                if !retry {
+                    return Err(error);
                 }
             }
         }
@@ -148,13 +153,14 @@ fn complete_occurrence(
         }
     };
 
+    let accounting = build.source_completion_accounting().clone();
     let descriptions = component_descriptions(&build, &completion, round);
     let descriptions = match descriptions {
         Ok(descriptions) => descriptions,
         Err(error) => {
             if matches!(
-                error,
-                CompileResolvedPackageReviewsError::ComponentDescriptionNotRetained { .. }
+                &error.cause,
+                package_manager::review::CompileResolvedPackageReviewCause::ComponentDescriptionNotRetained { .. }
             ) {
                 pending_builds.push(PendingReviewBuild {
                     build,
@@ -162,12 +168,16 @@ fn complete_occurrence(
                     snapshot,
                 });
             }
-            return Err(error);
+            return Err(error.with_source_completion_accounting(accounting));
         }
     };
     let build = build
         .with_independent_component_descriptions(descriptions)
-        .map_err(|errors| completion.input_failure(errors))?;
+        .map_err(|errors| {
+            completion
+                .input_failure(errors)
+                .with_source_completion_accounting(accounting)
+        })?;
     let inputs = build.package_inputs().clone();
     let product = compiler
         .review_package_build(build, maximum_policy_canonical_bytes)
@@ -207,9 +217,16 @@ fn component_descriptions(
         };
         let description = match candidate {
             PackageReviewComponent::Description(description) => description,
-            PackageReviewComponent::Source(source) => source
-                .publish_component()
-                .map_err(|diagnostics| completion.compilation_failure(diagnostics.into()))?,
+            PackageReviewComponent::Source(source) => {
+                source.publish_component().map_err(|diagnostics| {
+                    completion.compilation_failure(
+                        compilation_products::CompileFailure::source_completion(
+                            diagnostics,
+                            source.source_completion_accounting().clone(),
+                        ),
+                    )
+                })?
+            }
         };
         descriptions.push(description);
     }

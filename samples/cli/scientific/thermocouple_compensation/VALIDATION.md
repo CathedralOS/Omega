@@ -215,7 +215,7 @@ Its existing Std byte-view paths retain their behavior. The decimal controls'
 ordinary whole-array views retain identical selected operation fields. Accepted
 bound package validation is unchanged. Evidence and 225 unchanged-file hashes
 are in `new016-incoming-main-reuse-review.md` and its JSON record. This supports
-reuse of the qualified binary's scoped observations under `tools/testing.md`;
+reuse of the qualified binary's scoped observations under `tools/docs/testing.md`;
 it does not claim that binary includes newer main changes or that a full release
 baseline was executed. Fresh integrated Rust checks, Clippy outcomes and the
 exact-head landing receipt accompany the final deliverable.

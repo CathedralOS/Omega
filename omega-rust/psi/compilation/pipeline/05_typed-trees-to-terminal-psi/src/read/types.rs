@@ -78,6 +78,12 @@ fn landed_type(
     }
 }
 
+pub(super) struct AnonymousValue {
+    pub value: IntegerValue,
+    pub integer: IntegerType,
+    pub operators: Vec<ExpressionHandle>,
+}
+
 impl Program<'_> {
     pub(super) fn scalar_type(
         &self,
@@ -383,6 +389,11 @@ impl Program<'_> {
             return Ok(view);
         }
         if handle.is_valid()
+            && let Some(reference) = self.reference_type(id, handle)?
+        {
+            return Ok(reference);
+        }
+        if handle.is_valid()
             && let TypeReferenceNode::FixedArray {
                 element_type,
                 length,
@@ -560,6 +571,7 @@ impl Program<'_> {
                 TypeConstraintNode::Domain(domain)
                     if domain.subject == DomainConstraintSubject::Declared =>
                 {
+                    self.named_domain(id, domain)?;
                     if !domain.arguments.is_empty() {
                         return unserved("constrained by a domain applied at arguments");
                     }
@@ -646,6 +658,38 @@ impl Program<'_> {
         self.scalar_type(id, handle).map(ValueType::plain)
     }
 
+    /// Rejects a type whose domain name nothing in the program has, in this
+    /// source or any library: `state_contracts.md`, "Statements after a call
+    /// that never returns": "an unknown machine name or malformed type is an
+    /// error wherever it appears". A name typing did not bind but that
+    /// something has (a domain of another carrier, two visible candidates)
+    /// is left to `declared_domain`, which refuses what it does not read.
+    fn named_domain(
+        &self,
+        id: MachineId,
+        domain: &typed_trees::types::DomainConstraint,
+    ) -> Checked<()> {
+        if self.typed.domain_definition(domain.symbol).is_some() {
+            return Ok(());
+        }
+        let Some(written) = domain.source_selection else {
+            return Ok(());
+        };
+        let name = domain.name.as_str();
+        let leaf = name.rsplit("::").next().unwrap_or(name);
+        if self.typed.names_nothing_has(vec![leaf]).is_empty() {
+            return Ok(());
+        }
+        Err(crate::reject(
+            id,
+            crate::SourceOrigin::of(written.source_span),
+            format!(
+                "this type names the domain `{name}`, which nothing in the program declares: \
+                 an unknown name in a type is an error wherever it appears"
+            ),
+        ))
+    }
+
     /// Whether the checker reads the declared domain `domain` on `carrier`:
     /// it must be a domain of exactly that carrier (domains.md,
     /// "Carrier-exact membership": "form membership against the domain's
@@ -692,12 +736,9 @@ impl Program<'_> {
             return unserved("constrained by a domain declared on another carrier");
         }
         self.admitted_declarations.include(domain);
-        // A predicate over the fields of a data value has no owning
-        // contract to join when that value is a local or a formal
-        // (`predicates`); only a scalar's is stated yet.
-        if super::authority::has_predicates(definition) && !matches!(plain, ValueType::Scalar(..)) {
-            return unserved("constrained by a domain with predicates on a data carrier");
-        }
+        // A domain's predicates are judged where the place declared in it
+        // has a contract to join (`predicates`); each place without one
+        // refuses them there by name.
         Ok(())
     }
 
@@ -774,14 +815,27 @@ impl Program<'_> {
         id: MachineId,
         expression: ExpressionHandle,
         expected: Option<ScalarType>,
-    ) -> Checked<(IntegerValue, IntegerType)> {
+    ) -> Checked<AnonymousValue> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let typed = self.typed;
+        let mut operators = Vec::new();
         let Some(evaluated) = closed_numeric::evaluate_anonymous_value::<true>(
             typed,
             expression,
             &[],
-            &mut |expression| closed_numeric::has_anonymous_operator_meaning(typed, expression),
+            &mut |expression| {
+                let admitted = closed_numeric::has_anonymous_operator_meaning(typed, expression);
+                if admitted
+                    && typed
+                        .expression_table
+                        .authored_selection_occurrences(expression)
+                        .next()
+                        .is_some()
+                {
+                    operators.push(expression);
+                }
+                admitted
+            },
         ) else {
             return unserved("anonymous operation without an exact meaning");
         };
@@ -807,7 +861,11 @@ impl Program<'_> {
                 .map(|value| IntegerValue::Unsigned(u128::from(value))),
         };
         match value {
-            Some(value) if integer.admits(value) => Ok((value, integer)),
+            Some(value) if integer.admits(value) => Ok(AnonymousValue {
+                value,
+                integer,
+                operators,
+            }),
             Some(_) | None => unserved("anonymous value outside its type"),
         }
     }

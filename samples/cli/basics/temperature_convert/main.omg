@@ -6,7 +6,7 @@
 // Expected exit: 68.
 
 use omega::language::core::I32::from_f64;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     celsius: f64;

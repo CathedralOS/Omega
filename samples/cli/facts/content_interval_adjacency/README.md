@@ -20,7 +20,7 @@ meaningful overlap refusals, then record the changed fixtures from clean
 source. The measurements and earlier landing descriptions below refer to their
 stated legacy source revisions; they are not observations of this migrated
 source. Four-host acceptance remains required, with any retained evidence
-checked for consumer-based applicability under `tools/testing.md`.
+checked for consumer-based applicability under `tools/docs/testing.md`.
 
 Every place copies that sentence and performs the same forwarding call with the
 same content equation and the same runtime oracle: all four returned fields are

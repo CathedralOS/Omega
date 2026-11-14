@@ -399,7 +399,9 @@ impl Program<'_> {
             owns_linear_claim,
             copyable,
             identity,
-            shape: if case_types.is_empty() {
+            shape: if data.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque {
+                crate::StorageShape::Opaque
+            } else if case_types.is_empty() {
                 crate::StorageShape::Record(declared)
             } else {
                 crate::StorageShape::Sum(case_types)
@@ -844,11 +846,13 @@ impl Program<'_> {
         Ok(
             match self.member_of(id, record, member.selection.field_symbol())? {
                 Member::Field(field) => Expression {
+                    call_context: None,
                     result: Some(self.field_type(id, record, regions, field)?),
                     kind: ExpressionKind::Field { base, field },
                     source,
                 },
                 Member::Payload { case, field } => Expression {
+                    call_context: None,
                     result: Some(self.payload_type(id, record, regions, case, field)?),
                     kind: ExpressionKind::Payload { base, case, field },
                     source,
@@ -925,6 +929,14 @@ impl Program<'_> {
         let ValueType::Record(record, Qualification::NONE, written) = result else {
             return Err(typing("record literal of a scalar or a qualified type"));
         };
+        if matches!(
+            self.data_type(id, record)?.shape,
+            crate::StorageShape::Opaque
+        ) {
+            return Err(typing(
+                "opaque literal requires its checked representation and supplied contents",
+            ));
+        }
         // A literal is a fresh value, so the regions it is at are the ones
         // the place it stands for asks (an argument, an initializer, a
         // field), whatever lifetime spelling typing attached to its type: a
@@ -1016,6 +1028,7 @@ impl Program<'_> {
             return Err(typing("record literal misses a field"));
         }
         Ok(Expression {
+            call_context: None,
             kind: match case {
                 None => ExpressionKind::Record { fields },
                 Some(case) => ExpressionKind::Case { case, fields },
@@ -1102,6 +1115,7 @@ impl Program<'_> {
         };
         let case = self.case_position(id, record, case)?;
         Ok(Expression {
+            call_context: None,
             kind: ExpressionKind::IsCase {
                 subject: Box::new(subject),
                 case,
@@ -1240,8 +1254,17 @@ fn record_shape_for<'m>(
     payload: impl Fn(&'m typed_trees::data::DataVariant) -> &'m [DataField],
 ) -> Checked<()> {
     let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
-    if data.supply_mode != language_semantics::DataSupplyMode::CheckedShape {
-        return unserved("data without a checked shape");
+    if data.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque && !members.is_empty()
+    {
+        return unserved("opaque data with declared members");
+    }
+    if data.supply_mode == language_semantics::DataSupplyMode::BoundaryOpaque {
+        if !data.lifetime_parameters.is_empty() {
+            return unserved("opaque data without its retained lifetime obligations");
+        }
+        if !data.requires_facts.is_empty() {
+            return unserved("opaque data without its checked value predicates");
+        }
     }
     // Lifetime parameters are not generic data: they are erased regions that
     // select no type, field or layout (`lifetime_binders`).
@@ -1555,7 +1578,7 @@ mod tests {
                     ..DataField::default()
                 }));
             }),
-            ("type data without a checked shape", |data, _| {
+            ("type opaque data with declared members", |data, _| {
                 data.supply_mode = language_semantics::DataSupplyMode::BoundaryOpaque;
             }),
         ];
@@ -1567,6 +1590,9 @@ mod tests {
         // Data with no member at all is a record with an empty roster.
         let (data, _) = plain();
         assert_eq!(record_shape(machine(), &data, None, &[], |_| &[]), Ok(()));
+        let mut opaque = data.clone();
+        opaque.supply_mode = language_semantics::DataSupplyMode::BoundaryOpaque;
+        assert_eq!(record_shape(machine(), &opaque, None, &[], |_| &[]), Ok(()));
         // A sum alone, with or without payload, is served.
         let sum = vec![
             DataMember::Variant(DataVariant::default()),

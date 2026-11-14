@@ -1,7 +1,8 @@
 // Offline stdin interpreter. At most 64 commands; each line is exactly an
 // uppercase opcode and one digit. Overlong lines are drained and rejected
 // atomically. EOF commits a final unterminated line. No equipment is accessed.
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 use protocol::model;
 use protocol::report;
 

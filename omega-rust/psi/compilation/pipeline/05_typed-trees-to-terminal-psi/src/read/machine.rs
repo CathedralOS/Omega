@@ -542,83 +542,97 @@ impl<'t> Program<'t> {
         Ok(id)
     }
 
-    /// Whether every contract on `state` only restates a domain one of its
-    /// formals' declared types carries: `requires distance in Km` for
-    /// `distance: i32 in Km`, which typing writes on the state for each
-    /// qualified formal. domains.md, "Carrier-exact membership": a
-    /// parameter `value: T in D` "gives the body the fact `value in D`".
-    ///
-    /// The formal's type already says it, so such a contract adds nothing
-    /// to read: the type is what a caller must supply, and the domain's
-    /// predicates join the entry clauses from the type (`predicates`). Any
-    /// other contract on a state stays refused.
-    fn contracts_restate_formal_domains(&self, state: &typed_trees::state::State) -> bool {
+    /// A formal's declared qualification already requires this exact domain.
+    /// Typing records that membership as a contract for both states and
+    /// bodyless requirements. It adds no new predicate here: formal type
+    /// checking enforces the domain, and `signature_predicates` supplies its
+    /// value facts. A fact about another value or domain still needs checking.
+    fn fact_restates_formal_domain(
+        &self,
+        formals: &[StateParameter],
+        fact: &typed_trees::domain::ProofFact,
+    ) -> bool {
         use typed_trees::domain::ProofFact;
         use typed_trees::expression::ExpressionNode;
-        use typed_trees::signature::SignatureContractKind;
         use typed_trees::types::{DomainConstraintSubject, TypeConstraintNode, TypeReferenceNode};
         let typed = self.typed;
-        let carries = |mut reference: typed_trees::types::TypeReferenceHandle,
-                       domain: SymbolHandle| {
-            // A reference formal's domains are its referent's: `seal: &Seal in
-            // Issued` lends a `Seal in Issued`.
-            while reference.is_valid()
-                && let TypeReferenceNode::Reference { referee, .. } =
-                    typed.type_reference_table.type_reference(reference)
-            {
-                reference = *referee;
-            }
-            while reference.is_valid()
-                && let TypeReferenceNode::Constrained {
+        let ProofFact::Membership(membership) = fact else {
+            return false;
+        };
+        if !membership.domain_symbol.is_valid()
+            || !membership.domain_arguments.is_empty()
+            || !typed.expression_table.expression_is_valid(membership.value)
+            || typed
+                .domain_definition(membership.domain_symbol)
+                .is_none_or(|domain| {
+                    // An unapplied authored membership keeps its selected
+                    // symbol even when it has no interned instance ID. An
+                    // instance ID that is present must agree with that symbol.
+                    membership.semantic_domain != language_semantics::SemanticDomainId::NULL
+                        && domain.semantic_id != membership.semantic_domain
+                })
+        {
+            return false;
+        }
+        let ExpressionNode::Name(path) = typed.expression_table.expression(membership.value) else {
+            return false;
+        };
+        if path.static_application.is_valid()
+            || path.reserved_result_of.is_valid()
+            || typed.expression_table.name_path_members(path.members).len() != 1
+        {
+            return false;
+        }
+        let Some(formal) = path
+            .resolved_symbol()
+            .and_then(|symbol| formals.iter().find(|parameter| parameter.symbol == symbol))
+        else {
+            return false;
+        };
+        let mut reference = formal.type_reference;
+        while reference.is_valid() {
+            match typed.type_reference_table.type_reference(reference) {
+                // Qualification of a borrowed formal belongs to its referent.
+                TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+                TypeReferenceNode::Constrained {
                     base_type,
                     constraints,
-                } = typed.type_reference_table.type_reference(reference)
-            {
-                if typed
-                    .type_reference_table
-                    .constraints(*constraints)
-                    .iter()
-                    .any(|constraint| {
-                        matches!(constraint, TypeConstraintNode::Domain(listed)
-                            if listed.subject == DomainConstraintSubject::Declared
-                                && listed.symbol == domain)
-                    })
-                {
-                    return true;
+                } => {
+                    if typed
+                        .type_reference_table
+                        .constraints(*constraints)
+                        .iter()
+                        .any(|constraint| {
+                            matches!(constraint, TypeConstraintNode::Domain(domain)
+                            if domain.subject == DomainConstraintSubject::Declared
+                                && domain.symbol == membership.domain_symbol
+                                && domain.arguments.is_empty())
+                        })
+                    {
+                        return true;
+                    }
+                    reference = *base_type;
                 }
-                reference = *base_type;
+                _ => return false,
             }
-            false
-        };
+        }
+        false
+    }
+
+    /// State clauses outside their formals' existing membership remain
+    /// unserved. The shared contract reader applies the same membership rule
+    /// when reading a machine or requirement's ordinary `requires` clauses.
+    fn contracts_restate_formal_domains(&self, state: &typed_trees::state::State) -> bool {
+        let typed = self.typed;
         typed.state_contracts(state).iter().all(|contract| {
-            contract.kind == SignatureContractKind::Requires
+            contract.kind == typed_trees::signature::SignatureContractKind::Requires
+                && contract.binding.is_none()
                 && typed
                     .proof_facts
                     .span_or_empty(contract.facts)
                     .iter()
                     .all(|fact| {
-                        let ProofFact::Membership(membership) = fact else {
-                            return false;
-                        };
-                        if !membership.domain_symbol.is_valid()
-                            || !membership.domain_arguments.is_empty()
-                            || !typed.expression_table.expression_is_valid(membership.value)
-                        {
-                            return false;
-                        }
-                        let ExpressionNode::Name(path) =
-                            typed.expression_table.expression(membership.value)
-                        else {
-                            return false;
-                        };
-                        let Some(formal) = path.resolved_symbol() else {
-                            return false;
-                        };
-                        typed.expression_table.name_path_members(path.members).len() == 1
-                            && typed.state_parameters(state).iter().any(|parameter| {
-                                parameter.symbol == formal
-                                    && carries(parameter.type_reference, membership.domain_symbol)
-                            })
+                        self.fact_restates_formal_domain(typed.state_parameters(state), fact)
                     })
         })
     }
@@ -1030,6 +1044,20 @@ impl<'t> Program<'t> {
             &binders,
             &[],
         )?;
+        // A private omission requests inference; public omission and an
+        // explicitly written false promise that the effect is absent.
+        let bound =
+            |allowed, written: bool| (machine.is_public || written || allowed).then_some(allowed);
+        signature.operational = crate::body::OperationalCeilings {
+            suspension: bound(
+                machine.suspends,
+                !machine.suspends_keyword_source_spans.is_empty(),
+            ),
+            blocking: bound(
+                machine.blocks,
+                !machine.blocks_keyword_source_spans.is_empty(),
+            ),
+        };
         signature.termination = self.termination(id, machine)?;
         self.inherit_requirement_contract(id, machine, &mut signature, &mut names)?;
         // A machine's header clauses belong to the machine declaration; its
@@ -1069,6 +1097,7 @@ impl<'t> Program<'t> {
                 signature.reaches = routed.reaches;
             }
             signature.invokes = routed.invokes;
+            signature.operational = routed.operational;
             signature.termination = routed.termination;
             if !matches!(routed.crashes, CrashCeiling::Inferred) {
                 signature.crashes = routed.crashes;
@@ -1222,10 +1251,7 @@ impl<'t> Program<'t> {
         // Distinct declarations own distinct lifetime binders. Compare the
         // supplied signature after instantiating it in the requirement's
         // regions, for both inherited clauses and the advertised entry.
-        if !self.same_signature(id, required, body, machine)?
-            || body.erased != required.erased
-            || body.borrowed != required.borrowed
-        {
+        if !self.same_signature(id, required, body, machine)? || body.erased != required.erased {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -1366,18 +1392,13 @@ impl<'t> Program<'t> {
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<(Signature, MachineNames)> {
         let (signature, names) = self.declared_requirement_signature(id, requirement, arguments)?;
-        // These callable and witness uses cannot yet carry operational proof.
-        // Boundary and stored-callable declarations retain theirs separately.
-        if requirement.suspends || requirement.blocks {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Machine("suspends or blocks"),
-            ));
-        }
         Ok((signature, names))
     }
 
+    /// Read the types, logical clauses and ceilings of a requirement.
+    /// Boundary publication retains its suspension and blocking flags on the
+    /// checked declaration, and an actual call still owes their proof. Other
+    /// consumers use the same operational ceilings on their callable contract.
     pub(super) fn declared_requirement_signature(
         &mut self,
         id: MachineId,
@@ -1484,6 +1505,11 @@ impl<'t> Program<'t> {
                 declares_no_crash_route: signature.declares_no_crash_route,
             }
         };
+        let previous_elisions = self
+            .elided_lifetimes
+            .iter_mut()
+            .find(|(owner, _)| *owner == signature.symbol)
+            .map(|(_, count)| std::mem::replace(count, 0));
         let elision = std::mem::replace(
             &mut self.elision,
             super::regions::Elision::Inputs(signature.symbol),
@@ -1502,7 +1528,18 @@ impl<'t> Program<'t> {
         self.lifetime_owner = owner;
         self.elision = elision;
         self.scope = outer;
+        if let Some((_, count)) = self
+            .elided_lifetimes
+            .iter_mut()
+            .find(|(owner, _)| *owner == signature.symbol)
+        {
+            *count = (*count).max(previous_elisions.unwrap_or(0));
+        }
         let (mut lowered, _) = result?;
+        lowered.operational = crate::body::OperationalCeilings {
+            suspension: Some(signature.suspends),
+            blocking: Some(signature.blocks),
+        };
         lowered.termination = self.requirement_termination(id, signature)?;
         Ok(lowered)
     }
@@ -1516,6 +1553,14 @@ impl<'t> Program<'t> {
         arguments: &[semantic_vocabulary::ScalarTerm],
         declared: Declarer,
     ) -> Checked<(Signature, MachineNames)> {
+        // These are the declaration's parameters, not a new family whenever
+        // another call reads its header. Each invocation later substitutes
+        // them with its own actual regions (`call_of`).
+        let previous_elisions = self
+            .elided_lifetimes
+            .iter_mut()
+            .find(|(owner, _)| *owner == requirement.symbol)
+            .map(|(_, count)| std::mem::replace(count, 0));
         let elision = std::mem::replace(
             &mut self.elision,
             super::regions::Elision::Inputs(requirement.symbol),
@@ -1524,7 +1569,18 @@ impl<'t> Program<'t> {
         let read = self.read_callable_signature(id, requirement, arguments, declared);
         self.lifetime_owner = owner;
         self.elision = elision;
+        if let Some((_, count)) = self
+            .elided_lifetimes
+            .iter_mut()
+            .find(|(owner, _)| *owner == requirement.symbol)
+        {
+            *count = (*count).max(previous_elisions.unwrap_or(0));
+        }
         let (mut signature, names) = read?;
+        signature.operational = crate::body::OperationalCeilings {
+            suspension: Some(requirement.suspends),
+            blocking: Some(requirement.blocks),
+        };
         signature.termination = self.requirement_termination(id, requirement)?;
         Ok((signature, names))
     }
@@ -1682,6 +1738,9 @@ impl<'t> Program<'t> {
                 erased.push(position);
             }
             let access = reference.as_ref().map(|reference| reference.access);
+            let borrowed_regions = reference
+                .as_ref()
+                .map_or(crate::body::Regions::NONE, |reference| reference.regions);
             if let Some(reference) = reference {
                 borrowed.push(crate::body::Borrowed {
                     position,
@@ -1697,6 +1756,7 @@ impl<'t> Program<'t> {
                 homed: false,
                 erased: is_erased,
                 borrowed: access,
+                borrowed_regions,
             });
         }
         for binder in binders {
@@ -1709,6 +1769,7 @@ impl<'t> Program<'t> {
                 homed: false,
                 erased: false,
                 borrowed: None,
+                borrowed_regions: crate::body::Regions::NONE,
             });
         }
         // An elided lifetime in the result is the one its inputs carry
@@ -1803,6 +1864,9 @@ impl<'t> Program<'t> {
                 // for `u32`.
                 SignatureContractKind::Requires => {
                     for fact in facts {
+                        if self.fact_restates_formal_domain(formals, fact) {
+                            continue;
+                        }
                         let expression = self.fact(id, fact)?;
                         if self.states_nothing(id, expression)? {
                             continue;
@@ -1975,6 +2039,7 @@ impl<'t> Program<'t> {
         };
         Ok((
             Signature {
+                operational: Default::default(),
                 parameters,
                 erased,
                 borrowed,
@@ -2092,8 +2157,8 @@ impl<'t> Program<'t> {
     /// with the reference beside it (`Borrowed`), for a builtin scalar or a
     /// plain record `T`. Stage 01 marks `x: &mut T` mutable for the
     /// reference's exclusivity; that is the reference's access, not a `mut`
-    /// binding. A `&write T` formal, a reference with a named lifetime and
-    /// a reference to anything else stay refused.
+    /// binding. The outer reference lifetime is retained separately from
+    /// the referent's regions. A `&write T` formal remains unsupported.
     ///
     /// A `mut` formal that holds its own value is read like any other: the
     /// binding mode says only that the body may assign and store into its
@@ -2132,17 +2197,15 @@ impl<'t> Program<'t> {
                 .type_reference(formal.type_reference)
         }) {
             Some(TypeReferenceNode::Reference {
-                referee,
-                access,
-                lifetime,
-            }) => Some((*referee, *access, lifetime.is_some())),
+                referee, access, ..
+            }) => Some((*referee, *access)),
             _ => None,
         };
         let erased = match formal.relevance {
             language_core::BindingRelevance::Relevant => false,
             language_core::BindingRelevance::Erased => true,
         };
-        let Some((referee, access, named_lifetime)) = reference else {
+        let Some((referee, access)) = reference else {
             let value_type = self.value_type(id, formal.type_reference)?;
             if formal.is_mutable {
                 let unserved =
@@ -2181,17 +2244,22 @@ impl<'t> Program<'t> {
             self.typed.type_reference_table.type_reference(referee),
             TypeReferenceNode::Slice { .. }
         );
-        if named_lifetime && !is_view {
-            return unserved("reference parameter with a named lifetime");
-        }
-        // The loan itself is an unnamed carried reference beside whatever
-        // its referent carries, so it is one more input lifetime an elided
-        // result could have meant (lifetimes.md: "Several unnamed carried
-        // references do not become one source merely because they occupy
-        // one parameter"). No type names it; it is counted, not read.
-        if !is_view {
-            self.elided_region(id)?;
-        }
+        // Retain the outer loan itself, independently of nested views in
+        // its referent. A returned reference cannot borrow only a pointer
+        // word or substitute a referent's nested lifetime for this one.
+        let ordinary_region = if is_view {
+            None
+        } else {
+            let identity = self
+                .typed
+                .normalized_type_identity_text(formal.type_reference);
+            Some(self.borrowed_view_region(
+                id,
+                formal.type_reference,
+                self.lifetime_owner,
+                &identity,
+            )?)
+        };
         // Stage 01 sets `is_mutable` for an exclusive reference; a shared
         // one marked mutable would be a `mut` binding of the carrier.
         match access {
@@ -2233,12 +2301,27 @@ impl<'t> Program<'t> {
                     })?,
             ),
         };
+        let outer = match ordinary_region {
+            Some(region) => region,
+            None => *self
+                .region_tuple(value_type.regions())
+                .first()
+                .ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Parameter("view without its outer loan region"),
+                    )
+                })?,
+        };
+        let regions = self.intern_regions(vec![outer]);
         Ok((
             value_type,
             false,
             Some(crate::body::Borrowed {
                 position: 0,
                 access,
+                regions,
                 home,
             }),
         ))
@@ -2334,6 +2417,9 @@ impl<'t> Program<'t> {
                     homed: borrowed.is_some() && value_type.scalar().is_some(),
                     erased: signature.is_erased(position),
                     borrowed,
+                    borrowed_regions: signature
+                        .borrowed(position)
+                        .map_or(crate::body::Regions::NONE, |reference| reference.regions),
                 }
             })
             .collect();
@@ -2770,7 +2856,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
                 spans(element, binder, out);
             }
         }
-        ExpressionKind::Index { base, index } => {
+        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
             spans(base, binder, out);
             spans(index, binder, out);
         }
@@ -2809,6 +2895,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
         | ExpressionKind::Requalify(operand)
+        | ExpressionKind::Referent(operand)
         | ExpressionKind::Establish { operand, .. } => {
             spans(operand, binder, out);
         }
@@ -2937,7 +3024,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
                 expression_slot_uses(element, uses);
             }
         }
-        ExpressionKind::Index { base, index } => {
+        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
             expression_slot_uses(base, uses);
             expression_slot_uses(index, uses);
         }
@@ -2976,6 +3063,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
         | ExpressionKind::Requalify(operand)
+        | ExpressionKind::Referent(operand)
         | ExpressionKind::Establish { operand, .. } => {
             expression_slot_uses(operand, uses);
         }

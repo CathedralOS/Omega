@@ -49,24 +49,58 @@ pub struct PackageInspectionOutcome {
     pub requires_decision: bool, // inspection reports required changes but never resolves their decisions
 }
 
+// Audit is a package command too: retain its existing typed failure owner
+// instead of reducing review/consent errors to strings at this boundary.
 #[derive(Debug)]
-pub struct PackageInspectionError(String);
+pub struct PackageInspectionError(crate::PackageCommandError);
 
-diagnostics::string_diagnostic!(PackageInspectionError);
-
-impl From<String> for PackageInspectionError {
-    fn from(message: String) -> Self {
-        Self(message)
+impl PackageInspectionError {
+    pub fn source_completion_accounting(
+        &self,
+    ) -> &compilation_products::SourceCompletionAccounting {
+        self.0.source_completion_accounting()
+    }
+    pub fn with_source_completion_accounting(
+        self,
+        accounting: compilation_products::SourceCompletionAccounting,
+    ) -> Self {
+        Self(self.0.with_source_completion_accounting(accounting))
+    }
+    pub fn compilation_failure(&self) -> Option<&compilation_products::CompileFailure> {
+        self.0.compilation_failure()
     }
 }
-
-fn failure(error: impl fmt::Display) -> PackageInspectionError {
-    PackageInspectionError(error.to_string())
+impl fmt::Display for PackageInspectionError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(formatter)
+    }
 }
-
+impl std::error::Error for PackageInspectionError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.0)
+    }
+}
+impl From<crate::PackageCommandError> for PackageInspectionError {
+    fn from(error: crate::PackageCommandError) -> Self {
+        Self(error)
+    }
+}
+impl From<String> for PackageInspectionError {
+    fn from(message: String) -> Self {
+        Self(message.into())
+    }
+}
+impl From<compilation_products::CompileFailure> for PackageInspectionError {
+    fn from(error: compilation_products::CompileFailure) -> Self {
+        Self(error.into())
+    }
+}
+fn failure(error: impl fmt::Display) -> PackageInspectionError {
+    PackageInspectionError::from(error.to_string())
+}
 impl From<CompileResolvedPackageReviewsError> for PackageInspectionError {
     fn from(error: CompileResolvedPackageReviewsError) -> Self {
-        failure(error)
+        Self(error.into())
     }
 }
 

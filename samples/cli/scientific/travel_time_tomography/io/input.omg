@@ -1,7 +1,8 @@
 // Exactly 13 unsigned decimal integers in [0,99], separated by ASCII whitespace.
 // Consume at most 256 bytes, including trailing whitespace. No decimal syntax,
 // signs, partial records, extra tokens, or silent buffer truncation.
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 use domain::model;
 
 public data Input { tokens: [i32; 13]; valid: bool; }

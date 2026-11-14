@@ -1,7 +1,7 @@
 /*
 We assemble one syntax forest (`AssembledSyntax`) with exact package, import, and generated-source custody across the two-phase `Build` and `Product` compilation lifecycle.
 
-`ImmutableSourceParseCheckpoint::prepare` consumes an acquired source capture (or captures physical sources), then parses the authored `build.omg` import closure or the compiler-supplied `<default-build>` template while holding `Product` roots deferred. Calling `assemble` on that checkpoint produces the initial `Build`-scope `AssembledSyntax` along with a `DeferredProductSources` continuation. After the `Build` machine returns and its dependencies settle, `DeferredProductSources::assemble` joins the settled `PackageCompilationInputs`, opens the `Product` roots, attaches dependency-generated source handoffs, seeds target `ProgramEntry` contract sources and implicit `core` vocabulary (`code_layout.omg`, `float_operations.omg`), seals the `Product` source owner, and produces the final `Product`-scope `AssembledSyntax`.
+`ImmutableSourceParseCheckpoint::prepare` consumes an acquired source capture (or captures physical sources), then parses the authored `build.omg` import closure or the compiler-supplied `<default-build>` template while holding `Product` roots deferred. Calling `assemble` on that checkpoint produces the initial `Build`-scope `AssembledSyntax` along with a `DeferredProductSources` continuation. After the `Build` machine returns and its dependencies settle, `DeferredProductSources::assemble` joins the settled `PackageCompilationInputs`, opens the `Product` roots, attaches dependency-generated source handoffs, seeds target `ProgramEntry` contract sources and implicit `core` vocabulary (`code_layout.omg`, `indexing.omg`, `float_operations.omg`), seals the `Product` source owner, and produces the final `Product`-scope `AssembledSyntax`.
 */
 
 /*
@@ -123,20 +123,14 @@ impl DeferredProductSources {
             timings,
             catalogue,
         )?;
-        imports.seed(
-            crate::source::source_imports::bundled_core_root()?.join("code_layout.omg"),
-            source::DependencyScope::Product,
-        );
+        let core_root = crate::source::source_imports::bundled_core_root()?;
+        seed_core_vocabulary(&mut imports, &core_root, source::DependencyScope::Product);
         for scope in [
             source::DependencyScope::Build,
             source::DependencyScope::Product,
         ] {
             if sources_mention_floats(&storage, scope) {
-                imports.seed(
-                    crate::source::source_imports::bundled_core_root()?
-                        .join("float_operations.omg"),
-                    scope,
-                );
+                imports.seed(core_root.join("float_operations.omg"), scope);
             }
         }
         for seed in inputs.entry_contract_seeds(&storage)? {
@@ -534,8 +528,7 @@ impl ImmutableSourceParseCheckpoint {
             }
         }
         let core_root = crate::source::source_imports::bundled_core_root()?;
-        let query_types = core_root.join("code_layout.omg");
-        imports.seed(query_types, source_scope);
+        seed_core_vocabulary(&mut imports, &core_root, source_scope);
         if sources_mention_floats(&source_storage, source::DependencyScope::Build) {
             imports.seed(
                 core_root.join("float_operations.omg"),
@@ -1091,6 +1084,20 @@ fn append_build_prelude(
 
 struct ParsingTimings<'timings>(&'timings mut CompileTimings);
 
+// Both ordinary assembly and a paused Build's Product query use the same
+// captured core declarations. Queueing a path grants no source authority:
+// loading still goes through SourceStorage's immutable capture and scoped
+// source selection before resolution authenticates any catalog declaration.
+fn seed_core_vocabulary(
+    imports: &mut ImportQueue,
+    core_root: &Path,
+    scope: source::DependencyScope,
+) {
+    for file in ["code_layout.omg", "indexing.omg"] {
+        imports.seed(core_root.join(file), scope);
+    }
+}
+
 fn sources_mention_floats(
     source_storage: &crate::source::source_imports::SourceStorage,
     scope: source::DependencyScope,
@@ -1145,6 +1152,91 @@ impl PsiCompilationObserver for ParsingTimings<'_> {
 #[cfg(test)]
 mod requirement_preparation_tests {
     use super::*;
+
+    #[test]
+    fn collection_catalog_keeps_its_build_product_and_query_source_cohorts() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../../tests/fixtures/run/calls/scalar_contract_route_exit/main.omg")
+            .canonicalize()
+            .expect("the existing scalar fixture's exact source path");
+        let core = crate::source::source_imports::bundled_core_root().unwrap();
+        let indexing = core.join("indexing.omg");
+        let collection_source = |assembled: &AssembledSyntax, scope| {
+            let files = assembled
+                .sources
+                .selected_files()
+                .filter(|file| file.path == indexing && file.dependency_scope == scope)
+                .collect::<Vec<_>>();
+            let [file] = files.as_slice() else {
+                panic!("one captured collection catalog in {scope:?}, found {files:?}")
+            };
+            assert_eq!(file.package_root, core);
+            assert_eq!(file.origin, SourceOrigin::Toolchain);
+            assert_eq!(file.resolution_stratum, SourceResolutionStratum::Base);
+            assert_eq!(
+                file.source.as_ref(),
+                include_str!(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../../../../source/library/core/indexing.omg"
+                ))
+            );
+            file.source_id
+        };
+        let mut catalogue = source::SourceCatalogue::default();
+        let mut timings = CompileTimings::default();
+        let checkpoint = ImmutableSourceParseCheckpoint::prepare_from_sources(
+            &root,
+            None,
+            None,
+            &mut timings,
+            &mut catalogue,
+        )
+        .expect("the existing program's source capture");
+        let (_, mut build) = checkpoint
+            .assemble(None, &mut timings, &mut catalogue)
+            .expect("the initial Build source assembly");
+        let build_source = collection_source(&build, source::DependencyScope::Build);
+        assert!(!build.sources.selected_files().any(|file| {
+            file.path == indexing && file.dependency_scope == source::DependencyScope::Product
+        }));
+        let continuation = build
+            .product_sources
+            .take()
+            .expect("Product stays deferred");
+        let query = continuation
+            .assemble_query(
+                &crate::source::source_imports::ProductQueryInputs::new(None, vec![]).unwrap(),
+                &mut timings,
+                &mut catalogue,
+            )
+            .expect("a paused Build's query uses its captured Product sources");
+        let query_source = collection_source(&query, source::DependencyScope::Product);
+        assert_ne!(build_source, query_source);
+        let (_, product) = continuation
+            .assemble(None, &mut timings, &mut catalogue)
+            .expect("the final Product source assembly");
+        let product_source = collection_source(&product, source::DependencyScope::Product);
+        assert_ne!(build_source, product_source);
+        // An exact immutable dependency may retain its Product coordinate;
+        // it is the authored consumer occurrence that each assembly renews.
+        assert_eq!(query_source, product_source);
+        let consumer = |assembled: &AssembledSyntax| {
+            let sources = assembled
+                .sources
+                .selected_files()
+                .filter(|file| {
+                    file.path == root
+                        && file.origin == SourceOrigin::User
+                        && file.dependency_scope == source::DependencyScope::Product
+                })
+                .map(|file| file.source_id)
+                .collect::<Vec<_>>();
+            assert_eq!(sources.len(), 1, "one actual authored Product root");
+            assert!(assembled.root_sources.contains(&sources[0]));
+            sources[0]
+        };
+        assert_ne!(consumer(&query), consumer(&product));
+    }
 
     #[test]
     fn original_build_bindings_retain_their_real_toolchain_requirement_calls() {

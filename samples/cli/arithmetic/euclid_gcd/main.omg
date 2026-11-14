@@ -7,7 +7,7 @@
 // Expected exit: 12.
 // Expected output contains: result: the GCD, 12 for (48, 36) (the exit code)
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
 }

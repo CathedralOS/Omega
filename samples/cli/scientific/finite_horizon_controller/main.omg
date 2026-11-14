@@ -1,6 +1,7 @@
 // Offline controller: input selection, validation, exhaustive search, reporting.
 // No source outside this application supplies any controller algorithm.
-use omega_language_std::console;
+use omega_language_std::Console;
+use omega_language_std::LineReadResult;
 use controller::model;
 use controller::search;
 use data::fixtures;

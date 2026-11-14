@@ -952,7 +952,38 @@ impl<'source> Declarations<'source> {
         })
     }
 
+    fn dictionary_symbol(&self, symbol: SymbolHandle) -> Result<SymbolHandle, Diagnostic> {
+        self.valid(symbol, "declaration")?;
+        if self.typed.symbols.get(symbol).kind != SymbolKind::State
+            || self.identities.contains_key(&symbol)
+        {
+            return Ok(symbol);
+        }
+        let (machine, _) = self
+            .typed
+            .unique_machine_by_entry_state_symbol(symbol)
+            .ok_or_else(|| {
+                refused("source selection state has no unique registered machine entry")
+            })?;
+        self.valid(machine.symbol, "entry declaration")?;
+        if !self.identities.contains_key(&machine.symbol) {
+            return Err(refused(
+                "source selection entry has no exact emitted machine declaration",
+            ));
+        }
+        if self.purpose(symbol)? != self.purpose(machine.symbol)? {
+            return Err(refused(
+                "source selection entry changes its owning declaration's purpose",
+            ));
+        }
+        // The entry and its owning machine are one selected declaration, not
+        // two dictionary rows with a copied identity. The original occurrence
+        // and physical call still authenticate the exact entry independently.
+        Ok(machine.symbol)
+    }
+
     fn identity(&mut self, symbol: SymbolHandle) -> Result<String, Diagnostic> {
+        let symbol = self.dictionary_symbol(symbol)?;
         if let Some(identity) = self.identities.get(&symbol) {
             return Ok(identity.clone());
         }
@@ -999,7 +1030,7 @@ impl<'source> Declarations<'source> {
         output: &mut SelectionQuestions,
         symbol: SymbolHandle,
     ) -> Result<SelectionDeclarationId, Diagnostic> {
-        self.valid(symbol, "declaration")?;
+        let symbol = self.dictionary_symbol(symbol)?;
         if let Some(id) = self.ids.get(&symbol) {
             return Ok(*id);
         }

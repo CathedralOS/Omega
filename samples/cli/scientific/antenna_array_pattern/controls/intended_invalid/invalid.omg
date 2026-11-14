@@ -1,5 +1,5 @@
 // Complete intended-invalid application: element 4 is outside a four-element extent.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Invalid { weights: [i32; 4]; }
 machine Invalid::main(program: &mut Invalid) reaches Console {
     program.weights[4] = 1;

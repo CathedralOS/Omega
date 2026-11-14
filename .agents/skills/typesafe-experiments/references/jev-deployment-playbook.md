@@ -105,7 +105,7 @@ Every shipped instrument shares these; deviation needs a reason:
 | Failure attribution | `tools/test_affected.py --base X --attribute LOG` | "is this red mine, baseline, or environmental?" |
 
 Discovery pointers: `advance` names proof_advisor, corpus_gate `--jev`,
-triage_advisor and jev_attribute; `tools/testing.md` names the test_affected
+triage_advisor and jev_attribute; `tools/docs/testing.md` names the test_affected
 augment, `--attribute LOG`, triage_advisor, jev_attribute and corpus_gate
 `--jev`; the swarm skills (devin-swarm, dot-swarm, codex-swarm) name the
 `secret_ids` injection cloud sessions need to reach the API. cursor-swarm has

@@ -27,11 +27,12 @@ esac
 
 # mbx is Mr Boxington, the shared Cargo build cache AGENTS.md builds with:
 # https://mr-boxington.jdx.dev/ (source https://github.com/jdx/mr-boxington).
-MBX_VERSION=1.29.2
+repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+# The one mbx pin, shared with CI, Devin and the Windows instructions.
+MBX_VERSION=$(tr -d "[:space:]" < "$repo/tools/mbx-version")
 # cargo xtask doctor requires cargo-nextest 0.9.140 or newer.
 NEXTEST_VERSION=0.9.150
 
-repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 os=$(uname -s)
 arch=$(uname -m)
 if [ "$arch" = "arm64" ]; then arch="aarch64"; fi

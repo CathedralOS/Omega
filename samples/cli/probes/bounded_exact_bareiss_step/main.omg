@@ -11,7 +11,7 @@
 // Expected exit: 0
 // Expected output contains: exact=6
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     cells: [i64; 5];

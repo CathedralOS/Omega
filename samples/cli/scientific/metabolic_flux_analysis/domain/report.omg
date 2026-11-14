@@ -1,6 +1,6 @@
 use domain::input;
 use omega::language::core::narrow_i64_to_i32_wrapping;
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::F64::from_i64;
 use omega::language::core::I64::from_f64;
 

@@ -1,7 +1,7 @@
 module spectrometer::output;
 use omega::language::core::abs_f64;
 use spectrometer::model::Spectrometer;
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::I32::from_f64;
 
 // Fixed-width decimal fields are emitted from computed values, with no string

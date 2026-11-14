@@ -28,7 +28,7 @@
 // descriptor slot, forcing staging. Guarded by the RUN canary
 // slices/recursive_subslice_element_accumulator_exit (oracle-matched).
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     arr: [i32 in Wrapping; 4];

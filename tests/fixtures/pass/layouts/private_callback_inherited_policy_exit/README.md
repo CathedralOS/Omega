@@ -39,7 +39,7 @@ native/Psi agreement is claimed. Actual x86 interrupt acceptance remains
 with Cathedral's QEMU timer test.
 
 From the repository root on Darwin ARM64, use an optimized compiler built from
-the candidate being checked. Follow the [host build budget](../../../../../tools/build_slot.md)
+the candidate being checked. Follow the [host build budget](../../../../../tools/docs/build_slot.md)
 before running; these commands show a ten-CPU reservation. Prepare the C
 library explicitly; the corpus does not automatically run `fixture/prepare.py`:
 

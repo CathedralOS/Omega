@@ -1,5 +1,5 @@
 // IND17: independent acquisition counter reconstruction and clock fitting.
-use omega_language_std::console;
+use omega_language_std::Console;
 use clock::model;
 use clock::reconstruct;
 use clock::fit;

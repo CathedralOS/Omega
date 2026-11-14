@@ -34,6 +34,6 @@ The root [main.omg](main.omg) is another existing witness for the same automatic
 
 ## Validation status
 
-Positive acceptance requires `omega run --both` with exit `0` on all four hosted targets, plus the intended rejection for every invalid twin. Exact-source runs or applicable retained evidence must identify the producer and target under `tools/testing.md`.
+Positive acceptance requires `omega run --both` with exit `0` on all four hosted targets, plus the intended rejection for every invalid twin. Exact-source runs or applicable retained evidence must identify the producer and target under `tools/docs/testing.md`.
 
 This source migration retains source, operand, Build, mirror and twin-difference audits. It does not supply compiler proof or runtime acceptance. The changed corpus fixtures still need clean recording on the integrated producer. Historical Linux x86-64 observations belong to the legacy source recorded by those runs; they do not establish that this migrated source passed. Check their consumer-based applicability before any reuse.

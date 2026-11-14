@@ -1,5 +1,6 @@
 // Complete bounded CLI: choose a fixture with one ASCII digit and LF.
-use omega_language_std::console;
+use omega_language_std::Console;
+use omega_language_std::LineReadResult;
 use landcover::geometry;
 use landcover::resampling;
 use fixtures::catalog;

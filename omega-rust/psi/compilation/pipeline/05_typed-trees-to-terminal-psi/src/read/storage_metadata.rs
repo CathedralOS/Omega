@@ -250,13 +250,19 @@ impl Program<'_> {
                         ))
                     }
                     StorageShape::FixedArray { element, .. } => nested.push(*element),
-                    StorageShape::ElementView { element, .. } => {
+                    StorageShape::ElementView { element, .. }
+                    | StorageShape::Reference {
+                        referent: element, ..
+                    } => {
                         self.data_type(context, *element)?;
-                        // A view owns its descriptor, not the element storage.
-                        // The pointed-to element's linear claim is not a claim
-                        // carried by the descriptor's physical representation.
+                        // The descriptor does not own its backing storage.
+                        // The referent's linear claim therefore stays separate.
                     }
-                    StorageShape::ByteSequence(_) | StorageShape::PrimitiveScalar { .. } => {}
+                    // Opaque data has no authored children to traverse. Its
+                    // declared multiplicity still supplies the claim above.
+                    StorageShape::Opaque
+                    | StorageShape::ByteSequence(_)
+                    | StorageShape::PrimitiveScalar { .. } => {}
                 }
                 let inherited = nested.iter().any(|nested| {
                     properties

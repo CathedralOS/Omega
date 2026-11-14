@@ -1,5 +1,6 @@
 module input::sequence;
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 
 public data Sequence {
     bases: [u8; 16];

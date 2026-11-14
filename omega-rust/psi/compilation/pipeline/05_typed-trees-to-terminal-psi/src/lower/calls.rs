@@ -8,8 +8,9 @@ nothing else names (`places::record`), the call takes that root whole and
 owned, and the root's home is retired on the edge into the call's
 continuation. A loan for a borrowed formal passes the lent place itself,
 with the loan's access, and mints one `Loan` obligation; an exclusive loan
-leaves the lent place with contents this machine cannot name once the call
-returns. Scalar and record arguments are evaluated in one left-to-right
+initially invalidates the lent place as a whole. After all bodies are lowered,
+their published write frames retain facts about provably untouched fields.
+Scalar and record arguments are evaluated in one left-to-right
 order (calls_and_outcomes.md: "Mixed scalar and structural operands share
 that order; they do not form two separately evaluated lists") and then
 travel in Terminal Psi's two lanes.
@@ -32,6 +33,198 @@ use crate::body::{CallTarget, CrashCeiling, Expression, ExpressionKind, Signatur
 use crate::canonical;
 use crate::outcome::Outcome;
 use crate::{SourceOrigin, Unserved, refuse};
+
+/// A call need not replace every field it borrows. Once every body has its
+/// canonical operations, publish the inferred frames and use those same
+/// effects in the existing write log. This changes which old contents are
+/// invalidated; it never supplies a new field value.
+pub(crate) fn publish_write_frames(
+    diagnostic: MachineId,
+    module: &mut terminal_psi::TerminalModule,
+    tables: &mut terminal_check_tables::CheckTables,
+) -> Checked<()> {
+    use semantic_vocabulary::CanonicalStructuralPathSegment;
+    use terminal_check_tables::bindings::{self, Content, Segment, WriteRow};
+
+    let problem = |machine, concerns, detail: String| Refusal {
+        reason: RefusalReason::ForeignIdentity,
+        machine,
+        concerns,
+        detail,
+    };
+    let frames = terminal_semantics::borrowed_storage::inferred_write_frames(module)
+        .map_err(|detail| problem(diagnostic, Construct::Machine, detail))?;
+    for machine in &mut module.machines {
+        machine.contract.published_writes = frames
+            .get(machine.id)
+            .ok_or_else(|| {
+                problem(
+                    machine.id,
+                    Construct::Machine,
+                    "write frame has no owner".to_owned(),
+                )
+            })?
+            .clone();
+    }
+    for machine in &module.machines {
+        let id = machine.id;
+        let tables = tables.machines.get_mut(id).ok_or_else(|| {
+            problem(
+                id,
+                Construct::Machine,
+                "write frame has no checking tables".to_owned(),
+            )
+        })?;
+        // Operation identities can be emitted in a different order from
+        // allocation. Index only actual operations, rather than allocating
+        // scratch up to the largest possible identity.
+        let mut writes: Vec<_> = machine
+            .operations()
+            .map(|operation| (operation.id, Vec::new()))
+            .collect();
+        writes.sort_unstable_by_key(|(operation, _)| *operation);
+        for (_, row) in tables.writes.iter() {
+            let ProgramPoint::AfterOperation(operation) = row.at else {
+                return Err(problem(
+                    id,
+                    Construct::Place(row.place),
+                    "a lowered storage write is not at its operation".to_owned(),
+                ));
+            };
+            let position = writes
+                .binary_search_by_key(&operation, |(operation, _)| *operation)
+                .map_err(|_| {
+                    problem(
+                        id,
+                        Construct::Operation(operation),
+                        "a write names a missing operation".to_owned(),
+                    )
+                })?;
+            writes[position].1.push(*row);
+        }
+        let mut revised = Vec::with_capacity(tables.writes.len());
+        for operation in machine.operations() {
+            let position = writes
+                .binary_search_by_key(&operation.id, |(operation, _)| *operation)
+                .map_err(|_| {
+                    problem(
+                        id,
+                        Construct::Operation(operation.id),
+                        "write-frame operation disappeared".to_owned(),
+                    )
+                })?;
+            let old = &writes[position].1;
+            let Some(regions) = terminal_semantics::borrowed_storage::call_write_regions(
+                module, machine, operation,
+            )
+            .map_err(|detail| problem(id, Construct::Operation(operation.id), detail))?
+            else {
+                revised.extend_from_slice(old);
+                continue;
+            };
+            if old.iter().any(|row| row.content != Content::Overwritten) {
+                return Err(problem(
+                    id,
+                    Construct::Operation(operation.id),
+                    "a call write has unexpected scalar or move contents".to_owned(),
+                ));
+            }
+            let at = ProgramPoint::AfterOperation(operation.id);
+            if let Some(result) = operation.result.structural() {
+                let place = tables.roots.get(result.place).copied().ok_or_else(|| {
+                    problem(
+                        id,
+                        Construct::Operation(operation.id),
+                        "a call result has no exact root".to_owned(),
+                    )
+                })?;
+                revised.push(WriteRow {
+                    place,
+                    at,
+                    content: Content::Overwritten,
+                });
+            }
+            for region in regions {
+                let root = region.root.ok_or_else(|| {
+                    problem(
+                        id,
+                        Construct::Operation(operation.id),
+                        "a known write frame has no storage root".to_owned(),
+                    )
+                })?;
+                let structural_type = machine.structural_place_type(root).ok_or_else(|| {
+                    problem(
+                        id,
+                        Construct::Operation(operation.id),
+                        "a written root has no structural type".to_owned(),
+                    )
+                })?;
+                // The same region the ownership analysis gives a write of this
+                // storage, a stored view's descriptor included.
+                let path = terminal_semantics::canonical_inline_region(
+                    module.structural_types.iter(),
+                    structural_type,
+                    &region.projection.path,
+                )
+                .ok_or_else(|| {
+                    problem(
+                        id,
+                        Construct::Operation(operation.id),
+                        "a written region has no exact inline storage path".to_owned(),
+                    )
+                })?;
+                let mut place = tables.roots.get(root).copied().ok_or_else(|| {
+                    problem(
+                        id,
+                        Construct::Operation(operation.id),
+                        "a written region has no exact root".to_owned(),
+                    )
+                })?;
+                for segment in path {
+                    let segment = match segment {
+                        CanonicalStructuralPathSegment::Field(field) => Segment::Field(field),
+                        CanonicalStructuralPathSegment::FixedIndex(index) => {
+                            Segment::FixedIndex(index)
+                        }
+                        CanonicalStructuralPathSegment::Case(case) => Segment::Case(case),
+                        CanonicalStructuralPathSegment::Referent => {
+                            return Err(problem(
+                                id,
+                                Construct::Operation(operation.id),
+                                "a write frame crosses an unserved referent".to_owned(),
+                            ));
+                        }
+                    };
+                    place = bindings::intern_projection(id, &mut tables.places, place, segment)?;
+                }
+                revised.push(WriteRow {
+                    place,
+                    at,
+                    content: Content::Overwritten,
+                });
+            }
+        }
+        for (_, row) in tables.writes.iter() {
+            tables
+                .places
+                .get_mut(row.place)
+                .ok_or_else(|| {
+                    problem(
+                        id,
+                        Construct::Place(row.place),
+                        "a storage write has no exact place".to_owned(),
+                    )
+                })?
+                .writes
+                .clear();
+        }
+        tables.writes = semantic_vocabulary::IdTable::default();
+        for row in revised {
+            bindings::record_write(id, &mut tables.places, &mut tables.writes, row)?;
+        }
+    }
+    Ok(())
+}
 
 /// Staged storage ends after the call, whether its value was transferred or
 /// its captured descriptor was lent. The argument lanes keep those distinct.
@@ -80,12 +273,6 @@ pub(super) enum EvaluatedCallTarget {
     Boundary {
         boundary: semantic_vocabulary::BoundaryMachineId,
     },
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(super) struct EvaluatedCall {
-    pub target: EvaluatedCallTarget,
-    pub acknowledgement: language_core::CallOperationalAcknowledgement,
 }
 
 impl Lowering<'_> {
@@ -140,7 +327,10 @@ impl Lowering<'_> {
         match target {
             CallTarget::Machine(machine) => self.outcome(*machine).cloned(),
             CallTarget::Boundary { boundary, .. } => self.boundary_outcome(*boundary),
-            CallTarget::Selected { .. } => {
+            CallTarget::Selected { contract, .. } => {
+                let row = self.callables.contracts.get(*contract).ok_or_else(|| {
+                    self.internal("selected call has no retained public contract")
+                })?;
                 let signature = self.target_signature(target)?;
                 let crash_routes = match signature.crashes {
                     CrashCeiling::Authored(routes) => routes,
@@ -152,6 +342,7 @@ impl Lowering<'_> {
                 // An unknown callable may return. A selected body cannot narrow
                 // this public continuation or contribute private guarantees.
                 Ok(Outcome {
+                    operational: [row.envelope.suspends, row.envelope.blocks],
                     completes_normally: true,
                     crash_routes,
                     service_reach: match signature.reaches {
@@ -233,6 +424,25 @@ impl Lowering<'_> {
                     evaluated.scalars.push(value);
                 }
             }
+        }
+        // Requirements observe the exact actual subtree, even when no body
+        // operation reads that leaf. Recording a name grants no premise.
+        let bindings = evaluated
+            .actuals
+            .iter()
+            .filter_map(|actual| match actual {
+                Actual::Place(place) => Some(*place),
+                Actual::Value(_) => None,
+            })
+            .enumerate()
+            .map(|(lane, actual)| {
+                let formal = PlaceId::new(lane as u64 + 1)
+                    .ok_or_else(|| self.internal("structural formal identity overflow"))?;
+                Ok((formal, actual))
+            })
+            .collect::<Checked<Vec<_>>>()?;
+        for clause in &signature.requires {
+            self.name_clause_contents(clause, &bindings)?;
         }
         Ok(Reached::Value(evaluated))
     }
@@ -338,7 +548,7 @@ impl Lowering<'_> {
         signature: &Signature,
         arguments: Arguments,
         outcome: &Outcome,
-        acknowledgement: language_core::CallOperationalAcknowledgement,
+        acknowledgement: terminal_psi::CallAcknowledgement,
         source: SourceOrigin,
     ) -> Checked<()> {
         if let EvaluatedCallTarget::Boundary { boundary } = target {
@@ -364,14 +574,12 @@ impl Lowering<'_> {
         )?;
         let requirements = self.invocation(
             InvocationSite::InvokeNoNormal(edge),
-            EvaluatedCall {
-                target,
-                acknowledgement,
-            },
+            target,
             signature.requires.len(),
             &arguments.actuals,
             before,
             source,
+            acknowledgement,
         )?;
         for bucket in &crash_continuations {
             self.obligation(
@@ -404,12 +612,25 @@ impl Lowering<'_> {
     pub(super) fn invocation(
         &mut self,
         site: InvocationSite,
-        call: EvaluatedCall,
+        target: EvaluatedCallTarget,
         clauses: usize,
         actuals: &[Actual],
         before: ProgramPoint,
         source: SourceOrigin,
+        acknowledgement: terminal_psi::CallAcknowledgement,
     ) -> Checked<Vec<ObligationId>> {
+        self.call_formations.push(terminal_psi::CallFormation {
+            site: match site {
+                InvocationSite::Operation(operation) => {
+                    terminal_psi::CallSite::Operation(operation)
+                }
+                InvocationSite::InvokeNoNormal(edge) | InvocationSite::ExternalCompletion(edge) => {
+                    terminal_psi::CallSite::Edge(edge)
+                }
+            },
+            acknowledgement,
+            tail_callee: None,
+        });
         if let Some((owner, node)) = source.node() {
             self.source_calls
                 .push(typed_trees::SourceCallCorrespondence {
@@ -420,9 +641,8 @@ impl Lowering<'_> {
                 });
         }
         let invocation = self.tables.invocations.push(InvocationRow {
-            operational_acknowledgement: call.acknowledgement,
             site,
-            callee: match call.target {
+            callee: match target {
                 EvaluatedCallTarget::Machine(machine) => {
                     Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(machine))
                 }
@@ -463,9 +683,9 @@ impl Lowering<'_> {
         callee: &CallTarget,
         arguments: &[Expression],
         designated: Option<crate::body::DesignatedOperands>,
-        acknowledgement: language_core::CallOperationalAcknowledgement,
         result: Option<ValueType>,
         source: SourceOrigin,
+        acknowledgement: terminal_psi::CallAcknowledgement,
     ) -> Evaluation<Value> {
         if designated.is_some() && !matches!(callee, CallTarget::Boundary { .. }) {
             return Err(self.internal("designated operands on a call that is no boundary call"));
@@ -509,14 +729,12 @@ impl Lowering<'_> {
         }
         let requirements = self.invocation(
             InvocationSite::Operation(operation),
-            EvaluatedCall {
-                target,
-                acknowledgement,
-            },
+            target,
             signature.requires.len(),
             &arguments.actuals,
             before,
             source,
+            acknowledgement,
         )?;
         let _ = self.loans(&arguments.loans, before, source);
         for bucket in &crash_continuations {
@@ -614,7 +832,7 @@ impl Lowering<'_> {
             Some(value_type @ ValueType::Record(record, _, _)) => {
                 let (root, exact) = self.produce(operation, record, kind)?;
                 self.unknown_contents(exact, operation)?;
-                self.initial_leaves(exact, value_type)?;
+                self.name_contents(exact, value_type)?;
                 Value::Record(root)
             }
             None => self.emit(operation, None, kind)?,

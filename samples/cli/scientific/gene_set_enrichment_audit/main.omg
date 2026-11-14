@@ -1,5 +1,5 @@
 // Runtime data is supplied through five bounded newline-terminated rows.
-use omega_language_std::console;
+use omega_language_std::Console;
 use domain::sets;
 use domain::exact;
 use domain::report;

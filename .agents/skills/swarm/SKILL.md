@@ -8,7 +8,7 @@ description: Coordinate a requested local or cloud swarm of concurrent Omega age
 This skill defines environment setup and session transport. Execution ownership
 follows [AGENTS.md](../../../AGENTS.md#sessions-and-subagents), the worker workflow
 is [advance](../advance/SKILL.md), and publication follows
-[landing](../../../tools/landing.md). Point workers to those sources instead of
+[landing](../../../tools/docs/landing.md). Point workers to those sources instead of
 copying their rules into prompts or platform references.
 
 - **Dispatch:** The coordinator runs `/advance` Step 1 and starts workers immediately. Each worker owns Steps 2–5 in its isolated `.agents/worktree/worker-N` pool slot and context window, including self-review with [coordinator-review](../coordinator-review/SKILL.md) and verified landing. A coordinator may review a diff; workers do not wait for routine coordinator approval. Explicit source-upload batch integration is a separate mode described in [Codex](references/codex.md).

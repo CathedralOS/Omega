@@ -3,7 +3,7 @@
 // that too. Writes through either window are the row's own cells.
 // Expected exit: 0
 // Expected output contains: 3 9 5 7
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Occupancy { cells: [i32 in Wrapping; 4]; }
 data Main { }

@@ -31,13 +31,14 @@ impl SelectedExecution {
     pub fn settle(
         target_profile: Option<target::TargetProfile>,
         supply: &provider_planning::target_supply::SettledTargetSupply,
+        planning: provider_planning::target_supply::SupplyPlanning<'_>,
     ) -> Result<Self, Vec<Diagnostic>> {
         if target_profile.map(|profile| profile.target_name()) != supply.target() {
             return Err(vec![Diagnostic::error(
                 "selected execution and settled provider supply name different deployments",
             )]);
         }
-        Self::from_realization(target_profile, supply.realize_no_demand()?)
+        Self::from_realization(target_profile, supply.realize(planning)?)
     }
 
     pub fn realization(&self) -> &provider_planning::target_supply::RealizedTargetSupply {
@@ -78,7 +79,7 @@ impl SelectedExecution {
             selection.assumed_bindings = self.plans().assumed_bindings().to_vec();
             selection
         })
-        .map_err(|reason| vec![reason]);
+        .map_err(|reason| vec![format!("provider proposal for `{target}`: {reason}")]);
         Some(backend_plan::TerminalTargetProviderProposal {
             target: target.to_owned(),
             terminal_psi: artifact.identity(),

@@ -6,7 +6,7 @@
 // Expected exit: 0.
 // Expected output contains: Hello, Omega.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     pause: [u8; 256];

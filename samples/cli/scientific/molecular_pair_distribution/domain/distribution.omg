@@ -1,5 +1,5 @@
 use omega::language::core::F64::from_i32;
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::widen_i32_to_i64;
 use domain::model;
 use io::output;

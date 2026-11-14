@@ -3,7 +3,8 @@
 // The sample harness supplies EOF; positive design cases use data/*.stdin.
 // One finite request: treatments,subjects,carryover-cap,forbidden-edge + LF.
 // Every result is an actual allocation or exhaustive bounded infeasibility.
-use omega_language_std::console;
+use omega_language_std::Console;
+use omega_language_std::LineReadResult;
 use omega::language::core::widen_u8_to_i32;
 use design::model;
 use design::search;

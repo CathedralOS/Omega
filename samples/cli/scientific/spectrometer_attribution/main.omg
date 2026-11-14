@@ -2,7 +2,7 @@
 // Expected output contains: invalid spectrum input
 // Valid spectrum/catalog fixtures exit 0 and emit regions and catalog matches.
 module spectrometer;
-use omega_language_std::console;
+use omega_language_std::Console;
 use spectrometer::model::Spectrometer;
 use spectrometer::model::IntegerRead;
 use spectrometer::input::read_integer;

@@ -239,6 +239,7 @@ impl<'t> Program<'t> {
             };
         let descriptor = self.selection(contract, target, application, conformance, requirement);
         Ok(Expression {
+            call_context: None,
             kind: ExpressionKind::MachineValue {
                 contract,
                 descriptor,

@@ -1,7 +1,8 @@
 // Bounded signed decimal tokens: at most 100 digits, no exponent syntax.
 // The byte budget includes separators and trailing whitespace. EOF is accepted
 // only after a complete token; malformed, truncated and over-budget input reject.
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 use omega::language::core::F64::from_i32;
 
 public data Reader { consumed: i32; }

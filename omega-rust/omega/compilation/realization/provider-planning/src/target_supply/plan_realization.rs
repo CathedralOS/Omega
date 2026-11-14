@@ -223,6 +223,52 @@ fn attach_calling(
         .map_err(str::to_owned)
 }
 
+/// Preserve the exact failed canonical join for a caller that retains source
+/// labels. Labels are diagnostic only; matching continues to use these IDs.
+#[derive(Debug)]
+pub(super) enum TargetSupplyRealizationError {
+    MissingCheckedRow {
+        provider_declaration: terminal_psi::TerminalIdentityIndex,
+        provider_identity: terminal_psi::TerminalIdentityIndex,
+        schema_declaration: terminal_psi::TerminalIdentityIndex,
+        schema_application: terminal_psi::TerminalIdentityIndex,
+        requirement_identity: String,
+    },
+    ExistingDiagnostics(String),
+}
+
+impl From<String> for TargetSupplyRealizationError {
+    fn from(reason: String) -> Self {
+        Self::ExistingDiagnostics(reason)
+    }
+}
+
+impl From<&str> for TargetSupplyRealizationError {
+    fn from(reason: &str) -> Self {
+        Self::ExistingDiagnostics(reason.to_owned())
+    }
+}
+
+impl TargetSupplyRealizationError {
+    pub(super) fn diagnostic(&self, module: &TerminalModule) -> String {
+        match self {
+            Self::MissingCheckedRow {
+                provider_identity,
+                requirement_identity,
+                ..
+            } => match module.identities.text(*provider_identity) {
+                Some(provider) => format!(
+                    "chosen provider `{provider}` has no proved row for `{requirement_identity}`"
+                ),
+                None => {
+                    "chosen provider missing a checked row also lost its diagnostic identity".into()
+                }
+            },
+            Self::ExistingDiagnostics(reason) => reason.clone(),
+        }
+    }
+}
+
 fn checked_plan(
     module: &TerminalModule,
     choice: &TerminalProviderSelection,
@@ -230,7 +276,7 @@ fn checked_plan(
     candidates: &[Candidate<'_>],
     calling: &[calling_conventions::BoundaryCallingApplication],
     lifetime_families: &[&str],
-) -> Result<ProviderPlanRealizationInput, String> {
+) -> Result<ProviderPlanRealizationInput, TargetSupplyRealizationError> {
     let provider = text(module, choice.provider_identity)?;
     let owner = text(module, choice.provider_declaration)?;
     let mut schema_value = ServiceSchema::from_declaration(Arc::clone(&schema.surface));
@@ -243,9 +289,16 @@ fn checked_plan(
         let begin = candidates.partition_point(|row| row.requirement < requirement);
         let end = begin + candidates[begin..].partition_point(|row| row.requirement == requirement);
         let selected = &candidates[begin..end];
-        let first = selected.first().ok_or_else(|| {
-            format!("chosen provider `{provider}` has no proved row for `{requirement}`")
-        })?;
+        let first =
+            selected
+                .first()
+                .ok_or_else(|| TargetSupplyRealizationError::MissingCheckedRow {
+                    provider_declaration: choice.provider_declaration,
+                    provider_identity: choice.provider_identity,
+                    schema_declaration: schema.declaration,
+                    schema_application: schema.application,
+                    requirement_identity: requirement.to_owned(),
+                })?;
         if selected.iter().any(|row| {
             row.source_callable != first.source_callable
                 || row.row.source_candidate_package_identity
@@ -253,7 +306,8 @@ fn checked_plan(
         }) {
             return Err(format!(
                 "chosen provider `{provider}` has competing exact realizations for `{requirement}`"
-            ));
+            )
+            .into());
         }
         if lifetime_families.binary_search(&requirement).is_ok() {
             return Err(
@@ -519,6 +573,13 @@ pub fn realize_target_supply(
     request: TargetSupplyRealizationRequest<'_>,
 ) -> Result<RealizedTargetSupply, String> {
     let module = request.module;
+    realize_target_supply_detailed(request).map_err(|error| error.diagnostic(module))
+}
+
+pub(super) fn realize_target_supply_detailed(
+    request: TargetSupplyRealizationRequest<'_>,
+) -> Result<RealizedTargetSupply, TargetSupplyRealizationError> {
+    let module = request.module;
     target::TargetProfile::from_canonical_target_name(request.target)
         .map_err(|error| error.to_string())?;
     let candidates = candidates(module)?;
@@ -609,6 +670,7 @@ pub fn realize_target_supply(
                 .terminal_authority_permission_identities,
         },
     )
+    .map_err(TargetSupplyRealizationError::ExistingDiagnostics)
 }
 
 pub(super) fn family_realizations(

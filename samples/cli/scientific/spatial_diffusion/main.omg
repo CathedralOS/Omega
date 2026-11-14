@@ -4,7 +4,8 @@
 // true arm; the false arm continues to the iteration limit. The next statement
 // is not a fallback.
 // SCI04: bounded 2D finite-volume diffusion/Poisson with explicit CSR and CG.
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 use omega::language::core::I64::from_f64;
 use domain::grid;
 use domain::solver;

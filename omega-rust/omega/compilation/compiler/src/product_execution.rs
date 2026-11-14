@@ -104,6 +104,10 @@ pub enum CompilationProductError {
         diagnostics: Vec<Diagnostic>,
         accounting: build_time_evaluation::SourceCompletionAccounting,
     },
+    BuildConsentRequired {
+        requests: Vec<package_compilation::build_execution::RestrictedBuildRequest>,
+        accounting: build_time_evaluation::SourceCompletionAccounting,
+    },
 }
 
 impl From<Vec<Diagnostic>> for CompilationProductError {
@@ -122,6 +126,13 @@ impl From<crate::CompileFailure> for CompilationProductError {
                 diagnostics,
                 accounting,
             },
+            crate::CompileFailure::BuildConsentRequired {
+                requests,
+                accounting,
+            } => Self::BuildConsentRequired {
+                requests,
+                accounting,
+            },
             other => Self::Production(other.into_diagnostics()),
         }
     }
@@ -134,6 +145,13 @@ impl From<CompilationProductError> for crate::CompileFailure {
                 diagnostics,
                 accounting,
             } => Self::source_completion(diagnostics, accounting),
+            CompilationProductError::BuildConsentRequired {
+                requests,
+                accounting,
+            } => Self::BuildConsentRequired {
+                requests,
+                accounting,
+            },
             other => Self::Diagnostics(other.into_diagnostics()),
         }
     }
@@ -155,6 +173,16 @@ impl CompilationProductError {
                     accounting,
                 }
             }
+            Self::BuildConsentRequired {
+                requests,
+                accounting: attempted,
+            } => {
+                accounting.append(attempted);
+                Self::BuildConsentRequired {
+                    requests,
+                    accounting,
+                }
+            }
             other if accounting.receipts().is_empty() => other,
             other => Self::ProductionAttempt {
                 diagnostics: other.into_diagnostics(),
@@ -167,6 +195,14 @@ impl CompilationProductError {
         match self {
             Self::TrustAdmission(diagnostics) | Self::Production(diagnostics) => diagnostics,
             Self::ProductionAttempt { diagnostics, .. } => diagnostics,
+            Self::BuildConsentRequired {
+                requests,
+                accounting,
+            } => crate::CompileFailure::BuildConsentRequired {
+                requests,
+                accounting,
+            }
+            .into_diagnostics(),
         }
     }
 
@@ -180,6 +216,18 @@ impl CompilationProductError {
                 accounting,
             } => crate::CompileTargetOutcome::new(target, Err(diagnostics))
                 .with_failed_source_completion_accounting(accounting),
+            Self::BuildConsentRequired {
+                requests,
+                accounting,
+            } => {
+                let diagnostics = crate::CompileFailure::BuildConsentRequired {
+                    requests,
+                    accounting: accounting.clone(),
+                }
+                .into_diagnostics();
+                crate::CompileTargetOutcome::new(target, Err(diagnostics))
+                    .with_failed_source_completion_accounting(accounting)
+            }
             error => crate::CompileTargetOutcome::new(target, Err(error.into_diagnostics())),
         }
     }

@@ -1897,7 +1897,7 @@ fn project_session_lifecycle() {
     assert!(
         matches!(
             error,
-            orchestration::ProjectSourceResolutionError::Resources(_)
+            orchestration::ProjectSourceResolutionError::Resources { .. }
         ),
         "{error:?}"
     );

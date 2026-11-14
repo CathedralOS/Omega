@@ -164,6 +164,12 @@ impl CompletedBuild {
 }
 
 impl PackageBuildInvocation {
+    pub fn source_completion_accounting(
+        &self,
+    ) -> &build_time_evaluation::SourceCompletionAccounting {
+        self.source.source_completion_accounting()
+    }
+
     pub fn product_queries(&self) -> super::checking::ProductQueries {
         self.source.product_queries()
     }
@@ -193,6 +199,12 @@ impl PackageBuildInvocation {
 }
 
 impl PackageBuild {
+    pub fn source_completion_accounting(
+        &self,
+    ) -> &compilation_products::SourceCompletionAccounting {
+        self.source.source_completion_accounting()
+    }
+
     pub fn select_target(
         &self,
         target: target::TargetProfile,

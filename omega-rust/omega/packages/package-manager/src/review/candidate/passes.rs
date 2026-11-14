@@ -47,7 +47,16 @@ pub(crate) fn review_resolved_packages(
     execute: &mut PackageReviewExecutor<'_>,
 ) -> Result<CompilerIssuedPackageReviewSet, CompileResolvedPackageReviewsError> {
     session.require_open()?;
-    review_candidate(candidate, source_bindings, execute).map(|compiled| compiled.reviews)
+    let result = review_candidate(candidate, source_bindings, execute);
+    let accounting = match &result {
+        Ok(compiled) => compiled.source_completion_accounting(),
+        Err(error) => error
+            .source_completion_accounting()
+            .cloned()
+            .unwrap_or_default(),
+    };
+    session.record_source_completion(accounting);
+    result.map(|compiled| compiled.reviews)
 }
 
 fn review_candidate(
@@ -86,10 +95,12 @@ fn review_candidate(
             )
         })?
     };
+    let accounting = preliminary.source_completion_accounting();
     let discovered = candidate_semantic_binding_inputs(
         &preliminary.reviews,
         target_closure.source_closure().graph().root(),
-    )?;
+    )
+    .map_err(|error| error.with_source_completion_accounting(accounting.clone()))?;
     if discovered.is_empty() {
         return Ok(preliminary);
     }
@@ -116,6 +127,7 @@ fn review_candidate(
             execute,
         )
     })
+    .map_err(|error| error.with_source_completion_accounting(accounting))
 }
 
 fn note_pass_accounting(
@@ -153,15 +165,21 @@ fn review_pass(
     let closure = target_closure.source_closure();
     let execution_profile = target::TargetProfile::host_if_supported();
     let source = CanonicalSourceClosureSubject::from_resolved(target_closure, Default::default())
-        .map_err(|error| CompileResolvedPackageReviewsError::Projection {
-        package: closure.graph().root().clone(),
-        diagnostics: vec![diagnostics::Diagnostic::error(error.to_string())],
+        .map_err(|error| {
+        CompileResolvedPackageReviewsError::new(
+            crate::review::CompileResolvedPackageReviewCause::Projection {
+                package: closure.graph().root().clone(),
+                diagnostics: vec![diagnostics::Diagnostic::error(error.to_string())],
+            },
+        )
     })?;
     let roster = crate::lock::PackageOccurrenceRoster::derive(&source).map_err(|error| {
-        CompileResolvedPackageReviewsError::Projection {
-            package: closure.graph().root().clone(),
-            diagnostics: vec![diagnostics::Diagnostic::error(error.to_string())],
-        }
+        CompileResolvedPackageReviewsError::new(
+            crate::review::CompileResolvedPackageReviewCause::Projection {
+                package: closure.graph().root().clone(),
+                diagnostics: vec![diagnostics::Diagnostic::error(error.to_string())],
+            },
+        )
     })?;
     let bindings =
         semantic_bindings_by_consumer(target_closure, execution_profile, &roster, bindings)?;

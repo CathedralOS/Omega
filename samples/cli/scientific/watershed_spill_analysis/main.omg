@@ -1,6 +1,7 @@
 // Complete offline watershed workflow. Stdin: exactly 25 digits, whitespace
 // optional. EOF completes the raster; errors exit 2 without partial results.
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 use terrain::raster;
 use terrain::fill;
 use output::render;

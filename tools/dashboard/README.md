@@ -121,7 +121,7 @@ The owner-private hosted snapshot is registered in `hosting.json`. To update it:
 
 The dashboard does not audit fixture pins, rejection diagnostic relevance,
 producer digest applicability, runtime falsifiability or task acceptance. Those
-remain governed by [testing](../testing.md) and the fact READMEs. Refreshing the
+remain governed by [testing](../docs/testing.md) and the fact READMEs. Refreshing the
 dashboard does not close a fact or a capability.
 
 ## Checks and design

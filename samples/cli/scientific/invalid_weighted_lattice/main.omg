@@ -1,5 +1,5 @@
 // Complete intended-invalid control: the bin at index 9 is outside the fixed extent.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let bins: [u64; 9];

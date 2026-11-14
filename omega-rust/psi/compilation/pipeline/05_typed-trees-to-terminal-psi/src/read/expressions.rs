@@ -154,6 +154,7 @@ impl<'t> Program<'t> {
             _ => return unserved("erased term other than a literal or a binding"),
         };
         Ok(Expression {
+            call_context: None,
             kind,
             result: Some(ValueType::Scalar(result, Qualification::NONE)),
             source,
@@ -219,11 +220,33 @@ impl<'t> Program<'t> {
                 if slots[slot].erased {
                     return unserved("runtime use of an erased binding");
                 }
-                return Ok(Expression {
+                if slots[slot].borrowed.is_some()
+                    && let Some(expected) = expected
+                    && self.reference_referent(id, expected)?.is_some()
+                {
+                    return self.borrow_value(id, slots, handle, expected, source);
+                }
+                let value = Expression {
+                    call_context: None,
                     kind: ExpressionKind::Slot(slot),
                     result: Some(slots[slot].value_type),
                     source,
-                });
+                };
+                // A reference context transports the permission descriptor.
+                // An ordinary value context observes its exact referent.
+                if !expected.is_some_and(|value| matches!(value,
+                    ValueType::Record(row, _, _) if matches!(self.records.get(row).map(|row| &row.shape),
+                        Some(crate::StorageShape::Reference { .. }))))
+                    && let Some((referent, _)) = self.reference_referent(id, slots[slot].value_type)?
+                {
+                    return Ok(Expression {
+                        call_context: None,
+                        kind: ExpressionKind::Referent(Box::new(value)),
+                        result: Some(referent),
+                        source,
+                    });
+                }
+                return Ok(value);
             }
             ExpressionNode::Unary(unary) => {
                 let operand = self.expression(id, slots, unary.operand, expected)?;
@@ -254,8 +277,13 @@ impl<'t> Program<'t> {
                 (ExpressionKind::Boolean(truth), ScalarType::Boolean)
             }
             ExpressionNode::Binary(_) if self.wholly_anonymous(handle) => {
-                let (value, integer) = self.anonymous_value(id, handle, expected_scalar)?;
-                (ExpressionKind::Integer(value), ScalarType::Integer(integer))
+                let evaluated = self.anonymous_value(id, handle, expected_scalar)?;
+                let owner = self.symbols.get(id).copied().unwrap_or_default();
+                self.complete_anonymous_operators(id, owner, &evaluated.operators)?;
+                (
+                    ExpressionKind::Integer(evaluated.value),
+                    ScalarType::Integer(evaluated.integer),
+                )
             }
             ExpressionNode::Binary(binary) => {
                 // A suffixed operator (`+%`, `+|`, `+!`) names its policy at
@@ -354,7 +382,7 @@ impl<'t> Program<'t> {
             }
             ExpressionNode::TypeExpression(_) => return unserved("type expression"),
             ExpressionNode::Match(matched) => {
-                return self.match_expression(id, slots, matched, expected_scalar, source);
+                return self.match_expression(id, slots, matched, expected, source);
             }
             // The subject of the enclosing `match`, named by the capture
             // identity stage 03 gave both; any other saved subject is
@@ -373,6 +401,7 @@ impl<'t> Program<'t> {
                     .find(|(capture, _)| *capture == saved.capture)
                 {
                     Some((_, subject)) => Ok(Expression {
+                        call_context: None,
                         kind: ExpressionKind::SavedSubject(saved.capture),
                         result: subject.result,
                         source,
@@ -389,7 +418,12 @@ impl<'t> Program<'t> {
             ExpressionNode::UndeterminedNaN(_) => return unserved("undetermined NaN"),
             ExpressionNode::Indexed(indexed) => return self.indexed(id, slots, indexed, source),
             ExpressionNode::Member(member) => return self.member(id, slots, member, source),
-            ExpressionNode::Borrow(_) => return unserved("borrow"),
+            ExpressionNode::Borrow(_) => {
+                let Some(expected) = expected else {
+                    return unserved("reference formation without its retained contextual type");
+                };
+                return self.borrow_value(id, slots, handle, expected, source);
+            }
             ExpressionNode::Range(_) => return unserved("range"),
             ExpressionNode::StructLiteral(literal) => {
                 self.expected = expected;
@@ -399,6 +433,7 @@ impl<'t> Program<'t> {
             ExpressionNode::ZeroValue(_) => return unserved("zero value"),
         };
         Ok(Expression {
+            call_context: None,
             kind,
             result: Some(ValueType::Scalar(result, Qualification::NONE)),
             source,
@@ -418,7 +453,7 @@ impl<'t> Program<'t> {
         id: MachineId,
         slots: &[Slot],
         matched: &typed_trees::expression::TableMatchExpression,
-        expected: Option<ScalarType>,
+        expected: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
@@ -453,6 +488,7 @@ impl<'t> Program<'t> {
         }
         self.captures.push((matched.capture, subject.clone()));
         let saved = Expression {
+            call_context: None,
             kind: ExpressionKind::SavedSubject(matched.capture),
             result: subject.result,
             source: subject.source,
@@ -461,6 +497,7 @@ impl<'t> Program<'t> {
         self.captures.pop();
         let (arms, default, result) = read?;
         Ok(Expression {
+            call_context: None,
             kind: ExpressionKind::Match {
                 capture: Some(matched.capture),
                 subject: Box::new(subject),
@@ -470,7 +507,7 @@ impl<'t> Program<'t> {
                     .collect(),
                 default,
             },
-            result: Some(ValueType::Scalar(result, Qualification::NONE)),
+            result: Some(result),
             source,
         })
     }
@@ -483,12 +520,8 @@ impl<'t> Program<'t> {
         matched: &typed_trees::expression::TableMatchExpression,
         record: semantic_vocabulary::StructuralTypeId,
         subject: &Expression,
-        expected: Option<ScalarType>,
-    ) -> Checked<(
-        Vec<(usize, Expression)>,
-        Option<Box<Expression>>,
-        ScalarType,
-    )> {
+        expected: Option<ValueType>,
+    ) -> Checked<(Vec<(usize, Expression)>, Option<Box<Expression>>, ValueType)> {
         use typed_trees::expression::MatchPattern;
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
         let mut arms: Vec<(usize, Expression)> = Vec::new();
@@ -562,6 +595,7 @@ impl<'t> Program<'t> {
                 return Err(unserved("match arm for a case an earlier arm selects"));
             }
             let value = self.arm_value(id, slots, arm.value, &mut result)?;
+            self.label_arm(id, &value, &arm.pattern);
             match case {
                 Some(case) => arms.push((case, value)),
                 None => default = Some(Box::new(value)),
@@ -571,24 +605,24 @@ impl<'t> Program<'t> {
         Ok((arms, default, result))
     }
 
-    /// One arm's value, which must be a plain scalar of the type every
-    /// earlier arm (or the destination) gave the match: `result` is that
-    /// type once known, and this arm's type after it.
+    /// Each arm transfers one value of the destination's exact type,
+    /// including its regions. Qualification and rigid-value judgments remain
+    /// separate; a matching carrier alone does not erase those obligations.
     fn arm_value(
         &mut self,
         id: MachineId,
         slots: &[Slot],
         value: ExpressionHandle,
-        result: &mut Option<ScalarType>,
+        result: &mut Option<ValueType>,
     ) -> Checked<Expression> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
-        let value = self.expression(id, slots, value, result.map(ValueType::plain))?;
+        let value = self.expression(id, slots, value, *result)?;
         let value_type = match value.result {
-            Some(ValueType::Scalar(scalar_type, Qualification::NONE)) => scalar_type,
-            Some(ValueType::Record(_, _, _)) => {
-                return Err(unserved("match with a data result"));
-            }
-            Some(ValueType::Scalar(..)) => {
+            Some(
+                value_type @ (ValueType::Scalar(_, Qualification::NONE)
+                | ValueType::Record(_, Qualification::NONE, _)),
+            ) => value_type,
+            Some(ValueType::Scalar(..) | ValueType::Record(..)) => {
                 return Err(unserved("match with a qualified result"));
             }
             Some(ValueType::Rigid(_)) => {
@@ -605,6 +639,34 @@ impl<'t> Program<'t> {
         }
         *result = Some(value_type);
         Ok(value)
+    }
+
+    /// How a warning about one value `match` arm names it: its pattern as
+    /// authored, or `_`, keyed by the span of the arm's value, which is how
+    /// lowering knows the arm when it records the arm as an authored branch
+    /// (`MachineNames::arms`). An arm whose value has no authored span is
+    /// named "an arm".
+    fn label_arm(
+        &mut self,
+        id: MachineId,
+        value: &Expression,
+        pattern: &typed_trees::expression::MatchPattern,
+    ) {
+        use typed_trees::expression::MatchPattern;
+        let SourceOrigin::Authored(span) = value.source else {
+            return;
+        };
+        let table = &self.typed.expression_table;
+        let label = match pattern {
+            MatchPattern::Wildcard => String::from("_"),
+            MatchPattern::Value(head) => table.display_name(*head),
+            MatchPattern::Destructure(pattern) => table.display_name(pattern.head),
+        };
+        if let Some(names) = self.names.get_mut(id) {
+            names
+                .arms
+                .push((span, format!("the `{label}` arm of a match")));
+        }
     }
 
     /// Value-position `match` over a scalar: `match code { 0 -> a, 1 -> b,
@@ -634,7 +696,7 @@ impl<'t> Program<'t> {
         slots: &[Slot],
         matched: &typed_trees::expression::TableMatchExpression,
         subject: Expression,
-        expected: Option<ScalarType>,
+        expected: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Expression> {
         use typed_trees::expression::MatchPattern;
@@ -699,6 +761,7 @@ impl<'t> Program<'t> {
                 }
             };
             let value = self.arm_value(id, slots, arm.value, &mut result)?;
+            self.label_arm(id, &value, &arm.pattern);
             match pattern {
                 Some(pattern) => arms.push((Selector::Value(pattern), value)),
                 None => default = Some(Box::new(value)),
@@ -726,13 +789,14 @@ impl<'t> Program<'t> {
         }
         let result = result.ok_or_else(|| unserved("match without an arm"))?;
         Ok(Expression {
+            call_context: None,
             kind: ExpressionKind::Match {
                 capture: None,
                 subject: Box::new(subject),
                 arms,
                 default,
             },
-            result: Some(ValueType::Scalar(result, Qualification::NONE)),
+            result: Some(result),
             source,
         })
     }
@@ -741,6 +805,7 @@ impl<'t> Program<'t> {
 /// `subject in case`, the test of a case arm, as the reader reads it.
 pub(super) fn case_test_of(subject: &Expression, case: usize) -> Expression {
     Expression {
+        call_context: None,
         kind: ExpressionKind::IsCase {
             subject: Box::new(subject.clone()),
             case,
@@ -754,10 +819,12 @@ pub(super) fn case_test_of(subject: &Expression, case: usize) -> Expression {
 /// pattern with no guard of its own.
 pub(super) fn case_condition(subject: &Expression, case: usize) -> Expression {
     Expression {
+        call_context: None,
         kind: ExpressionKind::ShortCircuit {
             conjunction: true,
             left: Box::new(case_test_of(subject, case)),
             right: Box::new(Expression {
+                call_context: None,
                 kind: ExpressionKind::Boolean(true),
                 result: Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
                 source: subject.source,
@@ -865,6 +932,7 @@ fn binary_expression(
                 return Err(typing("short-circuit operand is not bool"));
             }
             return Ok(Expression {
+                call_context: None,
                 kind: ExpressionKind::ShortCircuit {
                     conjunction: operator == BinaryOperator::And,
                     left: Box::new(left),
@@ -944,6 +1012,7 @@ fn binary_expression(
         }
     };
     Ok(Expression {
+        call_context: None,
         kind: ExpressionKind::Strict {
             operation,
             left: Box::new(left),
@@ -986,6 +1055,7 @@ fn suffixed_expression(
     let under_policy = |operand: Expression| match operand.result {
         Some(ValueType::Scalar(carrier @ ScalarType::Integer(_), Qualification::NONE)) => {
             Ok(Expression {
+                call_context: None,
                 kind: ExpressionKind::Requalify(Box::new(operand)),
                 result: Some(ValueType::Scalar(carrier, Qualification::of_policy(policy))),
                 source,
@@ -1015,6 +1085,7 @@ fn suffixed_expression(
         ));
     }
     Ok(Expression {
+        call_context: None,
         kind: ExpressionKind::Requalify(Box::new(computed)),
         result: Some(ValueType::Scalar(carrier, Qualification::NONE)),
         source,
@@ -1092,6 +1163,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 a.len() == b.len() && a.iter().zip(b).all(|(a, b)| both(a, b))
             }
             (ExpressionKind::Index { base: a, index: ai }, ExpressionKind::Index { base: b, index: bi }) => both(a, b) && both(ai, bi),
+            (ExpressionKind::ByteElement { base: a, index: ai }, ExpressionKind::ByteElement { base: b, index: bi }) => both(a, b) && both(ai, bi),
             (ExpressionKind::Record { fields: a }, ExpressionKind::Record { fields: b }) => {
                 a.len() == b.len()
                     && a.iter()
@@ -1185,6 +1257,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 | ExpressionKind::Integer(_)
             | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::CollectionMeasure { .. }
+                | ExpressionKind::ByteElement { .. }
                 | ExpressionKind::Boolean(_)
                 | ExpressionKind::MachineValue { .. }
                 | ExpressionKind::Slot(_)
@@ -1205,7 +1278,8 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 | ExpressionKind::ShortCircuit { .. }
                 | ExpressionKind::Call { .. }
                 // A loan is formed afresh each time; two are never one.
-                | ExpressionKind::Borrow { .. },
+                | ExpressionKind::Borrow { .. }
+                | ExpressionKind::Referent(_),
                 _,
             ) => false,
         }
@@ -1230,6 +1304,7 @@ mod tests {
     ) -> Result<ValueType, String> {
         let source = SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent);
         let operand = |slot, value_type| Expression {
+            call_context: None,
             kind: ExpressionKind::Slot(slot),
             result: Some(value_type),
             source,

@@ -21,7 +21,7 @@
 //   75 withdraw result
 //   76 final balances
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Account [copy] {
     balance: i32 in Wrapping;

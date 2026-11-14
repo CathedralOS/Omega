@@ -787,6 +787,9 @@ pub(crate) mod instance {
         pub enum TerminalStorageObservationValue<'storage> {
             Storage(crate::TerminalStorageContents),
             Bytes(crate::TerminalByteRead<'storage>),
+            /// Identity of an actual host-supplied value, without exposing
+            /// its contents or permitting source code to construct one.
+            Opaque(TerminalStructuralValue),
         }
 
         #[derive(Debug, Clone, PartialEq, Eq)]
@@ -848,7 +851,7 @@ pub(crate) mod instance {
                 let crate::TerminalExecutionResult::Structural(returned) = result else {
                     return Err(TerminalStorageObservationError::NotStructuralResult);
                 };
-                let (_, leaf) = selected_leaf(execution, &returned.value, path)?;
+                let (_, leaf) = selected_leaf(execution, &returned.observation_value(), path)?;
                 let StorageLeafKind::Opaque {
                     destination,
                     declaration,
@@ -895,7 +898,7 @@ pub(crate) mod instance {
                             .structural()
                             .ok_or_else(malformed)?
                             .place;
-                        observe_leaf(execution, source, &returned.value, path)
+                        observe_leaf(execution, source, &returned.observation_value(), path)
                     }
                     crate::TerminalExecutionResult::ScalarCase(returned) => {
                         observe_case(execution, returned.value(), path)
@@ -931,6 +934,35 @@ pub(crate) mod instance {
         {
             let (selected, leaf) = selected_leaf(execution, value, path)?;
             match &leaf.kind {
+                StorageLeafKind::Opaque {
+                    destination,
+                    declaration,
+                } if execution.structural_declaration(*declaration)?.shape
+                    == StructuralTypeShape::Opaque =>
+                {
+                    let relative = destination
+                        .path
+                        .strip_prefix(selected.path.as_slice())
+                        .filter(|_| destination.opaque_identity == selected.opaque_identity)
+                        .ok_or(TerminalStorageObservationError::UnknownPath)?;
+                    let (qualifications, projected_qualifications) =
+                        terminal_psi::StructuralPathQualification::select(
+                            &selected.qualifications,
+                            &selected.projected_qualifications,
+                            relative,
+                        );
+                    let mut actual = TerminalStructuralValue {
+                        opaque_identity: destination.opaque_identity,
+                        structural_type: *declaration,
+                        qualifications,
+                        projected_qualifications,
+                        path: destination.path.clone(),
+                    };
+                    if execution.forward_host_atom(&mut actual).is_none() {
+                        return Err(TerminalStorageObservationError::OpaqueContents);
+                    }
+                    Ok(TerminalStorageObservationValue::Opaque(actual))
+                }
                 StorageLeafKind::Scalar { .. } | StorageLeafKind::Case { .. } => {
                     // Only a backing crossing supplies a retained original
                     // owner. Inline/presented values keep ordinary owner lookup.

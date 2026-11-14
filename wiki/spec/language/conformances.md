@@ -133,15 +133,15 @@ Adding a valid law does not turn off another proof or alter the canonical
 rewriting rules. Changing an actual operation or a published trait contract
 still has its ordinary API/dependency consequences.
 
-Conformance matching uses canonical identity without heuristic theorem search.
-An exact conformance application for one symbolic index form does not match
-another solely because their indices are provably equal. Value transport under
-checked evidence does not reselect a map or rewrite its identity. Generic
-conformances over a common index and explicit contracts remain available, and
-a [`requires` clause](state_contracts.md#requirement-clauses) on a conformance
-declaration constrains its admitted applications, so one generic conformance
-can forward a selected map between two provably equal index forms; see
-[exact matching](../proofs/contracts.md#exact-matching-and-evidence-transport).
+Conformance selection uses canonical identity without heuristic theorem search.
+Once a record is explicitly supplied,
+[same-family record transport](../proofs/contracts.md#exact-matching-and-evidence-transport)
+may admit it at a compatible indexed application of the same schema. This
+checks the complete record while keeping its selected operations and their
+requirement bindings; it neither searches for another implementation nor
+merges canonical keys. Generic conformance declarations and checked adapters
+remain available when genuine adaptation is required, but forwarding
+declarations are not required solely to cross compatible indices.
 
 Generic conformances own their telescopes independently of data declarations.
 Select one through a nested application with every type, const,
@@ -207,7 +207,7 @@ determine the generated fields mechanically:
 
 | Declaration | Record contents or obligation |
 | --- | --- |
-| `machine member(...) ...;` | A callable selection bound to that exact named requirement, including when resultless or used to establish a theorem. |
+| `machine member(...) ...;` | A callable selection bound to that named requirement, including when resultless or used to establish a theorem. |
 | `field: Type;` | An ordinary value of the declared type. |
 | `field [erased]: Type;` | An ordinary value of that type, without runtime storage; erasure does not determine identity. |
 | A schema `requires` clause | A validity constraint on the assembled record, not an implicit callable field. |
@@ -237,7 +237,7 @@ selection checks contract refinement and preserves the selected machine and
 its original route. It neither rebinds the selection nor creates an executable
 adapter. The destination field's name does not authorize invocation through a
 new requirement. If the destination instead declares a `machine` requirement,
-the existing exact-binding and no-rebinding rules still apply, even for pure
+the existing binding and no-rebinding rules still apply, even for pure
 operations with identical behavioral contracts.
 
 This forwarding preserves evidence carried by the callable, not every law of
@@ -560,6 +560,10 @@ interchangeable.
 **The route is kept.** Copying, projecting, returning and widening a bound
 selection to a structural callable type preserve its route. A wider type may
 expose fewer guarantees; it never turns a routed call into a direct one.
+[Record transport](../proofs/contracts.md#exact-matching-and-evidence-transport)
+keeps it too: a selection crossing to a provably equal application of the same
+requirement declaration stays bound to that requirement. Only the application
+crosses, so this is neither a new binding nor a rebinding.
 
 **What may be bound.** The operand of a row or binding expression is a plain
 machine declaration the author can select, with its static arguments. A

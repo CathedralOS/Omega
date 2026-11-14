@@ -51,12 +51,14 @@ pub(super) struct AcceptedCompilationRequest<'request> {
 }
 
 fn failure(package: &PackageKey, message: impl Into<String>) -> Error {
-    Error::Compilation {
-        package: package.clone(),
-        failure: compilation_products::CompileFailure::Diagnostics(vec![Diagnostic::error(
-            message.into(),
-        )]),
-    }
+    Error::new(
+        crate::review::CompileResolvedPackageReviewCause::Compilation {
+            package: package.clone(),
+            failure: compilation_products::CompileFailure::Diagnostics(vec![Diagnostic::error(
+                message.into(),
+            )]),
+        },
+    )
 }
 
 fn invalid_production_root(product: &CompilationProduct, role: BuildDeclarationKind) -> bool {
@@ -74,6 +76,17 @@ pub struct ProjectCompilationAdmissionRequest<'request> {
 
 impl ProjectCompilationAdmissionRequest<'_> {
     pub fn refuse(self, reason: String) -> Vec<ProjectCompilationOutcome> {
+        self.refuse_compilation(vec![Diagnostic::error(reason)].into())
+    }
+
+    pub fn refuse_compilation(
+        self,
+        refused: compilation_products::CompileFailure,
+    ) -> Vec<ProjectCompilationOutcome> {
+        let accounting = refused
+            .source_completion_accounting()
+            .cloned()
+            .unwrap_or_default();
         let (_, closure, targets) = self.prepared.into_target_review_parts();
         let invalid_role = invalid_production_root(&self.product, closure.root_role());
         targets
@@ -82,13 +95,15 @@ impl ProjectCompilationAdmissionRequest<'_> {
             .map(|target| ProjectCompilationOutcome {
                 target: target.profile,
                 result: Err(ProjectCompilationError::Review(if invalid_role {
-                    Error::InvalidProductionRootRole {
+                    Error::new(crate::review::CompileResolvedPackageReviewCause::InvalidProductionRootRole {
                         package: closure.graph().root().clone(),
                         role: closure.root_role(),
-                    }
+                    })
                 } else {
-                    failure(closure.graph().root(), reason.clone())
-                })),
+                    Error::new(crate::review::CompileResolvedPackageReviewCause::Compilation {
+                        package: closure.graph().root().clone(), failure: refused.clone(),
+                    })
+                }.with_source_completion_accounting(accounting.clone()))),
             })
             .collect()
     }
@@ -178,10 +193,10 @@ fn admit_project(
                     .map(|target| TargetCompletion {
                         target: target.profile,
                         receipt: Err(ProjectCompilationError::Review(
-                            Error::InvalidProductionRootRole {
+                            Error::new(crate::review::CompileResolvedPackageReviewCause::InvalidProductionRootRole {
                                 package: root.clone(),
                                 role: closure.root_role(),
-                            },
+                            }),
                         )),
                     })
                     .collect(),
@@ -287,6 +302,28 @@ impl ProjectCompilationCompletion {
         outputs: Vec<Result<CompilationOutput, compiler::PackageCompileFailure>>,
         session: &mut PackageBuildSession,
     ) -> Vec<ProjectCompilationOutcome> {
+        let mut outputs = outputs;
+        for output in &mut outputs {
+            match output {
+                Ok(CompilationOutput::Report(report)) => {
+                    session.record_source_completion(report.source_completion_accounting().clone())
+                }
+                Ok(CompilationOutput::Native(product)) => session.record_source_completion(
+                    product
+                        .settlement
+                        .source_completion_accounting_mut()
+                        .clone(),
+                ),
+                // These source-free payloads have no report account; their
+                // prepared Build custody was recorded before production.
+                Ok(CompilationOutput::Inspection(_) | CompilationOutput::Component(_)) => {}
+                Err(failure) => {
+                    if let Some(accounting) = failure.failure.source_completion_accounting() {
+                        session.record_source_completion(accounting.clone());
+                    }
+                }
+            }
+        }
         let expected = self
             .targets
             .iter()
@@ -311,14 +348,36 @@ impl ProjectCompilationCompletion {
             });
         }
         if let Err(error) = session.close() {
-            for outcome in &mut outcomes {
-                let message = match &outcome.result {
-                    Ok(_) => error.to_string(),
-                    Err(prior) => format!("{error}; prior compilation failure: {prior}"),
-                };
-                outcome.result = Err(ProjectCompilationError::Review(failure(
-                    &self.root, message,
-                )));
+            // One cleanup operation can fail after several target products.
+            // Share the actual IO cause and cost history, preserving any
+            // target's primary typed failure rather than stringifying it.
+            let accounting = error
+                .source_completion_accounting()
+                .cloned()
+                .unwrap_or_default();
+            if let crate::review::CompileResolvedPackageReviewCause::BuildStagingCleanup {
+                path,
+                error,
+            } = error.cause
+            {
+                for outcome in &mut outcomes {
+                    if outcome.result.is_ok() {
+                        outcome.result = Err(ProjectCompilationError::Review(Error::new(
+                            crate::review::CompileResolvedPackageReviewCause::BuildStagingCleanup {
+                                path: path.clone(), error: error.clone(),
+                            }
+                        ).with_source_completion_accounting(accounting.clone())));
+                    }
+                }
+            }
+        }
+        for outcome in &mut outcomes {
+            if let Err(ProjectCompilationError::Review(error)) = &mut outcome.result {
+                // Use the existing occurrence-union rule, including costs held
+                // by this invocation before a defensive result reconciliation.
+                error.append_source_completion_accounting(
+                    session.source_completion_accounting().clone(),
+                );
             }
         }
         outcomes
@@ -340,10 +399,12 @@ impl CompilationReceipt {
                 )));
             }
             Some(Err(error)) => {
-                return Err(ProjectCompilationError::Review(Error::Compilation {
-                    package: self.packages.get(error.occurrence).unwrap_or(root).clone(),
-                    failure: error.failure,
-                }));
+                return Err(ProjectCompilationError::Review(Error::new(
+                    crate::review::CompileResolvedPackageReviewCause::Compilation {
+                        package: self.packages.get(error.occurrence).unwrap_or(root).clone(),
+                        failure: error.failure,
+                    },
+                )));
             }
             Some(Ok(output)) => output,
         };
@@ -557,9 +618,13 @@ fn prepare_occurrence_contexts(
                 .compilation_inputs_reusing(&mut root_binding)
                 .and_then(|inputs| inputs.with_compilation_purpose(purpose))
                 .and_then(|inputs| inputs.with_accepted_semantic_bindings(bindings))
-                .map_err(|errors| Error::CompilationInputs {
-                    package: key.clone(),
-                    errors,
+                .map_err(|errors| {
+                    Error::new(
+                        crate::review::CompileResolvedPackageReviewCause::CompilationInputs {
+                            package: key.clone(),
+                            errors,
+                        },
+                    )
                 })?;
             let is_root = &key == root && purpose.is_product();
             let entry = if is_root {

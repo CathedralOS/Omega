@@ -1,6 +1,6 @@
 use domain::input;
 use domain::regions;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 // All printed values are nonnegative and <= 448. Centroids are exact
 // unreduced fractions sum/area, avoiding rounding and floating tolerances.

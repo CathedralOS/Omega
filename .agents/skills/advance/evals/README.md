@@ -77,7 +77,7 @@ Capture the worker's revision, host, commands and exits, diff, customer result,
 publication state, remaining dependencies, and actual instruction paths. Compare
 commits against the recorded base, not the moving origin/main. Verify the claimed
 checks at the tested candidate before discarding anything. Full baseline work is
-an explicit experiment choice under tools/testing.md, not a routine grading prerequisite.
+an explicit experiment choice under tools/docs/testing.md, not a routine grading prerequisite.
 
 Keep run evidence outside the skill's reusable instructions. Distinguish source
 review, structural validation, and executed behavior trials. Do not infer a timing

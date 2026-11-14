@@ -68,8 +68,8 @@ fn a_no_normal_borrow_keeps_the_callers_affine_owner_suspended() {
         statements: vec![
             bind(0, point_of(unsigned(73), unsigned(97))),
             Statement::Evaluate(Expression {
+                call_context: None,
                 kind: ExpressionKind::Call {
-                    operational_acknowledgement: Default::default(),
                     callee: id::<MachineId>(2).into(),
                     arguments: vec![borrowed],
                     designated: None,
@@ -92,12 +92,14 @@ fn a_no_normal_borrow_keeps_the_callers_affine_owner_suspended() {
     });
     for borrowed in [false, true] {
         signatures.push(Signature {
+            operational: Default::default(),
             parameters: if borrowed { vec![point()] } else { Vec::new() },
             borrowed: if borrowed {
                 vec![Borrowed {
                     position: 0,
                     access: ReferenceAccess::Mutable,
                     home: None,
+                    regions: Default::default(),
                 }]
             } else {
                 Vec::new()

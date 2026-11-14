@@ -5,7 +5,7 @@ workstation. Their presence does not identify the product as Dot, provision a
 cloud machine, or require a remote-artifact recovery workflow.
 
 Execution and publication follow [advance](../../advance/SKILL.md),
-[AGENTS.md](../../../../AGENTS.md), and [landing](../../../../tools/landing.md).
+[AGENTS.md](../../../../AGENTS.md), and [landing](../../../../tools/docs/landing.md).
 
 ## Tools and capacity
 
@@ -24,7 +24,7 @@ Execution and publication follow [advance](../../advance/SKILL.md),
 - Each editing worker gets an isolated `worker-N` pool slot through `/advance`.
   Preserve its fixed path and warm target across successive repairs.
 - Workers share this host's CPU, memory and disk. Set the current
-  [host build budget](../../../../tools/build_slot.md) before builds and include
+  [host build budget](../../../../tools/docs/build_slot.md) before builds and include
   it in every worker prompt; shell settings are not inherited by subagents.
   Keep target directories separate and use the shared mbx scheduler budget.
 

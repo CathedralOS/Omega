@@ -158,7 +158,7 @@ its required affected gates are complete application checking, native and Termin
 numeric/input matrices, exact nominal invalid rejection, true/false theorem
 controls, zero-new-meaning preparation, distinct final-tree review and the normal
 exact-SHA landing receipt. This follows scoped validation and main-change
-validation in `tools/testing.md`; no frozen golden or threshold is changed and no
+validation in `tools/docs/testing.md`; no frozen golden or threshold is changed and no
 full compiler-release or performance acceptance is asserted.
 
 ## Reproduction

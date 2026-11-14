@@ -550,7 +550,6 @@ fn an_invocation_row_for_a_call_the_machine_does_not_make_is_refused() {
     let verdict = with_fault(program, |elaboration| {
         let constant = elaboration.module.machines[0].blocks[0].operations[0].id;
         entry_tables(elaboration).invocations.push(InvocationRow {
-            operational_acknowledgement: Default::default(),
             site: InvocationSite::Operation(constant),
             callee: Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(id(2))),
             actuals: vec![Actual::Value(id(1))],
@@ -870,7 +869,7 @@ fn entry_values(tables: &MachineTables) -> Vec<ValueId> {
     tables
         .values
         .iter()
-        .filter(|(_, row)| matches!(row.origin, ValueOrigin::InitialContent { .. }))
+        .filter(|(_, row)| matches!(row.origin, ValueOrigin::StorageContent { .. }))
         .map(|(value, _)| value)
         .collect()
 }
@@ -945,7 +944,7 @@ fn an_entry_content_of_storage_that_is_no_formal_is_refused() {
         let tables = entry_tables(elaboration);
         let place = projected(tables, local, &[1]);
         let held = entry_values(tables)[0];
-        value_mut(tables, held).origin = ValueOrigin::InitialContent { place };
+        value_mut(tables, held).origin = ValueOrigin::StorageContent { place, after: None };
     });
     assert_refused(
         verdict,
@@ -970,7 +969,9 @@ fn an_initial_content_with_a_cyclic_owner_is_refused() {
     let verdict = with_fault(program, |elaboration| {
         let tables = entry_tables(elaboration);
         let held = entry_values(tables)[0];
-        let ValueOrigin::InitialContent { place } = tables.values.get(held).unwrap().origin else {
+        let ValueOrigin::StorageContent { place, after: None } =
+            tables.values.get(held).unwrap().origin
+        else {
             panic!("initial field content");
         };
         let PlaceOrigin::Projection { segment, .. } = tables.places.get(place).unwrap().origin
@@ -1024,7 +1025,7 @@ fn entry_content_values_that_exchange_their_leaves_are_refused() {
     });
     assert_refused(
         verdict,
-        "initial content values are not in the order of the leaves they belong to",
+        "storage content values are not in the order of their leaves and call boundaries",
     );
 }
 

@@ -654,30 +654,52 @@ machine build_entry(value: u32) -> u32 crashes none { ACK Probe::read(value) }
             "{label} must retain blocking"
         );
         let mut missing_audit = accepted.elaboration.clone();
-        let machines: Vec<_> = missing_audit.tables.machines.keys().collect();
-        for machine in machines {
-            let tables = missing_audit.tables.machines.get_mut(machine).unwrap();
-            let invocations: Vec<_> = tables.invocations.keys().collect();
-            for invocation in invocations {
-                tables
-                    .invocations
-                    .get_mut(invocation)
-                    .unwrap()
-                    .operational_acknowledgement
-                    .acknowledges_block = false;
+        let mut changed = 0;
+        for machine in &mut missing_audit.module.machines {
+            for formation in &mut machine.call_formations {
+                if formation.acknowledgement.acknowledges_block {
+                    changed += 1;
+                    formation.acknowledgement.acknowledges_block = false;
+                }
             }
         }
-        let refusal = crate::ceilings::judge(&missing_audit).unwrap_err();
+        assert!(
+            changed > 0,
+            "{label} must have its actual call acknowledgement"
+        );
+        let refusal = crate::operational::judge(&missing_audit).unwrap_err();
+        assert!(
+            matches!(refusal.reason, RefusalReason::Violation(_)),
+            "{refusal:?}"
+        );
         assert_eq!(
-            refusal.detail, "call that may block needs a block acknowledgement",
+            refusal.detail, "call may block and requires a block acknowledgement",
             "{label}"
         );
         let missing = source.replace("ACK", "");
         let verdict = super::build_purpose::judge_build(&missing).unwrap();
+        let RouteVerdict::Rejected {
+            formations,
+            violations,
+            unproved,
+            unestablished,
+            conflicts,
+            exceeded,
+        } = verdict
+        else {
+            panic!("{label} must reject the missing acknowledgement: {verdict:?}");
+        };
         assert!(
-            matches!(verdict, RouteVerdict::FallBack(ref refusal)
-            if refusal.detail == "call that may block needs a block acknowledgement"),
-            "{label} cannot discharge its marker against an empty provisional summary: {verdict:?}"
+            formations.is_empty()
+                && unproved.is_empty()
+                && unestablished.is_empty()
+                && conflicts.is_empty()
+                && exceeded.is_empty()
+        );
+        assert_eq!(violations.len(), 1, "{label}: {violations:?}");
+        assert_eq!(
+            violations[0].message(),
+            "call may block and requires a block acknowledgement"
         );
     }
 }
@@ -702,9 +724,27 @@ machine build_entry(value: u32) -> u32 crashes none {
 }
 "#;
     let verdict = super::build_purpose::judge_build(nested).unwrap();
+    let RouteVerdict::Rejected {
+        formations,
+        violations,
+        unproved,
+        unestablished,
+        conflicts,
+        exceeded,
+    } = verdict
+    else {
+        panic!("a nested suspend marker must reject source formation: {verdict:?}");
+    };
     assert!(
-        matches!(verdict, RouteVerdict::FallBack(ref refusal)
-        if refusal.detail == "suspend acknowledgement outside a complete statement, simple let, transition subject or terminal expression"),
-        "{verdict:?}"
+        formations.is_empty()
+            && unproved.is_empty()
+            && unestablished.is_empty()
+            && conflicts.is_empty()
+            && exceeded.is_empty()
+    );
+    assert_eq!(violations.len(), 1, "{violations:?}");
+    assert_eq!(
+        violations[0].message(),
+        "a suspend-marked call must be a complete statement, simple let initializer, transition subject or terminal expression"
     );
 }

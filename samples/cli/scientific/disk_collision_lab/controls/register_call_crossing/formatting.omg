@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::U64::from_f64;
 // Bounded scientific output: signed fixed point with six fractional digits.
 // Model validation and 8-event cap keep all printed magnitudes below 10^9.

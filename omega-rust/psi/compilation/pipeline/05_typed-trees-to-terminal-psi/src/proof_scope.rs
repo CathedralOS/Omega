@@ -119,6 +119,21 @@ pub(crate) fn declare(typed: &TypedTrees, elaboration: &mut Elaboration) -> Chec
             .map_err(|_| "proof call has no exact emitted boundary declaration")?;
         Ok(boundary_declarations[position].1)
     };
+    for candidate in &elaboration.module.provider_candidates {
+        let requirement = boundary_declaration_for(candidate.boundary);
+        let realization = declaration_for(candidate.candidate);
+        let (Ok(requirement), Ok(realization)) = (requirement, realization) else {
+            return Err(refuse(
+                candidate.candidate,
+                Construct::Machine,
+                Unserved::Declaration("provider candidate without its proof declarations"),
+            ));
+        };
+        scope
+            .plan
+            .provider_candidates
+            .insert((requirement, realization));
+    }
     for machine in &elaboration.module.machines {
         let id = declaration_for(machine.id).map_err(|_| {
             refuse(
@@ -145,6 +160,9 @@ pub(crate) fn declare(typed: &TypedTrees, elaboration: &mut Elaboration) -> Chec
             .as_ref()
             .expect("declarations were checked above");
         let mut calls = Vec::new();
+        // Boundary calls follow the direct calls, so the ordinal of a direct
+        // call in the summary is its ordinal among the machine's direct calls.
+        let mut boundary_calls = Vec::new();
         let mut cleanup = Vec::new();
         let mut unavailable = None;
         for block in &machine.blocks {
@@ -166,7 +184,7 @@ pub(crate) fn declare(typed: &TypedTrees, elaboration: &mut Elaboration) -> Chec
                             Unserved::Declaration(reason),
                         )
                     })?;
-                    calls.push(ProofApplicationCall {
+                    boundary_calls.push(ProofApplicationCall {
                         callee,
                         ..ProofApplicationCall::default()
                     });
@@ -195,7 +213,7 @@ pub(crate) fn declare(typed: &TypedTrees, elaboration: &mut Elaboration) -> Chec
                             Unserved::Declaration(reason),
                         )
                     })?;
-                    calls.push(ProofApplicationCall {
+                    boundary_calls.push(ProofApplicationCall {
                         callee,
                         ..ProofApplicationCall::default()
                     });
@@ -215,6 +233,7 @@ pub(crate) fn declare(typed: &TypedTrees, elaboration: &mut Elaboration) -> Chec
                 }
             }
         }
+        calls.extend(boundary_calls);
         // A generated static selection needs its complete applied declaration
         // authority, not just the direct body the lowered call reaches.
         if elaboration

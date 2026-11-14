@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::U64::from_f64;
 use omega::language::core::narrow_i32_to_u64_saturating;
 use omega::language::core::narrow_u64_to_i32_saturating;

@@ -1,7 +1,7 @@
 // Numeric execution control frozen from the independent Cartesian oracle before execution.
 // The real application remains stdin-driven; this opcode also checks Terminal's calculations,
 // since the shipped --both route compares termination rather than stdout.
-use omega_language_std::console;
+use omega_language_std::Console;
 use domain::tables;
 use domain::inference;
 machine snapshot(model: &Model, expected: &Inference) -> bool {

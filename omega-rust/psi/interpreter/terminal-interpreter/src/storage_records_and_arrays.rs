@@ -5800,16 +5800,16 @@ pub(crate) mod structural_storage {
         pub(crate) fn forward_host_atom(
             &self,
             value: &mut crate::boundary::values::TerminalStructuralValue,
-        ) -> bool {
+        ) -> Option<StructuralRuntimePlace> {
             let home = StructuralRuntimePlace::from(&*value);
             if let Some(HostStructuralPayload::Opaque(identity)) =
                 self.structural_host_atoms.get(&home)
             {
                 value.opaque_identity = *identity;
                 value.path.clear();
-                true
+                Some(home)
             } else {
-                false
+                None
             }
         }
 
@@ -5898,7 +5898,12 @@ pub(crate) mod structural_storage {
             if let Some(crate::boundary::results::TerminalExecutionResult::Structural(result)) =
                 &self.result
             {
-                roots.insert(result.value.opaque_identity);
+                roots.insert(
+                    result
+                        .observation_home
+                        .as_ref()
+                        .map_or(result.value.opaque_identity, |home| home.opaque_identity),
+                );
             }
             for referent in self.reference_referents.values() {
                 roots.insert(referent.view.opaque_identity);

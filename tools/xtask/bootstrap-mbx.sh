@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
-# Install the pinned mbx release used by the current Rust validation workflows.
+# Install the mbx release pinned in tools/mbx-version for the Rust validation workflows.
 set -euo pipefail
-version=1.29.2
+repo=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+version=$(tr -d '[:space:]' < "$repo/tools/mbx-version")
+# The GitHub asset IDs below belong to exactly one release. When the pin moves
+# to another release, the API fallback would fetch the old release, so it is disabled until
+# the IDs are refreshed; the release route and checksum check are unchanged.
+asset_release=1.29.2
 case "${RUNNER_OS:-$(uname -s)}-${RUNNER_ARCH:-$(uname -m)}" in
   Linux-X64|Linux-x86_64) target=x86_64-unknown-linux-gnu; asset=706569239 ;;
   Linux-ARM64|Linux-aarch64) target=aarch64-unknown-linux-gnu; asset=706569160 ;;
@@ -14,11 +19,15 @@ mkdir -p "$install_dir"
 cd "$install_dir"
 if [[ "$target" == *windows* ]]; then archive="mbx-$target.zip"; else archive="mbx-$target.tar.gz"; fi
 release="https://github.com/jdx/mr-boxington/releases/download/v$version"
-# These asset IDs belong to the same pinned release. The API route avoids
-# a cached release-redirect failure; both routes still owe checksum validation.
+# The API route avoids a cached release-redirect failure; both routes still owe
+# checksum validation.
 download() {
   local filename=$1 asset_id=$2
   if ! curl --retry 3 --retry-delay 2 --retry-max-time 120 -fsSL -o "$filename" "$release/$filename"; then
+    if [ "$version" != "$asset_release" ]; then
+      echo "release download failed; no API fallback: asset IDs are for mbx $asset_release, not $version" >&2
+      return 1
+    fi
     echo "release download failed; retrying the same pinned asset through the GitHub API" >&2
     curl --retry 3 --retry-delay 2 --retry-max-time 120 -fsSL \
       -H 'Accept: application/octet-stream' -o "$filename" \

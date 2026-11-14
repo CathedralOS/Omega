@@ -1,5 +1,5 @@
 // Complete intended-invalid control: Exact signed addition has no upper bound.
-use omega_language_std::console;
+use omega_language_std::Console;
 machine unchecked_timestamp(anchor: i64, elapsed: i64) -> i64 {
     anchor + elapsed
 }

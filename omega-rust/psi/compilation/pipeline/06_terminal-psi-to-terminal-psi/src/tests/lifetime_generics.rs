@@ -76,14 +76,14 @@ machine build_entry(holder: &mut Holder, other: &Holder) {{
     );
 }
 
-/// A result at a lifetime no input names has no relation a caller could
-/// keep. lifetimes.md: "A signature does not authorize returning unrelated
-/// storage merely because its type has the same lifetime spelling".
+/// A record result at a lifetime no input names: the caller chooses it
+/// (lifetimes.md, "Caller-chosen result lifetimes"), and here uses the
+/// result where no place decides the choice. The body builds its view from
+/// a quoted literal, which is valid at every choice.
 #[test]
-fn a_result_lifetime_no_input_supplies_is_refused() {
-    assert_eq!(
-        refusal(&format!(
-            "{HOLDER}
+fn a_record_result_at_a_lifetime_no_input_supplies_is_chosen_by_the_caller() {
+    let verdict = judge_build(&format!(
+        "{HOLDER}
 machine fresh<'storage>(ready: bool) -> Holder<'storage> {{
     Holder {{ ready: ready, name: \"\" }}
 }}
@@ -91,8 +91,10 @@ machine build_entry() {{
     let ready: bool = fresh(true).ready;
 }}
 "
-        )),
-        "typing result lifetime that no argument is a view of"
+    ));
+    assert!(
+        matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+        "the literal is valid at every choice: {verdict:?}"
     );
 }
 

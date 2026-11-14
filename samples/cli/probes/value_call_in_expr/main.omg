@@ -3,7 +3,7 @@
 // Arithmetic helpers have no receiver. Intermediate results cross states as
 // ordinary parameters; console input buffers belong to the state using them.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine double_val(n: i32 in Saturating) -> i32 in Saturating {
     transition {

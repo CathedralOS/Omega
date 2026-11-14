@@ -1,4 +1,5 @@
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 public data Parsed [copy] { value: i64 in Wrapping; valid: bool; }
 // One signed decimal per LF-delimited field. Ten digits bound accumulation;
 // malformed, empty, missing and overlong fields are rejected before forecasting.

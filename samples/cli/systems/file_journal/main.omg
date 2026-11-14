@@ -3,8 +3,14 @@
 // Each successful step increments the tally; partial completion returns fewer
 // than seven. The application carries one Filesystem slot and no raw OS role.
 // Expected exit: 7.
-use omega_language_std::filesystem;
-use omega_language_std::console;
+use omega_language_std::File;
+use omega_language_std::Filesystem;
+use omega_language_std::IoResult;
+use omega_language_std::Metadata;
+use omega_language_std::MetadataResult;
+use omega_language_std::OpenResult;
+use omega_language_std::UnitResult;
+use omega_language_std::Console;
 
 data Main {
     filesystem: Filesystem;

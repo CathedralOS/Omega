@@ -3,7 +3,7 @@
 //! retaining a declaration alone does not activate it.
 
 use super::ProductCodeSource;
-use compilation_products::CheckedProductSource;
+use compilation_products::ProductTerminalPublication;
 use diagnostics::Diagnostic;
 use provider_planning::calling_policy_plans::CallingProgram;
 use provider_planning::target_supply::TargetSupplyExecutionInputs;
@@ -11,21 +11,22 @@ use semantic_vocabulary::BoundaryMachineId;
 use semantic_vocabulary::source_selections::SelectionPurpose;
 use std::sync::Arc;
 
-pub(crate) fn prepare_provider_execution_inputs(
-    source: &CheckedProductSource,
+pub fn prepare_provider_execution_inputs(
+    publication: &ProductTerminalPublication,
+    sources: &package_compilation::CheckedSourceCustody,
     profile: target::TargetProfile,
     reached: &[BoundaryMachineId],
+    observer: &mut impl psi_compiler::PsiCompilationObserver,
 ) -> Result<TargetSupplyExecutionInputs, Vec<Diagnostic>> {
     let refuse = |reason: String| vec![Diagnostic::error(reason)];
-    let mut timings = source.timings.clone();
+    sources
+        .require_owner(publication.accepted()?.source())
+        .map_err(|error| vec![error])?;
     let program = ProductCodeSource {
-        publication: &source.terminal_publication,
-        sources: &source.sources,
+        publication,
+        sources,
     }
-    .publish(
-        source.terminal_publication.optimizations(),
-        &mut crate::observations::PsiStageTimings::new(&mut timings),
-    )?;
+    .publish(publication.optimizations(), observer)?;
     let module = program.artifact().semantic_module();
     let mut requirements = Vec::with_capacity(reached.len());
     for &identity in reached {
@@ -77,7 +78,7 @@ pub(crate) fn prepare_provider_execution_inputs(
     let selections = program
         .source_selections()
         .ok_or_else(|| refuse("provider policies lost their source selection custody".into()))?;
-    let authority = source.sources.dependency_closure().map(|graph| {
+    let authority = sources.dependency_closure().map(|graph| {
         graph as &dyn semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority
     });
     let mut calling_applications = Vec::new();
@@ -165,7 +166,7 @@ pub(crate) fn prepare_provider_execution_inputs(
     }
     let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
     let mut permissions = Vec::new();
-    for binding in source.sources.accepted_semantic_bindings() {
+    for binding in sources.accepted_semantic_bindings() {
         for permission in binding.terminal_authority_permissions() {
             let requirement = binding
                 .terminal_authority_permission_identities()

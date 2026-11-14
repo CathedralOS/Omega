@@ -1,6 +1,6 @@
 // Expected exit: 64.
 // Expected output contains: error invalid input
-use omega_language_std::console;
+use omega_language_std::Console;
 use io::input;
 use io::output;
 use model::kriging;

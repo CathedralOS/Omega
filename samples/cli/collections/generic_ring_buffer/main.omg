@@ -3,7 +3,7 @@
 // borrow the ring explicitly; popped values and console input are locals.
 // The scripted sequence leaves 50, 5, 15 in slots 3, 4, 5: sum 70.
 // Expected exit: 70.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Ring [copy] requires head < 8, tail < 8 {
     slots: [i32 in Saturating; 8];

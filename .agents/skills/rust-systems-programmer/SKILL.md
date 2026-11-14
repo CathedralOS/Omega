@@ -62,7 +62,7 @@ to find. Carry the reason (a string or error variant) up to the diagnostic. Appl
 
 For a proposed change, identify the avoided work and the contract that must survive. Inspect the whole path, including post-processing and inherited equality, hashing, formatting, or serialization. Peak RAM and execution time are measured, not inferred from the diff.
 
-For implementation, carry the smallest justified change through formatting and [scoped validation](../../../tools/testing.md#validation-scope). Test the changed ownership/order/boundary behavior; measure performance when making a performance claim. Report what changed, what was verified, and any remaining copy or bottleneck that limits the result.
+For implementation, carry the smallest justified change through formatting and [scoped validation](../../../tools/docs/testing.md#validation-scope). Test the changed ownership/order/boundary behavior; measure performance when making a performance claim. Report what changed, what was verified, and any remaining copy or bottleneck that limits the result.
 
 Follow [Explain the change](../../../AGENTS.md#explain-the-change) in PRs,
 reports and explanatory source comments. Describe what the program needs to do
@@ -75,11 +75,11 @@ Select affected-path tests and relevant positive/rejection controls. Retain and
 reuse valid completed evidence under the applicability rules below. Huge corpus
 or workspace gates are not defaults: name the change-specific obligation that
 needs a broader run and follow [AGENTS.md's sweep rules](../../../AGENTS.md#commands).
-Follow [landing](../../../tools/landing.md) for current admission and publication.
+Follow [landing](../../../tools/docs/landing.md) for current admission and publication.
 
 For compiler work and review, apply [requirements and evidence](../../../AGENTS.md#requirements-and-evidence),
-[main-change validation](../../../tools/testing.md#main-change-validation), and
-the [independent semantic review boundary](../../../tools/testing.md#independent-semantic-review)
+[main-change validation](../../../tools/docs/testing.md#main-change-validation), and
+the [independent semantic review boundary](../../../tools/docs/testing.md#independent-semantic-review)
 when required by the assignment. Check the semantic premise and selected meaning,
 both comparison outcomes, and unconditional artifact/schema effects before
 accepting evidence reuse. Runtime branch arguments do not cover Rust checking,

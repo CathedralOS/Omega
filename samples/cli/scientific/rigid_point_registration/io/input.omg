@@ -1,4 +1,5 @@
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 use omega::language::core::F64::from_i32;
 use omega::language::core::F64::from_u64;
 use omega::language::core::F64::is_finite;

@@ -188,13 +188,6 @@ impl Program<'_> {
                     "runtime callable needs the abstract requirement's complete operational contract",
                 ));
             }
-            for (id, body) in bodies.iter() {
-                let mut calls = Vec::new();
-                for statement in &body.statements {
-                    collect_statement(statement, &mut calls);
-                }
-                validate_positions(id, &calls)?;
-            }
             return Ok(());
         }
         let mut policies = IdTable::default();
@@ -276,7 +269,6 @@ impl Program<'_> {
             for statement in &body.statements {
                 collect_statement(statement, &mut found);
             }
-            validate_positions(id, &found)?;
             calls.push(found);
         }
         loop {
@@ -448,46 +440,9 @@ impl Program<'_> {
                 break;
             }
         }
-        // Private summaries are complete only after the fixed point. A marker
-        // cannot be discharged against a provisional empty callee envelope.
-        for (id, uses) in calls.iter() {
-            for invocation in uses {
-                let envelope = match invocation.target {
-                    CallTarget::Machine(callee) => {
-                        terminal_check_tables::row(&published, *callee, id, Construct::Machine)?
-                    }
-                    CallTarget::Selected { contract, .. } => {
-                        &self
-                            .callables
-                            .contracts
-                            .get(*contract)
-                            .ok_or_else(|| {
-                                unavailable(id, "invocation lost its retained callable contract")
-                            })?
-                            .envelope
-                    }
-                    CallTarget::Boundary { boundary } => {
-                        &self
-                            .boundaries
-                            .row(*boundary)
-                            .ok_or_else(|| {
-                                unavailable(id, "invocation lost its retained boundary contract")
-                            })?
-                            .envelope
-                    }
-                };
-                invocation
-                    .acknowledgement
-                    .require_envelope(envelope.suspends, envelope.blocks)
-                    .map_err(|reason| unavailable(id, reason))?;
-                if envelope.suspends {
-                    return Err(unavailable(
-                        id,
-                        "suspending call needs continuation and carry evidence",
-                    ));
-                }
-            }
-        }
+        // The completed envelopes are carried into Terminal Psi. Its checker
+        // validates acknowledgements, source positions and suspension evidence
+        // on the actual emitted calls.
         // A silent private acyclic body may finish locally without exporting
         // a promise. Unknown code must still carry a genuine termination
         // guarantee before a caller can rely on it to fulfill its own promise.
@@ -649,39 +604,18 @@ fn union<T: Clone + Ord>(to: &mut Vec<T>, from: &[T]) {
 struct Use<'a> {
     target: &'a CallTarget,
     arguments: &'a [Expression],
-    acknowledgement: language_core::CallOperationalAcknowledgement,
-    suspension_position: bool,
-}
-
-fn validate_positions(context: MachineId, calls: &[Use<'_>]) -> Checked<()> {
-    if calls
-        .iter()
-        .any(|call| call.acknowledgement.acknowledges_suspend && !call.suspension_position)
-    {
-        return Err(unavailable(
-            context,
-            "suspend acknowledgement outside a complete statement, simple let, transition subject or terminal expression",
-        ));
-    }
-    Ok(())
-}
-
-pub(super) fn nested_acknowledgements(context: MachineId, value: &Expression) -> Checked<()> {
-    let mut calls = Vec::new();
-    collect_expression(value, &mut calls, false);
-    validate_positions(context, &calls)
 }
 
 fn collect_statement<'a>(statement: &'a Statement, calls: &mut Vec<Use<'a>>) {
     match statement {
         Statement::Bind { value, .. } | Statement::Evaluate(value) => {
-            collect_expression(value, calls, true)
+            collect_expression(value, calls)
         }
         Statement::Store {
             destination, value, ..
         } => {
-            collect_expression(destination, calls, false);
-            collect_expression(value, calls, false);
+            collect_expression(destination, calls);
+            collect_expression(value, calls);
         }
         // Capturing an existing reference aliases its already evaluated
         // binding; its initializer's calls were charged at that earlier Bind.
@@ -693,7 +627,7 @@ fn collect_statement<'a>(statement: &'a Statement, calls: &mut Vec<Use<'a>>) {
             default,
             ..
         } => {
-            collect_expression(subject, calls, true);
+            collect_expression(subject, calls);
             for (_, target, _) in arms {
                 collect_target(target, calls);
             }
@@ -703,7 +637,7 @@ fn collect_statement<'a>(statement: &'a Statement, calls: &mut Vec<Use<'a>>) {
         }
         Statement::Arm { guard, target, .. } => {
             if let Some(guard) = guard {
-                collect_expression(guard, calls, false);
+                collect_expression(guard, calls);
             }
             collect_target(target, calls);
         }
@@ -711,32 +645,23 @@ fn collect_statement<'a>(statement: &'a Statement, calls: &mut Vec<Use<'a>>) {
 }
 fn collect_target<'a>(target: &'a Target, calls: &mut Vec<Use<'a>>) {
     if let Target::Value(value) = target {
-        collect_expression(value, calls, true);
+        collect_expression(value, calls);
     }
 }
-fn collect_expression<'a>(
-    expression: &'a Expression,
-    calls: &mut Vec<Use<'a>>,
-    suspension_position: bool,
-) {
+fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) {
     match &expression.kind {
         E::Call {
-            callee,
-            arguments,
-            operational_acknowledgement,
-            ..
+            callee, arguments, ..
         } => {
             if let CallTarget::Selected { callable, .. } = callee {
-                collect_expression(callable, calls, false);
+                collect_expression(callable, calls);
             }
             for argument in arguments {
-                collect_expression(argument, calls, false);
+                collect_expression(argument, calls);
             }
             calls.push(Use {
                 target: callee,
                 arguments,
-                acknowledgement: *operational_acknowledgement,
-                suspension_position,
             });
         }
         E::Field { base, .. }
@@ -748,10 +673,11 @@ fn collect_expression<'a>(
         | E::Not(base)
         | E::BitwiseNot(base)
         | E::Cast(base)
-        | E::Requalify(base) => collect_expression(base, calls, false),
+        | E::Requalify(base)
+        | E::Referent(base) => collect_expression(base, calls),
         E::Record { fields } | E::Case { fields, .. } => {
             for (_, field) in fields {
-                collect_expression(field, calls, false);
+                collect_expression(field, calls);
             }
         }
         E::Match {
@@ -760,26 +686,29 @@ fn collect_expression<'a>(
             default,
             ..
         } => {
-            collect_expression(subject, calls, false);
-            for (_, arm) in arms {
-                collect_expression(arm, calls, false);
+            collect_expression(subject, calls);
+            for (selector, arm) in arms {
+                if let crate::body::Selector::Value(pattern) = selector {
+                    collect_expression(pattern, calls);
+                }
+                collect_expression(arm, calls);
             }
             if let Some(default) = default {
-                collect_expression(default, calls, false);
+                collect_expression(default, calls);
             }
         }
         E::Strict { left, right, .. } | E::ShortCircuit { left, right, .. } => {
-            collect_expression(left, calls, false);
-            collect_expression(right, calls, false);
+            collect_expression(left, calls);
+            collect_expression(right, calls);
         }
         E::Array { elements } => {
             for element in elements {
-                collect_expression(element, calls, false);
+                collect_expression(element, calls);
             }
         }
-        E::Index { base, index } => {
-            collect_expression(base, calls, false);
-            collect_expression(index, calls, false);
+        E::Index { base, index } | E::ByteElement { base, index } => {
+            collect_expression(base, calls);
+            collect_expression(index, calls);
         }
         E::SavedSubject(_)
         | E::ByteLiteral(_)
@@ -1038,6 +967,27 @@ impl<'t> Program<'t> {
                         caller,
                         Construct::Machine,
                         Unserved::Machine("invokes has no exact formal origin"),
+                    ));
+                }
+                // "A row names a parameter path or a requirement identity",
+                // so a bare name nothing in the program has names neither,
+                // in every program. A path, or a name something has, may
+                // name one where typing does not follow it yet.
+                Named::Unresolved
+                    if !row.name.as_str().contains(['.', ':'])
+                        && !self
+                            .typed
+                            .names_nothing_has(vec![row.name.as_str()])
+                            .is_empty() =>
+                {
+                    return Err(crate::reject(
+                        caller,
+                        crate::SourceOrigin::of(row.source_span),
+                        format!(
+                            "`invokes {}` names no parameter and no requirement: a name nothing \
+                             in the program declares is an error wherever it appears",
+                            row.name.as_str()
+                        ),
                     ));
                 }
                 Named::Unresolved => {

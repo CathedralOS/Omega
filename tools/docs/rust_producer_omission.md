@@ -2,7 +2,7 @@
 
 `mbx xtask rust-producer-omission` decides whether a produced closure's
 declared dependency set omits the Rust producer (`omega-rust/`), per the
-contract in [omega-rust/README.md](../omega-rust/README.md#readme):
+contract in [omega-rust/README.md](../../omega-rust/README.md#readme):
 
 > a toolchain, release, or bootstrap input set omits the Rust producer when
 > its closed dependency set contains no `omega-rust/` artifact, build step,
@@ -70,7 +70,7 @@ mbx xtask rust-producer-omission `
 
 ## Gate
 
-[rust_producer_omission.sh](rust_producer_omission.sh) audits the interpreted
+[rust_producer_omission.sh](../rust_producer_omission.sh) audits the interpreted
 variant's numbered rungs and proof manifests, plus shell orchestration under
 `tools/bootstrap/`. Independent peer roots declare their own seed and audit
 boundary. The chain-hygiene gate also audits shell steps under

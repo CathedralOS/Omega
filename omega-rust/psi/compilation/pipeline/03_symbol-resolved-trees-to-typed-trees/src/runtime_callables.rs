@@ -116,22 +116,79 @@ enum NamedValueSource<'a> {
     Machine(symbols::SymbolHandle),
 }
 
+fn named_implementation_source<'a>(
+    program: &'a typed::TypedTrees,
+    path: &typed::expression::TableNamePath,
+) -> Result<Option<&'a typed::trait_definition::Conformance>, &'static str> {
+    let nodes = program.symbols.symbols().nodes();
+    if !path.head_symbol.is_valid() {
+        return Ok(None);
+    }
+    if !nodes.is_valid(path.head_symbol) {
+        return Err("named member has a stale selected root");
+    }
+    match program.symbols.get(path.head_symbol).kind {
+        symbols::SymbolKind::Conformance => program
+            .conformance_by_symbol(path.head_symbol)
+            .map(Some)
+            .ok_or("named member lost its selected implementation"),
+        symbols::SymbolKind::Module => {
+            let members = program
+                .expression_table
+                .name_path_member_symbols(path.member_symbols);
+            if members.len() != path.members.count() as usize
+                || members.last().copied() != Some(path.symbol)
+                || members
+                    .iter()
+                    .any(|symbol| symbol.is_valid() && !nodes.is_valid(*symbol))
+            {
+                return Err("named member has stale or mismatched path selections");
+            }
+            let Some(namespace_position) = members.len().checked_sub(2) else {
+                return Ok(None);
+            };
+            let namespace = members[namespace_position];
+            if !namespace.is_valid()
+                || program.symbols.get(namespace).kind != symbols::SymbolKind::Conformance
+            {
+                return Ok(None);
+            }
+            let mut current = namespace;
+            for position in (0..=namespace_position).rev() {
+                if !nodes.is_valid(current) || members[position] != current {
+                    return Err("named member differs from its exact namespace path");
+                }
+                if current == path.head_symbol {
+                    if members[..position].iter().any(|symbol| symbol.is_valid()) {
+                        return Err("named member changed its selected namespace root");
+                    }
+                    return program
+                        .conformance_by_symbol(namespace)
+                        .map(Some)
+                        .ok_or("named member lost its selected implementation");
+                }
+                current = program.symbols.namespace_parent(current);
+            }
+            Err("named member is not within its selected namespace root")
+        }
+        _ => Ok(None),
+    }
+}
+
 fn named_value_source<'a>(
     program: &'a typed::TypedTrees,
     path: &typed::expression::TableNamePath,
-) -> Option<NamedValueSource<'a>> {
-    let nodes = program.symbols.symbols().nodes();
-    if nodes.is_valid(path.head_symbol)
-        && let Some(conformance) = program.conformance_by_symbol(path.head_symbol)
-    {
-        return Some(NamedValueSource::Implementation(conformance));
+) -> Result<Option<NamedValueSource<'a>>, &'static str> {
+    if let Some(conformance) = named_implementation_source(program, path)? {
+        return Ok(Some(NamedValueSource::Implementation(conformance)));
     }
-    (nodes.is_valid(path.symbol)
+    let nodes = program.symbols.symbols().nodes();
+    Ok((nodes.is_valid(path.symbol)
         && matches!(
             program.symbols.get(path.symbol).kind,
             symbols::SymbolKind::Machine | symbols::SymbolKind::State
         ))
-    .then_some(NamedValueSource::Machine(path.symbol))
+    .then_some(NamedValueSource::Machine(path.symbol)))
 }
 
 /// Named code needs a callable destination to construct its descriptor. A
@@ -144,7 +201,7 @@ pub(crate) fn named_value_needs_destination(
     program.expression_table.expression_is_valid(value)
         && match program.expression_table.expression(value) {
             typed::expression::ExpressionNode::Name(path) => {
-                named_value_source(program, path).is_some()
+                named_value_source(program, path).is_ok_and(|source| source.is_some())
             }
             _ => false,
         }
@@ -175,7 +232,13 @@ pub(crate) fn prepare_named_value(
         .expression_table
         .name_path_members(path.members)
         .to_vec();
-    let (selected, conformance, requirement) = match named_value_source(program, &path) {
+    let source = named_value_source(program, &path).map_err(|reason| {
+        Diagnostic::error(format!(
+            "named machine value has no exact implementation requirement: {reason}"
+        ))
+        .with_source_span(program.expression_table.source_span(value))
+    })?;
+    let (selected, conformance, requirement) = match source {
         Some(NamedValueSource::Implementation(conformance)) => {
             let row = if let Some(machine) = program.machine_by_own_or_state_symbol(path.symbol) {
                 let mut rows = conformance
@@ -1283,90 +1346,187 @@ machine entry(scale: &Scale) -> u64 {
     one(scale, 7)
 }
 "#;
-        let mut sources = source::SourceMap::default();
-        let source = sources
-            .add("runtime_callables/named_value.omg".into(), TEXT.into())
-            .source_id;
-        let tokens = source_files_to_tokens::Lexer::new(TEXT).tokenize().unwrap();
-        let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
-            syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
-                syntax,
-                sources: Some(std::sync::Arc::new(sources)),
-                top_level_bindings: Vec::new(),
-                retained_base: None,
-            },
-        )
-        .unwrap();
-        let mut program = crate::lower_symbol_resolved_trees(&resolved).unwrap();
-        let constructed = program
-            .expression_table
-            .iter_expressions()
-            .filter_map(|(_, expression)| match expression {
-                ExpressionNode::MachineValue(value) => Some(value.clone()),
-                _ => None,
-            })
-            .collect::<Vec<_>>();
-        let [constructed] = constructed.as_slice() else {
-            panic!("the one named operand must construct its callable value");
-        };
-        let (_, row, signature) = program
-            .named_conformance_member(constructed.conformance, constructed.requirement)
-            .unwrap()
+        const QUALIFIED: &str = r#"
+module kit;
+trait Shrink<T> {
+    machine shrink(scale: &T, value: u64) -> u64;
+}
+data Scale { unit: u8; }
+TrimOne satisfies Shrink<Scale> {
+    machine shrink(scale: &Scale, value: u64) -> u64 { value }
+}
+machine entry(scale: &Scale) -> u64 {
+    let one: machine(scale: &Scale, value: u64) -> u64 reaches none crashes none = kit::TrimOne::shrink;
+    one(scale, 7)
+}
+"#;
+        for (text, qualified) in [(TEXT, false), (QUALIFIED, true)] {
+            let mut sources = source::SourceMap::default();
+            let source = sources
+                .add("runtime_callables/named_value.omg".into(), text.into())
+                .source_id;
+            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            let syntax =
+                tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap();
+            let resolved = syntax_trees_to_symbol_resolved_trees::resolve(
+                syntax_trees_to_symbol_resolved_trees::ResolutionRequest {
+                    syntax,
+                    sources: Some(std::sync::Arc::new(sources)),
+                    top_level_bindings: Vec::new(),
+                    retained_base: None,
+                },
+            )
             .unwrap();
-        assert_eq!(constructed.requirement, row.requirement);
-        assert_eq!(constructed.selected.symbol, row.realization_state);
-        let machine = program.machine_by_symbol(row.realization_machine).unwrap();
-        let [entry] = program.machine_states(machine) else {
-            panic!("the selected implementation must retain its exact entry");
-        };
-        assert_eq!(entry.symbol, constructed.selected.symbol);
-        let actual = program.state_parameters(entry);
-        let required = program.state_signature_parameters(signature);
-        assert_eq!(actual.len(), required.len());
-        for (actual, required) in actual.iter().zip(required) {
-            let actual = program.normalized_type_identity_text(actual.type_reference);
-            let required = program.normalized_type_identity_text(required.type_reference);
-            assert!(!actual.is_empty() && !required.is_empty());
-            assert_eq!(
-                actual, required,
-                "the requirement must retain Shrink<Scale>'s applied carrier",
+            let named_members = resolved
+                .tables
+                .bodies
+                .expressions
+                .iter_expressions()
+                .filter_map(|(expression, node)| match node {
+                    resolved::expression::ExpressionNode::Name(path)
+                        if path.members.count() > 1 =>
+                    {
+                        let members = resolved
+                            .tables
+                            .bodies
+                            .expressions
+                            .name_path_member_symbols(path.member_symbols);
+                        members
+                            .len()
+                            .checked_sub(2)
+                            .and_then(|position| members.get(position))
+                            .filter(|namespace| {
+                                resolved.symbols.symbols().nodes().is_valid(**namespace)
+                                    && resolved.symbols.get(**namespace).kind
+                                        == symbols::SymbolKind::Conformance
+                            })
+                            .map(|namespace| (expression, path, *namespace))
+                    }
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert!(!named_members.is_empty());
+            for (expression, path, namespace) in named_members {
+                let implementation = resolved
+                    .conformances
+                    .iter()
+                    .find(|implementation| implementation.symbol == namespace)
+                    .unwrap();
+                let [row] = implementation.rows.as_slice() else {
+                    panic!("the authored map has one exact public member");
+                };
+                assert_eq!(path.symbol, row.requirement);
+                assert_ne!(path.symbol, row.realization_state);
+                let members = resolved
+                    .tables
+                    .bodies
+                    .expressions
+                    .name_path_member_symbols(path.member_symbols);
+                if qualified {
+                    assert_eq!(
+                        resolved.symbols.get(path.head_symbol).kind,
+                        symbols::SymbolKind::Module
+                    );
+                    assert_eq!(
+                        members,
+                        &[path.head_symbol, implementation.symbol, row.requirement]
+                    );
+                    assert_eq!(
+                        resolved.symbols.namespace_parent(implementation.symbol),
+                        path.head_symbol
+                    );
+                } else {
+                    assert_eq!(members, &[implementation.symbol, row.requirement]);
+                }
+                let public_selections = resolved
+                .tables
+                .bodies
+                .expressions
+                .authored_selection_occurrences(expression)
+                .filter_map(|occurrence| resolved.authored_declaration_selections().get(occurrence))
+                .filter(|selection| {
+                    matches!(
+                        selection.target(),
+                        language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(selected)
+                            if selected.selected_symbol() == row.requirement
+                    )
+                })
+                .count();
+                assert_eq!(
+                    public_selections, 1,
+                    "the member keeps its exact authored occurrence"
+                );
+            }
+            let mut program = crate::lower_symbol_resolved_trees(&resolved).unwrap();
+            let constructed = program
+                .expression_table
+                .iter_expressions()
+                .filter_map(|(_, expression)| match expression {
+                    ExpressionNode::MachineValue(value) => Some(value.clone()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            let [constructed] = constructed.as_slice() else {
+                panic!("the one named operand must construct its callable value");
+            };
+            let (_, row, signature) = program
+                .named_conformance_member(constructed.conformance, constructed.requirement)
+                .unwrap()
+                .unwrap();
+            assert_eq!(constructed.requirement, row.requirement);
+            assert_eq!(constructed.selected.symbol, row.realization_state);
+            let machine = program.machine_by_symbol(row.realization_machine).unwrap();
+            let [entry] = program.machine_states(machine) else {
+                panic!("the selected implementation must retain its exact entry");
+            };
+            assert_eq!(entry.symbol, constructed.selected.symbol);
+            let actual = program.state_parameters(entry);
+            let required = program.state_signature_parameters(signature);
+            assert_eq!(actual.len(), required.len());
+            for (actual, required) in actual.iter().zip(required) {
+                let actual = program.normalized_type_identity_text(actual.type_reference);
+                let required = program.normalized_type_identity_text(required.type_reference);
+                assert!(!actual.is_empty() && !required.is_empty());
+                assert_eq!(
+                    actual, required,
+                    "the requirement must retain Shrink<Scale>'s applied carrier",
+                );
+            }
+            let lexical_owner = machine.symbol;
+            let stale = symbols::SymbolHandle::from_parts(
+                row.requirement.arena_index(),
+                row.requirement.generation().checked_add(1).unwrap(),
             );
+            let mut members = Default::default();
+            program
+                .expression_table
+                .push_name_path_member(&mut members, "TrimOne".into());
+            program
+                .expression_table
+                .push_name_path_member(&mut members, "shrink".into());
+            let value = program
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    members,
+                    head_symbol: constructed.conformance,
+                    symbol: stale,
+                    ..Default::default()
+                }));
+            let error = prepare_named_value(
+                &mut program,
+                value,
+                constructed.type_reference,
+                lexical_owner,
+            )
+            .unwrap_err();
+            assert!(
+                error.message.contains("exact implementation requirement"),
+                "{error:?}"
+            );
+            assert!(matches!(
+                program.expression_table.expression(value),
+                ExpressionNode::Name(_)
+            ));
         }
-        let lexical_owner = machine.symbol;
-        let stale = symbols::SymbolHandle::from_parts(
-            row.requirement.arena_index(),
-            row.requirement.generation().checked_add(1).unwrap(),
-        );
-        let mut members = Default::default();
-        program
-            .expression_table
-            .push_name_path_member(&mut members, "TrimOne".into());
-        program
-            .expression_table
-            .push_name_path_member(&mut members, "shrink".into());
-        let value = program
-            .expression_table
-            .insert(ExpressionNode::Name(TableNamePath {
-                members,
-                head_symbol: constructed.conformance,
-                symbol: stale,
-                ..Default::default()
-            }));
-        let error = prepare_named_value(
-            &mut program,
-            value,
-            constructed.type_reference,
-            lexical_owner,
-        )
-        .unwrap_err();
-        assert!(
-            error.message.contains("exact implementation requirement"),
-            "{error:?}"
-        );
-        assert!(matches!(
-            program.expression_table.expression(value),
-            ExpressionNode::Name(_)
-        ));
     }
 }

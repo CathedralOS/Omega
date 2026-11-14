@@ -428,7 +428,7 @@ impl PackageCommandReviewRequest<'_> {
             source_bindings,
             execute,
         )
-        .map_err(failure)?;
+        .map_err(PackageCommandError::from_package_change)?;
         Ok(PackageCommandReview {
             identity: Arc::clone(self.identity),
             review,
@@ -545,7 +545,7 @@ impl PreparedPackageCommand<'_, '_> {
             .iter()
             .zip(choices.resolutions.iter())
             .collect::<Vec<_>>();
-        session.close().map_err(failure)?;
+        session.close().map_err(PackageCommandError::from)?;
         let published = publish_reviewed_package_change(
             transaction,
             &replacement,
@@ -666,27 +666,139 @@ pub struct PackageCommandOutcome {
 }
 
 #[derive(Debug)]
-pub struct PackageCommandError(String);
+pub struct PackageCommandError {
+    cause: PackageCommandCause,
+    accounting: compilation_products::SourceCompletionAccounting,
+}
+
+#[derive(Debug)]
+enum PackageCommandCause {
+    Message(String),
+    Review(Box<CompileResolvedPackageReviewsError>),
+    Change(Box<crate::operations::PackageChangeError>),
+    Compilation(compilation_products::CompileFailure),
+    Preparation(Box<crate::operations::PrepareLocalProjectError>),
+}
+
+impl PackageCommandError {
+    pub fn source_completion_accounting(
+        &self,
+    ) -> &compilation_products::SourceCompletionAccounting {
+        &self.accounting
+    }
+
+    pub fn with_source_completion_accounting(
+        mut self,
+        accounting: compilation_products::SourceCompletionAccounting,
+    ) -> Self {
+        self.accounting.append(accounting);
+        self
+    }
+
+    pub fn compilation_failure(&self) -> Option<&compilation_products::CompileFailure> {
+        match &self.cause {
+            PackageCommandCause::Compilation(failure) => Some(failure),
+            _ => None,
+        }
+    }
+
+    pub fn review_failure(&self) -> Option<&CompileResolvedPackageReviewsError> {
+        match &self.cause {
+            PackageCommandCause::Review(failure) => Some(failure),
+            PackageCommandCause::Change(failure) => match failure.as_ref() {
+                crate::operations::PackageChangeError::Compilation(error) => Some(error),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+}
 
 impl From<CompileResolvedPackageReviewsError> for PackageCommandError {
     fn from(error: CompileResolvedPackageReviewsError) -> Self {
-        failure(error)
+        let accounting = error
+            .source_completion_accounting()
+            .cloned()
+            .unwrap_or_default();
+        Self {
+            cause: PackageCommandCause::Review(Box::new(error)),
+            accounting,
+        }
+    }
+}
+
+impl PackageCommandError {
+    fn from_package_change(error: crate::operations::PackageChangeError) -> Self {
+        let accounting = match &error {
+            crate::operations::PackageChangeError::Compilation(error) => error
+                .source_completion_accounting()
+                .cloned()
+                .unwrap_or_default(),
+            _ => Default::default(),
+        };
+        Self {
+            cause: PackageCommandCause::Change(Box::new(error)),
+            accounting,
+        }
+    }
+}
+
+impl From<compilation_products::CompileFailure> for PackageCommandError {
+    fn from(error: compilation_products::CompileFailure) -> Self {
+        let accounting = error
+            .source_completion_accounting()
+            .cloned()
+            .unwrap_or_default();
+        Self {
+            cause: PackageCommandCause::Compilation(error),
+            accounting,
+        }
+    }
+}
+
+impl From<crate::operations::PrepareLocalProjectError> for PackageCommandError {
+    fn from(error: crate::operations::PrepareLocalProjectError) -> Self {
+        Self {
+            cause: PackageCommandCause::Preparation(Box::new(error)),
+            accounting: Default::default(),
+        }
     }
 }
 
 impl From<String> for PackageCommandError {
     fn from(error: String) -> Self {
-        Self(error)
+        Self {
+            cause: PackageCommandCause::Message(error),
+            accounting: Default::default(),
+        }
     }
 }
 
 impl fmt::Display for PackageCommandError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(formatter)
+        match &self.cause {
+            PackageCommandCause::Message(message) => message.fmt(formatter),
+            PackageCommandCause::Review(error) => error.fmt(formatter),
+            PackageCommandCause::Change(error) => error.fmt(formatter),
+            PackageCommandCause::Preparation(error) => error.fmt(formatter),
+            PackageCommandCause::Compilation(failure) => diagnostics::write_bounded_diagnostics(
+                formatter,
+                &failure.clone().into_diagnostics(),
+            ),
+        }
     }
 }
-impl std::error::Error for PackageCommandError {}
+impl std::error::Error for PackageCommandError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match &self.cause {
+            PackageCommandCause::Review(error) => Some(error.as_ref()),
+            PackageCommandCause::Change(error) => Some(error.as_ref()),
+            PackageCommandCause::Preparation(error) => Some(error.as_ref()),
+            _ => None,
+        }
+    }
+}
 
 fn failure(message: impl fmt::Display) -> PackageCommandError {
-    PackageCommandError(message.to_string())
+    PackageCommandError::from(message.to_string())
 }

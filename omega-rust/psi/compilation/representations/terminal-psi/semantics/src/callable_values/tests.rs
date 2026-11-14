@@ -41,6 +41,7 @@ fn machine(id: u64) -> TerminalMachine {
         ranked_scc: None,
         structural_places: Vec::new(),
         block_entry_claims: Vec::new(),
+        call_formations: Vec::new(),
         loan_completions: Vec::new(),
         content_identity_reshuffles: Vec::new(),
         content_partition_compositions: Vec::new(),

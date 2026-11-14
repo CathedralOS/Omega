@@ -9,8 +9,8 @@ use omega::language::core::min_i32;
 // the search itself reads arr[mid] for real. Pure compute + stdout + Clock.sleep.
 // Expected exit: 0.
 // Expected output contains: #
-use omega_language_std::console;
-use omega_language_std::clock;
+use omega_language_std::Console;
+use omega_language_std::Clock;
 
 domain [u8]::Utf8
 requires

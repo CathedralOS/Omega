@@ -193,12 +193,19 @@ impl Lowering<'_> {
                 let scalar_type = self.result_type(expression)?;
                 self.read_index(base, index, scalar_type, source)
             }
+            ExpressionKind::Referent(_) => {
+                let scalar_type = self.result_type(expression)?;
+                self.read_referent(expression, scalar_type)
+            }
             ExpressionKind::Field { base, field } => {
                 let scalar_type = self.result_type(expression)?;
                 self.read_field(base, *field, scalar_type, source)
             }
             ExpressionKind::CollectionMeasure { base, measure } => {
                 self.measure_collection(base, *measure, source)
+            }
+            ExpressionKind::ByteElement { base, index } => {
+                self.read_byte_element(base, index, source)
             }
             ExpressionKind::Payload { base, case, field } => {
                 let scalar_type = self.result_type(expression)?;
@@ -218,7 +225,7 @@ impl Lowering<'_> {
                     subject,
                     arms,
                     default.as_deref(),
-                    scalar_type,
+                    ValueType::plain(scalar_type),
                     source,
                     *capture,
                 )
@@ -311,14 +318,13 @@ impl Lowering<'_> {
                 callee,
                 arguments,
                 designated,
-                operational_acknowledgement,
             } => self.call(
                 callee,
                 arguments,
                 *designated,
-                *operational_acknowledgement,
                 expression.result,
                 source,
+                expression.call_context.unwrap_or_default(),
             ),
         }
     }

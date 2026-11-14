@@ -11,8 +11,31 @@ use compilation_products::{
     CompileFailure,
 };
 use diagnostics::Diagnostic;
+use provider_planning::target_supply::{SettledTargetSupply, SlotSchema};
 use selected_dispatch::SelectedExecution;
 use std::sync::Arc;
+
+/// The schema of each slot a settled supply chose a provider for, projected
+/// from the accepted source's declaration of that slot
+/// (`AcceptedTerminalSource::slot_schema`). A slot with no schema is left
+/// out, and the plan of its provider is refused by the slot's requirement
+/// (`SettledTargetSupply::plans`).
+pub fn settled_slot_schemas(
+    accepted: &psi_compiler::AcceptedTerminalSource,
+    settled: &SettledTargetSupply,
+) -> Vec<SlotSchema> {
+    let mut schemas = Vec::<SlotSchema>::new();
+    for requirement in settled.requirements() {
+        let slot = requirement.reached.slot;
+        if schemas.iter().any(|schema| schema.slot == slot) {
+            continue;
+        }
+        if let Some(surface) = accepted.slot_schema(slot) {
+            schemas.push(SlotSchema { slot, surface });
+        }
+    }
+    schemas
+}
 
 pub(crate) struct SelectedProviderCustody {
     pub(crate) terminal_publication: Arc<compilation_products::ProductTerminalPublication>,
@@ -219,8 +242,14 @@ fn settle_execution(
         let inputs = match &execution_inputs {
             Some((previous, inputs)) if *previous == reached => inputs.clone(),
             _ => {
-                let inputs =
-                    crate::terminal::prepare_provider_execution_inputs(source, target, &reached)?;
+                let mut timings = source.timings.clone();
+                let inputs = crate::terminal::prepare_provider_execution_inputs(
+                    &source.terminal_publication,
+                    &source.sources,
+                    target,
+                    &reached,
+                    &mut crate::observations::PsiStageTimings::new(&mut timings),
+                )?;
                 execution_inputs = Some((reached.clone(), inputs.clone()));
                 inputs
             }

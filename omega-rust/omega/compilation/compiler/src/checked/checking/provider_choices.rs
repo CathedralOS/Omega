@@ -36,10 +36,12 @@ fn application(
         .ok_or_else(|| diagnostic("provider schema has no complete application identity"))
 }
 
-pub(super) struct PreparedProviderChoices {
-    pub(super) selections: Vec<ProviderSelectionInput>,
-    pub(super) declaration_roots: Vec<SymbolHandle>,
-    pub(super) calling_applications: Vec<TraitApplicationEnvironment>,
+/// Source-normalized choices and their exact declaration/calling dependencies.
+/// These inputs must be bound to this same typed owner before judgment.
+pub struct PreparedProviderChoices {
+    pub selections: Vec<ProviderSelectionInput>,
+    pub declaration_roots: Vec<SymbolHandle>,
+    pub calling_applications: Vec<TraitApplicationEnvironment>,
 }
 
 struct SourceCandidate {
@@ -233,7 +235,7 @@ fn declaration<'a>(
     })
 }
 
-pub(super) fn prepare_with_source_defaults(
+pub fn prepare_with_source_defaults(
     source: &Arc<FrozenTypedTrees>,
     targets: &[target::TargetProfile],
     overrides: &[ProviderSelection],

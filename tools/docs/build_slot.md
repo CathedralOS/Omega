@@ -45,7 +45,7 @@ the owner states replaces these defaults.
 
 1. Cap the total, not each build. Either start one expensive build at a time
    across all local agents
-   ([host setup](../.agents/skills/swarm/references/host-setup.md#admit-builds-not-just-agents)),
+   ([host setup](../../.agents/skills/swarm/references/host-setup.md#admit-builds-not-just-agents)),
    or give every agent the same shared limit: one mbx pool budget plus one
    affinity mask or quota.
 2. Leave headroom and never drive the machine to 100%. Without a stated limit,
@@ -103,7 +103,7 @@ of compiler runs was started beside it, and lost others to settings changed
 while it ran.
 
 - `~/omega-agent/bin/vm-heavy <label> <command...>` on `omega-linux` and
-  `omega-win`, installed from [`tools/vm_heavy.sh`](vm_heavy.sh), runs a
+  `omega-win`, installed from [`tools/vm_heavy.sh`](../vm_heavy.sh), runs a
   command holding the machine's lock. It refuses with exit
   75 while a compiler build or another guarded job is active
   there. `omega-remote` routes every command that names `mbx`, `cargo` or a

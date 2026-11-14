@@ -4,7 +4,7 @@
 // the reaction order, and every arm is a call that returns a fresh [f64; 3].
 // The selected triple is then carried by value through a state, stored in a
 // field, and read back through a parameter.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Stage { values: [f64; 3]; }
 data Main { stage: Stage; }

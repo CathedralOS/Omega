@@ -700,19 +700,6 @@ pub(crate) fn judge(
             };
             let call = crate::call_contracts::invocation(module, caller, rows, invocation, row)?;
             let envelope = envelope_for(elaboration, caller.id, call.inputs)?;
-            if let Envelope::Runtime(envelope) = envelope {
-                row.operational_acknowledgement
-                    .require_envelope(envelope.suspends, envelope.blocks)
-                    .map_err(|reason| refusal(RefusalReason::Unsupported, caller.id, at, reason))?;
-                if envelope.suspends {
-                    return Err(refusal(
-                        RefusalReason::Unsupported,
-                        caller.id,
-                        at,
-                        "suspending call needs continuation and carry evidence",
-                    ));
-                }
-            }
             let context = Calls {
                 module,
                 values: values.as_ref(),
@@ -769,31 +756,201 @@ pub(crate) fn judge(
                 return Err(context
                     .unsupported("callee termination premises need their exact invocation proof"));
             }
-            for axis in Axis::ALL {
-                // None is an explicitly open abstract source permission, not
-                // a missing runtime envelope or an inferred empty set.
-                let Some(ceiling) = ceiling.row(axis) else {
-                    continue;
-                };
-                let contributes = reached.row(axis);
-                let outside: Vec<_> = contributes
-                    .iter()
-                    .copied()
-                    .filter(|permission| ceiling.binary_search(permission).is_err())
-                    .collect();
-                if !outside.is_empty() {
-                    found.push(Excess {
-                        axis,
-                        machine: caller.id,
-                        at,
-                        callee: call.inputs.callee,
-                        ceiling,
-                        contributes,
-                        outside,
-                    });
-                }
+            contain(
+                ceiling,
+                &reached,
+                caller.id,
+                call.inputs.callee,
+                at,
+                &mut found,
+            );
+        }
+        for formation in &caller.call_formations {
+            if let (terminal_psi::CallSite::Edge(edge), Some(callee)) =
+                (formation.site, formation.tail_callee)
+            {
+                tail_contribution(
+                    elaboration,
+                    caller,
+                    callee,
+                    edge,
+                    values.as_ref(),
+                    &mut found,
+                )?;
             }
         }
     }
     Ok(found)
+}
+
+fn contain(
+    ceiling: Envelope<'_>,
+    reached: &Contributions,
+    machine: MachineId,
+    callee: Callee,
+    at: Construct,
+    found: &mut Vec<Excess>,
+) {
+    for axis in Axis::ALL {
+        let Some(ceiling) = ceiling.row(axis) else {
+            continue;
+        };
+        let contributes = reached.row(axis);
+        let outside: Vec<_> = contributes
+            .iter()
+            .copied()
+            .filter(|permission| ceiling.binary_search(permission).is_err())
+            .collect();
+        if !outside.is_empty() {
+            found.push(Excess {
+                axis,
+                machine,
+                at,
+                callee,
+                ceiling,
+                contributes,
+                outside,
+            });
+        }
+    }
+}
+
+/// A frame-reusing jump retains its exact nominal interface. It is not an
+/// invocation row: substitute the jump's actual scalar values directly.
+fn tail_contribution(
+    elaboration: &terminal_check_tables::program::Elaboration,
+    caller: &TerminalMachine,
+    callee: MachineId,
+    edge: semantic_vocabulary::EdgeId,
+    values: Option<&CallableValueProgram<'_>>,
+    found: &mut Vec<Excess>,
+) -> Checked<()> {
+    let module = &elaboration.module;
+    let at = Construct::Edge(edge);
+    let context = Calls {
+        module,
+        values,
+        caller,
+        at,
+    };
+    let target = module
+        .machine(callee)
+        .ok_or_else(|| context.foreign("tail call names an unavailable machine"))?;
+    let mut jumps = caller
+        .blocks
+        .iter()
+        .filter_map(|block| match &block.terminator {
+            terminal_psi::Terminator::Jump {
+                edge: actual,
+                arguments,
+                structural_arguments,
+                erased_arguments,
+                erased_proof_arguments,
+                ..
+            } if *actual == edge => Some((
+                arguments,
+                structural_arguments,
+                erased_arguments,
+                erased_proof_arguments,
+            )),
+            _ => None,
+        });
+    let (Some((arguments, structural, erased, proofs)), None) = (jumps.next(), jumps.next()) else {
+        return Err(context.foreign("tail interface names no unique actual jump"));
+    };
+    if arguments.len() != target.parameters.len()
+        || !structural.is_empty()
+        || !erased.is_empty()
+        || !proofs.is_empty()
+        || !target.structural_parameters.is_empty()
+        || !target.erased_scalar_formals.is_empty()
+    {
+        return Err(context.foreign("tail jump does not carry its exact callable formals"));
+    }
+    target
+        .contract
+        .validate_parameter_order()
+        .map_err(|reason| context.foreign(reason))?;
+    let ceiling = machine_envelope(elaboration, caller.id)?;
+    let envelope = machine_envelope(elaboration, callee)?;
+    let mut reached = Contributions::default();
+    if let Some(reach) = envelope.reach() {
+        reached.reach.extend_from_slice(reach);
+    } else if ceiling.reach().is_some() {
+        return Err(context
+            .unsupported("open abstract service reach cannot establish a finite caller ceiling"));
+    }
+    if let Some(entries) = envelope.entries() {
+        for entry in entries {
+            match entry {
+                Entry::Service(service) => union(&mut reached.entries, [Entry::Service(service)]),
+                Entry::Parameter(position) => {
+                    let position = usize::try_from(position)
+                        .map_err(|_| context.foreign("tail invokes coordinate is too large"))?;
+                    if target.parameter_order.get(position) != Some(&BoundaryParameterKind::Scalar)
+                    {
+                        return Err(context.foreign("tail invokes names no scalar formal"));
+                    }
+                    let lane = target.parameter_order[..position]
+                        .iter()
+                        .filter(|kind| **kind == BoundaryParameterKind::Scalar)
+                        .count();
+                    let Some(semantic_vocabulary::ScalarType::Callable(contract)) =
+                        target.parameters.get(lane).map(|formal| formal.scalar_type)
+                    else {
+                        return Err(context.foreign("tail invokes names a non-callable formal"));
+                    };
+                    let actual = *arguments
+                        .get(lane)
+                        .ok_or_else(|| context.foreign("tail invokes lost its actual value"))?;
+                    let origins = context.resolve(CallableValueQuery::Scalar {
+                        machine: caller.id,
+                        value: actual,
+                        contract,
+                    })?;
+                    context.holder(contract, &origins, &mut reached)?;
+                    let public = &context.contract(contract)?.envelope;
+                    reached.operational(public);
+                    union(&mut reached.reach, public.service_reach.iter().copied());
+                    for entry in &public.invocations {
+                        match entry {
+                            Entry::Service(service) => union(&mut reached.entries, [Entry::Service(*service)]),
+                            Entry::Parameter(_) => return Err(context.unsupported(
+                                "nested callable invocation needs its exact invocation actual mapping")),
+                        }
+                    }
+                }
+            }
+        }
+    } else if ceiling.entries().is_some() {
+        return Err(context.unsupported(
+            "open abstract invocation ceiling cannot establish a finite caller ceiling",
+        ));
+    }
+    match envelope {
+        Envelope::Runtime(envelope) => reached.operational(envelope),
+        Envelope::Abstract(_) if matches!(ceiling, Envelope::Runtime(_)) => {
+            return Err(context.unsupported(
+                "abstract callable has no closed suspension, blocking or progress envelope",
+            ));
+        }
+        Envelope::Abstract(_) => {}
+    }
+    if reached.conditional_progress
+        && matches!(ceiling, Envelope::Runtime(envelope) if matches!(envelope.termination,
+            terminal_psi::TerminalCallableTermination::Terminates { .. }))
+    {
+        return Err(
+            context.unsupported("callee termination premises need their exact invocation proof")
+        );
+    }
+    contain(
+        ceiling,
+        &reached,
+        caller.id,
+        Callee::Declared(callee.into()),
+        at,
+        found,
+    );
+    Ok(())
 }

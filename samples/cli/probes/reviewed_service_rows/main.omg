@@ -2,7 +2,7 @@
 // The package boundary retains read capability for one method, an empty reach
 // for the other, and the separately declared synchronous interface for both.
 use reviewed_service::operations;
-use omega_language_std::console;
+use omega_language_std::Console;
 Reader satisfies Operations {
     machine read(value: i32) -> i32 reaches ReadCapability { read_value_provider(value) }
     machine identity(value: i32) -> i32 { identity_provider(value) }

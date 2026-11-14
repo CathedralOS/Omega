@@ -2,7 +2,7 @@
 // `requires sorted(values) == true` contract must reject a caller that never
 // established sortedness.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine sorted(values: &[i32; 16]) -> bool {
     check_sorted(values, 15)

@@ -153,6 +153,9 @@ impl Program<'_> {
             };
             let data = self.data_type(id, record)?;
             match &data.shape {
+                StorageShape::Opaque => {
+                    return unserved("opaque initialization requires boundary-supplied contents");
+                }
                 StorageShape::Record(fields) => {
                     pending.extend(fields.iter().map(|field| (field.value_type, true)));
                 }
@@ -175,6 +178,9 @@ impl Program<'_> {
                 } => {}
                 StorageShape::ElementView { .. } => {
                     return unserved("zero-established mutable sequence");
+                }
+                StorageShape::Reference { .. } => {
+                    return unserved("zero-established reference without backing");
                 }
                 StorageShape::ByteSequence(_) | StorageShape::PrimitiveScalar { .. } => {}
             }

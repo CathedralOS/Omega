@@ -1,6 +1,6 @@
 use terrain::model;
 use terrain::stitch;
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::narrow_u64_to_i32_wrapping;
 data Main {
     input: [u8; 16];

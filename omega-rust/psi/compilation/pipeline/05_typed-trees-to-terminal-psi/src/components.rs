@@ -241,6 +241,7 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
         | ExpressionKind::Requalify(operand)
+        | ExpressionKind::Referent(operand)
         | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::Field { base: operand, .. }
         | ExpressionKind::CollectionMeasure { base: operand, .. }
@@ -254,7 +255,7 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
                 expression(element, sites);
             }
         }
-        ExpressionKind::Index { base, index } => {
+        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
             expression(base, sites);
             expression(index, sites);
         }
@@ -310,6 +311,7 @@ fn uses_storage(body: &Body, signature: &Signature) -> bool {
             | ExpressionKind::Index { .. }
             | ExpressionKind::Record { .. }
             | ExpressionKind::Field { .. }
+            | ExpressionKind::ByteElement { .. }
             | ExpressionKind::CollectionMeasure { .. }
             | ExpressionKind::Case { .. }
             | ExpressionKind::Payload { .. }
@@ -332,6 +334,7 @@ fn uses_storage(body: &Body, signature: &Signature) -> bool {
             | ExpressionKind::BitwiseNot(operand)
             | ExpressionKind::Cast(operand)
             | ExpressionKind::Requalify(operand)
+            | ExpressionKind::Referent(operand)
             | ExpressionKind::Establish { operand, .. } => stored(operand),
             ExpressionKind::Strict { left, right, .. }
             | ExpressionKind::ShortCircuit { left, right, .. } => stored(left) || stored(right),

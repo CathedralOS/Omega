@@ -14,8 +14,22 @@ machine entry(value: u32) -> u32 {contract} {{ value + 1u32 }}
 "#
         ));
         let entry = super::boundary_calls::entry(&typed);
-        let elaboration = typed_trees_to_terminal_psi::elaborate_closure(&typed, entry)
-            .expect("scalar operands exclude the unrelated Pair operator families");
+        let elaboration = typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .expect("scalar operands exclude the unrelated Pair operator families");
         let verdict = judge(Ok(elaboration)).unwrap();
         if accepted {
             assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");

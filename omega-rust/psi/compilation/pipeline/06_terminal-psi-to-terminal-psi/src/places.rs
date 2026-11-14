@@ -94,11 +94,15 @@ use terminal_psi::{
 use crate::graph::Graph;
 use crate::{StorageUse, refusal};
 
+mod contents;
 mod loans;
 mod log;
 
+pub(crate) use loans::reference_graph;
 pub use loans::{ConflictingLoan, LoanConflict};
 use log::{Logged, Stored};
+use std::cell::RefCell;
+use terminal_semantics::descriptor_results::DescriptorAnalysis;
 
 fn index(raw: u64) -> usize {
     usize::try_from(raw - 1).unwrap_or(usize::MAX)
@@ -111,6 +115,30 @@ fn index(raw: u64) -> usize {
 pub(crate) struct Lineage {
     root: PlaceId,
     segments: Vec<Segment>,
+}
+
+impl Lineage {
+    fn descriptor_location(
+        &self,
+    ) -> Option<terminal_semantics::descriptor_lifetimes::DescriptorLocation> {
+        use terminal_semantics::descriptor_lifetimes::{DescriptorLocation, DescriptorPathSegment};
+        Some(DescriptorLocation {
+            root: self.root,
+            path: self
+                .segments
+                .iter()
+                .map(|step| {
+                    Some(match step {
+                        Segment::Field(field) => DescriptorPathSegment::Field(*field),
+                        Segment::Case(case) => DescriptorPathSegment::Case(*case),
+                        Segment::FixedIndex(index) => DescriptorPathSegment::FixedIndex(*index),
+                        Segment::Referent => DescriptorPathSegment::Referent,
+                        Segment::RuntimeIndex { .. } | Segment::Extent => return None,
+                    })
+                })
+                .collect::<Option<Vec<_>>>()?,
+        })
+    }
 }
 
 pub(crate) fn lineage(
@@ -176,7 +204,8 @@ pub(crate) fn overlap(left: &Lineage, right: &Lineage) -> bool {
             | Segment::Case(_)
             | Segment::FixedIndex(_)
             | Segment::RuntimeIndex { .. }
-            | Segment::Extent,
+            | Segment::Extent
+            | Segment::Referent,
             _,
         )) => true,
     }
@@ -232,41 +261,59 @@ fn asked_root(asked: Asked<'_>) -> PlaceId {
     asked.place().root
 }
 
-/// The initial content value of each place that has one, indexed by
-/// `ExactPlaceId - 1`. A derived column over the value table: elaboration
-/// mints at most one such value per place.
-///
-/// The lowered form declares no initial content value, so nothing in it fixes
-/// which identity belongs to which leaf. They are minted in the order of
-/// the leaves they belong to, and any other order is refused: otherwise two
-/// rows of the same type could exchange their leaves and be read as each
-/// other's contents. A second value for one place is out of order too: it
-/// would be a second identity for one content.
-fn initial_contents(machine: MachineId, tables: &MachineTables) -> Checked<Vec<Option<ValueId>>> {
-    let mut contents = vec![None; tables.places.len()];
-    let mut previous: Option<ExactPlaceId> = None;
+/// Logical values indexed by exact place at entry and by (call, place) on
+/// return. The producer lists snapshots in (place, boundary) order, so
+/// duplicate or exchanged identities cannot change which leaf a clause names.
+struct Contents {
+    entry: Vec<Option<ValueId>>,
+    calls: Vec<Vec<(ExactPlaceId, ValueId)>>,
+}
+
+fn initial_contents(
+    machine: MachineId,
+    tables: &MachineTables,
+    operations: usize,
+) -> Checked<Contents> {
+    let mut contents = Contents {
+        entry: vec![None; tables.places.len()],
+        calls: vec![Vec::new(); operations],
+    };
+    let mut previous = None;
     for (value, row) in tables.values.iter() {
-        let ValueOrigin::InitialContent { place } = row.origin else {
+        let ValueOrigin::StorageContent { place, after } = row.origin else {
             continue;
         };
-        if previous.is_some_and(|previous| previous >= place) {
+        let key = (place, after);
+        if previous.is_some_and(|previous| previous >= key) {
             return Err(refusal(
                 RefusalReason::ForeignIdentity,
                 machine,
                 Construct::Value(value),
-                "initial content values are not in the order of the leaves they belong to",
+                "storage content values are not in the order of their leaves and call boundaries",
             ));
         }
-        previous = Some(place);
-        let slot = contents.get_mut(index(place.get())).ok_or_else(|| {
+        previous = Some(key);
+        let entry = contents.entry.get_mut(index(place.get())).ok_or_else(|| {
             refusal(
                 RefusalReason::ForeignIdentity,
                 machine,
                 Construct::Value(value),
-                "entry content of a place past the end of this machine",
+                "content of a place past the end of this machine",
             )
         })?;
-        *slot = Some(value);
+        if let Some(call) = after {
+            let returned = contents.calls.get_mut(index(call.get())).ok_or_else(|| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    machine,
+                    Construct::Value(value),
+                    "storage content names a call past the end of this machine",
+                )
+            })?;
+            returned.push((place, value));
+        } else {
+            *entry = Some(value);
+        }
     }
     Ok(contents)
 }
@@ -354,6 +401,21 @@ impl<'q> Asked<'q> {
     fn place(self) -> &'q Lineage {
         match self {
             Self::Contents(place) | Self::Case(place) | Self::Window { place, .. } => place,
+        }
+    }
+
+    fn at<'p>(self, place: &'p Lineage) -> Asked<'p>
+    where
+        'q: 'p,
+    {
+        match self {
+            Self::Contents(_) => Asked::Contents(place),
+            Self::Case(_) => Asked::Case(place),
+            Self::Window { by, restored, .. } => Asked::Window {
+                place,
+                by,
+                restored,
+            },
         }
     }
 
@@ -488,41 +550,156 @@ struct BoundPayload<'a> {
 pub(crate) struct Storage<'a> {
     machine: MachineId,
     lowered: &'a TerminalMachine,
+    module: &'a terminal_psi::TerminalModule,
     types: &'a [StructuralTypeDeclaration],
     graph: &'a Graph,
     initial_contents: Vec<Option<ValueId>>,
+    returned_contents: Vec<Vec<(ExactPlaceId, ValueId)>>,
+    /// Bound actual operations and structural edge bindings once per machine.
+    reaching_budget: usize,
     log: Vec<Logged>,
+    /// Shared descriptor replay owns storage aliasing. This is local checker
+    /// scratch over the same canonical machine closure, never source evidence.
+    references: &'a RefCell<DescriptorAnalysis<'a>>,
     /// The `requires` clauses of each data type, by its identity
     /// (`Elaboration::domains`).
     domains: &'a IdTable<StructuralTypeId, Vec<Proposition>>,
 }
 
 impl<'a> Storage<'a> {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         machine: MachineId,
         lowered: &'a TerminalMachine,
-        types: &'a [StructuralTypeDeclaration],
+        module: &'a terminal_psi::TerminalModule,
         domains: &'a IdTable<StructuralTypeId, Vec<Proposition>>,
         graph: &'a Graph,
         tables: &MachineTables,
         value_types: &IdTable<ValueId, ScalarType>,
+        references: &'a RefCell<DescriptorAnalysis<'a>>,
     ) -> Checked<Self> {
         // First, because every lineage below is read through the place
         // table's parent links.
         log::places_are_interned(machine, tables)?;
+        let reaching_budget = lowered
+            .blocks
+            .iter()
+            .map(|block| {
+                block.operations.len()
+                    + block
+                        .terminator
+                        .successor_block_arguments()
+                        .iter()
+                        .map(|arguments| arguments.len())
+                        .sum::<usize>()
+            })
+            .sum::<usize>()
+            + 1;
+        let contents = initial_contents(machine, tables, graph.operation_count())?;
         let mut storage = Self {
             machine,
             lowered,
-            types,
+            module,
+            types: &module.structural_types,
             graph,
-            initial_contents: initial_contents(machine, tables)?,
+            initial_contents: contents.entry,
+            returned_contents: contents.calls,
+            reaching_budget,
             log: Vec::new(),
+            references,
             domains,
         };
         storage.initial_contents_are_declared(tables)?;
         storage.log = storage.stores(value_types)?;
         storage.log_is_stated(tables)?;
+        // Compare the authored log first. Then every write uses the same
+        // captured backing relation as reads and loan compatibility.
+        let relocated = storage
+            .log
+            .iter()
+            .map(|row| {
+                let concerns = Construct::Operation(row.operation);
+                let before = row
+                    .position
+                    .checked_sub(1)
+                    .ok_or_else(|| storage.foreign(concerns, "a write has no formation point"))?;
+                let destination = storage.backing(&row.lineage, row.block, before, concerns)?;
+                let source = if let Stored::Moved(source) = &row.stored {
+                    Some(storage.backing(source, row.block, before, concerns)?)
+                } else {
+                    None
+                };
+                Ok((destination, source))
+            })
+            .collect::<Checked<Vec<_>>>()?;
+        for (row, (destination, source)) in storage.log.iter_mut().zip(relocated) {
+            row.lineage = destination;
+            if let Some(source) = source {
+                row.stored = Stored::Moved(source);
+            }
+        }
         Ok(storage)
+    }
+
+    /// Resolve a permission crossing at its actual use. Descriptor identity
+    /// is not backing identity, and a later reassignment must not retarget an
+    /// earlier captured borrow. Ambiguous or missing correspondence refuses.
+    fn backing(
+        &self,
+        place: &Lineage,
+        block: BlockId,
+        before: usize,
+        concerns: Construct,
+    ) -> Checked<Lineage> {
+        use terminal_semantics::descriptor_lifetimes::DescriptorPathSegment;
+        if !place.segments.contains(&Segment::Referent) {
+            return Ok(place.clone());
+        }
+        let length = self
+            .lowered
+            .blocks
+            .iter()
+            .find(|row| row.id == block)
+            .ok_or_else(|| self.foreign(concerns, "reference use has no block"))?
+            .operations
+            .len();
+        let before = u32::try_from(before.min(length)).map_err(|_| {
+            self.foreign(
+                concerns,
+                "reference use position exceeds its descriptor graph",
+            )
+        })?;
+        let location = place.descriptor_location().ok_or_else(|| {
+            self.unsupported(
+                concerns,
+                "reference backing with an unresolved selector or extent",
+            )
+        })?;
+        let captured = self
+            .references
+            .borrow_mut()
+            .location(self.machine, (block, before), &location)
+            .ok_or_else(|| {
+                self.unsupported(
+                    concerns,
+                    "reference use without exact live backing correspondence",
+                )
+            })?;
+        let resolved = Lineage {
+            root: captured.root,
+            segments: captured
+                .path
+                .into_iter()
+                .map(|step| match step {
+                    DescriptorPathSegment::Field(field) => Segment::Field(field),
+                    DescriptorPathSegment::Case(case) => Segment::Case(case),
+                    DescriptorPathSegment::FixedIndex(index) => Segment::FixedIndex(index),
+                    DescriptorPathSegment::Referent => Segment::Referent,
+                })
+                .collect(),
+        };
+        self.shape(&resolved, concerns)?;
+        Ok(resolved)
     }
 
     /// Whether `operation` writes into storage that already holds a value: a
@@ -1053,7 +1230,7 @@ impl<'a> Storage<'a> {
         owner: &Owner,
         concerns: Construct,
     ) -> Checked<bool> {
-        let Some(stored) = self.operation_destination(self.operation(operation, concerns)?)? else {
+        let Some(stored) = self.field_destination(self.operation(operation, concerns)?)? else {
             return Ok(false);
         };
         let mut names = Named {
@@ -1124,8 +1301,14 @@ impl<'a> Storage<'a> {
                 }
                 _ => Err(self.foreign(concerns, "a result place on a machine with none")),
             },
-            StructuralPlaceKind::BlockParameter { .. }
-            | StructuralPlaceKind::ProviderAttachment { .. }
+            StructuralPlaceKind::BlockParameter { block, position } => self
+                .block(block)?
+                .structural_parameters
+                .get(usize::try_from(position).unwrap_or(usize::MAX))
+                .filter(|parameter| parameter.position == position && parameter.place == root)
+                .map(|parameter| parameter.structural_type)
+                .ok_or_else(|| self.foreign(concerns, "a block formal's place has no declaration")),
+            StructuralPlaceKind::ProviderAttachment { .. }
             | StructuralPlaceKind::TrivialAffineLocal { .. } => {
                 Err(self.unsupported(concerns, "a root place kind outside this route"))
             }
@@ -1175,6 +1358,23 @@ impl<'a> Storage<'a> {
                 )),
                 (Shape::View, _) => {
                     return Err(self.foreign(concerns, "a place lies beneath a stored view"));
+                }
+                (Shape::Typed(owner), Segment::Referent) => {
+                    let StructuralTypeShape::Reference { referent, .. } =
+                        self.declaration(owner, concerns)?.shape
+                    else {
+                        return Err(self.foreign(
+                            concerns,
+                            "a referent crossing without a reference descriptor",
+                        ));
+                    };
+                    match self.declaration(referent, concerns)?.shape {
+                        StructuralTypeShape::PrimitiveScalar(scalar) => Shape::Scalar(scalar),
+                        _ => Shape::Typed(referent),
+                    }
+                }
+                (Shape::Payload(_), Segment::Referent) => {
+                    return Err(self.foreign(concerns, "a referent crossing on a case namespace"));
                 }
                 (Shape::Typed(owner), Segment::Extent) => {
                     if !self
@@ -1300,7 +1500,13 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<()> {
         match &self.declaration(structural_type, concerns)?.shape {
-            StructuralTypeShape::PrimitiveScalar(_) => found.push(at.clone()),
+            // References and opaque values each occupy one established
+            // place. Neither grants owned access to hidden backing storage.
+            StructuralTypeShape::Opaque
+            | StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::Reference { .. } => {
+                found.push(at.clone());
+            }
             shape if is_shared_view(shape) => {
                 found.push(at.clone());
             }
@@ -1364,11 +1570,14 @@ impl<'a> Storage<'a> {
                         segments.push(Segment::RuntimeIndex { selector: *index });
                         continue;
                     }
+                    StructuralPathSegment::Referent => {
+                        segments.push(Segment::Referent);
+                        continue;
+                    }
                     StructuralPathSegment::Field(_) => {}
                     StructuralPathSegment::AllElements
                     | StructuralPathSegment::FixedRange { .. }
-                    | StructuralPathSegment::RepresentationView { .. }
-                    | StructuralPathSegment::Referent => {
+                    | StructuralPathSegment::RepresentationView { .. } => {
                         return Err(self.unsupported(
                             concerns,
                             "storage projection outside plain records and fixed array elements",
@@ -1433,28 +1642,15 @@ impl<'a> Storage<'a> {
                 path,
                 field,
             } => {
-                let mut segments = Vec::with_capacity(path.len() + 1);
-                for segment in path {
-                    match segment {
-                        CanonicalStructuralPathSegment::Field(field) => {
-                            segments.push(Segment::Field(*field));
-                        }
-                        CanonicalStructuralPathSegment::Case(case) => {
-                            segments.push(Segment::Case(*case));
-                        }
-                        CanonicalStructuralPathSegment::FixedIndex(_)
-                        | CanonicalStructuralPathSegment::Referent => {
-                            return Err(
-                                self.unsupported(concerns, "read through an index or a referent")
-                            );
-                        }
-                    }
-                }
-                segments.push(Segment::Field(*field));
-                let leaf = Lineage {
-                    root: *source,
-                    segments,
-                };
+                let mut leaf = extended(
+                    Lineage {
+                        root: *source,
+                        segments: Vec::new(),
+                    },
+                    path,
+                )
+                .map_err(|unbound| unbound.refusal(self.machine, concerns))?;
+                leaf.segments.push(Segment::Field(*field));
                 if !matches!(self.shape(&leaf, concerns)?, Shape::Scalar(_)) {
                     return Err(
                         self.foreign(concerns, "a scalar read of storage that is no scalar")
@@ -1523,6 +1719,18 @@ impl<'a> Storage<'a> {
                         .kernel_proposition()
                         .map_err(crate::semantics_refusal(self.machine, id));
                 }
+                if let OperationKind::ByteSequenceRead {
+                    source,
+                    index,
+                    length,
+                    obligation: owned,
+                } = &operation.kind
+                {
+                    if *owned != obligation {
+                        return Err(self.foreign(concerns, "a byte read owns another obligation"));
+                    }
+                    return self.byte_read_goal(operation, *source, *index, *length, types);
+                }
                 operation.kind.structural_projections()
             }
             ExecutionSite::Block(id) => self.block(id)?.terminator.storage_uses(),
@@ -1585,6 +1793,63 @@ impl<'a> Storage<'a> {
                 "operation owns neither this scalar safety goal nor this index bound",
             )
         })
+    }
+
+    /// What a byte read owes: `index < length`, where `length` is the view's
+    /// own extent as it stands at the read. byte_views.md, `ByteSequenceRead`:
+    /// "`u64` index and length; dominating length observation of the
+    /// identical view; checked `index < length`", and "An arbitrary
+    /// equal-valued length, other view, sibling branch, or future producer
+    /// supplies no length custody."
+    ///
+    /// The length is accepted only as the result of the operation directly
+    /// before the read, when that operation measures the same whole view.
+    /// Nothing runs between the two, so nothing can have replaced the view:
+    /// "An intervening operation capable of changing the backing extent
+    /// invalidates an earlier length witness". A measurement made earlier
+    /// than that is a valid form this derivation does not judge.
+    fn byte_read_goal(
+        &self,
+        operation: &Operation,
+        source: PlaceId,
+        index: ValueId,
+        length: ValueId,
+        types: &IdTable<ValueId, ScalarType>,
+    ) -> Checked<Proposition> {
+        let concerns = Construct::Operation(operation.id);
+        let (block, after) = self
+            .graph
+            .locate(ProgramPoint::AfterOperation(operation.id))?;
+        let measured = after
+            .checked_sub(2)
+            .and_then(|position| self.block(block).ok()?.operations.get(position))
+            .is_some_and(|measurement| {
+                matches!(
+                    &measurement.kind,
+                    OperationKind::ByteSequenceLength { source: measured }
+                        if measured.place == source && measured.path.is_empty()
+                ) && measurement
+                    .result
+                    .scalar_ref()
+                    .is_some_and(|result| result.id == length)
+            });
+        if !measured {
+            return Err(self.unsupported(
+                concerns,
+                "a byte read whose length is not its view's measurement directly before it",
+            ));
+        }
+        let count = ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid"),
+        );
+        if types.get(index).copied() != Some(count) || types.get(length).copied() != Some(count) {
+            return Err(self.foreign(concerns, "a byte read's index or length is not a u64"));
+        }
+        Ok(Proposition::LessThan(
+            ScalarTerm::value(index, count),
+            ScalarTerm::value(length, count),
+        ))
     }
 
     fn block(&self, id: BlockId) -> Checked<&'a Block> {
@@ -1670,21 +1935,19 @@ impl<'a> Storage<'a> {
                     .zero_case(row.lineage.root, beneath, concerns)?
                     .map_or(Reached::Unknown, Reached::Case),
                 (Stored::Zeroed, Asked::Contents(_)) => Reached::Unknown,
-                (Stored::Established, Asked::Contents(leaf)) => {
-                    let is_producer = matches!(self.root_kind(leaf.root, concerns)?,
-                        StructuralPlaceKind::OperationResult { producer, .. }
-                            if producer == row.operation && row.lineage.segments.is_empty());
-                    if is_producer {
-                        self.interned(tables, leaf, concerns)?
-                            .and_then(|place| {
-                                self.initial_contents.get(index(place.get())).copied()
+                (Stored::Established, Asked::Contents(leaf)) => self
+                    .interned(tables, leaf, concerns)?
+                    .and_then(|place| {
+                        self.returned_contents
+                            .get(index(row.operation.get()))
+                            .and_then(|values| {
+                                values
+                                    .binary_search_by_key(&place, |(place, _)| *place)
+                                    .ok()
+                                    .map(|found| values[found].1)
                             })
-                            .flatten()
-                            .map_or(Reached::Returned, Reached::Value)
-                    } else {
-                        Reached::Returned
-                    }
-                }
+                    })
+                    .map_or(Reached::Returned, Reached::Value),
                 (Stored::Established, Asked::Case(_)) => Reached::Unknown,
                 // A window is answered by the row alone, above.
                 (Stored::Zeroed | Stored::Established, Asked::Window { .. }) => {
@@ -1802,6 +2065,8 @@ impl<'a> Storage<'a> {
         budget: &mut usize,
         concerns: Construct,
     ) -> Checked<Reached> {
+        let resolved = self.backing(asked.place(), block, up_to, concerns)?;
+        let asked = asked.at(&resolved);
         // Each traced move continues strictly before its operation, so an
         // acyclic machine ends within one step per operation; a cycle of
         // moves is refused rather than followed for ever.
@@ -1861,6 +2126,97 @@ impl<'a> Storage<'a> {
                 });
             if let Some((index, _)) = last {
                 supply(self.supplied(tables, index, asked, budget, concerns)?);
+                continue;
+            }
+            // A block formal is a new owner of the selected edge's actual
+            // value. Follow that exact region before the edge consumes it;
+            // do not invent initial contents or pick one predecessor's value.
+            if let StructuralPlaceKind::BlockParameter {
+                block: owner,
+                position,
+            } = self.root_kind(asked_root(asked), concerns)?
+                && owner == block
+            {
+                let target = self.block(block)?;
+                let position = usize::try_from(position)
+                    .map_err(|_| self.foreign(concerns, "a block formal position exceeds usize"))?;
+                let parameter = target.structural_parameters.get(position).ok_or_else(|| {
+                    self.foreign(concerns, "a block formal is outside its telescope")
+                })?;
+                if parameter.place != asked_root(asked)
+                    || usize::try_from(parameter.position).ok() != Some(position)
+                {
+                    return Err(self.foreign(concerns, "a block formal has another owner"));
+                }
+                // A transfer establishes a whole value, as a whole store
+                // closes any window on the destination. A window on its
+                // source is owed at the edge's ordinary consumption point.
+                if matches!(asked, Asked::Window { .. }) {
+                    supply(Reached::Closed);
+                    continue;
+                }
+                let mut predecessors = self.graph.predecessors(block)?.to_vec();
+                predecessors.sort_unstable();
+                predecessors.dedup();
+                let mut found = false;
+                for predecessor in predecessors {
+                    let terminator = &self.block(predecessor)?.terminator;
+                    let successors = terminator.successor_edges();
+                    let bindings = terminator.successor_block_arguments();
+                    if successors.len() != bindings.len() {
+                        return Err(
+                            self.foreign(concerns, "an edge has no complete binding roster")
+                        );
+                    }
+                    for ((edge, into), arguments) in successors.into_iter().zip(bindings) {
+                        if into != block {
+                            continue;
+                        }
+                        found = true;
+                        if arguments.len() != target.structural_parameters.len() {
+                            return Err(self.foreign(
+                                Construct::Edge(edge),
+                                "structural edge arguments differ from the target telescope",
+                            ));
+                        }
+                        let argument = &arguments[position];
+                        if !terminal_psi::structural_access_covers(
+                            argument.access,
+                            parameter.access,
+                        ) {
+                            return Err(self.foreign(
+                                Construct::Edge(edge),
+                                "a structural edge argument has insufficient access",
+                            ));
+                        }
+                        let mut source = self.argument(argument, Construct::Edge(edge))?;
+                        if !matches!(self.shape(&source, Construct::Edge(edge))?,
+                            Shape::Typed(actual) if actual == parameter.structural_type)
+                        {
+                            return Err(self.foreign(
+                                Construct::Edge(edge),
+                                "a structural edge argument has another type",
+                            ));
+                        }
+                        source.segments.extend_from_slice(&asked.place().segments);
+                        let asked = match asked {
+                            Asked::Contents(_) => Asked::Contents(&source),
+                            Asked::Case(_) => Asked::Case(&source),
+                            Asked::Window { .. } => unreachable!("windows close at the binding"),
+                        };
+                        supply(self.reaching(
+                            tables,
+                            asked,
+                            predecessor,
+                            usize::MAX,
+                            budget,
+                            concerns,
+                        )?);
+                    }
+                }
+                if !found {
+                    return Err(self.foreign(concerns, "a block formal has no incoming binding"));
+                }
                 continue;
             }
             if block == self.graph.entry() {
@@ -1923,12 +2279,7 @@ impl<'a> Storage<'a> {
     }
 
     fn budget(&self) -> usize {
-        self.lowered
-            .blocks
-            .iter()
-            .map(|block| block.operations.len())
-            .sum::<usize>()
-            + 1
+        self.reaching_budget
     }
 
     /// The equation a read establishes on its normal successor:
@@ -2092,7 +2443,7 @@ impl<'a> Storage<'a> {
                             || (row.lineage.segments.is_empty() && row.operation == producer)
                     }) =>
                 {
-                    Some(leaf.clone())
+                    Some((leaf.clone(), 0))
                 }
                 _ => None,
             },
@@ -2100,8 +2451,16 @@ impl<'a> Storage<'a> {
                 match terminal_check_tables::row(&tables.values, held, self.machine, concerns)?
                     .origin
                 {
-                    ValueOrigin::InitialContent { place } => {
-                        Some(lineage(self.machine, &tables.places, place)?)
+                    ValueOrigin::StorageContent { place, after } => {
+                        let arrived = lineage(self.machine, &tables.places, place)?;
+                        let start = match after {
+                            None => 0,
+                            Some(call) => self
+                                .call_content_boundary(call, &arrived, concerns)?
+                                .segments
+                                .len(),
+                        };
+                        Some((arrived, start))
                     }
                     ValueOrigin::MachineParameter { .. }
                     | ValueOrigin::MachineResult
@@ -2115,11 +2474,11 @@ impl<'a> Storage<'a> {
             | Reached::Open
             | Reached::Closed => None,
         };
-        let Some(arrived) = arrived else {
+        let Some((arrived, start)) = arrived else {
             return Ok(Vec::new());
         };
         let mut premises = Vec::new();
-        for length in (0..arrived.segments.len()).rev() {
+        for length in (start..arrived.segments.len()).rev() {
             let owner = Lineage {
                 root: arrived.root,
                 segments: arrived.segments[..length].to_vec(),
@@ -2294,8 +2653,12 @@ impl<'a> Storage<'a> {
             OperationKind::StructuralLeafCopy { source, path } => {
                 Ok(vec![self.stored_at(*source, path, concerns)?])
             }
-            OperationKind::MoveStructuralValue { source } => {
+            OperationKind::MoveStructuralValue { source }
+            | OperationKind::EstablishReference { source, .. } => {
                 Ok(vec![self.argument(source, concerns)?])
+            }
+            OperationKind::ReleaseReference { source, path } => {
+                Ok(vec![self.stored_at(*source, path, concerns)?])
             }
             // structural_access.md: "The source must be readable and
             // established on every incoming path."
@@ -2313,6 +2676,11 @@ impl<'a> Storage<'a> {
             OperationKind::StructuralByteViewFieldStore { source, .. } => {
                 Ok(vec![self.stored_at(*source, &[], concerns)?])
             }
+            // A byte is read through the view's descriptor, so the whole
+            // descriptor is read where its byte is.
+            OperationKind::ByteSequenceRead { source, .. } => {
+                Ok(vec![self.stored_at(*source, &[], concerns)?])
+            }
             OperationKind::StructuralCaseLeafCopy { .. } => {
                 Err(self.unsupported(concerns, "a case leaf copy"))
             }
@@ -2326,8 +2694,9 @@ impl<'a> Storage<'a> {
         }
     }
 
-    /// The place an operation stores into, when it is a store.
-    fn operation_destination(&self, operation: &Operation) -> Checked<Option<Lineage>> {
+    /// The explicit field destination, used to state that field's invariant.
+    /// This is not an inventory of call effects or owned consumption.
+    fn field_destination(&self, operation: &Operation) -> Checked<Option<Lineage>> {
         let concerns = Construct::Operation(operation.id);
         let (destination, path, field) = match &operation.kind {
             OperationKind::StructuralScalarFieldStore {
@@ -2359,6 +2728,33 @@ impl<'a> Storage<'a> {
             self.shape(&stored, concerns)?;
         }
         Ok(Some(stored))
+    }
+
+    /// Every storage change uses the already derived write log, including
+    /// call writes and scalar homes. Owned operands also relinquish their
+    /// storage; a live shared loan forbids that move just as it forbids a write.
+    fn operation_changes(&self, operation: &Operation) -> Checked<Vec<Lineage>> {
+        let concerns = Construct::Operation(operation.id);
+        let mut changes: Vec<_> = self
+            .log
+            .iter()
+            .filter(|row| row.operation == operation.id)
+            .map(|row| row.captured.clone())
+            .collect();
+        for argument in operation
+            .kind
+            .constructor_arguments()
+            .chain(operation.kind.structural_arguments())
+            .filter(|argument| argument.access == terminal_psi::StructuralAccess::Owned)
+        {
+            changes.push(self.argument(argument, concerns)?);
+        }
+        if let OperationKind::StoreStructuralField { value, .. } = &operation.kind
+            && value.access == terminal_psi::StructuralAccess::Owned
+        {
+            changes.push(self.argument(value, concerns)?);
+        }
+        Ok(changes)
     }
 
     /// The two structural judgments of one operation or terminator, in
@@ -2717,7 +3113,7 @@ impl<'a> Storage<'a> {
             for (position, operation) in block.operations.iter().enumerate() {
                 let used = self.operation_uses(operation)?;
                 let mut named = used.clone();
-                named.extend(self.operation_destination(operation)?);
+                named.extend(self.field_destination(operation)?);
                 // A store reads nothing, so it is a use only when its
                 // destination lies in a case payload.
                 let judged = !used.is_empty()
@@ -3134,7 +3530,8 @@ struct Held<'s, 'a> {
     concerns: Construct,
 }
 
-/// Extends `place` by the fields and cases a clause's path names.
+/// Extend a clause's exact path. The storage walk independently checks each
+/// field, case and index against the type reached by the previous segment.
 fn extended(
     mut place: Lineage,
     path: &[CanonicalStructuralPathSegment],
@@ -3143,11 +3540,9 @@ fn extended(
         place.segments.push(match segment {
             CanonicalStructuralPathSegment::Field(field) => Segment::Field(*field),
             CanonicalStructuralPathSegment::Case(case) => Segment::Case(*case),
-            CanonicalStructuralPathSegment::FixedIndex(_)
-            | CanonicalStructuralPathSegment::Referent => {
-                return Err(crate::Unbound::Unsupported(
-                    "a clause through an index or a referent",
-                ));
+            CanonicalStructuralPathSegment::FixedIndex(position) => Segment::FixedIndex(*position),
+            CanonicalStructuralPathSegment::Referent => {
+                return Err(crate::Unbound::Unsupported("a clause through a referent"));
             }
         });
     }
@@ -3185,7 +3580,7 @@ pub(crate) struct Returned<'s, 'a, Inputs> {
     concerns: Construct,
 }
 
-impl<Inputs: crate::Bindings<Error = crate::Unbound>> Returned<'_, '_, Inputs> {
+impl<'s, 'a, Inputs: crate::Bindings<Error = crate::Unbound>> Returned<'s, 'a, Inputs> {
     fn owned_inputs(&mut self, root: PlaceId) -> Result<&mut Inputs, crate::Unbound> {
         let formal =
             terminal_psi::StructuralParameterDeclaration::find_by_place(self.input_formals, root)
@@ -3200,7 +3595,7 @@ impl<Inputs: crate::Bindings<Error = crate::Unbound>> Returned<'_, '_, Inputs> {
         Ok(&mut self.inputs)
     }
 
-    fn held(&self) -> Result<Held<'_, '_>, crate::Unbound> {
+    fn held(&self) -> Result<Held<'_, 'a>, crate::Unbound> {
         let (_, place) = self.structural.as_ref().ok_or(crate::Unbound::Unsupported(
             "no structural result correspondence",
         ))?;
@@ -3541,6 +3936,14 @@ impl crate::Bindings for Held<'_, '_> {
     ) -> Result<ScalarTerm, crate::Unbound> {
         let leaf = self.beneath(root, path)?;
         let storage = self.storage;
+        if !matches!(
+            storage.shape(&leaf, self.concerns).map_err(crate::Unbound::Refused)?,
+            Shape::Scalar(declared) if declared == scalar_type
+        ) {
+            return Err(crate::Unbound::Unsupported(
+                "a data clause names storage with another scalar type",
+            ));
+        }
         let mut budget = storage.budget();
         let reached = storage
             .reaching(

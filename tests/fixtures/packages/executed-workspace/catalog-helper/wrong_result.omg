@@ -1,4 +1,4 @@
-use omega::language::core::program_image;
+use omega::language::core::ProgramImage;
 
 public CatalogImage satisfies ProgramImage {
     machine retained_suffix_start() -> addr { 128 }

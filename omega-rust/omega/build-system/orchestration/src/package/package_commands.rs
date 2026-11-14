@@ -85,7 +85,7 @@ fn resolve_command_sources<'workspace, 'storage>(
             },
             false,
         )
-        .map_err(|error| PackageCommandError::from(error.to_string()))?;
+        .map_err(|error| error.into_package_failure())?;
     drop(acquisitions);
     let prepared = preparation.complete_source_resolution(resolved)?;
     let completed = crate::compile::build_execution::source_resolution::settle_source_builds(
@@ -93,7 +93,7 @@ fn resolve_command_sources<'workspace, 'storage>(
         &mut session.compiler,
         profile,
     )
-    .map_err(|error| PackageCommandError::from(error.to_string()))?;
+    .map_err(|error| error.into_package_failure())?;
     Ok((prepared, completed))
 }
 

@@ -117,6 +117,82 @@ fn an_entry_fact_does_not_follow_a_scalar_formal_through_an_assignment() {
     );
 }
 
+#[test]
+fn an_assigned_local_fixed_by_a_closed_term_meets_a_callee_bound() {
+    // `main() { let mut total = 20; total = total + 11;
+    //            let product = scaled(total); check(product) }`
+    // with `scaled(value: u32) requires value <= 1000 { value * 3 }` and
+    // `check(value: u32) requires value <= <limit>`. The caller knows the
+    // product from `scaled`'s result guarantee, `product == total * 3`, and
+    // transport rewrites it into the closed term `(20 + 11) * 3`, whose
+    // value 93 is the bound the requirement is proved through. The kernel
+    // chains order steps through an exactly equal middle, so the proof must
+    // reach the literal 93 itself, not stop at the closed term.
+    let main = || Machine {
+        locals: vec![u32_type(), u32_type()],
+        ..machine(
+            Vec::new(),
+            vec![
+                Statement::Bind {
+                    slot: 0,
+                    value: unsigned(20),
+                },
+                Statement::Bind {
+                    slot: 0,
+                    value: strict(Strict::Add, slot(0, u32_type()), unsigned(11)),
+                },
+                Statement::Bind {
+                    slot: 1,
+                    value: call(2, vec![slot(0, u32_type())]),
+                },
+                returns(call(3, vec![slot(1, u32_type())])),
+            ],
+        )
+    };
+    let ScalarType::Integer(integer) = u32_type() else {
+        unreachable!()
+    };
+    let scaled = || Machine {
+        requires: vec![at_most(1, 1000)],
+        ensures: vec![Proposition::Equal(
+            formal(2, u32_type()),
+            ScalarTerm::exact_integer_multiply(
+                integer,
+                formal(1, u32_type()),
+                bound(u32_type(), IntegerValue::Unsigned(3)),
+            )
+            .unwrap(),
+        )],
+        ..machine(
+            vec![u32_type()],
+            vec![returns(strict(
+                Strict::Multiply,
+                slot(0, u32_type()),
+                unsigned(3),
+            ))],
+        )
+    };
+    let check = |limit| Machine {
+        requires: vec![at_most(1, limit)],
+        ..machine(vec![u32_type()], vec![returns(slot(0, u32_type()))])
+    };
+    let (elaboration, result) = run(vec![main(), scaled(), check(93)]);
+    let requirements = verdicts(&elaboration, &result, 1, requirement);
+    assert_eq!(requirements.len(), 2);
+    for (obligation, verdict) in requirements {
+        assert_kernel_checked(&elaboration, 1, obligation, certificate(verdict));
+    }
+    // One below the value the argument holds is not met.
+    let (elaboration, result) = run(vec![main(), scaled(), check(92)]);
+    let requirements = verdicts(&elaboration, &result, 1, requirement);
+    let refused: Vec<_> = requirements
+        .iter()
+        .filter(|(_, verdict)| verdict.is_err())
+        .collect();
+    assert_eq!(refused.len(), 1, "only `check`'s bound is unmet");
+    assert_unproved(refused[0].1);
+}
+
 /// `p.<field> <= 10` at entry, over the first place formal.
 fn field_at_most_ten(field: u64) -> Proposition {
     let ScalarType::Integer(integer) = u32_type() else {

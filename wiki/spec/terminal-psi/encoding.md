@@ -42,9 +42,11 @@ table spelling. An entry count larger than the remaining bytes rejects as
 truncation before any entry is read. Encoding and decoding walk a table with an
 explicit stack; nesting depth never consumes host stack.
 
-Marker 255 introduced term tables. Current marker 261 combines normalized service contracts, selected provider
+Marker 255 introduced term tables. Current marker 264 combines normalized service contracts, selected provider
 coordinates, entry source commitments and sealed native execution meanings with
-typed dynamic-family tuple members and exact numeric intrinsic sign and width. It
+typed dynamic-family tuple members and exact numeric intrinsic sign and width.
+It also retains the independent operational ceilings and exact call formations
+introduced by marker 263. It
 retains the runtime callable contracts, descriptors and synchronous-entry rows
 of marker 257 and the flat term tables. Every earlier module marker rejects at
 the header; decoding cannot supply its missing records.
@@ -94,7 +96,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 261 even when every table
+order below. This layout uses semantic format marker 264 even when every table
 is empty, and retains the Id formation catalog below; older markers reject
 rather than selecting an optional dialect:
 
@@ -122,6 +124,14 @@ authorizes the trusted producer's exact artifact. Receipt requires neither
 theorem rediscovery nor certificate replay. Proof-discovery policy and usage
 are accounting; they neither rename applications nor establish claims. Closed
 values retain their own evaluation obligations.
+
+For same-family record transport, retained compatibility also identifies the
+source and destination schema applications, originating field correspondence,
+original callable selections and their requirement bindings, dependent
+evidence, and any mutable handback obligations. Missing or inconsistent
+relationships reject at admission; retaining a successful proof-search result
+alone is insufficient. This specifies retained meaning, not a new numeric wire
+tag or executable transport instruction.
 
 The migration must update identity-profile provenance and evidence serialization
 together, rejecting or explicitly migrating artifacts with legacy law-sensitive
@@ -929,6 +939,26 @@ The affine cleanup actions a terminator carries are a closed `u8` space:
 
 ## Machine rows
 
+Marker 263 retains each callable's declared suspension and blocking bounds as
+optional Boolean fields, followed by its published suspension and blocking
+flags. An omitted bound requests inference; a written bound fixes publication.
+The checker independently derives omitted bounds from the canonical calls.
+
+Each machine also stores a counted, strictly increasing list of call formations
+after its block-entry claims. A site is tag 0 and an operation identity, or tag
+1 and an edge identity. Each row then stores acknowledgement origin (0 authored,
+1 compiler-generated), suspend and block flags, whether the original call has a
+legal suspension position, and an optional tail-callee machine identity. The
+callee is present only for a source call whose frame reuse became a jump; its
+loop head carries the callable's parameter list. Other calls name their
+callee on their operation or terminator. Missing acknowledgement metadata means
+no source markers. Duplicate sites or a site naming no call reject.
+
+Acknowledgements do not encode a suspension crossing, alter the published
+envelope, or enter normalized callable identity. The module retains them for
+checking and audit; its semantic bytes therefore change when they change.
+Actual suspension still owes its independent continuation and carry evidence.
+
 A boundary declaration stores its counted runtime parameter-order tags after
 the optional attachment and before scalar parameter types: `u8` 0 selects the
 next scalar, 1 the next structural parameter. Unknown tags, missing entries, and
@@ -953,7 +983,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 261 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 264 + `u16` vocabulary
 marker 135 + a Boolean default-entry presence flag, followed by the entry
 callable when present and the module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier

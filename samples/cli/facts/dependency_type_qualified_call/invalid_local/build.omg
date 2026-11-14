@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "dependency_type_qualified_call_local");
-    let mut lib_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "lib" });
+    let mut lib_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../../../support/fact_dependencies/qualified_call_lib" });
     dependency::with_alias(&mut lib_dependency, "lib");
     let lib_registration: DependencyRegistration = Build::dependency(builder, lib_dependency);
     Build::bind(builder, linux_x86_64::ProgramEntry, main);

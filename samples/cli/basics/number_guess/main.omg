@@ -18,7 +18,7 @@
 //
 // Expected exit: 70.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Search [copy] {
     lo: i32 in Saturating;

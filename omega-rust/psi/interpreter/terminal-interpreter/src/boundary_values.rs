@@ -1158,10 +1158,53 @@ pub(crate) mod results {
         ScalarArray(TerminalScalarArrayResult),
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    #[derive(Clone, compiler_storage::Record)]
     pub struct TerminalStructuralResult {
         pub value: TerminalStructuralValue,
         pub claims: Vec<ClaimId>,
+        // Returning a supplied value restores its host identity. Keep its local
+        // storage location so later reads still inspect this instance.
+        pub(crate) observation_home: Option<super::values::StructuralRuntimePlace>,
+    }
+
+    impl TerminalStructuralResult {
+        pub fn new(value: TerminalStructuralValue, claims: Vec<ClaimId>) -> Self {
+            Self {
+                value,
+                claims,
+                observation_home: None,
+            }
+        }
+
+        pub(crate) fn observation_value(&self) -> std::borrow::Cow<'_, TerminalStructuralValue> {
+            match &self.observation_home {
+                None => std::borrow::Cow::Borrowed(&self.value),
+                Some(home) => {
+                    let mut value = self.value.clone();
+                    value.opaque_identity = home.opaque_identity;
+                    value.path.clone_from(&home.path);
+                    std::borrow::Cow::Owned(value)
+                }
+            }
+        }
+    }
+
+    impl PartialEq for TerminalStructuralResult {
+        fn eq(&self, other: &Self) -> bool {
+            self.value == other.value && self.claims == other.claims
+        }
+    }
+
+    impl Eq for TerminalStructuralResult {}
+
+    impl std::fmt::Debug for TerminalStructuralResult {
+        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            formatter
+                .debug_struct("TerminalStructuralResult")
+                .field("value", &self.value)
+                .field("claims", &self.claims)
+                .finish()
+        }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -2113,7 +2156,7 @@ pub(crate) mod values {
         pub value: TerminalScalarValue,
     }
 
-    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, compiler_storage::Record)]
     pub(crate) struct StructuralRuntimePlace {
         pub(crate) opaque_identity: u64,
         pub(crate) path: Vec<StructuralPathSegment>,

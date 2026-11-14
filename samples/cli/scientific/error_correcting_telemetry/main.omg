@@ -1,6 +1,7 @@
 // Expected exit: 0
 // Empty input exits normally; frozen nonempty streams and status-3 limits are in data/.
-use omega_language_std::console;
+use omega_language_std::Console;
+use omega_language_std::LineReadResult;
 use omega::language::core::widen_u8_to_i32;
 use codec::field;
 use codec::decoder;

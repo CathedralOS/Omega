@@ -416,6 +416,71 @@ impl Program<'_> {
                 // neither that type nor a source view mints a nominal schema.
                 continue;
             }
+            if let crate::StorageShape::Reference { referent, access } = declaration.shape {
+                let application = source.application.as_ref().ok_or_else(|| {
+                    malformed(
+                        machine,
+                        "reference storage has no retained source occurrence",
+                    )
+                })?;
+                let table = &self.typed.type_reference_table;
+                if !table.contains_type_reference(application.reference) {
+                    return Err(malformed(machine, "reference source type is unavailable"));
+                }
+                let TypeReferenceNode::Reference {
+                    referee,
+                    access: source_access,
+                    ..
+                } = table.type_reference(application.reference)
+                else {
+                    return Err(malformed(
+                        machine,
+                        "reference source has another type constructor",
+                    ));
+                };
+                let expected_access = match source_access {
+                    language_core::ReferenceAccess::Shared => {
+                        terminal_psi::StructuralAccess::SharedBorrow
+                    }
+                    language_core::ReferenceAccess::Mutable => {
+                        terminal_psi::StructuralAccess::MutableBorrow
+                    }
+                    language_core::ReferenceAccess::WriteOnly => {
+                        terminal_psi::StructuralAccess::WriteOnlyBorrow
+                    }
+                };
+                let identity = |reference| {
+                    typed_trees::type_identity::applied_declared_carrier_identity(
+                        self.typed,
+                        reference,
+                        &[],
+                    )
+                    .and_then(|identity| self.typed.type_identity_text(identity))
+                };
+                let referent_source = self
+                    .record_sources
+                    .get(referent)
+                    .and_then(|source| source.application.as_ref());
+                if expected_access != access
+                    || source.declaration.is_valid()
+                    || !source.fields.is_empty()
+                    || !source.cases.is_empty()
+                    || !application.substitutions.is_empty()
+                    || identity(application.reference).as_deref()
+                        != Some(declaration.identity.as_str())
+                    || !referent_source.is_some_and(|source| {
+                        source.substitutions.is_empty()
+                            && identity(source.reference).is_some()
+                            && identity(source.reference) == identity(*referee)
+                    })
+                {
+                    return Err(malformed(
+                        machine,
+                        "reference lost exact source/referent correspondence",
+                    ));
+                }
+                continue;
+            }
             if let crate::StorageShape::ElementView { element, access } = declaration.shape {
                 let application = source.application.as_ref().ok_or_else(|| {
                     malformed(machine, "sequence storage has no retained source type")

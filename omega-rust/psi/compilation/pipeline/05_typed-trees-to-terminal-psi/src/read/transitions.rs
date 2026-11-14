@@ -134,7 +134,10 @@ impl Program<'_> {
             _ => None,
         };
         if let (Some(label), Some(names)) = (label, self.names.get_mut(id)) {
-            names.arms.push((transition.source_span, label));
+            names.arms.push((
+                transition.source_span,
+                format!("the `{label}` arm of a transition"),
+            ));
         }
         Ok((guard, target))
     }
@@ -322,7 +325,7 @@ impl Program<'_> {
                 Unserved::Transition("missing target"),
             ));
         }
-        let target = match typed.statement_table.transition_target(handle) {
+        let mut target = match typed.statement_table.transition_target(handle) {
             TransitionTargetNode::Terminal => {
                 if result.is_some() {
                     return Err(refuse(
@@ -368,7 +371,7 @@ impl Program<'_> {
                     ));
                 }
                 let arguments = typed.statement_table.expression_handles(*arguments);
-                let call = self.call(
+                let mut call = self.call(
                     id,
                     slots,
                     path.symbol,
@@ -376,9 +379,11 @@ impl Program<'_> {
                     SourceOrigin::of(*source_span),
                     None,
                 )?;
-                self.acknowledged_call(id, call, *operational_acknowledgement)?
+                crate::operational::retain(&mut call, *operational_acknowledgement, true);
+                call
             }
         };
+        crate::operational::boundary(&mut target);
         let agreed = match (target.result, result) {
             (Some(actual), Some(expected)) => self.agrees(Some(actual), expected),
             (actual, expected) => actual == expected,

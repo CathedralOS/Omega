@@ -214,6 +214,47 @@ mod tests {
         let produced = produce(Some(&captured));
         let selections = produced.source_selections().unwrap();
         selections.admit(produced.view(), &authorities).unwrap();
+        let helper = accepted.source().realized_machine_named("helper").unwrap();
+        let helper_machine = accepted.machine_of(helper.symbol).unwrap();
+        let helper_identity = produced
+            .view()
+            .module()
+            .machine(helper_machine)
+            .unwrap()
+            .declaration
+            .as_ref()
+            .unwrap()
+            .semantic_declaration;
+        let helper_identity = produced
+            .view()
+            .module()
+            .identities
+            .text(helper_identity)
+            .unwrap();
+        let mut helper_rows = selections.questions.declarations.iter().filter(|(_, row)| {
+            row.identity == helper_identity
+                && row.purpose == semantic_vocabulary::source_selections::SelectionPurpose::Build
+        });
+        let (helper_declaration, _) = helper_rows.next().unwrap();
+        assert!(
+            helper_rows.next().is_none(),
+            "entry and machine share one declaration row"
+        );
+        for role in [
+            semantic_vocabulary::source_selections::SelectionRole::Declaration,
+            semantic_vocabulary::source_selections::SelectionRole::Executable,
+        ] {
+            assert!(
+                selections.questions.questions.values().any(|row| {
+                    row.selected
+                        == semantic_vocabulary::source_selections::SelectionReference::Declaration(
+                            helper_declaration,
+                        )
+                        && row.role == role
+                }),
+                "the raw selection and physical invocation rejoin one helper declaration"
+            );
+        }
         assert!(!selections.invocation_consent.is_empty());
         assert!(
             selections

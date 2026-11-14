@@ -1,5 +1,5 @@
 // Complete valid reproduction of three runtime selectors behind a record loan.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Storage { cells: [[[f64;2];2];2]; }
 data Main { }
 machine read(storage: &Storage,layer: u64,row: u64,column: u64) -> f64

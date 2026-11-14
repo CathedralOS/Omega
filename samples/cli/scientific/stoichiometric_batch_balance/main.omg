@@ -2,7 +2,8 @@
 // The generic sample harness closes stdin; this is the empty-input control.
 // Expected exit: 64.
 // Expected output contains: INVALID_INPUT
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 use chemistry::model;
 use chemistry::balance;
 use chemistry::inventory;
@@ -198,7 +199,6 @@ machine Main::main(context: &mut Main) reaches Console {
     }
 }
 
-use omega_language_std::console;
 use omega::language::core::widen_i32_to_i64;
 
 // ASCII decimal fields, whitespace separated, finite input <=1024 bytes.

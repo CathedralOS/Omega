@@ -2,7 +2,7 @@
 // Expected exit: 70.
 // Expected output contains: ALERT temp
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 domain [u8; 32]::Ascii requires ascii_only(self);
 domain [u8]::Ascii requires ascii_only(self);

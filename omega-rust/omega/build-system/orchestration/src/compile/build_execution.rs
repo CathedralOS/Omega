@@ -125,8 +125,10 @@ pub(crate) fn execute_returned_build(
     request: CheckedCompileRequest,
 ) -> Result<ReturnedPackageBuild, CompileFailure> {
     let mut invocation = compiler.begin_package_build(request)?;
+    let spent = invocation.source_completion_accounting().clone();
     let mut queries = invocation.product_queries();
-    let returned = execute_build(invocation.execution(), Some(&mut queries))?;
+    let returned = execute_build(invocation.execution(), Some(&mut queries))
+        .map_err(|failure| failure.with_source_completion_accounting(spent))?;
     Ok(ReturnedPackageBuild {
         invocation,
         returned,

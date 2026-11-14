@@ -1,7 +1,11 @@
 // Fact: A suspended independent component writes 73 to the caller's original scalar-backed record, preserving neighbor cells and storage addresses.
 // Place: other_state.
 // Expected exit: 0
-use producer::main;
+use producer::Lending;
+use producer::Observation;
+use producer::Reading;
+use producer::Token;
+use producer::Word;
 machine entry(token: Token) -> u64 reaches Lending Reading Observation suspends crashes Trap {
     let result: u64 = suspend work(token);
     transition { _ -> result }

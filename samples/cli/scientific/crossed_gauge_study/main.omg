@@ -1,6 +1,7 @@
 // Complete stdin application. Input: replication header, eight digit/m slots, EOF.
 // Expected output contains: crossed_gauge_study: exact crossed random-effects sample; all numbers /32
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 use study::model;
 
 data Main { study: study::model::Study; }

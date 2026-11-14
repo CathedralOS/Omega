@@ -1,6 +1,6 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "component_scalar_lending_other_machine");
-    let mut producer_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "producer" });
+    let mut producer_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../../../support/fact_dependencies/scalar_lending_producer" });
     dependency::with_alias(&mut producer_dependency, "producer");
     let producer_registration: DependencyRegistration = Build::dependency(builder, producer_dependency);
     Build::select_provider<producer::Lending, producer::Writer>(builder, linux_x86_64, CompositionMode::Independent);

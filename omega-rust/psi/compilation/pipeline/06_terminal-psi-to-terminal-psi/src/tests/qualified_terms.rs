@@ -75,6 +75,53 @@ fn explicit_domain_removal_keeps_the_call_precondition_and_value_fact() {
 }
 
 #[test]
+fn a_boundary_formal_keeps_its_domain_and_independent_requirement() {
+    let source = |actual| {
+        format!(
+            r#"
+{DOMAIN}
+boundary trait Probe {{
+    machine consume(handle: i64 in Classified) -> i64
+    requires handle in Classified
+    requires (handle as -Classified) != 0
+    reaches none crashes none;
+}}
+machine entry() -> i64 {{ Probe::consume(issue({actual})) }}
+"#
+        )
+    };
+    let accepted = judge(invocation(&source(7))).unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+    let refused = judge(invocation(&source(0))).unwrap();
+    assert!(
+        matches!(refused, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+        "{refused:?}"
+    );
+}
+
+#[test]
+fn membership_of_another_formal_is_not_implied_by_a_qualified_formal() {
+    let refused = invocation(&format!(
+        r#"
+{DOMAIN}
+boundary trait Probe {{
+    machine consume(handle: i64 in Classified, other: i64) -> i64
+    requires other in Classified
+    reaches none crashes none;
+}}
+machine entry() -> i64 {{ Probe::consume(issue(7), 0) }}
+"#
+    ))
+    .unwrap_err();
+    assert_eq!(refused.reason, RefusalReason::Unsupported);
+    assert_eq!(refused.detail, "contract domain membership");
+}
+
+#[test]
 fn a_bare_qualified_comparison_does_not_become_a_builtin_comparison() {
     let refused = invocation(&consumer(7, "handle != 0")).unwrap_err();
     assert_eq!(refused.reason, RefusalReason::Unsupported);
@@ -234,5 +281,41 @@ machine entry() {{
     assert_eq!(
         refused.detail,
         "declaration holding a domain cast through a reference, which no pass accounts for yet"
+    );
+}
+
+#[test]
+fn old_scalar_inputs_keep_their_qualification_until_an_admitted_cast() {
+    let source = |guarantee, returned| {
+        format!(
+            r#"
+{DOMAIN}
+machine observe(handle: i64 in Classified) -> i64
+ensures {guarantee}
+{{ {returned} }}
+machine entry() -> i64 {{ observe(issue(7)) }}
+"#
+        )
+    };
+    let guarantee = "result == (old(handle) as -Classified)";
+    let accepted = judge(invocation(&source(guarantee, "handle as -Classified"))).unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+
+    let qualified =
+        invocation(&source("result == old(handle)", "handle as -Classified")).unwrap_err();
+    assert_eq!(qualified.reason, RefusalReason::Unsupported);
+    assert_eq!(
+        qualified.detail,
+        "contract builtin operator on a value with a declared domain in a clause"
+    );
+
+    let wrong_value = judge(invocation(&source(guarantee, "0"))).unwrap();
+    assert!(
+        matches!(wrong_value, RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. }))),
+        "{wrong_value:?}"
     );
 }

@@ -22,7 +22,9 @@ child by segment (`PlaceRow::children`), and the writes to a place
 (`PlaceRow::writes`).
 */
 
-use semantic_vocabulary::{PlaceId, StructuralCaseId, StructuralFieldId, ValueId};
+use semantic_vocabulary::{
+    IdTable, MachineId, PlaceId, StructuralCaseId, StructuralFieldId, ValueId,
+};
 
 use crate::{ExactPlaceId, ProgramPoint, WriteId};
 
@@ -89,6 +91,9 @@ pub enum Segment {
     /// Replacing any ancestor descriptor replaces this observation's
     /// reaching content, just as a store replaces a scalar field's.
     Extent,
+    /// Cross a live permission descriptor into its separately owned backing.
+    /// It is never an inline field, a claim transfer or a disjointness fact.
+    Referent,
 }
 
 /// One write, in program order: within a block, `WriteId`s increase in
@@ -122,6 +127,59 @@ pub enum Content {
     /// restoration debt (`obligations::ObligationKind::RestorationWindow`);
     /// an ordinary owned transfer ends its source value.
     Vacated,
+}
+
+/// Calls can reveal a more precise written field after every body is lowered.
+/// Use the same interning owner as the original storage producer, so adding
+/// that projection cannot give one place two identities.
+pub fn intern_projection(
+    machine: MachineId,
+    places: &mut IdTable<ExactPlaceId, PlaceRow>,
+    parent: ExactPlaceId,
+    segment: Segment,
+) -> crate::Checked<ExactPlaceId> {
+    let missing = || crate::Refusal {
+        reason: crate::RefusalReason::ForeignIdentity,
+        machine,
+        concerns: crate::Construct::Place(parent),
+        detail: "place is past the end of this machine".to_owned(),
+    };
+    let row = places.get(parent).ok_or_else(missing)?;
+    match row
+        .children
+        .binary_search_by_key(&segment, |(segment, _)| *segment)
+    {
+        Ok(position) => Ok(row.children[position].1),
+        Err(position) => {
+            let child = places.push(PlaceRow {
+                origin: PlaceOrigin::Projection { parent, segment },
+                children: Vec::new(),
+                writes: Vec::new(),
+            });
+            places
+                .get_mut(parent)
+                .ok_or_else(missing)?
+                .children
+                .insert(position, (segment, child));
+            Ok(child)
+        }
+    }
+}
+
+pub fn record_write(
+    machine: MachineId,
+    places: &mut IdTable<ExactPlaceId, PlaceRow>,
+    writes: &mut IdTable<WriteId, WriteRow>,
+    row: WriteRow,
+) -> crate::Checked<()> {
+    let place = places.get_mut(row.place).ok_or_else(|| crate::Refusal {
+        reason: crate::RefusalReason::ForeignIdentity,
+        machine,
+        concerns: crate::Construct::Place(row.place),
+        detail: "place is past the end of this machine".to_owned(),
+    })?;
+    place.writes.push(writes.push(row));
+    Ok(())
 }
 
 #[cfg(test)]

@@ -6,7 +6,7 @@ use geometry::profile;
 use loading::pressure;
 use input::tokens;
 use output::numbers;
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::F64::from_i64;
 
 data Application {

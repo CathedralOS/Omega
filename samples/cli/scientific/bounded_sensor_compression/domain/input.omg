@@ -2,7 +2,8 @@ module domain::input;
 use domain::model::SensorBlock;
 use domain::model::SensorStream;
 use domain::model::InputBuffer;
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 
 // Finite binary stdin protocol. One lookahead rejects over-capacity input.
 public machine read_input(input: &mut InputBuffer) -> bool reaches Console

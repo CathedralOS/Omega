@@ -2,7 +2,8 @@
 // Eighteen-digit mantissas accumulate in i64 before conversion to f64.
 // The byte budget includes separators and trailing whitespace. EOF is accepted
 // only after a complete token; malformed, truncated and over-budget input reject.
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 use omega::language::core::F64::from_i64;
 
 public data Reader { consumed: i32; }

@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 use domain::model;
 machine decimal(value: u64 in Wrapping) reaches Console {
     transition { _ -> scale(value, 1) }

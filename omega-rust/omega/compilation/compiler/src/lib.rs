@@ -53,7 +53,7 @@ pub use crate::checked::{
     settled_check_totals, source_assembly_invocation_count, typed_frontier_reuse_count,
 };
 pub use build_settings::BuildSnapshotRequest;
-pub use checked::checking::ProductQueries;
+pub use checked::checking::{PreparedProviderChoices, ProductQueries, prepare_provider_choices};
 pub use checked::{PackageReviewFailure, PackageReviewProduct, PackageReviewSource};
 pub use compilation_products::{
     CompileFailure, CompileOptions, CompileOutcomes, CompileOutputKind, CompileReport,
@@ -61,6 +61,7 @@ pub use compilation_products::{
     OptimizationRollbackReceipt, RequestedCompileProduct, RetainedBuildOutputs,
     RetainedNativeArtifact,
 };
+pub use execution_settlement::settled_slot_schemas;
 pub use native_compiler::SourceEvaluatedImportSettlement;
 pub use package_compilation::BuildExecutionInputs;
 pub use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
@@ -70,7 +71,7 @@ pub use product_execution::{
 pub use psi_compiler::ProducedTerminalProgram;
 pub use target::ExplicitTargetSet;
 pub use target_batch::PreparedCompilation;
-pub use terminal::prepare_program_entry;
+pub use terminal::{prepare_program_entry, prepare_provider_execution_inputs};
 
 pub fn compiler_input_identity() -> Result<[u8; 32], String> {
     let library = package_compilation::toolchain_library::identity()?;

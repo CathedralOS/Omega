@@ -28,7 +28,9 @@ target-neutral abstract operations by `00_terminal-psi-to-abstract-operations`.
 
 pub mod artifacts;
 pub mod boundary;
+mod call_contexts;
 pub mod callable_values;
+pub use call_contexts::{CallAcknowledgement, CallFormation, CallOrigin, CallSite};
 #[macro_use]
 pub mod control_flow;
 pub mod identity;

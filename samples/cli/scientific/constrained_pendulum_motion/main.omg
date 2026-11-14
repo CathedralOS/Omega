@@ -1,6 +1,7 @@
 // Expected exit: 64 (empty stdin); valid data fixtures exit 0.
 // Expected output contains: INVALID: expected scenario
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 use model::integrator;
 use report::report;
 use omega::language::core::F64::from_i32;

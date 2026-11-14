@@ -7,7 +7,7 @@
 // two digit chars written per cell, then printed. Pure compute + stdout, no new features.
 // Expected exit: 0.
 // Expected output contains: 81
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::narrow_i32_to_u8_trapping;
 
 domain [u8]::Utf8

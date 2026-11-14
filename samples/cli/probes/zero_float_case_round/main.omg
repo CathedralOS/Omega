@@ -4,7 +4,7 @@
 // That payload, and exact ±0.5 ratios taken from a runtime-indexed f64 array,
 // round half away from zero. No passing sample executes this combination.
 module zero_float_case_round;
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::I32::from_f64;
 
 public data Reading [copy] {

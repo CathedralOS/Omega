@@ -1620,7 +1620,8 @@ pub(crate) mod boundary_correspondence {
                         path.pop();
                     }
                 }
-                StructuralTypeShape::Reference { .. }
+                StructuralTypeShape::Opaque
+                | StructuralTypeShape::Reference { .. }
                 | StructuralTypeShape::ByteSequence(_)
                 | StructuralTypeShape::ElementView { .. } => {
                     return Err("boundary backing is not a closed owned storage shape");
@@ -2847,7 +2848,7 @@ pub mod quotients {
                     | S::ElementView { .. }
                     | S::ByteSequence(_)
                     | S::PrimitiveScalar(_) => {}
-                    S::AtomicCell(_) => {}
+                    S::AtomicCell(_) | S::Opaque => {}
                 }
             }
             false
@@ -3473,6 +3474,7 @@ pub mod quotients {
                 }
             };
             match &declaration.shape {
+                S::Opaque => return Err("quotient carrier has no visible storage representation"),
                 S::AtomicCell(_) => return Err("quotient carrier contains atomic storage"),
                 S::Reference { .. }
                 | S::ElementView { .. }

@@ -1,5 +1,5 @@
 // Entrypoint owns bounded input, private inverse solution, and reporting.
-use omega_language_std::console;
+use omega_language_std::Console;
 use domain::model;
 use domain::solver;
 use io::input;

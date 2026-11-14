@@ -250,13 +250,19 @@ impl Program<'_> {
                 if !self.fixed_inputs.contains(&root) {
                     self.fixed_inputs.push(root);
                 }
-                let supplied = crate::SuppliedRequirement {
-                    provider: supply.provider,
-                    requirement,
-                    machine: root,
-                };
-                if !self.supplied.contains(&supplied) {
-                    self.supplied.push(supplied);
+                // Ordinary policies have checked bodies and refinement witnesses,
+                // but supply no external service. Only a boundary requirement
+                // needs a declaration and a candidate for provider planning.
+                if owner.is_boundary {
+                    self.boundary_declaration(root, requirement)?;
+                    let supplied = crate::SuppliedRequirement {
+                        provider: supply.provider,
+                        requirement,
+                        machine: root,
+                    };
+                    if !self.supplied.contains(&supplied) {
+                        self.supplied.push(supplied);
+                    }
                 }
                 // A machine that states `satisfies` already owes this row
                 // (`satisfied_requirements`), and two supplies may name one

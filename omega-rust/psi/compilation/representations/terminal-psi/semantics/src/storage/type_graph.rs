@@ -139,7 +139,8 @@ fn for_each_owned_child(
             }
         }
         StructuralTypeShape::FixedArray { element, .. } => visit(*element)?,
-        StructuralTypeShape::PrimitiveScalar(_)
+        StructuralTypeShape::Opaque
+        | StructuralTypeShape::PrimitiveScalar(_)
         | StructuralTypeShape::AtomicCell(_)
         | StructuralTypeShape::ByteSequence(_)
         | StructuralTypeShape::Reference { .. }

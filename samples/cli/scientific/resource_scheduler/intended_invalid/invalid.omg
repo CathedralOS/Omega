@@ -1,6 +1,6 @@
 // Complete negative source control: this literal start exceeds its required
 // finite mathematical contract. The checker must reject before any native run.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine validate_start(start: i32)
     requires start >= 0 && start <= 20

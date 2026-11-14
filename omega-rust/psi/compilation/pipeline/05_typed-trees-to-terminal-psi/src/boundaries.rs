@@ -46,6 +46,7 @@ impl BoundaryNamespace {
             crate::body::CrashCeiling::Inferred => return None,
         };
         Some(Outcome {
+            operational: [source.envelope.suspends, source.envelope.blocks],
             completes_normally: matches!(source.completion, BoundaryCompletion::NormalReturn),
             crash_routes,
             service_reach: match &source.signature.reaches {

@@ -1,6 +1,7 @@
 // One private bounded unsigned-decimal scanner. Six digits and at most
 // 4096 consumed bytes prevent overflow and unbounded malformed input work.
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 
 public data Reader {
     value: i64 in Wrapping;

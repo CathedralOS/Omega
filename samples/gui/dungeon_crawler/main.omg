@@ -1,5 +1,14 @@
-use omega_language_std::macos_gui;
-use omega_language_std::console;
+use omega_language_std::Window;
+use omega_language_std::macos_key_state;
+use omega_language_std::macos_sleep;
+use omega_language_std::macos_window_create;
+use omega_language_std::macos_window_destroy;
+use omega_language_std::macos_window_foreground_window;
+use omega_language_std::macos_window_is_window;
+use omega_language_std::macos_window_msg_dispatch;
+use omega_language_std::macos_window_msg_peek;
+use omega_language_std::macos_window_present;
+use omega_language_std::Console;
 use dungeon_core::simulation::game::Game;
 use dungeon_core::presentation::frame::Frame;
 use dungeon_core::render;

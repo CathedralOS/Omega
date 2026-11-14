@@ -37,6 +37,7 @@ fn nowhere() -> SourceOrigin {
 
 fn expression(kind: ExpressionKind, result: Option<ScalarType>) -> Expression {
     Expression {
+        call_context: None,
         kind,
         result: result.map(ValueType::plain),
         source: nowhere(),
@@ -57,7 +58,6 @@ fn slot(slot: usize, scalar_type: ScalarType) -> Expression {
 fn call(callee: u64, arguments: Vec<Expression>, result: Option<ScalarType>) -> Expression {
     expression(
         ExpressionKind::Call {
-            operational_acknowledgement: Default::default(),
             callee: id::<MachineId>(callee).into(),
             arguments,
             designated: None,
@@ -92,6 +92,7 @@ fn returns(value: Expression) -> Statement {
 
 fn signature(parameters: Vec<ScalarType>, result: Option<ScalarType>) -> Signature {
     Signature {
+        operational: Default::default(),
         parameters: scalars(parameters),
         erased: Vec::new(),
         borrowed: Vec::new(),
@@ -148,6 +149,7 @@ fn scalars(types: Vec<ScalarType>) -> Vec<ValueType> {
 /// A machine that may return and publishes no crash route.
 fn returns_normally() -> Outcome {
     Outcome {
+        operational: [false; 2],
         completes_normally: true,
         service_reach: Vec::new(),
         synchronous_entries: Vec::new(),
@@ -879,6 +881,7 @@ fn a_call_with_no_normal_completion_is_a_no_successor_crash_site() {
         vec![
             returns_normally(),
             Outcome {
+                operational: [false; 2],
                 completes_normally: false,
                 service_reach: Vec::new(),
                 synchronous_entries: Vec::new(),
@@ -999,12 +1002,14 @@ fn a_call_that_may_return_or_crash_owes_coverage_at_its_operation() {
         ],
         vec![
             Outcome {
+                operational: [false; 2],
                 completes_normally: true,
                 service_reach: Vec::new(),
                 synchronous_entries: Vec::new(),
                 crash_routes: routes(&[CrashCause::Trap, CrashCause::Abort]),
             },
             Outcome {
+                operational: [false; 2],
                 completes_normally: true,
                 service_reach: Vec::new(),
                 synchronous_entries: Vec::new(),
@@ -1269,7 +1274,6 @@ fn a_never_returning_record_base_stops_its_field_projection() {
         statements: vec![returns(member(
             of_type(
                 ExpressionKind::Call {
-                    operational_acknowledgement: Default::default(),
                     callee: id::<semantic_vocabulary::MachineId>(2).into(),
                     arguments: Vec::new(),
                     designated: None,
@@ -1391,6 +1395,7 @@ fn authored(start: usize) -> SourceOrigin {
 
 fn never_returns() -> Outcome {
     Outcome {
+        operational: [false; 2],
         completes_normally: false,
         ..returns_normally()
     }
@@ -1660,6 +1665,7 @@ fn outcomes_follow_the_ceiling_or_the_body() {
     assert_eq!(
         callee_outcome,
         Outcome {
+            operational: [false; 2],
             completes_normally: false,
             service_reach: Vec::new(),
             synchronous_entries: Vec::new(),
@@ -1721,6 +1727,7 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
     // Reaching a crash, by its own statement or through the callee, the body
     // never completes normally and still publishes nothing.
     let never_returns = Outcome {
+        operational: [false; 2],
         completes_normally: false,
         service_reach: Vec::new(),
         synchronous_entries: Vec::new(),
@@ -1783,6 +1790,7 @@ fn a_skipped_operand_cannot_end_the_machine() {
     assert_eq!(
         table.get(id(1)).unwrap(),
         &Outcome {
+            operational: [false; 2],
             completes_normally: true,
             service_reach: Vec::new(),
             synchronous_entries: Vec::new(),
@@ -1844,6 +1852,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
 
 fn of_type(kind: ExpressionKind, result: ValueType) -> Expression {
     Expression {
+        call_context: None,
         kind,
         result: Some(result),
         source: nowhere(),
@@ -1874,6 +1883,7 @@ fn bind(slot: usize, value: Expression) -> Statement {
 
 fn shaped(parameters: Vec<ValueType>, result: Option<ValueType>) -> Signature {
     Signature {
+        operational: Default::default(),
         parameters,
         erased: Vec::new(),
         result,
@@ -2064,7 +2074,9 @@ fn a_nested_read_interns_one_place_per_projection_and_reuses_it() {
         .values
         .iter()
         .filter_map(|(value, row)| match row.origin {
-            ValueOrigin::InitialContent { place } => Some((value, place, row.scalar_type)),
+            ValueOrigin::StorageContent { place, after: None } => {
+                Some((value, place, row.scalar_type))
+            }
             _ => None,
         })
         .collect();
@@ -2110,7 +2122,6 @@ fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
                 5,
                 of_type(
                     ExpressionKind::Call {
-                        operational_acknowledgement: Default::default(),
                         callee: id::<MachineId>(2).into(),
                         arguments: Vec::new(),
                         designated: None,
@@ -2192,10 +2203,13 @@ fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
     for field in [1, 2] {
         let leaf = projected(&tables, formal, &[field]);
         assert!(written(&tables, leaf).is_empty());
-        let values = tables
-            .values
-            .iter()
-            .filter(|(_, row)| row.origin == ValueOrigin::InitialContent { place: leaf });
+        let values = tables.values.iter().filter(|(_, row)| {
+            row.origin
+                == ValueOrigin::StorageContent {
+                    place: leaf,
+                    after: None,
+                }
+        });
         assert_eq!(values.count(), 1);
     }
     // A call's record result has no value identity: nothing is invented.
@@ -2317,10 +2331,13 @@ fn a_projected_record_is_copied_out_by_its_path() {
     );
     for field in [1, 2] {
         let from = projected(&tables, formal, &[4, field]);
-        let values = tables
-            .values
-            .iter()
-            .filter(|(_, row)| row.origin == ValueOrigin::InitialContent { place: from });
+        let values = tables.values.iter().filter(|(_, row)| {
+            row.origin
+                == ValueOrigin::StorageContent {
+                    place: from,
+                    after: None,
+                }
+        });
         assert_eq!(values.count(), 1);
     }
 }
@@ -2371,12 +2388,14 @@ fn a_module_with_records_declares_them_and_encodes() {
 
 fn store(slot: usize, path: &[usize], value: Expression) -> Statement {
     let mut destination = Expression {
+        call_context: None,
         kind: ExpressionKind::Slot(slot),
         result: None,
         source: nowhere(),
     };
     for field in path {
         destination = Expression {
+            call_context: None,
             kind: ExpressionKind::Field {
                 base: Box::new(destination),
                 field: *field,

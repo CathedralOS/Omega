@@ -726,6 +726,11 @@ pub mod types {
 
         #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub enum StructuralTypeShape {
+            /// A nominal value supplied across an admitted boundary. It has no
+            /// guest-visible fields or implied storage geometry; moving it
+            /// preserves the supplying host's identity, rather than constructing
+            /// an empty record with the same name.
+            Opaque,
             Reference {
                 referent: StructuralTypeId,
                 access: crate::StructuralAccess,
@@ -1339,7 +1344,8 @@ pub mod types {
                         }
                     }
                     StructuralTypeShape::ElementView { element, .. } => pending.push(*element),
-                    StructuralTypeShape::Reference { .. }
+                    StructuralTypeShape::Opaque
+                    | StructuralTypeShape::Reference { .. }
                     | StructuralTypeShape::PrimitiveScalar(_)
                     | StructuralTypeShape::AtomicCell(_)
                     | StructuralTypeShape::ByteSequence(_) => {}

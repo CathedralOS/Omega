@@ -18,6 +18,6 @@ pub use realized_supply::{
 mod source_choices;
 pub use source_choices::{
     DemandedRequirement, JudgedProvider, PreparedTargetSupply, ProviderSupply,
-    ReachedBoundaryRequirement, SettledRequirement, SettledTargetSupply, SupplyAuthority,
-    TargetSupplyRequest,
+    ReachedBoundaryRequirement, SettledRequirement, SettledTargetSupply, SlotSchema,
+    SupplyAuthority, SupplyPlanning, TargetSupplyRequest,
 };

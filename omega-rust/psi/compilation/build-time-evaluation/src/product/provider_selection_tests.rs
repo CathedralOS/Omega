@@ -264,7 +264,11 @@ fn a_runtime_data_declaration_is_not_a_static_provider_record() {
         None,
     );
     let events = fixture.events(&[(ProductTarget::LinuxX86_64, CompositionMode::Fused)]);
-    assert!(fixture.collect(&events).is_err());
+    let refused = fixture.collect(&events).unwrap_err();
+    assert_eq!(
+        refused[0].message,
+        "provider selection `RuntimeDescriptor` is not a static operation record from a named implementation; a data type is not a provider value"
+    );
 }
 
 #[test]

@@ -9,8 +9,8 @@
 // ('#' = black cell, '@' = ant). Pure compute + stdout + Clock.sleep; no new features.
 // Expected exit: 0.
 // Expected output contains: @
-use omega_language_std::console;
-use omega_language_std::clock;
+use omega_language_std::Console;
+use omega_language_std::Clock;
 
 domain [u8]::Utf8
 requires

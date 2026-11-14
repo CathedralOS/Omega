@@ -46,6 +46,7 @@ fn lowered(machines: Vec<Shape>, contracts: &[u64]) -> typed_trees_to_terminal_p
             statements: machine.statements,
         });
         signatures.push(Signature {
+            operational: Default::default(),
             parameters: machine.parameters,
             erased: Vec::new(),
             borrowed: Vec::new(),
@@ -73,6 +74,7 @@ fn lowered(machines: Vec<Shape>, contracts: &[u64]) -> typed_trees_to_terminal_p
 
 fn item(item_type: ValueType) -> Expression {
     Expression {
+        call_context: None,
         kind: ExpressionKind::Slot(0),
         result: Some(item_type),
         source: nowhere(),
@@ -98,8 +100,8 @@ fn relay(item_type: ValueType, bound: u128) -> Shape {
         statements: vec![returns(strict(
             Strict::Add,
             Expression {
+                call_context: None,
                 kind: ExpressionKind::Call {
-                    operational_acknowledgement: Default::default(),
                     callee: id::<MachineId>(2).into(),
                     arguments: vec![item(item_type), slot(1, u32_type())],
                     designated: None,

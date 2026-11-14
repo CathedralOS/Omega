@@ -8,7 +8,7 @@ use omega::language::core::max_i32;
 // transition (a read in a separate state would not carry the `len > 0` fact).
 // Expected exit: 9.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine find_max(s: &[i32], current: i32) -> i32 {
     transition s.len > 0 {

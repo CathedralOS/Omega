@@ -2,7 +2,7 @@
 
 This reference defines the `claude-code-remote` container transport for running a wave of Claude Code cloud sessions.
 
-Session ownership, execution and publication follow the [swarm skill](../SKILL.md), [advance](../../advance/SKILL.md), and [landing](../../../../tools/landing.md).
+Session ownership, execution and publication follow the [swarm skill](../SKILL.md), [advance](../../advance/SKILL.md), and [landing](../../../../tools/docs/landing.md).
 
 ## 1. Claude Cloud Session Tools
 
@@ -27,5 +27,5 @@ Never schedule periodic timers, `schedule` calls, `send_later` check-ins, or sle
    - Instruct each session to acquire a pool slot via `cargo xtask worktree acquire <lane>-<topic>` and build with `mbx build -p omega` so sample gates and tests reuse `target/` (direct `cargo build` / `cargo test` fallback is forbidden).
    - A session's slot starts at the commit the restored build was published for; `acquire` prints that commit and `origin/main`. Keep that fixed base when its producer inputs remain applicable, and update it for a needed prerequisite or actual conflict under the landing rules. A slot with no restored build, or whose published commit `origin/main` does not contain, starts at `origin/main` as before.
    - Instruct sessions to run long builds/gates in the background and wait on completion notifications rather than `sleep` or `pgrep` loops, and pass `--base <commit>` to `cargo xtask check-rules`.
-2. **Record & dispatch:** Complete `/advance` preflight and [claim registration](../../../../tools/claims.md), record the wave ledger under `build/swarm/<wave>/`, and pass each session its capability, witness, fixed base, and instruction to follow `/advance` through verified landing. Retain the PR URL, submitted head, published commit and observed limits in the completion report.
+2. **Record & dispatch:** Complete `/advance` preflight and [claim registration](../../../../tools/docs/claims.md), record the wave ledger under `build/swarm/<wave>/`, and pass each session its capability, witness, fixed base, and instruction to follow `/advance` through verified landing. Retain the PR URL, submitted head, published commit and observed limits in the completion report.
 3. **Reuse:** After the session verifies its landing, `send_message` the next requirement of the parent capability to the same warm session.

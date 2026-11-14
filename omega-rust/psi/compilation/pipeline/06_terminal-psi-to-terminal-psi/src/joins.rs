@@ -153,7 +153,7 @@ fn in_scope(
     proposition.visit_value_ids(|value| {
         inside &= match tables.values.get(value).map(|row| row.origin) {
             Some(ValueOrigin::MachineParameter { .. }) => true,
-            Some(ValueOrigin::InitialContent { place }) => {
+            Some(ValueOrigin::StorageContent { place, after: None }) => {
                 crate::places::input_content(lowered, tables, place)
             }
             Some(ValueOrigin::BlockParameter { block: owner, .. }) => owner == block,
@@ -331,7 +331,7 @@ fn describe(
         matches!(term, ScalarTerm::Value { id, .. }
         if matches!(
             tables.values.get(*id).map(|row| row.origin),
-            Some(ValueOrigin::InitialContent { place }) if crate::places::input_content(lowered, tables, place)
+            Some(ValueOrigin::StorageContent { place, after: None }) if crate::places::input_content(lowered, tables, place)
         ))
     };
     let equations: Vec<&Proposition> = available

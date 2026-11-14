@@ -64,12 +64,14 @@ mod declare;
 mod external_providers;
 mod lower;
 
+mod operational;
 mod outcome;
 mod policy;
 mod proof_scope;
 pub mod provider_selections;
 mod reach;
 mod read;
+mod reference_results;
 pub mod selection_questions;
 mod static_contracts;
 
@@ -517,17 +519,15 @@ fn elaborate_witness_call(
     }
     let source = SourceOrigin::Unpositioned(Unpositioned::ConformanceWitness);
     let call = Expression {
+        call_context: Some(terminal_psi::CallAcknowledgement::generated()),
         kind: ExpressionKind::Call {
-            operational_acknowledgement: language_core::CallOperationalAcknowledgement {
-                origin: language_core::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
-                ..Default::default()
-            },
             callee: callee.into(),
             arguments: required
                 .parameters
                 .iter()
                 .enumerate()
                 .map(|(slot, value_type)| Expression {
+                    call_context: None,
                     kind: ExpressionKind::Slot(slot),
                     result: Some(*value_type),
                     source,
@@ -707,6 +707,7 @@ fn finish_reading(
         Some(&program.declaration_signatures),
     )?;
     elaboration.machines = program.symbols.clone();
+    elaboration.boundaries = program.boundaries.rows.map(|_, source| source.source);
     source.selection_questions = Some(source_selection_questions);
     crate::reach::publish(program.typed, diagnostic, &services, &mut elaboration)?;
     calling_abis.publish(&mut elaboration.module)?;
@@ -719,6 +720,15 @@ fn finish_reading(
             &program.declaration_signatures,
             &mut elaboration,
         )
+        .and_then(|()| {
+            declare::provider_candidates(
+                typed,
+                &program.symbols,
+                &elaboration.boundaries,
+                &program.supplied,
+                &mut elaboration.module,
+            )
+        })
         .map_err(|reason| {
             refuse(
                 diagnostic,
@@ -728,8 +738,8 @@ fn finish_reading(
         })?;
     }
     source.records = program.source_record_correspondence(diagnostic)?;
+    reference_results::publish(&mut elaboration, &program.selections)?;
     elaboration.machines = program.symbols;
-    elaboration.boundaries = program.boundaries.rows.map(|_, source| source.source);
     elaboration.private_inputs = private_inputs;
     elaboration.local_results = local_results;
     elaboration.names = program.names;
@@ -894,6 +904,9 @@ fn lower_program(
             invokes: signature.invokes.clone(),
         })
     };
+    for (machine, body) in bodies.iter() {
+        operational::positions(machine, body)?;
+    }
     let components = components::components(bodies, signatures.machines)?;
     let outcomes = outcome::outcomes(bodies, signatures, requirements, callables, boundaries)?;
     let mut module = match entry {
@@ -1157,6 +1170,7 @@ fn lower_program(
         &mut module,
         typed_source,
     )?;
+    lower::publish_write_frames(diagnostic, &mut module, &mut tables)?;
     // This is the emitted behavior before proving or publication. Keeping its
     // inventory here lets product consumers retain the exact judged module.
     module.unoptimized_behavior = module
@@ -1227,6 +1241,7 @@ mod publication_scope_tests {
         });
         let mut signatures = IdTable::default();
         signatures.push(Signature {
+            operational: Default::default(),
             parameters: Vec::new(),
             erased: Vec::new(),
             borrowed: Vec::new(),

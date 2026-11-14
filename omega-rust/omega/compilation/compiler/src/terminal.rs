@@ -4,7 +4,7 @@
 mod product_code;
 pub(crate) use product_code::ProductCodeSource;
 mod provider_execution;
-pub(crate) use provider_execution::prepare_provider_execution_inputs;
+pub use provider_execution::prepare_provider_execution_inputs;
 mod program_entry;
 mod terminal_artifact;
 

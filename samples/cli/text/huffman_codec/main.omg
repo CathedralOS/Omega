@@ -16,7 +16,7 @@
 //   6. Self-verify symbol frequencies, per-symbol code lengths (1, 2, 4, 4, 3),
 //      encoded bit count (29), packed bytes, and the 16-byte round-trip.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 domain u64::SymbolSlot requires self < 5;
 domain u8::HuffmanSymbol

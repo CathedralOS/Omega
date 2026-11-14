@@ -1,6 +1,6 @@
 // Expected exit: 70
 // The retained runtime argument determines this oracle; erased evidence cannot.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Proof {
     tag: i32;

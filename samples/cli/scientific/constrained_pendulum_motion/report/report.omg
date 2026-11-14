@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::I32::from_f64;
 
 // Signed micro-units, ten decimal digits. No text format or math dependency.

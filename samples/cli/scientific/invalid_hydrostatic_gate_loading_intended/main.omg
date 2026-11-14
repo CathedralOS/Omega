@@ -1,6 +1,6 @@
 // Complete negative control: a strictly ascending elevation interval is
 // required before computing a linear slope. A reversed literal violates it.
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::F64::from_i64;
 
 machine interval_height(lower: i64, upper: i64) -> f64

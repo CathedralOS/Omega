@@ -1,6 +1,4 @@
 // NEGATIVE 1: the law satisfier proves NOTHING (no ensures) -> must error.
-use omega::language::core::nat;
-use omega::language::core::float_operations;
 data Peano { case Zero; case Succ(pred: Peano); }
 trait RingOps2<T> {
     machine add(a: T, b: T) -> T terminates;

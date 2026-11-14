@@ -1,7 +1,7 @@
 // Intended-invalid control for topological_order: marking a node outside the
 // 0..=7 node domain as emitted must be rejected at compile time.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Topo {
     emitted: [u64 in Wrapping; 8];

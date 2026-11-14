@@ -16,7 +16,7 @@
 //
 // Expected exit: 70.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 // The data predicates retain the original field bounds across construction
 // and mutable sub-machine calls. Equality guards make the final exact sum

@@ -3,7 +3,7 @@
 // A runtime-selected feature pair returns its mutable window and the centered
 // leading feature. The window length is observed through a local, a record
 // field, a parameter, and the call result.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     measurements: [f64; 4];

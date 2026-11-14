@@ -17,7 +17,7 @@ mod review_set;
 mod semantic_bindings;
 
 pub(crate) use custody::verify_transitive_source_custody;
-pub use error::CompileResolvedPackageReviewsError;
+pub use error::{CompileResolvedPackageReviewCause, CompileResolvedPackageReviewsError};
 pub(crate) use passes::{CandidateReview, PackageSourceBindings, review_resolved_packages};
 pub use passes::{
     PackageReviewCompletion, PackageReviewComponent, PackageReviewExecutor,

@@ -15,7 +15,7 @@
 // The named-entry form runs natively and in the checked interpreter on
 // macOS ARM64. Other declared targets retain their matching-host obligations.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     counter: AtomicU32;

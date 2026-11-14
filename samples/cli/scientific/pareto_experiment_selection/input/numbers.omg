@@ -1,6 +1,7 @@
 // Whitespace-separated unsigned decimal tokens, at most three digits.
 // Admission checks happen on actual bytes; no wrapping or truncation is accepted.
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 public data Parsed [copy] { value: u64; valid: bool; }
 public machine read_number() -> Parsed
 reaches Console

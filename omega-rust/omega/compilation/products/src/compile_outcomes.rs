@@ -18,7 +18,10 @@ pub enum CompileFailure {
         diagnostics: Vec<Diagnostic>,
         accounting: build_time_evaluation::SourceCompletionAccounting,
     },
-    BuildConsentRequired(Vec<package_compilation::build_execution::RestrictedBuildRequest>),
+    BuildConsentRequired {
+        requests: Vec<package_compilation::build_execution::RestrictedBuildRequest>,
+        accounting: build_time_evaluation::SourceCompletionAccounting,
+    },
 }
 
 impl CompileFailure {
@@ -40,15 +43,45 @@ impl CompileFailure {
         &self,
     ) -> Option<&build_time_evaluation::SourceCompletionAccounting> {
         match self {
-            Self::SourceCompletion { accounting, .. } => Some(accounting),
+            Self::SourceCompletion { accounting, .. }
+            | Self::BuildConsentRequired { accounting, .. } => Some(accounting),
             _ => None,
+        }
+    }
+
+    /// Retain work already spent without changing a pending consent request
+    /// into a diagnostic refusal or an execution grant. Shared invocation
+    /// occurrences are joined by the account's existing identity rule.
+    pub fn with_source_completion_accounting(
+        self,
+        mut accounting: build_time_evaluation::SourceCompletionAccounting,
+    ) -> Self {
+        match self {
+            Self::Diagnostics(diagnostics) => Self::source_completion(diagnostics, accounting),
+            Self::SourceCompletion {
+                diagnostics,
+                accounting: attempted,
+            } => {
+                accounting.append(attempted);
+                Self::source_completion(diagnostics, accounting)
+            }
+            Self::BuildConsentRequired {
+                requests,
+                accounting: attempted,
+            } => {
+                accounting.append(attempted);
+                Self::BuildConsentRequired {
+                    requests,
+                    accounting,
+                }
+            }
         }
     }
 
     pub fn into_diagnostics(self) -> Vec<Diagnostic> {
         match self {
             Self::Diagnostics(diagnostics) | Self::SourceCompletion { diagnostics, .. } => diagnostics,
-            Self::BuildConsentRequired(requests) => requests
+            Self::BuildConsentRequired { requests, .. } => requests
                 .into_iter()
                 .map(|request| {
                     Diagnostic::error(format!(

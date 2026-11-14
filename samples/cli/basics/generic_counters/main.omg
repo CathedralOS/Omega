@@ -8,7 +8,7 @@
 //   exit = 12 + 2 + (1 if flag) + times_flag(1) = 16
 //
 // Expected exit: 16
-use omega_language_std::console;
+use omega_language_std::Console;
 data Counter<T> {
     value: T;
     times: i32 in Wrapping;

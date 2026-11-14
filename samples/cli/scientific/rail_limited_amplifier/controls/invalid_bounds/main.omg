@@ -1,6 +1,6 @@
 // Complete intended-invalid application. Rail history has two slots;
 // selecting slot two violates the documented exclusive upper bound.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { history: [f64; 2]; }
 machine Main::main(main: &mut Main) reaches Console {
     main.history[2] = 1.0;

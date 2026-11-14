@@ -12,7 +12,7 @@
 // to 8.75. An exact 2 * 3 + 4 agrees under both roundings. x86 builds admit
 // AVX+FMA3; that feature is not inferred from the host.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::F64::fused_multiply_add;
 use omega::language::core::F64::multiply_then_add;
 

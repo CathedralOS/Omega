@@ -1,6 +1,6 @@
 // Expected exit: 0.
 // Expected output contains: principal_component_analysis
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::F64::from_u64;
 use omega::language::core::U64::from_f64;
 use domain::input;

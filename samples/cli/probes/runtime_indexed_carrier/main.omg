@@ -1,7 +1,7 @@
 // Expected exit: 70
 // Authored inputs: (index, payload) = (7, 31), (13, 39).
 // Each payload is checked separately before their sum becomes the exit code.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Indexed<Limit: u32> { value: u32; }
 

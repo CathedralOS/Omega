@@ -136,8 +136,7 @@ pub(crate) fn declare(
                         Published {
                             reach: &reach,
                             entries: &entries,
-                            suspends: envelope.suspends,
-                            blocks: envelope.blocks,
+                            operational: [envelope.suspends, envelope.blocks],
                         },
                         &mut identities,
                     )
@@ -179,8 +178,7 @@ pub(crate) fn declare(
                 Published {
                     reach: &reach,
                     entries: &entries,
-                    suspends: requirement.suspends,
-                    blocks: requirement.blocks,
+                    operational: signature.operational.published([false; 2]),
                 },
                 &mut identities,
             )?;
@@ -190,6 +188,124 @@ pub(crate) fn declare(
     })();
     elaboration.module.identities = identities.build();
     result
+}
+
+/// States, for each requirement a chosen provider supplies
+/// (`Elaboration::supplied`), that the module's machine for it realizes the
+/// requirement's boundary on behalf of that provider: one
+/// `ProviderCandidateConformance` row each, in the canonical order the
+/// module encodes them in.
+///
+/// A provider plan selects its checked adapters among these rows by the
+/// provider's declaration identity and each requirement's identity
+/// (`backend_plan::TerminalTargetProviderSelection::from_plans`), so a row
+/// carries the identities this module already states: the boundary's
+/// callable identity, the machine's callable identity and package, the
+/// provider's exact-owner identity, and its path for reports. The machine is
+/// the one `supplied_slots` read as a root and the checker judged against
+/// the requirement, so no row names a provider nobody judged. The rows state
+/// no receiving application: the route declares only boundaries of traits
+/// with no parameters (`read/calls.rs`, `boundary`).
+pub(crate) fn provider_candidates(
+    typed: &TypedTrees,
+    machines: &IdTable<MachineId, SymbolHandle>,
+    boundaries: &IdTable<semantic_vocabulary::BoundaryMachineId, SymbolHandle>,
+    supplied: &[crate::SuppliedRequirement],
+    module: &mut terminal_psi::TerminalModule,
+) -> Result<(), &'static str> {
+    if supplied.is_empty() {
+        return Ok(());
+    }
+    let sources =
+        source::source_identity::toolchain_source_identities(typed.symbols.source_files())
+            .map_err(|_| "a provider toolchain source has no exact identity")?;
+    let mut identities = std::mem::take(&mut module.identities).into_builder();
+    let rows = (|| {
+        let mut rows = Vec::with_capacity(supplied.len());
+        for row in supplied {
+            let boundary = boundaries
+                .iter()
+                .find_map(|(boundary, symbol)| (*symbol == row.requirement).then_some(boundary))
+                .ok_or("a supplied requirement has no boundary declaration")?;
+            let requirement = module
+                .boundary_machine(boundary)
+                .ok_or("a supplied requirement's boundary was not published")?
+                .identity;
+            let machine = module
+                .machine(row.machine)
+                .ok_or("a provider's machine is not in the module")?;
+            let callable = machine
+                .declaration
+                .as_ref()
+                .ok_or("a provider's machine has no declaration identity")?
+                .callable;
+            let symbol = *machines
+                .get(row.machine)
+                .ok_or("a provider's machine has no typed-tree declaration")?;
+            let path = typed.symbols.display_path(row.provider, "::");
+            if path.is_empty() {
+                return Err("a provider has no declaration path");
+            }
+            rows.push(terminal_psi::ProviderCandidateConformance {
+                boundary,
+                requirement_identity: requirement,
+                source_requirement_identity: requirement,
+                declaration_application: terminal_psi::TerminalIdentityIndex::ABSENT,
+                receiving_application: terminal_psi::TerminalIdentityIndex::ABSENT,
+                receiving_region_arguments: Vec::new(),
+                provider_identity: identities.intern(&path),
+                provider_declaration: NominalDeclarationIdentity::new(nominal(
+                    typed,
+                    &sources,
+                    row.provider,
+                    &mut identities,
+                )?),
+                candidate_identity: callable,
+                source_candidate_identity: callable,
+                source_candidate_package_identity: typed.symbols.symbol_package_identity(symbol),
+                candidate: row.machine,
+                signature: terminal_psi::ProviderSignature {
+                    parameters: machine
+                        .structural_parameters
+                        .iter()
+                        .map(|parameter| terminal_psi::ProviderSignatureParameter {
+                            position: parameter.position,
+                            structural_type: parameter.structural_type,
+                            multiplicity: parameter.multiplicity,
+                            access: parameter.access,
+                            qualifications: parameter.qualifications.clone(),
+                            projected_qualifications: parameter.projected_qualifications.clone(),
+                        })
+                        .collect(),
+                },
+                refinement: terminal_psi::ProviderRefinement {
+                    realized_service_ceiling: machine.published_service_ceiling.clone(),
+                    ..terminal_psi::ProviderRefinement::empty()
+                },
+            });
+        }
+        Ok(rows)
+    })();
+    module.identities = identities.build();
+    let mut rows = rows?;
+    let text = |identity: terminal_psi::TerminalIdentityIndex| {
+        module
+            .identities
+            .text(identity)
+            .unwrap_or_default()
+            .to_owned()
+    };
+    rows.sort_by_cached_key(|row| {
+        (
+            row.boundary,
+            text(row.provider_identity),
+            text(row.provider_declaration.identity()),
+            text(row.candidate_identity),
+            row.candidate,
+        )
+    });
+    module.provider_candidates = rows;
+    Ok(())
 }
 
 fn declaration(
@@ -267,8 +383,8 @@ fn declaration(
         callable: identities.intern(&callable),
         result_type: identities.intern(&result_type),
         contract,
-        published_may_suspend: published.suspends,
-        published_may_block: published.blocks,
+        published_may_suspend: published.operational[0],
+        published_may_block: published.operational[1],
         specialization,
     })
 }
@@ -615,12 +731,7 @@ fn declaration_contract_commitment<'a>(
     if !published.entries.is_empty() {
         ("synchronous entries", published.entries).hash(&mut commitment);
     }
-    if published.suspends {
-        ("suspends", true).hash(&mut commitment);
-    }
-    if published.blocks {
-        ("blocks", true).hash(&mut commitment);
-    }
+    published.operational.hash(&mut commitment);
     commitment.0.finish()
 }
 
@@ -630,8 +741,7 @@ fn declaration_contract_commitment<'a>(
 pub(crate) struct Published<'a> {
     pub reach: &'a [&'a str],
     pub entries: &'a [&'a str],
-    pub suspends: bool,
-    pub blocks: bool,
+    pub operational: [bool; 2],
 }
 
 /// Reuse the declaration owner's existing scoped identity for application
@@ -871,6 +981,8 @@ pub(crate) fn provider_declaration(
     identities: &mut TerminalIdentityTableBuilder,
 ) -> Result<CheckedMachineDeclaration, &'static str> {
     let mut declaration = boundary_declaration(source, signature, proof, identities);
+    declaration.published_may_suspend = envelope.suspends;
+    declaration.published_may_block = envelope.blocks;
     let mut commitment = Commitment(DomainDigestEncoder::new(
         b"omega.lowered-boundary-contract.v1\0",
     ));

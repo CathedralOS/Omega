@@ -1,7 +1,7 @@
 # Coordinate cloud assignments before scaling
 
 Follow [advance](../../advance/SKILL.md) preflight and
-[claim registration](../../../../tools/claims.md), retaining assignment IDs,
+[claim registration](../../../../tools/docs/claims.md), retaining assignment IDs,
 runtime handles and publication evidence in the wave's recovery journal. The
 parent uses its actually exposed cloud create/read/follow-up tools; native
 workers share one executor and do not represent cloud provisioning capacity.

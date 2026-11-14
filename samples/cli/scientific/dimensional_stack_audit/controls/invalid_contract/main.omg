@@ -1,5 +1,5 @@
 // Complete intended-invalid control: a literal violates the callee contract.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 machine nonnegative_tolerance(value: i32) -> i32 requires value >= 0 { value }
 machine Main::main(main: &mut Main) reaches Console {

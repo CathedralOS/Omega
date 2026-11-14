@@ -3,7 +3,7 @@
 // A const-generic node table indexed by an ordinal whose declared range is
 // the extent parameter. Clearance route planning hardcodes six nodes because
 // a plain integer index is not a proof against `N`.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Nodes<const N: u64> requires N >= 1 && N <= 8 {
     x: [i64 in Wrapping; N];

@@ -1,6 +1,6 @@
 // Expected exit: 2. Empty stdin is invalid; valid problems return 0.
 // Expected output contains: INVALID quantum input
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::F64::from_i32;
 use omega::language::core::F64::square_root;
 use omega::language::core::I32::from_f64;

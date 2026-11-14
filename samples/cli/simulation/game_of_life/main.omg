@@ -35,7 +35,7 @@
 //
 // Expected exit: 70.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 // Whether every cell is dead (0) or alive (1), one state per cell.
 machine cells_valid(cells: &[i32; 16]) -> bool {

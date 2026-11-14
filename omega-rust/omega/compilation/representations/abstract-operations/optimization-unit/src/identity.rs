@@ -1718,6 +1718,7 @@ pub(crate) mod structural_encoding {
         bytes.u8(u8::from(declaration.descriptor_cleanup));
         bytes.u8(u8::from(declaration.copyable));
         match &declaration.shape {
+            StructuralTypeShape::Opaque => bytes.u8(19),
             StructuralTypeShape::Reference { referent, access } => {
                 bytes.u8(7);
                 bytes.id(*referent);

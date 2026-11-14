@@ -1,6 +1,6 @@
 // A negative corrected mass is not a nonnegative f64 mass. The annotation
 // does not establish the predicate.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 domain f64::NonnegativeMass
 requires self >= 0.0;

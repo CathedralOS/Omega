@@ -46,6 +46,24 @@ fn a_call_of_a_name_nothing_declares_is_rejected() {
     );
 }
 
+/// state_contracts.md: "an unknown machine name or malformed type is an
+/// error wherever it appears". Nothing in the program is called `Nowhere`;
+/// its twin names the declared domain `Km`.
+#[test]
+fn a_type_naming_a_domain_nothing_declares_is_rejected() {
+    let program = |domain: &str| {
+        format!(
+            "domain i32::Km;\nmachine carry(value: i32 in {domain}) -> i32 in {domain} {{\n    \
+             value\n}}\n"
+        )
+    };
+    accepted(&program("Km"));
+    rejected(
+        &program("Nowhere"),
+        "this type names the domain `Nowhere`, which nothing in the program declares",
+    );
+}
+
 /// patterns.md, "Data and case decomposition": "Named patterns account for
 /// every field once", and "Without `..`, a structural pattern mentions every
 /// field".
@@ -65,4 +83,35 @@ fn a_case_pattern_that_misses_or_repeats_a_payload_field_is_rejected() {
         &program("x as _, x as _, y as _"),
         "names each payload field once",
     );
+}
+
+/// ownership.md, "Borrows and aliases": `&T` grants "Shared observation
+/// under its loan contract", and "Owned local mutability": "A callee cannot
+/// grant writable access that the caller's place lacks." Each failing twin
+/// changes only the access its callee's parameter asks for. (A shared
+/// reference formal handed on is the loan analysis's to reject: the formal
+/// is its referent's place there, lent again.)
+#[test]
+fn an_argument_that_lends_only_observation_is_rejected_for_a_parameter_that_writes() {
+    let rule = "the caller lends only immutable access";
+    // A shared view handed on: a formal, and the result of a call.
+    let view = |access: &str| {
+        format!(
+            "machine take(view: &{access}[u8]) {{ }}\n\
+             machine same<'held>(view: &'held [u8]) -> &'held [u8] {{ view }}\n\
+             machine pass(view: &[u8]) {{ take(view); }}\n\
+             machine relay(view: &[u8]) {{ take(same(view)); }}\n"
+        )
+    };
+    accepted(&view(""));
+    rejected(&view("mut "), rule);
+    // An explicit shared loan of a local.
+    let loan = |access: &str| {
+        format!(
+            "machine take(count: &{access}u32) {{ }}\n\
+             machine pass() {{ let mut count: u32 = 1; take(&count); }}\n"
+        )
+    };
+    accepted(&loan(""));
+    rejected(&loan("mut "), rule);
 }

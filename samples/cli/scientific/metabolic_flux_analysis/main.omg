@@ -3,7 +3,7 @@ use domain::input;
 use domain::solver;
 use domain::report;
 use omega::language::core::narrow_i64_to_i32_wrapping;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Application { reader: Reader; solver: Solver; }
 machine Application::main(application: &mut Application) reaches Console crashes Trap {

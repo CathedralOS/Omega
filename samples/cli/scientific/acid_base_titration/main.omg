@@ -1,7 +1,7 @@
 // Ideal diprotic acid titration; supplied finite bounded stdin.
 // Expected exit: 0.
 // Expected output contains: status=ok
-use omega_language_std::console;
+use omega_language_std::Console;
 use domain::input;
 use domain::equilibrium;
 use domain::report;

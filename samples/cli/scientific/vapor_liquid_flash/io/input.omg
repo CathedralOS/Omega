@@ -1,5 +1,6 @@
 module io::input;
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 use omega::language::core::I32::from_f64;
 
 public data Raw { values: [f64; 17]; count: u32; }

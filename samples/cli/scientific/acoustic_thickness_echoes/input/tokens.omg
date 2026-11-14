@@ -1,6 +1,7 @@
 // Read unsigned decimal tokens with at most nine digits. Each token owns
 // one finite record; EOF, a malformed byte, and excess digits reject explicitly.
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 use model::records;
 public machine read_token() -> Token
 reaches Console

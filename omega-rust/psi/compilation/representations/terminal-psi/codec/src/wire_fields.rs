@@ -866,6 +866,21 @@ impl Field<String> for Text {
     }
 }
 
+// A pair is just its two existing field encodings in order. Reuse those
+// codecs for tuple-valued data rather than defining another domain marker.
+impl<Left, Right, LeftField: Field<Left>, RightField: Field<Right>> Field<(Left, Right)>
+    for (LeftField, RightField)
+{
+    fn write(writer: &mut Writer, value: &(Left, Right)) -> Result<(), CodecError> {
+        LeftField::write(writer, &value.0)?;
+        RightField::write(writer, &value.1)
+    }
+
+    fn read(reader: &mut Reader<'_>) -> Result<(Left, Right), CodecError> {
+        Ok((LeftField::read(reader)?, RightField::read(reader)?))
+    }
+}
+
 pub(crate) struct List<K>(std::marker::PhantomData<K>);
 impl<T, K: Field<T>> Field<Vec<T>> for List<K> {
     fn write(writer: &mut Writer, value: &Vec<T>) -> Result<(), CodecError> {

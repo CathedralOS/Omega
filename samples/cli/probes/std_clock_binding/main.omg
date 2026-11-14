@@ -3,8 +3,8 @@
 // selected provider.
 //
 // Expected exit: 70
-use omega_language_std::console;
-use omega_language_std::clock;
+use omega_language_std::Console;
+use omega_language_std::Clock;
 
 machine entry_start() reaches Console + Clock {
     Clock::sleep(200);
