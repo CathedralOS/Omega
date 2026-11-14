@@ -364,6 +364,34 @@ fn canonical_roundtrip_keeps_bounds_and_source_acknowledgements() {
     );
 }
 
+fn selected_verdicts(text: &str) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
+    let typed = boundary_calls::typed(text);
+    let entry = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "main")
+        .unwrap()
+        .symbol;
+    // A real selection owes its implementation witness. Use the same complete
+    // preparation/judgment route as the public reach-ceiling source control.
+    crate::judge_compilation(
+        typed_trees_to_terminal_psi::prepare_compilation(
+            &typed,
+            typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program,
+    )
+}
+
 #[test]
 fn a_selected_call_keeps_its_public_blocking_envelope() {
     // The implementation does not wait, but callers still owe the public
@@ -375,7 +403,16 @@ fn a_selected_call_keeps_its_public_blocking_envelope() {
         }
         machine main() -> u32 blocks { block Named::wait() }
     "#;
-    let accepted = accepted(SOURCE);
+    let verdicts = selected_verdicts(SOURCE);
+    assert!(
+        verdicts
+            .iter()
+            .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
+        "{verdicts:?}"
+    );
+    let Ok(RouteVerdict::Accepted(accepted)) = &verdicts[0] else {
+        unreachable!()
+    };
     let module = &accepted.elaboration.module;
     let call = module.machines[0].module_invocations().next().unwrap();
     let public = module
@@ -389,33 +426,40 @@ fn a_selected_call_keeps_its_public_blocking_envelope() {
             .unwrap()
             .published_may_block
     );
-    violation(
-        &SOURCE.replace("blocks { block Named", "blocks false { block Named"),
-        "caller's blocks ceiling is false",
-    );
-    violation(
-        &SOURCE.replace("block Named::wait()", "Named::wait()"),
-        "requires a block acknowledgement",
-    );
+    for (source, expected) in [
+        (
+            SOURCE.replace("blocks { block Named", "blocks false { block Named"),
+            "caller's blocks ceiling is false",
+        ),
+        (
+            SOURCE.replace("block Named::wait()", "Named::wait()"),
+            "requires a block acknowledgement",
+        ),
+    ] {
+        let verdicts = selected_verdicts(&source);
+        assert!(
+            matches!(&verdicts[0], Ok(RouteVerdict::Rejected { violations, .. })
+            if violations.iter().any(|violation| violation.message().contains(expected))),
+            "{verdicts:?}"
+        );
+    }
 }
 
 #[test]
 fn a_selected_recursive_call_keeps_an_explicit_unavailable_boundary() {
     // Direct cycles keep their constant-stack lowering. A selected cycle
     // must retain its public call association before that lowering is served.
-    let error = invocation(
+    let verdicts = selected_verdicts(
         r#"
         trait Step { machine again(); }
         Named satisfies Step { machine again() { Named::again() } }
         machine main() { Named::again(); }
     "#,
-    )
-    .expect_err("a selected cycle needs its public call association");
-    assert_eq!(error.reason, RefusalReason::Unsupported);
+    );
     assert!(
-        error
-            .detail
-            .contains("selected public contract on a call cycle"),
-        "{error:?}"
+        matches!(&verdicts[0], Ok(RouteVerdict::FallBack(refusal))
+        if refusal.reason == RefusalReason::Unsupported
+            && refusal.detail.contains("selected public contract on a call cycle")),
+        "{verdicts:?}"
     );
 }
