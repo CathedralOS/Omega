@@ -2973,16 +2973,20 @@ pub(crate) mod scalar_wire {
         writer: &mut Writer,
         integer_type: IntegerType,
     ) -> Result<(), CodecError> {
-        let integer_type = writer.closed_integer(integer_type)?;
+        writer.require_integer_width(integer_type)?;
         writer.u8(match (integer_type.carrier(), integer_type.sign()) {
             (IntegerCarrier::Fixed, IntegerSign::Signed) => 1,
             (IntegerCarrier::Fixed, IntegerSign::Unsigned) => 2,
             (IntegerCarrier::Address, IntegerSign::Unsigned) => 3,
             (IntegerCarrier::Address, IntegerSign::Signed) => {
-                unreachable!("address carriers are unsigned")
+                return Err(CodecError::IntegerWidthClosure(
+                    semantic_vocabulary::IntegerWidthClosureError::SignedAddress,
+                ));
             }
         });
-        writer.u16(integer_type.bits());
+        integer_type
+            .width()
+            .write_identity(|bytes| writer.bytes(bytes));
         Ok(())
     }
 
