@@ -1940,6 +1940,19 @@ impl<'a> Prover<'a> {
         right: &IntegerMathTerm,
     ) -> Result<ProofNode, Unproven> {
         let interval = self.arithmetic_interval(left, right);
+        #[cfg(test)]
+        if interval.is_err() && std::env::var_os("OMEGA_FORMATION_TRACE").is_some() {
+            eprintln!(
+                "ARITHMETIC goal={left:?} <= {right:?} relations={} result={interval:?}",
+                self.relations
+            );
+            for fact in &self.facts {
+                eprintln!(
+                    "ARITHMETIC fact={:?} axiom={:?}",
+                    fact.proposition, fact.axiom
+                );
+            }
+        }
         if interval.is_ok() || !self.relations {
             return interval;
         }
