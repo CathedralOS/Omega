@@ -95,7 +95,7 @@ impl CompletedProviderDefaults {
 
     pub(super) fn rejoin(
         &self,
-        source: &mut psi_compiler::SourceContinuation,
+        source: &mut source_compiler::SourceContinuation,
         inputs: &PackageCompilationInputs,
     ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
         inputs.admit_provider_activation(&self.supplier)?;

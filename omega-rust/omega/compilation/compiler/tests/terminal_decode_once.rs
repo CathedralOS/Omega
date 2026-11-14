@@ -330,10 +330,10 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
 }
 
 fn exercise_owned_and_borrowed_instances() {
-    use psi_work::WorkMeter;
     use terminal_interpreter::{
         TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram, TerminalStructuralInputs,
     };
+    use terminal_work::WorkMeter;
 
     let root = repo_root()
         .join("tests/fixtures/pass/optimizer/rollback_to_no_selection_empty_entry/main.omg");

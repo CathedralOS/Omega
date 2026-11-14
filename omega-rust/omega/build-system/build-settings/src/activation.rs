@@ -56,20 +56,20 @@ use language_semantics::declaration_selection::{
 use package_compilation::build_execution::build_value::{
     BuildValueAdmission, EvaluatedBuildSettings,
 };
-use psi_compiler::ProducedTerminalProgram;
-use psi_work::WorkMeter;
+use source_compiler::ProducedTerminalProgram;
 use std::sync::Arc;
 use terminal_interpreter::{
     TerminalExecutionResult, TerminalExecutionStatus, TerminalInstance, TerminalInstantiation,
     TerminalProgram, TerminalStructuralInputs, TerminalStructuralValue,
 };
+use terminal_work::WorkMeter;
 
 use crate::host::bindings::TerminalBuildBindingHost;
 use crate::host::requests::{IssuedBuildRequest, TerminalBuildRequestHost};
 
 pub(crate) fn measurement() -> evaluation_accounting::EvaluationMeasurementIdentity {
     evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
-        work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+        work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
         storage_schedule: evaluation_accounting::TerminalStorageScheduleIdentity::CURRENT,
     }
 }
@@ -490,7 +490,7 @@ impl TerminalBuildActivation {
     pub fn install_provider(
         &mut self,
         selected: BuildDependencySelection,
-        provider: &psi_compiler::ProducedBuildProvider,
+        provider: &source_compiler::ProducedBuildProvider,
     ) -> Result<(), String> {
         if !matches!(self.state, ActivationState::Running) {
             return Err("Build provider installation requires a live readiness pause".into());

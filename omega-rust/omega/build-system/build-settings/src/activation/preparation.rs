@@ -24,8 +24,8 @@ use std::sync::Arc;
 
 pub struct PreparedBuildExecution {
     execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
-    produced: Arc<psi_compiler::ProducedTerminalProgram>,
-    accepted: Arc<psi_compiler::AcceptedTerminalSource>,
+    produced: Arc<source_compiler::ProducedTerminalProgram>,
+    accepted: Arc<source_compiler::AcceptedTerminalSource>,
     providers: Arc<crate::admission::provider_execution::BuildProviderInstallation>,
     account: evaluation_accounting::EvaluationInvocationAccount,
     /// The sponsor the caller supplied, kept for the admission of a later
@@ -56,8 +56,10 @@ impl PreparedBuildExecution {
             default_sources,
         } = admitted;
         let refuse = |reason: String| failed(&machine.name, &reason);
-        let produced =
-            prepared.produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)?;
+        let produced = prepared.produce(
+            Default::default(),
+            &mut source_compiler::UnmeasuredProduction,
+        )?;
         let providers = providers.admit(produced.view())?;
 
         let measurement = crate::activation::measurement();
@@ -105,7 +107,7 @@ impl PreparedBuildExecution {
     /// execution profile the activation already has.
     pub(crate) fn admit_stage(
         &self,
-        prepared: Arc<psi_compiler::AcceptedTerminalSource>,
+        prepared: Arc<source_compiler::AcceptedTerminalSource>,
         providers: crate::admission::provider_execution::BuildProviderPlans,
         machine: symbols::SymbolHandle,
         source: package_compilation::BuildSourceSelection,
@@ -145,8 +147,10 @@ impl PreparedBuildExecution {
         // Files an earlier stage staged are settled when the last one
         // returns, whether or not that stage reaches the filesystem itself.
         machine.filesystem_reachable |= self.machine.filesystem_reachable;
-        let produced =
-            prepared.produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)?;
+        let produced = prepared.produce(
+            Default::default(),
+            &mut source_compiler::UnmeasuredProduction,
+        )?;
         let providers = providers.admit(produced.view())?;
         Ok(Self {
             execution_purpose: self.execution_purpose,

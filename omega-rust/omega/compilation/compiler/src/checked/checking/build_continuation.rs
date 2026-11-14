@@ -606,7 +606,7 @@ pub(super) fn lower_typed_frontier(
         }
         _ => build_settings::BuildStage::WHOLE,
     };
-    let request = psi_compiler::SourceCompilationRequest {
+    let request = source_compiler::SourceCompilationRequest {
         source_items: syntax.source_items,
         root_sources: syntax.root_sources,
         frontends: preparation.frontends.clone(),
@@ -641,7 +641,7 @@ pub(super) fn complete_product_frontend(
     timings: &mut CompileTimings,
 ) -> Result<
     (
-        psi_compiler::PreparedSource,
+        source_compiler::PreparedSource,
         build_time_evaluation::SourceCompletionAccounting,
         Arc<compilation_products::ComputedBuildConfig>,
         BuildAdmission,
@@ -682,7 +682,7 @@ pub(super) fn complete_product_frontend(
             let diagnostic_sources = Arc::clone(&sources);
             source
                 .extend(
-                    psi_compiler::SourceExtensionRequest {
+                    source_compiler::SourceExtensionRequest {
                         units,
                         sources,
                         first_source,

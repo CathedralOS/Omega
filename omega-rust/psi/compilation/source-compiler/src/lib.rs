@@ -18,7 +18,7 @@
     continuation and Product policy admission, `source_checking`
     (`SourcePreparationRequest` and `FrozenSource`) before lowered-form
     checking. Accepted source publication and artifact retention belong to
-    `psi-terminal-production`.
+    `terminal-production`.
 */
 
 #![forbid(unsafe_code)]
@@ -343,7 +343,7 @@ pub use source_compilation::{
     SourceCompilationRequest, SourceContinuation, SourceExtensionRequest, SourceFrontends,
 };
 
-pub use psi_terminal_production::{
+pub use terminal_production::{
     AcceptedTerminalSource, BuildCallSite, ConstantRead, DeclaredBoundaryRequirement,
     PortableTerminalProgram, PreparedTerminalRoots, ProducedBuildProvider,
     ProducedTerminalApplication, ProducedTerminalProgram, ProgramEntryTerminalReceiptError,

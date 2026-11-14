@@ -225,12 +225,12 @@ pub(crate) mod entry_results {
         use crate::engine::execution::SuspendedCallResult;
         use crate::{TerminalEffect, TerminalEffectHandler, TerminalEffectRejection};
         use crate::{TerminalExecutionResult, TerminalExecutionStatus};
-        use psi_work::WorkMeter;
         use semantic_vocabulary::{EdgeId, IntegerSign, IntegerType, OperationId};
         use terminal_psi::{
             Operation, OperationKind, OperationResult, TerminalMachineResult, Terminator,
             ValueDeclaration,
         };
+        use terminal_work::WorkMeter;
 
         struct NoEffects;
         impl TerminalEffectHandler for NoEffects {
@@ -449,12 +449,12 @@ pub(crate) mod entry_results {
 pub(crate) mod errors {
     use crate::boundary::effects::TerminalEffectRejection;
     use crate::boundary::results::TerminalCrash;
-    use psi_work::WorkMeterError;
     use semantic_vocabulary::{
         BlockId, BoundaryMachineId, MachineId, OperationId, PlaceId, ScalarType,
         StructuralDomainId, StructuralFieldId, StructuralTypeId, ValueId,
     };
     use terminal_psi::CrashCause;
+    use terminal_work::WorkMeterError;
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum TerminalInterpretError {
@@ -1146,12 +1146,12 @@ pub(crate) mod results {
         TerminalScalarAggregateValue, TerminalScalarValue, TerminalStructuralValue,
     };
     use crate::storage::scalar_array::TerminalScalarArrayResult;
-    use psi_work::{WorkBudgetExhausted, WorkMeterError};
     use semantic_vocabulary::{
         BlockId, BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, MachineId,
         OperationId, StructuralFieldId,
     };
     use terminal_psi::CrashCause;
+    use terminal_work::{WorkBudgetExhausted, WorkMeterError};
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub enum TerminalExecutionResult {

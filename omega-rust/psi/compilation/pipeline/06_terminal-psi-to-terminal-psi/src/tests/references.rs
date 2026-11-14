@@ -838,7 +838,7 @@ fn an_original_returned_reference_keeps_its_backing_and_excludes_its_parent() {
     let mut instance = program.instantiate(Default::default()).unwrap();
     assert_eq!(
         instance
-            .invoke(&mut psi_work::WorkMeter::with_budget(10_000))
+            .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
@@ -930,7 +930,7 @@ fn a_shared_reference_formation_owns_its_fresh_permission_carrier() {
     let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
     let mut instance = program.instantiate(Default::default()).unwrap();
     let status = instance
-        .invoke(&mut psi_work::WorkMeter::with_budget(10_000))
+        .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
         .unwrap();
     assert!(
         matches!(
@@ -1036,7 +1036,7 @@ fn a_shared_reference_copy_keeps_the_original_formation_owned() {
     let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
     let mut instance = program.instantiate(Default::default()).unwrap();
     let status = instance
-        .invoke(&mut psi_work::WorkMeter::with_budget(10_000))
+        .invoke(&mut terminal_work::WorkMeter::with_budget(10_000))
         .unwrap();
     assert!(
         matches!(

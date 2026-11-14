@@ -13,7 +13,7 @@ use provider_planning::target_supply::{
     PreparedTargetSupply, ReachedBoundaryRequirement, SettledTargetSupply, SupplyAuthority,
     SupplyPlanning, TargetSupplyRequest,
 };
-use psi_compiler::AcceptedTerminalSource;
+use source_compiler::AcceptedTerminalSource;
 use std::sync::Arc;
 
 const TARGET: &str = "linux_x86_64";
@@ -224,7 +224,7 @@ fn a_publication_judges_its_exact_roster_including_predeclared_supplies() {
                 .is_some_and(|name| name.as_str() == "Native")
         })
         .unwrap();
-    roster.supplies.push(psi_compiler::TerminalSourceSupply {
+    roster.supplies.push(source_compiler::TerminalSourceSupply {
         slot: requirement.symbol,
         provider: native.symbol,
     });
@@ -487,7 +487,10 @@ fn execution(
 /// The Terminal artifact a product of the accepted source is checked on.
 fn produced(accepted: &AcceptedTerminalSource) -> Arc<terminal_codec::CanonicalTerminalArtifact> {
     let program = accepted
-        .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
+        .produce(
+            Default::default(),
+            &mut source_compiler::UnmeasuredProduction,
+        )
         .expect("the accepted source publishes")
         .into_shared_portable()
         .expect("the publication is portable");

@@ -1752,7 +1752,6 @@ pub(crate) mod execution {
     use crate::storage::structural_identities::LocalStructuralIdentities;
     use crate::storage::structural_storage::HostStructuralPayload;
     use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
-    use psi_work::WorkMeter;
     use semantic_vocabulary::{
         BlockId, BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, PlaceId,
         StructuralTypeId, ValueId,
@@ -1764,6 +1763,7 @@ pub(crate) mod execution {
         TerminalAccessViewInput, Terminator,
     };
     use terminal_semantics::validate_empty_erased_invocation_inputs;
+    use terminal_work::WorkMeter;
 
     pub(crate) enum TerminatorFlow {
         Continue,

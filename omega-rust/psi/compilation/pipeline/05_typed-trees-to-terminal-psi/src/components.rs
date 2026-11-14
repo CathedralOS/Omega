@@ -29,6 +29,7 @@ use crate::body::{
 };
 use crate::{Unserved, refuse};
 
+#[path = "components_graph.rs"]
 mod graph;
 pub(crate) use graph::Components;
 

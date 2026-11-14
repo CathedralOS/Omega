@@ -1207,7 +1207,7 @@ arrives, so a module with an undischarged obligation must never reach it. Any
 other refusal is a defect of the route and comes back as `Err`.
 
 The product producer's
-[`AcceptedTerminalSource::judge`](../../psi-compiler/terminal-production/src/accepted.rs)
+[`AcceptedTerminalSource::judge`](../../terminal-production/src/accepted.rs)
 prepares the compilation, calls `judge_compilation` and accepts only its checked
 closure. Tests can call `judge` on one elaborated closure directly.
 

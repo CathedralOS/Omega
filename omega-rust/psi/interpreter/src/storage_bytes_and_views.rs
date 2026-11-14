@@ -2109,7 +2109,7 @@ pub(crate) mod byte_sequences {
 
             fn sponsor(bytes: u64) -> BuildEvaluationSponsor {
                 let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-                    work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+                    work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
                     storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
                 };
                 BuildEvaluationSponsor::new_with_measurement(

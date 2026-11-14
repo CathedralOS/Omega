@@ -36,7 +36,7 @@ pub struct BuildConstants {
     /// The constants the accepted Build module names
     /// (`AcceptedTerminalSource::constants_read`), each with its declaration
     /// and the value the judged source recorded for it.
-    pub read: Vec<psi_compiler::ConstantRead>,
+    pub read: Vec<source_compiler::ConstantRead>,
 }
 
 pub use build_time_evaluation::product_declarations::ServiceAuditRegistration;
@@ -166,7 +166,7 @@ impl BuildConfig {
 pub struct ComputedBuildConfig {
     /// The Build judgment whose produced invocation returned this configuration.
     /// Settings and observation digests cannot reconstruct its checked contracts.
-    pub accepted_build: Option<std::sync::Arc<psi_compiler::AcceptedTerminalSource>>,
+    pub accepted_build: Option<std::sync::Arc<source_compiler::AcceptedTerminalSource>>,
     pub config: BuildConfig,
     pub root_binding_requests: Vec<language_semantics::declaration_selection::ExecutedRootBinding>,
     pub declared_product_selections:

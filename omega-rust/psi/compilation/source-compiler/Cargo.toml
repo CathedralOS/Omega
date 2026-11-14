@@ -1,5 +1,5 @@
 [package]
-name = "psi-compiler"
+name = "source-compiler"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
@@ -21,7 +21,7 @@ source = { path = "../../foundation/source" }
 symbols = { path = "../../foundation/symbols" }
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 diagnostics = { path = "../../foundation/diagnostics" }
-psi-terminal-production = { path = "terminal-production" }
+terminal-production = { path = "../terminal-production" }
 optimization = { path = "../../foundation/optimization" }
 terminal-psi = { path = "../representations/terminal-psi" }
 terminal-codec = { path = "../representations/terminal-psi/codec" }

@@ -56,6 +56,7 @@ nothing else: lowering never asks what a place holds.
   `after: Some(call)` version. Later writes do not change either snapshot.
 */
 
+#[path = "places_contents.rs"]
 mod contents;
 
 use crate::body::Qualification;

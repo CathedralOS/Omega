@@ -6,7 +6,7 @@
 use crate::CheckedCompilation;
 use diagnostics::Diagnostic;
 use program_entry_plan::SelectedProgramEntrySignature;
-use psi_compiler::{
+use source_compiler::{
     ProducedTerminalApplication, TerminalApplicationCustody, TerminalCompositionRoots,
 };
 
@@ -142,7 +142,7 @@ pub fn prepare_program_entry(
             Some(signature.identity().bytes()),
             Some(TerminalCompositionRoots::default()),
         ),
-        &mut psi_compiler::UnmeasuredProduction,
+        &mut source_compiler::UnmeasuredProduction,
     )?;
     Ok((signature, application))
 }

@@ -10,14 +10,14 @@ use package_compilation::source_imports::{ProductQueryDependency, ProductQueryIn
 pub struct ProductQueries {
     preparation: compilation_products::SourcePreparation,
     sources: Option<package_compilation::source_assembly::DeferredProductSources>,
-    initial: psi_compiler::SourceContinuation,
+    initial: source_compiler::SourceContinuation,
     inputs: Option<package_compilation::PackageCompilationInputs>,
     execution_profile: Option<target::TargetProfile>,
     /// The build dependencies the Build has prepared when it asks: a later
     /// stage of a staged Build calls their code, and a query that code makes
     /// is answered at its own occurrence.
     prepared: Vec<ProductQueryDependency>,
-    retained: Option<(ProductQueryInputs, psi_compiler::SourceContinuation)>,
+    retained: Option<(ProductQueryInputs, source_compiler::SourceContinuation)>,
 }
 
 impl ProductQueries {
@@ -106,19 +106,19 @@ impl ProductQueries {
         })?;
         let occurrence = source::SourceSpan::new(selected, query.occurrence.span);
         match query.operation {
-            psi_compiler::TerminalBuildQueryOperation::SchemaPath
-            | psi_compiler::TerminalBuildQueryOperation::ProviderPath => Err(refuse(
+            source_compiler::TerminalBuildQueryOperation::SchemaPath
+            | source_compiler::TerminalBuildQueryOperation::ProviderPath => Err(refuse(
                 "description inspection belongs to its issuing Build activation, not source resolution",
             )),
-            psi_compiler::TerminalBuildQueryOperation::Schema => source
+            source_compiler::TerminalBuildQueryOperation::Schema => source
                 .describe_schema(occurrence, &query.path)
                 .map(BuildProductDescription::Schema)
                 .map_err(refuse),
-            psi_compiler::TerminalBuildQueryOperation::Provider => source
+            source_compiler::TerminalBuildQueryOperation::Provider => source
                 .describe_provider(occurrence, &query.path)
                 .map(BuildProductDescription::Provider)
                 .map_err(refuse),
-            psi_compiler::TerminalBuildQueryOperation::Entry => source
+            source_compiler::TerminalBuildQueryOperation::Entry => source
                 .describe_entry(
                     occurrence,
                     &query.path,

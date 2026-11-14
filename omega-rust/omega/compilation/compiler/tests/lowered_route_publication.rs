@@ -22,12 +22,12 @@
 #[path = "support/artifact_trust.rs"]
 mod artifact_trust;
 
-use psi_work::WorkMeter;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalStructuralInputs,
 };
 use terminal_psi_to_terminal_psi::RoutePublication;
+use terminal_work::WorkMeter;
 
 // Fixture compilation shares process-wide counters; run one at a time.
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -152,7 +152,7 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
     let (_, unit) =
         abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
             input,
-            psi_work::WorkSchedule::CURRENT.identity(),
+            terminal_work::WorkSchedule::CURRENT.identity(),
         )
         .expect("Omega 01 builds the verified unit")
         .into_parts();

@@ -12,7 +12,7 @@ terminal-runtime = { path = "../../../../../../omega-rust/omega/interpreter/term
 package-manager = { path = "../../../../../../omega-rust/omega/packages/package-manager" }
 orchestration = { path = "../../../../../../omega-rust/omega/build-system/orchestration" }
 target = { path = "../../../../../../omega-rust/omega/compilation/backend/target" }
-terminal-interpreter = { path = "../../../../../../omega-rust/psi/interpreter/terminal-interpreter" }
+terminal-interpreter = { path = "../../../../../../omega-rust/psi/interpreter" }
 
 [profile.dev]
 debug = 0

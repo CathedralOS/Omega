@@ -31,4 +31,4 @@ terminal-psi = { path = "../../../../psi/compilation/representations/terminal-ps
 terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
 
 terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
-proof-admission = { path = "../../../../psi/compilation/proof/admission" }
+proof-admission = { path = "../../../../psi/compilation/proof-admission" }

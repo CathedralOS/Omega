@@ -9,7 +9,7 @@ version.workspace = true
 [dependencies]
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
-psi-work = { path = "../../../psi/compilation/representations/terminal-psi/work" }
+terminal-work = { path = "../../../psi/compilation/representations/terminal-psi/work" }
 artifacts = { path = "../../foundation/artifacts" }
 build-declarations = { path = "../build-declarations" }
 build-settings = { path = "../../build-system/build-settings" }
@@ -31,9 +31,9 @@ semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
 filesystem-authority = { path = "../../../psi/foundation/filesystem-authority" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
-proof-admission = { path = "../../../psi/compilation/proof/admission" }
+proof-admission = { path = "../../../psi/compilation/proof-admission" }
 source = { path = "../../../psi/foundation/source" }
-psi-compiler = { path = "../../../psi/compilation/psi-compiler" }
+source-compiler = { path = "../../../psi/compilation/source-compiler" }
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 tokens = { path = "../../../psi/compilation/representations/tokens" }

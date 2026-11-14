@@ -16,7 +16,7 @@ stop (`product_execution.rs`).
 
 /*
 We separate compilation sequencing from product custody (`compilation_products`)
-and target-neutral language semantics (`psi_compiler`). This crate never
+and target-neutral language semantics (`source_compiler`). This crate never
 executes Build effects directly or reinterprets Checked Psi outside the stage
 owners; instead, we hold the opaque continuation across application-driven Build
 stepping and route each settled target through its exact stop (`Check`,
@@ -66,7 +66,7 @@ pub use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
 pub use product_execution::{
     CompilationOutput, CompilationProduct, CompilationProductError, TargetProductOutcome,
 };
-pub use psi_compiler::ProducedTerminalProgram;
+pub use source_compiler::ProducedTerminalProgram;
 pub use target::ExplicitTargetSet;
 pub use target_batch::PreparedCompilation;
 pub use terminal::prepare_program_entry;

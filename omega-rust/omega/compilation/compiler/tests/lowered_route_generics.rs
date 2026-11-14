@@ -237,7 +237,7 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
 
     // Publication must refuse the same source even if its first closure
     // passed: an actual selected member's failed witness remains decisive.
-    let refused = psi_compiler::AcceptedTerminalSource::judge(
+    let refused = source_compiler::AcceptedTerminalSource::judge(
         typed,
         compilation(),
         terminal_codec::TerminalPublication::Portable,

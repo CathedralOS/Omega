@@ -23,7 +23,7 @@ use language_semantics::declaration_selection::{
     ProductDeclarationRequest, ProductTarget, ProviderReadinessRequest, RootBindingOperand,
     RootBindingSelection,
 };
-use psi_compiler::{
+use source_compiler::{
     TerminalBuildBindingCall, TerminalBuildBindingOperation, TerminalBuildBindings,
 };
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -39,7 +39,7 @@ pub use product_queries::{BuildProductDescription, BuildProductQuery};
 pub struct TerminalBuildBindingHost {
     artifact: terminal_codec::TerminalExecutionIdentity,
     calls: Arc<[TerminalBuildBindingCall]>,
-    queries: Arc<[psi_compiler::TerminalBuildQueryCall]>,
+    queries: Arc<[source_compiler::TerminalBuildQueryCall]>,
     product_facet: Option<TerminalStructuralValue>,
     tests_facet: Option<TerminalStructuralValue>, // The original Build's `tests` facet, when a test group is registered.
     account: Option<evaluation_accounting::EvaluationInvocationAccount>,
@@ -51,7 +51,7 @@ pub struct TerminalBuildBindingHost {
 
 #[derive(Default)]
 struct BindingState {
-    pending: Vec<Option<psi_compiler::TerminalBuildSelectionRequest>>,
+    pending: Vec<Option<source_compiler::TerminalBuildSelectionRequest>>,
     executed: Vec<ExecutedBuildSelection>,
     native_storage: Vec<evaluation_accounting::EvaluationStorageLease>,
     awaiting_provider: Option<usize>,
@@ -82,7 +82,7 @@ struct InstalledBuildProvider {
 }
 
 pub type BuildProviderRequest =
-    ProviderReadinessRequest<psi_compiler::TerminalBuildProviderRequirement>;
+    ProviderReadinessRequest<source_compiler::TerminalBuildProviderRequirement>;
 
 impl BindingState {
     fn provider_is_installed(&self, request: &BuildProviderRequest) -> bool {
@@ -223,7 +223,7 @@ impl TerminalBuildBindingHost {
 
     pub(crate) fn has_installed_backing(
         &self,
-        provider: &psi_compiler::ProducedBuildProvider,
+        provider: &source_compiler::ProducedBuildProvider,
     ) -> Result<bool, String> {
         let state = lock_state(&self.state)?;
         let request = state
@@ -245,7 +245,7 @@ impl TerminalBuildBindingHost {
 
     pub(crate) fn provider_installed(
         &self,
-        provider: &psi_compiler::ProducedBuildProvider,
+        provider: &source_compiler::ProducedBuildProvider,
     ) -> Result<(), String> {
         let mut state = lock_state(&self.state)?;
         let request = state
@@ -650,7 +650,7 @@ fn activation_ticket<'values>(
     arguments: &'values [TerminalScalarValue],
     structural_arguments: &[TerminalStructuralValue],
     state: &BindingState,
-    request: &psi_compiler::TerminalBuildSelectionRequest,
+    request: &source_compiler::TerminalBuildSelectionRequest,
 ) -> Result<(usize, &'values [TerminalScalarValue]), TerminalEffectRejection> {
     let refuse = TerminalEffectRejection::new;
     let Some((

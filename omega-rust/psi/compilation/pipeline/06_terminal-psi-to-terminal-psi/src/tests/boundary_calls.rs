@@ -620,7 +620,7 @@ fn a_declared_conformers_name_invokes_its_requirement() {
     let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
     let mut instance = program.instantiate(Default::default()).unwrap();
     let status = instance
-        .invoke(&mut psi_work::WorkMeter::with_budget(1_000))
+        .invoke(&mut terminal_work::WorkMeter::with_budget(1_000))
         .unwrap();
     assert_eq!(
         status,
@@ -1187,7 +1187,7 @@ fn a_declared_conformer_inherits_a_bare_required_termination_promise() {
     let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
     let mut instance = program.instantiate(Default::default()).unwrap();
     let status = instance
-        .invoke(&mut psi_work::WorkMeter::with_budget(1_000))
+        .invoke(&mut terminal_work::WorkMeter::with_budget(1_000))
         .unwrap();
     assert!(
         matches!(
@@ -1288,7 +1288,7 @@ fn a_named_owned_inline_member_calls_through_its_requirement() {
     let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
     let mut instance = program.instantiate(Default::default()).unwrap();
     let status = instance
-        .invoke(&mut psi_work::WorkMeter::with_budget(1_000))
+        .invoke(&mut terminal_work::WorkMeter::with_budget(1_000))
         .unwrap();
     assert!(
         matches!(
@@ -1537,7 +1537,7 @@ fn assert_named_invocation_value(
     let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
     let mut instance = program.instantiate(Default::default()).unwrap();
     let status = instance
-        .invoke(&mut psi_work::WorkMeter::with_budget(1_000))
+        .invoke(&mut terminal_work::WorkMeter::with_budget(1_000))
         .unwrap();
     assert!(
         matches!(

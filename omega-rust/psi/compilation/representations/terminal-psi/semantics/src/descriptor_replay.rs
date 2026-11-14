@@ -8,6 +8,7 @@ use crate::descriptors::descriptor_lifetimes::{DescriptorPathSegment, descriptor
 use crate::descriptors::descriptor_results::*;
 use crate::exactly_one::exactly_one;
 
+#[path = "descriptor_replay_location_map.rs"]
 mod location_map;
 use location_map::LocationMap;
 

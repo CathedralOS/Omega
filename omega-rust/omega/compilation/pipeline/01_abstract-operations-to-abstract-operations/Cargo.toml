@@ -20,8 +20,8 @@ optimization = { path = "../../../../psi/foundation/optimization" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
-psi-work = { path = "../../../../psi/compilation/representations/terminal-psi/work" }
-proof-admission = { path = "../../../../psi/compilation/proof/admission" }
+terminal-work = { path = "../../../../psi/compilation/representations/terminal-psi/work" }
+proof-admission = { path = "../../../../psi/compilation/proof-admission" }
 
 [dev-dependencies]
 terminal-installation = { path = "../../../../psi/compilation/terminal-installation" }

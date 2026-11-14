@@ -895,7 +895,7 @@ pub(crate) mod frames {
             let sponsor = BuildEvaluationSponsor::new_with_measurement(
                 BuildEvaluationSponsorLimits::new(100, 8, 2, 2, 1, 100, 100, 100).unwrap(),
                 EvaluationMeasurementIdentity::TerminalPsi {
-                    work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+                    work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
                     storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
                 },
             )
@@ -1602,9 +1602,9 @@ pub(crate) mod component_arguments {
     }
 }
 pub(crate) mod component_calls {
-    use psi_work::WorkMeter;
     use semantic_vocabulary::StructuralDomainId;
     use terminal_psi::{BoundaryMachineResult, OperationKind, OperationResult};
+    use terminal_work::WorkMeter;
 
     use crate::boundary::effects::results::TerminalEffectResult;
     use crate::boundary::effects::{
@@ -3064,7 +3064,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         &mut self,
         operation: &terminal_psi::Operation,
         handler: &mut impl TerminalEffectHandler,
-        meter: &mut psi_work::WorkMeter,
+        meter: &mut terminal_work::WorkMeter,
         components: &mut crate::embedding::instance::ComponentBindings<'_, 'artifact>,
     ) -> Result<OperationFlow, TerminalInterpretError> {
         if let Some(pending) = self.awaiting_effect.as_ref() {
@@ -3866,7 +3866,10 @@ mod finite_family_tests {
                 assert_eq!(execution.current_machine, MachineId::new(selected).unwrap());
                 assert!(matches!(
                     execution
-                        .resume(&mut psi_work::WorkMeter::with_budget(16), &mut NoEffects)
+                        .resume(
+                            &mut terminal_work::WorkMeter::with_budget(16),
+                            &mut NoEffects
+                        )
                         .unwrap(),
                     TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
                 ));

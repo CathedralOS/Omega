@@ -14,13 +14,13 @@ build-time-values = { path = "../../foundation/build-time-values" }
 arena = { path = "../../foundation/arena" }
 access-plans = { path = "../../foundation/access-plans" }
 filesystem-authority = { path = "../../foundation/filesystem-authority" }
-terminal-interpreter = { path = "../../interpreter/terminal-interpreter" }
-psi-terminal-production = { path = "../psi-compiler/terminal-production" }
+terminal-interpreter = { path = "../../interpreter" }
+terminal-production = { path = "../terminal-production" }
 terminal-installation = { path = "../terminal-installation" }
 terminal-codec = { path = "../representations/terminal-psi/codec" }
 terminal-psi = { path = "../representations/terminal-psi" }
 terminal-semantics = { path = "../representations/terminal-psi/semantics" }
-psi-work = { path = "../representations/terminal-psi/work" }
+terminal-work = { path = "../representations/terminal-psi/work" }
 evaluation-accounting = { path = "../../foundation/evaluation-accounting" }
 semantic-vocabulary = { path = "../../foundation/semantic-vocabulary" }
 diagnostics = { path = "../../foundation/diagnostics" }
