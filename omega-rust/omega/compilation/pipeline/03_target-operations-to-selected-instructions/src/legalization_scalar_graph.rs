@@ -1601,8 +1601,9 @@ pub(crate) mod atomic_access {
     pub(crate) fn access(
         source: &AbstractAtomicEvent,
         function: &optimization_unit::PsiOptimizationFunction,
-        types: &crate::native_geometry::NativeGeometry<'_>,
+        unit: &crate::native_geometry::NativeUnit<'_>,
     ) -> Option<Access> {
+        let types = unit.geometry();
         let location = source.location()?;
         let (event, result) = event(source)?;
         let root = function
@@ -1622,8 +1623,10 @@ pub(crate) mod atomic_access {
         }
         let cell = terminal_semantics::atomic_cell_type(types.iter(), root, &location.path)?;
         let scalar_type = cell.scalar_type();
-        let integer =
-            target_operations::operations::atomic_storage_integer_type(event, scalar_type)?;
+        let integer = target_operations::operations::atomic_storage_integer_type_closed(
+            event,
+            unit.closed_scalar(scalar_type)?,
+        )?;
         super::scalar_shape(scalar_type)?;
         if event
             .operands()
@@ -1651,7 +1654,11 @@ pub(crate) mod atomic_access {
             let declaration = types.iter().find(|row| row.id == outcome.structural_type)?;
             Some((
                 outcome.clone(),
-                target_operations::conventional_atomic_once_layout(declaration, integer, *custody)?,
+                target_operations::conventional_atomic_once_layout_closed(
+                    declaration,
+                    integer,
+                    *custody,
+                )?,
             ))
         } else {
             None
@@ -1662,7 +1669,7 @@ pub(crate) mod atomic_access {
                 access: root_access,
                 path: location.path.clone(),
             },
-            scalar_type: integer,
+            scalar_type: integer.as_checking(),
             field_byte_offset: offset,
             event,
             result,

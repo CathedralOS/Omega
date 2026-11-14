@@ -139,7 +139,7 @@ impl<'a> DescriptorInputs<'a> {
                 .iter()
                 .zip(&declaration.structural_parameters)
                 .all(|(actual, formal)| actual.access == formal.access)
-            && target_operations::descriptor_input_guard(
+            && target_operations::descriptor_input_guard_with_closed_scalars(
                 declaration,
                 binding,
                 self.plan.geometry(),
@@ -149,6 +149,7 @@ impl<'a> DescriptorInputs<'a> {
                         .iter()
                         .find(|layout| layout.structural_type == buffer)
                 },
+                |scalar| self.plan.closed_scalar(scalar),
             )
             .is_ok_and(|guard| guard.is_some())
     }

@@ -477,7 +477,8 @@ pub(crate) mod atomic_outcome {
                     .find(|row| row.id == result.structural_type)
             })
             .ok_or_else(invalid)?;
-        if target_operations::conventional_atomic_once_layout(declaration, integer, custody)
+        let integer = source.closed_integer(integer).ok_or_else(invalid)?;
+        if target_operations::conventional_atomic_once_layout_closed(declaration, integer, custody)
             .as_ref()
             != Some(layout)
         {

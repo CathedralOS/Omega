@@ -3113,7 +3113,7 @@ pub(crate) mod normalized_foreign {
         else {
             return Err(LegalizationError::custody());
         };
-        let required = target_operations::descriptor_input_guard_for_call(
+        let required = target_operations::descriptor_input_guard_for_call_with_closed_scalars(
             binding,
             plan.geometry(),
             scalar_arguments,
@@ -3125,6 +3125,7 @@ pub(crate) mod normalized_foreign {
                     .iter()
                     .find(|layout| layout.structural_type == buffer)
             },
+            |scalar| plan.closed_scalar(scalar),
         )
         .map_err(|_| LegalizationError::custody())?;
         if required != *descriptor_input {
@@ -5841,9 +5842,7 @@ pub(crate) mod unit {
                 },
             ) => {
                 let expected = crate::legalization::scalar_graph_input::atomic_access::access(
-                    source,
-                    optimized,
-                    unit.geometry(),
+                    source, optimized, unit,
                 )
                 .ok_or(LegalizationError::custody())?;
                 if psi_operation != expected_operation
