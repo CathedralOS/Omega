@@ -193,11 +193,11 @@ framework or a list of features that remain unimplemented.
 - Reported: 2026-11-14, Claude Code, while moving samples to declaration imports
 
 
-### The lowered form drops declared domains, so only the reader knows a value's type
+### Whole-value structural domains are erased before the lowered checker
 - Category: a verdict with nothing behind it
-- Where: `05_typed-trees-to-terminal-psi/src/lower.rs` and `policy.rs` (`qualifications: ScalarQualificationSetId::ZERO`); `terminal-psi/src/types_and_values.rs` (`ScalarQualificationCatalog`, `ScalarDomainDeclaration`, `ScalarQualificationCoercion`)
-- Saw: Terminal Psi has a catalog for scalar domains, their predicates and the edge where a value is coerced into one, and the lowered route fills none of it. Which domains a value carries, and who may add one, is decided in the reader and erased before the checker sees the program. A domain's predicates do reach the checker, as ordinary contracts and as the invariant of the block a cast continues in, but the nominal part does not.
-- Cost: the checker cannot re-derive that `value as +D` was authorized or that an argument carries the domain its parameter declares; a reader bug there is accepted with no row to contradict it, and a published artifact says nothing about domains
+- Where: `05_typed-trees-to-terminal-psi/src/lower.rs` (structural parameter/result qualifications); `lower/places.rs` (structural value transport); `terminal-psi/src/types_and_values.rs` (`StructuralDomainDeclaration`, structural qualification fields)
+- Saw: whole-value and projected structural qualification fields are still constructed empty, and the source route has no producer for the module's structural domain declarations. Predicates on a qualified record field can join its owner's invariant, but that does not retain the field's nominal structural domains or issuance relationship. Primitive scalar storage and scalar fields are a separate declared scalar type, not a substitute for these structural memberships.
+- Cost: the sole lowered checker cannot independently contradict a missing or forged whole-value structural membership or reconstruct its establishment authority; carry the existing structural catalog and exact projected qualifications through their producer, storage and checker owners
 - Reported: 2026-11-13, Claude Code, while stating domain predicates as contracts
 
 ### Data applied at a lifetime is one record whose stored views name only the data's own binders

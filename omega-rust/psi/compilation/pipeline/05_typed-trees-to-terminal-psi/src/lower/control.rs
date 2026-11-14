@@ -824,7 +824,19 @@ impl Lowering<'_> {
             predicate: canonical::conjunction(predicate, id)?,
             arrivals: Vec::new(),
         });
+        let edge = semantic_vocabulary::EdgeId::new(self.tables.edges.len() as u64 + 1)
+            .ok_or_else(|| self.internal("qualification edge identity overflow"))?;
         self.jump(established, vec![operand], source)?;
+        self.qualifications
+            .catalog
+            .coercions
+            .push(terminal_psi::ScalarQualificationCoercion {
+                machine: id,
+                edge,
+                argument_ordinal: 0,
+                source: operand,
+                destination: result,
+            });
         self.enter(established);
         Ok(result)
     }

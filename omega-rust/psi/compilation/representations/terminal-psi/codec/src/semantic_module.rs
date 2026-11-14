@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 268`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 269`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -4762,6 +4762,8 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
+// Marker 269 retains complete primitive scalar storage types and predicate
+// establishment completions. Earlier catalogs cannot express either judgment.
 // Marker 268 retains the declared public result lifetime groups separately from body origins.
 // Marker 267 lets the existing record-invariant wrapper retain any record
 // storage shape. Earlier packed-only tag17 bytes cannot supply that nested shape.
@@ -4773,7 +4775,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // separately from its executable body. Marker 263 operational ceilings and call
 // acknowledgements, 262 opaque contexts, 261 write summaries and the earlier
 // numeric and finite-family identities remain part of the same format.
-pub(crate) const FORMAT_MARKER: u16 = 268;
+pub(crate) const FORMAT_MARKER: u16 = 269;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

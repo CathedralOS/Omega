@@ -109,6 +109,13 @@ pub(crate) fn declare(
             .collect::<Result<Vec<_>, _>>()
     };
     let mut identities = std::mem::take(&mut elaboration.module.identities).into_builder();
+    // Anonymous invocation source has exact local declaration identities, not
+    // portable toolchain ownership. Keep those declarations available to the
+    // lowered authority judgment without exporting a fabricated source hash.
+    let sources = match sources {
+        Err(_) if identities.is_invocation_scoped() => Ok(Vec::new()),
+        sources => sources,
+    };
     for machine in &mut elaboration.module.machines {
         // A requirement stands for a contract, not a source-produced body.
         if elaboration.requirements.contains(&machine.id) {
@@ -891,7 +898,7 @@ pub(crate) struct Published<'a> {
 
 /// Reuse the declaration owner's existing scoped identity for application
 /// constituents too; portable publication still requires a hermetic owner.
-fn semantic_identity(
+pub(crate) fn semantic_identity(
     typed: &TypedTrees,
     symbol: SymbolHandle,
     identities: &mut TerminalIdentityTableBuilder,

@@ -368,6 +368,19 @@ pub fn discharge_carrying(
 }
 
 fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Checked<Discharge> {
+    terminal_semantics::scalar_qualifications::validate(&elaboration.module).map_err(|error| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            elaboration
+                .module
+                .machines
+                .first()
+                .map(|machine| machine.id)
+                .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity")),
+            Construct::Machine,
+            &format!("invalid declared scalar qualifications: {error:?}"),
+        )
+    })?;
     minted::width_questions_are_minted(elaboration)?;
     operational::judge(elaboration)?;
     // A caller may retain old contents only outside the callee's actual
@@ -1356,7 +1369,6 @@ pub(crate) fn callee(
             // (`operational::judge`, which every discharge runs first).
             if !declaration.requires.is_empty()
                 || !declaration.normal_qualifications.is_empty()
-                || !declaration.scalar_domain_requirements.is_empty()
                 || declaration.structural_parameters.iter().any(|formal| {
                     !formal.qualifications.is_empty()
                         || !formal.projected_qualifications.is_empty()

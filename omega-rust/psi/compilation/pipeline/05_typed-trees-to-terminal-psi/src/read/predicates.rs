@@ -252,7 +252,7 @@ impl Program<'_> {
     /// which lowering replaces by the parameter of the block the cast
     /// continues in (`canonical::substitute`). Beside them, the domain and
     /// the predicates as written.
-    pub(super) fn cast_predicates(
+    pub(crate) fn cast_predicates(
         &self,
         id: MachineId,
         added: Qualification,

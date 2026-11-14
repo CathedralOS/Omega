@@ -90,8 +90,8 @@ its logical result and obligations; an encoded proof cannot select them.
 
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
-qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 256 even when every table
+qualification catalog follows the entry identity as eight counted tables, in the
+order below. This layout uses semantic format marker 269 even when every table
 is empty, and retains the Id formation catalog below; older markers reject
 rather than selecting an optional dialect:
 
@@ -100,6 +100,8 @@ rather than selecting an optional dialect:
 | domain definitions | domain id + semantic domain id + `u32` canonical identity-table index + scalar carrier type + optional predicate + counted establishment routes |
 | return qualifications | machine id + edge id + source value id + result value id + return site + domain id + counted return origins |
 | normalized sets | `u64` set identity + counted domain identities |
+| scalar field qualifications | field id + scalar carrier type + `u64` qualification-set identity |
+| primitive scalar storage qualifications | structural type id + scalar carrier type + `u64` qualification-set identity |
 | qualification-change edges | machine id + edge id + `u32` argument ordinal + source value id + destination value id |
 | float entry ranges | machine id + parameter value id + minimum IEEE float value + maximum IEEE float value + `bool` maximum-inclusive flag |
 | integer entry ranges | machine id + parameter value id + integer type + minimum integer value + maximum integer value |
@@ -166,6 +168,7 @@ in the order shown, with established origins ordered by route index:
 | 0 | Forwarded | none |
 | 1 | Established | `u32` zero-based index into this domain's establishment routes |
 | 2 | Vacuous | none |
+| 3 | Proved | none |
 
 A normal-exit row names an actual `Return` edge and its source, and the machine's
 scalar result declaration. A completion row names an actual `Jump` edge and the
@@ -185,6 +188,15 @@ with a predicate, the result-substituted predicate must occur in its ordinary
 result `ensures` clauses, retaining every conjunct; representation validation
 checks containment rather than re-proving that predicate. Missing or detached
 subjects, edges, results, issuers and predicates reject.
+
+A proved origin belongs only to an unrestricted predicate domain at an exact
+completion. The destination's scalar block invariant must retain the domain's
+predicate with its formal subject replaced by that destination value. Every
+actual arrival owes that invariant through the ordinary lowered proof kernel;
+the origin row is not a certificate or an additional premise. A routed domain
+still requires an established origin independently of its predicate proof.
+Primitive scalar storage rows retain the same complete scalar type for homes,
+references and array elements; field rows do so at the exact declared field.
 
 Each scalar domain establishment route is a `u8` tag:
 
@@ -1089,7 +1101,7 @@ Older markers are rejected before their payload is read.
 | 2 | indexed theorem roots | counted cited theorem root rows, above |
 | 3 | mathematical carriers | counted closed carrier keys, above |
 | 4 | Id formations | counted rows and one shared mathematical certificate, above |
-| 5 | scalar qualification catalog | the six counted catalog tables above |
+| 5 | scalar qualification catalog | the eight counted catalog tables above |
 | 6 | quotient catalog | the canonical quotient catalog |
 | 7 | folded constant closure | optional primary target and counted selected-realization dependencies, below |
 | 8 | scalar applications | counted source-owned scalar application rows |

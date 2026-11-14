@@ -226,6 +226,7 @@ fn lower_records(
         outcomes,
         &declared.records,
         false,
+        &mut crate::qualifications::Qualifications::default(),
     )
 }
 
