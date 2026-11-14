@@ -3228,7 +3228,15 @@ fn matching(
         ExpressionKind::Match {
             capture: None,
             subject: Box::new(subject),
-            arms,
+            arms: arms
+                .into_iter()
+                .map(|(case, value)| {
+                    (
+                        typed_trees_to_terminal_psi::body::Selector::Case(case),
+                        value,
+                    )
+                })
+                .collect(),
             default: default.map(Box::new),
         },
         u32_type().into(),
