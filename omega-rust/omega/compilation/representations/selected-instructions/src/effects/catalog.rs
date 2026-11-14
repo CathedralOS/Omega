@@ -457,7 +457,7 @@ mod validation;
 
 use std::collections::BTreeSet;
 
-use register_model::ValidatedRegisterConstraintCatalog;
+use register_model::PreparedRegisterConstraintCatalog;
 
 use validation::validate_declaration;
 
@@ -476,7 +476,7 @@ use register_model::{RegisterConstraintCatalogIdentity, RegisterConstraintKey, R
 use target::NativeTarget;
 
 pub fn validate_machine_effect_catalog(
-    constraints: &ValidatedRegisterConstraintCatalog,
+    constraints: &PreparedRegisterConstraintCatalog,
     catalog: MachineEffectCatalog,
 ) -> Result<PreparedMachineEffectCatalog, MachineEffectCatalogValidationError> {
     if catalog.target.architecture != constraints.architecture() {
@@ -1586,10 +1586,10 @@ impl std::error::Error for MachineEffectCatalogValidationError {}
 /// Separately supplied catalogs enter through `validate_isa_machine_effect_catalog`.
 pub fn canonical_machine_effect_catalog<E>(
     target: NativeTarget,
-    constraints: &ValidatedRegisterConstraintCatalog,
+    constraints: &PreparedRegisterConstraintCatalog,
     build: impl FnOnce(
         NativeTarget,
-        &ValidatedRegisterConstraintCatalog,
+        &PreparedRegisterConstraintCatalog,
     ) -> Result<MachineEffectCatalog, E>,
 ) -> Result<std::sync::Arc<PreparedMachineEffectCatalog>, E> {
     type Canonical = (
@@ -1638,9 +1638,9 @@ pub enum IsaCatalogValidation<E> {
 pub fn validate_isa_machine_effect_catalog<E>(
     architecture: target::Architecture,
     target: NativeTarget,
-    constraints: &ValidatedRegisterConstraintCatalog,
+    constraints: &PreparedRegisterConstraintCatalog,
     catalog: MachineEffectCatalog,
-    build: impl Fn(NativeTarget, &ValidatedRegisterConstraintCatalog) -> Result<MachineEffectCatalog, E>,
+    build: impl Fn(NativeTarget, &PreparedRegisterConstraintCatalog) -> Result<MachineEffectCatalog, E>,
 ) -> Result<PreparedMachineEffectCatalog, IsaCatalogValidation<E>> {
     if target.architecture != architecture || constraints.architecture() != architecture {
         return Err(IsaCatalogValidation::ArchitectureMismatch);
@@ -1676,7 +1676,7 @@ macro_rules! isa_machine_effect_catalog_plumbing {
 
         pub fn $validate(
             target: ::target::NativeTarget,
-            constraints: &::register_model::ValidatedRegisterConstraintCatalog,
+            constraints: &::register_model::PreparedRegisterConstraintCatalog,
             catalog: $crate::MachineEffectCatalog,
         ) -> Result<$crate::PreparedMachineEffectCatalog, $error> {
             $crate::validate_isa_machine_effect_catalog(

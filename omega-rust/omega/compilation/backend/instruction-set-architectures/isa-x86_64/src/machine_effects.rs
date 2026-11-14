@@ -6,7 +6,7 @@ exact encoded register, flag, memory, stack, control-flow, and trap effects and
 byte-size bounds.
 */
 
-use register_model::{TargetRegisterEnvironmentConstraintKeys, ValidatedRegisterConstraintCatalog};
+use register_model::{PreparedRegisterConstraintCatalog, TargetRegisterEnvironmentConstraintKeys};
 use selected_instructions::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeKey, MachineBarrier,
     MachineCallEffect, MachineCleanupEffect, MachineEffectCatalog, MachineEffectDeclaration,
@@ -19,7 +19,7 @@ use selected_instructions::{
 use target::{Architecture, NativeTarget, ObjectFormat};
 
 mod memory {
-    use register_model::{RegisterConstraintKey, ValidatedRegisterConstraintCatalog};
+    use register_model::{PreparedRegisterConstraintCatalog, RegisterConstraintKey};
     use selected_instructions::{
         MachineAlternative, MachineAlternativeApplicability, MachineAlternativeKey, MachineBarrier,
         MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration,
@@ -60,7 +60,7 @@ mod memory {
     pub(super) fn declaration(
         semantic: Semantic,
         constraint: RegisterConstraintKey,
-        constraints: &ValidatedRegisterConstraintCatalog,
+        constraints: &PreparedRegisterConstraintCatalog,
     ) -> MachineEffectDeclaration {
         let row = constraints
             .catalog()
@@ -335,7 +335,7 @@ mod memory {
     }
 }
 mod scalar_call {
-    use register_model::{RegisterConstraintKey, ValidatedRegisterConstraintCatalog};
+    use register_model::{PreparedRegisterConstraintCatalog, RegisterConstraintKey};
     use selected_instructions::{
         MachineAlternative, MachineAlternativeApplicability, MachineAlternativeKey, MachineBarrier,
         MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration,
@@ -370,7 +370,7 @@ mod scalar_call {
     pub(super) fn declaration(
         semantic: MachineSemanticKind,
         constraint: RegisterConstraintKey,
-        constraints: &ValidatedRegisterConstraintCatalog,
+        constraints: &PreparedRegisterConstraintCatalog,
     ) -> MachineEffectDeclaration {
         let row = constraints
             .catalog()
@@ -618,7 +618,7 @@ isa_machine_effect_catalog_plumbing!(
 
 pub fn x86_64_machine_effect_catalog(
     target: NativeTarget,
-    constraints: &ValidatedRegisterConstraintCatalog,
+    constraints: &PreparedRegisterConstraintCatalog,
 ) -> Result<MachineEffectCatalog, X86_64MachineEffectCatalogValidationError> {
     if target.architecture != Architecture::X86_64
         || constraints.architecture() != Architecture::X86_64
@@ -1447,12 +1447,12 @@ mod tests {
         Architecture, MachineAlternativeApplicability, MachineBarrier, MachineCallEffect,
         MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
         MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineMemoryEffect,
-        MachineTrapBehavior, NativeTarget, ObjectFormat, Semantic, Size,
-        ValidatedRegisterConstraintCatalog, X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64,
-        X86_64_MICROSOFT_RETURN, X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64,
-        X86_64_SYSTEM_V_RETURN, X86_64_SYSTEM_V_RETURN_UNIT,
-        X86_64MachineEffectCatalogValidationError, validate_x86_64_machine_effect_catalog,
-        x86_64_machine_effect_catalog, x86_64_system_v_register_call_keys,
+        MachineTrapBehavior, NativeTarget, ObjectFormat, PreparedRegisterConstraintCatalog,
+        Semantic, Size, X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64, X86_64_MICROSOFT_RETURN,
+        X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64, X86_64_SYSTEM_V_RETURN,
+        X86_64_SYSTEM_V_RETURN_UNIT, X86_64MachineEffectCatalogValidationError,
+        validate_x86_64_machine_effect_catalog, x86_64_machine_effect_catalog,
+        x86_64_system_v_register_call_keys,
     };
     use crate::{
         X86_64RegisterConstraintCatalogValidationError,
@@ -1518,7 +1518,7 @@ mod tests {
         }
     }
 
-    fn constraints() -> ValidatedRegisterConstraintCatalog {
+    fn constraints() -> PreparedRegisterConstraintCatalog {
         let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
         validate_x86_64_register_constraint_catalog(
             x86_64_register_constraint_catalog(&physical),

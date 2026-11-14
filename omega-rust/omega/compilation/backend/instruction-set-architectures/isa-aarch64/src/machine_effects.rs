@@ -5,7 +5,7 @@ mapping every AArch64 register-constraint key and normalized foreign call to its
 exact encoded register, flag, memory, stack, control-flow, and trap effects.
 */
 
-use register_model::{TargetRegisterEnvironmentConstraintKeys, ValidatedRegisterConstraintCatalog};
+use register_model::{PreparedRegisterConstraintCatalog, TargetRegisterEnvironmentConstraintKeys};
 use selected_instructions::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeKey, MachineBarrier,
     MachineCallEffect, MachineCleanupEffect, MachineEffectCatalog, MachineEffectDeclaration,
@@ -19,7 +19,7 @@ use target::{Architecture, NativeTarget, ObjectFormat};
 use crate::saturating_forms::SaturatingRealization;
 
 mod scalar_call {
-    use register_model::{RegisterConstraintKey, ValidatedRegisterConstraintCatalog};
+    use register_model::{PreparedRegisterConstraintCatalog, RegisterConstraintKey};
     use selected_instructions::{
         MachineAlternative, MachineAlternativeApplicability, MachineAlternativeKey, MachineBarrier,
         MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration,
@@ -31,7 +31,7 @@ mod scalar_call {
     pub(super) fn declaration(
         semantic: MachineSemanticKind,
         constraint: RegisterConstraintKey,
-        constraints: &ValidatedRegisterConstraintCatalog,
+        constraints: &PreparedRegisterConstraintCatalog,
     ) -> MachineEffectDeclaration {
         let row = constraints
             .catalog()
@@ -270,7 +270,7 @@ isa_machine_effect_catalog_plumbing!(
 
 pub fn aarch64_machine_effect_catalog(
     target: NativeTarget,
-    constraints: &ValidatedRegisterConstraintCatalog,
+    constraints: &PreparedRegisterConstraintCatalog,
 ) -> Result<MachineEffectCatalog, Aarch64MachineEffectCatalogValidationError> {
     if target.architecture != Architecture::Aarch64
         || constraints.architecture() != Architecture::Aarch64
@@ -1115,7 +1115,7 @@ mod tests {
         Aarch64MachineEffectCatalogValidationError, Architecture, MachineAlternativeApplicability,
         MachineBarrier, MachineCallEffect, MachineEncodedControlEffect, MachineEncodedEffects,
         MachineSemanticKind, MachineSizeKnowledge, NativeTarget, ObjectFormat,
-        ValidatedRegisterConstraintCatalog, aarch64_machine_effect_catalog,
+        PreparedRegisterConstraintCatalog, aarch64_machine_effect_catalog,
         validate_aarch64_machine_effect_catalog,
     };
     use crate::{
@@ -1180,7 +1180,7 @@ mod tests {
         }
     }
 
-    fn constraints() -> ValidatedRegisterConstraintCatalog {
+    fn constraints() -> PreparedRegisterConstraintCatalog {
         let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
         validate_aarch64_register_constraint_catalog(
             aarch64_register_constraint_catalog(&physical),

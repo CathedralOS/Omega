@@ -8,16 +8,16 @@
 */
 
 use register_model::{
-    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+    PreparedRegisterConstraintCatalog, TargetRegisterEnvironmentConstraintKeys,
+    TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
     ValidatedRegisterReservationProfile,
 };
 pub mod compute {
     use std::collections::BTreeSet;
 
     use register_model::{
-        TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-        ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+        PreparedRegisterConstraintCatalog, TargetRegisterEnvironmentConstraintKeys,
+        TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
         ValidatedRegisterReservationProfile, target_register_environment_identity,
     };
     use target::NativeTarget;
@@ -31,7 +31,7 @@ pub mod compute {
         register_environment: TargetRegisterEnvironmentIdentity,
         target: NativeTarget,
         physical: &ValidatedPhysicalRegisterModel,
-        constraints: &ValidatedRegisterConstraintCatalog,
+        constraints: &PreparedRegisterConstraintCatalog,
         reservations: &ValidatedRegisterReservationProfile,
         selected_keys: &TargetRegisterEnvironmentConstraintKeys,
         policy: AllocatorAvailabilityPolicy,
@@ -123,7 +123,7 @@ pub fn materialize_allocator_availability(
     register_environment: TargetRegisterEnvironmentIdentity,
     target: target::NativeTarget,
     physical: &ValidatedPhysicalRegisterModel,
-    constraints: &ValidatedRegisterConstraintCatalog,
+    constraints: &PreparedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: AllocatorAvailabilityPolicy,

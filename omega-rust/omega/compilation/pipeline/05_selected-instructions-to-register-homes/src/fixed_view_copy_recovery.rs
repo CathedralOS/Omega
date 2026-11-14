@@ -12,8 +12,8 @@ pub(crate) mod fixed_view_copy {
 
     use crate::ValidatedLiveRanges;
     use register_model::{
-        TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-        ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+        PreparedRegisterConstraintCatalog, TargetRegisterEnvironmentConstraintKeys,
+        TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
         ValidatedRegisterReservationProfile,
     };
 
@@ -48,10 +48,10 @@ pub(crate) mod fixed_view_copy {
         }
         pub(crate) mod preflight {
             use super::{
-                OptimizationWorkUsage, RegisterInstructionConstraint, RegisterOperandAccess,
-                SelectedInstructionId, SelectedProgram, SelectedTerminator,
-                TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-                ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+                OptimizationWorkUsage, PreparedRegisterConstraintCatalog,
+                RegisterInstructionConstraint, RegisterOperandAccess, SelectedInstructionId,
+                SelectedProgram, SelectedTerminator, TargetRegisterEnvironmentConstraintKeys,
+                TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
                 ValidatedRegisterReservationProfile, VirtualRegisterId,
                 target_register_environment_identity,
             };
@@ -68,7 +68,7 @@ pub(crate) mod fixed_view_copy {
                 legality: &ValidatedAllocationLegality,
                 register_environment: TargetRegisterEnvironmentIdentity,
                 physical: &ValidatedPhysicalRegisterModel,
-                constraints: &ValidatedRegisterConstraintCatalog,
+                constraints: &PreparedRegisterConstraintCatalog,
                 reservations: &ValidatedRegisterReservationProfile,
                 selected_keys: &TargetRegisterEnvironmentConstraintKeys,
             ) -> Result<(), FixedViewCopyError> {
@@ -96,7 +96,7 @@ pub(crate) mod fixed_view_copy {
             }
 
             pub(crate) fn copy_row<'a>(
-                constraints: &'a ValidatedRegisterConstraintCatalog,
+                constraints: &'a PreparedRegisterConstraintCatalog,
                 selected_keys: &TargetRegisterEnvironmentConstraintKeys,
             ) -> Result<&'a RegisterInstructionConstraint, FixedViewCopyError> {
                 let row = register_model::find_register_constraint(
@@ -589,9 +589,9 @@ pub(crate) mod fixed_view_copy {
 
         use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
         use register_model::{
-            RegisterInstructionConstraint, RegisterOperandAccess,
-            TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-            ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+            PreparedRegisterConstraintCatalog, RegisterInstructionConstraint,
+            RegisterOperandAccess, TargetRegisterEnvironmentConstraintKeys,
+            TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
             ValidatedRegisterReservationProfile, target_register_environment_identity,
         };
         use selected_instructions::SelectedProgram;
@@ -623,7 +623,7 @@ pub(crate) mod fixed_view_copy {
             homes: &ValidatedFixedPrecoloredSegmentHomes,
             register_environment: TargetRegisterEnvironmentIdentity,
             physical: &ValidatedPhysicalRegisterModel,
-            constraints: &ValidatedRegisterConstraintCatalog,
+            constraints: &PreparedRegisterConstraintCatalog,
             reservations: &ValidatedRegisterReservationProfile,
             selected_keys: &TargetRegisterEnvironmentConstraintKeys,
             policy: FixedViewCopyPolicy,
@@ -1300,7 +1300,7 @@ pub(crate) mod fixed_view_copy {
         homes: &ValidatedFixedPrecoloredSegmentHomes,
         register_environment: TargetRegisterEnvironmentIdentity,
         physical: &ValidatedPhysicalRegisterModel,
-        constraints: &ValidatedRegisterConstraintCatalog,
+        constraints: &PreparedRegisterConstraintCatalog,
         reservations: &ValidatedRegisterReservationProfile,
         selected_keys: &TargetRegisterEnvironmentConstraintKeys,
         policy: FixedViewCopyPolicy,

@@ -726,8 +726,8 @@ mod compute {
     }
     mod roots {
         use register_model::{
-            TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-            ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+            PreparedRegisterConstraintCatalog, TargetRegisterEnvironmentConstraintKeys,
+            TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
             ValidatedRegisterReservationProfile, infrastructure_environment_agrees,
         };
 
@@ -748,7 +748,7 @@ mod compute {
             requirements: &ValidatedFixedPrecoloredSplitRequirements,
             register_environment: TargetRegisterEnvironmentIdentity,
             physical: &ValidatedPhysicalRegisterModel,
-            constraints: &ValidatedRegisterConstraintCatalog,
+            constraints: &PreparedRegisterConstraintCatalog,
             reservations: &ValidatedRegisterReservationProfile,
             selected_keys: &TargetRegisterEnvironmentConstraintKeys,
         ) -> Result<(), FixedPrecoloredSegmentHomeError> {
@@ -784,8 +784,8 @@ mod compute {
 
     use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
     use register_model::{
-        TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-        ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+        PreparedRegisterConstraintCatalog, TargetRegisterEnvironmentConstraintKeys,
+        TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
         ValidatedRegisterReservationProfile,
     };
 
@@ -806,7 +806,7 @@ mod compute {
         requirements: &ValidatedFixedPrecoloredSplitRequirements,
         register_environment: TargetRegisterEnvironmentIdentity,
         physical: &ValidatedPhysicalRegisterModel,
-        constraints: &ValidatedRegisterConstraintCatalog,
+        constraints: &PreparedRegisterConstraintCatalog,
         reservations: &ValidatedRegisterReservationProfile,
         selected_keys: &TargetRegisterEnvironmentConstraintKeys,
         policy: FixedPrecoloredSegmentHomePolicy,
@@ -1099,8 +1099,8 @@ use register_homes::{
     FixedPrecoloredSplitRequirementPlanIdentity,
 };
 use register_model::{
-    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+    PreparedRegisterConstraintCatalog, TargetRegisterEnvironmentConstraintKeys,
+    TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
     ValidatedRegisterReservationProfile,
 };
 use selected_instructions::LiveRangeIdentity;
@@ -1115,7 +1115,7 @@ pub fn assign_fixed_precolored_segment_homes(
     requirements: &crate::ValidatedFixedPrecoloredSplitRequirements,
     register_environment: TargetRegisterEnvironmentIdentity,
     physical: &ValidatedPhysicalRegisterModel,
-    constraints: &ValidatedRegisterConstraintCatalog,
+    constraints: &PreparedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: FixedPrecoloredSegmentHomePolicy,

@@ -50,12 +50,12 @@ pub mod test_support;
 mod tests;
 
 pub use constraint_catalog::{
-    RegisterConstraintCatalog, RegisterConstraintCatalogValidationError, RegisterConstraintFamily,
-    RegisterConstraintId, RegisterConstraintKey, RegisterInstructionConstraint,
-    RegisterOperandAccess, RegisterOperandConstraint, TargetRegisterEnvironmentConstraintKeys,
-    ValidatedRegisterConstraintCatalog, call_constraint_keys, encode_constraint_key,
-    find_register_constraint, find_register_constraint_mut, validate_register_constraint_catalog,
-    views_with_access,
+    PreparedRegisterConstraintCatalog, RegisterConstraintCatalog,
+    RegisterConstraintCatalogValidationError, RegisterConstraintFamily, RegisterConstraintId,
+    RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
+    RegisterOperandConstraint, TargetRegisterEnvironmentConstraintKeys, call_constraint_keys,
+    encode_constraint_key, find_register_constraint, find_register_constraint_mut,
+    produce_register_constraint_catalog, validate_register_constraint_catalog, views_with_access,
 };
 pub use identities::{
     PhysicalRegisterModelIdentity, RegisterConstraintCatalogIdentity,

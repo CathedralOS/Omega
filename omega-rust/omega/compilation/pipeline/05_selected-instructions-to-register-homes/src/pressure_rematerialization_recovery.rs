@@ -11,8 +11,8 @@ use crate::{
     ValidatedRecoveryClassifications, ValidatedSelectedAnalysis, ValidatedSpillChoices,
 };
 use register_model::{
-    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-    ValidatedRegisterConstraintCatalog,
+    PreparedRegisterConstraintCatalog, TargetRegisterEnvironmentConstraintKeys,
+    TargetRegisterEnvironmentIdentity,
 };
 
 pub(crate) mod compute {
@@ -404,14 +404,14 @@ pub(crate) mod compute {
     }
     pub(crate) mod materialize_constraint {
         use register_model::{
-            RegisterInstructionConstraint, RegisterOperandAccess,
-            TargetRegisterEnvironmentConstraintKeys, ValidatedRegisterConstraintCatalog,
+            PreparedRegisterConstraintCatalog, RegisterInstructionConstraint,
+            RegisterOperandAccess, TargetRegisterEnvironmentConstraintKeys,
         };
 
         use crate::PressureRematerializationError;
 
         pub(crate) fn select<'a>(
-            constraints: &'a ValidatedRegisterConstraintCatalog,
+            constraints: &'a PreparedRegisterConstraintCatalog,
             keys: &TargetRegisterEnvironmentConstraintKeys,
         ) -> Result<&'a RegisterInstructionConstraint, PressureRematerializationError> {
             let row = register_model::find_register_constraint(
@@ -577,8 +577,8 @@ pub(crate) mod compute {
 
     use optimization_core::OptimizationWorkBudget;
     use register_model::{
-        TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-        ValidatedRegisterConstraintCatalog,
+        PreparedRegisterConstraintCatalog, TargetRegisterEnvironmentConstraintKeys,
+        TargetRegisterEnvironmentIdentity,
     };
 
     use crate::{
@@ -599,7 +599,7 @@ pub(crate) mod compute {
         recovery: &ValidatedRecoveryClassifications,
         availability: &ValidatedAllocatorAvailability,
         register_environment: TargetRegisterEnvironmentIdentity,
-        constraints: &ValidatedRegisterConstraintCatalog,
+        constraints: &PreparedRegisterConstraintCatalog,
         selected_keys: &TargetRegisterEnvironmentConstraintKeys,
         policy: PressureRematerializationPolicy,
         budget: OptimizationWorkBudget,
@@ -789,7 +789,7 @@ pub fn rematerialize_selected_active_resident<S: ValidatedSelectedAnalysis>(
     recovery: &ValidatedRecoveryClassifications,
     availability: &ValidatedAllocatorAvailability,
     register_environment: TargetRegisterEnvironmentIdentity,
-    constraints: &ValidatedRegisterConstraintCatalog,
+    constraints: &PreparedRegisterConstraintCatalog,
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: PressureRematerializationPolicy,
     budget: optimization_core::OptimizationWorkBudget,
