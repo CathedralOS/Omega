@@ -12,8 +12,8 @@ The obsolete checked-source production request interfaces have been removed.
 
 mod accepted;
 pub use accepted::{AcceptedTerminalSource, ReachedBoundaryRequirement};
-pub use structure_elaboration::Compilation as TerminalSourceCompilation;
-pub use structure_elaboration::Supply as TerminalSourceSupply;
+pub use typed_trees_to_terminal_psi::Compilation as TerminalSourceCompilation;
+pub use typed_trees_to_terminal_psi::Supply as TerminalSourceSupply;
 
 mod build_bindings;
 mod build_companions;

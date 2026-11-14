@@ -125,7 +125,7 @@ Dated cost and failure evidence, superseded by a later run.
   candidate seams and what a ranking measurement must show; delete once a
   measured corpus answers the question or the policy question closes.
 - [Package-review hotspot attribution](measurements/package_review_hotspot_attribution.md):
-  where `omega audit packages` time actually goes; delete once the arena and
+  where `omega packages audit` time actually goes; delete once the arena and
   symbol-lookup hotspots are repaired or boarded.
 - [Squalr geometry native hosts](measurements/squalr_geometry_native_hosts.md): per-host
   ledger and ceremony for the geometry parity acceptance; delete once every

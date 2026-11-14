@@ -45,7 +45,7 @@ zero-initialized by the application entry, and the kernel runs once per record.
 From the repository root, using an optimized compiler of recorded provenance:
 
 ```sh
-omega update --project samples/cli/independent/ecological_rarefaction --target linux_x86_64
+omega packages update --project samples/cli/independent/ecological_rarefaction --target linux_x86_64
 omega run --both --keep samples/cli/independent/ecological_rarefaction/main.omg < samples/cli/independent/ecological_rarefaction/input.txt
 python3 samples/cli/independent/ecological_rarefaction/validate.py --omega /absolute/path/to/omega --route native
 python3 samples/cli/independent/ecological_rarefaction/validate.py --omega /absolute/path/to/omega --route terminal

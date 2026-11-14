@@ -275,6 +275,7 @@ fn windows_canonicalize_receiver() {
                 None,
                 &mut accounting,
                 |scope| {
+                    let scope = scope.ok_or("native completion requires its deployment")?;
                     let proposal = completion
                         .provider_proposals()
                         .iter()
@@ -290,16 +291,18 @@ fn windows_canonicalize_receiver() {
                     Ok(build_time_evaluation::ScalarScopeEvaluation {
                         application_roots: None,
                         import_realizations: None,
-                        layout_target: profile
-                            .layout_target_facts()
-                            .ok_or("scalar evaluation target has no immutable layout catalogue")?,
+                        layout_target: Some(
+                            profile.layout_target_facts().ok_or(
+                                "scalar evaluation target has no immutable layout catalogue",
+                            )?,
+                        ),
                         carrier_layout: profile
                             .native_realization()
                             .map(runtime_abi::target_carrier_layout),
-                        targets: terminal_installation::admit_target_machine_selections(
+                        targets: Some(terminal_installation::admit_target_machine_selections(
                             artifact.view(),
                             scope,
-                        ),
+                        )),
                         providers,
                         address_model: Ok(target::TargetSemantics::close_address_model(profile)
                             .map(|model| terminal_installation::ScalarAddressModel {

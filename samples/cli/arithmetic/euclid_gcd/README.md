@@ -21,13 +21,13 @@ Ordinary project review starts from the repository root in the checkout being
 used for compilation:
 
 ```text
-mbx run --release -p omega -- update --project samples/cli/arithmetic/euclid_gcd --target macos_arm64
+mbx run --release -p omega -- packages update --project samples/cli/arithmetic/euclid_gcd --target macos_arm64
 ```
 
 Inspect the reported capability review, decide each required row, then run:
 
 ```text
-mbx run --release -p omega -- update --resume --project samples/cli/arithmetic/euclid_gcd
+mbx run --release -p omega -- packages update --resume --project samples/cli/arithmetic/euclid_gcd
 mbx run --release -p omega -- --target macos_arm64 --build-dir build/euclid-gcd-route samples/cli/arithmetic/euclid_gcd/main.omg
 ```
 
@@ -47,7 +47,7 @@ stdout above, empty stderr, and exit 12 with both EOF and Enter. On Linux
 x86-64 the former compiler-library regression (filtered to this sample)
 compiles, publishes, and runs natively to exit 12 with the documented stdout
 under EOF input; its test-owned acceptance does not cover the ordinary CLI
-review route. On Linux x86-64 `omega update --project . --target
+review route. On Linux x86-64 `omega packages update --project . --target
 linux_x86_64` rejects inside the `omega-language-std` package candidate check
 with `routed service field Filesystem::host has no exact Fused
 selected-provider-plan join` before review decisions — the shared std gate

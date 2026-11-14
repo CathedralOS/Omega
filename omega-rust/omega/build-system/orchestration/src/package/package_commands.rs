@@ -1,6 +1,6 @@
 /*
 
-Drive `omega install` and `omega update` review and publication transactions.
+Drive `omega packages install` and `omega packages update` review and publication transactions.
 
 `execute_package_command` coordinates between `package_manager` (which owns the
 transaction, lockfile proposal, and editable review documents) and the compiler:

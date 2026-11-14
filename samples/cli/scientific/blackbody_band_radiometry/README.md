@@ -7,7 +7,7 @@ emitter_K ambient_K grey_emissivity area_m2 view_factor minimum_um maximum_um
 300 280 0.85 2 0.7 8 14
 ```
 
-Run `omega update --project samples/cli/independent/blackbody_band_radiometry
+Run `omega packages update --project samples/cli/independent/blackbody_band_radiometry
 --target linux_x86_64`, review any requested package decisions, then
 `omega run samples/cli/independent/blackbody_band_radiometry/main.omg` with the
 record on stdin. The entry is bound for Linux x86_64, Windows x86_64 and macOS
@@ -55,7 +55,7 @@ control `model/intended_invalid.omg` (documented under `controls/intended_invali
 fail checking for that proof obligation.
 
 Validate both engines with `python validation/run.py --omega /absolute/path/to/omega`
-from this sample after `omega update`: it compiles once with
+from this sample after `omega packages update`: it compiles once with
 `omega run --both --inputs data`, runs every case natively, replays it
 through the Terminal reference, and checks both engines' streams and exits
 against the oracle and each other. `python validation/run.py --native

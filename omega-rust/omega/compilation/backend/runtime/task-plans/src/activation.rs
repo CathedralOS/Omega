@@ -7,7 +7,7 @@ identities. Here we resolve the exact `TaskRuntime` provider plan from
 `SelectedProviderPlanFacts`, compute the target-specific storage geometry for
 alternative task states and parked call arguments (`TaskStorage`), compose the
 whole-call-graph WCSU stack demand, and validate the resulting
-`TaskActivationPlanSet` without reading source symbols or checked-tree arenas.
+`TaskActivationPlanSet` without reading source symbols or source arenas.
 */
 
 use crate::*;

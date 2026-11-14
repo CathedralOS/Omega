@@ -197,9 +197,9 @@ qualification remains unmeasured, as stated above.
 Run a place after ordinary package preparation:
 
 ```sh
-omega update --project samples/cli/facts/static_callback_reach/local --target linux_x86_64
+omega packages update --project samples/cli/facts/static_callback_reach/local --target linux_x86_64
 omega run --both --keep samples/cli/facts/static_callback_reach/local/main.omg
-omega inspect-terminal --artifact <kept-directory>/program.oterm
+omega psi inspect --artifact <kept-directory>/program.oterm
 python3 tools/corpus_gate.py --both --filter facts/static_callback_reach
 ```
 

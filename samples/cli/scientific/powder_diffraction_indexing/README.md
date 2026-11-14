@@ -37,7 +37,7 @@ invariant failure and must never appear on admitted scientific inputs.
 Run with the normal product route (activate the documented toolchain first):
 
 ```sh
-omega update --project samples/cli/independent/powder_diffraction_indexing --target linux_x86_64
+omega packages update --project samples/cli/independent/powder_diffraction_indexing --target linux_x86_64
 omega run samples/cli/independent/powder_diffraction_indexing/main.omg < samples/cli/independent/powder_diffraction_indexing/input.txt
 python3 samples/cli/independent/powder_diffraction_indexing/validation/validate.py --omega /absolute/path/to/omega --route all
 ```

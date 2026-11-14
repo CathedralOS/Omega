@@ -75,7 +75,7 @@ From repository root, with a current-main `omega` binary and matching
 `OMEGA_LIBRARY_ROOT=.../source/library`:
 
 ```sh
-omega update --project samples/cli/independent/laminate_stiffness_response --target linux_x86_64
+omega packages update --project samples/cli/independent/laminate_stiffness_response --target linux_x86_64
 # Review the generated package decisions; acceptance is a separate action.
 omega --check samples/cli/independent/laminate_stiffness_response/main.omg
 omega run --both --keep samples/cli/independent/laminate_stiffness_response/main.omg < samples/cli/independent/laminate_stiffness_response/data/mode_0.stdin

@@ -5845,20 +5845,30 @@ pub(crate) mod zeroed_structural_input {
                     *scalar_type,
                     declarations,
                 )?,
-                terminal_semantics::ZeroedStructuralLeaf::ByteSequenceField {
+                terminal_semantics::ZeroedStructuralLeaf::EmptyView {
                     path,
-                    field,
-                    scalar_type,
-                } => {
+                    field: Some(field),
+                    carrier,
+                } if carrier.byte_sequence_carrier().is_some() => {
+                    let scalar_type = ScalarType::Integer(
+                        semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned,
+                            64,
+                        )
+                        .ok()?,
+                    );
                     let (offset, width) = byte_field_length(
                         result.structural_type,
                         path,
                         *field,
-                        *scalar_type,
+                        scalar_type,
                         declarations,
                     )?;
                     (offset, width, Vec::new())
                 }
+                // Typed immutable sequences retain real backing in Psi. Native
+                // descriptor initialization still needs its ordinary layout owner.
+                terminal_semantics::ZeroedStructuralLeaf::EmptyView { .. } => return None,
                 terminal_semantics::ZeroedStructuralLeaf::CaseField {
                     path,
                     case,

@@ -633,8 +633,9 @@ mod domain_facts {
 
     use super::expressions::assign_membership_symbol;
     use super::expressions::assign_struct_literal_symbols;
+    use super::lookup::MembershipSelection;
     use super::lookup::diagnostic_path_source_span;
-    use super::lookup::domain_name_reaches;
+    use super::lookup::membership_selection;
     use super::targets::resolve_free_call_target_symbol;
     use language_semantics::declaration_selection::CollectionMeasure;
     use std::iter::once;
@@ -768,17 +769,6 @@ mod domain_facts {
         program: &mut SymbolResolvedTrees,
         symbols: &SymbolTable,
     ) {
-        let domain_symbols = program
-            .domain_definitions
-            .iter()
-            .map(|domain| {
-                (
-                    domain.name.as_str().to_owned(),
-                    domain.symbol,
-                    domain.semantic_id,
-                )
-            })
-            .collect::<Vec<_>>();
         let alias_symbols = program
             .domain_definitions
             .iter()
@@ -795,7 +785,6 @@ mod domain_facts {
                                 let name = members.joined_path();
                                 resolve_domain_symbol(
                                     symbols,
-                                    &domain_symbols,
                                     &name,
                                     diagnostic_path_source_span(members),
                                 )
@@ -943,7 +932,6 @@ mod domain_facts {
                         }
                         assign_proof_expression_symbols(
                             symbols,
-                            &domain_symbols,
                             child_type_references,
                             type_constraints,
                             local_type_parameters,
@@ -954,9 +942,8 @@ mod domain_facts {
                         );
                         let members = domain_path_members.span_or_empty(membership.domain);
                         let name = members.joined_path();
-                        membership.domain_symbol = resolve_domain_symbol(
+                        membership.domain_symbol = proof_fact_membership_domain(
                             symbols,
-                            &domain_symbols,
                             &name,
                             diagnostic_path_source_span(members),
                         );
@@ -964,7 +951,6 @@ mod domain_facts {
                     ProofFact::Expression(expression) => {
                         assign_proof_expression_symbols(
                             symbols,
-                            &domain_symbols,
                             child_type_references,
                             type_constraints,
                             local_type_parameters,
@@ -1150,14 +1136,12 @@ mod domain_facts {
 
     /*
         One proof-surface expression walk: declaration predicates (membership
-        values and `requires` facts) carry their declaration's generic scope, its
-        lexical subjects, and the domain roster through every child visit. The
-        walk carries that context instead of re-threading it through each
-        recursive call.
+        values and `requires` facts) carry their declaration's generic scope and
+        its lexical subjects through every child visit. Domain spellings are
+        read from the membership lookup at the node, not from a second roster.
     */
     struct ProofExpressionContext<'visit> {
         symbols: &'visit SymbolTable,
-        domain_symbols: &'visit [(String, SymbolHandle, language_semantics::SemanticDomainId)],
         child_type_references: &'visit mut arena::Arena<TypeReference>,
         type_constraints: &'visit arena::Arena<TypeConstraint>,
         local_type_parameters: Option<&'visit [TypeParameter]>,
@@ -1169,7 +1153,6 @@ mod domain_facts {
 
     fn assign_proof_expression_symbols(
         symbols: &SymbolTable,
-        domain_symbols: &[(String, SymbolHandle, language_semantics::SemanticDomainId)],
         child_type_references: &mut arena::Arena<TypeReference>,
         type_constraints: &arena::Arena<TypeConstraint>,
         local_type_parameters: Option<&[TypeParameter]>,
@@ -1180,7 +1163,6 @@ mod domain_facts {
     ) {
         ProofExpressionContext {
             symbols,
-            domain_symbols,
             child_type_references,
             type_constraints,
             local_type_parameters,
@@ -1420,12 +1402,8 @@ mod domain_facts {
                         membership.domain,
                         expression,
                     );
-                    let domain_symbol = resolve_domain_symbol(
-                        self.symbols,
-                        self.domain_symbols,
-                        &name,
-                        reference_span,
-                    );
+                    let domain_symbol =
+                        proof_fact_membership_domain(self.symbols, &name, reference_span);
                     if let ExpressionNode::Membership(membership) =
                         self.expression_table.expression_mut(expression)
                     {
@@ -1587,77 +1565,44 @@ mod domain_facts {
         }
     }
 
+    /*
+        The domain an alias or other non-membership spelling names. This is the
+        membership pool: module-local owners outrank other tiers, and equal
+        display paths are one candidate. A signature-free unique hit does not
+        get its own answer.
+    */
     fn resolve_domain_symbol(
         symbols: &SymbolTable,
-        domain_symbols: &[(String, SymbolHandle, language_semantics::SemanticDomainId)],
         name: &str,
         reference: source::SourceSpan,
     ) -> SymbolHandle {
-        let selected = symbols
-            .find_top_level_by_name_and_kinds_from_source(name, &[SymbolKind::Domain], reference)
-            .unwrap_or_else(SymbolHandle::invalid);
-        let matches = domain_symbols
-            .iter()
-            .filter(|(candidate, symbol, _)| {
-                symbols.source_reference_can_see_symbol(reference, *symbol)
-                    && (*symbol == selected
-                        || (!(name.contains("::") && symbols.display_path(*symbol, "::") == name)
-                            && domain_name_reaches(symbols, *symbol, candidate, name, reference)))
-            })
-            .map(|(name, symbol, semantic_id)| (name.as_str(), *symbol, *semantic_id))
-            .collect::<Vec<_>>();
-        let reference_module = if reference.span.start == reference.span.end {
-            SymbolHandle::invalid()
-        } else {
-            symbols.source_module(reference.source_id)
-        };
-        let local = matches
-            .iter()
-            .copied()
-            .filter(|(_, symbol, _)| {
-                reference_module.is_valid() && symbols.symbol_module(*symbol) == reference_module
-            })
-            .collect::<Vec<_>>();
-        let pool = if !local.is_empty() {
-            local
-        } else if reference.span.start != reference.span.end {
-            let own_package = matches
-                .iter()
-                .copied()
-                .filter(|(_, symbol, _)| {
-                    symbols
-                        .symbol_provenance_source_span(*symbol)
-                        .is_some_and(|declaration| {
-                            symbols.same_source_package(reference, declaration)
-                        })
-                })
-                .collect::<Vec<_>>();
-            if own_package.is_empty() {
-                matches
-            } else {
-                own_package
-            }
-        } else {
-            matches
-        };
-        if let Some((first_name, symbol, first_semantic_id)) = pool.first() {
-            if pool.iter().any(|(candidate, _, semantic_id)| {
-                candidate != first_name || semantic_id != first_semantic_id
-            }) {
+        match super::lookup::membership_domain_lookup(symbols, name, reference) {
+            super::lookup::DomainMembership::Unique(symbol) => symbol,
+            super::lookup::DomainMembership::NotFound
+            | super::lookup::DomainMembership::Ambiguous { .. }
+            | super::lookup::DomainMembership::Contested => SymbolHandle::invalid(),
+        }
+    }
+
+    /*
+        A proof-fact membership uses that same domain, then still rejects a
+        competing case. Binding the domain and erasing the case would accept a
+        spelling expression membership refuses.
+    */
+    fn proof_fact_membership_domain(
+        symbols: &SymbolTable,
+        name: &str,
+        reference: source::SourceSpan,
+    ) -> SymbolHandle {
+        let domain = resolve_domain_symbol(symbols, name, reference);
+        if !domain.is_valid() {
+            return SymbolHandle::invalid();
+        }
+        match membership_selection(symbols, name, reference) {
+            Ok(Some(MembershipSelection::Domain(symbol))) => symbol,
+            Ok(Some(MembershipSelection::Case { .. })) | Ok(None) | Err(_) => {
                 SymbolHandle::invalid()
-            } else {
-                *symbol
             }
-        } else if name.contains("::") {
-            symbols
-                .find_top_level_by_name_and_kinds_from_source(
-                    name,
-                    &[SymbolKind::Domain],
-                    reference,
-                )
-                .unwrap_or_else(SymbolHandle::invalid)
-        } else {
-            SymbolHandle::invalid()
         }
     }
 }
@@ -1975,7 +1920,7 @@ mod lookup {
                 .find(|child| kinds.contains(&symbols.get(*child).kind))
                 .unwrap_or_else(SymbolHandle::invalid);
         }
-        child_symbol_by_kinds_matching(symbols, parent, kinds, |symbol_name| symbol_name == name)
+        child_symbol_by_kinds_matching(symbols, parent, kinds, name)
     }
 
     pub(super) fn child_or_attached_data_child_symbol_by_kinds(
@@ -2020,9 +1965,19 @@ mod lookup {
         name: &str,
         index: i64,
     ) -> SymbolHandle {
-        child_symbol_by_kinds_matching(symbols, parent, kinds, |symbol_name| {
-            symbol_name_matches_indexed_member(symbol_name, name, index)
-        })
+        child_symbol_by_kinds_matching(symbols, parent, kinds, &indexed_member_name(name, index))
+    }
+
+    /*
+        One spelling for an indexed member: the name, then the canonical decimal
+        of the index. The receiver walk supplies that index from
+        `IntegerLiteral::value_i64`, and `i64` displays it without a leading
+        `+`, leading zeros, or spaces. Declaration names are identifiers, and
+        the lexer keeps `[` a separate token, so no stored name is written in
+        another bracket spelling.
+    */
+    fn indexed_member_name(name: &str, index: i64) -> String {
+        format!("{name}[{index}]")
     }
 
     pub(super) fn call_target_for_attached_data(
@@ -2046,47 +2001,21 @@ mod lookup {
         child_symbol_by_kinds(symbols, machine_symbol, &[SymbolKind::State], target_name)
     }
 
+    /*
+        Ask the symbol table once per requested kind. A private walk of the same
+        children skipped source selection and, under a module, the kind, so one
+        spelling was ambiguous here and a single declaration there.
+    */
     fn child_symbol_by_kinds_matching(
         symbols: &SymbolTable,
         parent: SymbolHandle,
         kinds: &[SymbolKind],
-        mut matches_name: impl FnMut(&str) -> bool,
+        name: &str,
     ) -> SymbolHandle {
-        let Some(children) = symbols.child_handles(parent) else {
-            return SymbolHandle::invalid();
-        };
-
-        let mut matched = SymbolHandle::invalid();
-        for child in children {
-            let symbol = symbols.get(child);
-            if matches_name(symbols.name(child))
-                && (kinds.contains(&symbol.kind) || symbols.get(parent).kind == SymbolKind::Module)
-            {
-                if symbols.get(parent).kind != SymbolKind::Module {
-                    return child;
-                }
-                if matched.is_valid() {
-                    return SymbolHandle::invalid();
-                }
-                matched = child;
-            }
-        }
-
-        matched
-    }
-
-    fn symbol_name_matches_indexed_member(symbol_name: &str, member: &str, index: i64) -> bool {
-        let Some(suffix) = symbol_name.strip_prefix(member) else {
-            return false;
-        };
-        let Some(suffix) = suffix.strip_prefix('[') else {
-            return false;
-        };
-        let Some(index_text) = suffix.strip_suffix(']') else {
-            return false;
-        };
-
-        index_text.parse::<i64>().ok() == Some(index)
+        kinds
+            .iter()
+            .find_map(|kind| symbols.find_child_by_name_and_kind(parent, name, *kind))
+            .unwrap_or_else(SymbolHandle::invalid)
     }
 
     /*
@@ -2103,7 +2032,7 @@ mod lookup {
     }
 
     /* The domain side of a membership selection. */
-    enum DomainMembership {
+    pub(crate) enum DomainMembership {
         NotFound,
         Unique(SymbolHandle),
         /*
@@ -2116,10 +2045,9 @@ mod lookup {
         },
         /*
             The attached-domain exposure pool claims the spelling under more than
-            one distinct owner. Like the proof-fact resolver's pooled decline,
-            this retains the membership as a checked obligation rather than
-            reporting ambiguity here: downstream validation owns the diagnostic,
-            and no other meaning may claim the contested spelling.
+            one distinct owner. The shared membership lookup declines that pool
+            here rather than reporting ambiguity: downstream validation owns the
+            diagnostic, and no other meaning may claim the contested spelling.
         */
         Contested,
     }
@@ -2129,10 +2057,12 @@ mod lookup {
         ordinary qualified/import path lookup unioned with the attached-domain
         exposure law (`domain_name_reaches`), which admits a carrier-qualified or
         leaf spelling through a declaring-module or exact-domain import.
-        Module-local owners outrank every other tier, and declarations sharing one
-        complete logical path are one semantic candidate.
+        Module-local owners outrank every other tier. The same symbol found by
+        both routes is one candidate. Two different symbols stay contested even
+        when their display paths match. Expression membership, proof-fact
+        membership, and token homes all read this pool.
     */
-    fn membership_domain_lookup(
+    pub(crate) fn membership_domain_lookup(
         symbols: &SymbolTable,
         name: &str,
         reference: source::SourceSpan,
@@ -2162,19 +2092,15 @@ mod lookup {
             }
         }
         let candidates = prefer_module_local_domain(symbols, candidates, reference);
-        let mut unique: Vec<(String, SymbolHandle)> = Vec::new();
-        'next: for candidate in candidates {
-            let path = symbols.display_path(candidate, "::");
-            for (existing, _) in &unique {
-                if *existing == path {
-                    continue 'next;
-                }
+        let mut distinct = Vec::new();
+        for candidate in candidates {
+            if !distinct.contains(&candidate) {
+                distinct.push(candidate);
             }
-            unique.push((path, candidate));
         }
-        match unique.as_slice() {
+        match distinct.as_slice() {
             [] => DomainMembership::NotFound,
-            [(_, symbol)] => DomainMembership::Unique(*symbol),
+            [symbol] => DomainMembership::Unique(*symbol),
             _ => DomainMembership::Contested,
         }
     }
@@ -2224,6 +2150,97 @@ mod lookup {
                 }))
             }
             (DomainMembership::NotFound, SymbolLookup::NotFound) => Ok(None),
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use numerics::literals::{IntegerLiteral, IntegerRadix};
+        use symbol_resolved_trees::name::DiagnosticName;
+        use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+        use super::super::scoped_paths::resolve_state_scoped_members;
+        use super::child_indexed_symbol_by_kinds;
+
+        /*
+            A constant index selects the child whose name is the canonical
+            `{member}[{i64}]` spelling. Source spellings `07` and `0_7` are the
+            same i64 before that lookup; `+7` and ` 7 ` are not integer literals.
+        */
+        #[test]
+        fn indexed_member_resolves_through_the_canonical_spelling() {
+            let mut builder = SymbolTableBuilder::new();
+            let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let machine = builder.insert_children(
+                root,
+                [(SymbolKind::Machine, SymbolNameRef::Borrowed("reader"))],
+            );
+            let machine = SymbolTableBuilder::child_handles(machine)
+                .next()
+                .expect("machine");
+            let state = builder.insert_children(
+                machine,
+                [(SymbolKind::State, SymbolNameRef::Borrowed("entry"))],
+            );
+            let state = SymbolTableBuilder::child_handles(state)
+                .next()
+                .expect("state");
+            let canonical = super::indexed_member_name("items", 7);
+            let parameters = builder.insert_children(
+                state,
+                [
+                    (
+                        SymbolKind::Parameter,
+                        SymbolNameRef::Borrowed(canonical.as_str()),
+                    ),
+                    (SymbolKind::Parameter, SymbolNameRef::Borrowed("items[07]")),
+                ],
+            );
+            let mut parameters = SymbolTableBuilder::child_handles(parameters);
+            let canonical_symbol = parameters.next().expect("canonical parameter");
+            let padded_symbol = parameters.next().expect("padded parameter");
+            let symbols = builder.finish();
+
+            let found = child_indexed_symbol_by_kinds(
+                &symbols,
+                state,
+                &[SymbolKind::Parameter],
+                "items",
+                7,
+            );
+            assert_eq!(found, canonical_symbol);
+            assert_ne!(found, padded_symbol);
+            assert_eq!(symbols.name(found), "items[7]");
+
+            let (head, leaf) = resolve_state_scoped_members(
+                &symbols,
+                machine,
+                state,
+                &[DiagnosticName::generated("items")],
+                Some(7),
+            );
+            assert_eq!(head, canonical_symbol);
+            assert_eq!(leaf, canonical_symbol);
+
+            for spelling in ["7", "07", "007", "0_7"] {
+                let literal =
+                    IntegerLiteral::from_parts(false, IntegerRadix::Decimal, spelling).unwrap();
+                let index = literal.value_i64().expect(spelling);
+                assert_eq!(index, 7, "{spelling}");
+                assert_eq!(
+                    child_indexed_symbol_by_kinds(
+                        &symbols,
+                        state,
+                        &[SymbolKind::Parameter],
+                        "items",
+                        index,
+                    ),
+                    canonical_symbol,
+                    "{spelling}",
+                );
+            }
+            assert!(IntegerLiteral::from_parts(false, IntegerRadix::Decimal, "+7").is_err());
+            assert!(IntegerLiteral::from_parts(false, IntegerRadix::Decimal, " 7 ").is_err());
         }
     }
 }
@@ -5673,9 +5690,9 @@ pub(crate) fn assign_constant_expression_symbols(
 
 pub(crate) use expressions::reject_unqualified_case_values;
 pub(crate) use lookup::{
-    MembershipSelection, builtin_type_atom_by_symbol_name, constructor_prefix_is_value,
-    constructor_type, domain_name_reaches, membership_selection, prefer_module_local_domain,
-    qualified_payload_free_case_type,
+    DomainMembership, MembershipSelection, builtin_type_atom_by_symbol_name,
+    constructor_prefix_is_value, constructor_type, domain_name_reaches, membership_domain_lookup,
+    membership_selection, prefer_module_local_domain, qualified_payload_free_case_type,
 };
 
 /*

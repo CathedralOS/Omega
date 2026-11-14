@@ -7,14 +7,14 @@ authored `clamp` expression; a reduced min/max probe is not this program.
 From the repository root on macOS ARM64:
 
 ```sh
-mbx run -p omega -- update --project samples/cli/arithmetic/sensor_min_max --target macos_arm64
+mbx run -p omega -- packages update --project samples/cli/arithmetic/sensor_min_max --target macos_arm64
 mbx run -p omega -- run samples/cli/arithmetic/sensor_min_max/main.omg
 ```
 
 If update requests review, inspect the generated source findings and
 `samples/cli/arithmetic/sensor_min_max/build/package-manager/review-macos_arm64.txt`,
 record each pending decision, then run
-`mbx run -p omega -- update --resume --project samples/cli/arithmetic/sensor_min_max`.
+`mbx run -p omega -- packages update --resume --project samples/cli/arithmetic/sensor_min_max`.
 Use Cargo when `mbx` is unavailable. These commands also work in PowerShell;
 select the matching Windows or Linux target during update. Omit `--target`
 from `run` so native execution is requested. Enter or EOF closes the program.

@@ -19,7 +19,7 @@ provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/synthesized_equatable/main.omg
-mbx run -p omega -- update --project samples/cli/probes/synthesized_equatable
+mbx run -p omega -- packages update --project samples/cli/probes/synthesized_equatable
 ```
 
 Both complete green on Linux x86-64; `omega.lock` publishes locally and is

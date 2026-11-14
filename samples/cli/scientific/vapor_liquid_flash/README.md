@@ -4,7 +4,7 @@ This synthetic model holds temperature and pressure fixed and takes supplied
 constant equilibrium ratios, K=y/x. It does not estimate K, fugacity, energy,
 pressure, temperature, or real-fluid behavior. Feed is on a one-mole basis.
 
-Run `omega update --project samples/cli/independent/vapor_liquid_flash --target linux_x86_64`
+Run `omega packages update --project samples/cli/independent/vapor_liquid_flash --target linux_x86_64`
 using the normal package acceptance flow, then
 `omega run --both --keep samples/cli/independent/vapor_liquid_flash/main.omg < samples/cli/independent/vapor_liquid_flash/data/binary_half.txt`.
 The explicit entry is `main`, bound for Linux x86-64, macOS ARM64 and Windows x86-64.

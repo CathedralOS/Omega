@@ -2329,6 +2329,7 @@ pub(crate) mod execution {
                     })
                     .collect::<Result<Vec<_>, _>>()?;
                 execution.materialize_zeroed_structural_storage_with_established_fields(
+                    parameter.place,
                     &value,
                     &established_fields,
                 )?;

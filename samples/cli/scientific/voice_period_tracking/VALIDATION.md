@@ -103,8 +103,8 @@ From the candidate worktree, with matching `OMEGA_LIBRARY_ROOT=source/library`
 and private `XDG_CACHE_HOME`, the public entrypoints were:
 
 ```sh
-./target/release/omega update --offline --project samples/cli/independent/voice_period_tracking --target linux_x86_64
-./target/release/omega update --resume --offline --project samples/cli/independent/voice_period_tracking
+./target/release/omega packages update --offline --project samples/cli/independent/voice_period_tracking --target linux_x86_64
+./target/release/omega packages update --resume --offline --project samples/cli/independent/voice_period_tracking
 ./target/release/omega --check --target linux_x86_64 samples/cli/independent/voice_period_tracking/main.omg
 ./target/release/omega run --keep samples/cli/independent/voice_period_tracking/main.omg < CASE.input
 ./target/release/omega run --both --keep samples/cli/independent/voice_period_tracking/main.omg < CASE.input

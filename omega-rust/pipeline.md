@@ -4,7 +4,7 @@ Psi owns source processing and target-neutral judgments through immutable
 [Terminal Psi](../wiki/spec/terminal-psi/product.md). Omega consumes that product
 under separately supplied realization authority. Unsupported vocabulary rejects
 at its owning boundary; there is no source-shaped or assigned-program backend
-fallback. The old checked-tree checker, interpreter and lowering chain are
+fallback. The old checker, interpreter and lowering chain are
 removed. Source preparation and Build work without a served producer stop with
 `no product route yet`.
 
@@ -151,8 +151,8 @@ Build and native completion remain work on [TASKS.md](../TASKS.md).
 | Syntax → symbol-resolved trees | [syntax-trees-to-symbol-resolved-trees](psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) |
 | Resolved → typed trees | [symbol-resolved-trees-to-typed-trees](psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) |
 | Typed trees → prepared typed trees (one ordered pass list) | [typed preparation](psi/compilation/pipeline/04_typed-trees-to-typed-trees/README.md) |
-| Typed structure → unsealed Terminal Psi | [structure-elaboration](psi/compilation/pipeline/structure-elaboration/src/lib.rs) |
-| Unsealed Terminal Psi → accepted closure | [lowered-discharge](psi/compilation/pipeline/lowered-discharge/src/lib.rs) |
+| Typed structure → unsealed Terminal Psi | [typed-trees-to-terminal-psi](psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lib.rs) |
+| Unsealed Terminal Psi → accepted closure | [terminal-psi-to-terminal-psi](psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs) |
 | Accepted closure → sealed Terminal artifact | [accepted source factory](psi/compilation/psi-compiler/terminal-production/src/accepted.rs) and [codec](psi/compilation/representations/terminal-psi/codec/src/lib.rs) |
 | Terminal Psi → abstract operations | [terminal-psi-to-abstract-operations](omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
 | Abstract → abstract operations | [abstract-operations-to-abstract-operations](omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/lib.rs) |
@@ -184,10 +184,13 @@ over the typed trees and freezes the result without establishing a judgment.
 A pass does its work or refuses its own request by name; requested deferred
 layout, opaque-selection and wire work has no pass and refuses.
 
-The served checking route is `structure-elaboration` → `lowered-discharge` → the
-accepted-source factory. That is the default path, and it is the empty Psi
-selection: the factory retains the exact frozen typed owner before judgment
-and publishes the same module and evidence afterward, with no passes and no
+The served checking route is Psi 05 (`typed-trees-to-terminal-psi`) → Psi 06
+(`terminal-psi-to-terminal-psi`) → publication. Stage 05 prepares every demanded
+generic form and conformance witness in a shared Terminal packet; stage 06 has no
+production dependency on stage 05 or typed trees. The accepted-source factory
+sequences them, retaining the exact frozen typed owner and source-only publication
+correspondence outside the checking input, then publishes the same module and
+evidence afterward. That is the default, empty Psi selection: no passes and no
 second check. A nonempty selection is specified as structural elaboration, the
 lowered-form check of the unoptimized program, the selected Psi passes in one
 canonical order, the same check of the optimized program, then publication of
@@ -195,8 +198,7 @@ that second verdict and its evidence
 ([optimization ordering](../wiki/spec/terminal-psi/product.md#optimization-ordering)).
 `ProductTerminalPublication::accepted` refuses a nonempty Psi selection with
 `no product route yet: selected Psi optimizations have no second lowered-form check`.
-There is no checked-tree or legacy
-optimization/publication fallback. Psi's published product
+There is no legacy optimization or publication fallback. Psi's published product
 is target-neutral; separate target-keyed Build authority supplies realization
 inputs ([multi-target compilation](../wiki/spec/build/configuration.md#multi-target-compilation)).
 Where those inputs and a published product exist, Omega owns each target
@@ -256,8 +258,7 @@ One
 `CompileRequest` assembles sources, executes Build and completes authored/generated
 typing and checks Product before its target loop. Targets borrow the same checked
 arenas and sealed source custody, and settle providers without rewriting source
-contracts or rehashing the consumed source closure. Checked-tree
-pruning retains all Build-declared roots, not one target's selected entry.
+contracts or rehashing the consumed source closure.
 Targets selecting the same Psi optimizations share Terminal production and
 storage, including distinct Build entry roots. Lowering retains all authored
 roots and optimization preserves them. Each application selects its exact
@@ -432,7 +433,7 @@ recorded judgment is used.
 | Admitted source frontier → parsed syntax | [Psi source parsing](psi/compilation/psi-compiler/src/lib.rs); [package source preparation](omega/packages/package-compilation/src/source/source_assembly.rs) owns import discovery and custody between frontiers |
 | Assembled syntax → completed typing | [Psi source continuation](psi/compilation/psi-compiler/src/source_compilation.rs), interrupted only for admitted Build execution and generated-source admission |
 | Completed typing → source-preparation result | [Psi preparation facade](psi/compilation/psi-compiler/src/source_checking.rs), through [typed preparation](psi/compilation/pipeline/04_typed-trees-to-typed-trees/README.md), the one path to frozen typed trees |
-| Typed structure → accepted closure | [Structural elaboration](psi/compilation/pipeline/structure-elaboration/src/lib.rs) and [lowered-form checking](psi/compilation/pipeline/lowered-discharge/src/lib.rs) |
+| Typed structure → accepted closure | [Structural elaboration](psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lib.rs) and [lowered-form checking](psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs) |
 | Accepted closure → Terminal artifact and evidence | [Accepted-source factory](psi/compilation/psi-compiler/terminal-production/src/accepted.rs); the [product coordinator](omega/compilation/compiler/src/terminal/terminal_artifact.rs) consumes this shared product |
 
 Package-owned source preparation composes source sets, imports and custody;
@@ -524,9 +525,9 @@ owner calls the other owners it needs:
 
 | Command | Owner | Calls |
 | --- | --- | --- |
-| `omega <root.omg>` (build), `--check`, `inspect-terminal` | compiler | the interpreter engine, to execute Build programs |
+| `omega <root.omg>` (build), `--check`, `omega psi inspect` | compiler | the interpreter engine, to execute Build programs |
 | `omega run` | interpreter runtime | the compiler, for the program it executes |
-| `omega install`, `update`, `audit` | package manager | the compiler, for review |
+| `omega packages install`, `omega packages update`, `omega packages audit` | package manager | the compiler, for review |
 
 The interpreter engine is a library beneath both the compiler and the
 interpreter runtime, so neither command owner depends on the other's entrance.
@@ -585,7 +586,7 @@ stage rules.
 
 Consumers request meaningful outcomes: checking, Build/helper Terminal production,
 product completion, native realization or inspection. Do not expose arbitrary
-stage numbers or checked-tree checkpoints as a build-system API. Psi owns any
+stage numbers or retired checkpoints as a build-system API. Psi owns any
 source continuation across Build/generated-source admission, exposing only the
 operation needed to resume with admitted inputs. Sessions retain storage and
 reusable judgments, not alternate compilation paths.
@@ -771,13 +772,13 @@ Original provider rows retain declaration facts shared by selected review and
 direct-call completion. Each row owns its optional direct-call input; bodyful
 checked completion adapters keep their host-role facts without acquiring a
 direct leaf. Selected settlement rejoins the exact original plan/provenance and
-consumes prepared placed-catalog and exit-role facts, not checked trees.
+consumes prepared placed-catalog and exit-role facts.
 Independent package review still projects its supplied candidate afresh.
 These original rows retain intrinsic declaration facts:
 exact nominal owners, bundled-source eligibility, signature/effect/supply checks
 and sealed placed-operation contracts. Selected-row review projects the supplied
 source through that same producer. Direct-call completion joins target and accepted
-public-plan custody without reopening checked trees; deferred shape failures are
+public-plan custody without reopening an earlier representation; deferred shape failures are
 consumed only after the original ownership/target gate. Numeric execution still
 comes from Psi's external declarations. The accepted public plan, original row
 and projected callable plan remain distinct. Planning candidates enter completion
@@ -819,14 +820,14 @@ dependency on numbered Omega stages. Artifact-only and component publication use
 the same preparation without emitting an image.
 
 Product scalar completion consumes canonical Terminal applications, declaration
-conditions and exact lexical identities, not a private checked-tree rewrite.
+conditions and exact lexical identities, not a private rewrite of an earlier representation.
 Source completion records deferred recipes and complete initializer entries in
 the typed program before checking. Product carriers retain neither a second
 authored forest nor source-evaluation continuations for later target closure.
 Early Build evaluation still consumes its pending source work before admitting
 the Build activation; that execution is separate from Product scalar completion.
 Source checking roots complete initializer entries before ordinary preparation.
-It exposes no target-proof closure that rebuilds checked trees or refreshes their
+It exposes no target-proof closure that rebuilds an earlier program or refreshes its
 execution catalog. Callable descriptions are published inside the checking stage,
 not through a second coordinator-callable source settlement operation.
 Psi retains the computations and obligations; its compile-time evaluator executes
@@ -991,7 +992,7 @@ Standalone batches, diagnostic checks and named inspection use that same
 application execution owner. The compiler's opaque `PreparedCompilation` and
 `SourceCompilation` keep source continuations and target policy alive; their
 completion accepts the exact returned Build, never an execution callback or a
-checked-tree sidecar. Target-local refusals and post-Build discovery remain in
+sidecar of an earlier representation. Target-local refusals and post-Build discovery remain in
 their outcomes. Explicit provider readiness retains the suspended activation
 while its named dependency is acquired, settled and compiled to Terminal Psi,
 then installs that exact implementation before resuming. Helper Product
@@ -1068,7 +1069,7 @@ library APIs; they do not introduce another compiler driver.
 | Responsibility | Owner |
 | --- | --- |
 | Current program forms and their attached records/codecs | Each half's `compilation/representations/`, grouped by program family |
-| Program judgments | Psi `compilation/pipeline/lowered-discharge/` over structurally elaborated Terminal Psi; independent mathematical checking in `compilation/proof/admission/` |
+| Program judgments | Psi `compilation/pipeline/06_terminal-psi-to-terminal-psi/` over structurally elaborated Terminal Psi; independent mathematical checking in `compilation/proof/admission/` |
 | Terminal encoding, semantic reconstruction and work | Independent packages beneath Psi `compilation/representations/terminal-psi/` |
 | Transformation, rewrite, private scratch and analyses | Each half's `compilation/pipeline/`, in the owning `X-to-Y` or `X-to-X` package |
 | ISA, ABI, runtime carriers, object/relocation/image mechanics | Omega `compilation/backend/` |
@@ -1094,8 +1095,7 @@ An empty Psi selection publishes that checked module and its evidence. A
 nonempty selection is specified to publish the module the second check
 admitted, with that check's evidence, and still refuses
 ([optimization ordering](../wiki/spec/terminal-psi/product.md#optimization-ordering)).
-The retired checked-tree,
-facts and intermediate Lowered Psi packages are absent. Checker tables belong to
+The retired facts and intermediate Lowered Psi packages are absent. Checker tables belong to
 `psi/compilation/representations/terminal-psi/check-tables/`.
 Shared effect-summary records and pass-selection vocabulary live in
 `psi/foundation/flow-effects/` and `psi/foundation/optimization/`.
@@ -1374,7 +1374,7 @@ lowered-form module and its evidence, and attaches per-application roots. A
 nonempty Psi selection refuses at `ProductTerminalPublication::accepted`
 before publication. Entry receipts belong to
 `terminal-codec::entry_receipt`. Missing product capabilities refuse with
-`no product route yet`; no checked-tree lowering or intermediate Lowered Psi
+`no product route yet`; no intermediate Lowered Psi
 carrier remains in this sequence.
 Exact consumed-source and toolchain identities belong to the shared
 `psi/foundation/source/src/source_identity.rs` owner; package review and early
@@ -1615,8 +1615,8 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   the same representation; do not invent a `PreOptimized`/`PostOptimized` pair.
   The folders must expose the connected `X-to-Y`, `Y-to-Y`, `Y-to-Z` sequence,
   not merely name individually plausible calculations. See [optimization phases](../wiki/spec/build/optimizations.md#phase-and-product-boundaries).
-- Psi `compilation/pipeline/structure-elaboration/` — typed structure to unsealed Terminal Psi.
-- Psi `compilation/pipeline/lowered-discharge/` — the compilation's only program verdict. It judges the unoptimized module and, when selected passes have run, their output, with no knowledge of which passes ran. A rejection of that output is a compiler defect, not a source diagnostic. Empty selection does not request the second judgment.
+- Psi `compilation/pipeline/05_typed-trees-to-terminal-psi/` — typed structure to unsealed Terminal Psi.
+- Psi `compilation/pipeline/06_terminal-psi-to-terminal-psi/` — the compilation's only program verdict. It judges the unoptimized module and, when selected passes have run, their output, with no knowledge of which passes ran. A rejection of that output is a compiler defect, not a source diagnostic. Empty selection does not request the second judgment.
 - Psi `compilation/pipeline/04_typed-trees-to-typed-trees/` — retained preparation
   metadata and an empty no-work boundary; nonempty work refuses.
 - Psi `compilation/proof/admission/` — the independent mathematical checker.

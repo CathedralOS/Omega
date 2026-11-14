@@ -7,7 +7,7 @@ We run a program in one of two shapes:
   natively (`ExecutionSelection::Native`), in the Terminal Psi interpreter
   (`ExecutionSelection::Terminal`), or in both engines with differential
   comparison (`ExecutionSelection::Both`). When `--target` names a foreign
-  target without `--engine terminal`, compilation stops after producing the
+  target without `--engine psi`, compilation stops after producing the
   target artifact (`ExecutionOutcome::TargetOnly`).
 - Case batch (`run_cases`, selected when `--outputs` is present): compiles the
   program once on the host and runs every `*.stdin` file in `--inputs` (sorted
@@ -21,7 +21,7 @@ before we choose an exit code; if forwarding fails, we make a best-effort write
 to stderr (which may itself be the broken pipe) and exit 200 so a truncated
 stream never masquerades as a clean program exit.
 
-When `--engine terminal` fails to compile, no native compilation was requested,
+When `--engine psi` fails to compile, no native compilation was requested,
 so we prefix the diagnostics with `terminal compile FAILED:`. Native and
 `--both` runs print `RunError` directly so sample-gate harnesses match the
 established native failure wording.
@@ -43,7 +43,7 @@ A guest program can legitimately exit with small positive statuses (including
   normal exit, or Terminal Psi interpretation failure after native execution).
 - `202`: compilation halted at `CompilerRequestOutcome::Incomplete` (a private
   provision bound was exceeded without refuting the source).
-- `203`: guest crash inside `--engine terminal`. Unlike a native child process,
+- `203`: guest crash inside `--engine psi`. Unlike a native child process,
   the interpreter cannot present a guest trap as an OS termination signal
   without raising that signal on `omega` itself, so it reports the crash on
   stderr and exits 203.

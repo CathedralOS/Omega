@@ -163,7 +163,7 @@ scalar. Each read, whole copy, call argument or return of such a root must be
 dominated, on every path, by a whole write to the place, or to every leaf
 beneath it. This is a
 structural judgment over the write log and the dominance graph
-(`lowered-discharge/src/graph.rs`). It is not a proposition, so it makes no
+(`06_terminal-psi-to-terminal-psi/src/graph.rs`). It is not a proposition, so it makes no
 certificate. A failure is a refusal with a new closed reason,
 `RefusalReason::Unestablished`, reported as a compile error. The reason is
 new because this is neither unsupported nor unproved. The lane reports this
@@ -247,8 +247,8 @@ AGENTS.md stop rule 6 applies to every row above. In particular:
 ## The corpus slice
 
 The probe ran on `#2307`'s head (`e10fbc6cc`). It ran
-`structure_elaboration_corpus`, built with
-`CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build -p compiler --example structure_elaboration_corpus`,
+`typed_trees_to_terminal_psi_corpus`, built with
+`CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build -p compiler --example typed_trees_to_terminal_psi_corpus`,
 on this cloud VM (Linux x86_64, 4 CPUs), in three shards over a list shuffled
 with a fixed seed. All 608 fixtures completed in about 48 minutes. The probe
 reports only the *first* refusal of each closure.
@@ -378,7 +378,7 @@ own them:
 ## Measures and acceptance
 
 The lane is done when each of these holds, measured as route one measures
-them (`route_one_comparison`, `structure_elaboration_corpus`).
+them (`route_one_comparison`, `typed_trees_to_terminal_psi_corpus`).
 
 1. **Agreement.** Every corpus row whose constructs lie within route one
    plus this lane is checked by both routes. Every disagreement is listed and
@@ -403,7 +403,7 @@ them (`route_one_comparison`, `structure_elaboration_corpus`).
 5. **Routes per obligation kind: 1.** One prover, one `verify_obligation`
    path; payload access and initialization are one structural judgment each.
 6. **Lines added per construct.** Report lines added to
-   `structure-elaboration`, `lowered-discharge` and `terminal-check-tables`
+   `typed-trees-to-terminal-psi`, `terminal-psi-to-terminal-psi` and `terminal-check-tables`
    per row of the [in-scope table](#in). This is the number the design's
    stop rule is about: a later construct should cost less than the one
    before it. Route one's baseline is 7,618 lines for the three crates,
@@ -411,7 +411,7 @@ them (`route_one_comparison`, `structure_elaboration_corpus`).
    measures one.
 7. **Check time per program**, both routes, as `#2305` reports it.
 
-### The split of `structure-elaboration`
+### The split of `typed-trees-to-terminal-psi`
 
 The design calls for per-family modules after route one passes. On
 `#2307`'s head `read.rs` is 2,110 lines and `lower.rs` 1,051, each holding
@@ -434,7 +434,7 @@ behavior. The test suite, with no test edited, is the check.
 | `lower/places.rs` (new) | | roots, interning, the write log, construction, stores, `StructuralCase` |
 | `outcome.rs`, `canonical.rs`, `body.rs` | unchanged | `body.rs` gains the place statement and expression kinds |
 
-`lowered-discharge` gains `places.rs` for the read equation, the case
+`terminal-psi-to-terminal-psi` gains `places.rs` for the read equation, the case
 membership rows and the two structural judgments (initialization and payload
 access). `prove.rs` does not change unless a kernel rule is missing, and a
 missing rule is reported as a finding, not worked around.
@@ -530,8 +530,8 @@ includes discovery, review and Build execution); the new route took 42 ms
 over the 25 it lowered (at most 14 ms; elaboration and discharge only). The
 two are not the same work.
 
-Lines added per slice outside tests and READMEs (`structure-elaboration`,
-`lowered-discharge`, `terminal-check-tables`):
+Lines added per slice outside tests and READMEs (`typed-trees-to-terminal-psi`,
+`terminal-psi-to-terminal-psi`, `terminal-check-tables`):
 
 | Slice | Lines |
 | --- | --- |
@@ -550,7 +550,7 @@ is in progress) and clauses over `result`. Invariant windows on data
 `requires` are judged since this run: a store not shown to keep a clause
 opens a window that each consumption point must close, and a gated local is
 established field by field
-([lowered-discharge](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#invariant-windows)).
+([terminal-psi-to-terminal-psi](../../../omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/README.md#invariant-windows)).
 
 ## Gate re-run, 2026-11-12
 
@@ -670,16 +670,16 @@ as passed and `#2305` and `#2307` have landed:
 > Implement the places foundation lane of the lowered-form checker exactly as
 > `wiki/drafts/designs/places_foundation_lane.md` specifies; read it and
 > `check_on_lowered_form.md` first. First commit: split
-> `structure-elaboration` into the per-family modules in that record's table,
+> `typed-trees-to-terminal-psi` into the per-family modules in that record's table,
 > moving code only, with every existing test unchanged and passing. Then, in
-> `structure-elaboration`, admit copy-eligible plain `data` types, record and
+> `typed-trees-to-terminal-psi`, admit copy-eligible plain `data` types, record and
 > case literals, field and payload reads and writes on owned roots, case
 > tests, `match` and `transition` over sums, record patterns, locals declared
 > without an initializer, and named constants (from `materialized_initializer`,
 > never the encoded text). Fill `places`, `roots` and `writes` in
 > `terminal-check-tables`. Add exactly one obligation kind, `DataDomain`, and
 > one refusal reason, `Unestablished`; reuse `OperationSafety` for every
-> `range_obligation`. In `lowered-discharge`, add the read equation from the
+> `range_obligation`. In `terminal-psi-to-terminal-psi`, add the read equation from the
 > write log, case membership as `BranchCondition` rows, and the two structural
 > judgments (initialization, payload access); every certificate goes through
 > the existing prover and `verify_obligation`. Knowledge names values, never

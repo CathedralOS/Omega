@@ -73,9 +73,9 @@ is 2e-4, profile-endpoint tolerance 2e-3, and SSE tolerance 1e-5.
 From the repository root, using a recorded compiler matching this library:
 
 ```sh
-omega update --project samples/cli/independent/dose_response_fit --target linux_x86_64
+omega packages update --project samples/cli/independent/dose_response_fit --target linux_x86_64
 # Inspect exact pending package decisions, then resume only authorized choices.
-omega update --resume --project samples/cli/independent/dose_response_fit
+omega packages update --resume --project samples/cli/independent/dose_response_fit
 python3 samples/cli/independent/dose_response_fit/validation/validate.py --omega /path/to/omega --route check
 python3 samples/cli/independent/dose_response_fit/validation/validate.py --omega /path/to/omega --route native
 python3 samples/cli/independent/dose_response_fit/validation/validate.py --omega /path/to/omega --route invalid

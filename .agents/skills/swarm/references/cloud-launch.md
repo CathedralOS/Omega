@@ -74,7 +74,7 @@ different cloud executor.
    unrelated Python tooling require their own focused checks, no Rust build. With a compiler of recorded provenance, run a small
    package-free fixture through normal package preparation and execution.
    `tests/fixtures/pass/calls/runtime_static_entry_context_exit` has an authored
-   exit of 0 and observes its state mutation. On Linux, use `omega update
+   exit of 0 and observes its state mutation. On Linux, use `omega packages update
    --project <fixture> --target linux_x86_64`, then `omega run --both
    <fixture>/main.omg`. Bound both commands and require native/interpreter 0.
    Use the actual target on another host. Normal acceptance of a fully checked

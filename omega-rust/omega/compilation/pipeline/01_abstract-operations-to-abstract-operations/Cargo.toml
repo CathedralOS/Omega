@@ -27,8 +27,8 @@ proof-admission = { path = "../../../../psi/compilation/proof/admission" }
 # Tests admit real Terminal artifacts through Omega 00
 # to build this stage's input; production code reads only the representation.
 terminal-psi-to-abstract-operations = { path = "../00_terminal-psi-to-abstract-operations" }
-lowered-discharge = { path = "../../../../psi/compilation/pipeline/lowered-discharge" }
-structure-elaboration = { path = "../../../../psi/compilation/pipeline/structure-elaboration" }
+terminal-psi-to-terminal-psi = { path = "../../../../psi/compilation/pipeline/06_terminal-psi-to-terminal-psi" }
+typed-trees-to-terminal-psi = { path = "../../../../psi/compilation/pipeline/05_typed-trees-to-terminal-psi" }
 # Dev builds enable test-support so the test_support exports compile alongside
 # the unit tests.
 abstract-operations-to-abstract-operations = { path = ".", features = ["test-support"] }

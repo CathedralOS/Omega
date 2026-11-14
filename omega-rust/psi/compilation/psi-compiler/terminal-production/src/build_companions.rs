@@ -24,9 +24,9 @@ use language_semantics::declaration_selection::{
     BuildOperation, BuildSelectionRequest, ProductDeclarationRequest,
 };
 use std::sync::Arc;
-use structure_elaboration::{Elaboration, SourceOrigin};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
+use typed_trees_to_terminal_psi::{Elaboration, SourceOrigin};
 
 #[derive(Default)]
 pub(crate) struct BuildCompanions {
@@ -64,6 +64,7 @@ fn refused(detail: impl std::fmt::Display) -> Diagnostic {
 pub(crate) fn produce(
     source: &TypedTrees,
     elaboration: &Elaboration,
+    correspondence: &typed_trees_to_terminal_psi::SourceCorrespondence,
 ) -> Result<BuildCompanions, Diagnostic> {
     let mut companions = BuildCompanions::default();
     let mut designated = 0;
@@ -94,7 +95,7 @@ pub(crate) fn produce(
             let protocol = |name| is_build_protocol(&source.symbols, owner.symbol, name);
             if protocol(SELECTION_PROTOCOL) {
                 designated += 1;
-                let row = binding(source, elaboration, &call)?;
+                let row = binding(source, elaboration, correspondence, &call)?;
                 if let BuildSelectionRequest::Declaration(request) = &row.request
                     && !companions.declarations.contains(request)
                 {
@@ -132,10 +133,10 @@ pub(crate) fn produce(
         }
     }
     // Every reference the reader carried must have reached a selection call.
-    let carried: usize = elaboration
-        .sources
+    let carried: usize = correspondence
+        .designated
         .iter()
-        .map(|(_, sources)| sources.designated.len())
+        .map(|(_, rows)| rows.len())
         .sum();
     if carried != designated {
         return Err(refused(
@@ -148,6 +149,7 @@ pub(crate) fn produce(
 fn binding(
     source: &TypedTrees,
     elaboration: &Elaboration,
+    correspondence: &typed_trees_to_terminal_psi::SourceCorrespondence,
     call: &ProtocolCall<'_>,
 ) -> Result<TerminalBuildBindingCall, Diagnostic> {
     let action = match call.name {
@@ -161,12 +163,11 @@ fn binding(
         "exclude" => TerminalBuildBindingOperation::Exclude,
         other => return Err(unknown(SELECTION_PROTOCOL, other)),
     };
-    let designated = elaboration
-        .sources
+    let designated = correspondence
+        .designated
         .get(call.site.machine)
         .and_then(|sources| {
             sources
-                .designated
                 .iter()
                 .find(|(operation, _)| *operation == call.site.operation)
         })

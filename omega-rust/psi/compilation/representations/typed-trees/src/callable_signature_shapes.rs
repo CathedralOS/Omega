@@ -41,14 +41,7 @@ pub struct CallableSignatureShape<'a> {
     pub return_type: TypeReferenceHandle,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CallableShapeMismatch {
-    GenericArity { required: usize, actual: usize },
-    ParameterArity { required: usize, actual: usize },
-    ParameterMode { position: usize },
-    ParameterType { position: usize },
-    ReturnType,
-}
+pub use semantic_vocabulary::CallableShapeMismatch;
 
 /// Preserve declaration order and distinguish a known mismatch from a failed
 /// type-identity query. A missing identity is not evidence of a source error.

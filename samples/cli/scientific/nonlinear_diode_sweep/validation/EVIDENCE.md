@@ -67,7 +67,7 @@ byte, with only the two new check rows and one new runtime row appended.
 The original application reached `Protocol::number`'s IEEE arrival requirement
 and failed checked-body production with `state signature: predicate lowering
 failed`. The complete managed `samples/cli/facts/repro` source reproduced that exact
-failure on freshly built, unmodified main: `inspect-terminal` exit 1. With the
+failure on freshly built, unmodified main: `psi inspect` exit 1. With the
 repair, the identical source produced a Terminal inspection artifact, exit 0.
 Earlier unmanaged inspection passed the first repaired boundary but lacked an
 exact declaration owner; managed build metadata supplies the ordinary owner.
@@ -108,16 +108,16 @@ sample=samples/cli/independent/nonlinear_diode_sweep
 mbx build --locked -p omega --release -j4
 mbx check --locked -p typed-trees-to-checked-trees -p omega -j4
 mbx test --locked --no-run -p compiler --test corpus_runner -j4
-target/release/omega update --project "$sample" --target linux_x86_64
+target/release/omega packages update --project "$sample" --target linux_x86_64
 # Inspect exact decisions; resume only a pending reviewed proposal:
-target/release/omega update --resume --project "$sample"
+target/release/omega packages update --resume --project "$sample"
 PYTHONDONTWRITEBYTECODE=1 python3 "$sample/validation/run.py" --omega "$PWD/target/release/omega" --route check
 PYTHONDONTWRITEBYTECODE=1 python3 "$sample/validation/run.py" --omega "$PWD/target/release/omega" --route native --case mixed_bias
 # Reuse the verified retained omega-program path recorded by --keep:
 PYTHONDONTWRITEBYTECODE=1 python3 "$sample/validation/run.py" --omega "$PWD/target/release/omega" --route native --native-executable RETAINED_EXECUTABLE
 PYTHONDONTWRITEBYTECODE=1 python3 "$sample/validation/run.py" --omega "$PWD/target/release/omega" --route terminal --case mixed_bias
 PYTHONDONTWRITEBYTECODE=1 python3 "$sample/validation/run.py" --omega "$PWD/target/release/omega" --route invalid
-target/release/omega inspect-terminal --machine Main::main --target linux_x86_64 "samples/cli/facts/repro/main.omg"
+target/release/omega psi inspect --machine Main::main --target linux_x86_64 "samples/cli/facts/repro/main.omg"
 ```
 
 The actual observer was built in an ignored `build/new031-terminal-driver`

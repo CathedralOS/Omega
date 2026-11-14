@@ -54,7 +54,7 @@ acquisition constructs input custody; compiler consumption records the exact
 source units it used; review joins those results to package policy.
 
 [`PackageInspectionTransaction`](src/operations/inspect_packages/README.md)
-admits `omega audit packages`: current project source, pinned dependencies,
+admits `omega packages audit`: current project source, pinned dependencies,
 fresh compiler findings, and comparison with accepted policy without publishing
 changes. Default summaries and `--details` separate readable inspection from
 the complete normalized policy.
@@ -105,14 +105,14 @@ Ordinary project preparation coordinates with existing pending state before
 snapshotting. See [publication](src/operations/publication/README.md) for the
 file protocol and platform limits. The [command operation](src/package_manager/README.md)
 owns package/alias selection, persisted per-target findings, exact candidate
-resume, and reviewed publication for `omega install` and `omega update`.
+resume, and reviewed publication for `omega packages install` and `omega packages update`.
 
 `begin_local_project_preparation` opens recovery and snapshot policy before
 application-owned execution resolves the source graph. Accepted discovery
 preserves dependency pins, fetching only recorded commits when needed.
 Accepted compilation requires exact source identities for every occurrence,
 including the local root, together with the dependency projections, identities,
-roles, and selected edges. A source edit requires explicit `omega update` review
+roles, and selected edges. A source edit requires explicit `omega packages update` review
 before ordinary accepted compilation; there is no mutable-root exception.
 Local package identity remains tied to its canonical path.
 
@@ -133,7 +133,7 @@ failures. Neither admission nor completion invokes compilation.
 Every accepted occurrence's source and compiler input identities must match its
 lock record before Build execution. A match supplies the exact accepted semantic
 bindings for that occurrence; a mismatch rejects with the package name and
-`omega update`. Neither route performs an inline audit or rewrites acceptance.
+`omega packages update`. Neither route performs an inline audit or rewrites acceptance.
 Dependency product checking follows the consumer's `use` items and their
 transitive module closure rather than compiling each dependency's package root.
 The requested root source entry, scoped Build execution, generated-source custody,
@@ -163,7 +163,7 @@ Its package-aware native operation consumes a `PreparedLocalProject` carrying
 the source closure and accepted `omega.lock` section for one exact target.
 Missing acceptance rejects before Build. Matching source/compiler identities
 permit use of the retained occurrence bindings without a fresh production review
-or a second approval file; mismatches direct the user to `omega update`.
+or a second approval file; mismatches direct the user to `omega packages update`.
 Native compilation never writes acceptance. Source-only changes remain visible
 in explicit package inspection and review. Retained permissions still constrain
 production, while receiving permission policy remains a separate input.
@@ -280,7 +280,7 @@ operations do not return checked source or hand it back to finish production.
 Each returned package review also exposes borrowed access to its complete typed
 `PackagePolicyBaseline`, projected from that same final checked source and
 target. The compiler's `review_package_build` returns that evidence together with
-an opaque `PackageReviewSource`; review cannot extract checked trees, Build
+an opaque `PackageReviewSource`; review cannot extract a checked program, Build
 configuration or execution plans from it. Its source-free facts support reuse
 and cache capture, and its component publication operation runs only on demand.
 The compiler checks each projection against the caller's remaining policy budget

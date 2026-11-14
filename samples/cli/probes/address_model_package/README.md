@@ -10,7 +10,7 @@ contract. An authored parameter and nominal constant named `Bound` retain
 their separate identities. The program checks the converted address, both
 authored values, and a bounded byte-region read.
 
-Prepare with `omega update --project samples/cli/memory/address_model_package`,
+Prepare with `omega packages update --project samples/cli/memory/address_model_package`,
 then run `omega run --both samples/cli/memory/address_model_package/main.omg`.
 The invalid state-bound control is in
 `tests/omega/fail/recast/address_model_does_not_bound_offset`.

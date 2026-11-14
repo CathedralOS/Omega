@@ -66,9 +66,9 @@ then identifies a double layer-1 and triple layer-2 path plus an unmatched echo.
 From the repository root with a compiler built from the same source revision:
 
 ```
-omega update --project samples/cli/independent/acoustic_thickness_echoes --target linux_x86_64
+omega packages update --project samples/cli/independent/acoustic_thickness_echoes --target linux_x86_64
 # Read and accept each requested package review decision, then:
-omega update --resume --project samples/cli/independent/acoustic_thickness_echoes
+omega packages update --resume --project samples/cli/independent/acoustic_thickness_echoes
 omega --check --target linux_x86_64 samples/cli/independent/acoustic_thickness_echoes/main.omg
 omega run --keep samples/cli/independent/acoustic_thickness_echoes/main.omg < samples/cli/independent/acoustic_thickness_echoes/data/separated.stdin
 omega run --both --keep samples/cli/independent/acoustic_thickness_echoes/main.omg < samples/cli/independent/acoustic_thickness_echoes/data/separated.stdin

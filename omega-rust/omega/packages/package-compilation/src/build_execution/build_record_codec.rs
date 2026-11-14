@@ -1,5 +1,5 @@
 // Wire codec for persisted build-execution records in the compiled-review
-// cache: `BuildEvaluationUsage` (`BEU\x01`), `BuildObservationSummary`, and
+// cache: `BuildEvaluationUsage` (`BEU\x02`), `BuildObservationSummary`, and
 // `RestrictedBuildRequest`. Decoders validate structural invariants (enum tags,
 // nonzero handle identities, canonical relative paths, and usage ceilings) and
 // return `None` on any malformation so callers treat corrupt cache entries as
@@ -19,7 +19,7 @@ use evaluation_accounting::{
 };
 use semantic_vocabulary::WorkScheduleIdentity;
 
-const EVALUATION_USAGE_MAGIC: &[u8; 4] = b"BEU\x01";
+const EVALUATION_USAGE_MAGIC: &[u8; 4] = b"BEU\x02";
 
 use super::observations::{
     BuildActivation, BuildCanonicalSourceMetadataIdentity, BuildCapturedSourceInventory,
@@ -40,12 +40,11 @@ use semantic_vocabulary::PackageKeyIdentity;
 pub fn encode_build_evaluation_usage(usage: &BuildEvaluationUsage, out: &mut Vec<u8>) {
     out.extend_from_slice(EVALUATION_USAGE_MAGIC);
     match usage.measurement {
-        EvaluationMeasurementIdentity::CheckedTree => out.push(0),
         EvaluationMeasurementIdentity::TerminalPsi {
             work_schedule,
             storage_schedule,
         } => {
-            out.push(1);
+            out.push(0);
             crate::codec_bytes::push_encoded(out, work_schedule.marker().to_le_bytes());
             crate::codec_bytes::push_encoded(out, storage_schedule.marker().to_le_bytes());
         }
@@ -91,8 +90,7 @@ pub fn recover_build_evaluation_usage(cursor: &mut Cursor) -> Option<BuildEvalua
         return None;
     }
     let measurement = match cursor.u8()? {
-        0 => EvaluationMeasurementIdentity::CheckedTree,
-        1 => EvaluationMeasurementIdentity::TerminalPsi {
+        0 => EvaluationMeasurementIdentity::TerminalPsi {
             work_schedule: WorkScheduleIdentity::new(cursor.u32()?)?,
             storage_schedule: TerminalStorageScheduleIdentity::new(cursor.u32()?)?,
         },
@@ -753,26 +751,28 @@ mod evaluation_usage_controls {
     }
 
     #[test]
-    fn versioned_measurements_round_trip_without_engine_substitution() {
-        for identity in [EvaluationMeasurementIdentity::CheckedTree, terminal()] {
-            let usage = measured(identity);
-            let bytes = encoded(&usage);
-            let mut cursor = Cursor::new(&bytes);
-            assert_eq!(recover_build_evaluation_usage(&mut cursor), Some(usage));
-            assert!(cursor.exhausted());
-        }
-        assert_ne!(
-            encoded(&measured(EvaluationMeasurementIdentity::CheckedTree)),
-            encoded(&measured(terminal()))
-        );
+    fn terminal_measurement_round_trips_on_the_current_magic() {
+        let usage = measured(terminal());
+        let bytes = encoded(&usage);
+        assert_eq!(&bytes[..4], b"BEU\x02");
+        assert_eq!(bytes[4], 0);
+        let mut cursor = Cursor::new(&bytes);
+        assert_eq!(recover_build_evaluation_usage(&mut cursor), Some(usage));
+        assert!(cursor.exhausted());
     }
 
     #[test]
-    fn untagged_prior_usage_and_unknown_engine_tags_are_rejected() {
-        let mut bytes = encoded(&measured(EvaluationMeasurementIdentity::CheckedTree));
+    fn retired_magic_and_measurement_tag_are_rejected() {
+        let bytes = encoded(&measured(terminal()));
         assert!(recover_build_evaluation_usage(&mut Cursor::new(&bytes[5..])).is_none());
-        bytes[4] = 2;
-        assert!(recover_build_evaluation_usage(&mut Cursor::new(&bytes)).is_none());
+        let mut unknown_tag = bytes.clone();
+        unknown_tag[4] = 1;
+        assert!(recover_build_evaluation_usage(&mut Cursor::new(&unknown_tag)).is_none());
+        unknown_tag[4] = 2;
+        assert!(recover_build_evaluation_usage(&mut Cursor::new(&unknown_tag)).is_none());
+        let mut prior_magic = bytes;
+        prior_magic[3] = 1;
+        assert!(recover_build_evaluation_usage(&mut Cursor::new(&prior_magic)).is_none());
     }
 
     #[test]
@@ -786,18 +786,18 @@ mod evaluation_usage_controls {
 
     #[test]
     fn schema_schedule_and_sponsor_flags_cannot_default() {
-        let base = encoded(&measured(EvaluationMeasurementIdentity::CheckedTree));
+        let base = encoded(&measured(terminal()));
         let mut wrong_schema = base.clone();
-        wrong_schema[5..5 + 4].copy_from_slice(&8_u32.to_le_bytes());
+        wrong_schema[13..13 + 4].copy_from_slice(&7_u32.to_le_bytes());
         assert!(recover_build_evaluation_usage(&mut Cursor::new(&wrong_schema)).is_none());
         let mut wrong_schedule = base.clone();
-        wrong_schedule[9..9 + 4].copy_from_slice(&2_u32.to_le_bytes());
+        wrong_schedule[17..17 + 4].copy_from_slice(&2_u32.to_le_bytes());
         assert!(recover_build_evaluation_usage(&mut Cursor::new(&wrong_schedule)).is_none());
         let mut invalid_flag = base.clone();
-        invalid_flag[21] = 2;
+        invalid_flag[29] = 2;
         assert!(recover_build_evaluation_usage(&mut Cursor::new(&invalid_flag)).is_none());
         let mut wrong_sponsor_schema = base;
-        wrong_sponsor_schema[22..22 + 4].copy_from_slice(&0_u32.to_le_bytes());
+        wrong_sponsor_schema[30..30 + 4].copy_from_slice(&0_u32.to_le_bytes());
         assert!(recover_build_evaluation_usage(&mut Cursor::new(&wrong_sponsor_schema)).is_none());
     }
 

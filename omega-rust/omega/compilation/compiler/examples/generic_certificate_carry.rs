@@ -12,7 +12,7 @@
 //! 2. elaborates and discharges one conformance witness per selected
 //!    implementation, which is that implementation's refinement proof;
 //! 3. carries the generic body's certificates into the generated machine
-//!    with `lowered_discharge::reverify_specialization`, where the kernel
+//!    with `terminal_psi_to_terminal_psi::reverify_specialization`, where the kernel
 //!    decides each against the generated machine's own goal and hypotheses.
 //!
 //! `concrete` lines show, for comparison, what a search over the generated

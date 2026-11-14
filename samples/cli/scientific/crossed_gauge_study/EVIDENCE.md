@@ -105,7 +105,7 @@ All Omega commands used the integrated binary and
 From the isolated repository root:
 
 ```sh
-target/release/omega update --offline --project samples/cli/independent/crossed_gauge_study
+target/release/omega packages update --offline --project samples/cli/independent/crossed_gauge_study
 target/release/omega --check samples/cli/independent/crossed_gauge_study/main.omg
 target/release/omega --build-dir samples/cli/independent/crossed_gauge_study/build/native --target linux_x86_64 samples/cli/independent/crossed_gauge_study/main.omg
 python3 samples/cli/independent/crossed_gauge_study/validate.py --omega /workspace/Omega/.codex/worktrees/new014/target/release/omega --native /workspace/Omega/.codex/worktrees/new014/samples/cli/independent/crossed_gauge_study/build/native/omega-program

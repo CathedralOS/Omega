@@ -10,9 +10,9 @@ general BMP parser.
 With the current `omega` executable, from the repository root:
 
 ```sh
-omega update --project samples/gui/image_viewer --target macos_arm64 --offline
+omega packages update --project samples/gui/image_viewer --target macos_arm64 --offline
 # If review is required, inspect the reported file and decide its pending rows.
-omega update --resume --project samples/gui/image_viewer --offline
+omega packages update --resume --project samples/gui/image_viewer --offline
 cd samples/gui/image_viewer
 omega run --keep main.omg
 ```

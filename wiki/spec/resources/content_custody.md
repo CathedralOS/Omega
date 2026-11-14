@@ -5,8 +5,7 @@
 Checking establishes the corresponding evidence under the
 [fact-validity rules](../terminal-psi/fact_validity.md).
 [Authority establishment](authority.md) defines qualified claim origins.
-[Production limits](../../../omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/proofs/content_conservation.rs)
-live beside the implementation.
+Production limits are the fact-validity and content-conservation rules above.
 
 ## Library resources and language mechanisms
 

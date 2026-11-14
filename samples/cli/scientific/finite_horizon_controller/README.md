@@ -49,10 +49,10 @@ because it calls a 1..5 horizon contract with 6.
 From the repository root, with a verified Omega binary and matching library:
 
 ```text
-omega update --project samples/cli/independent/finite_horizon_controller/reproduction --target linux_x86_64
-omega update --resume --project samples/cli/independent/finite_horizon_controller/reproduction
-omega update --project samples/cli/independent/finite_horizon_controller --target linux_x86_64
-omega update --resume --project samples/cli/independent/finite_horizon_controller
+omega packages update --project samples/cli/independent/finite_horizon_controller/reproduction --target linux_x86_64
+omega packages update --resume --project samples/cli/independent/finite_horizon_controller/reproduction
+omega packages update --project samples/cli/independent/finite_horizon_controller --target linux_x86_64
+omega packages update --resume --project samples/cli/independent/finite_horizon_controller
 omega --check samples/cli/independent/finite_horizon_controller/main.omg
 omega --check samples/cli/independent/finite_horizon_controller/invalid/main.omg
 omega run --both samples/cli/independent/finite_horizon_controller/main.omg < samples/cli/independent/finite_horizon_controller/data/0.stdin

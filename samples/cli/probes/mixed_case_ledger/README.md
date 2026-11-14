@@ -18,7 +18,7 @@ Compile-checked only (no std dependency):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/mixed_case_ledger/main.omg
-mbx run -p omega -- update --project samples/cli/probes/mixed_case_ledger
+mbx run -p omega -- packages update --project samples/cli/probes/mixed_case_ledger
 ```
 
 Both green on Linux x86-64; `omega.lock` publishes locally, ignored.
