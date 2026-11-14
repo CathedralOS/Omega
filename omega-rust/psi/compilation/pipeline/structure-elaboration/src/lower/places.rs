@@ -273,10 +273,10 @@ pub(crate) fn declare<'a>(
             quotient_carrier: None,
             id,
             identity: identities.intern(&record.identity),
-            owns_linear_claim: false,
+            owns_linear_claim: record.owns_linear_claim,
             copyable: record.copyable,
-            no_code_affine_cleanup: true,
-            descriptor_cleanup: true,
+            no_code_affine_cleanup: !record.owns_linear_claim,
+            descriptor_cleanup: !record.owns_linear_claim,
             shape,
             scalar_restriction: None,
         });
@@ -2411,6 +2411,7 @@ mod tests {
         let machine = MachineId::new(1).unwrap();
         let mut types = IdTable::default();
         let wrapping_id = types.push(RecordType {
+            owns_linear_claim: false,
             copyable: true,
             identity: "wrapping-u32".into(),
             shape: StorageShape::PrimitiveScalar {
@@ -2420,6 +2421,7 @@ mod tests {
             requires: Vec::new(),
         });
         types.push(RecordType {
+            owns_linear_claim: false,
             copyable: true,
             identity: "wrapping-elements".into(),
             shape: StorageShape::FixedArray {

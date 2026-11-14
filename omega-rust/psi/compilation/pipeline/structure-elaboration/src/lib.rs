@@ -653,6 +653,7 @@ fn finish_reading(
     }
     let private_inputs = program.private_input_contracts(entry)?;
     let local_results = program.local_result_bodies(entry)?;
+    program.begin_declaration_storage(entry, bodies.len())?;
     let declarations = program.declaration_metadata.clone();
     let calling_abis = program.prepare_calling_abis(entry, &declarations)?;
     let mut elaboration = lower_generic_for(

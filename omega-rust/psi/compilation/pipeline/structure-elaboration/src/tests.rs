@@ -1399,6 +1399,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     };
     let mut records = IdTable::default();
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Point"),
         shape: crate::StorageShape::Record(vec![
@@ -1408,6 +1409,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         requires: Vec::new(),
     });
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Line"),
         shape: crate::StorageShape::Record(vec![
@@ -2309,12 +2311,14 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
     let scalar = ValueType::Scalar(u32_type(), Qualification::NONE);
     let mut records = IdTable::default();
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Point"),
         shape: crate::StorageShape::Record(vec![field(1, "x", scalar), field(2, "y", scalar)]),
         requires: Vec::new(),
     });
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Shape"),
         shape: crate::StorageShape::Sum(vec![

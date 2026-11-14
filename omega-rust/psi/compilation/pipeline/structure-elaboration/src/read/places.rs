@@ -155,6 +155,17 @@ impl Program<'_> {
                     }
                 }
         };
+        let members = typed.data_members(data);
+        // Admission precedes cache reuse: descriptor-only records cannot
+        // become executable body types through a shared storage row.
+        record_shape_for(
+            id,
+            data,
+            application.as_ref(),
+            self.descriptor_storage,
+            members,
+            |variant| typed.data_payload_fields(variant),
+        )?;
         let known = self.record_sources.iter().find_map(|(record, source)| {
             same(source.declaration, &source.application).then_some(record)
         });
@@ -172,10 +183,7 @@ impl Program<'_> {
         {
             return Err(unserved("data application that contains itself"));
         }
-        let members = typed.data_members(data);
-        record_shape(id, data, application.as_ref(), members, |variant| {
-            typed.data_payload_fields(variant)
-        })?;
+
         lifetime_binders(id, &data.lifetime_parameters)?;
         // Terminal Psi's declaration needs a text identity; the typed trees
         // render it. Without one the declaration cannot be emitted.
@@ -246,7 +254,20 @@ impl Program<'_> {
         {
             return Err(unserved("copy data with an owned field"));
         }
+        let owns_linear_claim = data.properties.multiplicity
+            == language_semantics::Multiplicity::Linear
+            || declared
+                .iter()
+                .chain(case_types.iter().flat_map(|case| &case.fields))
+                .any(|field| match field.value_type {
+                    ValueType::Record(child, _) => self
+                        .records
+                        .get(child)
+                        .is_some_and(|record| record.owns_linear_claim),
+                    _ => false,
+                });
         let record: StructuralTypeId = self.records.push(RecordType {
+            owns_linear_claim,
             copyable,
             identity,
             shape: if case_types.is_empty() {
@@ -938,10 +959,22 @@ impl Program<'_> {
 
 /// Whether a data declaration is a plain record or a plain sum this slice
 /// serves. Each feature outside it is refused by name, never ignored.
+#[cfg(test)]
 fn record_shape<'m>(
     id: MachineId,
     data: &DataDefinition,
     application: Option<&typed_trees::SourceTypeApplication>,
+    members: &'m [DataMember],
+    payload: impl Fn(&'m typed_trees::data::DataVariant) -> &'m [DataField],
+) -> Checked<()> {
+    record_shape_for(id, data, application, false, members, payload)
+}
+
+fn record_shape_for<'m>(
+    id: MachineId,
+    data: &DataDefinition,
+    application: Option<&typed_trees::SourceTypeApplication>,
+    descriptor_storage: bool,
     members: &'m [DataMember],
     payload: impl Fn(&'m typed_trees::data::DataVariant) -> &'m [DataField],
 ) -> Checked<()> {
@@ -960,10 +993,11 @@ fn record_shape<'m>(
     if data.quotient.is_some() {
         return unserved("quotient data");
     }
-    // Plain affine values need explicit moves and no-code disposal, even when
-    // every field is copyable. Linear claims and selected cleanup machines
-    // require their own disposition contracts and remain outside this reader.
+    // Body reading requires supported disposition contracts. Descriptor mode
+    // may retain a real linear claim's geometry but cannot execute cleanup;
+    // selected cleanup and carry still require their own source projections.
     if data.properties.multiplicity == language_semantics::Multiplicity::Linear
+        && !descriptor_storage
         || data.cleanup_selection.is_some()
     {
         return unserved("data with custody");
@@ -1141,6 +1175,7 @@ mod tests {
     fn copy_permission_does_not_hide_an_owned_nested_record() {
         let mut records = semantic_vocabulary::IdTable::default();
         let owned = records.push(RecordType {
+            owns_linear_claim: false,
             copyable: false,
             identity: "Owned".into(),
             shape: crate::StorageShape::Record(Vec::new()),

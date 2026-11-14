@@ -181,8 +181,10 @@ impl Program<'_> {
             return Ok(ValueType::Record(id, Qualification::NONE));
         }
         let copyable = self.data_type(machine, element)?.copyable;
+        let owns_linear_claim = self.data_type(machine, element)?.owns_linear_claim;
         let identity = self.storage_identity(machine, reference)?;
         let id = self.records.push(RecordType {
+            owns_linear_claim,
             copyable,
             identity,
             shape: StorageShape::FixedArray {
@@ -201,6 +203,7 @@ impl Program<'_> {
         reference: TypeReferenceHandle,
         value: ValueType,
     ) -> Checked<StructuralTypeId> {
+        let reference = self.storage_carrier(machine, reference)?;
         let (scalar_type, policy) = match value {
             ValueType::Scalar(scalar, qualification) if qualification.domains.is_empty() => {
                 (scalar, qualification.policy)
@@ -236,6 +239,7 @@ impl Program<'_> {
         }
         let identity = self.storage_identity(machine, reference)?;
         let id = self.records.push(RecordType {
+            owns_linear_claim: false,
             copyable: true,
             identity,
             shape: StorageShape::PrimitiveScalar {

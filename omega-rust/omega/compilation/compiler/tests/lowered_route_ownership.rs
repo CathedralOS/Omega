@@ -181,6 +181,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
     };
     let mut records = IdTable::default();
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: false,
         identity: "Owned".into(),
         shape: structure_elaboration::StorageShape::Record(vec![RecordField {
@@ -371,12 +372,14 @@ mod transferred_on_one_path {
         };
         let mut records = IdTable::default();
         records.push(RecordType {
+            owns_linear_claim: false,
             copyable: false,
             identity: "Inner".into(),
             shape: structure_elaboration::StorageShape::Record(vec![field(3, "number", number())]),
             requires: Vec::new(),
         });
         records.push(RecordType {
+            owns_linear_claim: false,
             copyable: false,
             identity: "Pair".into(),
             shape: structure_elaboration::StorageShape::Record(vec![

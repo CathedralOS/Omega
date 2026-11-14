@@ -114,6 +114,9 @@ impl Program<'_> {
                     ));
                 }
                 match typed.symbols.builtin_type_atom(*symbol) {
+                    Some(BuiltinTypeAtom::Address) if self.descriptor_storage => Ok(
+                        ScalarType::Integer(IntegerType::supported_address_representation()),
+                    ),
                     Some(atom) => atom_type(atom, id),
                     None => unserved("nominal type"),
                 }
@@ -291,6 +294,38 @@ impl Program<'_> {
     /// A formal's, local's, result's or field's type: a record when the
     /// type is a `Named` data declaration, else whatever the scalar route
     /// says, including its refusals.
+    /// Describe the actual carrier without interpreting or establishing its
+    /// declared domains. Full qualification remains in the ABI/source contract.
+    pub(super) fn storage_carrier(
+        &self,
+        id: MachineId,
+        mut handle: TypeReferenceHandle,
+    ) -> Checked<TypeReferenceHandle> {
+        if !self.descriptor_storage {
+            return Ok(handle);
+        }
+        let mut visiting = Vec::new();
+        loop {
+            if !self
+                .typed
+                .type_reference_table
+                .contains_type_reference(handle)
+                || visiting.contains(&handle)
+            {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Type("invalid constrained storage carrier"),
+                ));
+            }
+            visiting.push(handle);
+            match self.typed.type_reference_table.type_reference(handle) {
+                TypeReferenceNode::Constrained { base_type, .. } => handle = *base_type,
+                _ => return Ok(handle),
+            }
+        }
+    }
+
     pub(super) fn value_type(
         &mut self,
         id: MachineId,

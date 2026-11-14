@@ -228,6 +228,8 @@ impl ValueType {
 /// shape; its identity remains the type the reader actually resolved.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RecordType {
+    /// Actual source linear custody, including owned nested claims.
+    pub owns_linear_claim: bool,
     pub copyable: bool,
     pub identity: String,
     pub shape: StorageShape,

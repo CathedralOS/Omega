@@ -54,6 +54,12 @@ impl Program<'_> {
         entry: MachineId,
         boundaries: &[SymbolHandle],
     ) -> Checked<PreparedCallingAbis> {
+        if !self.descriptor_storage {
+            return Err(unavailable(
+                entry,
+                "calling ABI storage requested before the complete body closure",
+            ));
+        }
         if boundaries.is_empty() {
             return Ok(PreparedCallingAbis {
                 entry,
@@ -187,16 +193,32 @@ impl Program<'_> {
                             .iter()
                             .map(|reference| self.calling_abi_parameter(entry, *reference))
                             .collect::<Result<Vec<_>, _>>()?;
-                        if !typed
-                            .type_reference_table
-                            .contains_type_reference(projection.result)
+                        // An omitted source return annotation is Unit. Verify
+                        // that custody on every original declaration; a lost
+                        // projected type of an explicit result is not Unit.
+                        let omitted_unit = !projection.result.is_valid()
+                            && !row.source_templates.is_empty()
+                            && row.source_templates.iter().all(|symbol| {
+                                if let Some((_, signature)) = typed.trait_machine_signature(*symbol) {
+                                    !signature.return_type.is_valid()
+                                } else if let Some(machine) = typed.machine_by_symbol(*symbol) {
+                                    matches!(typed.machine_states(machine), [state] if !state.return_type.is_valid())
+                                } else {
+                                    false
+                                }
+                            });
+                        if !omitted_unit
+                            && !typed
+                                .type_reference_table
+                                .contains_type_reference(projection.result)
                         {
                             return Err("calling ABI result lost its retained source type".into());
                         }
-                        let result = if matches!(
-                            typed.type_reference_table.type_reference(projection.result),
-                            TypeReferenceNode::Unit
-                        ) {
+                        let result = if omitted_unit
+                            || matches!(
+                                typed.type_reference_table.type_reference(projection.result),
+                                TypeReferenceNode::Unit
+                            ) {
                             None
                         } else {
                             Some(self.calling_abi_storage(entry, projection.result)?)
@@ -247,6 +269,12 @@ impl Program<'_> {
         {
             return Err("calling ABI storage lost its retained source type".into());
         }
+        // The ABI key retains this occurrence's full qualified source type.
+        // Only its outer carrier is described here: nested field constraints
+        // still pass through the shared reader and may not be erased.
+        let reference = self
+            .storage_carrier(entry, reference)
+            .map_err(|error| error.detail)?;
         let value = self
             .value_type(entry, reference)
             .map_err(|error| error.detail)?;
@@ -388,5 +416,209 @@ fn intern_telescope(
                 requirement: callback.requirement,
             })
             .collect(),
+    }
+}
+
+#[cfg(test)]
+mod descriptor_storage_tests {
+    use super::*;
+    use language_semantics::Multiplicity;
+    use semantic_vocabulary::{IdTable, IntegerType, ScalarType};
+    use symbols::{
+        BuiltinTypeAtom, SymbolKind, SymbolNameRef, SymbolTableBuilder, builtin_type_symbols,
+    };
+    use typed_trees::data::{DataDefinition, DataField, DataMember, DataProperties};
+    use typed_trees::types::{DomainConstraint, TypeConstraintNode};
+
+    fn fixture() -> (
+        typed_trees::TypedTrees,
+        TypeReferenceHandle,
+        TypeReferenceHandle,
+        TypeReferenceHandle,
+        TypeReferenceHandle,
+    ) {
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = builder.insert_children(
+            root,
+            builtin_type_symbols().into_iter().chain([
+                (SymbolKind::Data, SymbolNameRef::Static("BufferClaim")),
+                (SymbolKind::Domain, SymbolNameRef::Static("Granted")),
+                (SymbolKind::Data, SymbolNameRef::Static("Envelope")),
+            ]),
+        );
+        let declaration = children.handles().nth(symbols::BUILTIN_TYPE_COUNT).unwrap();
+        let domain = children
+            .handles()
+            .nth(symbols::BUILTIN_TYPE_COUNT + 1)
+            .unwrap();
+        let envelope_symbol = children
+            .handles()
+            .nth(symbols::BUILTIN_TYPE_COUNT + 2)
+            .unwrap();
+        let inner = builder
+            .insert_children(
+                envelope_symbol,
+                [(SymbolKind::Field, SymbolNameRef::Static("inner"))],
+            )
+            .handle_at(0);
+        let fields = builder.insert_children(
+            declaration,
+            [
+                (SymbolKind::Field, SymbolNameRef::Static("origin")),
+                (SymbolKind::Field, SymbolNameRef::Static("count")),
+            ],
+        );
+        let mut typed = typed_trees::TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let mut named = |symbol, name: &str| {
+            typed.type_reference_table.insert(TypeReferenceNode::Named {
+                symbol,
+                name: name.into(),
+            })
+        };
+        let address = named(
+            children
+                .handles()
+                .nth(BuiltinTypeAtom::Address.ordinal())
+                .unwrap(),
+            "addr",
+        );
+        let length = named(
+            children
+                .handles()
+                .nth(BuiltinTypeAtom::U64.ordinal())
+                .unwrap(),
+            "u64",
+        );
+        let record = named(declaration, "BufferClaim");
+        let envelope = named(envelope_symbol, "Envelope");
+        let members = typed.data_members.insert_many([
+            DataMember::Field(DataField {
+                symbol: fields.handle_at(0),
+                name: "origin".into(),
+                type_reference: address,
+                ..Default::default()
+            }),
+            DataMember::Field(DataField {
+                symbol: fields.handle_at(1),
+                name: "count".into(),
+                type_reference: length,
+                ..Default::default()
+            }),
+        ]);
+        typed.push_data_definition(DataDefinition {
+            symbol: declaration,
+            name: "BufferClaim".into(),
+            members,
+            properties: DataProperties {
+                multiplicity: Multiplicity::Linear,
+                carry: None,
+            },
+            ..Default::default()
+        });
+        let members = typed
+            .data_members
+            .insert_many([DataMember::Field(DataField {
+                symbol: inner,
+                name: "inner".into(),
+                type_reference: record,
+                ..Default::default()
+            })]);
+        typed.push_data_definition(DataDefinition {
+            symbol: envelope_symbol,
+            name: "Envelope".into(),
+            members,
+            properties: DataProperties {
+                multiplicity: Multiplicity::Affine,
+                carry: None,
+            },
+            ..Default::default()
+        });
+        let constraints =
+            typed
+                .type_reference_table
+                .insert_constraints([TypeConstraintNode::Domain(DomainConstraint {
+                    name: "Granted".into(),
+                    symbol: domain,
+                    ..Default::default()
+                })]);
+        let qualified = typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Constrained {
+                base_type: record,
+                constraints,
+            });
+        (typed, address, record, qualified, envelope)
+    }
+
+    #[test]
+    fn actual_linear_address_carrier_is_described_without_admitting_a_body_or_grant() {
+        let (typed, address, record, qualified, envelope) = fixture();
+        let entry = MachineId::new(1).unwrap();
+        let original = typed.type_reference_table.type_reference(qualified).clone();
+        let mut executable = Program::new(&typed, false);
+        assert_eq!(
+            executable.value_type(entry, address).unwrap_err().detail,
+            "type addr"
+        );
+        assert_eq!(
+            executable.value_type(entry, record).unwrap_err().detail,
+            "type data with custody"
+        );
+        let mut program = Program::new(&typed, false);
+        program.begin_declaration_storage(entry, 0).unwrap();
+        let storage = program.calling_abi_storage(entry, qualified).unwrap();
+        assert!(program.records.get(storage).unwrap().owns_linear_claim);
+        assert!(!program.records.get(storage).unwrap().copyable);
+        assert_eq!(
+            typed.type_reference_table.type_reference(qualified),
+            &original
+        );
+        let nested = program.calling_abi_storage(entry, envelope).unwrap();
+        assert!(program.records.get(nested).unwrap().owns_linear_claim);
+        let fields = program.records.get(storage).unwrap().fields();
+        assert_eq!(fields.len(), 2);
+        assert_eq!(
+            fields[0].value_type.scalar(),
+            Some(ScalarType::Integer(
+                IntegerType::supported_address_representation()
+            ))
+        );
+        let bodies = IdTable::default();
+        let signatures = IdTable::default();
+        let boundaries = IdTable::default();
+        let completions = IdTable::default();
+        let declared = crate::lower::places::declare(
+            entry,
+            &program.records,
+            &bodies,
+            crate::body::Signatures {
+                machines: &signatures,
+                boundaries: &boundaries,
+                completions: &completions,
+            },
+            TerminalIdentityTableBuilder::default(),
+        )
+        .unwrap();
+        let canonical = declared
+            .structural_types
+            .iter()
+            .find(|row| row.id == storage)
+            .unwrap();
+        assert!(canonical.owns_linear_claim);
+        assert!(!canonical.copyable);
+        assert!(!canonical.no_code_affine_cleanup);
+        assert!(!canonical.descriptor_cleanup);
+        assert!(program.source_record_correspondence(entry).is_ok());
+        assert!(
+            program
+                .body(entry)
+                .unwrap_err()
+                .detail
+                .contains("after storage metadata")
+        );
     }
 }

@@ -179,6 +179,13 @@ impl<'t> Program<'t> {
 
     /// The `MachineId` of a callee, reading its signature the first time.
     pub fn machine(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
+        if self.descriptor_storage {
+            return Err(refuse(
+                self.next_identity()?,
+                Construct::Machine,
+                Unserved::Declaration("machine admission after storage metadata"),
+            ));
+        }
         // ponytail: linear scan over the discovered machines; a dense table
         // indexed by machine position if closures grow past a few hundred.
         for position in 1..=self.symbols.len() as u64 {
@@ -1368,6 +1375,13 @@ impl<'t> Program<'t> {
     }
 
     pub fn body(&mut self, id: MachineId) -> Checked<Body> {
+        if self.descriptor_storage {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Declaration("body admission after storage metadata"),
+            ));
+        }
         let typed = self.typed;
         let symbol = *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
         let signature =

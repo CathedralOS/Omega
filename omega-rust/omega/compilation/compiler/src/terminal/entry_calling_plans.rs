@@ -331,7 +331,9 @@ pub(crate) fn prepare(
         source_report,
         parameters,
         result,
-        physical_calling_application.report_fingerprint,
+        physical_calling_application
+            .plan
+            .contract_report_fingerprint(),
         physical_calling_application.plan.plan().clone(),
     )
     .map_err(failure)?;
