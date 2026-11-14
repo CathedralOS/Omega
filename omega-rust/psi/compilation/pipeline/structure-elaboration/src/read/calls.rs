@@ -62,20 +62,7 @@ impl<'t> Program<'t> {
         let completion =
             typed_trees::boundary_completions::boundary_requirement_completion(self.typed, target);
         self.visible_to(caller, target)?;
-        let (mut signature, _) = self.requirement_signature(caller, requirement, &[])?;
-        signature.termination = match &requirement.termination_guarantee {
-            language_semantics::TerminationGuarantee::NoGuarantee => crate::Termination::Silent,
-            language_semantics::TerminationGuarantee::Terminates { premises }
-                if premises.is_empty() =>
-            {
-                crate::Termination::Promised
-            }
-            language_semantics::TerminationGuarantee::Terminates { .. } => {
-                return Err(unserved(
-                    "boundary termination needs its actual progress premises",
-                ));
-            }
-        };
+        let (signature, _) = self.requirement_signature(caller, requirement, &[])?;
         // effects.md: "Every boundary-trait machine requirement must declare
         // that ceiling, using `reaches none` when it permits no services".
         if signature.reaches == crate::Ceiling::Inferred {

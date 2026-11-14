@@ -921,3 +921,74 @@ fn an_anonymous_parameter_application_rejects_a_foreign_template_handle() {
         "{refusal:?}"
     );
 }
+
+fn required_progress_source(body: &str) -> String {
+    format!(
+        r#"
+trait Finish {{
+    machine finish() -> u32 terminates crashes none;
+}}
+machine finish() -> u32 satisfies Finish::finish crashes none {{ {body} }}
+machine entry() -> u32 terminates crashes none {{ finish() }}
+"#
+    )
+}
+
+#[test]
+fn a_declared_conformer_inherits_a_bare_required_termination_promise() {
+    let mut verdicts = declared_verdicts(&required_progress_source("7"));
+    assert!(
+        verdicts
+            .iter()
+            .all(|verdict| matches!(verdict, RouteVerdict::Accepted(_))),
+        "{verdicts:?}"
+    );
+    let RouteVerdict::Accepted(accepted) = verdicts.remove(0) else {
+        unreachable!()
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance
+        .invoke(&mut psi_work::WorkMeter::with_budget(1_000))
+        .unwrap();
+    assert!(
+        matches!(
+            status,
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Scalar(
+                    terminal_interpreter::TerminalScalarValue::Integer {
+                        value: semantic_vocabulary::IntegerValue::Unsigned(7),
+                        ..
+                    }
+                )
+            )
+        ),
+        "{status:?}"
+    );
+}
+
+#[test]
+fn an_inherited_termination_promise_does_not_validate_an_unranked_cycle() {
+    let source = required_progress_source("finish()");
+    // The second caller supplies no separate progress obligation. The
+    // callee must still keep the promise inherited from its requirement.
+    let silent_caller = source.replacen(
+        "machine entry() -> u32 terminates",
+        "machine entry() -> u32",
+        1,
+    );
+    assert_ne!(source, silent_caller);
+    for source in [&source, &silent_caller] {
+        let Err(refusal) = invocation(typed(source)) else {
+            panic!("the requirement promise is owed by the actual recursive body");
+        };
+        assert_eq!(refusal.reason, RefusalReason::Unsupported);
+        assert!(
+            refusal
+                .detail
+                .contains("termination promise over a call cycle"),
+            "{refusal:?}"
+        );
+    }
+}
