@@ -316,3 +316,80 @@ fn provider_events_cannot_replace_their_declared_occurrence_or_lexical_author() 
             .any(|diagnostic| diagnostic.message.contains("evaluated composition mode"))
     );
 }
+
+/// A package hands its choices to its consumers as source anchors. A
+/// consumer that types the same source finds the same selections again,
+/// with the target, composition mode and origin each was made with.
+#[test]
+fn retained_provider_choices_rejoin_the_same_declarations_in_another_typing() {
+    use super::provider_declarations::RetainedProviderSelection;
+    let package = Fixture::new(TWO_CHOICES, PRODUCT, None);
+    let selected = package
+        .collect(&package.events(&[
+            (ProductTarget::LinuxX86_64, CompositionMode::Fused),
+            (ProductTarget::MacosArm64, CompositionMode::Independent),
+        ]))
+        .unwrap();
+    let retained = selected
+        .iter()
+        .map(|selection| RetainedProviderSelection::capture(&package.typed, selection).unwrap())
+        .collect::<Vec<_>>();
+    let mut consumer = Fixture::new(TWO_CHOICES, PRODUCT, None).typed;
+    let mut candidates = symbols::SourceSpanCandidates::default();
+    let mut rejoined = Vec::new();
+    for choice in &retained {
+        let selection = choice
+            .rejoin(
+                &mut consumer,
+                DependencyScope::Product,
+                &rejoined,
+                &mut candidates,
+            )
+            .unwrap_or_else(|refusal| panic!("{}", refusal.message));
+        rejoined.push(selection);
+    }
+    for (original, rejoined) in selected.iter().zip(&rejoined) {
+        assert_eq!(rejoined.target, original.target);
+        assert_eq!(rejoined.composition_mode, original.composition_mode);
+        assert_eq!(rejoined.origin, original.origin);
+        assert_eq!(
+            rejoined.subject.canonical_path(),
+            original.subject.canonical_path()
+        );
+        assert_eq!(
+            rejoined.provider_type.canonical_path,
+            original.provider_type.canonical_path
+        );
+    }
+    assert_eq!(rejoined[0].provider_type.canonical_path, "First");
+    assert_eq!(rejoined[1].provider_type.canonical_path, "Second");
+}
+
+/// The twin: the consumer's source declares the providers one line further
+/// down. An anchor names a place in source, so nothing there is the
+/// declaration that was chosen, and the same name elsewhere is not taken
+/// for it.
+#[test]
+fn a_retained_provider_choice_is_not_rejoined_by_name_alone() {
+    use super::provider_declarations::RetainedProviderSelection;
+    let package = Fixture::new(TWO_CHOICES, PRODUCT, None);
+    let selected = package
+        .collect(&package.events(&[
+            (ProductTarget::LinuxX86_64, CompositionMode::Fused),
+            (ProductTarget::MacosArm64, CompositionMode::Independent),
+        ]))
+        .unwrap();
+    let retained = RetainedProviderSelection::capture(&package.typed, &selected[0]).unwrap();
+    let moved = format!("\ndata Padding {{}}{PRODUCT}");
+    let mut consumer = Fixture::new(TWO_CHOICES, &moved, None).typed;
+    assert!(
+        retained
+            .rejoin(
+                &mut consumer,
+                DependencyScope::Product,
+                &[],
+                &mut symbols::SourceSpanCandidates::default(),
+            )
+            .is_err()
+    );
+}
