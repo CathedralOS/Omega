@@ -5097,8 +5097,6 @@ mod normal_qualification_tests {
         module
     }
 
-    // A dormant structural declaration still commits its issuer choice. No
-    // boundary in this module may establish membership merely to test its wire.
     #[test]
     fn an_authored_record_keeps_its_invariant_through_public_module_readback() {
         let mut module = module();
@@ -5120,6 +5118,8 @@ mod normal_qualification_tests {
         assert_eq!(encode_module(&decoded).unwrap(), bytes);
     }
 
+    // A dormant structural declaration still commits its issuer choice. No
+    // boundary in this module may establish membership merely to test its wire.
     #[test]
     fn structural_wire_preserves_an_explicit_empty_issuer_set() {
         let mut unrestricted = module();
