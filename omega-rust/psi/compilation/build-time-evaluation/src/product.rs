@@ -16,6 +16,10 @@ mod provider_selection_requests;
 #[path = "product/provider_selection_tests.rs"]
 mod provider_selection_tests;
 
+#[cfg(test)]
+#[path = "product/native_binding_tests.rs"]
+mod native_binding_tests;
+
 /// Whether a Build asked for one of `operations`: it authored such a
 /// request (`declared`, executed or not) or executed one. Every admission
 /// of this module, and the opaque-representation admission of the source

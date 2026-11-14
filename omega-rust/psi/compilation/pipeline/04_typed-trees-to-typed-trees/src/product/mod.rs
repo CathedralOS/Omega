@@ -1,6 +1,6 @@
-//! Product operand preparation has no producer since the old typed
-//! preparation algorithms were retired. These entrances keep the request
-//! shapes and refuse every operand by name; they publish nothing.
+//! Identify the exact Product requirement a Build binding names.
+//! This prepares declaration identity, not a source verdict or native promise.
+//! Applied operands still need their structural application producer.
 
 use arena::Handle;
 use diagnostics::Diagnostic;
@@ -8,7 +8,9 @@ use language_semantics::declaration_selection::product_operands::ProductStaticEn
 use language_semantics::declaration_selection::{ProductDeclarationOperand, ProductOperandRole};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
-use typed_trees::product_operand::{ProductApplicationDemand, ProductOperandApplication};
+use typed_trees::product_operand::{
+    ProductApplicationDemand, ProductOperandApplication, resolve_product_path,
+};
 
 const NO_PRODUCT_ROUTE: &str = "no product route yet: Product operand preparation requires a structural producer after retiring the old typed preparation algorithms";
 
@@ -32,12 +34,73 @@ pub fn prepare_product_operand_application(
 }
 
 pub fn prepare_product_requirement_operand(
-    _program: &mut TypedTrees,
+    program: &mut TypedTrees,
     operand: &ProductDeclarationOperand,
-    _author: SymbolHandle,
+    author: SymbolHandle,
     _static_environment: Option<&ProductStaticEnvironment>,
 ) -> Result<PreparedProductRequirement, Vec<Diagnostic>> {
-    Err(product_error(operand))
+    if operand.application.is_some() {
+        return Err(product_error(operand));
+    }
+    let program = program.product_declarations_mut();
+    let refuse = |message| vec![Diagnostic::error(message).with_source_span(operand.source_span)];
+    if !program.symbols.symbols().nodes().is_valid(author)
+        || program.machine_by_symbol(author).is_none()
+        || !program
+            .symbols
+            .symbol_is_in_dependency_scope(author, source::DependencyScope::Build)
+    {
+        return Err(refuse("native requirement has no original Build author"));
+    }
+    let occurrence = program
+        .symbols
+        .rejoin_product_occurrence(operand.source_span);
+    if occurrence.span.start >= occurrence.span.end
+        || program
+            .symbols
+            .symbol_provenance_source_span(author)
+            .is_none_or(|source| source.source_id != occurrence.source_id)
+    {
+        return Err(refuse(
+            "native requirement occurrence does not belong to its Build author",
+        ));
+    }
+    let requirement = resolve_product_path(
+        program,
+        &operand.path,
+        occurrence,
+        ProductOperandRole::Requirement,
+    )
+    .ok_or_else(|| {
+        refuse(
+            "native binding must name one exact boundary requirement visible to its Build author",
+        )
+    })?;
+    let owner = program.symbols.get(requirement).parent;
+    let declaration = program
+        .trait_definition_by_symbol(owner)
+        .filter(|declaration| declaration.is_boundary)
+        .ok_or_else(|| refuse("native requirement lost its declaring boundary trait"))?;
+    let signature = program
+        .trait_machine_signature_by_symbol(declaration, requirement)
+        .ok_or_else(|| refuse("native requirement lost its exact declared signature"))?;
+    if !declaration.type_parameters.is_empty() || !declaration.lifetime_parameters.is_empty() {
+        return Err(refuse(
+            "no product route yet: native requirement needs its complete compile-time application",
+        ));
+    }
+    // The trait application is closed, but the method may bind its own
+    // arguments. Native bindings retain that whole schema; concrete calls
+    // supply those arguments, not Build's activation (foreign_bindings.md,
+    // "Exact requirement lifetime application"). No substituted copy is owed
+    // here, and native admission must still check the complete signature.
+    let closed_requirement = signature.type_parameters.is_empty().then_some(requirement);
+    Ok(PreparedProductRequirement {
+        application: None,
+        requirement,
+        closed_requirement,
+        trait_scope: None,
+    })
 }
 
 fn product_error(operand: &ProductDeclarationOperand) -> Vec<Diagnostic> {

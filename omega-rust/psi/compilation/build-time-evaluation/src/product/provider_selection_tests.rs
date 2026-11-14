@@ -20,7 +20,9 @@ public data Build { marker: u64; }
 public boundary trait BuildBindingOperations {
     machine prepare(builder: &Build) -> u64 reaches none crashes none;
     machine select_provider(activation: u64, target: u64, independent: bool) reaches none crashes none;
+    machine bind_native<Locator>(activation: u64, target: u64, locator: Locator) reaches none crashes none;
 }
+public data NativeBinding { number: u64; }
 public data BuildTarget [copy] { case LinuxX86_64; case MacosArm64; }
 public const linux_x86_64: BuildTarget = BuildTarget::LinuxX86_64;
 public const macos_arm64: BuildTarget = BuildTarget::MacosArm64;
@@ -62,15 +64,15 @@ fn package(byte: u8) -> PackageKeyIdentity {
     PackageKeyIdentity::from_digest([byte; 32]).unwrap()
 }
 
-struct Fixture {
-    typed: TypedTrees,
-    activation: SymbolHandle,
+pub(super) struct Fixture {
+    pub(super) typed: TypedTrees,
+    pub(super) activation: SymbolHandle,
     declared: Vec<Arc<ProductDeclarationRequest>>,
     authors: Vec<SymbolHandle>,
 }
 
 impl Fixture {
-    fn new(build: &str, product: &str, dependency: Option<&str>) -> Self {
+    pub(super) fn new(build: &str, product: &str, dependency: Option<&str>) -> Self {
         let mut sources = source::SourceMap::default();
         let mut syntax = None;
         let mut ids = Vec::new();
