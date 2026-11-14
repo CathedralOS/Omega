@@ -59,7 +59,9 @@ fn collect_scalar_leaves(
         StructuralTypeShape::PrimitiveScalar(scalar) => {
             leaves.push((
                 base_offset,
-                scalar_shape(*scalar).byte_size,
+                scalar_shape(*scalar)
+                    .map_err(|_| InvalidStructuralShape)?
+                    .byte_size,
                 matches!(scalar, ScalarType::IeeeFloat(_)),
             ));
         }
