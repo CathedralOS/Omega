@@ -484,9 +484,15 @@ mod bound_mapping {
             mapped = match step {
                 CheckedIntegerEndpointStep::Add(value) => mapped.checked_add(*value),
                 CheckedIntegerEndpointStep::SaturatingAdd(value) => {
-                    let minimum = form.integer_type().minimum_value().and_then(integer_value_as_i128)
+                    let minimum = form
+                        .integer_type()
+                        .minimum_value()
+                        .and_then(integer_value_as_i128)
                         .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
-                    let maximum = form.integer_type().maximum_value().and_then(integer_value_as_i128)
+                    let maximum = form
+                        .integer_type()
+                        .maximum_value()
+                        .and_then(integer_value_as_i128)
                         .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
                     mapped
                         .checked_add(*value)
@@ -1990,7 +1996,8 @@ mod remainder {
                 let carrier = IntegerType::new(IntegerSign::Unsigned, bits).unwrap();
                 let context = context(carrier);
                 let divisor = value(2, carrier);
-                let maximum = ScalarTerm::integer(carrier, carrier.maximum_value().unwrap()).unwrap();
+                let maximum =
+                    ScalarTerm::integer(carrier, carrier.maximum_value().unwrap()).unwrap();
                 for dividend in [value(1, carrier), maximum] {
                     for expression in [
                         ScalarTerm::exact_integer_remainder(
@@ -2217,9 +2224,15 @@ mod truth_bounds {
     pub fn integer_affine_truth_bounds(
         form: &CheckedIntegerAffineForm,
     ) -> Result<Vec<Proposition>, IntegerAffineBoundConversionError> {
-        let mut minimum = form.integer_type().minimum_value().and_then(integer_value_as_i128)
+        let mut minimum = form
+            .integer_type()
+            .minimum_value()
+            .and_then(integer_value_as_i128)
             .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
-        let mut maximum = form.integer_type().maximum_value().and_then(integer_value_as_i128)
+        let mut maximum = form
+            .integer_type()
+            .maximum_value()
+            .and_then(integer_value_as_i128)
             .ok_or(IntegerAffineBoundConversionError::MappedBoundOutsideCarrier)?;
         let carrier_minimum = minimum;
         let carrier_maximum = maximum;
@@ -2834,7 +2847,10 @@ mod witness_checking {
                     definition_index,
                 )));
             };
-            if integer_type.bits().is_none_or(|bits| count >= u32::from(bits)) {
+            if integer_type
+                .bits()
+                .is_none_or(|bits| count >= u32::from(bits))
+            {
                 return Some(Err(IntegerAffineWitnessError::ShiftCountOutsideValueWidth(
                     definition_index,
                 )));
