@@ -206,13 +206,6 @@ framework or a list of features that remain unimplemented.
 - Cost: an overflow or zero divisor that native code would trap on shows up as "the verified artifact is malformed" with no reason, so a native and Psi disagreement reads as an interpreter failure and the cause must be found by hand
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Architecture rules are enforced by searching source text for substrings
-- Category: tests that pin the bug
-- Where: `omega-rust/omega/compilation/realization/provider-planning/src/source_guards.rs`, `omega-rust/omega/compilation/backend/plans/program-entry-plan/src/source_guards.rs`, `omega-rust/psi/foundation/access-plans/src/tests.rs`, `omega-rust/psi/interpreter/terminal-interpreter/src/embedding.rs`
-- Saw: remaining tests count function names, identity-field spellings, FNV constructors or shared-reader call text instead of checking retained identity, commitment or observation behavior.
-- Cost: formatting and harmless renaming break tests while equivalent forbidden behavior can pass under another spelling. Replace these semantic claims with behavior controls at their actual owners; dependency direction belongs to the existing Cargo-graph boundary checker.
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### Typing refuses its own questions as if they waited for the checker
 - Category: a stage reaching across a boundary
 - Where: `03_symbol-resolved-trees-to-typed-trees/src/lib.rs` (`unavailable_judgment`) and its 26 callers, such as `typing_queries.rs` ("constructor field type", "call entry parameter types") and `type_reference.rs` ("closed const argument declaration custody")
