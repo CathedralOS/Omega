@@ -3664,7 +3664,7 @@ pub(crate) mod engine {
                                     // Exact projections keep their original
                                     // storage identity, including any checked
                                     // presentation step between its fields.
-                                    descriptor_location(
+                                    crate::descriptor_lifetimes::descriptor_location(
                                         self.types,
                                         source,
                                         *machine.place_types.get(&source)?,

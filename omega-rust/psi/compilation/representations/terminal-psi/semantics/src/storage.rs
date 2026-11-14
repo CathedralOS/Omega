@@ -2383,7 +2383,7 @@ pub mod borrowed_storage {
     fn exact_storage_projection_keeps_the_view_between_its_prefix_and_suffix() {
         let prefix = StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(31));
         let view = StructuralPathSegment::RepresentationView {
-            structural_type: StructuralTypeId::new(1).unwrap(),
+            structural_type: semantic_vocabulary::StructuralTypeId::new(1).unwrap(),
             stored_scalar: None,
         };
         let suffix = StructuralPathSegment::FixedIndex(3);
