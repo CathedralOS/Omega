@@ -169,7 +169,7 @@ mod tests {
     }
 
     #[test]
-    fn a_symbolic_integer_inside_a_mathematical_proposition_is_refused() {
+    fn a_symbolic_integer_inside_a_mathematical_proposition_is_refused_by_runtime_encoding() {
         let proposition = Proposition::IntegerMathLessOrEqual(
             IntegerMathTerm::MathValue {
                 source_type: parameterized(),
@@ -177,8 +177,65 @@ mod tests {
             },
             IntegerMathTerm::literal(IntegerValue::Unsigned(10)),
         );
+        let mut runtime = Writer::default();
         assert!(matches!(
-            crate::canonical_proposition_order_key(&proposition),
+            crate::semantic_module::encode_proposition(&mut runtime, &proposition),
+            Err(CodecError::IntegerWidthClosure(_))
+        ));
+        assert!(crate::canonical_proposition_order_key(&proposition).is_ok());
+    }
+
+    #[test]
+    fn checking_keys_retain_width_owner_value_and_sign_without_changing_closed_bytes() {
+        use semantic_vocabulary::{ScalarTerm, WidthParameter};
+        let key = |sign, owner, value| {
+            crate::canonical_scalar_term_order_key(&ScalarTerm::Value {
+                id: ValueId::new(9).unwrap(),
+                scalar_type: ScalarType::Integer(IntegerType::parameterized(
+                    sign,
+                    WidthParameter {
+                        owner: MachineId::new(owner).unwrap(),
+                        value: ValueId::new(value).unwrap(),
+                    },
+                )),
+            })
+            .unwrap()
+        };
+        let base = key(IntegerSign::Unsigned, 1, 3);
+        assert!(!base.is_empty());
+        assert_eq!(base, key(IntegerSign::Unsigned, 1, 3));
+        assert_ne!(base, key(IntegerSign::Unsigned, 2, 3));
+        assert_ne!(base, key(IntegerSign::Unsigned, 1, 4));
+        assert_ne!(base, key(IntegerSign::Signed, 1, 3));
+        let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+        let term = ScalarTerm::Value {
+            id: ValueId::new(9).unwrap(),
+            scalar_type: ScalarType::Integer(integer),
+        };
+        let mut runtime = Writer::default();
+        crate::semantic_module::scalar_term_wire::encode_scalar_term(&mut runtime, &term).unwrap();
+        assert_eq!(
+            crate::canonical_scalar_term_order_key(&term).unwrap(),
+            runtime.finish()
+        );
+    }
+
+    #[test]
+    fn nested_checking_keys_preserve_the_role_without_opening_publication() {
+        let mut checking = Writer::checking_identity();
+        let mut nested = checking.nested();
+        encode_integer_type(&mut nested, parameterized()).unwrap();
+        let bytes = nested.finish();
+        let mut expected = vec![2];
+        parameterized()
+            .width()
+            .write_identity(|part| expected.extend_from_slice(part));
+        assert_eq!(bytes, expected);
+        checking.bytes(&bytes);
+        assert_eq!(checking.finish(), expected);
+        let mut runtime = Writer::default().nested();
+        assert!(matches!(
+            encode_integer_type(&mut runtime, parameterized()),
             Err(CodecError::IntegerWidthClosure(_))
         ));
     }
