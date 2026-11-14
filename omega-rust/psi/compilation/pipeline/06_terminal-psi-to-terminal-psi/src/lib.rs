@@ -52,6 +52,7 @@ on (`arrivals`). Kinds outside those five are refused as `Unsupported`.
 */
 
 mod arrivals;
+mod branch_warnings;
 mod callable_arrivals;
 mod ceilings;
 mod crashes;
@@ -829,7 +830,8 @@ fn machine(
             verdict,
         });
     }
-    let impossible = impossible_arms(&context, &graph, tables, lowered, id, branches);
+    let impossible =
+        branch_warnings::Analysis::new(&context, &graph, tables, lowered, id).run(branches);
     Ok(MachineDischarge {
         verdicts: settled,
         uses,
@@ -838,138 +840,6 @@ fn machine(
         conflicts,
         impossible,
     })
-}
-
-/// The authored arms of `branches` that no arrival can take. An arm is
-/// impossible when the facts at its entry, those before its branch with its
-/// condition added, prove `Falsehood` and the facts before the branch do
-/// not: a contradiction already in force before the branch is the earlier
-/// branch's to report. Each refutation is a certificate the kernel accepts
-/// under those facts ("A checked contradiction between valid premises"), and
-/// failure to find one is no evidence either way ("Failure to prove an
-/// obligation is not evidence that its arrival is impossible"), so an arm
-/// that cannot be judged here is simply not reported. The answer is
-/// advisory: no obligation's verdict reads it ("Proof soundness does not
-/// depend on pruning or on warning emission").
-fn impossible_arms(
-    context: &PropositionContext,
-    graph: &Graph,
-    tables: &MachineTables,
-    lowered: &TerminalMachine,
-    id: MachineId,
-    branches: &[terminal_check_tables::program::Branch],
-) -> Vec<ImpossibleArm> {
-    let mut impossible = Vec::new();
-    for branch in branches {
-        let Some(decided) = lowered
-            .blocks
-            .iter()
-            .find(|block| block.id == branch.decided_in)
-        else {
-            continue;
-        };
-        let before = decided
-            .operations
-            .last()
-            .map_or(ProgramPoint::BlockEntry(decided.id), |operation| {
-                ProgramPoint::AfterOperation(operation.id)
-            });
-        if refuted(context, graph, tables, id, before).is_some() {
-            continue;
-        }
-        let Some(rows) = refuted(
-            context,
-            graph,
-            tables,
-            id,
-            ProgramPoint::BlockEntry(branch.block),
-        ) else {
-            continue;
-        };
-        let entering = |edge: semantic_vocabulary::EdgeId| {
-            tables
-                .edges
-                .get(edge)
-                .is_some_and(|row| row.destination == Destination::Block(branch.block))
-        };
-        let premises = rows
-            .into_iter()
-            .filter_map(|row| tables.knowledge.get(row))
-            .map(|row| row.justification)
-            .filter(|justification| match justification {
-                Justification::BranchCondition { edge, .. } => !entering(*edge),
-                _ => true,
-            })
-            .collect();
-        impossible.push(ImpossibleArm {
-            block: branch.block,
-            premises,
-        });
-    }
-    impossible
-}
-
-/// The knowledge rows of a minimal set of the assumptions known at `point`
-/// that the kernel accepts a refutation from, or `None` when the prover
-/// finds none. The operation equations stay: they define values, and a
-/// premise is what the program knows of them.
-fn refuted(
-    context: &PropositionContext,
-    graph: &Graph,
-    tables: &MachineTables,
-    id: MachineId,
-    point: ProgramPoint,
-) -> Option<Vec<KnowledgeId>> {
-    let probe = ObligationId::new(1)?;
-    let known = hypotheses(graph, tables, id, probe, point).ok()?;
-    let refutes = |assumptions: &[Proposition]| {
-        let mut prover = prove::Prover::new(context, assumptions, &known.axioms, &tables.values);
-        let Ok(proof) = prover.prove(&Proposition::Falsehood) else {
-            return false;
-        };
-        let Some(identity) = EvidenceIdentity::new(probe.get()) else {
-            return false;
-        };
-        verify_obligation(
-            context,
-            &Obligation {
-                id: probe,
-                proposition: Proposition::Falsehood,
-                class: ObligationClass::Derivable,
-            },
-            assumptions,
-            &known.axioms,
-            EvidenceRoute::CertificateDerived(CertificateEnvelope {
-                identity,
-                proof_system_marker: ProofSystemMarker::CURRENT,
-                proof,
-            }),
-        )
-        .is_ok()
-    };
-    if !refutes(&known.assumptions) {
-        return None;
-    }
-    let mut kept: Vec<usize> = (0..known.assumptions.len()).collect();
-    let mut position = 0;
-    while position < kept.len() {
-        let without: Vec<Proposition> = kept
-            .iter()
-            .enumerate()
-            .filter(|(at, _)| *at != position)
-            .map(|(_, index)| known.assumptions[*index].clone())
-            .collect();
-        if refutes(&without) {
-            kept.remove(position);
-        } else {
-            position += 1;
-        }
-    }
-    Some(
-        kept.into_iter()
-            .map(|index| known.assumption_rows[index])
-            .collect(),
-    )
 }
 
 /// Fills one machine's knowledge table from its lowered form: entry
