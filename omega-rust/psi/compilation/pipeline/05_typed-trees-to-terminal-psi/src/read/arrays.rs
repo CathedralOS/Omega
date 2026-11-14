@@ -200,7 +200,7 @@ impl Program<'_> {
             unreachable!()
         };
         self.byte_range_selection(machine, borrow.target, array)?;
-        let crossed = self.reference_place_access(machine, &base, borrow.access)?;
+        let crossed = self.reference_place_access(machine, slots, &base, borrow.access)?;
         let slot = super::storage_path::root_slot(machine, &base, &self.captures)?
             .ok_or_else(|| unavailable("array view without an existing backing place"))?;
         if !crossed
