@@ -1072,6 +1072,88 @@ mod ordinary {
         }
 
         #[test]
+        fn successor_encoding_keeps_bytes_and_stops_at_the_original_error() {
+            #[derive(Debug, PartialEq, Eq)]
+            struct Failure(usize);
+
+            let cases: [(SelectedTerminator, &[u8], usize); 4] = [
+                (
+                    SelectedTerminator::Jump {
+                        instruction: instruction(SelectedInstructionKind::Jump),
+                        successor: successor(1, 1, 1),
+                    },
+                    &[4, 0xa0, 1, 0, 0, 0],
+                    1,
+                ),
+                (
+                    SelectedTerminator::ConditionalBranch {
+                        instruction: instruction(SelectedInstructionKind::ConditionalBranchNonZero),
+                        when_nonzero: successor(1, 1, 1),
+                        when_zero: successor(2, 2, 2),
+                    },
+                    &[0, 0xa0, 1, 0, 0, 0, 2, 0, 0, 0],
+                    2,
+                ),
+                (
+                    SelectedTerminator::ConditionalBranchU64LessThan {
+                        instruction: instruction(
+                            SelectedInstructionKind::ConditionalBranchU64LessThan,
+                        ),
+                        when_less: successor(1, 1, 1),
+                        when_not_less: successor(2, 2, 2),
+                    },
+                    &[2, 0xa0, 1, 0, 0, 0, 2, 0, 0, 0],
+                    2,
+                ),
+                (
+                    SelectedTerminator::ConditionalBranchI64LessThan {
+                        instruction: instruction(
+                            SelectedInstructionKind::ConditionalBranchI64LessThan,
+                        ),
+                        when_less: successor(1, 1, 1),
+                        when_not_less: successor(2, 2, 2),
+                    },
+                    &[3, 0xa0, 1, 0, 0, 0, 2, 0, 0, 0],
+                    2,
+                ),
+            ];
+            for (terminator, expected, successor_count) in cases {
+                let mut bytes = Vec::new();
+                crate::terminator_encoding::encode_terminator(
+                    &mut bytes,
+                    &terminator,
+                    |bytes, _| bytes.push(0xa0),
+                    |bytes, successor| {
+                        bytes.extend_from_slice(&successor.block.0.to_le_bytes());
+                        Ok::<(), Failure>(())
+                    },
+                )
+                .unwrap();
+                assert_eq!(bytes, expected);
+
+                for fail_at in 0..successor_count {
+                    let mut calls = 0;
+                    let result = crate::terminator_encoding::encode_terminator(
+                        &mut Vec::new(),
+                        &terminator,
+                        |_, _| {},
+                        |_, _| {
+                            let current = calls;
+                            calls += 1;
+                            if current == fail_at {
+                                Err(Failure(current))
+                            } else {
+                                Ok(())
+                            }
+                        },
+                    );
+                    assert_eq!(result, Err(Failure(fail_at)));
+                    assert_eq!(calls, fail_at + 1);
+                }
+            }
+        }
+
+        #[test]
         fn structural_snapshot_identity_retains_every_selector_coordinate() {
             use semantic_vocabulary::{
                 IntegerSign, IntegerType, ObligationId, PlaceId, ScalarType, ValueId,
