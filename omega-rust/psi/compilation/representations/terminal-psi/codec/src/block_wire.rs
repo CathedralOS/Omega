@@ -693,7 +693,7 @@ pub(crate) mod storage_operations {
             writer.id(storage.byte_offset);
             writer.boolean(storage.stored_scalar.is_some());
             if let Some(stored_scalar) = storage.stored_scalar {
-                encode_scalar_type(writer, stored_scalar);
+                encode_scalar_type(writer, stored_scalar)?;
             }
         }
         Ok(())
@@ -1234,7 +1234,7 @@ fn encode_operation(writer: &mut Writer, operation: &Operation) -> Result<(), Co
         OperationResult::Unit => writer.u8(0),
         OperationResult::Scalar(result) => {
             writer.u8(1);
-            encode_declaration(writer, *result);
+            encode_declaration(writer, *result)?;
         }
         OperationResult::Structural(result) => {
             writer.u8(2);

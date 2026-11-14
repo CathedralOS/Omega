@@ -3799,12 +3799,12 @@ pub(crate) mod scalar_application_wire {
                         LayoutMeasurement::Alignment => 2,
                     });
                     writer.u32(*semantics_version);
-                    encode_scalar_type(writer, *scalar_type);
+                    encode_scalar_type(writer, *scalar_type)?;
                 }
                 ScalarApplication::Evaluate { entry, scalar_type } => {
                     writer.u8(2);
                     encode_callable(writer, *entry);
-                    encode_scalar_type(writer, *scalar_type);
+                    encode_scalar_type(writer, *scalar_type)?;
                 }
             }
         }
@@ -4085,7 +4085,7 @@ pub(crate) mod scalar_condition_wire {
                 writer.id(*application);
                 writer.id(*machine);
                 writer.id(*result);
-                encode_scalar_type(writer, *scalar_type);
+                encode_scalar_type(writer, *scalar_type)?;
             }
         }
         Ok(())
@@ -5180,11 +5180,17 @@ impl Field<TerminalIdentityFormations> for IdentityFormations {
 }
 
 pub(crate) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError> {
+    encode_raw_closed(module).map(|(bytes, _)| bytes)
+}
+
+pub(crate) fn encode_raw_closed(
+    module: &TerminalModule,
+) -> Result<(Vec<u8>, crate::ClosedTypeCatalog), CodecError> {
     let mut writer = Writer::default();
     writer.bytes(MAGIC);
     writer.u16(FORMAT_MARKER);
     Module::write(&mut writer, module)?;
-    Ok(writer.finish())
+    Ok(writer.finish_closed())
 }
 
 pub(crate) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModule, CodecError> {

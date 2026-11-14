@@ -379,7 +379,10 @@ fn exercise_owned_and_borrowed_instances() {
         retained.artifact().semantic_bytes()
     );
     let (transferred_module, _) = published.into_semantics();
-    assert_eq!(machine_storage, transferred_module.machines.as_ptr());
+    assert_eq!(
+        machine_storage,
+        transferred_module.module().machines.as_ptr()
+    );
     let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry else {
         panic!("this fixture has an ordinary machine entry");
     };
