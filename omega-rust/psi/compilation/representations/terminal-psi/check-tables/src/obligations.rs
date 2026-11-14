@@ -232,3 +232,208 @@ mod tests {
         );
     }
 }
+
+/// The actual width inputs each machine's declared carriers use, in machine
+/// order, including empty rows. This is an inventory, not a positivity fact.
+/// Header storage is followed even when unread or behind a zero-sized array:
+/// type formation does not depend on whether execution observes a value.
+pub fn integer_width_parameters(
+    module: &terminal_psi::TerminalModule,
+) -> Result<
+    Vec<(semantic_vocabulary::MachineId, Vec<ValueId>)>,
+    (semantic_vocabulary::MachineId, &'static str),
+> {
+    use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType};
+    use terminal_psi::{StructuralTypeShape, TerminalMachineResult};
+
+    let diagnostic = module
+        .machines
+        .first()
+        .map(|machine| machine.id)
+        .unwrap_or_else(|| MachineId::new(1).expect("one is an identity"));
+    let mut catalog = module.structural_types.iter().collect::<Vec<_>>();
+    catalog.sort_unstable_by_key(|declaration| declaration.id);
+    if catalog.windows(2).any(|pair| pair[0].id == pair[1].id) {
+        return Err((
+            diagnostic,
+            "integer width inventory has duplicate structural types",
+        ));
+    }
+    let mut referents = module
+        .structural_referents
+        .iter()
+        .map(|row| row.id)
+        .collect::<Vec<_>>();
+    referents.sort_unstable();
+    if referents.windows(2).any(|pair| pair[0] == pair[1]) {
+        return Err((
+            diagnostic,
+            "integer width inventory has duplicate referent identities",
+        ));
+    }
+    // One catalog-sized membership owner for this whole inventory. Epochs
+    // retain only the currently selected family's visits, with no max-ID
+    // allocation or catalog clearing for each machine or proof question.
+    let mut visited = vec![0; catalog.len()];
+    let mut output = Vec::with_capacity(module.machines.len());
+    for (position, machine) in module.machines.iter().enumerate() {
+        let epoch = position + 1;
+        let mut widths = Vec::new();
+        let mut pending = Vec::new();
+        for formal in machine
+            .parameters
+            .iter()
+            .chain(&machine.erased_scalar_formals)
+        {
+            width_scalar(machine.id, formal.scalar_type, &mut widths)?;
+        }
+        pending.extend(
+            machine
+                .structural_parameters
+                .iter()
+                .map(|formal| formal.structural_type),
+        );
+        match &machine.result {
+            TerminalMachineResult::Unit => {}
+            TerminalMachineResult::Scalar(result) => {
+                width_scalar(machine.id, result.scalar_type, &mut widths)?
+            }
+            TerminalMachineResult::Structural(result) => pending.push(result.structural_type),
+        }
+        for block in &machine.blocks {
+            for value in block.parameters.iter().chain(&block.erased_scalar_formals) {
+                width_scalar(machine.id, value.scalar_type, &mut widths)?;
+            }
+            pending.extend(
+                block
+                    .structural_parameters
+                    .iter()
+                    .map(|formal| formal.structural_type),
+            );
+            for operation in &block.operations {
+                if let Some(value) = operation.result.as_scalar() {
+                    width_scalar(machine.id, value.scalar_type, &mut widths)?;
+                }
+                if let Some(result) = operation.result.as_structural() {
+                    pending.push(result.structural_type);
+                }
+            }
+        }
+        while let Some(current) = pending.pop() {
+            let Ok(index) = catalog.binary_search_by_key(&current, |declaration| declaration.id)
+            else {
+                if referents.binary_search(&current).is_ok() {
+                    // An authenticated abstract referent has no numeric carrier
+                    // declaration here. Its absent layout grants no width fact.
+                    continue;
+                }
+                return Err((
+                    machine.id,
+                    "integer width inventory has a missing structural type",
+                ));
+            };
+            if visited[index] == epoch {
+                continue;
+            }
+            visited[index] = epoch;
+            let declaration = catalog[index];
+            if let Some(carrier) = declaration.quotient_carrier {
+                pending.push(carrier);
+            }
+            if let Some(restriction) = &declaration.scalar_restriction {
+                if let Some(scalar) = restriction.scalar_type() {
+                    width_scalar(machine.id, scalar, &mut widths)?;
+                }
+                if let Some(child) = restriction.as_structural() {
+                    pending.push(child);
+                }
+            }
+            match &declaration.shape {
+                StructuralTypeShape::PrimitiveScalar(scalar) => {
+                    width_scalar(machine.id, *scalar, &mut widths)?
+                }
+                StructuralTypeShape::AtomicCell(cell) => {
+                    width_scalar(machine.id, cell.scalar_type(), &mut widths)?
+                }
+                StructuralTypeShape::Reference { referent, .. } => pending.push(*referent),
+                StructuralTypeShape::FixedArray { element, .. }
+                | StructuralTypeShape::ElementView { element, .. } => pending.push(*element),
+                StructuralTypeShape::Record { fields, .. } => {
+                    width_fields(machine.id, fields, &mut pending, &mut widths)?
+                }
+                StructuralTypeShape::Sum { cases } => {
+                    for case in cases {
+                        width_fields(machine.id, &case.fields, &mut pending, &mut widths)?;
+                    }
+                }
+                StructuralTypeShape::Mixed { fields, cases } => {
+                    width_fields(machine.id, fields, &mut pending, &mut widths)?;
+                    for case in cases {
+                        width_fields(machine.id, &case.fields, &mut pending, &mut widths)?;
+                    }
+                }
+                StructuralTypeShape::Opaque | StructuralTypeShape::ByteSequence(_) => {}
+            }
+        }
+        widths.sort_unstable();
+        widths.dedup();
+        let mut inputs = machine
+            .parameters
+            .iter()
+            .map(|value| (value.id, value.scalar_type))
+            .collect::<Vec<_>>();
+        inputs.sort_unstable_by_key(|(value, _)| *value);
+        let carrier = ScalarType::Integer(
+            IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is a carrier"),
+        );
+        for width in &widths {
+            let Ok(position) = inputs.binary_search_by_key(width, |(value, _)| *value) else {
+                return Err((machine.id, "integer width is not a declared scalar input"));
+            };
+            if inputs[position].1 != carrier {
+                return Err((
+                    machine.id,
+                    "integer width input does not have the exact u64 carrier",
+                ));
+            }
+        }
+        output.push((machine.id, widths));
+    }
+    Ok(output)
+}
+
+fn width_scalar(
+    owner: semantic_vocabulary::MachineId,
+    scalar: semantic_vocabulary::ScalarType,
+    widths: &mut Vec<ValueId>,
+) -> Result<(), (semantic_vocabulary::MachineId, &'static str)> {
+    if let semantic_vocabulary::ScalarType::Integer(integer) = scalar
+        && let semantic_vocabulary::IntegerWidth::Parameter(parameter) = integer.width()
+    {
+        if parameter.owner != owner {
+            return Err((owner, "integer width belongs to another machine"));
+        }
+        widths.push(parameter.value);
+    }
+    Ok(())
+}
+
+fn width_fields(
+    owner: semantic_vocabulary::MachineId,
+    fields: &[terminal_psi::StructuralFieldDeclaration],
+    pending: &mut Vec<semantic_vocabulary::StructuralTypeId>,
+    widths: &mut Vec<ValueId>,
+) -> Result<(), (semantic_vocabulary::MachineId, &'static str)> {
+    for field in fields {
+        if let Some(scalar) = field.field_type.scalar_type() {
+            width_scalar(owner, scalar, widths)?;
+        }
+        if let Some(child) = field.field_type.as_structural() {
+            pending.push(child);
+        }
+        if let Some(child) = field.inline_carrier {
+            pending.push(child);
+        }
+    }
+    Ok(())
+}
