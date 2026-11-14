@@ -10,8 +10,8 @@ product: whole selected-execution results, source-custody sealing, metadata,
 generated-source handoffs and the production-report subject. The coordinator
 supplies completed stage products through `CheckedCompilationInputs`, each as
 the record its producer returned: selected execution, the shared evaluated
-Build, this compilation's Build admission, provider settlement and checked-tree
-product selection. Consumers borrow the unit they read rather than per-field
+Build, this compilation's Build admission, and provider settlement.
+Consumers borrow the unit they read rather than per-field
 accessors. Sealing rejoins source custody but does not grant package admission
 or native authority.
 Its [Terminal projections](src/checked_compilation/terminal.rs) assemble native

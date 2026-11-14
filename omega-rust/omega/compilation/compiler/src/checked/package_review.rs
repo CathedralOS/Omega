@@ -1,7 +1,7 @@
 // We check a completed `PackageBuild` and publish its `PackageReviewProduct`.
 // Package review receives inert evidence (`PackageReviewEvidence`) and an
 // opaque `PackageReviewSource` handle for review reuse and demand-driven
-// component publication (`publish_component`), never raw checked trees.
+// component publication (`publish_component`), never a raw checked program.
 
 use super::{CompilationSession, PackageBuild};
 use compilation_products::{CheckedCompilation, CompileFailure};

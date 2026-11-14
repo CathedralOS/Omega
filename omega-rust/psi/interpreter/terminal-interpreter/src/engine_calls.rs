@@ -1979,6 +1979,7 @@ pub(crate) mod component_contents {
                 argument.access,
                 &description.leaves,
                 &[],
+                None,
             )?;
             let mapping = self.component_contents_mapping(provider);
             let mut values = values

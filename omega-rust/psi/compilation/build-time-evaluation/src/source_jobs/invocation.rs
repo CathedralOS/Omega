@@ -64,10 +64,46 @@ fn literal(
             TypeReferenceNode::Slice { .. }
         ) =>
         {
-            let BuildTimeValue::Text(bytes) = value else {
-                return Err("a byte view requires actual immutable bytes".into());
+            if program
+                .type_reference_table
+                .is_borrowed_byte_slice(destination)
+            {
+                let BuildTimeValue::Text(bytes) = value else {
+                    return Err("a byte view requires actual immutable bytes".into());
+                };
+                ExpressionNode::String(bytes.clone().into())
+            } else {
+                let BuildTimeValue::Array(elements) = value else {
+                    return Err(
+                        "a typed sequence view requires its complete immutable elements".into(),
+                    );
+                };
+                let TypeReferenceNode::Slice { element_type } =
+                    program.type_reference_table.type_reference(referee)
+                else {
+                    return Err("a typed sequence view lost its element declaration".into());
+                };
+                let element_type = *element_type;
+                let elements = elements
+                    .iter_mut()
+                    .map(|value| literal(program, element_type, value))
+                    .collect::<Result<Vec<_>, _>>()?;
+                ExpressionNode::ArrayLiteral(
+                    program.expression_table.insert_expression_handles(elements),
+                )
+            }
+        }
+        TypeReferenceNode::Slice { element_type } => {
+            let BuildTimeValue::Array(elements) = value else {
+                return Err("a typed sequence requires its complete actual elements".into());
             };
-            ExpressionNode::String(bytes.clone().into())
+            let elements = elements
+                .iter_mut()
+                .map(|value| literal(program, element_type, value))
+                .collect::<Result<Vec<_>, _>>()?;
+            ExpressionNode::ArrayLiteral(
+                program.expression_table.insert_expression_handles(elements),
+            )
         }
         TypeReferenceNode::FixedArray {
             element_type,
@@ -394,12 +430,12 @@ pub(crate) fn prepare_value_invocation(
             } => Some((*referee, *access)),
             _ => None,
         };
-        let byte_view = matches!(reference, Some((referee, language_core::ReferenceAccess::Shared))
+        let slice_view = matches!(reference, Some((referee, language_core::ReferenceAccess::Shared))
                     if matches!(probe.type_reference_table.type_reference(referee), TypeReferenceNode::Slice { .. }));
         let mut snapshot = argument.clone();
         let value = literal(
             &mut probe,
-            if byte_view {
+            if slice_view {
                 destination
             } else {
                 reference.map_or(destination, |(referee, _)| referee)
@@ -407,7 +443,7 @@ pub(crate) fn prepare_value_invocation(
             &mut snapshot,
         )
         .map_err(|reason| format!("constant argument `{}`: {reason}", parameter.name))?;
-        let actual = if byte_view {
+        let actual = if slice_view {
             value
         } else if let Some((referee, access)) = reference {
             let name = format!("@argument-{position}");

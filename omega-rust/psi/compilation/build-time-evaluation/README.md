@@ -29,6 +29,6 @@ explicit refusals for unavailable jobs. No interpreter default replaces a value.
 [product.rs](src/product.rs) retains genuine provider, native-binding and test
 registration records. Nonempty source selection/admission requests are refused;
 old collect, rederive and checking algorithms are not moved into another crate.
-BTE no longer directly depends on `validation` or `checked-trees`. Other source
+BTE no longer directly depends on `validation`. Other source
 frontend crates remain dependencies for their real input types, so this is not
 a claim that the complete compiler is free of the retired checker graph yet.

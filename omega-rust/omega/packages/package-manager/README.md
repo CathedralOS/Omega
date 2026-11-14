@@ -280,7 +280,7 @@ operations do not return checked source or hand it back to finish production.
 Each returned package review also exposes borrowed access to its complete typed
 `PackagePolicyBaseline`, projected from that same final checked source and
 target. The compiler's `review_package_build` returns that evidence together with
-an opaque `PackageReviewSource`; review cannot extract checked trees, Build
+an opaque `PackageReviewSource`; review cannot extract a checked program, Build
 configuration or execution plans from it. Its source-free facts support reuse
 and cache capture, and its component publication operation runs only on demand.
 The compiler checks each projection against the caller's remaining policy budget

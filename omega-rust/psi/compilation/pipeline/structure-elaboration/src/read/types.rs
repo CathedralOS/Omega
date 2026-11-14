@@ -281,7 +281,7 @@ impl Program<'_> {
     /// type is a `Named` data declaration, else whatever the scalar route
     /// says, including its refusals.
     /// `value_type` where a byte view in a domain is served: a data field's
-    /// type and a cast's result type (`byte_view_type`).
+    /// type and a cast's result type (`view_type`).
     pub(super) fn qualified_view_type(
         &mut self,
         id: MachineId,
@@ -299,7 +299,7 @@ impl Program<'_> {
         handle: TypeReferenceHandle,
     ) -> Checked<ValueType> {
         if handle.is_valid()
-            && let Some(view) = self.byte_view_type(id, handle)?
+            && let Some(view) = self.view_type(id, handle)?
         {
             return Ok(view);
         }

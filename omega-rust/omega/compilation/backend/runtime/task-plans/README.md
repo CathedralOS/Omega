@@ -8,7 +8,7 @@ provider-instance lifecycle accounting are not implemented here.
 
 Activation planning is Omega-owned post-check state. The compiler reports
 `05_task_activations.json`; target calling/layout, stack, and runtime selection
-must not become Psi checked-tree fields. The current local-frame/park-frontier
+must not become Psi source fields. The current local-frame/park-frontier
 layout bridge is not complete final-physical-frame WCSU collection. Final demand,
 the activation StackPlan, actual reservation, and executable fixed-stack
 park/resume still need their exact producer/provider joins.

@@ -294,6 +294,13 @@ pub enum StorageShape {
     Record(Vec<RecordField>),
     Sum(Vec<CaseType>),
     ByteSequence(terminal_psi::ByteSequenceCarrier),
+    // The same canonical typed descriptor used by Terminal element views.
+    // Bare source sequences retain an unspecified access contract; a value's
+    // actual immutable backing must still be established by its producer.
+    ElementView {
+        element: StructuralTypeId,
+        access: Option<terminal_psi::StructuralAccess>,
+    },
     FixedArray {
         element: StructuralTypeId,
         length: terminal_psi::ArrayExtent,

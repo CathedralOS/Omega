@@ -1159,7 +1159,8 @@ impl<'t> Program<'t> {
         let mut read = Vec::with_capacity(arguments.len());
         let mut lenders = Vec::new();
         for (argument, (declared, erased, borrowed)) in arguments.iter().zip(&formals) {
-            let formal = &self.substitute(*declared, &bound);
+            let formal = self.substitute(*declared, &bound);
+            let formal = &self.argument_context(formal, &free, &bound);
             // The argument for an erased formal is a term, not a
             // computation; the argument for a borrowed formal is a loan of
             // a place.
@@ -1185,7 +1186,7 @@ impl<'t> Program<'t> {
             }
         }
         lent_storage_is_untouched(id, &read, &self.captures, |place| {
-            place.result.is_some_and(|held| self.is_byte_view(held))
+            place.result.is_some_and(|held| self.is_borrowed_view(held))
         })?;
         if let SourceOrigin::Authored(span) = source
             && let Some(names) = self.names.get_mut(id)
@@ -1236,9 +1237,15 @@ impl<'t> Program<'t> {
             ));
         }
         let result = declared_result.map(|result| self.substitute(result, &bound));
-        if let Some(result) = result
-            && self.names_any(result, &free)
-        {
+        // Binding is an invocation relation, even when a recursive call's
+        // actual region has the same declaration identity as a free formal.
+        // Test missing bindings on the declared result, before substitution.
+        let unbound: Vec<_> = free
+            .iter()
+            .copied()
+            .filter(|parameter| !bound.iter().any(|(known, _)| known == parameter))
+            .collect();
+        if declared_result.is_some_and(|result| self.names_any(result, &unbound)) {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -1283,10 +1290,18 @@ impl<'t> Program<'t> {
     ) -> Checked<(Expression, String)> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let source = SourceOrigin::of(self.typed.expression_table.source_span(argument));
-        if matches!(self.node(id, argument)?, ExpressionNode::String(_)) {
-            if formal.access != ReferenceAccess::Shared {
-                return unserved("byte literal cannot lend mutable storage");
-            }
+        let node = self.node(id, argument)?;
+        if matches!(node, ExpressionNode::String(_)) && formal.access != ReferenceAccess::Shared {
+            return unserved("byte literal cannot lend mutable storage");
+        }
+        // A shared view already carries its immutable backing. Read every
+        // expression of that type through the same descriptor operation,
+        // including constructors and returned views; the call's region check
+        // still authenticates the actual type and its result relation.
+        if formal.access == ReferenceAccess::Shared
+            && self.is_borrowed_view(expected)
+            && !matches!(node, ExpressionNode::Borrow(_))
+        {
             let place = self.expression(id, slots, argument, Some(expected))?;
             return Ok((
                 Expression {
@@ -1301,22 +1316,17 @@ impl<'t> Program<'t> {
                 self.typed.expression_table.display_name(argument),
             ));
         }
-        // A byte view is itself the borrow: a place that holds one, a
-        // binding or a field, is passed as it stands, shared.
-        let view = formal.access == ReferenceAccess::Shared && self.is_byte_view(expected);
+        // Ordinary references still name existing storage or explicitly
+        // borrow it; a descriptor expression cannot grant writable custody.
         let (target, access) = match self.node(id, argument)? {
             ExpressionNode::Borrow(borrow) => (borrow.target, borrow.access),
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, slots, path)?;
                 match slots[slot].borrowed {
                     Some(_) => (argument, formal.access),
-                    None if view && self.is_byte_view(slots[slot].value_type) => {
-                        (argument, formal.access)
-                    }
                     None => return unserved("argument for a borrowed formal that is not a borrow"),
                 }
             }
-            ExpressionNode::Member(_) if view => (argument, formal.access),
             _ => return unserved("argument for a borrowed formal that is not a borrow"),
         };
         if access != formal.access {

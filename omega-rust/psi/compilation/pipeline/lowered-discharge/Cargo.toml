@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 # Decides the obligations structure-only elaboration minted, on the lowered
 # form, and accepts one only when the proof kernel accepted its certificate.
-# It must never depend on Psi 05, validation, Psi 06 or checked trees.
+# It must never depend on Psi 05, validation, or Psi 06.
 [dependencies]
 diagnostics = { path = "../../../foundation/diagnostics" }
 language-core = { path = "../../../foundation/language-core" }

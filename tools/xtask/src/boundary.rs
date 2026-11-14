@@ -56,7 +56,6 @@ const SOURCE_STAGES: &[&str] = &[
     "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees",
     "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees",
     "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees",
-    "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees",
 ];
 
 const PARSER_STAGES: &[&str] = &[
@@ -80,7 +79,6 @@ const SOURCE_SIDE_PSI: &[&str] = &[
     "omega-rust/psi/compilation/representations/syntax-trees",
     "omega-rust/psi/compilation/representations/symbol-resolved-trees",
     "omega-rust/psi/compilation/representations/typed-trees",
-    "omega-rust/psi/compilation/representations/checked-trees",
     PSI_PIPELINE,
     PSI_FACADE,
     "omega-rust/psi/compilation/build-time-evaluation",
@@ -189,7 +187,6 @@ pub fn forbidden_rules() -> Vec<Rule> {
                 OMEGA_PIPELINE,
                 "omega-rust/psi/compilation/representations/syntax-trees",
                 "omega-rust/psi/compilation/representations/typed-trees",
-                "omega-rust/psi/compilation/representations/checked-trees",
                 "omega-rust/psi/compilation/representations/lowered-psi",
                 PROVIDER_PLANNING,
             ],
@@ -245,7 +242,6 @@ pub fn forbidden_rules() -> Vec<Rule> {
             owners: vec![TRUST_MODEL],
             forbidden: vec![
                 "omega-rust/psi/compilation/build-time-evaluation",
-                "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees",
                 "omega-rust/psi/compilation/terminal-installation",
                 "omega-rust/psi/compilation/representations/terminal-psi",
                 "omega-rust/omega/compilation/backend/target",

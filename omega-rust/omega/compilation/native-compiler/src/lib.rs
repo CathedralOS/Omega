@@ -13,7 +13,7 @@ artifact-local native proposal and no application entry.
 
 /*
 Source compilation, Build execution, and package review remain outside this
-dependency boundary: `native-compiler` never reads typed or checked trees to
+dependency boundary: `native-compiler` never reads typed trees to
 repair a missing Terminal fact. `application.rs` owns source-free Terminal
 application preparation and package-permission admission, shared by artifact
 publication and native realization.

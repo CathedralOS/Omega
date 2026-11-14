@@ -18,7 +18,7 @@ exactly as a record type's is (`RecordType::identity`). Nothing here or in
 the checker compares those texts, and none is formed from a name.
 
 The contract commitment is this route's own. The deleted checker committed to
-the contract as it publishes it in checked trees, which this crate may not
+the contract as it published it, which this crate may not
 read. Here the commitment is a digest of the contract the lowered form
 publishes for the machine: its callable identity, each formal's type and
 binding mode, its result type, the `requires` and `ensures` propositions and

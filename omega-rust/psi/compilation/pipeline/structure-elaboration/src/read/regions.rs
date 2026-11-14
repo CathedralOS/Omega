@@ -473,3 +473,121 @@ impl Program<'_> {
             .all(|(formal, actual)| self.substitute(*formal, &bound) == *actual))
     }
 }
+
+impl Program<'_> {
+    /// The outer region of a borrowed view, resolved from the same retained
+    /// source occurrence as its type. Element regions remain separate tuple
+    /// positions; a borrowed descriptor cannot erase what its elements carry.
+    pub(super) fn borrowed_view_region(
+        &mut self,
+        machine: MachineId,
+        reference: typed_trees::types::TypeReferenceHandle,
+        lexical_owner: SymbolHandle,
+        identity: &str,
+    ) -> Checked<Region> {
+        use typed_trees::types::TypeReferenceNode;
+        Ok(
+            match self.typed.type_reference_table.type_reference(reference) {
+                TypeReferenceNode::Reference {
+                    lifetime: Some(tag),
+                    ..
+                } => {
+                    let owner = match self
+                        .typed
+                        .type_reference_table
+                        .operand_lifetime_owner(reference)
+                    {
+                        retained if retained.is_valid() => retained,
+                        _ => lexical_owner,
+                    };
+                    let parameter = owner
+                        .is_valid()
+                        .then(|| {
+                            typed_trees::type_identity::lifetime_parameter_identity(
+                                self.typed,
+                                owner,
+                                tag.as_str(),
+                            )
+                        })
+                        .flatten()
+                        .ok_or_else(|| {
+                            refuse(
+                                machine,
+                                Construct::Machine,
+                                Unserved::Type(
+                                    "borrowed view has no complete owned region identity",
+                                ),
+                            )
+                        })?;
+                    Region::Parameter(parameter)
+                }
+                // Elided: a fresh lifetime of the signature, a region variable
+                // of a local, or the one identity it has anywhere else.
+                _ => match self.elided_region(machine)? {
+                    Some(region) => region,
+                    None => self.fixed_region(identity.to_owned()),
+                },
+            },
+        )
+    }
+
+    /// Collection values retain their elements' complete region tuple. A
+    /// borrowed element view prefixes its own region; only that one position
+    /// is removed when checking an element against the collection's type.
+    pub(super) fn collection_element_regions(
+        &mut self,
+        id: MachineId,
+        collection: semantic_vocabulary::StructuralTypeId,
+        regions: Regions,
+    ) -> Checked<Regions> {
+        let borrowed = matches!(
+            self.data_type(id, collection)?.shape,
+            crate::StorageShape::ElementView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+                ..
+            }
+        );
+        if !borrowed {
+            return Ok(regions);
+        }
+        let (_, elements) = self.region_tuple(regions).split_first().ok_or_else(|| {
+            refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("borrowed sequence without its outer region"),
+            )
+        })?;
+        Ok(self.intern_regions(elements.to_vec()))
+    }
+}
+
+impl Program<'_> {
+    /// A nested argument expression may determine a callee lifetime that no
+    /// earlier argument bound. Give that expectation an existing region
+    /// variable, not the callee's rigid parameter. The real argument is still
+    /// unified with the original declared type by `call_of` afterward.
+    pub(super) fn argument_context(
+        &mut self,
+        value_type: ValueType,
+        free: &[LifetimeParameterIdentity],
+        bound: &Substitution,
+    ) -> ValueType {
+        let tuple = self.region_tuple(value_type.regions()).to_vec();
+        let mut contextual = Substitution::new();
+        for region in tuple {
+            let Region::Parameter(parameter) = region else {
+                continue;
+            };
+            if !free.contains(&parameter)
+                || bound.iter().any(|(known, _)| *known == parameter)
+                || contextual.iter().any(|(known, _)| *known == parameter)
+            {
+                continue;
+            }
+            let variable = Region::Variable(self.region_variables.len() as u32);
+            self.region_variables.push(None);
+            contextual.push((parameter, variable));
+        }
+        self.substitute(value_type, &contextual)
+    }
+}

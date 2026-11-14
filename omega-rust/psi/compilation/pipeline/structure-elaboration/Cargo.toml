@@ -9,8 +9,8 @@ name = "structure_elaboration"
 path = "src/lib.rs"
 
 # Reads frozen typed trees (Psi 04 output) and writes unsealed Terminal Psi
-# plus the check tables. It must never depend on Psi 05, validation, Psi 06 or
-# checked trees: it proves nothing and reads no checker fact.
+# plus the check tables. It must never depend on Psi 05, validation, or Psi 06:
+# it proves nothing and reads no checker fact.
 [dependencies]
 arena = { path = "../../../foundation/arena" }
 language-core = { path = "../../../foundation/language-core" }
