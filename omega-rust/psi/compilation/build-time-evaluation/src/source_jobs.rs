@@ -1086,6 +1086,115 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn selected_calls_keep_public_promises_through_source_free_roundtrip() {
+        // A selected body's total implementation cannot erase a public input
+        // requirement or lend its stronger private result promise to the caller.
+        // Both selections survive in the artifact so same-arity substitutions
+        // can be rejected without consulting the source trees.
+        let source = typed(
+            "trait Policy {
+                 machine plan(value: u64) -> u64 requires value > 0;
+             }
+             public First satisfies Policy {
+                 machine plan(value: u64) -> u64 requires true
+                 ensures result == 23u64 { 23u64 }
+             }
+             public Second satisfies Policy {
+                 machine plan(value: u64) -> u64 requires true
+                 ensures result == 41u64 { 41u64 }
+             }
+             machine request() -> u64 {
+                 let first: u64 = First::plan(7u64);
+                 Second::plan(first)
+             }
+             machine hidden() -> u64 ensures result == 41u64 {
+                 Second::plan(7u64)
+             }",
+        );
+        let prepared = PreparedBuildMachineProgram::prepare(&source, None).unwrap();
+        let (requester, expression) = returned_source_call(prepared.typed(), "request");
+        let selected = prepared
+            .entry_call(requester, expression, &[BuildTimeValue::Int(7)])
+            .unwrap();
+        let mut accounting = crate::SourceCompletionAccounting::default();
+        assert_eq!(
+            selected
+                .invoke_recorded(target(), &mut accounting)
+                .unwrap()
+                .value(),
+            &BuildTimeValue::Int(41)
+        );
+        let [crate::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+            panic!("one selected call retains its exact execution receipt")
+        };
+        let (canonical_caller, invocation) = receipt.invocation().unwrap().unwrap();
+        assert_eq!(
+            Some(semantic_vocabulary::TargetMachineCallable::Machine(
+                canonical_caller
+            )),
+            receipt.program().view().module().entry
+        );
+        assert!(invocation.inputs.required_contract.is_some());
+        let refusal = prepared
+            .entry_call(requester, expression, &[BuildTimeValue::Int(0)])
+            .err()
+            .expect("the public input requirement still applies to a total implementation");
+        assert!(refusal.contains("requires"), "{refusal}");
+        let (hidden, _) = returned_source_call(prepared.typed(), "hidden");
+        let refusal = prepared
+            .entry(hidden, hidden, &[])
+            .err()
+            .expect("a private implementation postcondition is not a public promise");
+        assert!(refusal.contains("ensures"), "{refusal}");
+
+        let entry = prepared.entry(requester, requester, &[]).unwrap();
+        let module = entry.accepted().module();
+        let calls = module
+            .machines
+            .iter()
+            .flat_map(|machine| machine.module_invocations())
+            .filter(|call| call.inputs.required_contract.is_some())
+            .map(|call| (call.inputs.required_contract.unwrap(), call.inputs.callee))
+            .collect::<Vec<_>>();
+        assert_eq!(calls.len(), 2, "both exact source selections are reachable");
+        assert_ne!(calls[0].0, calls[1].0);
+        assert_ne!(calls[0].1, calls[1].1);
+        for (required, body) in &calls {
+            let public = module
+                .invocation_machine_contract(*body, Some(*required))
+                .unwrap();
+            assert_eq!(public.requires.len(), 1);
+            assert!(public.ensures.is_empty());
+            assert!(public.selected_application.is_some());
+        }
+        let bytes = terminal_codec::encode_module(module).unwrap();
+        assert_eq!(terminal_codec::decode_module(&bytes).unwrap(), *module);
+        let mut previous_format = bytes.clone();
+        previous_format[8..10].copy_from_slice(&262u16.to_le_bytes());
+        assert_eq!(
+            terminal_codec::decode_module(&previous_format).unwrap_err(),
+            terminal_codec::CodecError::UnsupportedFormatMarker(262)
+        );
+        for (required, replacement) in [(calls[0].0, calls[1].1), (calls[1].0, calls[0].1)] {
+            let mut forged = module.clone();
+            forged
+                .declaration_contracts
+                .iter_mut()
+                .find(|contract| contract.id == required)
+                .unwrap()
+                .selected_application
+                .as_mut()
+                .unwrap()
+                .realization = replacement;
+            let bytes = terminal_codec::encode_module(&forged).unwrap();
+            assert!(
+                terminal_codec::decode_module(&bytes).is_err(),
+                "a same-arity body cannot replace the selected implementation"
+            );
+        }
+    }
+
+    #[test]
     fn nominal_invocation_bindings_retain_the_requirement_and_implementation() {
         let source = typed(
             "trait A { machine plan(value: u32) -> u32; }
