@@ -655,12 +655,64 @@ impl<'t> Program<'t> {
         }
         if !machine.declared_type_equations.is_empty()
             || !machine.owned_data.is_empty()
-            || !machine.satisfies.is_empty()
             || (!machine.conformance_bounds.is_empty() && !generic_entry)
         {
             return unserved("type equations, owned data or conformances");
         }
+        // A `satisfies` clause is an obligation of the machine that states
+        // it (`satisfied_requirements`); only a closed machine's is read.
+        if !machine.satisfies.is_empty() && !matches!(reading, Reading::Closed) {
+            return unserved("`satisfies` clause on a generic machine");
+        }
         Ok(())
+    }
+
+    /// The statement each `satisfies` clause of a closed machine makes: the
+    /// machine refines that requirement of that trait. conformances.md,
+    /// "Binding a machine to a requirement": the machine "refines the
+    /// complete requirement", and "A matching signature is insufficient."
+    /// So wherever the machine is judged, each clause is owed as a
+    /// conformance witness, whether the machine is a chosen provider, a
+    /// subject declaration or a callee. A clause the route does not read
+    /// (one of an applied trait, of an operator or a top-level requirement,
+    /// or one carrying a native binding) refuses the machine by name.
+    fn satisfied_requirements(
+        &self,
+        id: MachineId,
+        machine: &'t Machine,
+    ) -> Checked<Vec<crate::ConformanceWitness>> {
+        let typed = self.typed;
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
+        let mut witnesses = Vec::new();
+        for clause in typed.machine_trait_conformances(machine) {
+            if clause.external_binding.is_some()
+                || clause.external_binding_source_span.is_some()
+                || clause.via_expression.is_valid()
+                || clause.alias.is_some()
+            {
+                return unserved("`satisfies` clause with a native binding or an alias");
+            }
+            let Some(typed_trees::machine::SatisfiedDeclaration::Trait {
+                definition,
+                requirement,
+            }) = typed_trees::machine::resolve_satisfied_declaration(typed, machine, clause)
+            else {
+                return unserved("`satisfies` clause that names no requirement of a trait");
+            };
+            if requirement.symbol != clause.requirement_symbol
+                || !clause.trait_lifetime_arguments.is_empty()
+                || !definition.lifetime_parameters.is_empty()
+                || !definition.type_parameters.is_empty()
+            {
+                return unserved("`satisfies` clause of a trait with parameters");
+            }
+            witnesses.push(crate::ConformanceWitness {
+                declaring_trait: definition.symbol,
+                requirement: requirement.symbol,
+                implementation: machine.symbol,
+            });
+        }
+        Ok(witnesses)
     }
 
     /// The value parameters of a generic check form's entry, in declaration
@@ -715,6 +767,11 @@ impl<'t> Program<'t> {
             Reading::Closed | Reading::Applied(_) | Reading::Alternative(_) => Vec::new(),
         };
         self.machine_shape(id, machine, reading)?;
+        for witness in self.satisfied_requirements(id, machine)? {
+            if !self.conformance_witnesses.contains(&witness) {
+                self.conformance_witnesses.push(witness);
+            }
+        }
         // What each type parameter stands for while this machine is read.
         self.scope = match reading {
             Reading::Closed => Vec::new(),
@@ -1962,7 +2019,8 @@ fn bindings(statement: &Statement, slot_names: &[String], out: &mut Vec<(SourceS
                 target_spans(target, out);
             }
         }
-        Statement::Declare { .. }
+        Statement::CaptureReference { .. }
+        | Statement::Declare { .. }
         | Statement::Witness { .. }
         | Statement::Store { .. }
         | Statement::Evaluate(_) => {}
@@ -1980,7 +2038,8 @@ fn value_exits(statement: &Statement, exits: &mut Vec<(SourceSpan, usize)>) {
             .map(|(_, target, source)| (target, *source))
             .chain(default.iter().map(|(target, source)| (target, *source)))
             .collect(),
-        Statement::Declare { .. }
+        Statement::CaptureReference { .. }
+        | Statement::Declare { .. }
         | Statement::Witness { .. }
         | Statement::Bind { .. }
         | Statement::Store { .. }
@@ -2146,6 +2205,7 @@ fn statement_slot_uses(statement: &Statement, uses: &mut [usize]) {
                 target(arm, uses);
             }
         }
+        Statement::CaptureReference { original, .. } => uses[*original] += 1,
         Statement::Declare { .. } => {}
     }
 }

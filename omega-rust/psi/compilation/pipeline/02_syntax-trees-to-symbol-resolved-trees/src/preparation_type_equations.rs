@@ -44,7 +44,6 @@ use language_semantics::const_value::{
 use numerics::bignum::BigInt;
 use numerics::literals::LandedIntegerType;
 use source::SourceSpan;
-use std::collections::HashMap;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};
 use syntax_trees::identifier::Identifier;
@@ -1678,19 +1677,9 @@ mod type_structure {
                         };
                         BigInt::from_i128(value)
                     } else {
-                        crate::preparation::generic_data::module_constants::reject_module_constant_selection(
-                        self.syntax, name.as_str(self.syntax), name.source_span(),
-                    ).map_err(|reason| self.type_structure_error(&reason, span))?;
-                        let value =
-                            self.const_values
-                                .get(name.as_str(self.syntax))
-                                .ok_or_else(|| {
-                                    self.type_structure_error(
-                                        "requires a closed array length",
-                                        span,
-                                    )
-                                })?;
-                        BigInt::from_i128(*value)
+                        return Err(
+                            self.type_structure_error("requires a closed array length", span)
+                        );
                     }
                 }
             };
@@ -2497,7 +2486,6 @@ pub(crate) fn complete_equation_arguments(
     base_info: EquationTemplate<'_>,
     base_name: &Identifier,
     supplied: &[TypeReferenceHandle],
-    const_values: &HashMap<String, i128>,
     selection: Option<&declaration_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Vec<TypeReferenceHandle>, Diagnostic> {
@@ -2507,7 +2495,6 @@ pub(crate) fn complete_equation_arguments(
         base_name,
         supplied,
         &[],
-        const_values,
         selection,
         warnings,
     )
@@ -2529,19 +2516,11 @@ pub(crate) fn complete_equation_arguments_with_types(
     base_name: &Identifier,
     supplied: &[TypeReferenceHandle],
     ordinary_types: &[(TypeReferenceHandle, TypeReferenceHandle)],
-    const_values: &HashMap<String, i128>,
     selection: Option<&declaration_selection::ConstantSelection>,
     warnings: &mut Vec<Diagnostic>,
 ) -> Result<Vec<TypeReferenceHandle>, Diagnostic> {
     let bindings = {
-        let mut solver = Solver::new(
-            &mut *syntax,
-            base_info,
-            base_name,
-            supplied,
-            const_values,
-            selection,
-        );
+        let mut solver = Solver::new(&mut *syntax, base_info, base_name, supplied, selection);
         for &(formal, actual) in ordinary_types {
             let mut mentions = Vec::new();
             collect_binder_mentions(
@@ -2598,17 +2577,9 @@ pub(crate) fn materialize_completed_type(
     base_name: &Identifier,
     arguments: &[TypeReferenceHandle],
     result: TypeReferenceHandle,
-    const_values: &HashMap<String, i128>,
     selection: Option<&declaration_selection::ConstantSelection>,
 ) -> Result<TypeReferenceHandle, Diagnostic> {
-    let mut solver = Solver::new(
-        syntax,
-        base_info,
-        base_name,
-        arguments,
-        const_values,
-        selection,
-    );
+    let mut solver = Solver::new(syntax, base_info, base_name, arguments, selection);
     solver
         .construct_type_structure(result, base_name.source_span())?
         .ok_or_else(|| {
@@ -2645,7 +2616,6 @@ struct Solver<'a, 's> {
     syntax: &'a mut SyntaxTrees,
     base_info: EquationTemplate<'a>,
     base_name: &'a Identifier,
-    const_values: &'a HashMap<String, i128>,
     selection: Option<&'a declaration_selection::ConstantSelection<'s>>,
     supplied_count: usize,
     bindings: Vec<Option<Binding>>,
@@ -2658,7 +2628,6 @@ impl<'a, 's> Solver<'a, 's> {
         base_info: EquationTemplate<'a>,
         base_name: &'a Identifier,
         supplied: &[TypeReferenceHandle],
-        const_values: &'a HashMap<String, i128>,
         selection: Option<&'a declaration_selection::ConstantSelection<'s>>,
     ) -> Self {
         let mut bindings = vec![None; base_info.parameter_names.len()];
@@ -2687,7 +2656,6 @@ impl<'a, 's> Solver<'a, 's> {
             syntax,
             base_info,
             base_name,
-            const_values,
             selection,
             supplied_count: supplied.len(),
             bindings,

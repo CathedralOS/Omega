@@ -189,6 +189,7 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
             purpose: source::DependencyScope::Product,
             selected: &[],
             bindings: &[],
+            supplies: &[],
         },
         terminal_codec::TerminalPublication::Invocation,
     );
@@ -234,6 +235,7 @@ fn source_application_cannot_change_its_payload_type() {
             purpose: source::DependencyScope::Product,
             selected: &[],
             bindings: &[],
+            supplies: &[],
         },
         terminal_codec::TerminalPublication::Invocation,
     );
@@ -270,6 +272,7 @@ fn a_local_generic_data_template_remains_unserved() {
             purpose: source::DependencyScope::Product,
             selected: &[],
             bindings: &[],
+            supplies: &[],
         },
         terminal_codec::TerminalPublication::Invocation,
     );

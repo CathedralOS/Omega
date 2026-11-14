@@ -40,6 +40,7 @@ mod mathematical_clauses;
 mod mutable_formals;
 mod owned_dispatch;
 mod proof_scope;
+mod provider_supplies;
 mod ranges;
 mod reach;
 mod references;

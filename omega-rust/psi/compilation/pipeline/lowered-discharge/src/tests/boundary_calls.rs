@@ -46,6 +46,7 @@ fn invocation(typed: typed_trees::TypedTrees) -> Checked<structure_elaboration::
             purpose: source::DependencyScope::Product,
             selected: &[],
             bindings: &[],
+            supplies: &[],
         },
         terminal_codec::TerminalPublication::Invocation,
     )
@@ -288,6 +289,7 @@ machine entry() crashes none {{}}
             purpose: source::DependencyScope::Product,
             selected: &[],
             bindings: &[],
+            supplies: &[],
         },
         terminal_codec::TerminalPublication::Invocation,
     );

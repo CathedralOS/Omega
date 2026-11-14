@@ -73,6 +73,12 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Two proofs of "this machine refines that contract"
+- Category: zombie machinery
+- Where: `omega-rust/psi/compilation/pipeline/lowered-discharge/src/refinement.rs` (`prove_callable_refinement`) and `lowered-discharge/src/verdict.rs` (`judge_compilation_for`, which judges each `ConformanceWitness` row through `elaborate_witness`)
+- Saw: both build a witness machine that has the required contract and calls the supplied one. The first has no caller outside its own test and adds a ceiling check by hand; the second is what every implementation row, `satisfies` clause and chosen provider goes through
+- Cost: a rule added to one (a new ceiling axis, a new clause form) is missing from the other, and a reader cannot tell which one decides
+- Reported: 2026-11-13, Claude Code, while having chosen providers judged against the requirement they supply
 ### A view passed from a place is lent as that place, so it conflicts with a loan of its holder
 - Category: one idea, several implementations
 - Where: `structure-elaboration/src/read/calls.rs` (`lent`, `lent_storage_is_untouched` with `holds_view`), `lower/calls.rs` (`arguments`, the `Borrow` arm), `lowered-discharge/src/places/loans.rs`
@@ -150,13 +156,6 @@ framework or a list of features that remain unimplemented.
 - Cost: the next site that projects, compares or constructs a record with `_` silently ignores a domain's reader, writer or issuer rule, and no test fails until someone writes the twin for that exact site
 - Reported: 2026-11-13, Claude Code, while reading declared domains on data carriers
 
-### Constant operands are still read from a table keyed by spelling
-- Category: a verdict with nothing behind it
-- Where: `02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs` (`module_constants::lexical_integer_const_values`), built at five call sites in `preparation_const_evaluation.rs`, `preparation_generic_data.rs` and `preparation_machine_equations.rs` and handed to `evaluate_const_argument_expression` and the fact evaluators
-- Saw: the table maps every non-module constant's spelled name to its literal value over all root items of the forest, with no source scope; two packages that each keep a private `const LIMIT` leave one entry, so a const-generic argument, range fact or machine equation naming `LIMIT` can read the other package's value. The table also only holds constants written as integer literals, so a constant resolution now folds (`const B: u64 = A;`) is absent from it
-- Cost: the new closed-initializer fold selects operands through `ConstantSelection` and never reads this table, but the older evaluators beside it still do; a wrong value there is silent, and the fix is to give those evaluators the same source-scoped selection rather than to repair the table
-- Reported: 2026-11-13, Claude Code, while folding closed scalar constant initializers in resolution
-
 ### Interface ownership still changes some imported-service checks
 - Category: one idea, several implementations
 - Where: `omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/native_provider/service_reach.rs:39`; `src/execution/host_imports/filesystem.rs:513`; `omega-rust/psi/compilation/terminal-installation/src/provider_and_target_installation.rs:451`
@@ -211,13 +210,6 @@ framework or a list of features that remain unimplemented.
 - Where: `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/identity.rs:213` and `.../optimization-unit/src/ownership.rs:171`, `.../selected-instructions/src/effects/program/identity.rs:476`, `.../selected-instructions/src/plan_identity.rs:606`, `.../target-operations/legalized-operations/src/identity/structural_types.rs:208`
 - Saw: each file matches on all eight `StructuralPathSegment` variants and writes its own tag bytes; `RuntimeIndex` is 5 in three of them, 6 in the machine-effect identity and 4 in the selected plan identity, where `Field`, `FixedIndex`, `Referent` and `FixedRange` are also renumbered
 - Cost: a new path segment kind needs five encoders and at least two decoders (`register-homes/src/recovery/structural_declarations.rs:714`, `selected-instructions/src/effects/program/encoding.rs:1654`) edited by hand, and nothing says which numbering is the reference
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### Stage 01 builds its control-flow graph from two terminator kinds while every node already lists its successors
-- Category: one idea, several implementations
-- Where: `omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/control_flow_analyses.rs:303-323` and `:195`, `.../src/semantic_analyses.rs:2241-2249`, against `.../optimization-unit/semantics/src/candidates.rs:3224-3238`
-- Saw: the stage 01 graph and its value liveness add edges only for `Jump` and `Conditional` (`_ => {}` for the rest), so `StructuralCase` arms get no edge; the rewrite validator's dominators, the sparse constant pass (`semantic_analyses.rs:1838`) and the cycle graph (`ranked_cycles_validation.rs:737-763`) do follow case arms; a third dominator solver sits in `optimization-unit/src/dominance.rs:53`
-- Cost: the stage that proposes rewrites and the crate that validates them disagree on which blocks are reachable and dominated; whether a function with a `StructuralCase` reaches the two-kind graph was not traced
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### The Omega unit validator carries copies of two Terminal Psi codec checks

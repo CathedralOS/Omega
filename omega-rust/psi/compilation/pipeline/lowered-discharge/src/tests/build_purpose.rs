@@ -83,6 +83,7 @@ fn roster<'a>(
         purpose,
         selected: &[],
         bindings: &[],
+        supplies: &[],
     }
 }
 

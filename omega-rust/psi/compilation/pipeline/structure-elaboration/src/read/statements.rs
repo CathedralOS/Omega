@@ -208,6 +208,46 @@ impl Program<'_> {
                 return unserved("operand capture without its retained initializer and type");
             }
         }
+        // Dispatch subjects and saved operands may retain an incoming
+        // reference. Capture its storage binding, never the referent value.
+        if (local.is_operand_capture
+            || local.role == language_core::LocalBindingRole::DispatchSubject)
+            && local.type_reference.is_valid()
+            && let typed_trees::types::TypeReferenceNode::Reference {
+                referee, access, ..
+            } = self
+                .typed
+                .type_reference_table
+                .type_reference(local.type_reference)
+            && self.byte_view_type(id, local.type_reference)?.is_none()
+        {
+            if local.is_mutable || local.relevance != language_core::BindingRelevance::Relevant {
+                return unserved("reference capture without an immutable relevant binding");
+            }
+            let value_type = self.value_type(id, *referee)?;
+            let value = self.expression(id, slots, local.initial_value, Some(value_type))?;
+            let ExpressionKind::Slot(original) = value.kind else {
+                return unserved("reference capture without an existing reference binding");
+            };
+            if slots[original].borrowed != Some(*access) || slots[original].value_type != value_type
+            {
+                return unserved("reference capture without matching storage and access");
+            }
+            return Ok((
+                Slot {
+                    symbol: local.symbol,
+                    value_type,
+                    assignable: slots[original].assignable,
+                    homed: slots[original].homed,
+                    erased: false,
+                    borrowed: Some(*access),
+                },
+                Statement::CaptureReference {
+                    slot: slots.len(),
+                    original,
+                },
+            ));
+        }
         if local.relevance != language_core::BindingRelevance::Relevant {
             return self.erased_local(id, slots, local);
         }
