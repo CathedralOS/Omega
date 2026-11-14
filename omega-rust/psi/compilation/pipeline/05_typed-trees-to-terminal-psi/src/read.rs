@@ -35,6 +35,7 @@ mod places;
 mod predicates;
 mod reflection;
 mod regions;
+mod rejections;
 mod services;
 mod source_records;
 mod statements;

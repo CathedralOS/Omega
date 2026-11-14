@@ -20,7 +20,7 @@ use typed_trees::expression::TableCastExpression;
 
 use super::{Program, Slot};
 use crate::body::{Expression, ExpressionKind, Policy, Qualification, ValueType};
-use crate::{SourceOrigin, Unserved, refuse};
+use crate::{SourceOrigin, Unserved, refuse, reject};
 
 impl Program<'_> {
     pub(super) fn cast(
@@ -96,12 +96,21 @@ impl Program<'_> {
         // qualified value". A declared domain is added and removed by an
         // entry (`domain_entry`), never by this cast.
         if !source_type.qualification().domains.is_empty()
-            || !target.qualification().domains.is_empty()
+            || (source_type.policy().is_some() && source_type.scalar() != target.scalar())
         {
-            return unserved("carrier cast of or into a type that carries a declared domain");
+            return Err(reject(
+                id,
+                source,
+                format!(
+                    "this cast names a carrier and its operand's type carries {}: the operand \
+                     of a carrier cast carries no domain, so each domain is removed by name \
+                     first (`value as -D as T`)",
+                    self.domains_named(source_type.qualification()),
+                ),
+            ));
         }
-        if source_type.policy().is_some() && source_type.scalar() != target.scalar() {
-            return unserved("cast that changes the carrier of a policy-qualified integer");
+        if !target.qualification().domains.is_empty() {
+            return unserved("carrier cast into a type that carries a declared domain");
         }
         let (Some(ScalarType::Integer(from)), Some(carrier @ ScalarType::Integer(to))) =
             (source_type.scalar(), target.scalar())
@@ -225,7 +234,7 @@ impl Program<'_> {
                     if cast.semantic_domain_symbol != domain {
                         return mistyped("added domain that is not the one the entry selected");
                     }
-                    self.issue(id, domain)?;
+                    self.issue(id, domain, source)?;
                     // "Has predicates | Prove them for this value."
                     let (clauses, stated) = match (
                         result,
@@ -355,7 +364,12 @@ impl Program<'_> {
     /// Authorization proves no predicate ("Policy authorization cannot
     /// prove those predicates"): the cast owes the domain's predicates of
     /// its operand whoever issues it (`domain_entry`, `predicates`).
-    fn issue(&mut self, id: MachineId, domain: symbols::SymbolHandle) -> Checked<()> {
+    fn issue(
+        &mut self,
+        id: MachineId,
+        domain: symbols::SymbolHandle,
+        source: SourceOrigin,
+    ) -> Checked<()> {
         use language_semantics::DomainEstablishmentRoute;
         use typed_trees::domain::DomainIssuance;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
@@ -371,6 +385,31 @@ impl Program<'_> {
                     matches!(route, DomainEstablishmentRoute::ExactMachine { machine: origin }
                         if *origin == machine)
                 });
+                // authority.md, "Requirement and exact-machine routes": a
+                // plain machine declaration authorizes "That exact
+                // machine's direct invocation", and "Naming a machine is
+                // neither trait sealing nor an implicit grant to other
+                // machines in its package". So when every route is an
+                // exact machine and none is this one, the cast is wrong in
+                // every program: "a cast cannot mint it". A requirement
+                // route may still authorize this machine as a conformer,
+                // which is not followed here, so that stays a refusal.
+                let exact = routes
+                    .iter()
+                    .all(|route| matches!(route, DomainEstablishmentRoute::ExactMachine { .. }));
+                if !routed && exact {
+                    return Err(reject(
+                        id,
+                        source,
+                        format!(
+                            "this cast adds {} in a machine that is not one of the domain's \
+                             establishment routes: a domain with routes is added only inside a \
+                             machine its declaration names, and a cast anywhere else cannot \
+                             mint that evidence",
+                            self.domain_named(domain),
+                        ),
+                    ));
+                }
                 if !routed {
                     return unserved("cast that adds a domain outside its establishment routes");
                 }

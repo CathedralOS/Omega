@@ -293,6 +293,7 @@ fn accept_compilation(
             }
             Ok(RouteVerdict::Rejected {
                 formations,
+                violations,
                 unproved,
                 unestablished,
                 conflicts,
@@ -300,6 +301,7 @@ fn accept_compilation(
             }) => {
                 let before = diagnostics.len();
                 diagnostics.extend(formations.iter().map(|entry| entry.reject_diagnostic()));
+                diagnostics.extend(violations.iter().map(|entry| entry.reject_diagnostic()));
                 for entry in unproved.iter().filter(|entry| !entry.cause.is_incomplete()) {
                     diagnostics.push(entry.reject_diagnostic());
                     diagnostics.extend(entry.opening_diagnostic());

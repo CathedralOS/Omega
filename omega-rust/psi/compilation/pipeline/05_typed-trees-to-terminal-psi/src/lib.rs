@@ -213,6 +213,23 @@ pub(crate) fn refuse(machine: MachineId, concerns: Construct, unserved: Unserved
     }
 }
 
+/// A `Violation` refusal: the program breaks a rule of the language at `at`,
+/// and `rule` states the rule and how. The route publishes it as a rejection
+/// of the program. Only for a form the specification makes an error in every
+/// program: one the reader merely cannot judge is `refuse`, because a
+/// rejection must never be said of a valid program.
+pub(crate) fn reject(machine: MachineId, at: SourceOrigin, rule: impl Into<String>) -> Refusal {
+    Refusal {
+        reason: RefusalReason::Violation(match at {
+            SourceOrigin::Authored(span) => Some(span),
+            SourceOrigin::Unpositioned(_) => None,
+        }),
+        machine,
+        concerns: Construct::Machine,
+        detail: rule.into(),
+    }
+}
+
 /// Elaborates everything `compilation` is responsible for: its entries, what
 /// the Build's selections name, every declaration of its subject whether or
 /// not anything uses it, and the machines those call. The first entry is

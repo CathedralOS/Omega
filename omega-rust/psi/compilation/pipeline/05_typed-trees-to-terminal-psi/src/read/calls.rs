@@ -1185,10 +1185,21 @@ impl<'t> Program<'t> {
         for ((declared, _, _), actual) in formals.iter().zip(&read) {
             let formal = self.substitute(*declared, &bound);
             if !self.agrees(actual.result, formal) {
-                return Err(refuse(
+                // The typed trees give a borrow no span of its own; the
+                // place it lends is the authored argument.
+                let at = match (&actual.kind, actual.source) {
+                    (ExpressionKind::Borrow { place, .. }, SourceOrigin::Unpositioned(_)) => {
+                        place.source
+                    }
+                    _ => actual.source,
+                };
+                return Err(self.mistyped(
                     id,
-                    Construct::Machine,
-                    Unserved::Typing("argument types"),
+                    at,
+                    super::rejections::Destination::Parameter,
+                    Some(formal),
+                    actual.result,
+                    "argument types",
                 ));
             }
         }

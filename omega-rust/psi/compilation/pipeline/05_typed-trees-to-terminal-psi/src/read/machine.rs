@@ -2061,10 +2061,13 @@ impl<'t> Program<'t> {
                     match (last, signature.result) {
                         (true, Some(result)) => {
                             if !self.agrees(expression.result, result) {
-                                return Err(refuse(
+                                return Err(self.mistyped(
                                     id,
-                                    Construct::Machine,
-                                    Unserved::Typing("final value type"),
+                                    expression.source,
+                                    super::rejections::Destination::Result,
+                                    Some(result),
+                                    expression.result,
+                                    "final value type",
                                 ));
                             }
                             completed = true;

@@ -27,9 +27,14 @@ fn verdict(build: &str) -> String {
             accepted.publish_invocation().unwrap();
             "accepted".to_owned()
         }
-        Ok(RouteVerdict::Rejected { unestablished, .. }) => match &unestablished[..] {
-            [one] => one.detail.to_owned(),
-            _ => panic!("{unestablished:?}"),
+        Ok(RouteVerdict::Rejected {
+            violations,
+            unestablished,
+            ..
+        }) => match (&violations[..], &unestablished[..]) {
+            ([], [one]) => one.detail.to_owned(),
+            ([one], []) => one.statement.to_owned(),
+            _ => panic!("{violations:?} {unestablished:?}"),
         },
         other => panic!("{other:?}"),
     }
@@ -124,7 +129,15 @@ data Rejection { reason: &[u8] in Text; }
     let uncast = format!(
         "{declarations}machine build_entry() {{ let r: Rejection = Rejection {{ reason: \"x\" }}; }}"
     );
-    assert_eq!(verdict(&uncast), "typing record literal field type");
+    // Not a refusal: a literal is plain bytes, and a type gains a domain
+    // only by a cast, so the program is wrong and is rejected as such.
+    assert!(
+        verdict(&uncast).starts_with(
+            "this value's type carries no domain and the field it initializes declares"
+        ),
+        "{}",
+        verdict(&uncast)
+    );
     let formal = format!(
         "{declarations}machine keep(text: &[u8] in Text) {{ }}\nmachine build_entry() {{ keep(\"x\" as +Text); }}"
     );
