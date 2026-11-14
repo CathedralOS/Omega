@@ -1147,8 +1147,12 @@ the contract the place declared in the domain already has, with the domain's
 | a field of a data type | `requires` clauses of that data type over `self.field`, owed by its constructions, stores and zero establishment and kept by its invariant windows |
 | the result of `value as +D` | the invariant of the block the cast continues in (`ExpressionKind::Establish`, `lower/control.rs` `prove_membership`): the jump into it owes the clauses as an `ArrivalInvariant` at the cast, and the block's one parameter is the result |
 
-Served for a scalar carrier. A domain with predicates on a data carrier, on a
-borrowed formal, on a case payload or on an array element is refused by name.
+On a data carrier the clauses name fields beneath `self`, so a field
+`player: Player in Alive` of `domain Player::Alive requires self.health > 0`
+owes `self.player.health > 0` among its owner's clauses. A formal or a result
+whose data type carries such a domain has no owner to join and is refused by
+name, as are a cast that adds one, a borrowed formal, a case payload and an
+array element in a domain with predicates.
 
 Lowering mints one `DataDomain` obligation per owed clause, at the point
 before the operation that owes it

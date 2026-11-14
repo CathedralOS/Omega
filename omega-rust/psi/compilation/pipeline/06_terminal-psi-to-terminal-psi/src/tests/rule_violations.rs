@@ -46,6 +46,24 @@ fn a_call_of_a_name_nothing_declares_is_rejected() {
     );
 }
 
+/// state_contracts.md: "an unknown machine name or malformed type is an
+/// error wherever it appears". Nothing in the program is called `Nowhere`;
+/// its twin names the declared domain `Km`.
+#[test]
+fn a_type_naming_a_domain_nothing_declares_is_rejected() {
+    let program = |domain: &str| {
+        format!(
+            "domain i32::Km;\nmachine carry(value: i32 in {domain}) -> i32 in {domain} {{\n    \
+             value\n}}\n"
+        )
+    };
+    accepted(&program("Km"));
+    rejected(
+        &program("Nowhere"),
+        "this type names the domain `Nowhere`, which nothing in the program declares",
+    );
+}
+
 /// patterns.md, "Data and case decomposition": "Named patterns account for
 /// every field once", and "Without `..`, a structural pattern mentions every
 /// field".

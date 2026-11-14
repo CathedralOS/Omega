@@ -167,6 +167,23 @@ fn an_arm_knows_every_conjunct_of_its_guard() {
     }
 }
 
+/// A bound that every alternative of a disjunction establishes, each in its
+/// own form, holds after the join: the arm knows the disjunction and the
+/// prover takes each alternative in turn. The failing twin's second
+/// alternative establishes no bound on `second`.
+#[test]
+fn a_bound_every_alternative_establishes_crosses_the_join() {
+    for guard in [
+        "(first < 128 && second < 128) || (first < 200 && second < 200)",
+        "(first < 100 || first < 200) && second < 256",
+    ] {
+        assert_eq!(guarded_index(guard), "accepted", "{guard}");
+    }
+    assert!(
+        guarded_index("(first < 128 && second < 128) || first < 200").starts_with(UNSAFE_INDEX)
+    );
+}
+
 /// A table cell read at a field of `key`, declared as `formal`.
 fn keyed_index(formal: &str, body: &str) -> String {
     verdict(
