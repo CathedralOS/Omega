@@ -196,6 +196,9 @@ release or wake semantics. An opaque provider publishes a protocol contract
 whose implementation relationship is checked or admitted at the existing
 foreign/provider boundary. Missing behavior is unknown, never an empty summary;
 an arbitrary caller assertion or a model-file digest establishes no contract.
+The same rule applies to runtime callables whose bodies are unavailable.
+Absent `blocks` or `suspends` declarations do not supply a missing synchronization
+contract or establish that a callable cannot wait through an atomic protocol.
 
 Externally relevant changes to waiting, acquisition, retention, ordering or
 outcomes change the published synchronization contract and undergo ordinary
@@ -204,6 +207,15 @@ Positive progress uses authored/inherited protocol and
 [termination contracts](termination.md#published-guarantees-and-private-witnesses),
 or exact local evidence where those rules permit it. Termination's omission
 rule is unchanged; private witnesses remain private.
+
+Conditional progress premises cannot discharge themselves across calls or
+package boundaries. "A completes provided B completes" and "B completes provided
+A completes" supply no independent completion, release or wakeup guarantee.
+Mutually dependent premises require a checked joint argument accounting for
+initial state, enabling actions and the progress relied upon. A cyclic protocol
+topology may satisfy that argument, for example through an initial message and
+checked request/reply ordering; a blanket ban on cyclic topology is insufficient.
+Ordinary synchronous-call and termination rules still apply.
 
 ### Locks and protected computation
 
@@ -277,8 +289,9 @@ the condition, registering a waiter, releasing protection and notification must
 form a checked protocol. In particular, a condition wait's atomic release and
 later reacquisition differ from an ordinary wait retaining the same guard.
 Notification to recheck establishes neither the predicate nor completion.
-Automatic checking supports a bounded predicate/protocol fragment; proven
-equivalents may establish the same obligations without a one-Boolean-field rule.
+More expressive predicates may establish the same obligations through checked
+evidence. The first automatic floor below promises no general communication
+proof synthesis and imposes no one-Boolean-field rule.
 
 Cancellation or timeout is an enabling alternative only when the selected
 protocol provides an actionable transition and the resources to execute it.
@@ -327,13 +340,48 @@ exploration and sound implementation relationship; small instances and unfinishe
 searches are tests, not proofs of a larger composition. Runtime instrumentation
 can expose mismatches but an unobserved failure establishes no theorem.
 
-Every conforming checker handles a deterministic bounded automatic fragment:
-finite strict acquisition constraints, resource distinctions established by
-ordinary ownership/alias evidence, known context exclusions and ordinary
-protected-region control flow. Standard completion/capacity and communication
-protocols extend the same contracts. Other protocols require checked evidence
-or legitimate boundary admission; missing implementation support refuses the
-affected composition before it can receive a deadlock-free verdict.
+### First required automatic floor
+
+The first floor fixes a sufficient discipline for exclusive locking. Every
+conforming checker derives and composes the necessary summaries for bodies and
+wrappers in this fragment without a handwritten protocol model or search hint:
+
+| Part | First-floor condition |
+| --- | --- |
+| Locks | Nonrecursive exclusive locks with established resource identities and equal/distinct alias relationships. |
+| Control | Finite sequences and conditionals/joins, using complete synchronization contracts for calls and already-checked iteration summaries. No unrolling or discovery of new loop summaries is required. |
+| Protected computation | Local progress and outcome evidence is already established under the ordinary termination/protocol rules. The synchronization analysis need not invent a termination proof. |
+| Context | The relevant entry/resource relationships and any interrupt or preemption exclusions are established. |
+
+Substitute actual resource subjects through calls, identify established aliases,
+and remove paths already proved unreachable. For remaining alternatives, join
+the possibly held resources and acquisition constraints by union. Each potentially
+waiting acquisition of B while A may be held contributes A before B; a release
+removes the exact held subject on that outcome. The floor discharges the locking
+obligations when these strict constraints are acyclic, protected progress and
+outcome dispositions hold, and context exclusions cover the actual relationships.
+An acquisition-order cycle fails this sufficient discipline unless additional
+evidence resolves it; it is not by itself a demonstrated reachable deadlock.
+
+The domain is finite normalized summaries of those forms, of any finite size;
+there is no additional lock-count, path-count or synchronization-search cutoff.
+The bound is on the permitted inference forms, not an implementation-selected
+number of locks or a promise to explore interleavings. Checking has polynomial
+work in the size of those summaries and their resource/control relationships.
+As with [required automatic discharge](../proofs/contracts.md#required-automatic-discharge),
+this floor has no optional search allowance: valid in-fragment compositions
+pass under every proof-work policy, including the default and
+[`--floor-only`](../build/command_line.md#checker-conformance).
+Failure to accept one is a checker defect, not exhausted optional proof search.
+Work is still charged as
+[compiler work](../resources/logical_work.md#proof-discovery-and-evidence-checking).
+
+Read/write upgrades, recursive locks, custom retry protocols, unresolved alias
+relationships and richer communication protocols are outside this first floor.
+They may satisfy the same obligations through additional checked evidence or
+legitimate boundary admission. Standard completion/capacity and communication
+automation can extend the same contracts; missing implementation support refuses
+the affected composition before it can receive a deadlock-free verdict.
 
 Retain compact per-body transitions and symbolic dependencies through the
 pipeline. The automatic fragment must not require exhaustive interleaving search,

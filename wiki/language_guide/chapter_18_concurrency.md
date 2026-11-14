@@ -224,6 +224,9 @@ lock-free protocol.
 
 ## Deadlock checking is the default
 
+This section states the required contract. Automatic enforcement remains
+implementation work under [DEFAULT-SYNCHRONIZATION-CHECKING](../../TASKS.md).
+
 An executable or installed composition must establish that its synchronization
 cannot internally deadlock. Ordinary code uses the checked contracts of its
 locks, channels and task runtime; wrappers preserve those contracts through
@@ -248,8 +251,8 @@ The diagnostic distinguishes a conflicting protocol from evidence the checker
 could not establish.
 
 Deadlock freedom does not promise fair scheduling, livelock freedom, termination
-of every task, an external response or a deadline. A server may wait for external input under
-its admitted contract. Stronger progress and real-time guarantees need their
+of every task, an external response or a deadline. A server may wait for external
+input under its admitted contract. Stronger progress and real-time guarantees need their
 own provider and environment premises. Automatic cleanup remains non-waiting;
 waiting shutdown is explicit protocol code. See
 [protocol proofs](../spec/language/concurrency.md#protocol-proofs).
