@@ -67,14 +67,16 @@ pub fn reverify(
         Construct::Obligation(obligation),
     )?;
     let lowered = crate::terminal_machine(&module.machines, machine, machine)?;
+    let references = prepared.references(&module.structural_types);
     let storage = crate::places::Storage::new(
         machine,
         lowered,
-        &module.structural_types,
+        module,
         domains,
         &prepared.graph,
         tables,
         &prepared.types,
+        &references,
     )?;
     let goal = crate::goal(
         module,
@@ -732,14 +734,16 @@ pub fn reverify_specialization(
     let prepared = crate::prepare(module, domains, specialization, tables, Knowledge::All)?;
     let tables = &*tables;
     let lowered = crate::terminal_machine(&module.machines, specialization, specialization)?;
+    let references = prepared.references(&module.structural_types);
     let storage = crate::places::Storage::new(
         specialization,
         lowered,
-        &module.structural_types,
+        module,
         domains,
         &prepared.graph,
         tables,
         &prepared.types,
+        &references,
     )?;
     let carry = Carry::new(
         generic,

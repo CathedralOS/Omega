@@ -237,10 +237,9 @@ impl Program<'_> {
                 if !self.fixed_inputs.contains(&root) {
                     self.fixed_inputs.push(root);
                 }
-                // Ordinary nominal supplies (including CallingPolicy) owe
-                // the same body and refinement proof, but declare no boundary
-                // capability. Only a boundary owner nominates the complete
-                // requirement roster its provider plan must realize.
+                // Ordinary policies have checked bodies and refinement witnesses,
+                // but supply no external service. Only a boundary requirement
+                // needs a declaration and a candidate for provider planning.
                 if owner.is_boundary {
                     self.boundary_declaration(root, requirement)?;
                     let supplied = crate::SuppliedRequirement {

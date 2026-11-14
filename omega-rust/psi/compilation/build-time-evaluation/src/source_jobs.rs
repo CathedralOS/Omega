@@ -88,6 +88,7 @@ pub struct PreparedBuildMachineEntry {
     source_consent: Option<Arc<dyn crate::InvocationSourceConsent>>,
     accepted: Arc<psi_terminal_production::AcceptedTerminalSource>,
     arguments: Vec<crate::BuildTimeValue>,
+    context_inputs: Vec<crate::BuildTimeValue>,
 }
 impl PreparedBuildMachineEntry {
     pub const fn symbol(&self) -> SymbolHandle {
@@ -203,6 +204,16 @@ impl PreparedBuildMachineEntry {
         {
             return Err("target-independent evaluation cannot carry target observations".into());
         }
+        for value in &self.context_inputs {
+            let crate::BuildTimeValue::LayoutTarget(facts) = value else {
+                return Err("source invocation lost its issued context argument".into());
+            };
+            if target.name != Some(facts.profile.as_str()) || target.layout_target != Some(facts) {
+                return Err(
+                    "issued layout context differs from the actual invocation target".into(),
+                );
+            }
+        }
         use terminal_interpreter::TerminalProgram;
         let program = TerminalProgram::borrow(produced.view());
         let requirements = program
@@ -294,9 +305,40 @@ impl PreparedBuildMachineEntry {
         let entry = program
             .entry()
             .map_err(|error| format!("source invocation entry: {error:?}"))?;
-        if !entry.scalar_parameters.is_empty() || !entry.structural_parameters.is_empty() {
-            return Err("source invocation retained an unmaterialized compiler context".into());
+        if !entry.scalar_parameters.is_empty()
+            || entry.structural_parameters.len() != self.context_inputs.len()
+        {
+            return Err("source invocation retained unmatched compiler context parameters".into());
         }
+        let inputs = entry
+            .structural_parameters
+            .iter()
+            .enumerate()
+            .map(|(position, parameter)| {
+                let declaration = program
+                    .module()
+                    .structural_type(parameter.structural_type)
+                    .ok_or("issued context lost its canonical declaration")?;
+                if declaration.shape != terminal_psi::StructuralTypeShape::Opaque
+                    || parameter.access != terminal_psi::StructuralAccess::Owned
+                    || !parameter.qualifications.is_empty()
+                    || !parameter.projected_qualifications.is_empty()
+                    || !parameter.additional_input_qualifications.is_empty()
+                {
+                    return Err("issued context changed its opaque input contract");
+                }
+                let identity = u64::try_from(position)
+                    .ok()
+                    .and_then(|position| position.checked_add(1))
+                    .ok_or("issued context input identity exceeds its host namespace")?;
+                Ok(terminal_interpreter::TerminalStructuralValue::minted(
+                    identity,
+                    parameter.structural_type,
+                    Vec::new(),
+                ))
+            })
+            .collect::<Result<Vec<_>, &str>>()?;
+        let opaque_inputs = inputs.iter().zip(&self.context_inputs).collect::<Vec<_>>();
         let result_type = entry
             .result
             .structural()
@@ -306,6 +348,10 @@ impl PreparedBuildMachineEntry {
             .instantiate(TerminalInstantiation {
                 account: account.as_ref(),
                 installation: Some(&installation),
+                structural_inputs: terminal_interpreter::TerminalStructuralInputs {
+                    arguments: &inputs,
+                    ..Default::default()
+                },
                 ..Default::default()
             })
             .map_err(|error| format!("source invocation preparation: {error:?}"))?;
@@ -326,6 +372,7 @@ impl PreparedBuildMachineEntry {
             ) => crate::terminal_values::result_value(
                 &instance,
                 result_type.ok_or("source invocation lost its structured result type")?,
+                &opaque_inputs,
             ),
             other => Err(format!(
                 "source invocation did not complete normally: {other:?}"
@@ -376,7 +423,12 @@ impl PreparedBuildMachineProgram {
         {
             return Err("source job requires its actual requesting declaration".into());
         }
-        let (source, caller, call) = invocation::prepare_value_invocation(
+        let invocation::PreparedSourceInvocation {
+            source,
+            caller,
+            call,
+            context_inputs,
+        } = invocation::prepare_value_invocation(
             &self.source,
             requester,
             machine,
@@ -443,6 +495,7 @@ impl PreparedBuildMachineProgram {
             source_consent: self.source_consent.clone(),
             accepted: Arc::new(accepted),
             arguments: arguments.to_vec(),
+            context_inputs,
         })
     }
 
@@ -649,6 +702,107 @@ pub(crate) mod tests {
                 .expect("the existing reflection author package"),
         )
         .expect("resolve and type the actual core source and author")
+    }
+
+    #[test]
+    fn source_jobs_transport_only_the_issued_layout_context() {
+        // Passing the opaque input through another checked call must return
+        // that actual input. Neither a record with its name nor target facts
+        // from a different invocation may stand in for the supplied context.
+        let source = with_reflection(
+            "use omega::language::core::LayoutTarget;
+             machine forward(value: LayoutTarget) -> LayoutTarget
+             reaches none terminates { value }
+             machine answer(value: LayoutTarget) -> LayoutTarget
+             reaches none terminates { forward(value) }
+             data Envelope { context: LayoutTarget; tag: u32; }
+             machine transport(value: Envelope) -> Envelope reaches none terminates { value }",
+        );
+        let facts = layout_plans::LayoutTargetFacts {
+            profile: "linux_x86_64".into(),
+            pointer_size: 8,
+            pointer_alignment: 8,
+            case_tag_size: 4,
+            case_tag_alignment: 4,
+            little_endian: true,
+        };
+        let target = crate::InvocationTarget {
+            name: Some(&facts.profile),
+            layout_target: Some(&facts),
+            carrier_layout: None,
+            address_model: None,
+        };
+        let selected = query_machine(&source, "answer");
+        let prepared = PreparedBuildMachineProgram::prepare(&source, None).unwrap();
+        let value = BuildTimeValue::LayoutTarget(facts.clone());
+        let entry = prepared
+            .entry(selected, selected, std::slice::from_ref(&value))
+            .unwrap();
+        let mut meter = psi_work::WorkMeter::unbounded();
+        assert_eq!(entry.invoke(target, &mut meter).unwrap(), value);
+        assert!(meter.usage().total_units() > 0);
+        assert_eq!(entry.arguments(), std::slice::from_ref(&value));
+
+        let wrapped = BuildTimeValue::Struct {
+            type_name: "Envelope".into(),
+            fields: vec![
+                ("context".into(), value.clone()),
+                ("tag".into(), BuildTimeValue::Int(7)),
+            ],
+        };
+        let transport = query_machine(&source, "transport");
+        let entry = prepared
+            .entry(transport, transport, std::slice::from_ref(&wrapped))
+            .unwrap();
+        let returned = entry
+            .invoke(target, &mut psi_work::WorkMeter::unbounded())
+            .unwrap();
+        let BuildTimeValue::Struct { fields, .. } = returned else {
+            panic!("the real enclosing record must remain a record")
+        };
+        assert_eq!(
+            fields,
+            vec![
+                ("context".into(), value.clone()),
+                ("tag".into(), BuildTimeValue::Int(7))
+            ]
+        );
+
+        let forged = BuildTimeValue::Struct {
+            type_name: "LayoutTarget".into(),
+            fields: Vec::new(),
+        };
+        let refusal = prepared.entry(selected, selected, &[forged]).err().unwrap();
+        assert!(
+            refusal.contains("opaque") && refusal.contains("literal"),
+            "{refusal}"
+        );
+
+        let mut other = facts.clone();
+        other.pointer_size = 4;
+        let entry = prepared
+            .entry(selected, selected, &[BuildTimeValue::LayoutTarget(other)])
+            .unwrap();
+        let mut meter = psi_work::WorkMeter::unbounded();
+        assert!(
+            entry
+                .invoke(target, &mut meter)
+                .unwrap_err()
+                .contains("differs from the actual invocation target")
+        );
+        assert_eq!(meter.usage().total_units(), 0);
+
+        let lookalike = program(
+            "boundary data LayoutTarget;
+             machine answer(value: LayoutTarget) -> LayoutTarget { value }",
+        );
+        let refusal = bind(&lookalike, std::slice::from_ref(&value))
+            .err()
+            .unwrap();
+        assert!(
+            refusal.contains("exact unqualified core declaration"),
+            "{refusal}"
+        );
     }
 
     /// The machine `name` that a `with_reflection` query declares. The real

@@ -118,14 +118,16 @@ fn describe_calls(
         &elaboration.module.scalar_block_invariants,
         knowledge == Knowledge::All,
     )?;
+    let references = prepared.references(&elaboration.module.structural_types);
     let storage = crate::places::Storage::new(
         id,
         lowered,
-        &elaboration.module.structural_types,
+        &elaboration.module,
         &elaboration.domains,
         &prepared.graph,
         &tables,
         &prepared.types,
+        &references,
     )?;
     let mut decided = (0..tables.obligations.len())
         .map(|_| None)

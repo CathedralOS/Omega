@@ -58,9 +58,12 @@ pub struct MachineNames {
     /// The statement position of the exit that falls off the end of a unit
     /// body: the last statement when it is an expression, else one past it.
     pub fall_off: usize,
-    /// The span of each transition arm that tests a value, and the value as
-    /// authored (`true`, `false`), or `_` for an arm that takes whatever the
-    /// arms before it did not: how a warning about the arm names it.
+    /// How a warning about an authored arm names it: the pattern as authored
+    /// (`true`, `7`, `Shape::Dot`), or `_` for an arm that takes whatever the
+    /// arms before it did not, and its construct, as in "the `true` arm of a
+    /// match". A transition arm is keyed by its span; a value `match` arm by
+    /// the span of its value, which is how lowering knows the arm
+    /// (`MachineSources::branches`).
     pub arms: Vec<(SourceSpan, String)>,
 }
 

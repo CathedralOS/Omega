@@ -218,6 +218,7 @@ impl Program<'_> {
                 homed: slot.homed,
                 erased: slot.erased,
                 borrowed: slot.borrowed,
+                borrowed_regions: slot.borrowed_regions,
             })
             .collect();
         self.clause_text(&renamed, expression)

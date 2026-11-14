@@ -328,6 +328,7 @@ impl Walk<'_> {
             | ExpressionKind::BitwiseNot(operand)
             | ExpressionKind::Cast(operand)
             | ExpressionKind::Requalify(operand)
+            | ExpressionKind::Referent(operand)
             | ExpressionKind::Establish { operand, .. } => self.expression(machine, operand),
             ExpressionKind::Field { base, .. }
             | ExpressionKind::CollectionMeasure { base, .. }
@@ -364,7 +365,7 @@ impl Walk<'_> {
                 }
                 Ok(true)
             }
-            ExpressionKind::Index { base, index } => {
+            ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
                 Ok(self.expression(machine, base)? && self.expression(machine, index)?)
             }
             ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {

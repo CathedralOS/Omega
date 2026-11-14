@@ -170,6 +170,9 @@ impl Program<'_> {
                 Unserved::Typing("index into non-array storage"),
             ));
         };
+        if self.is_readable_byte_view(machine, array)? {
+            return self.byte_element(machine, slots, base, indexed.index, source);
+        }
         let (element, extent) = self.array_element(machine, array)?;
         if !matches!(extent, CollectionExtent::Fixed(_)) {
             return Err(refuse(
@@ -220,7 +223,7 @@ impl Program<'_> {
         })
     }
 
-    fn array_element(
+    pub(super) fn array_element(
         &self,
         machine: MachineId,
         array: StructuralTypeId,
@@ -241,7 +244,7 @@ impl Program<'_> {
         }
     }
 
-    fn storage_value_type(
+    pub(super) fn storage_value_type(
         &self,
         machine: MachineId,
         storage: StructuralTypeId,

@@ -376,6 +376,21 @@ pub(crate) fn follow_the_lowered_form(
                     }
                 }
             }
+            // A byte read owes its index bound, as an indexed projection
+            // does (byte_views.md, `ByteSequenceRead`).
+            if let terminal_psi::OperationKind::ByteSequenceRead { obligation, .. } =
+                &operation.kind
+            {
+                minted.claim(
+                    *obligation,
+                    ObligationKind::OperationSafety {
+                        site: terminal_check_tables::obligations::ExecutionSite::Operation(
+                            operation.id,
+                        ),
+                    },
+                    before,
+                )?;
+            }
             if let Some(inputs) = operation.kind.declared_invocation() {
                 minted.call(
                     InvocationSite::Operation(operation.id),
@@ -673,7 +688,7 @@ fn values_are_declared(
                 }
             }
             None => {
-                if !matches!(row.origin, ValueOrigin::InitialContent { .. }) {
+                if !matches!(row.origin, ValueOrigin::StorageContent { .. }) {
                     return Err(foreign(
                         value,
                         "a value row that nothing in the lowered form declares",

@@ -37,13 +37,22 @@ the requirement's signature and contract at the arguments
 per application, which the call then names and structural elaboration reads
 as any requirement (`read/calls.rs`, `boundary`). A machine argument, an applied type such as
 `Pair<u8>` or an applied implementation, a requirement with parameters of its
-own, and a generic machine that owns data, declares lifetimes or nested
-machines are not served: the
+own, and a generic machine that owns data or declares lifetimes are not served: the
 call stays as typing wrote it and the machine holding it carries a deferred
 refusal (`DeferredRequest::StaticApplication`), raised only when a program
 demands that machine. The pass generates what applications ask for and judges
 nothing: the lowered-form checker proves a generic machine once as written
 and re-decides those proofs in each generated machine.
+
+A generic machine's lexically nested checked-body machines are copied with
+its closed application when they have no independent static telescope. The
+whole tree is validated first, then each machine, state, formal and local is
+given a fresh symbol before any body is rebound. A nested declaration retains
+its own source template and the actual enclosing application's static bindings;
+two outer applications therefore cannot share a helper's identity or signature.
+Calls between the copied declarations use that one symbol map. Runtime values
+still require explicit arguments; no enclosing activation is captured. A child
+with its own static parameters is left unserved with the whole tree.
 
 The record-pattern pass resolves a subject that names a parameter or a typed
 local whose declared type is a plain, non-generic record. A field path, a call

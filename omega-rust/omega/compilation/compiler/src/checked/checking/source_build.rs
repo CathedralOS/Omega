@@ -16,6 +16,12 @@ pub(super) struct SourceBuild {
 }
 
 impl SourceBuild {
+    pub(super) fn source_completion_accounting(
+        &self,
+    ) -> &build_time_evaluation::SourceCompletionAccounting {
+        self.invocation.source_completion_accounting()
+    }
+
     pub(super) fn prepare(
         root: &Path,
         source: PreparedCheckedSource,

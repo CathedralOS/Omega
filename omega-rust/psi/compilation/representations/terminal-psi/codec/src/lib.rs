@@ -79,6 +79,7 @@ pub(crate) mod codec_error {
         StringTooLong(&'static str),
         InvalidUtf8(&'static str),
         MalformedStructuralFoundation(&'static str),
+        MalformedWriteFrame(String),
         MalformedRanking(&'static str),
         MalformedScalarReturnFoundation {
             machine: String,

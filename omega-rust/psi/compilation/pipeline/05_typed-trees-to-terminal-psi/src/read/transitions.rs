@@ -134,7 +134,10 @@ impl Program<'_> {
             _ => None,
         };
         if let (Some(label), Some(names)) = (label, self.names.get_mut(id)) {
-            names.arms.push((transition.source_span, label));
+            names.arms.push((
+                transition.source_span,
+                format!("the `{label}` arm of a transition"),
+            ));
         }
         Ok((guard, target))
     }

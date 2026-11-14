@@ -163,11 +163,31 @@ impl<'t> Program<'t> {
                 if slots[slot].erased {
                     return unserved("runtime use of an erased binding");
                 }
-                return Ok(Expression {
+                if slots[slot].borrowed.is_some()
+                    && let Some(expected) = expected
+                    && self.reference_referent(id, expected)?.is_some()
+                {
+                    return self.borrow_value(id, slots, handle, expected, source);
+                }
+                let value = Expression {
                     kind: ExpressionKind::Slot(slot),
                     result: Some(slots[slot].value_type),
                     source,
-                });
+                };
+                // A reference context transports the permission descriptor.
+                // An ordinary value context observes its exact referent.
+                if !expected.is_some_and(|value| matches!(value,
+                    ValueType::Record(row, _, _) if matches!(self.records.get(row).map(|row| &row.shape),
+                        Some(crate::StorageShape::Reference { .. }))))
+                    && let Some((referent, _)) = self.reference_referent(id, slots[slot].value_type)?
+                {
+                    return Ok(Expression {
+                        kind: ExpressionKind::Referent(Box::new(value)),
+                        result: Some(referent),
+                        source,
+                    });
+                }
+                return Ok(value);
             }
             ExpressionNode::Unary(unary) => {
                 let operand = self.expression(id, slots, unary.operand, expected)?;
@@ -333,7 +353,12 @@ impl<'t> Program<'t> {
             ExpressionNode::UndeterminedNaN(_) => return unserved("undetermined NaN"),
             ExpressionNode::Indexed(indexed) => return self.indexed(id, slots, indexed, source),
             ExpressionNode::Member(member) => return self.member(id, slots, member, source),
-            ExpressionNode::Borrow(_) => return unserved("borrow"),
+            ExpressionNode::Borrow(_) => {
+                let Some(expected) = expected else {
+                    return unserved("reference formation without its retained contextual type");
+                };
+                return self.borrow_value(id, slots, handle, expected, source);
+            }
             ExpressionNode::Range(_) => return unserved("range"),
             ExpressionNode::StructLiteral(literal) => {
                 self.expected = expected;
@@ -502,6 +527,7 @@ impl<'t> Program<'t> {
                 return Err(unserved("match arm for a case an earlier arm selects"));
             }
             let value = self.arm_value(id, slots, arm.value, &mut result)?;
+            self.label_arm(id, &value, &arm.pattern);
             match case {
                 Some(case) => arms.push((case, value)),
                 None => default = Some(Box::new(value)),
@@ -545,6 +571,34 @@ impl<'t> Program<'t> {
         }
         *result = Some(value_type);
         Ok(value)
+    }
+
+    /// How a warning about one value `match` arm names it: its pattern as
+    /// authored, or `_`, keyed by the span of the arm's value, which is how
+    /// lowering knows the arm when it records the arm as an authored branch
+    /// (`MachineNames::arms`). An arm whose value has no authored span is
+    /// named "an arm".
+    fn label_arm(
+        &mut self,
+        id: MachineId,
+        value: &Expression,
+        pattern: &typed_trees::expression::MatchPattern,
+    ) {
+        use typed_trees::expression::MatchPattern;
+        let SourceOrigin::Authored(span) = value.source else {
+            return;
+        };
+        let table = &self.typed.expression_table;
+        let label = match pattern {
+            MatchPattern::Wildcard => String::from("_"),
+            MatchPattern::Value(head) => table.display_name(*head),
+            MatchPattern::Destructure(pattern) => table.display_name(pattern.head),
+        };
+        if let Some(names) = self.names.get_mut(id) {
+            names
+                .arms
+                .push((span, format!("the `{label}` arm of a match")));
+        }
     }
 
     /// Value-position `match` over a scalar: `match code { 0 -> a, 1 -> b,
@@ -639,6 +693,7 @@ impl<'t> Program<'t> {
                 }
             };
             let value = self.arm_value(id, slots, arm.value, &mut result)?;
+            self.label_arm(id, &value, &arm.pattern);
             match pattern {
                 Some(pattern) => arms.push((Selector::Value(pattern), value)),
                 None => default = Some(Box::new(value)),
@@ -1026,6 +1081,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 a.len() == b.len() && a.iter().zip(b).all(|(a, b)| both(a, b))
             }
             (ExpressionKind::Index { base: a, index: ai }, ExpressionKind::Index { base: b, index: bi }) => both(a, b) && both(ai, bi),
+            (ExpressionKind::ByteElement { base: a, index: ai }, ExpressionKind::ByteElement { base: b, index: bi }) => both(a, b) && both(ai, bi),
             (ExpressionKind::Record { fields: a }, ExpressionKind::Record { fields: b }) => {
                 a.len() == b.len()
                     && a.iter()
@@ -1119,6 +1175,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 | ExpressionKind::Integer(_)
             | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::CollectionMeasure { .. }
+                | ExpressionKind::ByteElement { .. }
                 | ExpressionKind::Boolean(_)
                 | ExpressionKind::Slot(_)
                 | ExpressionKind::Array { .. }
@@ -1138,7 +1195,8 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 | ExpressionKind::ShortCircuit { .. }
                 | ExpressionKind::Call { .. }
                 // A loan is formed afresh each time; two are never one.
-                | ExpressionKind::Borrow { .. },
+                | ExpressionKind::Borrow { .. }
+                | ExpressionKind::Referent(_),
                 _,
             ) => false,
         }

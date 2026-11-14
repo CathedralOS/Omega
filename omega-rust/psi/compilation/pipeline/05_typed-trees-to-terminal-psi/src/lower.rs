@@ -58,6 +58,7 @@ macro_rules! continuing {
 }
 
 mod calls;
+pub(crate) use calls::publish_write_frames;
 mod control;
 mod operations;
 pub(crate) mod places;
@@ -384,7 +385,7 @@ impl<'a> Lowering<'a> {
             outcomes,
             records,
             roots: IdTable::default(),
-            initial_contents: Vec::new(),
+            demanded_contents: Vec::new(),
             path: Vec::new(),
             tables: MachineTables::default(),
             sources: MachineSources::default(),
@@ -564,6 +565,17 @@ impl Lowering<'_> {
             formals.erased.push(declaration(value, scalar_type));
             *self.slot_mut(*position)? = Some(Bound::Erased(Witness::Value(value, scalar_type)));
         }
+        let bindings: Vec<_> = formals
+            .records
+            .iter()
+            .map(|formal| {
+                self.exact_root(formal.place)
+                    .map(|exact| (formal.place, exact))
+            })
+            .collect::<Checked<_>>()?;
+        for clause in &signature.requires {
+            self.name_clause_contents(clause, &bindings)?;
+        }
         Ok((formals, result))
     }
 }
@@ -577,9 +589,9 @@ struct Lowering<'a> {
     /// What each root place is and the record type it holds, indexed by its
     /// `PlaceId`: the machine's structural place declarations.
     roots: IdTable<PlaceId, (StructuralPlaceKind, StructuralTypeId)>,
-    /// The initial value of a formal's scalar leaf or a produced call result's
-    /// leaf, indexed by `ExactPlaceId`; `None` until its identity is needed.
-    initial_contents: Vec<Option<ValueId>>,
+    /// Scalar leaves requested by operations and clauses, indexed by exact
+    /// place. Final lowering allocates their entry and returned snapshots.
+    demanded_contents: Vec<Option<ScalarType>>,
     /// The branch decisions on the path to the open block, in program order:
     /// each the branch value equal to the Boolean its edge took. Every arm
     /// completes the machine, and a short-circuit or `match` rejoins its
@@ -974,6 +986,7 @@ impl<'a> Lowering<'a> {
             })
             .collect();
         self.arrivals()?;
+        self.name_storage_contents()?;
         let mut drafts = std::mem::take(&mut self.blocks);
         let mut blocks = Vec::with_capacity(drafts.len());
         for position in 1..=drafts.len() as u64 {

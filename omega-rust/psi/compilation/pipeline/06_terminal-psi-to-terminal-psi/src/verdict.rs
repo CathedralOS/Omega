@@ -171,7 +171,7 @@ impl AcceptedClosure {
                     .arms
                     .iter()
                     .find(|(at, _)| *at == span)
-                    .map(|(_, label)| format!("the `{label}` arm")),
+                    .map(|(_, label)| label.clone()),
                 _ => None,
             }
             .unwrap_or_else(|| String::from("an arm"));
@@ -191,7 +191,7 @@ impl AcceptedClosure {
             };
             advisories.push(located(
                 Diagnostic::warning(format!(
-                    "unreachable branch: {arm} of a transition in {owner} can never run; {reason}"
+                    "unreachable branch: {arm} in {owner} can never run; {reason}"
                 )),
                 branch.condition,
             ));
@@ -719,9 +719,9 @@ fn conflict_statement(
     site: SourceOrigin,
     conflict: &crate::ConflictingLoan,
 ) -> String {
-    let callee = tables
-        .invocations
-        .get(conflict.invocation)
+    let callee = conflict
+        .invocation
+        .and_then(|invocation| tables.invocations.get(invocation))
         .and_then(|row| match row.callee {
             terminal_check_tables::edges::Callee::Declared(
                 semantic_vocabulary::TargetMachineCallable::Machine(callee),
@@ -748,12 +748,24 @@ fn conflict_statement(
         crate::LoanConflict::ExclusiveOfShared => {
             "as mutable through a shared reference, which grants no mutation"
         }
+        crate::LoanConflict::ObserveWhileExclusive => {
+            return "storage is observed outside its live exclusive reference".into();
+        }
+        crate::LoanConflict::ChangeWhileBorrowed => {
+            return "storage is changed while a conflicting reference remains live".into();
+        }
+        crate::LoanConflict::ReleaseBeforeChildren => {
+            return "reference release precedes its complete child-loan closure".into();
+        }
+        crate::LoanConflict::AccessExceedsParent => {
+            return "reborrow exceeds the access of its actual source path".into();
+        }
     };
     match (callee, lender) {
         (Some(state), Some(lender)) => format!("state `{state}` receives `{lender}` {how}"),
         (Some(state), None) => format!("state `{state}` receives one place {how}"),
-        (None, Some(lender)) => format!("a call receives `{lender}` {how}"),
-        (None, None) => format!("a call receives one place {how}"),
+        (None, Some(lender)) => format!("a borrow uses `{lender}` {how}"),
+        (None, None) => format!("a borrow uses one place {how}"),
     }
 }
 
@@ -1066,13 +1078,15 @@ fn conclude(examined: Examined, applied: AppliedContracts) -> Checked<RouteVerdi
             });
         }
         for conflict in &result.conflicts {
-            let concerns = Construct::Obligation(conflict.loan);
-            let site = *terminal_check_tables::row(
-                &sources.obligations,
-                conflict.loan,
-                machine,
-                concerns,
-            )?;
+            let site = match conflict.at {
+                Construct::Obligation(_) => *terminal_check_tables::row(
+                    &sources.obligations,
+                    conflict.loan,
+                    machine,
+                    conflict.at,
+                )?,
+                at => source_of(sources, machine, at)?,
+            };
             conflicts.push(ConflictingUse {
                 machine,
                 loan: conflict.loan,

@@ -64,48 +64,9 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q1 - May a qualified operator be declared outside the domain's module?
-
-Decision name: `unresolved-qualified-operator-home`.
-
-**Customer.** No authored source and no product requirement needs an operator
-declared outside its domain's module. The only user is the #2965 homing test.
-
-**Gap.** [Operator families](wiki/spec/language/expressions.md#operator-families)
-(`expressions.md:299-328`), [declaration and membership](wiki/spec/language/domains.md#declaration-and-membership)
-(`domains.md:23-29`), [foreign attached paths](wiki/spec/language/modules.md#foreign-attached-declaration-paths)
-(`modules.md:77-94`), and [operators on a domain](wiki/language_guide/chapter_8_domains.md#operators-on-a-domain)
-(`chapter_8_domains.md:111-123`) were checked. A qualified name establishes a
-home, operations are separate machines, a short path selects an exposed domain,
-and the guide places the operator beside the domain. Those clauses are silent
-on a root file declaring `Carrier::Leaf::op`.
-
-```omega
-// Form A, inside the domain's module.
-module units;
-public domain u64::Distance requires self > 0;
-public operator + u64::Distance::add(
-    left: u64 in u64::Distance, right: u64 in u64::Distance
-) -> u64 in u64::Distance;
-
-// Form B, root file.
-use units;
-public operator + u64::Distance::add(
-    left: u64 in u64::Distance, right: u64 in u64::Distance
-) -> u64 in u64::Distance;
-```
-
-Before #2965, Form B stays a root item, so `a + b` fails to resolve.
-Now Form B is homed on `u64::Distance`, so `a + b` resolves.
-
-**Question.** (a) Allow the root form (current behavior)? (b) Or reject a
-qualified operator declared outside the domain's module?
-
-**Until answered.** The compiler homes Form B on `u64::Distance`.
-
 <a id="native-cache-producer-authorization"></a>
 
-### Q2 - Does enabling a native component cache authorize its producer?
+### Q1 - Does enabling a native component cache authorize its producer?
 
 Decision name: `native-cache-producer-authorization`.
 
@@ -131,3 +92,37 @@ authorization without adding an OS credential or ACL system.
 **Until answered.** Cache recovery retains its existing behavior; hashes must
 not be described as producer authorization. The public native ingress repair
 remains under `PSI-CLAIM-ADMISSION`.
+
+### Q2 - Is a borrow of a fixed array accepted where a view of its elements is expected?
+
+Decision name: `array-borrow-as-view`.
+
+**Customer.** Reading a file into a buffer the machine owns. The toolchain's
+own Build prelude declares
+`BuildSource::read(source: &BuildSource, descriptor: i32, buffer: &mut [u8], count: u64)`,
+and every Build that calls it writes
+`let mut bytes: [u8; 38]; BuildSource::read(&builder.source, reader, &mut bytes, 38);`.
+`Console::read_line(&mut buffer)` in the standard library is called the same
+way. About 165 sample and fixture files pass `&bytes` or `&mut bytes` of a
+`[u8; N]` for a `&[u8]` or `&mut [u8]` formal.
+
+**Gap.** No page says a borrow of `[T; N]` is a value of `&[T]`.
+[Expressions](wiki/spec/language/expressions.md#collection-arguments-and-results)
+gives the adaptation for `[]` and `[..]` only and adds that it introduces no
+"automatic borrowing for other operator operands";
+[counts and addresses](wiki/spec/language/counts_and_addresses.md#bounds-and-lowering)
+fixes an array's length at `N` and says nothing of views of it. The language
+guide converts explicitly (chapter 5: `ArrayAccess::as_slice(&fixed)`), and
+core declares that boundary (`source/library/core/array.omg`). The checker
+follows the pages and refuses the call (`typing argument types`). Checked on
+`origin/main` at `9f23002f48`: no ratification covers it.
+
+**Question.** At an argument, a `let` or a field store whose expected type is
+`&[T]` or `&mut [T]`, is `&array` or `&mut array` of a `[T; N]` (a) accepted
+as a view of all `N` elements, with the view's length known to be `N`; (b)
+accepted only when written as a range, `&array[..]` and `&mut array[..]`; or
+(c) not accepted, so `ArrayAccess::as_slice` and `as_mut_slice` are the only
+way, and the prelude's callers change?
+
+**Until answered.** The checker refuses the call by name. Nine programs stop
+in their Build for it; the rest of the 165 files meet it later.

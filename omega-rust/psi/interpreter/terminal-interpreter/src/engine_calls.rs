@@ -916,6 +916,7 @@ pub(crate) mod frames {
                 TerminalStructuralResult {
                     value: value.clone(),
                     claims: vec![claim],
+                    observation_home: None,
                 },
             ));
             outgoing.returned_claims = vec![StructuralResultClaimBinding {
@@ -1512,7 +1513,7 @@ pub(crate) mod component_arguments {
                         provider,
                         supplied.structural_type,
                     )?);
-                } else if !self.forward_host_atom(value) {
+                } else if self.forward_host_atom(value).is_none() {
                     if required.access == StructuralAccess::SharedBorrow
                         && let Some(original) =
                             self.prepare_shared_empty_argument(value, argument_index)?
@@ -3425,6 +3426,15 @@ impl<'artifact> TerminalExecution<'artifact> {
         {
             if parameter.access == StructuralAccess::Owned {
                 self.export_host_atom(value)?;
+            } else {
+                // A lent host value is still the value its host issued. The
+                // guest may keep it in a home of its own (an affine local
+                // has one), and the host knows it only by the identity it
+                // gave out, so a loan names that identity as a transfer
+                // does. Only a home that holds the unchanged host value
+                // whole is renamed; every other loan is the guest's own
+                // storage and keeps its place.
+                self.forward_host_atom(value);
             }
         }
         let site = crate::TerminalEffectWait {

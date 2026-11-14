@@ -50,6 +50,24 @@ impl BuildSession {
         self.packages.close()
     }
 
+    /// These concrete boundaries join held work even when a later operation's
+    /// primary error has no compiler receipts of its own.
+    pub fn dispose_inspection<T>(
+        self,
+        result: Result<T, package_manager::operations::PackageInspectionError>,
+    ) -> Result<T, package_manager::operations::PackageInspectionError> {
+        let accounting = self.packages.source_completion_accounting().clone();
+        self.dispose(result.map_err(|error| error.with_source_completion_accounting(accounting)))
+    }
+
+    pub fn dispose_command<T>(
+        self,
+        result: Result<T, package_manager::PackageCommandError>,
+    ) -> Result<T, package_manager::PackageCommandError> {
+        let accounting = self.packages.source_completion_accounting().clone();
+        self.dispose(result.map_err(|error| error.with_source_completion_accounting(accounting)))
+    }
+
     pub fn dispose<T, Error>(self, result: Result<T, Error>) -> Result<T, Error>
     where
         Error: std::fmt::Display + From<CompileResolvedPackageReviewsError>,

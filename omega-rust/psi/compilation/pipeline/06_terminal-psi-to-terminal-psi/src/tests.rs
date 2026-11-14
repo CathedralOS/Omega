@@ -28,6 +28,7 @@ mod arrays;
 mod boundary_calls;
 mod build_purpose;
 mod byte_domains;
+mod byte_view_elements;
 mod calling_policies;
 mod case_payloads;
 mod ceilings;
@@ -38,6 +39,7 @@ mod entry_inputs;
 mod entryless;
 mod guard_contradiction;
 mod handoffs;
+mod indexed_contracts;
 mod inferred_bounds;
 mod lifetime_elision;
 mod lifetime_generics;
@@ -2023,7 +2025,7 @@ fn a_formal_leaf_reads_as_its_one_entry_content_value() {
     assert_eq!(read_equals(tables, *second), Some(held));
     assert!(matches!(
         tables.values.get(held).unwrap().origin,
-        ValueOrigin::InitialContent { .. }
+        ValueOrigin::StorageContent { .. }
     ));
     let (obligation, verdict) = verdicts(&elaboration, &result, 1, safety)[0];
     assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
@@ -2036,7 +2038,7 @@ fn a_formal_leaf_reads_as_its_one_entry_content_value() {
 }
 
 #[test]
-fn a_copy_reads_as_what_its_source_held_and_an_unknown_content_reads_as_nothing() {
+fn a_copy_reads_as_what_its_source_held_and_a_call_result_as_its_own_unknown_leaf() {
     // f() -> u32 {
     //     let p = Point { x: 3, y: 7 };  let q = p;
     //     bounded(q.y);              // the copy carries 7
@@ -2044,8 +2046,9 @@ fn a_copy_reads_as_what_its_source_held_and_an_unknown_content_reads_as_nothing(
     //     bounded(t.y)
     // }
     // The executable whole-result value is not a scalar leaf fact. A caller
-    // may name result leaves logically, but needs a checked guarantee to know
-    // their contents; this model's producer publishes none.
+    // names a result leaf as the initial content the exact producing call
+    // left there (#3000), but needs a checked guarantee to know what it is;
+    // this model's producer publishes none.
     let caller = Shaped {
         parameters: Vec::new(),
         locals: vec![point(), point(), point()],
@@ -2084,7 +2087,11 @@ fn a_copy_reads_as_what_its_source_held_and_an_unknown_content_reads_as_nothing(
     };
     let seven = constants(&elaboration)[1];
     assert_eq!(read_equals(tables, *of_copy), Some(seven));
-    assert_eq!(read_equals(tables, *of_result), None);
+    let leaf = read_equals(tables, *of_result).expect("the result leaf's initial content");
+    assert!(matches!(
+        tables.values.get(leaf).unwrap().origin,
+        ValueOrigin::StorageContent { .. }
+    ));
     let requirements = verdicts(&elaboration, &result, 1, requirement);
     let [(first, through_copy), (_, through_result)] = requirements.as_slice() else {
         panic!("two requirements");
@@ -4064,13 +4071,10 @@ fn a_field_store_owes_the_clause_over_the_stored_value_and_the_other_fields_logg
     assert_eq!(uses(&result), [Ok(())]);
 }
 
-#[test]
-fn a_clause_over_a_returned_field_uses_its_initial_content_identity() {
-    // f() -> u32 { let mut s = make(); s.low = 0; s.high }
-    // The initialized call result gives `s.high` an immutable content
-    // identity. `0 <= high` follows from its u32 carrier, independently of
-    // the value the callee's body constructed, so this store keeps the clause.
-    let (elaboration, result) = run_constrained(vec![
+/// `f() -> u32 { let mut s = make(); s.low = stored; s.high }`, with
+/// `make() -> Span { Span { low: 1, high: 9 } }`.
+fn returned_span_store(stored: u128) -> (typed_trees_to_terminal_psi::Elaboration, Discharge) {
+    run_constrained(vec![
         closed(
             vec![data(SPAN)],
             u32_type().into(),
@@ -4086,7 +4090,7 @@ fn a_clause_over_a_returned_field_uses_its_initial_content_identity() {
                         data(SPAN),
                     ),
                 ),
-                store(0, &[0], unsigned(0)),
+                store(0, &[0], unsigned(stored)),
                 returns(read(place(0, data(SPAN)), 1)),
             ],
         ),
@@ -4095,25 +4099,26 @@ fn a_clause_over_a_returned_field_uses_its_initial_content_identity() {
             data(SPAN),
             vec![returns(literal_of(SPAN, vec![unsigned(1), unsigned(9)]))],
         ),
-    ]);
+    ])
+}
+
+#[test]
+fn a_clause_over_a_field_a_call_returned_is_stated_over_that_calls_result_leaf() {
+    // `s.high` is what the call returned: the initial content of the exact
+    // call's result leaf (#3000), a value nothing in the caller bounds. The
+    // store to `low` owes `stored <= high` over it. `0 <= high` is true of
+    // every `u32`, so storing 0 keeps the clause.
+    let (elaboration, result) = returned_span_store(0);
     let owed = domains(&elaboration, &result);
     assert_eq!(owed.len(), 1);
-    let (obligation, verdict) = owed[0];
-    let evidence = certificate(verdict);
-    assert_kernel_checked(&elaboration, 1, obligation, evidence);
-    let Proposition::LessOrEqual(_, ScalarTerm::Value { id: high, .. }) = &evidence.goal else {
-        panic!(
-            "the clause keeps the returned field's identity: {:?}",
-            evidence.goal
-        );
-    };
-    let tables = elaboration.tables.machines.get(id(1)).unwrap();
-    assert!(matches!(
-        tables.values.get(*high).unwrap().origin,
-        ValueOrigin::InitialContent { .. }
-    ));
-    let reads = field_reads(&elaboration);
-    assert_eq!(read_equals(tables, *reads.last().unwrap()), Some(*high));
+    assert_kernel_checked(&elaboration, 1, owed[0].0, certificate(owed[0].1));
+    // The twin stores 10. The `9` written inside `make` is not known here,
+    // so the store is not shown to keep the clause: it opens a window, which
+    // keeps the reason, and the clause is never dropped.
+    let (elaboration, result) = returned_span_store(10);
+    let owed = domains(&elaboration, &result);
+    assert_eq!(owed.len(), 1);
+    assert_opens_a_window(owed[0].1);
 }
 
 /// `f() -> u32 { let mut w = Wrap { span: Span { low: 1, high: 9 }, top: 9 };
@@ -4690,8 +4695,10 @@ fn a_type_built_around_an_arrived_value_lends_no_clause_to_a_read_inside_it() {
 fn a_read_of_what_a_call_returned_carries_its_types_clause() {
     // f() -> u32 { let b = make(); bounded(b.value) }
     // make() -> Bounded { Bounded { value: 3 } }
-    // The caller cannot name what `make` returned, and it need not: the
-    // value arrived established, so the read's value is at most 5.
+    // The caller names what `make` returned only as the result leaf of that
+    // exact call (#3000), which knows nothing of the `3` written there, and
+    // it need not: the value arrived established, so the read's value is at
+    // most 5.
     let (elaboration, result) = run_constrained(vec![
         closed(
             vec![data(BOUNDED)],
@@ -4720,7 +4727,11 @@ fn a_read_of_what_a_call_returned_carries_its_types_clause() {
     ]);
     let tables = elaboration.tables.machines.get(id(1)).unwrap();
     let observed = field_reads(&elaboration)[0];
-    assert_eq!(read_equals(tables, observed), None);
+    let held = read_equals(tables, observed).expect("the result leaf's initial content");
+    assert!(matches!(
+        tables.values.get(held).unwrap().origin,
+        ValueOrigin::StorageContent { .. }
+    ));
     assert_eq!(
         read_premises(tables, observed),
         [at_most_value(observed.1, 5)]
@@ -4796,8 +4807,9 @@ fn a_requirement_over_a_field_of_a_record_formal_is_decided_by_the_actuals_leaf(
     let (elaboration, result) = calling(8);
     assert_unproved(verdicts_of(&elaboration, &result)[0].1);
     // g() -> u32 { peek(make()) }, make() -> Point { Point { x: 7, y: 9 } }:
-    // what a call returned has no value identity in the caller, so the
-    // requirement is unproved and says why.
+    // the actual's `x` leaf is what the call returned there, the result of
+    // that exact call (#3000), and `make` promises nothing of it, so nothing
+    // in the caller bounds it: the requirement is unproved and says why.
     let (elaboration, result) = run_places(vec![
         closed(
             Vec::new(),
@@ -4828,7 +4840,9 @@ fn a_requirement_over_a_field_of_a_record_formal_is_decided_by_the_actuals_leaf(
         refusal.reason
     );
     assert!(
-        refusal.detail.contains("no value identity"),
+        refusal
+            .detail
+            .contains("the bounds do not decide the comparison"),
         "{}",
         refusal.detail
     );
@@ -4857,7 +4871,7 @@ fn an_entry_clause_over_a_formals_field_is_known_of_its_entry_content() {
     let entry = read_equals(tables, observed).unwrap();
     assert!(matches!(
         tables.values.get(entry).unwrap().origin,
-        ValueOrigin::InitialContent { .. }
+        ValueOrigin::StorageContent { .. }
     ));
     let stated: Vec<_> = tables
         .knowledge

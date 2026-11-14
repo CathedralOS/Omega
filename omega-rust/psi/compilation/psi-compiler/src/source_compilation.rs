@@ -969,28 +969,28 @@ impl SourceContinuation {
 
     pub fn describe_schema(
         &self,
-        _occurrence: source::SourceSpan,
-        _path: &[u8],
+        occurrence: source::SourceSpan,
+        path: &[u8],
     ) -> Result<language_semantics::declaration_selection::DescribedProductSchema, String> {
-        Err("no product route yet: product declaration description".into())
+        crate::product_descriptions::describe_schema(self.typed(), occurrence, path)
     }
 
     pub fn describe_provider(
         &self,
-        _occurrence: source::SourceSpan,
-        _path: &[u8],
+        occurrence: source::SourceSpan,
+        path: &[u8],
     ) -> Result<language_semantics::declaration_selection::DescribedProductProvider, String> {
-        Err("no product route yet: product declaration description".into())
+        crate::product_descriptions::describe_provider(self.typed(), occurrence, path)
     }
 
     pub fn describe_entry(
         &self,
-        _occurrence: source::SourceSpan,
-        _path: &[u8],
-        _slot: &[u8],
-        _slots: &dyn semantic_vocabulary::ProgramEntrySourceCatalog,
+        occurrence: source::SourceSpan,
+        path: &[u8],
+        slot: &[u8],
+        slots: &dyn semantic_vocabulary::ProgramEntrySourceCatalog,
     ) -> Result<language_semantics::declaration_selection::DescribedProductEntry, String> {
-        Err("no product route yet: product declaration description".into())
+        crate::product_descriptions::describe_entry(self.typed(), occurrence, path, slot, slots)
     }
 
     pub fn same_completion_input(&self, other: &Self) -> bool {

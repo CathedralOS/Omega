@@ -292,9 +292,17 @@ pub struct RecordType {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StorageShape {
+    /// Boundary-supplied contents have nominal identity but no authored fields.
+    Opaque,
     Record(Vec<RecordField>),
     Sum(Vec<CaseType>),
     ByteSequence(terminal_psi::ByteSequenceCarrier),
+    /// The canonical permission descriptor. Its referent remains separate
+    /// storage; moving this value never moves or disposes that referent.
+    Reference {
+        referent: StructuralTypeId,
+        access: terminal_psi::StructuralAccess,
+    },
     // The same canonical typed descriptor used by Terminal element views.
     // Bare source sequences retain an unspecified access contract; a value's
     // actual immutable backing must still be established by its producer.
@@ -471,6 +479,9 @@ pub struct Borrowed {
     /// `Shared` for `&T`, `Mutable` for `&mut T`. `&write T` is refused by
     /// the reader.
     pub access: language_core::ReferenceAccess,
+    /// The outer loan region, kept apart from any regions inside the
+    /// referent. Returning a reference must preserve this actual input.
+    pub regions: Regions,
     /// For a scalar referent, the text identity of its type as the typed
     /// trees render it: Terminal Psi declares the primitive type of the
     /// formal's place with an interned text identity, as it does a scalar
@@ -791,6 +802,15 @@ pub enum ExpressionKind {
         base: Box<Expression>,
         measure: typed_trees::expression::CollectionMeasure,
     },
+    /// One byte of a borrowed byte view, read at `index`. The view is
+    /// measured where the byte is read, and the read owes `index < length`
+    /// against that measurement (byte_views.md, `ByteSequenceRead`). A byte
+    /// of a view is a value and never a place: it is neither assigned nor
+    /// lent.
+    ByteElement {
+        base: Box<Expression>,
+        index: Box<Expression>,
+    },
     Array {
         elements: Vec<Expression>,
     },
@@ -921,6 +941,9 @@ pub enum ExpressionKind {
         place: Box<Expression>,
         home: Option<String>,
     },
+    /// Cross the existing reference descriptor into its original backing.
+    /// This neither moves the referent nor drops the descriptor's loan.
+    Referent(Box<Expression>),
     /// A direct call: all arguments left to right, then the invocation.
     ///
     /// `designated` is set on a call of the toolchain's Build selection

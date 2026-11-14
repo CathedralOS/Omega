@@ -24,9 +24,14 @@ pub fn compile_sources(
 ) -> Result<compiler::CompileOutcomes, Vec<Diagnostic>> {
     compiler::checked::run_on_compile_thread(|| {
         let mut prepared = compiler.begin_compilation(request)?;
+        let spent = prepared
+            .source_completion_accounting()
+            .cloned()
+            .unwrap_or_default();
         let mut queries = prepared.product_queries();
         let returned =
-            crate::compile::build_execution::execute_build(prepared.execution(), queries.as_mut());
+            crate::compile::build_execution::execute_build(prepared.execution(), queries.as_mut())
+                .map_err(|failure| failure.with_source_completion_accounting(spent));
         let products = compiler.complete_compilation(prepared, returned)?;
         let mut outcomes = Vec::with_capacity(products.len());
         let products = products
@@ -92,9 +97,7 @@ pub fn produce_source(
         request.optimization_rollback = product.optimization_rollback();
         let mut prepared = compiler
             .begin_source_compilation(request)
-            .map_err(|failure| {
-                compiler::CompilationProductError::Production(failure.into_diagnostics())
-            })?;
+            .map_err(compiler::CompilationProductError::from)?;
         let returned = execute_prepared_source_build(&mut prepared);
         compiler
             .complete_source_product(prepared, returned, product)
@@ -105,6 +108,8 @@ pub fn produce_source(
 fn execute_prepared_source_build(
     prepared: &mut compiler::SourceCompilation,
 ) -> Result<Option<build_settings::ReturnedBuild>, CompileFailure> {
+    let spent = prepared.source_completion_accounting().clone();
     let mut queries = prepared.product_queries();
     crate::compile::build_execution::execute_build(prepared.execution(), Some(&mut queries))
+        .map_err(|failure| failure.with_source_completion_accounting(spent))
 }

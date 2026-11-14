@@ -520,6 +520,7 @@ impl Lowering<'_> {
                     .ok_or_else(|| self.internal("a value pattern on a sum subject"))
             })
             .collect::<Checked<Vec<usize>>>()?;
+        let decided_in = self.current()?;
         let (blocks, rest) =
             continuing!(self.select(subject, &cases, default.is_some(), source, capture));
         let bodies = arms
@@ -529,6 +530,10 @@ impl Lowering<'_> {
             .chain(default.zip(rest));
         let mut arrivals = Arrivals::default();
         for (value, (block, chosen)) in bodies {
+            // Each arm is entered only on the dispatch edges of its cases:
+            // an authored branch the checker asks whether any arrival can
+            // take (`MachineSources::branches`).
+            self.authored_arm(block, decided_in, value.source, value.source);
             self.enter(block);
             self.selected.push(chosen);
             let reached = self.arm(value, &mut arrivals);
@@ -559,6 +564,7 @@ impl Lowering<'_> {
         };
         let tested = continuing!(self.scalar(subject));
         let mut arrivals = Arrivals::default();
+        let mut decided_in = None;
         for (selector, value) in arms {
             let Selector::Value(pattern) = selector else {
                 return Err(self.internal("a case pattern on a scalar subject"));
@@ -583,10 +589,16 @@ impl Lowering<'_> {
             else {
                 return Err(self.internal("an equality test without a value"));
             };
+            let here = self.current()?;
             let arm = self.block(value.source);
             let rest = self.block(SourceOrigin::Unpositioned(
                 Unpositioned::DispatchContinuation,
             ));
+            // The arm is entered only on its test's true edge, and the
+            // arms after it only on its false edge: each is an authored
+            // branch the checker asks whether any arrival can take
+            // (`MachineSources::branches`).
+            self.authored_arm(arm, here, value.source, pattern.source);
             self.branch(
                 condition,
                 (arm, Vec::new()),
@@ -596,9 +608,33 @@ impl Lowering<'_> {
             self.enter(arm);
             self.arm(value, &mut arrivals)?;
             self.enter(rest);
+            decided_in = Some(here);
+        }
+        // The default takes what every test turned away, on the last test's
+        // false edge.
+        if let Some(decided_in) = decided_in {
+            let block = self.current()?;
+            self.authored_arm(block, decided_in, default.source, default.source);
         }
         self.arm(default, &mut arrivals)?;
         self.join(arrivals, result_type)
+    }
+
+    /// Records the authored arm whose first block is `block`, entered only
+    /// from the decision that ends `decided_in`.
+    fn authored_arm(
+        &mut self,
+        block: BlockId,
+        decided_in: BlockId,
+        arm: SourceOrigin,
+        condition: SourceOrigin,
+    ) {
+        self.sources.branches.push(crate::Branch {
+            block,
+            decided_in,
+            arm,
+            condition,
+        });
     }
 
     /// One arm of a value-position `match`, lowered in the open block: its
