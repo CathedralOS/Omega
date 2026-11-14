@@ -1415,6 +1415,14 @@ pub(crate) mod machine_instances {
                 Self::Capture(receipt) => receipt.instance,
             }
         }
+        pub fn binding_application(
+            self,
+        ) -> crate::static_applications::StaticMachineApplicationHandle {
+            match self {
+                Self::Specialization(receipt) => receipt.binding_application,
+                Self::Capture(receipt) => receipt.binding_application,
+            }
+        }
     }
     impl TypedTrees {
         /// Read enclosing applications from their exact instance receipts, from
@@ -2743,6 +2751,168 @@ pub(crate) mod namespaces {
     };
     use symbols::{SymbolHandle, SymbolKind};
 
+    type CaptureKey = (
+        SymbolHandle,
+        crate::type_identity::NormalizedTypeIdentity,
+        SymbolHandle,
+    );
+
+    /// A transient sparse index of existing capture records. Entries retain
+    /// handles only; all source and body correspondence stays in the record.
+    #[derive(Default)]
+    pub struct NamedConformanceCaptureIndex {
+        rows: symbols::SymbolKeyMap<
+            CaptureKey,
+            Option<arena::Handle<crate::CapturedMachineApplication>>,
+        >,
+    }
+
+    impl NamedConformanceCaptureIndex {
+        pub fn new(program: &TypedTrees) -> Self {
+            let mut index = Self::default();
+            for (handle, _) in program.captured_machine_applications.iter() {
+                // Unrelated unsupported records grant no authority. A demanded
+                // named application still needs one valid, unambiguous entry.
+                let _ = index.insert(program, handle);
+            }
+            index
+        }
+
+        pub fn insert(
+            &mut self,
+            program: &TypedTrees,
+            handle: arena::Handle<crate::CapturedMachineApplication>,
+        ) -> Result<(), &'static str> {
+            let key = Self::record_key(program, handle)?;
+            self.rows
+                .entry(key)
+                .and_modify(|known| {
+                    if *known != Some(handle) {
+                        *known = None;
+                    }
+                })
+                .or_insert(Some(handle));
+            Ok(())
+        }
+
+        pub fn get<'program>(
+            &self,
+            program: &'program TypedTrees,
+            call: &TableCallExpression,
+        ) -> Result<Option<&'program crate::CapturedMachineApplication>, &'static str> {
+            let Some((_, row, _)) = program.named_conformance_call_member(call)? else {
+                return Ok(None);
+            };
+            let Some((owner, identity)) = program.named_conformance_capture_key(call)? else {
+                return Ok(None);
+            };
+            let Some(selected) = self.rows.get(&(owner, identity, row.realization_machine)) else {
+                return Ok(None);
+            };
+            let handle = selected.ok_or("named application has ambiguous captured bodies")?;
+            if !program.captured_machine_applications.is_valid(handle) {
+                return Err("named application lost its captured body record");
+            }
+            Ok(Some(program.captured_machine_applications.get(handle)))
+        }
+
+        fn record_key(
+            program: &TypedTrees,
+            handle: arena::Handle<crate::CapturedMachineApplication>,
+        ) -> Result<CaptureKey, &'static str> {
+            use crate::expression::{StaticMachineArgument, StaticSymbolApplication};
+            if !program.captured_machine_applications.is_valid(handle) {
+                return Err("named capture has a foreign record");
+            }
+            let capture = program.captured_machine_applications.get(handle);
+            if capture.template == capture.instance
+                || !program
+                    .expression_table
+                    .static_machine_application_is_valid(capture.binding_application)
+                || !program
+                    .expression_table
+                    .static_machine_application_is_valid(capture.supplying_application)
+            {
+                return Err("named capture has no actual instantiation applications");
+            }
+            let source = program.static_machine_application(capture.binding_application);
+            let supplying = program.static_machine_application(capture.supplying_application);
+            let declaration = capture.conformance_application.declaration;
+            if source.registration_operation != declaration
+                || source.binding_declaration != declaration
+                || source.lexical_owner != supplying.lexical_owner
+                || !program
+                    .symbols
+                    .symbols()
+                    .nodes()
+                    .is_valid(source.lexical_owner)
+            {
+                return Err("named capture changed its constructor or source owner");
+            }
+            let (implementation, row) = program
+                .owned_conformance_realization(capture.template)
+                .ok_or("named capture lost its unique owned template")?;
+            if implementation.symbol != declaration
+                || supplying.registration_operation != row.requirement
+            {
+                return Err("named capture changed its actual requirement row");
+            }
+            let identity = |arguments: &[StaticMachineArgument]| {
+                let selected = StaticMachineArgument {
+                    symbol: declaration,
+                    application: Some(Box::new(StaticSymbolApplication {
+                        member: arena::Handle::invalid(),
+                        lifetime_arguments: Box::new([]),
+                        arguments: arguments.into(),
+                    })),
+                    ..Default::default()
+                };
+                crate::type_identity::applied_index_identity(
+                    program,
+                    crate::type_identity::IndexIdentityArgument::StaticArgument(&selected),
+                    source.lexical_owner,
+                    &[],
+                )
+            };
+            let selected = identity(&capture.conformance_application.arguments)
+                .ok_or("named capture lost its complete map identity")?;
+            let parameters = program.conformance_type_parameters(implementation);
+            let bindings = program.static_machine_application_bindings(capture.binding_application);
+            if bindings.len() != parameters.len()
+                || capture.conformance_application.arguments.len() != parameters.len()
+                || parameters
+                    .iter()
+                    .zip(bindings)
+                    .zip(capture.conformance_application.arguments.iter())
+                    .any(|((parameter, binding), argument)| {
+                        binding.parameter != parameter.symbol
+                            || !program.static_binding_matches_argument(
+                                &parameter.kind,
+                                &binding.value,
+                                argument,
+                                source.lexical_owner,
+                                source.lexical_owner,
+                            )
+                    })
+            {
+                return Err("named capture changed its actual constructor bindings");
+            }
+            if Some(selected)
+                != identity(
+                    program.static_machine_application_arguments(capture.binding_application),
+                )
+                || program
+                    .type_identity_text(selected)
+                    .as_deref()
+                    .map(str::as_bytes)
+                    != Some(capture.conformance_application.identity_encoding.as_ref())
+            {
+                return Err("named capture constructor disagrees with its complete map tuple");
+            }
+            Ok((source.lexical_owner, selected, capture.template))
+        }
+    }
+
     impl CallableApplication {
         pub(crate) fn namespace_symbols(
             &self,
@@ -2917,15 +3087,260 @@ pub(crate) mod namespaces {
             &self,
             call: &TableCallExpression,
         ) -> Result<Option<&signature::StateSignature>, &'static str> {
-            if call.static_requirement_dispatch.is_some() || call.requirement_application.is_valid()
-            {
+            if call.static_requirement_dispatch.is_some() {
+                return Ok(None);
+            }
+            self.named_conformance_call_member(call)
+                .map(|member| member.map(|(_, _, signature)| signature))
+        }
+
+        /// The call retains a named map's independently supplied telescope in
+        /// its requirement application, and the source application owns the
+        /// lexical scope. Neither the receiver's name nor the expected result
+        /// supplies an omitted argument.
+        pub fn named_conformance_call_member(
+            &self,
+            call: &TableCallExpression,
+        ) -> Result<
+            Option<(
+                &crate::trait_definition::Conformance,
+                &crate::trait_definition::ConformanceRow,
+                &signature::StateSignature,
+            )>,
+            &'static str,
+        > {
+            // Parameter dispatch already owns its requirement and realization.
+            // A nominal receiver cannot reinterpret that independent selection.
+            if call.static_requirement_dispatch.is_some() {
                 return Ok(None);
             }
             let Some(receiver) = self.expression_table.name_path_node(call.receiver) else {
                 return Ok(None);
             };
-            self.named_conformance_member(receiver.symbol, call.target_symbol)
-                .map(|member| member.map(|(_, _, signature)| signature))
+            if !call.requirement_application.is_valid() {
+                return self.named_conformance_member(receiver.symbol, call.target_symbol);
+            }
+            if !receiver.symbol.is_valid()
+                || !self.symbols.symbols().nodes().is_valid(receiver.symbol)
+            {
+                return Err("named application has no exact receiver");
+            }
+            if self.symbols.get(receiver.symbol).kind != SymbolKind::Conformance {
+                return Ok(None);
+            }
+            let selected = self
+                .conformance_by_symbol(receiver.symbol)
+                .ok_or("named application lost its implementation")?;
+            let parameters = self.conformance_type_parameters(selected);
+            if parameters.is_empty() != selected.type_parameters.is_empty()
+                || !selected.lifetime_parameters.is_empty()
+                || parameters.iter().any(|parameter| {
+                    parameter.kind != crate::data::TypeParameterKind::Type
+                        || parameter.bounds != crate::data::DataProperties::default()
+                })
+            {
+                return Err("named application needs its complete eligible type telescope");
+            }
+            if !self
+                .type_reference_table
+                .contains_type_reference(call.requirement_application)
+                || !matches!(self.type_reference_node(call.requirement_application),
+                    crate::types::TypeReferenceNode::Generic { base_symbol, lifetime_arguments, .. }
+                        if *base_symbol == receiver.symbol && lifetime_arguments.is_empty())
+                || !self
+                    .expression_table
+                    .static_machine_application_is_valid(call.authored_machine_application)
+            {
+                return Err("named application changed its retained map or source application");
+            }
+            let crate::types::TypeReferenceNode::Generic { arguments, .. } =
+                self.type_reference_node(call.requirement_application)
+            else {
+                unreachable!()
+            };
+            let arguments = self.type_reference_handles(*arguments);
+            if arguments.len() != parameters.len()
+                || arguments.iter().any(|argument| {
+                    !self.type_reference_table.contains_type_reference(*argument)
+                        || self
+                            .region_free_scoped_type_identity(
+                                crate::type_identity::TypeIdentityRequest::ordinary(*argument),
+                                &[],
+                            )
+                            .is_none()
+                })
+            {
+                return Err("named application lost a complete region-free map argument");
+            }
+            let source = self.static_machine_application(call.authored_machine_application);
+            let template = self
+                .closed_requirement_application(call.target_symbol)
+                .map_or(call.target_symbol, |closed| closed.template);
+            // A bodyless trait requirement is no machine declaration, so
+            // source retention leaves its local binding declaration absent.
+            // Its registered operation and supplying owner remain exact.
+            if source.registration_operation != template
+                || (source.binding_declaration.is_valid() && source.binding_declaration != template)
+                || !source.bindings.is_empty()
+                || !source.lifetime_bindings.is_empty()
+                || !source.lexical_owner.is_valid()
+                || !self
+                    .symbols
+                    .symbols()
+                    .nodes()
+                    .is_valid(source.lexical_owner)
+            {
+                return Err("named application changed its requirement or supplying owner");
+            }
+            let scope = self
+                .applied_requirement_scope(source.lexical_owner, call.requirement_application)
+                .ok_or("named application lost its complete trait application")?;
+            self.named_conformance_member_at(receiver.symbol, call.target_symbol, Some(scope))
+        }
+
+        /// Include every map argument, even one unused by the trait scope,
+        /// and its actual supplying owner when reusing a captured body.
+        /// This key identifies a selection; it grants no body proof.
+        pub fn named_conformance_capture_key(
+            &self,
+            call: &TableCallExpression,
+        ) -> Result<
+            Option<(SymbolHandle, crate::type_identity::NormalizedTypeIdentity)>,
+            &'static str,
+        > {
+            if self.named_conformance_call_member(call)?.is_none()
+                || !call.requirement_application.is_valid()
+            {
+                return Ok(None);
+            }
+            let source = self.static_machine_application(call.authored_machine_application);
+            let identity = crate::type_identity::applied_index_identity(
+                self,
+                crate::type_identity::IndexIdentityArgument::TypeReference(
+                    call.requirement_application,
+                ),
+                source.lexical_owner,
+                &[],
+            )
+            .ok_or("named application lost its complete capture identity")?;
+            Ok(Some((source.lexical_owner, identity)))
+        }
+
+        /// Retain the actual map constructor bindings and source scope before
+        /// its body is copied. These are source data, not checked facts or an
+        /// assertion that a conformance body was accepted.
+        pub fn prepare_named_conformance_application(
+            &mut self,
+            call: &TableCallExpression,
+        ) -> Result<Option<crate::ClosedConformanceApplication>, &'static str> {
+            use crate::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
+            use sha2::{Digest, Sha256};
+            let Some((owner, identity)) = self.named_conformance_capture_key(call)? else {
+                return Ok(None);
+            };
+            let encoding = self
+                .type_identity_text(identity)
+                .ok_or("named application lost its canonical encoding")?;
+            let crate::types::TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } = self.type_reference_node(call.requirement_application)
+            else {
+                return Err("named application lost its complete constructor");
+            };
+            let declaration = *base_symbol;
+            let arguments = self.type_reference_handles(*arguments).to_vec();
+            let selected = self
+                .conformance_by_symbol(declaration)
+                .ok_or("named application lost its source declaration")?;
+            let parameters = self
+                .conformance_type_parameters(selected)
+                .iter()
+                .map(|parameter| parameter.symbol)
+                .collect::<Vec<_>>();
+            let rows = selected
+                .rows
+                .iter()
+                .map(|row| crate::ClosedConformanceRowIdentity {
+                    declaring_trait: row.declaring_trait,
+                    requirement: row.requirement,
+                    realization_machine: row.realization_machine,
+                    realization_state: row.realization_state,
+                })
+                .collect();
+            let scope = self
+                .applied_requirement_scope(owner, call.requirement_application)
+                .ok_or("named application lost its source scope")?;
+            let trait_definition = scope.declaration.symbol;
+            let trait_arguments = self
+                .trait_type_parameters(scope.declaration)
+                .iter()
+                .map(|parameter| {
+                    self.normalized_type_identity_text(
+                        scope.parameter_argument(self, parameter.symbol),
+                    )
+                })
+                .collect();
+            let environment = scope.environment();
+            let type_arguments = arguments
+                .iter()
+                .map(|argument| self.normalized_type_identity_text(*argument))
+                .collect();
+            let operands = arguments
+                .iter()
+                .map(|reference| {
+                    let mut argument = self.static_operand_from_type_reference(*reference)?;
+                    argument.type_reference = *reference;
+                    Ok(argument)
+                })
+                .collect::<Result<Vec<_>, &'static str>>()?;
+            let bindings = parameters
+                .into_iter()
+                .zip(&arguments)
+                .map(|(parameter, argument)| StaticMachineBinding {
+                    parameter,
+                    value: StaticMachineBindingValue::Type(*argument),
+                })
+                .collect::<Vec<_>>();
+            let scope = environment.retain(self)?;
+            let name = crate::name::Identifier::generated(self.symbols.name(declaration));
+            let application = self.expression_table.retain_static_machine_application(
+                declaration,
+                name,
+                &operands,
+            );
+            self.expression_table
+                .set_static_machine_application_bindings(application, &bindings);
+            let source = self
+                .expression_table
+                .static_machine_application_mut(application);
+            source.lexical_owner = owner;
+            source.binding_declaration = declaration;
+            let mut fingerprint = semantic_vocabulary::Fnv1a::new();
+            fingerprint.string_framed(&encoding);
+            let mut digest = Sha256::new();
+            digest.update(b"OMEGA-TYPED-CONFORMANCE-APPLICATION\0");
+            digest.update(encoding.as_bytes());
+            Ok(Some(crate::ClosedConformanceApplication {
+                declaration,
+                trait_scope: scope,
+                callable_application: application,
+                arguments: operands.into_boxed_slice(),
+                lifetime_arguments: Vec::new(),
+                type_arguments,
+                const_arguments: Vec::new(),
+                machine_arguments: Vec::new(),
+                trait_definition,
+                trait_lifetime_arguments: Vec::new(),
+                trait_arguments,
+                rows,
+                report_fingerprint: fingerprint.finish(),
+                commitment: crate::ClosedConformanceApplicationCommitment::from_digest(
+                    digest.finalize().into(),
+                ),
+                identity_encoding: std::sync::Arc::from(encoding.into_bytes()),
+            }))
         }
 
         /// The named operation record, its unique requirement row and that
@@ -2935,6 +3350,22 @@ pub(crate) mod namespaces {
             &self,
             namespace: SymbolHandle,
             requirement: SymbolHandle,
+        ) -> Result<
+            Option<(
+                &crate::trait_definition::Conformance,
+                &crate::trait_definition::ConformanceRow,
+                &signature::StateSignature,
+            )>,
+            &'static str,
+        > {
+            self.named_conformance_member_at(namespace, requirement, None)
+        }
+
+        fn named_conformance_member_at(
+            &self,
+            namespace: SymbolHandle,
+            requirement: SymbolHandle,
+            application: Option<AppliedTraitScope<'_>>,
         ) -> Result<
             Option<(
                 &crate::trait_definition::Conformance,
@@ -2957,7 +3388,10 @@ pub(crate) mod namespaces {
                 .ok_or("named public view lost its selected implementation")?;
             // Applied generic maps retain their independently supplied tuple in
             // the ordinary dispatch path above; a bare declaration cannot supply it.
-            if !selected.type_parameters.is_empty() || !selected.lifetime_parameters.is_empty() {
+            if application.is_none()
+                && (!selected.type_parameters.is_empty()
+                    || !selected.lifetime_parameters.is_empty())
+            {
                 return Err("named public view has no complete selected application");
             }
             let closed = self.closed_requirement_application(requirement);
@@ -2974,7 +3408,8 @@ pub(crate) mod namespaces {
             if rows.next().is_some() {
                 return Err("named public view has ambiguous requirement rows");
             }
-            let scope = AppliedTraitScope::from_conformance(self, selected)
+            let scope = application
+                .or_else(|| AppliedTraitScope::from_conformance(self, selected))
                 .ok_or("named public view lost its complete trait application")?
                 .declaring_scope(self, row.declaring_trait)
                 .ok_or("named public view lost its declaring trait scope")?;
@@ -2995,6 +3430,7 @@ pub(crate) mod namespaces {
     }
 }
 pub use machine_instances::MachineInstantiation;
+pub use namespaces::NamedConformanceCaptureIndex;
 pub(crate) mod payloads {
     use super::{CallableApplication, CallableLifetimeOrigin};
     use crate::{TypedTrees, expression, static_applications, types};

@@ -42,6 +42,18 @@ pub struct PreparedCompilation {
 }
 
 impl PreparedCompilation {
+    pub fn source_completion_accounting(
+        &self,
+    ) -> Option<&build_time_evaluation::SourceCompletionAccounting> {
+        Some(
+            self.source
+                .as_ref()?
+                .as_ref()
+                .ok()?
+                .source_completion_accounting(),
+        )
+    }
+
     pub fn product_queries(&self) -> Option<crate::ProductQueries> {
         Some(self.source.as_ref()?.as_ref().ok()?.product_queries())
     }

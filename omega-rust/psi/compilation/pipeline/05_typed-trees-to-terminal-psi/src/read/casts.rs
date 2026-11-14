@@ -125,6 +125,7 @@ impl Program<'_> {
                 return unserved("cast with no exact conversion");
             }
             Expression {
+                call_context: None,
                 kind: ExpressionKind::Cast(Box::new(operand)),
                 result: Some(ValueType::Scalar(carrier, Qualification::NONE)),
                 source,
@@ -137,6 +138,7 @@ impl Program<'_> {
             return Ok(converted);
         }
         Ok(Expression {
+            call_context: None,
             kind: ExpressionKind::Requalify(Box::new(converted)),
             result: Some(target),
             source,
@@ -256,6 +258,7 @@ impl Program<'_> {
                     };
                     if !clauses.is_empty() {
                         return Ok(Expression {
+                            call_context: None,
                             kind: ExpressionKind::Establish {
                                 operand: Box::new(operand),
                                 clauses,
@@ -287,6 +290,7 @@ impl Program<'_> {
             }
         }
         Ok(Expression {
+            call_context: None,
             kind: ExpressionKind::Requalify(Box::new(operand)),
             result: Some(result),
             source,

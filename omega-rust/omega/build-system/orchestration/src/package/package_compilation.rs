@@ -26,10 +26,14 @@ use compiler::{
 use diagnostics::Diagnostic;
 
 pub fn compile_packages(
-    compiler: &mut CompilationSession,
+    session: &mut crate::BuildSession,
     requests: Vec<PackageCompilationRequest>,
     completed: &mut [compiler::CompletedBuild],
 ) -> Vec<Result<CompilationOutput, PackageCompileFailure>> {
+    let crate::BuildSession {
+        compiler,
+        packages: resources,
+    } = session;
     let mut plans = Vec::with_capacity(requests.len());
     for (position, mut request) in requests.into_iter().enumerate() {
         let root = request.occurrences.len().saturating_sub(1);
@@ -58,15 +62,24 @@ pub fn compile_packages(
             prepare_packages(compiler, plans, completed)
         {
             match prepared {
-                Ok(PreparedPackageRoot::Build(build)) => products.push((
-                    (position, root),
-                    PreparedPackageProduct {
-                        build: *build,
-                        product,
-                        permissions,
-                    },
-                )),
-                Err(error) => outcomes.push((position, Err(error))),
+                Ok(PreparedPackageRoot::Build(build)) => {
+                    resources
+                        .record_source_completion(build.source_completion_accounting().clone());
+                    products.push((
+                        (position, root),
+                        PreparedPackageProduct {
+                            build: *build,
+                            product,
+                            permissions,
+                        },
+                    ));
+                }
+                Err(error) => {
+                    if let Some(accounting) = error.failure.source_completion_accounting() {
+                        resources.record_source_completion(accounting.clone());
+                    }
+                    outcomes.push((position, Err(error)));
+                }
             }
         }
 

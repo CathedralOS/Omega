@@ -1606,3 +1606,637 @@ requires input > 0 ensures result < input crashes none { input - 1 }
         "{refusal:?}"
     );
 }
+
+fn generic_named_map_source() -> &'static str {
+    r#"
+trait Step<Value> {
+    machine apply(value: Value) -> Value reaches none crashes none;
+}
+Selected<Value> satisfies Step<Value> {
+    machine apply(input: Value) -> Value reaches none crashes none { input }
+}
+machine entry() -> u32 reaches none crashes none { Selected<u32>::apply(7) }
+"#
+}
+
+fn generic_named_map_call(
+    program: &typed_trees::TypedTrees,
+) -> &typed_trees::expression::TableCallExpression {
+    let mut calls = program
+        .expression_table
+        .expression_entries()
+        .filter_map(|(_, node)| {
+            let typed_trees::expression::ExpressionNode::Call(call) = node else {
+                return None;
+            };
+            program
+                .expression_table
+                .name_path_node(call.receiver)
+                .filter(|path| program.conformance_by_symbol(path.symbol).is_some())
+                .map(|_| call)
+        });
+    let call = calls.next().expect("one direct named map call");
+    assert!(calls.next().is_none());
+    call
+}
+
+#[test]
+fn generic_named_map_source_retains_its_explicit_application() {
+    let program = typed(generic_named_map_source());
+    let call = generic_named_map_call(&program);
+    let (owner, row, signature) = program
+        .named_conformance_call_member(call)
+        .unwrap()
+        .unwrap();
+    assert_eq!(program.conformance_type_parameters(owner).len(), 1);
+    assert_eq!(row.requirement, call.target_symbol);
+    assert_eq!(signature.symbol, row.requirement);
+    assert_eq!(
+        program
+            .type_reference_table
+            .primitive_type(signature.return_type),
+        typed_trees::types::PrimitiveType::from_name("u32")
+    );
+    let selection = program
+        .authored_declaration_selections()
+        .get(call.authored_call_selection.unwrap())
+        .unwrap();
+    assert_eq!(
+        selection.target().as_resolved().unwrap().selected_symbol(),
+        row.requirement
+    );
+    assert_ne!(row.requirement, row.realization_state);
+    assert!(
+        program
+            .named_conformance_member(owner.symbol, row.requirement)
+            .is_err(),
+        "a bare generic map cannot borrow the call's explicit application"
+    );
+}
+
+#[test]
+fn generic_named_map_source_refuses_missing_foreign_or_rebound_applications() {
+    let program = typed(generic_named_map_source());
+    let call = generic_named_map_call(&program);
+    let (_, row, _) = program
+        .named_conformance_call_member(call)
+        .unwrap()
+        .unwrap();
+    let mut missing = call.clone();
+    missing.requirement_application = typed_trees::types::TypeReferenceHandle::invalid();
+    assert!(program.named_conformance_call_member(&missing).is_err());
+    let mut foreign = call.clone();
+    foreign.requirement_application = typed_trees::types::TypeReferenceHandle::from_parts(
+        call.requirement_application.arena_index(),
+        call.requirement_application.generation() + 1,
+    );
+    assert!(program.named_conformance_call_member(&foreign).is_err());
+    let mut source = call.clone();
+    source.authored_machine_application =
+        typed_trees::static_applications::StaticMachineApplicationHandle::from_parts(
+            call.authored_machine_application.arena_index(),
+            call.authored_machine_application.generation() + 1,
+        );
+    assert!(program.named_conformance_call_member(&source).is_err());
+    let mut body = call.clone();
+    body.target_symbol = row.realization_state;
+    assert!(
+        program.named_conformance_call_member(&body).is_err(),
+        "the owning body cannot replace its public requirement selection"
+    );
+}
+
+#[test]
+fn generic_named_map_invokes_its_closed_own_telescope() {
+    let (prepared, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        typed(generic_named_map_source()),
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap();
+    let verdicts = compilation_verdicts_of(&prepared);
+    assert_named_invocation_value(verdicts, semantic_vocabulary::IntegerValue::Unsigned(7));
+}
+
+#[test]
+fn generic_named_map_body_uses_its_own_rigid_telescope() {
+    let program = typed(generic_named_map_source());
+    let call = generic_named_map_call(&program);
+    let (_, row, _) = program
+        .named_conformance_call_member(call)
+        .unwrap()
+        .unwrap();
+    let mut form =
+        typed_trees_to_terminal_psi::elaborate_generic(&program, row.realization_machine).unwrap();
+    let discharged = discharge(&mut form).unwrap();
+    let root = discharged
+        .machines
+        .get(id(1))
+        .expect("the actual generic body was judged");
+    assert!(root.conflicts.is_empty(), "{:?}", root.conflicts);
+    assert!(root.unestablished().next().is_none());
+    assert!(
+        root.verdicts.values().all(Result::is_ok),
+        "{:?}",
+        root.verdicts
+    );
+}
+
+#[test]
+fn generic_named_map_body_cannot_be_an_unapplied_runtime_entry() {
+    let program = typed(generic_named_map_source());
+    let call = generic_named_map_call(&program);
+    let (_, row, _) = program
+        .named_conformance_call_member(call)
+        .unwrap()
+        .unwrap();
+    let refusal = typed_trees_to_terminal_psi::elaborate_closure(&program, row.realization_machine)
+        .unwrap_err();
+    assert_eq!(refusal.reason, RefusalReason::Unsupported);
+    assert!(
+        refusal
+            .detail
+            .contains("generic map body needs its complete selected application"),
+        "{refusal:?}"
+    );
+}
+
+#[test]
+fn generic_named_map_source_keeps_parameter_dispatch_separate() {
+    let program = typed(generic_named_map_source());
+    let call = generic_named_map_call(&program);
+    let (owner, row, _) = program
+        .named_conformance_call_member(call)
+        .unwrap()
+        .unwrap();
+    let mut mixed = call.clone();
+    mixed.static_requirement_dispatch = Some(typed_trees::StaticRequirementDispatch {
+        evidence_parameter: program.conformance_type_parameters(owner)[0].symbol,
+        declaring_trait: row.declaring_trait,
+        requirement: row.requirement,
+        realization_machine: row.realization_machine,
+        realization_state: row.realization_state,
+    });
+    assert!(
+        program
+            .named_conformance_call_member(&mixed)
+            .unwrap()
+            .is_none(),
+        "a nominal receiver cannot replace an existing parameter dispatch"
+    );
+    assert!(
+        program
+            .named_conformance_capture_key(&mixed)
+            .unwrap()
+            .is_none()
+    );
+}
+
+#[test]
+fn generic_named_map_source_capture_identity_keeps_unused_binders() {
+    let text = generic_named_map_source()
+        .replacen(
+            "Selected<Value> satisfies",
+            "Selected<Value, Unused> satisfies",
+            1,
+        )
+        .replacen(
+            "Selected<u32>::apply(7)",
+            "let first: u32 = Selected<u32, u64>::apply(7); Selected<u32, bool>::apply(8)",
+            1,
+        );
+    let program = typed(&text);
+    let calls = program
+        .expression_table
+        .expression_entries()
+        .filter_map(|(_, node)| {
+            let typed_trees::expression::ExpressionNode::Call(call) = node else {
+                return None;
+            };
+            program
+                .expression_table
+                .name_path_node(call.receiver)
+                .filter(|path| program.conformance_by_symbol(path.symbol).is_some())
+                .map(|_| call)
+        })
+        .collect::<Vec<_>>();
+    let [left, right] = calls[..] else {
+        panic!("two explicit applications")
+    };
+    let left_key = program
+        .named_conformance_capture_key(left)
+        .unwrap()
+        .unwrap();
+    let right_key = program
+        .named_conformance_capture_key(right)
+        .unwrap()
+        .unwrap();
+    assert_eq!(left_key.0, right_key.0, "one actual lexical source owner");
+    assert_ne!(
+        left_key.1, right_key.1,
+        "the map's unused binder still belongs to its body identity"
+    );
+    let left_scope = program
+        .applied_requirement_scope(left_key.0, left.requirement_application)
+        .unwrap();
+    let right_scope = program
+        .applied_requirement_scope(right_key.0, right.requirement_application)
+        .unwrap();
+    assert!(
+        left_scope.same_application(&program, &right_scope),
+        "equal public trait scopes must not collapse the independently bound map tuples"
+    );
+}
+
+#[test]
+fn generic_named_map_source_application_retains_actual_constructor_bindings() {
+    let text = generic_named_map_source()
+        .replacen(
+            "Selected<Value> satisfies",
+            "Selected<Value, Unused> satisfies",
+            1,
+        )
+        .replacen(
+            "Selected<u32>::apply(7)",
+            "let first: u32 = Selected<u32, u64>::apply(7); Selected<u32, bool>::apply(8)",
+            1,
+        );
+    let mut program = typed(&text);
+    let calls = program
+        .expression_table
+        .expression_entries()
+        .filter_map(|(_, node)| {
+            let typed_trees::expression::ExpressionNode::Call(call) = node else {
+                return None;
+            };
+            program
+                .expression_table
+                .name_path_node(call.receiver)
+                .filter(|path| program.conformance_by_symbol(path.symbol).is_some())
+                .map(|_| call.clone())
+        })
+        .collect::<Vec<_>>();
+    let [left, right] = &calls[..] else {
+        panic!("two explicit constructor applications")
+    };
+    let expected_owner = program
+        .named_conformance_capture_key(left)
+        .unwrap()
+        .unwrap()
+        .0;
+    let left_application = program
+        .prepare_named_conformance_application(left)
+        .unwrap()
+        .unwrap();
+    let right_application = program
+        .prepare_named_conformance_application(right)
+        .unwrap()
+        .unwrap();
+    assert_ne!(
+        left_application, right_application,
+        "different unused arguments are different owned bodies"
+    );
+    let left_scope = left_application.trait_scope.scope(&program).unwrap();
+    let right_scope = right_application.trait_scope.scope(&program).unwrap();
+    assert!(left_scope.same_application(&program, &right_scope));
+    for application in [left_application, right_application] {
+        assert_eq!(application.arguments.len(), 2);
+        assert_eq!(application.type_arguments.len(), 2);
+        assert!(application.const_arguments.is_empty() && application.machine_arguments.is_empty());
+        assert!(!application.identity_encoding.is_empty());
+        assert!(!application.commitment.is_zero());
+        let source = program
+            .expression_table
+            .static_machine_application(application.callable_application);
+        assert_eq!(source.lexical_owner, expected_owner);
+        assert_eq!(source.registration_operation, application.declaration);
+        assert_eq!(source.binding_declaration, application.declaration);
+        let parameters = program.conformance_type_parameters(
+            program
+                .conformance_by_symbol(application.declaration)
+                .unwrap(),
+        );
+        let bindings = program
+            .expression_table
+            .static_machine_application_bindings(application.callable_application);
+        assert_eq!(bindings.len(), parameters.len());
+        for ((parameter, binding), argument) in parameters
+            .iter()
+            .zip(bindings)
+            .zip(application.arguments.iter())
+        {
+            assert_eq!(binding.parameter, parameter.symbol);
+            assert_eq!(
+                binding.value,
+                typed_trees::static_applications::StaticMachineBindingValue::Type(
+                    argument.type_reference
+                )
+            );
+        }
+    }
+}
+
+#[test]
+fn generic_named_map_source_rejects_a_foreign_unused_argument() {
+    let text = generic_named_map_source()
+        .replacen(
+            "Selected<Value> satisfies",
+            "Selected<Value, Unused> satisfies",
+            1,
+        )
+        .replacen("Selected<u32>::apply(7)", "Selected<u32, u64>::apply(7)", 1);
+    let mut program = typed(&text);
+    let mut call = generic_named_map_call(&program).clone();
+    let typed_trees::types::TypeReferenceNode::Generic {
+        base_symbol,
+        base_name,
+        lifetime_arguments,
+        arguments,
+    } = program
+        .type_reference_table
+        .type_reference(call.requirement_application)
+        .clone()
+    else {
+        panic!("a complete map application")
+    };
+    let mut arguments = program
+        .type_reference_table
+        .type_reference_handles(arguments)
+        .to_vec();
+    arguments[1] = typed_trees::types::TypeReferenceHandle::from_parts(
+        arguments[1].arena_index(),
+        arguments[1].generation() + 1,
+    );
+    let arguments = program
+        .type_reference_table
+        .insert_type_reference_handles(arguments);
+    call.requirement_application =
+        program
+            .type_reference_table
+            .insert(typed_trees::types::TypeReferenceNode::Generic {
+                base_symbol,
+                base_name,
+                lifetime_arguments,
+                arguments,
+            });
+    let failure = program.named_conformance_call_member(&call).unwrap_err();
+    assert!(failure.contains("region-free map argument"), "{failure}");
+    assert!(program.named_conformance_capture_key(&call).is_err());
+    assert!(
+        program
+            .prepare_named_conformance_application(&call)
+            .is_err()
+    );
+}
+
+fn prepare_named_map(text: &str) -> typed_trees::FrozenTypedTrees {
+    typed_trees_to_typed_trees::prepare_typed_trees(
+        typed(text),
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap()
+    .0
+}
+
+fn generic_owned_source(actual: &str, promised: &str, body: &str) -> String {
+    named_owned_source(actual, promised, body)
+        .replace("Inline satisfies", "Selected<Unused> satisfies")
+        .replace("Inline::apply", "Selected<u64>::apply")
+}
+
+#[test]
+fn generic_named_map_captures_keep_every_unused_binder() {
+    let text = generic_named_map_source()
+        .replace(
+            "Selected<Value> satisfies",
+            "Selected<Value, Unused> satisfies",
+        )
+        .replace(
+            "Selected<u32>::apply(7)",
+            "let first: u32 = Selected<u32, u64>::apply(3); Selected<u32, bool>::apply(7)",
+        );
+    let prepared = prepare_named_map(&text);
+    let captures = prepared
+        .captured_machine_applications
+        .iter()
+        .map(|(_, row)| row)
+        .collect::<Vec<_>>();
+    assert_eq!(captures.len(), 2);
+    assert_ne!(captures[0].instance, captures[1].instance);
+    assert_ne!(
+        captures[0].conformance_application.identity_encoding,
+        captures[1].conformance_application.identity_encoding
+    );
+    assert_named_invocation_value(
+        compilation_verdicts_of(&prepared),
+        semantic_vocabulary::IntegerValue::Unsigned(7),
+    );
+    let mut missing = (*prepared).clone();
+    missing.captured_machine_applications = Default::default();
+    missing
+        .captured_machine_applications
+        .insert(captures[1].clone());
+    let verdicts = compilation_verdicts_of(&missing);
+    assert!(
+        matches!(&verdicts[0], RouteVerdict::FallBack(refusal)
+        if refusal.detail.contains("named map body has no prepared capture")),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
+fn generic_named_map_captures_keep_the_actual_source_owner() {
+    let text = generic_named_map_source().replace(
+        "machine entry() -> u32 reaches none crashes none { Selected<u32>::apply(7) }",
+        "machine other() -> u32 reaches none crashes none { Selected<u32>::apply(3) }
+         machine entry() -> u32 reaches none crashes none { let first: u32 = other(); Selected<u32>::apply(7) }",
+    );
+    let prepared = prepare_named_map(&text);
+    let captures = prepared
+        .captured_machine_applications
+        .iter()
+        .map(|(_, row)| row)
+        .collect::<Vec<_>>();
+    assert_eq!(captures.len(), 2);
+    assert_ne!(captures[0].instance, captures[1].instance);
+    assert_ne!(
+        prepared
+            .expression_table
+            .static_machine_application(captures[0].binding_application)
+            .lexical_owner,
+        prepared
+            .expression_table
+            .static_machine_application(captures[1].binding_application)
+            .lexical_owner
+    );
+    assert_named_invocation_value(
+        compilation_verdicts_of(&prepared),
+        semantic_vocabulary::IntegerValue::Unsigned(7),
+    );
+}
+
+#[test]
+fn generic_named_map_calls_keep_public_requirements_and_guarantees() {
+    for (actual, promised, bad_input) in [("0", "", true), ("7", "ensures result == 0", false)] {
+        let prepared = prepare_named_map(&generic_owned_source(actual, promised, "0"));
+        let verdicts = compilation_verdicts_of(&prepared);
+        assert!(
+            matches!(&verdicts[0], RouteVerdict::Rejected { unproved, .. }
+            if unproved.iter().any(|row| if bad_input {
+                matches!(row.kind, ObligationKind::CallRequirement { .. })
+            } else {
+                matches!(row.kind, ObligationKind::NormalGuarantee { .. })
+            })),
+            "{verdicts:?}"
+        );
+        assert!(
+            verdicts
+                .iter()
+                .skip(1)
+                .all(|verdict| matches!(verdict, RouteVerdict::Accepted(_))),
+            "{verdicts:?}"
+        );
+    }
+}
+
+#[test]
+fn generic_named_map_body_still_owes_its_weaker_written_input() {
+    let text = generic_owned_source("7", "", "input - 1").replacen(
+        "ensures result == 0",
+        "ensures result < input",
+        1,
+    );
+    let prepared = prepare_named_map(&text);
+    let verdicts = compilation_verdicts_of(&prepared);
+    assert!(
+        matches!(&verdicts[0], RouteVerdict::Accepted(_)),
+        "{verdicts:?}"
+    );
+    assert!(
+        verdicts.iter().skip(1).any(|verdict| matches!(verdict,
+        RouteVerdict::Rejected { unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::OperationSafety { .. })))),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
+fn generic_named_map_preserves_the_written_member_reach_ceiling() {
+    let text = format!(
+        "boundary trait Service {{}}\n{}",
+        generic_named_map_source()
+    )
+    .replace(
+        "machine apply(input: Value) -> Value reaches none",
+        "machine apply(input: Value) -> Value reaches Service",
+    );
+    let prepared = prepare_named_map(&text);
+    let verdicts = compilation_verdicts_of(&prepared);
+    assert!(
+        matches!(&verdicts[0], RouteVerdict::Accepted(_)),
+        "{verdicts:?}"
+    );
+    assert!(
+        verdicts.iter().skip(1).any(|verdict| matches!(verdict,
+        RouteVerdict::Rejected { exceeded, .. } if !exceeded.is_empty())),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
+fn generic_named_map_closed_call_also_judges_its_original_template() {
+    let prepared = prepare_named_map(&generic_named_map_source().replace("{ input }", "{ 0 }"));
+    let verdicts = compilation_verdicts_of(&prepared);
+    assert!(
+        verdicts
+            .iter()
+            .any(|verdict| !matches!(verdict, RouteVerdict::Accepted(_))),
+        "a selected integer instance cannot validate an arbitrary Value body"
+    );
+}
+
+fn full_named_map_verdicts(typed: &typed_trees::TypedTrees) -> Vec<RouteVerdict> {
+    crate::judge_compilation(
+        typed_trees_to_terminal_psi::prepare_compilation(
+            typed,
+            typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
+                entries: &[entry(typed)],
+                subjects: &[None],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program,
+    )
+    .into_iter()
+    .map(Result::unwrap)
+    .collect()
+}
+
+#[test]
+fn generic_named_map_full_subject_judges_its_schema_and_owning_body() {
+    let prepared = prepare_named_map(generic_named_map_source());
+    let verdicts = full_named_map_verdicts(&prepared);
+    for (position, verdict) in verdicts.iter().enumerate().skip(1) {
+        if let RouteVerdict::Accepted(proof) = verdict {
+            let rigid = proof
+                .elaboration
+                .tables
+                .machines
+                .iter()
+                .any(|(_, machine)| {
+                    machine
+                        .values
+                        .iter()
+                        .any(|(_, value)| value.rigid.is_some())
+                });
+            if position > 2 && !rigid {
+                continue; // Ordinary closed witnesses retain their existing behavior.
+            }
+            assert!(
+                proof.publish().is_err(),
+                "a generic form or witness cannot export stand-in types"
+            );
+            assert!(
+                proof.publish_invocation().is_err(),
+                "a proof form cannot become executable source"
+            );
+        }
+    }
+    assert_named_invocation_value(verdicts, semantic_vocabulary::IntegerValue::Unsigned(7));
+}
+
+#[test]
+fn generic_named_map_full_subject_refuses_the_universal_literal_body() {
+    let prepared = prepare_named_map(&generic_named_map_source().replace("{ input }", "{ 0 }"));
+    let verdicts = full_named_map_verdicts(&prepared);
+    assert!(
+        verdicts
+            .iter()
+            .any(|verdict| !matches!(verdict, RouteVerdict::Accepted(_))),
+        "one integer instance is not proof for arbitrary Value"
+    );
+}
+
+#[test]
+fn generic_named_map_full_subject_reads_unused_generic_requirement_headers() {
+    let text = generic_named_map_source().replace(
+        "machine entry()",
+        r#"
+trait Unused<Value> {
+    machine bad(input: Value) requires input > 0 crashes none;
+}
+machine entry()"#,
+    );
+    let prepared = prepare_named_map(&text);
+    let verdicts = full_named_map_verdicts(&prepared);
+    assert!(
+        verdicts
+            .iter()
+            .any(|verdict| !matches!(verdict, RouteVerdict::Accepted(_))),
+        "the unused header must still support its arbitrary Value parameter"
+    );
+}

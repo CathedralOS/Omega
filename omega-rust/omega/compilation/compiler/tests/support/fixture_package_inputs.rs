@@ -239,11 +239,8 @@ pub fn produce_fixture_products(
             "fixture Product completion already consumed",
         )]
     })?;
-    let outputs = orchestration::compile_packages(
-        prepared.session.compiler(),
-        requests,
-        &mut prepared.completed,
-    );
+    let outputs =
+        orchestration::compile_packages(&mut prepared.session, requests, &mut prepared.completed);
     let outcomes = completion.complete(outputs, prepared.session.resources());
     let mut reports = Vec::new();
     let mut failures = Vec::new();
@@ -251,10 +248,17 @@ pub fn produce_fixture_products(
         match outcome.result {
             Ok(output) => reports.push((outcome.target, output)),
             Err(package_manager::operations::ProjectCompilationError::Review(
-                package_manager::review::CompileResolvedPackageReviewsError::Compilation {
-                    failure:
-                        compilation_products::CompileFailure::Diagnostics(diagnostics)
-                        | compilation_products::CompileFailure::SourceCompletion { diagnostics, .. },
+                package_manager::review::CompileResolvedPackageReviewsError {
+                    cause:
+                        package_manager::review::CompileResolvedPackageReviewCause::Compilation {
+                            failure:
+                                compilation_products::CompileFailure::Diagnostics(diagnostics)
+                                | compilation_products::CompileFailure::SourceCompletion {
+                                    diagnostics,
+                                    ..
+                                },
+                            ..
+                        },
                     ..
                 },
             )) => failures.extend(diagnostics),

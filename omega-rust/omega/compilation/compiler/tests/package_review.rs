@@ -174,9 +174,10 @@ fn review_product_keeps_exact_custody_and_policy_budget() {
     assert!(bytes > 0);
     assert!(matches!(
         review(bytes - 1),
-        Err(PackageReviewFailure::Projection(
-            PackageReviewProjectionError::PolicyBudget
-        ))
+        Err(PackageReviewFailure::Projection {
+            failure: PackageReviewProjectionError::PolicyBudget,
+            ..
+        })
     ));
     let exact = review(bytes).expect("exact budget is sufficient");
     assert_eq!(exact.evidence.policy, first.evidence.policy);
@@ -1156,4 +1157,264 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
         "native callback oracle: {observed:?}"
     );
     std::fs::remove_dir_all(scratch).unwrap();
+}
+
+/// Use a genuine accepted constant invocation; cleanup must retain its cost
+/// even though the successful caller result contains no receipt fields.
+fn build_constant_cleanup_history() -> compilation_products::SourceCompletionAccounting {
+    let text =
+        "const VALUE:u64=answer(); machine answer()->u64 {4u64} machine build()->u64 {VALUE}";
+    let mut sources = source::SourceMap::default();
+    let id = sources
+        .add_checked_instance(
+            "/unit/build.omg".into(),
+            text,
+            "/unit".into(),
+            None,
+            source::SourceOrigin::Toolchain,
+            source::SourceResolutionStratum::Base,
+            source::DependencyScope::Build,
+        )
+        .source_id;
+    let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap();
+    let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
+    request.sources = Some(std::sync::Arc::new(sources));
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let entry = typed.realized_machine_named("build").unwrap().symbol;
+    let prepared = psi_compiler::SourcePreparationRequest {
+        program: typed,
+        accounting: Default::default(),
+        admission: Default::default(),
+        compilation: psi_compiler::TerminalSourceCompilation {
+            entries: &[entry],
+            subjects: &[],
+            purpose: source::DependencyScope::Build,
+            selected: &[],
+            declaration_metadata: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+    }
+    .prepare()
+    .unwrap();
+    assert_eq!(prepared.accounting.receipts().len(), 1);
+    prepared.accounting.validate_charges().unwrap();
+    prepared.accounting
+}
+
+fn force_build_cleanup_failure(workspace: &std::path::Path) -> std::path::PathBuf {
+    let staging = std::fs::read_dir(workspace)
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    std::fs::remove_dir_all(&staging).unwrap();
+    std::fs::write(&staging, b"not a staging directory").unwrap();
+    staging
+}
+
+#[test]
+fn build_constant_cleanup_failure_retains_successful_execution_costs() {
+    use package_manager::review::{
+        CompileResolvedPackageReviewCause as Cause, CompileResolvedPackageReviewsError as Error,
+    };
+    let history = build_constant_cleanup_history();
+    let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "constant-cleanup-success",
+        false,
+    )
+    .unwrap();
+    let mut session = package_manager::PackageBuildSession::create(workspace.path()).unwrap();
+    session.record_source_completion(history.clone());
+    session.record_source_completion(history);
+    let staging = force_build_cleanup_failure(workspace.path());
+    let failure = session.dispose::<_, Error>(Ok(())).unwrap_err();
+    assert!(matches!(failure.cause, Cause::BuildStagingCleanup { .. }));
+    let accounting = failure.source_completion_accounting().unwrap();
+    assert_eq!(
+        accounting.receipts().len(),
+        1,
+        "held history is not a second execution"
+    );
+    accounting.validate_charges().unwrap();
+    std::fs::remove_file(staging).unwrap();
+}
+
+#[test]
+fn build_constant_cleanup_failure_preserves_the_primary_typed_cause() {
+    let history = build_constant_cleanup_history();
+    let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "constant-cleanup-primary",
+        false,
+    )
+    .unwrap();
+    let mut session = orchestration::BuildSession::create(workspace.path()).unwrap();
+    session.resources().record_source_completion(history);
+    let staging = force_build_cleanup_failure(workspace.path());
+    let primary = package_manager::operations::PackageInspectionError::from(
+        compilation_products::CompileFailure::Diagnostics(vec![diagnostics::Diagnostic::error(
+            "actual primary inspection failure",
+        )]),
+    );
+    assert!(primary.source_completion_accounting().receipts().is_empty());
+    let failure = session.dispose_inspection::<()>(Err(primary)).unwrap_err();
+    let Some(compilation_products::CompileFailure::Diagnostics(diagnostics)) =
+        failure.compilation_failure()
+    else {
+        panic!("cleanup must preserve the original typed compilation cause")
+    };
+    assert_eq!(
+        diagnostics::join_messages(diagnostics),
+        "actual primary inspection failure"
+    );
+    assert_eq!(failure.source_completion_accounting().receipts().len(), 1);
+    std::fs::remove_file(staging).unwrap();
+}
+
+fn captured_build_constant_session(
+    case: &str,
+) -> (
+    platform_custody::temporary_directory::TemporaryDirectory,
+    orchestration::BuildSession,
+    Result<orchestration::ResolvedProjectBuilds, orchestration::ProjectSourceResolutionError>,
+) {
+    let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "captured-build-constant",
+        false,
+    )
+    .unwrap();
+    let project = workspace.path().join("project");
+    std::fs::create_dir(&project).unwrap();
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/build_constant_accounting")
+        .join(case);
+    for name in ["main.omg", "build.omg"] {
+        std::fs::copy(fixture.join(name), project.join(name)).unwrap();
+    }
+    let profile = target::TargetProfile::host_if_supported().expect("host Build execution target");
+    let preparation = package_manager::operations::begin_local_project_preparation(
+        &project.join("main.omg"),
+        &[profile],
+        true,
+    )
+    .unwrap()
+    .unwrap();
+    let mut session =
+        orchestration::BuildSession::create(&workspace.path().join("session")).unwrap();
+    let outcome = orchestration::resolve_project_sources(
+        &mut session,
+        orchestration::ProjectSourceRequest {
+            preparation,
+            collect_timings: false,
+            execution: package_compilation::BuildExecutionInputs {
+                profile: Some(profile),
+                ..Default::default()
+            },
+        },
+    );
+    (workspace, session, outcome)
+}
+
+#[test]
+fn build_constant_captured_source_cost_survives_real_readiness_and_cleanup() {
+    let (workspace, mut session, outcome) = captured_build_constant_session("positive");
+    let resolved = outcome.unwrap_or_else(|error| panic!("captured positive Build: {error}"));
+    assert!(
+        !session
+            .resources()
+            .source_completion_accounting()
+            .receipts()
+            .is_empty(),
+        "actual readiness must retain the computed constant work"
+    );
+    let profile = resolved.execution_profile;
+    for build in resolved.builds {
+        let inputs = build.package_inputs().clone();
+        let product = build
+            .complete(session.compiler(), profile, inputs)
+            .unwrap_or_else(|failure| {
+                panic!(
+                    "captured Build Product rejoin: {}",
+                    diagnostics::join_messages(&failure.into_diagnostics())
+                )
+            });
+        // The package coordinator retains this actual prepared owner before
+        // consuming it for a target product; use that same published ledger.
+        session
+            .resources()
+            .record_source_completion(product.source_completion_accounting().clone());
+        let checked = session
+            .compiler()
+            .check_package_build(product)
+            .unwrap_or_else(|failure| {
+                panic!(
+                    "captured Product source: {}",
+                    diagnostics::join_messages(&failure.into_diagnostics())
+                )
+            });
+        let accounting = checked.source_completion_accounting();
+        accounting.validate_charges().unwrap();
+        let invocations = accounting
+            .receipts()
+            .iter()
+            .filter_map(|record| match record {
+                build_time_evaluation::PureEvaluationRecord::Invocation(receipt)
+                    if receipt.request_source().symbols.name(receipt.requester()) == "VALUE" =>
+                {
+                    Some(receipt.request_source().identity.get())
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            invocations.len(),
+            2,
+            "the retyped Build must evaluate its own constant"
+        );
+        assert_ne!(
+            invocations[0], invocations[1],
+            "the new Build cannot borrow the earlier source receipt"
+        );
+        session
+            .resources()
+            .record_source_completion(accounting.clone());
+    }
+    let history = session.resources().source_completion_accounting().clone();
+    history.validate_charges().unwrap();
+    let staging = force_build_cleanup_failure(&workspace.path().join("session"));
+    let primary = package_manager::operations::PackageInspectionError::from(
+        "inspection finish refused after Build execution".to_owned(),
+    );
+    assert!(primary.source_completion_accounting().receipts().is_empty());
+    let failure = session.dispose_inspection::<()>(Err(primary)).unwrap_err();
+    assert_eq!(
+        failure.to_string(),
+        "inspection finish refused after Build execution"
+    );
+    assert_eq!(
+        failure.source_completion_accounting().receipts().len(),
+        history.receipts().len()
+    );
+    failure
+        .source_completion_accounting()
+        .validate_charges()
+        .unwrap();
+    std::fs::remove_file(staging).unwrap();
+}
+
+#[test]
+fn build_constant_captured_invalid_twin_rejects_its_original_call_obligation() {
+    let (_workspace, mut session, outcome) = captured_build_constant_session("negative");
+    let failure = match outcome {
+        Err(error) => error,
+        Ok(_) => panic!("bounded(9) requires 9 <= 5"),
+    };
+    let message = failure.to_string();
+    assert!(message.contains("bounded"), "{message}");
+    assert!(message.contains("9 <= 5"), "{message}");
+    session.close().unwrap();
 }

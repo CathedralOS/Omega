@@ -132,7 +132,8 @@ machine build(builder: &mut Build) crashes Trap {
             &mut timings,
         );
         if !resume {
-            let compiler::CompileFailure::BuildConsentRequired(requests) = admitted.err().unwrap()
+            let compiler::CompileFailure::BuildConsentRequired { requests, .. } =
+                admitted.err().unwrap()
             else {
                 panic!("standalone live access must stop as structured consent");
             };

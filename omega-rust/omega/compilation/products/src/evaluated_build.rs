@@ -20,6 +20,8 @@ pub struct EvaluatedBuild {
     pub base_source_consumption_commitment:
         Option<package_compilation::PackageSourceConsumptionCommitment>,
     pub constants: BuildConstants,
+    /// Costs of this Build context, not materialization evidence for Product.
+    pub source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
 }
 
 /// What the Build admission's constants owe a Product frontier typed after

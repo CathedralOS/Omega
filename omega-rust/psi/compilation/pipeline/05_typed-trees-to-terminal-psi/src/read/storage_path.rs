@@ -35,6 +35,7 @@ pub(super) fn walk<'a, E>(
             | ExpressionKind::Integer(_)
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::CollectionMeasure { .. }
+            | ExpressionKind::ByteElement { .. }
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Array { .. }
             | ExpressionKind::Record { .. }
@@ -120,6 +121,7 @@ mod tests {
 
     fn expression(kind: ExpressionKind) -> Expression {
         Expression {
+            call_context: None,
             kind,
             result: None,
             source: SourceOrigin::Unpositioned(Unpositioned::SpanAbsent),

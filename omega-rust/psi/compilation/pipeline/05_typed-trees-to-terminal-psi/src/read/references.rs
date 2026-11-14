@@ -585,6 +585,7 @@ mod tests {
             .collect::<Vec<_>>();
         let plain = ValueType::plain(program.scalar_type(id, scalar).unwrap());
         let signature = |regions: &[crate::body::Regions]| crate::Signature {
+            operational: Default::default(),
             parameters: vec![plain, plain],
             erased: Vec::new(),
             borrowed: regions

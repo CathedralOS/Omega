@@ -526,7 +526,7 @@ pub fn evaluate(
     request: psi_terminal_production::TerminalSourceCompilation<'_>,
     authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     accounting: &mut SourceCompletionAccounting,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
     evaluate_with_source_consent(program, request, authority, None, accounting)
 }
 
@@ -536,7 +536,7 @@ pub fn evaluate_with_source_consent(
     authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     source_consent: Option<std::sync::Arc<dyn crate::InvocationSourceConsent>>,
     accounting: &mut SourceCompletionAccounting,
-) -> Result<(), Vec<Diagnostic>> {
+) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
     let demanded =
         demanded_constants(program, request).map_err(|reason| vec![Diagnostic::error(reason)])?;
     let jobs = program
@@ -562,7 +562,7 @@ pub fn evaluate_with_source_consent(
         })
         .collect::<Vec<_>>();
     if jobs.is_empty() {
-        return Ok(());
+        return Ok(demanded);
     }
     let mut constants = program
         .const_declarations()
@@ -676,5 +676,5 @@ pub fn evaluate_with_source_consent(
             "constant evaluation dependency cycle",
         )]);
     }
-    Ok(())
+    Ok(demanded)
 }

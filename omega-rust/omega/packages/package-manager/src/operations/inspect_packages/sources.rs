@@ -58,7 +58,7 @@ pub(super) fn review(
         source_bindings,
         execute,
     )
-    .map_err(failure)?;
+    .map_err(PackageInspectionError::from)?;
     let changes = compare_package_policy_changes(
         accepted,
         &reviews,

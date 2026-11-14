@@ -57,6 +57,8 @@ impl SettledPackageBuild {
 
 #[derive(Clone)]
 pub struct BuiltTypedProgram {
+    /// Historical Build costs stay separate from Product value evidence.
+    pub build_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub anonymous_source: Option<package_compilation::AnonymousSourceCapture>,
     pub preparation: crate::SourcePreparation,
     pub source: psi_compiler::SourceContinuation,
@@ -73,6 +75,7 @@ pub struct PreparedBuild {
 }
 
 pub struct PreparedProductSource {
+    pub build_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub typed: typed_trees::TypedTrees,
     pub computed_build_config: Arc<ComputedBuildConfig>,

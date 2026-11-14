@@ -91,7 +91,7 @@ fn package_audit_owns_session_and_target_execution_in_build() {
             "for target in inspection.targets().to_vec()",
             "inspection.review_target(",
             "inspection.finish()",
-            "session.dispose(result)",
+            "session.dispose_inspection(result)",
         ],
     );
     let policy =
