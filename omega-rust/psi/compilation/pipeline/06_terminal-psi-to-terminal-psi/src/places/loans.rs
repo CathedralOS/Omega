@@ -810,7 +810,10 @@ impl Storage<'_> {
                 {
                     return Err(self.foreign(
                         Construct::Obligation(loan.obligation),
-                        "reborrow changes its parent's original captured referent",
+                        &format!(
+                            "reborrow changes its parent's original captured referent: parent {:?}, child {:?} at {:?}, descriptor {:?}",
+                            owner.lineage, loan.lineage, loan.at, loan.from,
+                        ),
                     ));
                 }
             }

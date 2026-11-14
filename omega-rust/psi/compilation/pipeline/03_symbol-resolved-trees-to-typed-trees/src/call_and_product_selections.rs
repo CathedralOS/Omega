@@ -199,14 +199,15 @@ pub(crate) mod build_selections {
         // Test-group registration is authorized by the Build's own `tests`
         // facet, the operand it was authored on; every other selection by the
         // original Build value.
-        let preparation = find(match &request {
-            BuildSelectionRequest::Declaration(binding) if binding.operation.uses_tests_facet() => {
-                "prepare_tests"
-            }
-            _ => "prepare",
+        let tests_facet = matches!(&request,
+            BuildSelectionRequest::Declaration(binding) if binding.operation.uses_tests_facet());
+        let preparation = find(if tests_facet {
+            "prepare_tests"
+        } else {
+            "prepare"
         })?;
         let commit = find(operation)?;
-        let value_helpers = match &request {
+        let mut value_helpers = match &request {
             BuildSelectionRequest::Exclusion(request) => vec![(1, request.vocabulary.helper())],
             _ if operation == "bind_native" => vec![(1, "build_selection_target")],
             _ if operation == "select_provider" => {
@@ -218,6 +219,9 @@ pub(crate) mod build_selections {
             }
             _ => Vec::new(),
         };
+        if !tests_facet {
+            value_helpers.insert(0, (0, "build_selection_receiver"));
+        }
         let table = &mut target.expression_table;
         let mut members = Default::default();
         let mut member_symbols = Default::default();
