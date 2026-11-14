@@ -364,9 +364,14 @@ ensures p.first == old(p.first), result.first == 9
     };
     *version = semantic_vocabulary::ContentPlaceVersion::Entry;
     let forged = terminal_codec::encode_module(&forged).unwrap();
-    assert!(matches!(terminal_codec::decode_module(&forged),
-        Err(terminal_codec::CodecError::MalformedProposition(
-            semantic_vocabulary::PropositionError::EntryNonInputStructuralPlace(root))) if root == result_root));
+    let received = terminal_codec::decode_module(&forged);
+    assert!(
+        matches!(received.as_ref(),
+            Err(terminal_codec::CodecError::MalformedProposition(
+                semantic_vocabulary::PropositionError::EntryNonInputStructuralPlace(root))) if *root == result_root),
+        "entry observation of result {result_root:?}: {:?}",
+        received.as_ref().map(|_| ())
+    );
 
     let mut old = bytes;
     old[8..10].copy_from_slice(&264u16.to_le_bytes());
