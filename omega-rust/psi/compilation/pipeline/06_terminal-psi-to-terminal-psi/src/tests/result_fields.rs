@@ -157,7 +157,7 @@ ensures result.first == 0
             .into_iter()
             .find_map(|term| match term {
                 ScalarTerm::IntegerField { root, path, .. }
-                    if machine.result.as_structural().unwrap().place == *root =>
+                    if machine.result.structural().unwrap().place == *root =>
                 {
                     Some(path)
                 }
