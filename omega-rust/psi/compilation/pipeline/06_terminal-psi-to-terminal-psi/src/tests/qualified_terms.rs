@@ -72,6 +72,53 @@ fn explicit_domain_removal_keeps_the_call_precondition_and_value_fact() {
 }
 
 #[test]
+fn a_boundary_formal_keeps_its_domain_and_independent_requirement() {
+    let source = |actual| {
+        format!(
+            r#"
+{DOMAIN}
+boundary trait Probe {{
+    machine consume(handle: i64 in Classified) -> i64
+    requires handle in Classified
+    requires (handle as -Classified) != 0
+    reaches none crashes none;
+}}
+machine entry() -> i64 {{ Probe::consume(issue({actual})) }}
+"#
+        )
+    };
+    let accepted = judge(invocation(&source(7))).unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+    let refused = judge(invocation(&source(0))).unwrap();
+    assert!(
+        matches!(refused, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+        "{refused:?}"
+    );
+}
+
+#[test]
+fn membership_of_another_formal_is_not_implied_by_a_qualified_formal() {
+    let refused = invocation(&format!(
+        r#"
+{DOMAIN}
+boundary trait Probe {{
+    machine consume(handle: i64 in Classified, other: i64) -> i64
+    requires other in Classified
+    reaches none crashes none;
+}}
+machine entry() -> i64 {{ Probe::consume(issue(7), 0) }}
+"#
+    ))
+    .unwrap_err();
+    assert_eq!(refused.reason, RefusalReason::Unsupported);
+    assert_eq!(refused.detail, "contract domain membership");
+}
+
+#[test]
 fn a_bare_qualified_comparison_does_not_become_a_builtin_comparison() {
     let refused = invocation(&consumer(7, "handle != 0")).unwrap_err();
     assert_eq!(refused.reason, RefusalReason::Unsupported);
