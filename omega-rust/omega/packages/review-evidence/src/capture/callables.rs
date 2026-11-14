@@ -316,7 +316,29 @@ fn contribution(
             if !header.published_service_ceiling.is_empty()
                 || !header.published_synchronous_entries.is_empty()
             {
-                return Err(unavailable("Build's nonempty checked transitive effects"));
+                let services = |ids: &[semantic_vocabulary::ServiceId]| {
+                    ids.iter()
+                        .map(|id| {
+                            (
+                                *id,
+                                module
+                                    .service(*id)
+                                    .and_then(|service| module.identities.text(service.identity)),
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                };
+                let declaration = header
+                    .declaration
+                    .as_ref()
+                    .and_then(|declaration| module.identities.text(declaration.machine.identity()));
+                return Err(unavailable(&format!(
+                    "Build's nonempty checked transitive effects: callee {machine:?} \
+                     declaration {declaration:?}, required contract {required:?}, \
+                     service reach {:?}, synchronous entries {:?}",
+                    services(&header.published_service_ceiling),
+                    services(&header.published_synchronous_entries),
+                )));
             }
             Ok((header.published_may_suspend, header.published_may_block))
         }
