@@ -33,10 +33,70 @@ mod child_batches {
         last: Handle<ChildBatch>,
     }
 
-    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
     pub(super) struct SupplementalChildren {
         batches: Arena<ChildBatch>,
         parents: Vec<ChildChain>,
+    }
+
+    impl compiler_storage::Record for SupplementalChildren {
+        fn write(
+            &self,
+            output: &mut compiler_storage::RecordWriter,
+        ) -> Result<(), compiler_storage::RecordError> {
+            output.record(|output| {
+                self.batches.write(output)?;
+                self.parents.write(output)
+            })
+        }
+
+        fn read<Context>(
+            input: &mut compiler_storage::RecordReader<'_, Context>,
+        ) -> Result<Self, compiler_storage::RecordError> {
+            input.record(|input| {
+                let batches = Arena::<ChildBatch>::read(input)?;
+                let parents = Vec::<ChildChain>::read(input)?;
+
+                // Restored links must not turn missing declarations into empty
+                // lookup results, loop forever, or append through the dummy row.
+                // Every retained batch belongs to exactly one terminating chain
+                // whose recorded tail is its final batch. Zero denotes no chain.
+                input.allocate(batches.storage_slice().len())?;
+                let mut visited = vec![false; batches.storage_slice().len()];
+                let mut visited_count = 0;
+                for chain in &parents {
+                    if chain.first.is_valid() != chain.last.is_valid() {
+                        return Err(input.error("supplemental child chain has only one endpoint"));
+                    }
+                    let mut current = chain.first;
+                    let mut tail = Handle::invalid();
+                    while current.is_valid() {
+                        let batch = batches.try_get(current).ok_or_else(|| {
+                            input.error("supplemental child batch link does not name live storage")
+                        })?;
+                        let position = current.arena_index() as usize - 1;
+                        if visited[position] {
+                            return Err(input.error(
+                                "supplemental child batch is cyclic or belongs to multiple chains",
+                            ));
+                        }
+                        visited[position] = true;
+                        visited_count += 1;
+                        tail = current;
+                        current = batch.next;
+                    }
+                    if tail != chain.last && chain.last.is_valid() {
+                        return Err(
+                            input.error("supplemental child chain tail does not match its links")
+                        );
+                    }
+                }
+                if visited_count != batches.len() {
+                    return Err(input.error("supplemental child batch has no owning chain"));
+                }
+                Ok(Self { batches, parents })
+            })
+        }
     }
 
     impl SupplementalChildren {
@@ -107,6 +167,179 @@ mod child_batches {
                 self.next_batch = batch.next;
                 self.children = batch.children;
             }
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::{SymbolKind, SymbolNameRef, SymbolTable, SymbolTableBuilder};
+        use compiler_storage::{RecordLimits, decode, encode};
+
+        fn table_with_batches() -> SymbolTable {
+            let mut builder = SymbolTableBuilder::new();
+            let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let original = builder.insert_children(
+                root,
+                [(SymbolKind::Data, SymbolNameRef::Static("original"))],
+            );
+            let mut table = builder.finish();
+            for name in ["first", "second"] {
+                table.append_children(root, [(SymbolKind::Data, SymbolNameRef::Static(name))]);
+            }
+            table.append_children(
+                original.start(),
+                [(SymbolKind::Field, SymbolNameRef::Static("nested"))],
+            );
+            table
+        }
+
+        fn restore(table: &SymbolTable) -> Result<SymbolTable, compiler_storage::RecordError> {
+            let limits = RecordLimits::default();
+            decode(&encode(table, limits).expect("encode candidate"), limits)
+        }
+
+        fn root_chain(table: &SymbolTable) -> ChildChain {
+            table.supplemental_children.parents[table.root().arena_index() as usize]
+        }
+
+        #[test]
+        fn supplemental_storage_preserves_lookup_and_append() {
+            let original = table_with_batches();
+            let table = original.clone();
+            let mut restored = restore(&table).expect("valid child chains");
+            assert_eq!(restored, original);
+            restored.append_children(
+                restored.root(),
+                [(SymbolKind::Data, SymbolNameRef::Static("third"))],
+            );
+            let names = restored
+                .child_handles(restored.root())
+                .expect("root children")
+                .map(|child| restored.name(child).to_owned())
+                .collect::<Vec<_>>();
+            assert_eq!(names, ["original", "first", "second", "third"]);
+            assert!(restore(&restored).is_ok());
+            assert!(restore(&SymbolTable::default()).is_ok());
+        }
+
+        #[test]
+        fn supplemental_storage_rejects_missing_batch_links() {
+            for broken in [Handle::from_parts(2, 9), Handle::from_parts(99, 1)] {
+                let mut table = table_with_batches();
+                let first = root_chain(&table).first;
+                table.supplemental_children.batches.get_mut(first).next = broken;
+                let error = restore(&table).expect_err("stale or out-of-range batch");
+                assert!(
+                    error
+                        .reason
+                        .contains("batch link does not name live storage")
+                );
+            }
+        }
+
+        #[test]
+        fn supplemental_storage_rejects_cycles_and_shared_chains() {
+            let mut cyclic = table_with_batches();
+            let chain = root_chain(&cyclic);
+            cyclic
+                .supplemental_children
+                .batches
+                .get_mut(chain.last)
+                .next = chain.first;
+            let error = restore(&cyclic).expect_err("cyclic chain");
+            assert!(
+                error
+                    .reason
+                    .contains("cyclic or belongs to multiple chains")
+            );
+
+            let mut shared = table_with_batches();
+            shared
+                .supplemental_children
+                .parents
+                .push(root_chain(&shared));
+            let error = restore(&shared).expect_err("shared chain");
+            assert!(
+                error
+                    .reason
+                    .contains("cyclic or belongs to multiple chains")
+            );
+        }
+
+        #[test]
+        fn supplemental_storage_rejects_inexact_tails() {
+            for tail in [
+                Handle::invalid(),
+                Handle::from_parts(1, 1),
+                Handle::from_parts(2, 9),
+            ] {
+                let mut table = table_with_batches();
+                let parent = table.root().arena_index() as usize;
+                table.supplemental_children.parents[parent].last = tail;
+                let error = restore(&table).expect_err("missing, early or stale tail");
+                assert!(
+                    error.reason.contains("only one endpoint")
+                        || error.reason.contains("tail does not match")
+                );
+            }
+        }
+
+        #[test]
+        fn supplemental_storage_rejects_unowned_batches() {
+            let mut table = table_with_batches();
+            let parent = table.root().arena_index() as usize;
+            table.supplemental_children.parents[parent] = ChildChain::default();
+            let error = restore(&table).expect_err("unowned batch storage");
+            assert!(error.reason.contains("batch has no owning chain"));
+        }
+
+        #[test]
+        fn supplemental_storage_charges_chain_validation_scratch() {
+            #[derive(compiler_storage::Record)]
+            struct UncheckedChildren {
+                batches: Arena<ChildBatch>,
+                parents: Vec<ChildChain>,
+            }
+            let children = table_with_batches().supplemental_children;
+            let bytes = encode(&children, RecordLimits::default()).unwrap();
+            let prior_shape = UncheckedChildren {
+                batches: children.batches.clone(),
+                parents: children.parents.clone(),
+            };
+            assert_eq!(
+                bytes,
+                encode(&prior_shape, RecordLimits::default()).unwrap()
+            );
+            let mut low = 0;
+            let mut high = RecordLimits::default().allocation;
+            while low < high {
+                let middle = low + (high - low) / 2;
+                let limits = RecordLimits {
+                    allocation: middle,
+                    ..Default::default()
+                };
+                if decode::<UncheckedChildren>(&bytes, limits).is_ok() {
+                    high = middle;
+                } else {
+                    low = middle + 1;
+                }
+            }
+            let scratch = children.batches.storage_slice().len();
+            let tight = RecordLimits {
+                allocation: low + scratch - 1,
+                ..Default::default()
+            };
+            let error = decode::<SupplementalChildren>(&bytes, tight).unwrap_err();
+            assert!(error.reason.contains("allocation limit"));
+            let exact = RecordLimits {
+                allocation: low + scratch,
+                ..Default::default()
+            };
+            assert_eq!(
+                decode::<SupplementalChildren>(&bytes, exact).unwrap(),
+                children
+            );
         }
     }
 }
