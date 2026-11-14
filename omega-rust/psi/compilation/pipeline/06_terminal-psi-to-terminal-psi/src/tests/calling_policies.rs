@@ -35,7 +35,7 @@ fn prepared(
     text: &str,
     roots: &[&str],
     publication: terminal_codec::TerminalPublication,
-) -> Checked<typed_trees_to_terminal_psi::Elaboration> {
+) -> terminal_check_tables::compilation::TerminalCompilation {
     let typed = typed(text);
     let entries: Vec<_> = typed
         .machines()
@@ -350,12 +350,17 @@ ensures result == 9
     pair.right
 }
 "#;
-    let program = prepared(
+    let input = prepared(
         source,
         &["root"],
         terminal_codec::TerminalPublication::Portable,
-    )
-    .unwrap();
+    );
+    let terminal_check_tables::compilation::TerminalCompilation::Prepared(compilation) = &input
+    else {
+        panic!("the ordinary source preparation must retain its complete compilation")
+    };
+    assert!(compilation.forms.is_empty() && compilation.witnesses.is_empty());
+    let program = compilation.closure.as_ref().unwrap().clone();
     let root = &program.module.machines[0];
     let calls: Vec<_> = root
         .operations()
@@ -395,7 +400,7 @@ ensures result == 9
         Some(vec![(0, vec![*left])])
     );
 
-    let verdicts = crate::judge_compilation(Ok(program.clone()));
+    let verdicts = crate::judge_compilation(input);
     let [Ok(RouteVerdict::Accepted(accepted))] = verdicts.as_slice() else {
         panic!("the untouched right field retains its actual entry value: {verdicts:?}")
     };
@@ -503,8 +508,13 @@ ensures result == 9
         &restored,
         &["update"],
         terminal_codec::TerminalPublication::Portable,
-    )
-    .unwrap();
+    );
+    let terminal_check_tables::compilation::TerminalCompilation::Prepared(restored) = restored
+    else {
+        panic!("the restoring helper must retain its complete compilation")
+    };
+    assert!(restored.forms.is_empty() && restored.witnesses.is_empty());
+    let restored = restored.closure.unwrap();
     let restoring = &restored.module.machines[0];
     let writes: Vec<_> = restoring
         .operations()
