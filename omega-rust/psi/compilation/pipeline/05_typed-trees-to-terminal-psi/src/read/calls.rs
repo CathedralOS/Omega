@@ -65,7 +65,7 @@ impl<'t> Program<'t> {
         // one call path every boundary call takes.
         let completion =
             typed_trees::boundary_completions::boundary_requirement_completion(self.typed, target);
-        let (signature, _) = self.requirement_signature(diagnostic, requirement, &[])?;
+        let (signature, _) = self.declared_requirement_signature(diagnostic, requirement, &[])?;
         // effects.md: "Every boundary-trait machine requirement must declare
         // that ceiling, using `reaches none` when it permits no services".
         if signature.reaches == crate::Ceiling::Inferred {

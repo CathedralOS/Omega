@@ -23,15 +23,21 @@ struct Fixture {
 
 impl Fixture {
     fn new(declares_no_crash_route: bool) -> Self {
+        Self::with_effects(declares_no_crash_route, false, false)
+    }
+
+    fn with_effects(declares_no_crash_route: bool, suspends: bool, blocks: bool) -> Self {
         let app_text = "machine entry() { Raw::read(); }";
         let supplier_text = format!(
-            "boundary trait Raw {{ machine read() reaches none {}; }}\n\
+            "boundary trait Raw {{ machine read() reaches none {} {} {}; }}\n\
              machine helper() {{ Raw::read(); }}",
             if declares_no_crash_route {
                 "crashes none"
             } else {
                 ""
-            }
+            },
+            if suspends { "suspends" } else { "" },
+            if blocks { "blocks" } else { "" },
         );
         let mut sources = SourceMap::default();
         let ids = [
@@ -120,6 +126,8 @@ impl Fixture {
             name: Identifier::generated("read"),
             return_type: unit,
             declares_no_crash_route,
+            suspends,
+            blocks,
             ..Default::default()
         }]);
         typed.push_trait_definition(TraitDefinition {
@@ -225,4 +233,53 @@ fn selected_native_schemas_still_require_their_complete_contract() {
         "call boundary requirement must declare its crash ceiling"
     );
     assert!(program.boundary_symbols.is_empty());
+}
+
+#[test]
+fn selected_native_declarations_preserve_each_operational_flag() {
+    for (suspends, blocks) in [(true, false), (false, true)] {
+        let fixture = Fixture::with_effects(true, suspends, blocks);
+        // Selecting a declaration does not invoke it. Read the declaration
+        // module through ordinary elaboration and its publication metadata.
+        let elaboration = crate::elaborate(
+            &fixture.typed,
+            crate::Compilation {
+                entries: &[],
+                subjects: &[],
+                purpose: DependencyScope::Product,
+                selected: &[fixture.owner, fixture.requirement],
+                bindings: &[],
+                supplies: &[],
+            },
+        )
+        .expect("the selected boundary retains its declared operational contract");
+        assert_eq!(elaboration.module.boundary_machines.len(), 1);
+        let published = &elaboration.module.boundary_machines[0]
+            .declaration
+            .as_ref()
+            .expect("ordinary publication retains the checked boundary declaration")
+            .source;
+        assert_eq!(
+            (
+                published.published_may_suspend,
+                published.published_may_block
+            ),
+            (suspends, blocks)
+        );
+    }
+}
+
+#[test]
+fn a_flagged_requirement_still_needs_its_operational_witness() {
+    for (suspends, blocks) in [(true, false), (false, true)] {
+        let fixture = Fixture::with_effects(true, suspends, blocks);
+        let (_, requirement) = fixture
+            .typed
+            .trait_machine_signature(fixture.requirement)
+            .unwrap();
+        let refused = Program::new(&fixture.typed, false)
+            .witnessed_signature(requirement, &[])
+            .unwrap_err();
+        assert_eq!(refused.detail, "machine suspends or blocks");
+    }
 }

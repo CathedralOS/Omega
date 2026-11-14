@@ -225,7 +225,7 @@ fn an_indexed_match_reuses_its_captured_selector_in_the_arm() {
                         array(5),
                     )),
                     arms: vec![(
-                        0,
+                        Selector::Case(0),
                         of_type(
                             ExpressionKind::Payload {
                                 base: Box::new(of_type(
