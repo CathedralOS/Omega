@@ -364,11 +364,11 @@ pub(super) fn publish(
                 .ok_or("selected header lost its applied source signature")?;
             let arguments = match typed.closed_requirement_application(source.symbol) {
                 Some(closed) => requirement_application(typed, sources, &closed, identities)?.1,
-                None if schema.parameter_kinds.is_empty()
-                    && schema.lifetime_parameter_count == 0 =>
-                {
-                    Vec::new()
-                }
+                // A lifetime-only method still has an open schema: its
+                // binders are fresh at each call, not a finite method tuple.
+                // The retained definition keeps their count and relations;
+                // only non-lifetime parameters occupy method_arguments.
+                None if schema.parameter_kinds.is_empty() => Vec::new(),
                 None => return Err("selected generic member lost its actual closed application"),
             };
             let result = match &machine.result {

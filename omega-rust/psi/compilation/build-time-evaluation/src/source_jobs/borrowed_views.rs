@@ -54,6 +54,10 @@ fn typed(source: &str) -> TypedTrees {
 }
 
 fn run(source: &str) -> Result<BuildTimeValue, String> {
+    run_recorded(source).map(|(value, _)| value)
+}
+
+fn run_recorded(source: &str) -> Result<(BuildTimeValue, SourceCompletionAccounting), String> {
     let source = typed(source);
     let requester = source.realized_machine_named("run").unwrap().symbol;
     let prepared = PreparedBuildMachineProgram::prepare(&source, None)
@@ -71,7 +75,7 @@ fn run(source: &str) -> Result<BuildTimeValue, String> {
         &mut accounting,
     )?;
     accounting.validate_charges()?;
-    Ok(result.value().clone())
+    Ok((result.value().clone(), accounting))
 }
 
 #[test]
@@ -134,9 +138,37 @@ machine run() -> i64 crashes none {
     left
 }
 "#;
+    let (value, accounting) =
+        run_recorded(source).expect("renamed binders keep two independent input regions");
+    assert_eq!(value, BuildTimeValue::Int(41));
+    let [crate::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+        panic!("the actual call has one retained invocation receipt")
+    };
+    let module = receipt.program().view().module();
+    let [application] = module.closed_conformance_applications.as_slice() else {
+        panic!("one actual Writer selection")
+    };
+    let [schema] = application.schemas.as_slice() else {
+        panic!("one originating Write requirement")
+    };
+    assert_eq!(schema.lifetime_parameter_count, 2);
+    assert!(schema.parameter_kinds.is_empty());
+    assert_eq!(schema.kind, terminal_psi::ClosedConformanceSchemaKind::Open);
+    assert!(
+        application.rows.is_empty(),
+        "no finite lifetime coverage is invented",
+    );
+    let [selected] = application.static_applications.as_slice() else {
+        panic!("one exact executable method application")
+    };
+    assert!(selected.method_arguments.is_empty());
+    terminal_semantics::closed_conformances::validate_closed_conformances(module)
+        .expect("the actual lifetime family retains its original definition");
+    let mut changed = module.clone();
+    changed.closed_conformance_applications[0].schemas[0].lifetime_parameter_count = 0;
     assert_eq!(
-        run(source).expect("renamed declaration binders keep two independent input regions"),
-        BuildTimeValue::Int(41),
+        terminal_semantics::closed_conformances::validate_closed_conformances(&changed),
+        Err("conformance schema telescope differs from its original definition"),
     );
     let aliased = source.replace(
         "Writer::write(&mut left, &mut right)",
