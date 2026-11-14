@@ -2157,7 +2157,7 @@ impl<'t> Program<'t> {
                 result: Some(referent),
             };
         }
-        let crossed = self.reference_place_access(id, &place, access)?;
+        let crossed = self.reference_place_access(id, slots, &place, access)?;
         let slot = root_slot(id, &place, &self.captures)?;
         if !crossed {
             let Some(slot) = slot else {

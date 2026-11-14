@@ -176,21 +176,7 @@ impl<'t> Program<'t> {
                     result: Some(slots[slot].value_type),
                     source,
                 };
-                // A reference context transports the permission descriptor.
-                // An ordinary value context observes its exact referent.
-                if !expected.is_some_and(|value| matches!(value,
-                    ValueType::Record(row, _, _) if matches!(self.records.get(row).map(|row| &row.shape),
-                        Some(crate::StorageShape::Reference { .. }))))
-                    && let Some((referent, _)) = self.reference_referent(id, slots[slot].value_type)?
-                {
-                    return Ok(Expression {
-                        call_context: None,
-                        kind: ExpressionKind::Referent(Box::new(value)),
-                        result: Some(referent),
-                        source,
-                    });
-                }
-                return Ok(value);
+                return self.observed(id, value, expected);
             }
             ExpressionNode::Unary(unary) => {
                 let operand = self.expression(id, slots, unary.operand, expected)?;
@@ -421,7 +407,10 @@ impl<'t> Program<'t> {
             ExpressionNode::Indexed(indexed) => {
                 return self.indexed(id, slots, indexed, handle, expected);
             }
-            ExpressionNode::Member(member) => return self.member(id, slots, member, source),
+            ExpressionNode::Member(member) => {
+                let value = self.member(id, slots, member, source)?;
+                return self.observed(id, value, expected);
+            }
             ExpressionNode::Borrow(_) => {
                 let Some(expected) = expected else {
                     return unserved("reference formation without its retained contextual type");
@@ -442,6 +431,58 @@ impl<'t> Program<'t> {
             result: Some(ValueType::Scalar(result, Qualification::NONE)),
             source,
         })
+    }
+
+    /// A place that holds a reference, as the context that names it sees it.
+    /// A reference context transports the permission descriptor; an ordinary
+    /// value context observes its exact referent, so the path crosses the
+    /// descriptor there (structural_access.md: "the explicit `Referent` path
+    /// segment crosses the borrowed boundary"). The rule is the place's
+    /// type's, not the place's kind's: a local that holds a reference and a
+    /// record field that holds one (`carrier.cell.value`) cross alike.
+    pub(super) fn observed(
+        &mut self,
+        id: MachineId,
+        value: Expression,
+        expected: Option<ValueType>,
+    ) -> Checked<Expression> {
+        if let Some(expected) = expected
+            && self.reference_referent(id, expected)?.is_some()
+        {
+            return Ok(value);
+        }
+        let Some(held) = value.result else {
+            return Ok(value);
+        };
+        let Some((referent, _)) = self.reference_referent(id, held)? else {
+            return Ok(value);
+        };
+        Ok(Expression {
+            call_context: None,
+            source: value.source,
+            kind: ExpressionKind::Referent(Box::new(value)),
+            result: Some(referent),
+        })
+    }
+
+    /// The place a projected assignment target names. A member that holds a
+    /// reference is that descriptor's own place here, not its referent's:
+    /// the receiver before it is still read as a value, so
+    /// `configuration.builder.subsystem` crosses `builder`, and
+    /// `configuration.builder` does not.
+    pub(super) fn assigned_place(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        target: ExpressionHandle,
+    ) -> Checked<Expression> {
+        match self.node(id, target)? {
+            ExpressionNode::Member(member) => {
+                let source = SourceOrigin::of(self.typed.expression_table.source_span(target));
+                self.member(id, slots, member, source)
+            }
+            _ => self.expression(id, slots, target, None),
+        }
     }
 
     /// Value-position `match` over a sum with scalar arms. The subject must
