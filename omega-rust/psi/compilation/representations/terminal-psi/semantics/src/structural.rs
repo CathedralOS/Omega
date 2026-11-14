@@ -1069,7 +1069,7 @@ pub mod owned_structure {
     }
 }
 pub(crate) mod partial_affine {
-    use semantic_vocabulary::StructuralTypeId;
+    use semantic_vocabulary::{StructuralCaseId, StructuralTypeId};
     use std::collections::BTreeSet;
     use terminal_psi::{
         StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
@@ -1093,11 +1093,56 @@ pub(crate) mod partial_affine {
             && crate::runtime_structural_path_tip(types.iter(), root, path).is_some()
     }
 
+    /// Tests typed coverage of a receiving region, not allocation or access
+    /// authority. A live sibling or missing ancestor cannot be erased by a
+    /// store into this region. Callers retain their own home and loan checks.
+    pub fn structural_region_is_vacant(
+        types: &[StructuralTypeDeclaration],
+        root: StructuralTypeId,
+        missing: &BTreeSet<Vec<StructuralPathSegment>>,
+        region: &[StructuralPathSegment],
+        admitted_case: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
+    ) -> bool {
+        let Some(selected) = crate::runtime_structural_path_tip(types.iter(), root, region) else {
+            return false;
+        };
+        if missing.iter().any(|absent| {
+            crate::structural_paths_may_overlap(absent, region) && !absent.starts_with(region)
+        }) {
+            return false;
+        }
+        if missing.contains(region) {
+            return true;
+        }
+        let children = missing
+            .iter()
+            .filter_map(|absent| absent.strip_prefix(region).map(<[_]>::to_vec))
+            .collect();
+        // The counting pass proves an empty typed complement before any
+        // output is allocated or untouched array elements are enumerated.
+        partition(types, selected.id, &children, 0, &|path, case| {
+            let mut selected = region.to_vec();
+            selected.extend_from_slice(path);
+            admitted_case(&selected, case)
+        })
+        .is_some_and(|residuals| residuals.is_empty())
+    }
+
     pub fn partial_affine_residuals(
         types: &[StructuralTypeDeclaration],
         root_type: StructuralTypeId,
         moved_paths: &BTreeSet<Vec<StructuralPathSegment>>,
         max_residuals: usize,
+    ) -> Option<Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>> {
+        partition(types, root_type, moved_paths, max_residuals, &|_, _| false)
+    }
+
+    fn partition(
+        types: &[StructuralTypeDeclaration],
+        root_type: StructuralTypeId,
+        moved_paths: &BTreeSet<Vec<StructuralPathSegment>>,
+        max_residuals: usize,
+        admitted_case: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
     ) -> Option<Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>> {
         if moved_paths.is_empty()
             || moved_paths
@@ -1122,6 +1167,7 @@ pub(crate) mod partial_affine {
             max_residuals,
             &mut residuals,
             false,
+            admitted_case,
         )?;
         if count > max_residuals {
             return None;
@@ -1135,6 +1181,7 @@ pub(crate) mod partial_affine {
             max_residuals,
             &mut residuals,
             true,
+            admitted_case,
         )?;
         (emitted == count && residuals.len() == count).then_some(residuals)
     }
@@ -1147,6 +1194,7 @@ pub(crate) mod partial_affine {
         max_residuals: usize,
         residuals: &mut Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>,
         emit: bool,
+        admitted_case: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
     ) -> Option<usize> {
         let declaration = find_structural_type(types, current)?;
         let mut count = 0usize;
@@ -1155,8 +1203,16 @@ pub(crate) mod partial_affine {
                 if fields.is_empty() {
                     return None;
                 }
-                count =
-                    fields_residuals(types, fields, moved, prefix, max_residuals, residuals, emit)?;
+                count = fields_residuals(
+                    types,
+                    fields,
+                    moved,
+                    prefix,
+                    max_residuals,
+                    residuals,
+                    emit,
+                    admitted_case,
+                )?;
             }
             StructuralTypeShape::FixedArray {
                 element,
@@ -1187,6 +1243,7 @@ pub(crate) mod partial_affine {
                         max_residuals,
                         residuals,
                         emit,
+                        admitted_case,
                     )?)?;
                     if count > max_residuals {
                         return None;
@@ -1194,10 +1251,18 @@ pub(crate) mod partial_affine {
                 }
             }
             StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } => {
-                let selected_case = moved.iter().find_map(|path| match path.first() {
-                    Some(StructuralPathSegment::Case(case)) => Some(*case),
-                    _ => None,
-                })?;
+                let selected_case = moved
+                    .iter()
+                    .find_map(|path| match path.first() {
+                        Some(StructuralPathSegment::Case(case)) => Some(*case),
+                        _ => None,
+                    })
+                    .or_else(|| {
+                        let mut matching =
+                            cases.iter().filter(|case| admitted_case(prefix, case.id));
+                        let case = matching.next()?;
+                        matching.next().is_none().then_some(case.id)
+                    })?;
                 let selected = find_structural_case(cases, selected_case)?;
                 if moved.iter().any(|path| match path.first() {
                     Some(StructuralPathSegment::Case(case)) => *case != selected_case,
@@ -1224,6 +1289,7 @@ pub(crate) mod partial_affine {
                     max_residuals,
                     residuals,
                     emit,
+                    admitted_case,
                 )?;
                 prefix.pop();
                 if let Some(common) = declaration.shape.direct_fields() {
@@ -1242,6 +1308,7 @@ pub(crate) mod partial_affine {
                         max_residuals,
                         residuals,
                         emit,
+                        admitted_case,
                     )?)?;
                 }
             }
@@ -1258,6 +1325,7 @@ pub(crate) mod partial_affine {
         max_residuals: usize,
         residuals: &mut Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>,
         emit: bool,
+        admitted_case: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
     ) -> Option<usize> {
         let mut count = 0_usize;
         for field in fields.iter().rev() {
@@ -1282,6 +1350,7 @@ pub(crate) mod partial_affine {
                     max_residuals,
                     residuals,
                     emit,
+                    admitted_case,
                 )?)?;
             }
         }
@@ -1297,6 +1366,7 @@ pub(crate) mod partial_affine {
         max_residuals: usize,
         residuals: &mut Vec<(Vec<StructuralPathSegment>, StructuralTypeId)>,
         emit: bool,
+        admitted_case: &dyn Fn(&[StructuralPathSegment], StructuralCaseId) -> bool,
     ) -> Option<usize> {
         let descendants = moved
             .iter()
@@ -1323,6 +1393,7 @@ pub(crate) mod partial_affine {
                 max_residuals,
                 residuals,
                 emit,
+                admitted_case,
             )?
         } else if descendants.len() != 1 {
             return None;
