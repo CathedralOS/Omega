@@ -279,7 +279,7 @@ pub(crate) mod runtime_indices {
             .map(|element| {
                 let scalar_type = defined_type(optimized, element.index)
                     .filter(
-                        |scalar| matches!(scalar, ScalarType::Integer(integer) if integer.bits() <= 64),
+                        |scalar| matches!(unit.closed_scalar(*scalar), Some(semantic_vocabulary::ClosedScalarType::Integer(integer)) if integer.bits() <= 64),
                     )
                     .ok_or(LegalizationError::custody())?;
                 let accepted_fact = accepted_fact(unit, optimized, owner, element.obligation)?;
