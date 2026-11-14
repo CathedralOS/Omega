@@ -413,3 +413,20 @@ fn a_whole_borrowed_record_replacement_conflicts_with_a_live_child_loan() {
         "the rejection must retain the conflicting loan"
     );
 }
+
+#[test]
+fn a_slice_formal_does_not_gain_whole_view_replacement() {
+    let source = r#"
+machine build_entry<'storage>(view: &'storage mut [u8]) {
+    view = view;
+}
+"#;
+    let verdict = super::build_purpose::judge_build(source);
+    let Ok(RouteVerdict::FallBack(refusal)) = verdict else {
+        panic!("a view descriptor is not the borrowed record replacement: {verdict:?}");
+    };
+    assert_eq!(
+        refusal.detail,
+        "statement whole assignment through a reference"
+    );
+}

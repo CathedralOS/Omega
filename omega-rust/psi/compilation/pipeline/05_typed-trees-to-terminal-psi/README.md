@@ -719,6 +719,7 @@ refuses, by name, what the slice does not serve:
 | another argument of the same call that names a lent slot (`f(&mut a, a)`): the lowered form forms every loan at the call, so it does not say that the read runs while the loan is live | `call argument that names storage another argument lends` |
 | a loan that would give an SSA local a home inside the right of `&&` or `||` or a value `match` arm, so on some paths only | `call loan of a value local on some paths only` |
 | `let r = reference;` without a declared type | `statement local bound to a reference without a declared type` |
+| whole assignment to a slice formal | `statement whole assignment through a reference` |
 | an `ensures` or crash guard that names a borrowed formal: what it holds at the return is a version no slice states yet | `contract clause that names a borrowed formal outside requires`, `contract clause that projects a formal or result` |
 | a borrowed formal on a call cycle | `machine storage on a call cycle` |
 

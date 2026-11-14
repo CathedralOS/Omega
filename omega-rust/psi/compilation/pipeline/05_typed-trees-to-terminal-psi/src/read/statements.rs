@@ -87,6 +87,21 @@ impl Program<'_> {
                 if !slots[slot].assignable {
                     return Err(unserved("assignment to an immutable binding"));
                 }
+                // A slice formal carries a view rather than a borrowed
+                // value's storage. Keep whole-view assignment at its existing
+                // refusal; replacing its descriptor is not this operation.
+                if slots[slot].borrowed.is_some()
+                    && !slots[slot].homed
+                    && !self
+                        .signatures
+                        .get(id)
+                        .and_then(|signature| signature.borrowed(slot))
+                        .is_some_and(|borrowed| {
+                            borrowed.referent == crate::body::BorrowedReferent::Value
+                        })
+                {
+                    return Err(unserved("whole assignment through a reference"));
+                }
                 let value_type = slots[slot].value_type;
                 // The value's type first: a value that is not the place's
                 // type is wrong whoever may write the place.
