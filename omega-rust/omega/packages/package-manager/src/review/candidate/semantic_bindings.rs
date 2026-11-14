@@ -76,12 +76,12 @@ pub(super) fn semantic_bindings_by_consumer(
         let consumer = input.consumer();
         let role = input.binding().role();
         if closure.custody(consumer).is_none() {
-            return Err(
-                CompileResolvedPackageReviewsError::SemanticBindingConsumerAbsent {
+            return Err(CompileResolvedPackageReviewsError::new(
+                crate::review::CompileResolvedPackageReviewCause::SemanticBindingConsumerAbsent {
                     consumer: consumer.clone(),
                     role,
                 },
-            );
+            ));
         }
         let context = input.checked_context();
         let expected_target = match context.purpose() {
@@ -92,19 +92,19 @@ pub(super) fn semantic_bindings_by_consumer(
             || Some(context.target()) != expected_target
             || context.build_execution_profile() != execution_profile
         {
-            return Err(
-                CompileResolvedPackageReviewsError::SemanticBindingContextMismatch {
+            return Err(CompileResolvedPackageReviewsError::new(
+                crate::review::CompileResolvedPackageReviewCause::SemanticBindingContextMismatch {
                     consumer: consumer.clone(),
                     role,
                 },
-            );
+            ));
         }
         if !seen_roles.insert((consumer.clone(), context.purpose(), role)) {
             return Err(
-                CompileResolvedPackageReviewsError::DuplicateConsumerSemanticBindingRole {
+                CompileResolvedPackageReviewsError::new(crate::review::CompileResolvedPackageReviewCause::DuplicateConsumerSemanticBindingRole {
                     consumer: consumer.clone(),
                     role,
-                },
+                }),
             );
         }
         bindings_by_consumer
@@ -150,10 +150,10 @@ pub(super) fn candidate_semantic_binding_inputs(
                         | AcceptedSemanticBindingRole::TimeHostService
                 ) {
                     let permissions = settled_permission_rows.ok_or_else(|| {
-                        CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
+                        CompileResolvedPackageReviewsError::new(crate::review::CompileResolvedPackageReviewCause::InvalidCandidateSemanticBinding {
                             consumer: review.key().clone(),
                             role,
-                        }
+                        })
                     })?;
                     binding = binding
                         .with_terminal_authority_permissions(
@@ -161,10 +161,10 @@ pub(super) fn candidate_semantic_binding_inputs(
                             &permission_identities.snapshot(),
                         )
                         .map_err(|_| {
-                            CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
+                            CompileResolvedPackageReviewsError::new(crate::review::CompileResolvedPackageReviewCause::InvalidCandidateSemanticBinding {
                                 consumer: review.key().clone(),
                                 role,
-                            }
+                            })
                         })?;
                 }
             } else {
@@ -174,10 +174,10 @@ pub(super) fn candidate_semantic_binding_inputs(
                         &terminal_psi::TerminalIdentityTable::from(vec![String::new()]),
                     )
                     .map_err(|_| {
-                        CompileResolvedPackageReviewsError::InvalidCandidateSemanticBinding {
+                        CompileResolvedPackageReviewsError::new(crate::review::CompileResolvedPackageReviewCause::InvalidCandidateSemanticBinding {
                             consumer: review.key().clone(),
                             role,
-                        }
+                        })
                     })?;
             }
             inputs.push(ConsumerScopedSemanticBindingReviewInput::new(
@@ -198,16 +198,20 @@ pub(super) fn projection_error(
         SemanticBindingProjectionError::Ambiguous {
             role,
             candidate_count,
-        } => CompileResolvedPackageReviewsError::AmbiguousCandidateSemanticBinding {
-            consumer: consumer.clone(),
-            role,
-            candidate_count,
-        },
+        } => CompileResolvedPackageReviewsError::new(
+            crate::review::CompileResolvedPackageReviewCause::AmbiguousCandidateSemanticBinding {
+                consumer: consumer.clone(),
+                role,
+                candidate_count,
+            },
+        ),
         SemanticBindingProjectionError::MissingCallableFacts { diagnostics } => {
-            CompileResolvedPackageReviewsError::Compilation {
-                package: consumer.clone(),
-                failure: compilation_products::CompileFailure::Diagnostics(diagnostics),
-            }
+            CompileResolvedPackageReviewsError::new(
+                crate::review::CompileResolvedPackageReviewCause::Compilation {
+                    package: consumer.clone(),
+                    failure: compilation_products::CompileFailure::Diagnostics(diagnostics),
+                },
+            )
         }
     }
 }

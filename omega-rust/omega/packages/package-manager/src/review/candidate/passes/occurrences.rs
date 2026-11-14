@@ -50,27 +50,34 @@ pub(super) fn projection_failure(
 ) -> CompileResolvedPackageReviewsError {
     use PackageReviewProjectionError as Error;
     match error {
-        Error::SourceConsumptionMissing => {
-            CompileResolvedPackageReviewsError::SourceConsumptionMissing {
+        Error::SourceConsumptionMissing => CompileResolvedPackageReviewsError::new(
+            crate::review::CompileResolvedPackageReviewCause::SourceConsumptionMissing {
                 package: key.clone(),
-            }
-        }
-        Error::Projection(diagnostics) => CompileResolvedPackageReviewsError::Projection {
-            package: key.clone(),
-            diagnostics,
-        },
-        Error::IdentityMismatch => CompileResolvedPackageReviewsError::IdentityMismatch {
-            package: key.clone(),
-        },
-        Error::Encoding(error) => CompileResolvedPackageReviewsError::Encoding {
-            accounting: None,
-            package: key.clone(),
-            error,
-        },
-        Error::PolicyBudget => CompileResolvedPackageReviewsError::RetainedPolicyCanonicalBudget {
-            package: key.clone(),
-            maximum_bytes: MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
-        },
+            },
+        ),
+        Error::Projection(diagnostics) => CompileResolvedPackageReviewsError::new(
+            crate::review::CompileResolvedPackageReviewCause::Projection {
+                package: key.clone(),
+                diagnostics,
+            },
+        ),
+        Error::IdentityMismatch => CompileResolvedPackageReviewsError::new(
+            crate::review::CompileResolvedPackageReviewCause::IdentityMismatch {
+                package: key.clone(),
+            },
+        ),
+        Error::Encoding(error) => CompileResolvedPackageReviewsError::new(
+            crate::review::CompileResolvedPackageReviewCause::Encoding {
+                package: key.clone(),
+                error,
+            },
+        ),
+        Error::PolicyBudget => CompileResolvedPackageReviewsError::new(
+            crate::review::CompileResolvedPackageReviewCause::RetainedPolicyCanonicalBudget {
+                package: key.clone(),
+                maximum_bytes: MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
+            },
+        ),
         Error::SemanticBinding(error) => projection_error(key, error),
     }
 }
@@ -85,6 +92,24 @@ pub struct RetainedPackageReviews {
     pub(super) reviews: CompilerIssuedPackageReviewSet,
     pub(super) occurrences: Vec<RetainedOccurrenceCompile>,
     pub(super) carried: usize,
+}
+
+impl RetainedPackageReviews {
+    pub fn source_completion_accounting(&self) -> compilation_products::SourceCompletionAccounting {
+        occurrence_accounting(&self.occurrences)
+    }
+}
+
+fn occurrence_accounting(
+    occurrences: &[RetainedOccurrenceCompile],
+) -> compilation_products::SourceCompletionAccounting {
+    let mut accounting = compilation_products::SourceCompletionAccounting::default();
+    for occurrence in occurrences {
+        if let OccurrenceCompile::Live(source) = &occurrence.compilation {
+            accounting.append(source.source_completion_accounting().clone());
+        }
+    }
+    accounting
 }
 
 #[derive(Debug, Clone)]
@@ -112,9 +137,11 @@ impl OccurrenceCompile {
         owner: &PackageKey,
     ) -> Result<Option<SemanticBindingReviewCandidate>, CompileResolvedPackageReviewsError> {
         match self {
-            Self::Live(source) => source
-                .target_entry_candidate()
-                .map_err(|error| projection_error(owner, error)),
+            Self::Live(source) => source.target_entry_candidate().map_err(|error| {
+                projection_error(owner, error).with_source_completion_accounting(
+                    source.source_completion_accounting().clone(),
+                )
+            }),
             Self::Cached(facts) => Ok(facts.target_entry_candidate.clone()),
         }
     }
@@ -191,17 +218,21 @@ impl<'pass> PackageReviewPass<'pass> {
                 .iter()
                 .find(|coverage| coverage.purposes().contains(&DependencyPurpose::Build))
         {
-            return Err(
-                CompileResolvedPackageReviewsError::UnsupportedBuildActivation {
+            return Err(CompileResolvedPackageReviewsError::new(
+                crate::review::CompileResolvedPackageReviewCause::UnsupportedBuildActivation {
                     package: coverage.package().clone(),
                     reason: "build dependencies require an admitted build execution profile",
                 },
-            );
+            ));
         }
         let mut packages = Vec::new();
         for key in dependency_first_package_order(closure) {
-            let missing = || CompileResolvedPackageReviewsError::IdentityMismatch {
-                package: key.clone(),
+            let missing = || {
+                CompileResolvedPackageReviewsError::new(
+                    crate::review::CompileResolvedPackageReviewCause::IdentityMismatch {
+                        package: key.clone(),
+                    },
+                )
             };
             let position = closure.graph().package_position(&key).ok_or_else(missing)?;
             let custody = closure.custody(&key).ok_or_else(missing)?;
@@ -211,10 +242,10 @@ impl<'pass> PackageReviewPass<'pass> {
                 let checked_target = if purpose.is_product() {
                     target_closure.target_profile()
                 } else {
-                    execution_profile.ok_or_else(|| CompileResolvedPackageReviewsError::UnsupportedBuildActivation {
+                    execution_profile.ok_or_else(|| CompileResolvedPackageReviewsError::new(crate::review::CompileResolvedPackageReviewCause::UnsupportedBuildActivation {
                         package: key.clone(),
                         reason: "build dependencies require an admitted build execution profile",
-                    })?
+                    }))?
                 };
                 purposes.push((purpose, checked_target));
             }
@@ -434,46 +465,56 @@ impl<'pass> PackageReviewRound<'pass> {
                         package: dependency.identity(),
                     });
                 let review = review.map_err(|error| {
-                    CompileResolvedPackageReviewsError::CompilationInputs {
-                        package: key.clone(),
-                        errors: vec![error],
-                    }
+                    CompileResolvedPackageReviewsError::new(
+                        crate::review::CompileResolvedPackageReviewCause::CompilationInputs {
+                            package: key.clone(),
+                            errors: vec![error],
+                        },
+                    )
                 })?;
                 let custody = closure
                     .custody(dependency)
                     .ok_or(PackageCompilationInputError::ForeignBuildHandoff {
                         package: dependency.identity(),
                     })
-                    .map_err(
-                        |error| CompileResolvedPackageReviewsError::CompilationInputs {
-                            package: key.clone(),
-                            errors: vec![error],
-                        },
-                    )?;
+                    .map_err(|error| {
+                        CompileResolvedPackageReviewsError::new(
+                            crate::review::CompileResolvedPackageReviewCause::CompilationInputs {
+                                package: key.clone(),
+                                errors: vec![error],
+                            },
+                        )
+                    })?;
                 let bundle = review.build_handoff();
                 if review.resolution() != custody.resolution()
                     || bundle.package() != dependency.identity()
                     || bundle.source_consumption_commitment()
                         != review.source_consumption_commitment()
                 {
-                    return Err(CompileResolvedPackageReviewsError::CompilationInputs {
-                        package: key.clone(),
-                        errors: vec![PackageCompilationInputError::BuildHandoffCustodyMismatch {
-                            package: dependency.identity(),
-                        }],
-                    });
+                    return Err(CompileResolvedPackageReviewsError::new(
+                        crate::review::CompileResolvedPackageReviewCause::CompilationInputs {
+                            package: key.clone(),
+                            errors: vec![
+                                PackageCompilationInputError::BuildHandoffCustodyMismatch {
+                                    package: dependency.identity(),
+                                },
+                            ],
+                        },
+                    ));
                 }
                 dependency_bundles.push(bundle.clone());
             }
         }
         let inputs = inputs
             .with_complete_dependency_build_handoffs(dependency_bundles)
-            .map_err(
-                |errors| CompileResolvedPackageReviewsError::CompilationInputs {
-                    package: key.clone(),
-                    errors,
-                },
-            )?;
+            .map_err(|errors| {
+                CompileResolvedPackageReviewsError::new(
+                    crate::review::CompileResolvedPackageReviewCause::CompilationInputs {
+                        package: key.clone(),
+                        errors,
+                    },
+                )
+            })?;
         let main_entry = custody.snapshot_root().join("main.omg");
         let entry = if main_entry.is_file() {
             main_entry
@@ -576,17 +617,23 @@ impl<'pass> PackageReviewRound<'pass> {
         };
         compile
             .verify_current_source_consumption(unanswered_inputs)
-            .map_err(
-                |diagnostics| CompileResolvedPackageReviewsError::SourceConsumptionDrift {
-                    package: key.clone(),
-                    diagnostics,
-                },
-            )?;
+            .map_err(|diagnostics| {
+                CompileResolvedPackageReviewsError::new(
+                    crate::review::CompileResolvedPackageReviewCause::SourceConsumptionDrift {
+                        package: key.clone(),
+                        diagnostics,
+                    },
+                )
+            })?;
         self.retained_policy_canonical_total =
             reserve(self.retained_policy_canonical_total, policy_canonical_bytes).ok_or_else(
-                || CompileResolvedPackageReviewsError::RetainedPolicyCanonicalBudget {
+                || {
+                    CompileResolvedPackageReviewsError::new(
+                crate::review::CompileResolvedPackageReviewCause::RetainedPolicyCanonicalBudget {
                     package: key.clone(),
                     maximum_bytes: MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
+                },
+            )
                 },
             )?;
         if self.discovery == TargetEntryDiscovery::Dependencies {
@@ -637,27 +684,40 @@ impl<'pass> PackageReviewRound<'pass> {
             }
             Some(OccurrenceCompile::Cached(facts)) => {
                 let description = facts.component_description.clone().ok_or_else(|| {
-                    CompileResolvedPackageReviewsError::ComponentDescriptionNotRetained {
+                    CompileResolvedPackageReviewsError::new(crate::review::CompileResolvedPackageReviewCause::ComponentDescriptionNotRetained {
                         package: occurrence.key.clone(),
                         component,
                         purpose: occurrence.purpose,
-                    }
+                    })
                 })?;
                 Ok(Some(PackageReviewComponent::Description(description)))
             }
-            None => Err(CompileResolvedPackageReviewsError::Compilation {
-                package: occurrence.key.clone(),
-                failure: compilation_products::CompileFailure::Diagnostics(vec![
-                    Diagnostic::error(format!(
-                        "an independent provider selection names dependency package `{}`, which this closure never compiled",
-                        inputs.package_name(component).unwrap_or("<unnamed>"),
-                    )),
-                ]),
-            }),
+            None => Err(CompileResolvedPackageReviewsError::new(
+                crate::review::CompileResolvedPackageReviewCause::Compilation {
+                    package: occurrence.key.clone(),
+                    failure: compilation_products::CompileFailure::Diagnostics(vec![
+                        Diagnostic::error(format!(
+                            "an independent provider selection names dependency package `{}`, which this closure never compiled",
+                            inputs.package_name(component).unwrap_or("<unnamed>"),
+                        )),
+                    ]),
+                },
+            )),
         }
     }
 
     pub fn retain(
+        &mut self,
+        completion: PackageReviewCompletion<'_>,
+        product: compiler::PackageReviewProduct,
+        occurrence_inputs: PackageCompilationInputs,
+    ) -> Result<Option<PackageReviewCacheWrite>, CompileResolvedPackageReviewsError> {
+        let accounting = product.source.source_completion_accounting().clone();
+        self.retain_product(completion, product, occurrence_inputs)
+            .map_err(|error| error.with_source_completion_accounting(accounting))
+    }
+
+    fn retain_product(
         &mut self,
         completion: PackageReviewCompletion<'_>,
         product: compiler::PackageReviewProduct,
@@ -699,15 +759,21 @@ impl<'pass> PackageReviewRound<'pass> {
             policy_canonical_bytes,
         } = evidence;
         if build_handoff.package() != key.identity() || build_handoff.target() != checked_target {
-            return Err(CompileResolvedPackageReviewsError::IdentityMismatch {
-                package: key.clone(),
-            });
+            return Err(CompileResolvedPackageReviewsError::new(
+                crate::review::CompileResolvedPackageReviewCause::IdentityMismatch {
+                    package: key.clone(),
+                },
+            ));
         }
         self.retained_policy_canonical_total =
             reserve(self.retained_policy_canonical_total, policy_canonical_bytes).ok_or_else(
-                || CompileResolvedPackageReviewsError::RetainedPolicyCanonicalBudget {
+                || {
+                    CompileResolvedPackageReviewsError::new(
+                crate::review::CompileResolvedPackageReviewCause::RetainedPolicyCanonicalBudget {
                     package: key.clone(),
                     maximum_bytes: MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
+                },
+            )
                 },
             )?;
         let mut semantic_binding_candidates = service_binding_candidates;
@@ -737,11 +803,12 @@ impl<'pass> PackageReviewRound<'pass> {
         }
         let (policy_rows, policy_commitment) =
             super::super::review_set::policy_rows_and_commitment(&policy).map_err(|error| {
-                CompileResolvedPackageReviewsError::Encoding {
-                    accounting: None,
-                    package: key.clone(),
-                    error,
-                }
+                CompileResolvedPackageReviewsError::new(
+                    crate::review::CompileResolvedPackageReviewCause::Encoding {
+                        package: key.clone(),
+                        error,
+                    },
+                )
             })?;
         let review = CompilerIssuedPackageReview {
             key: key.clone(),
@@ -812,14 +879,30 @@ impl<'pass> PackageReviewRound<'pass> {
         Ok(cache_write)
     }
 
-    pub fn finish(mut self) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError> {
+    pub fn source_completion_accounting(&self) -> compilation_products::SourceCompletionAccounting {
+        occurrence_accounting(&self.occurrences)
+    }
+
+    pub fn finish(self) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError> {
+        let accounting = self.source_completion_accounting();
+        self.finish_reviews()
+            .map_err(|error| error.with_source_completion_accounting(accounting))
+    }
+
+    fn finish_reviews(
+        mut self,
+    ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError> {
         let root = self.closure.graph().root();
         let services = self
             .reviews
             .iter()
             .find(|review| &review.key == root && review.build_handoff.purpose().is_product())
-            .ok_or_else(|| CompileResolvedPackageReviewsError::IdentityMismatch {
-                package: root.clone(),
+            .ok_or_else(|| {
+                CompileResolvedPackageReviewsError::new(
+                    crate::review::CompileResolvedPackageReviewCause::IdentityMismatch {
+                        package: root.clone(),
+                    },
+                )
             })?
             .policy
             .service_audits()
@@ -833,30 +916,36 @@ impl<'pass> PackageReviewRound<'pass> {
                 review
                     .policy
                     .canonical_bytes()
-                    .map_err(|error| CompileResolvedPackageReviewsError::Encoding {
-                        accounting: None,
-                        package: review.key.clone(),
-                        error,
+                    .map_err(|error| {
+                        CompileResolvedPackageReviewsError::new(
+                            crate::review::CompileResolvedPackageReviewCause::Encoding {
+                                package: review.key.clone(),
+                                error,
+                            },
+                        )
                     })?
                     .len()
             } else {
                 occurrence.policy_canonical_bytes
             };
             total = reserve(total, length).ok_or_else(|| {
-                CompileResolvedPackageReviewsError::RetainedPolicyCanonicalBudget {
+                CompileResolvedPackageReviewsError::new(crate::review::CompileResolvedPackageReviewCause::RetainedPolicyCanonicalBudget {
                     package: review.key.clone(),
                     maximum_bytes: MAXIMUM_RETAINED_POLICY_CANONICAL_BYTES,
-                }
+                })
             })?;
             occurrence.policy_canonical_bytes = length;
             if changed {
                 let (rows, commitment) = super::super::review_set::policy_rows_and_commitment(
                     &review.policy,
                 )
-                .map_err(|error| CompileResolvedPackageReviewsError::Encoding {
-                    accounting: None,
-                    package: review.key.clone(),
-                    error,
+                .map_err(|error| {
+                    CompileResolvedPackageReviewsError::new(
+                        crate::review::CompileResolvedPackageReviewCause::Encoding {
+                            package: review.key.clone(),
+                            error,
+                        },
+                    )
                 })?;
                 review.policy_rows = rows;
                 review.policy_commitment = commitment;
@@ -929,9 +1018,11 @@ impl PackageReviewCompletion<'_> {
             compiler::PackageReviewFailure::Compilation(failure) => {
                 self.compilation_failure(failure)
             }
-            compiler::PackageReviewFailure::Projection(failure) => {
-                projection_failure(self.occurrence.key, failure)
-            }
+            compiler::PackageReviewFailure::Projection {
+                failure,
+                accounting,
+            } => projection_failure(self.occurrence.key, failure)
+                .with_source_completion_accounting(accounting),
         }
     }
 }

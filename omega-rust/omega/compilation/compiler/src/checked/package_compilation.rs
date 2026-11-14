@@ -199,6 +199,12 @@ impl PackageBuildInvocation {
 }
 
 impl PackageBuild {
+    pub fn source_completion_accounting(
+        &self,
+    ) -> &compilation_products::SourceCompletionAccounting {
+        self.source.source_completion_accounting()
+    }
+
     pub fn select_target(
         &self,
         target: target::TargetProfile,

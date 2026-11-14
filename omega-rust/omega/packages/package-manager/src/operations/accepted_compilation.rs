@@ -51,12 +51,14 @@ pub(super) struct AcceptedCompilationRequest<'request> {
 }
 
 fn failure(package: &PackageKey, message: impl Into<String>) -> Error {
-    Error::Compilation {
-        package: package.clone(),
-        failure: compilation_products::CompileFailure::Diagnostics(vec![Diagnostic::error(
-            message.into(),
-        )]),
-    }
+    Error::new(
+        crate::review::CompileResolvedPackageReviewCause::Compilation {
+            package: package.clone(),
+            failure: compilation_products::CompileFailure::Diagnostics(vec![Diagnostic::error(
+                message.into(),
+            )]),
+        },
+    )
 }
 
 fn invalid_production_root(product: &CompilationProduct, role: BuildDeclarationKind) -> bool {
@@ -82,10 +84,10 @@ impl ProjectCompilationAdmissionRequest<'_> {
             .map(|target| ProjectCompilationOutcome {
                 target: target.profile,
                 result: Err(ProjectCompilationError::Review(if invalid_role {
-                    Error::InvalidProductionRootRole {
+                    Error::new(crate::review::CompileResolvedPackageReviewCause::InvalidProductionRootRole {
                         package: closure.graph().root().clone(),
                         role: closure.root_role(),
-                    }
+                    })
                 } else {
                     failure(closure.graph().root(), reason.clone())
                 })),
@@ -178,10 +180,10 @@ fn admit_project(
                     .map(|target| TargetCompletion {
                         target: target.profile,
                         receipt: Err(ProjectCompilationError::Review(
-                            Error::InvalidProductionRootRole {
+                            Error::new(crate::review::CompileResolvedPackageReviewCause::InvalidProductionRootRole {
                                 package: root.clone(),
                                 role: closure.root_role(),
-                            },
+                            }),
                         )),
                     })
                     .collect(),
@@ -340,10 +342,12 @@ impl CompilationReceipt {
                 )));
             }
             Some(Err(error)) => {
-                return Err(ProjectCompilationError::Review(Error::Compilation {
-                    package: self.packages.get(error.occurrence).unwrap_or(root).clone(),
-                    failure: error.failure,
-                }));
+                return Err(ProjectCompilationError::Review(Error::new(
+                    crate::review::CompileResolvedPackageReviewCause::Compilation {
+                        package: self.packages.get(error.occurrence).unwrap_or(root).clone(),
+                        failure: error.failure,
+                    },
+                )));
             }
             Some(Ok(output)) => output,
         };
@@ -557,9 +561,13 @@ fn prepare_occurrence_contexts(
                 .compilation_inputs_reusing(&mut root_binding)
                 .and_then(|inputs| inputs.with_compilation_purpose(purpose))
                 .and_then(|inputs| inputs.with_accepted_semantic_bindings(bindings))
-                .map_err(|errors| Error::CompilationInputs {
-                    package: key.clone(),
-                    errors,
+                .map_err(|errors| {
+                    Error::new(
+                        crate::review::CompileResolvedPackageReviewCause::CompilationInputs {
+                            package: key.clone(),
+                            errors,
+                        },
+                    )
                 })?;
             let is_root = &key == root && purpose.is_product();
             let entry = if is_root {

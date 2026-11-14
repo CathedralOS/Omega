@@ -268,16 +268,20 @@ impl PreparedPackageInvocation {
         if let Some(original) = &self.inputs
             && original != &inputs
         {
-            return Err(vec![Diagnostic::error(
-                "Build invocation cannot replace supplied package inputs",
-            )]
-            .into());
+            return Err(CompileFailure::source_completion(
+                vec![Diagnostic::error(
+                    "Build invocation cannot replace supplied package inputs",
+                )],
+                self.source.source_completion_accounting().clone(),
+            ));
         }
         if self.inputs.is_some() && self.target != target {
-            return Err(vec![Diagnostic::error(
-                "Build invocation cannot replace its admitted Product target",
-            )]
-            .into());
+            return Err(CompileFailure::source_completion(
+                vec![Diagnostic::error(
+                    "Build invocation cannot replace its admitted Product target",
+                )],
+                self.source.source_completion_accounting().clone(),
+            ));
         }
         self.target = target;
         self.inputs = Some(inputs);
@@ -298,10 +302,14 @@ impl PreparedPackageInvocation {
         self,
         returned: Option<build_settings::ReturnedBuild>,
     ) -> Result<compilation_products::SettledPackageBuild, CompileFailure> {
+        let spent = self.source.source_completion_accounting().clone();
         let inputs = self.inputs.ok_or_else(|| {
-            vec![Diagnostic::error(
-                "Build completion requires joined package source custody",
-            )]
+            CompileFailure::source_completion(
+                vec![Diagnostic::error(
+                    "Build completion requires joined package source custody",
+                )],
+                spent,
+            )
         })?;
         let source = self
             .source
@@ -321,8 +329,16 @@ pub(super) fn prepare_settled_package_product(
     target: target::TargetProfile,
     inputs: PackageCompilationInputs,
 ) -> Result<PreparedPackageBuild, CompileFailure> {
-    inputs.validate_execution_context(Some(target), settled.source.build_execution_profile)?;
+    let spent = settled
+        .source
+        .evaluated
+        .source_completion_accounting
+        .clone();
+    inputs
+        .validate_execution_context(Some(target), settled.source.build_execution_profile)
+        .map_err(|diagnostics| CompileFailure::source_completion(diagnostics, spent))?;
     let prepared = build_continuation::prepare_settled_product(settled.source, Some(&inputs))?;
+    let spent = prepared.built.build_accounting.clone();
     let base_sources = prepared.built.base_sources.clone();
     PreparedPackageBuild::seal(
         settled.root,
@@ -333,7 +349,7 @@ pub(super) fn prepare_settled_package_product(
     )
     .map_err(|mut diagnostics| {
         attribute_diagnostics(&mut diagnostics, &base_sources, Some(&inputs));
-        CompileFailure::from(diagnostics)
+        CompileFailure::source_completion(diagnostics, spent)
     })
 }
 

@@ -174,9 +174,10 @@ fn review_product_keeps_exact_custody_and_policy_budget() {
     assert!(bytes > 0);
     assert!(matches!(
         review(bytes - 1),
-        Err(PackageReviewFailure::Projection(
-            PackageReviewProjectionError::PolicyBudget
-        ))
+        Err(PackageReviewFailure::Projection {
+            failure: PackageReviewProjectionError::PolicyBudget,
+            ..
+        })
     ));
     let exact = review(bytes).expect("exact budget is sufficient");
     assert_eq!(exact.evidence.policy, first.evidence.policy);
@@ -1156,4 +1157,124 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
         "native callback oracle: {observed:?}"
     );
     std::fs::remove_dir_all(scratch).unwrap();
+}
+
+/// Use a genuine accepted constant invocation; cleanup must retain its cost
+/// even though the successful caller result contains no receipt fields.
+fn build_constant_cleanup_history() -> compilation_products::SourceCompletionAccounting {
+    let text =
+        "const VALUE:u64=answer(); machine answer()->u64 {4u64} machine build()->u64 {VALUE}";
+    let mut sources = source::SourceMap::default();
+    let id = sources
+        .add_checked_instance(
+            "/unit/build.omg".into(),
+            text,
+            "/unit".into(),
+            None,
+            source::SourceOrigin::Toolchain,
+            source::SourceResolutionStratum::Base,
+            source::DependencyScope::Build,
+        )
+        .source_id;
+    let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap();
+    let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
+    request.sources = Some(std::sync::Arc::new(sources));
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let entry = typed.realized_machine_named("build").unwrap().symbol;
+    let prepared = psi_compiler::SourcePreparationRequest {
+        program: typed,
+        accounting: Default::default(),
+        admission: Default::default(),
+        compilation: psi_compiler::TerminalSourceCompilation {
+            entries: &[entry],
+            subjects: &[],
+            purpose: source::DependencyScope::Build,
+            selected: &[],
+            declaration_metadata: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+    }
+    .prepare()
+    .unwrap();
+    assert_eq!(prepared.accounting.receipts().len(), 1);
+    prepared.accounting.validate_charges().unwrap();
+    prepared.accounting
+}
+
+fn force_build_cleanup_failure(workspace: &std::path::Path) -> std::path::PathBuf {
+    let staging = std::fs::read_dir(workspace)
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .path();
+    std::fs::remove_dir_all(&staging).unwrap();
+    std::fs::write(&staging, b"not a staging directory").unwrap();
+    staging
+}
+
+#[test]
+fn build_constant_cleanup_failure_retains_successful_execution_costs() {
+    use package_manager::review::{
+        CompileResolvedPackageReviewCause as Cause, CompileResolvedPackageReviewsError as Error,
+    };
+    let history = build_constant_cleanup_history();
+    let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "constant-cleanup-success",
+        false,
+    )
+    .unwrap();
+    let mut session = package_manager::PackageBuildSession::create(workspace.path()).unwrap();
+    session.record_source_completion(history.clone());
+    session.record_source_completion(history);
+    let staging = force_build_cleanup_failure(workspace.path());
+    let failure = session.dispose::<_, Error>(Ok(())).unwrap_err();
+    assert!(matches!(failure.cause, Cause::BuildStagingCleanup { .. }));
+    let accounting = failure.source_completion_accounting().unwrap();
+    assert_eq!(
+        accounting.receipts().len(),
+        1,
+        "held history is not a second execution"
+    );
+    accounting.validate_charges().unwrap();
+    std::fs::remove_file(staging).unwrap();
+}
+
+#[test]
+fn build_constant_cleanup_failure_preserves_the_primary_typed_cause() {
+    use package_manager::review::{
+        CompileResolvedPackageReviewCause as Cause, CompileResolvedPackageReviewsError as Error,
+    };
+    let history = build_constant_cleanup_history();
+    let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "constant-cleanup-primary",
+        false,
+    )
+    .unwrap();
+    let mut session = package_manager::PackageBuildSession::create(workspace.path()).unwrap();
+    session.record_source_completion(history.clone());
+    let staging = force_build_cleanup_failure(workspace.path());
+    let primary = Error::new(Cause::BuildStagingCreate {
+        path: "actual-primary-path".into(),
+        error: std::io::Error::other("actual primary cause"),
+    })
+    .with_source_completion_accounting(history);
+    let failure = session.dispose::<(), _>(Err(primary)).unwrap_err();
+    assert!(
+        matches!(&failure.cause, Cause::BuildStagingCreate { path, error }
+        if path == std::path::Path::new("actual-primary-path") && error.to_string() == "actual primary cause")
+    );
+    assert_eq!(
+        failure
+            .source_completion_accounting()
+            .unwrap()
+            .receipts()
+            .len(),
+        1
+    );
+    std::fs::remove_file(staging).unwrap();
 }

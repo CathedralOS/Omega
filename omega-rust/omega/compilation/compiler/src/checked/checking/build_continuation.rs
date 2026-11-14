@@ -139,6 +139,17 @@ impl BuildSourceInvocation {
 
     pub(super) fn settle(
         self,
+        returned: Option<build_settings::ReturnedBuild>,
+        joined_inputs: Option<&PackageCompilationInputs>,
+        product_target: Option<target::TargetProfile>,
+    ) -> Result<compilation_products::SettledBuildSource, CompileFailure> {
+        let spent = self.evaluation.source_completion_accounting().clone();
+        self.settle_source(returned, joined_inputs, product_target)
+            .map_err(|failure| failure.with_source_completion_accounting(spent))
+    }
+
+    fn settle_source(
+        self,
         mut returned: Option<build_settings::ReturnedBuild>,
         joined_inputs: Option<&PackageCompilationInputs>,
         product_target: Option<target::TargetProfile>,
@@ -234,6 +245,15 @@ pub(super) fn prepare_settled_product(
     settled: compilation_products::SettledBuildSource,
     inputs: Option<&PackageCompilationInputs>,
 ) -> Result<compilation_products::PreparedBuild, CompileFailure> {
+    let spent = settled.evaluated.source_completion_accounting.clone();
+    prepare_settled_source_product(settled, inputs)
+        .map_err(|failure| failure.with_source_completion_accounting(spent))
+}
+
+fn prepare_settled_source_product(
+    settled: compilation_products::SettledBuildSource,
+    inputs: Option<&PackageCompilationInputs>,
+) -> Result<compilation_products::PreparedBuild, CompileFailure> {
     if settled
         .package_inputs
         .as_ref()
@@ -290,7 +310,7 @@ pub(super) fn complete_build_source(
     inputs_joined_after_build: bool,
     timings: &mut CompileTimings,
 ) -> Result<(BuiltTypedProgram, BuildSourceCustody), CompileFailure> {
-    let spent = evaluated.source_completion_accounting.clone();
+    let mut spent = evaluated.source_completion_accounting.clone();
     let result = (|| {
         let TypedCompilationFrontier {
             preparation,
@@ -307,7 +327,7 @@ pub(super) fn complete_build_source(
             restricted_build_requests,
             base_source_consumption_commitment,
             constants: build_constants,
-            source_completion_accounting: build_accounting,
+            source_completion_accounting: mut build_accounting,
         } = evaluated;
         if let Some(pending) = product_sources {
             let inputs = package_compilation::ProductSourceInputs::new(
@@ -353,29 +373,29 @@ pub(super) fn complete_build_source(
             source_file_count = product.source_file_count;
             generated_source_custody = product.generated_source_custody;
             Arc::make_mut(&mut computed_build_config).selected_build_machine_symbol = selected;
-            // This frontier holds the Build source again, typed afresh, so a
-            // constant Build admission folded under its own provider plans is
-            // pending here. Settle it before the Product completes; left
-            // pending, the constant would be retained as a Product application
-            // and evaluated by the Product's targets. Constants that need no
-            // provider fold the same way on either frontier, so only a provider
-            // fold, or package inputs that joined after Build ran and may change
-            // what defers, calls for it. The settlement decides from what the
-            // admission recorded about its accepted module, not from this call.
-            if build_constants.folded_under_providers || inputs_joined_after_build {
+            // The fresh Build slice owns a separate actual request and receipt.
+            // Equality of bytes or values cannot transfer Build evidence into
+            // Product; only the additional work joins its cost history.
+            if !build_constants.read.is_empty()
+                || build_constants.folded_under_providers
+                || inputs_joined_after_build
+            {
                 let entry = selected.ok_or_else(|| {
                     vec![Diagnostic::error(
                         "deferred Product lost the Build entry whose constants it must settle",
                     )]
                 })?;
-                build_settings::settle_rejoined_build_slice(
+                let rejoined_accounting = build_settings::settle_rejoined_build_slice(
                     &build_constants,
                     source.build_input(),
                     entry,
                     package_inputs,
+                    anonymous_source.as_ref(),
                     dependency_activation,
-                    build_execution_profile,
+                    timings,
                 )?;
+                spent.append(rejoined_accounting.clone());
+                build_accounting.append(rejoined_accounting);
             }
         }
         if computed_build_config

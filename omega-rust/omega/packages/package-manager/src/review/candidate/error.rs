@@ -31,7 +31,7 @@ use std::path::PathBuf;
 const MAXIMUM_PACKAGE_NAME_BYTES: usize = 256;
 
 #[derive(Debug)]
-pub enum CompileResolvedPackageReviewsError {
+pub enum CompileResolvedPackageReviewCause {
     UnsupportedBuildActivation {
         package: PackageKey,
         reason: &'static str,
@@ -93,7 +93,6 @@ pub enum CompileResolvedPackageReviewsError {
     BuildConsentRequired {
         package: PackageKey,
         requests: Vec<UngrantedRestrictedBuildRequest>,
-        accounting: compilation_products::SourceCompletionAccounting,
     },
     Projection {
         package: PackageKey,
@@ -102,7 +101,6 @@ pub enum CompileResolvedPackageReviewsError {
     Encoding {
         package: PackageKey,
         error: PackageReviewEncodingError,
-        accounting: Option<compilation_products::SourceCompletionAccounting>,
     },
     SourceConsumptionMissing {
         package: PackageKey,
@@ -129,26 +127,48 @@ pub enum CompileResolvedPackageReviewsError {
     },
 }
 
+/// One review attempt retains its original typed cause and actual work.
+/// Cost history is not a policy row, cache result or execution permission.
+#[derive(Debug)]
+pub struct CompileResolvedPackageReviewsError {
+    pub cause: CompileResolvedPackageReviewCause,
+    accounting: compilation_products::SourceCompletionAccounting,
+}
+
 impl CompileResolvedPackageReviewsError {
+    pub fn new(cause: CompileResolvedPackageReviewCause) -> Self {
+        let accounting = match &cause {
+            CompileResolvedPackageReviewCause::Compilation { failure, .. } => failure
+                .source_completion_accounting()
+                .cloned()
+                .unwrap_or_default(),
+            _ => Default::default(),
+        };
+        Self { cause, accounting }
+    }
+
     pub fn source_completion_accounting(
         &self,
     ) -> Option<&compilation_products::SourceCompletionAccounting> {
-        match self {
-            Self::Compilation { failure, .. } => failure.source_completion_accounting(),
-            Self::BuildConsentRequired { accounting, .. } => Some(accounting),
-            Self::Encoding { accounting, .. } => accounting.as_ref(),
-            _ => None,
-        }
+        (!self.accounting.receipts().is_empty()).then_some(&self.accounting)
+    }
+
+    pub fn with_source_completion_accounting(
+        mut self,
+        accounting: compilation_products::SourceCompletionAccounting,
+    ) -> Self {
+        self.accounting.append(accounting);
+        self
     }
 
     pub(super) fn compilation_inputs(
         package: &PackageKey,
         errors: Vec<PackageCompilationInputError>,
     ) -> Self {
-        Self::CompilationInputs {
+        Self::new(CompileResolvedPackageReviewCause::CompilationInputs {
             package: package.clone(),
             errors,
-        }
+        })
     }
 
     pub(crate) fn from_compilation(
@@ -157,15 +177,16 @@ impl CompileResolvedPackageReviewsError {
         request_path: Option<DependencyRequestPath>,
         failure: CompileFailure,
     ) -> Self {
-        match failure {
+        let accounting = failure
+            .source_completion_accounting()
+            .cloned()
+            .unwrap_or_default();
+        let cause = match failure {
             failure
             @ (CompileFailure::Diagnostics(_) | CompileFailure::SourceCompletion { .. }) => {
-                Self::Compilation { package, failure }
+                CompileResolvedPackageReviewCause::Compilation { package, failure }
             }
-            CompileFailure::BuildConsentRequired {
-                requests,
-                accounting,
-            } => {
+            CompileFailure::BuildConsentRequired { requests, .. } => {
                 let projected = requests
                     .iter()
                     .map(|request| {
@@ -178,19 +199,15 @@ impl CompileResolvedPackageReviewsError {
                     })
                     .collect::<Result<Vec<_>, _>>();
                 match projected {
-                    Ok(requests) => Self::BuildConsentRequired {
+                    Ok(requests) => CompileResolvedPackageReviewCause::BuildConsentRequired {
                         package,
                         requests,
-                        accounting,
                     },
-                    Err(error) => Self::Encoding {
-                        package,
-                        error,
-                        accounting: Some(accounting),
-                    },
+                    Err(error) => CompileResolvedPackageReviewCause::Encoding { package, error },
                 }
             }
-        }
+        };
+        Self::new(cause).with_source_completion_accounting(accounting)
     }
 }
 
@@ -220,8 +237,8 @@ fn render_package_diagnostics(
 
 impl fmt::Display for CompileResolvedPackageReviewsError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::BuildConsentRequired {
+        match &self.cause {
+            CompileResolvedPackageReviewCause::BuildConsentRequired {
                 package, requests, ..
             } => {
                 write!(
@@ -234,27 +251,32 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                 }
                 Ok(())
             }
-            Self::SemanticBindingContextMismatch { consumer, role } => write!(
+            CompileResolvedPackageReviewCause::SemanticBindingContextMismatch {
+                consumer,
+                role,
+            } => write!(
                 formatter,
                 "semantic binding {role:?} for package `{}` names an unrequested checked occurrence",
                 consumer.name().as_str()
             ),
-            Self::UnsupportedBuildActivation { package, reason } => write!(
-                formatter,
-                "cannot schedule build activation for package `{}`: {reason}",
-                package.name().as_str()
-            ),
-            Self::BuildStagingCreate { path, error } => write!(
+            CompileResolvedPackageReviewCause::UnsupportedBuildActivation { package, reason } => {
+                write!(
+                    formatter,
+                    "cannot schedule build activation for package `{}`: {reason}",
+                    package.name().as_str()
+                )
+            }
+            CompileResolvedPackageReviewCause::BuildStagingCreate { path, error } => write!(
                 formatter,
                 "could not create a fresh package-review build session at `{}`: {error}",
                 path.display()
             ),
-            Self::BuildStagingSponsor { path, error } => write!(
+            CompileResolvedPackageReviewCause::BuildStagingSponsor { path, error } => write!(
                 formatter,
                 "failed to sponsor package-review staging root `{}`: {error}",
                 path.display()
             ),
-            Self::BuildStagingCleanup { path, error, prior } => {
+            CompileResolvedPackageReviewCause::BuildStagingCleanup { path, error, prior } => {
                 write!(
                     formatter,
                     "could not dispose package-review build session `{}`: {error}",
@@ -265,7 +287,7 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                 }
                 Ok(())
             }
-            Self::SourceCustody {
+            CompileResolvedPackageReviewCause::SourceCustody {
                 compiling_package,
                 source_package,
                 phase,
@@ -276,7 +298,7 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                 source_package.name().as_str(),
                 compiling_package.name().as_str()
             ),
-            Self::SourceSelectionCustody {
+            CompileResolvedPackageReviewCause::SourceSelectionCustody {
                 compiling_package,
                 source_package,
                 phase,
@@ -287,17 +309,22 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                 source_package.name().as_str(),
                 compiling_package.name().as_str()
             ),
-            Self::SemanticBindingConsumerAbsent { consumer, role } => write!(
-                formatter,
-                "semantic-binding review input for role {role:?} names consumer `{}` outside the resolved package closure",
-                consumer.name().as_str()
-            ),
-            Self::DuplicateConsumerSemanticBindingRole { consumer, role } => write!(
+            CompileResolvedPackageReviewCause::SemanticBindingConsumerAbsent { consumer, role } => {
+                write!(
+                    formatter,
+                    "semantic-binding review input for role {role:?} names consumer `{}` outside the resolved package closure",
+                    consumer.name().as_str()
+                )
+            }
+            CompileResolvedPackageReviewCause::DuplicateConsumerSemanticBindingRole {
+                consumer,
+                role,
+            } => write!(
                 formatter,
                 "semantic-binding review inputs contain duplicate role {role:?} for consumer `{}`",
                 consumer.name().as_str()
             ),
-            Self::AmbiguousCandidateSemanticBinding {
+            CompileResolvedPackageReviewCause::AmbiguousCandidateSemanticBinding {
                 consumer,
                 role,
                 candidate_count,
@@ -306,12 +333,15 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                 "candidate review found {candidate_count} package-owned declarations for semantic role {role:?} in consumer `{}`; expected at most one",
                 consumer.name().as_str()
             ),
-            Self::InvalidCandidateSemanticBinding { consumer, role } => write!(
+            CompileResolvedPackageReviewCause::InvalidCandidateSemanticBinding {
+                consumer,
+                role,
+            } => write!(
                 formatter,
                 "candidate review could not construct exact semantic role {role:?} for consumer `{}`",
                 consumer.name().as_str()
             ),
-            Self::CompilationInputs { package, errors } => {
+            CompileResolvedPackageReviewCause::CompilationInputs { package, errors } => {
                 write!(
                     formatter,
                     "compiler input validation failed for package `{}` with {} error(s)",
@@ -323,7 +353,7 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                 }
                 Ok(())
             }
-            Self::Compilation { package, failure } => match failure {
+            CompileResolvedPackageReviewCause::Compilation { package, failure } => match failure {
                 CompileFailure::Diagnostics(diagnostics)
                 | CompileFailure::SourceCompletion { diagnostics, .. } => {
                     render_package_diagnostics(
@@ -338,21 +368,21 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                     "restricted Build execution requires explicit consent; pending requests: {requests:?}"
                 ),
             },
-            Self::Projection {
+            CompileResolvedPackageReviewCause::Projection {
                 package,
                 diagnostics,
             } => render_package_diagnostics(formatter, "review projection", package, diagnostics),
-            Self::Encoding { package, error, .. } => write!(
+            CompileResolvedPackageReviewCause::Encoding { package, error, .. } => write!(
                 formatter,
                 "review encoding failed for package `{}`: {error}",
                 package.name().as_str()
             ),
-            Self::SourceConsumptionMissing { package } => write!(
+            CompileResolvedPackageReviewCause::SourceConsumptionMissing { package } => write!(
                 formatter,
                 "package-aware compilation for `{}` emitted no source-consumption commitment",
                 package.name().as_str()
             ),
-            Self::SourceConsumptionDrift {
+            CompileResolvedPackageReviewCause::SourceConsumptionDrift {
                 package,
                 diagnostics,
             } => render_package_diagnostics(
@@ -361,17 +391,19 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                 package,
                 diagnostics,
             ),
-            Self::IdentityMismatch { package } => write!(
+            CompileResolvedPackageReviewCause::IdentityMismatch { package } => write!(
                 formatter,
                 "compiler review identity did not match package `{}`",
                 package.name().as_str()
             ),
-            Self::InvalidProductionRootRole { package, role } => write!(
-                formatter,
-                "reviewed native production requires application root `{}`; found {role:?}",
-                package.name().as_str()
-            ),
-            Self::RetainedPolicyCanonicalBudget {
+            CompileResolvedPackageReviewCause::InvalidProductionRootRole { package, role } => {
+                write!(
+                    formatter,
+                    "reviewed native production requires application root `{}`; found {role:?}",
+                    package.name().as_str()
+                )
+            }
+            CompileResolvedPackageReviewCause::RetainedPolicyCanonicalBudget {
                 package,
                 maximum_bytes,
             } => write!(
@@ -379,7 +411,9 @@ impl fmt::Display for CompileResolvedPackageReviewsError {
                 "normalized package policies exceeded the {maximum_bytes}-byte aggregate canonical encoding ceiling while compiling package `{}`",
                 package.name().as_str()
             ),
-            Self::ComponentDescriptionNotRetained { package, .. } => write!(
+            CompileResolvedPackageReviewCause::ComponentDescriptionNotRetained {
+                package, ..
+            } => write!(
                 formatter,
                 "an independent provider selection in package `{}` names a dependency whose review retains no component description",
                 package.name().as_str()

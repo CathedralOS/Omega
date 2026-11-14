@@ -52,6 +52,7 @@ pub struct PackageBuildSession {
     evaluation_sponsor: BuildEvaluationSponsor,
     next_occurrence: u64,
     active: bool,
+    source_completion_accounting: compilation_products::SourceCompletionAccounting,
 }
 
 impl std::fmt::Debug for PackageBuildSession {
@@ -66,16 +67,20 @@ impl std::fmt::Debug for PackageBuildSession {
 impl PackageBuildSession {
     pub fn create(build_workspace: &Path) -> Result<Self, CompileResolvedPackageReviewsError> {
         fs::create_dir_all(build_workspace).map_err(|error| {
-            CompileResolvedPackageReviewsError::BuildStagingCreate {
-                path: build_workspace.to_path_buf(),
-                error,
-            }
+            CompileResolvedPackageReviewsError::new(
+                crate::review::CompileResolvedPackageReviewCause::BuildStagingCreate {
+                    path: build_workspace.to_path_buf(),
+                    error,
+                },
+            )
         })?;
         let canonical_workspace = fs::canonicalize(build_workspace).map_err(|error| {
-            CompileResolvedPackageReviewsError::BuildStagingCreate {
-                path: build_workspace.to_path_buf(),
-                error,
-            }
+            CompileResolvedPackageReviewsError::new(
+                crate::review::CompileResolvedPackageReviewCause::BuildStagingCreate {
+                    path: build_workspace.to_path_buf(),
+                    error,
+                },
+            )
         })?;
 
         for _ in 0..128 {
@@ -88,10 +93,12 @@ impl PackageBuildSession {
             ) {
                 Ok(filesystem_sponsor) => {
                     let canonical_root = filesystem_sponsor.session_root().map_err(|error| {
-                        CompileResolvedPackageReviewsError::BuildStagingSponsor {
-                            path: root.clone(),
-                            error,
-                        }
+                        CompileResolvedPackageReviewsError::new(
+                            crate::review::CompileResolvedPackageReviewCause::BuildStagingSponsor {
+                                path: root.clone(),
+                                error,
+                            },
+                        )
                     })?;
                     let evaluation_limits = BuildEvaluationSponsorLimits::new(
                         PACKAGE_BUILD_WORK_CEILING,
@@ -112,10 +119,12 @@ impl PackageBuildSession {
                         },
                     )
                     .map_err(|error| {
-                        CompileResolvedPackageReviewsError::BuildStagingCreate {
-                            path: root.clone(),
-                            error: io::Error::other(error),
-                        }
+                        CompileResolvedPackageReviewsError::new(
+                            crate::review::CompileResolvedPackageReviewCause::BuildStagingCreate {
+                                path: root.clone(),
+                                error: io::Error::other(error),
+                            },
+                        )
                     })?;
                     return Ok(Self {
                         root: canonical_root,
@@ -123,25 +132,30 @@ impl PackageBuildSession {
                         evaluation_sponsor,
                         next_occurrence: 0,
                         active: true,
+                        source_completion_accounting: Default::default(),
                     });
                 }
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
                 Err(error) => {
-                    return Err(CompileResolvedPackageReviewsError::BuildStagingCreate {
-                        path: root,
-                        error,
-                    });
+                    return Err(CompileResolvedPackageReviewsError::new(
+                        crate::review::CompileResolvedPackageReviewCause::BuildStagingCreate {
+                            path: root,
+                            error,
+                        },
+                    ));
                 }
             }
         }
 
-        Err(CompileResolvedPackageReviewsError::BuildStagingCreate {
-            path: canonical_workspace,
-            error: io::Error::new(
-                io::ErrorKind::AlreadyExists,
-                "could not reserve a unique package build session after 128 attempts",
-            ),
-        })
+        Err(CompileResolvedPackageReviewsError::new(
+            crate::review::CompileResolvedPackageReviewCause::BuildStagingCreate {
+                path: canonical_workspace,
+                error: io::Error::new(
+                    io::ErrorKind::AlreadyExists,
+                    "could not reserve a unique package build session after 128 attempts",
+                ),
+            },
+        ))
     }
 
     pub(crate) fn create_occurrence_directory(
@@ -195,15 +209,21 @@ impl PackageBuildSession {
         self.require_open()?;
         let sequence = self.next_occurrence;
         self.next_occurrence = sequence.checked_add(1).ok_or_else(|| {
-            CompileResolvedPackageReviewsError::BuildStagingCreate {
-                path: self.root.clone(),
-                error: io::Error::other("package build occurrence sequence exhausted"),
-            }
+            CompileResolvedPackageReviewsError::new(
+                crate::review::CompileResolvedPackageReviewCause::BuildStagingCreate {
+                    path: self.root.clone(),
+                    error: io::Error::other("package build occurrence sequence exhausted"),
+                },
+            )
         })?;
         let directory = base.with_extension(sequence.to_string());
-        let sponsor_error = |error| CompileResolvedPackageReviewsError::BuildStagingSponsor {
-            path: directory.clone(),
-            error,
+        let sponsor_error = |error| {
+            CompileResolvedPackageReviewsError::new(
+                crate::review::CompileResolvedPackageReviewCause::BuildStagingSponsor {
+                    path: directory.clone(),
+                    error,
+                },
+            )
         };
         let path = self
             .filesystem_sponsor
@@ -215,10 +235,12 @@ impl PackageBuildSession {
             .map_err(sponsor_error)?;
         if let Err(error) = fs::create_dir(&directory) {
             prepared.abort();
-            return Err(CompileResolvedPackageReviewsError::BuildStagingCreate {
-                path: directory,
-                error,
-            });
+            return Err(CompileResolvedPackageReviewsError::new(
+                crate::review::CompileResolvedPackageReviewCause::BuildStagingCreate {
+                    path: directory,
+                    error,
+                },
+            ));
         }
         prepared.commit().map_err(sponsor_error)?;
         Ok(directory)
@@ -228,10 +250,12 @@ impl PackageBuildSession {
         if self.active {
             return Ok(());
         }
-        Err(CompileResolvedPackageReviewsError::BuildStagingCreate {
-            path: self.root.clone(),
-            error: io::Error::other("package build invocation is already closed"),
-        })
+        Err(CompileResolvedPackageReviewsError::new(
+            crate::review::CompileResolvedPackageReviewCause::BuildStagingCreate {
+                path: self.root.clone(),
+                error: io::Error::other("package build invocation is already closed"),
+            },
+        ))
     }
 
     pub(crate) fn filesystem_sponsor(&self) -> &FilesystemSponsor {
@@ -242,19 +266,31 @@ impl PackageBuildSession {
         &self.evaluation_sponsor
     }
 
+    /// Retain actual occurrences before a coordinator drops its source/result.
+    /// Shared histories join once; independent invocations remain separate costs.
+    pub fn record_source_completion(
+        &mut self,
+        accounting: compilation_products::SourceCompletionAccounting,
+    ) {
+        self.source_completion_accounting.append(accounting);
+    }
+
     pub fn close(&mut self) -> Result<(), CompileResolvedPackageReviewsError> {
         if !self.active {
             return Ok(());
         }
         self.filesystem_sponsor
             .dispose_private_staging()
-            .map_err(
-                |error| CompileResolvedPackageReviewsError::BuildStagingCleanup {
-                    path: self.root.clone(),
-                    error,
-                    prior: None,
-                },
-            )?;
+            .map_err(|error| {
+                CompileResolvedPackageReviewsError::new(
+                    crate::review::CompileResolvedPackageReviewCause::BuildStagingCleanup {
+                        path: self.root.clone(),
+                        error,
+                        prior: None,
+                    },
+                )
+                .with_source_completion_accounting(self.source_completion_accounting.clone())
+            })?;
         self.active = false;
         Ok(())
     }
@@ -263,16 +299,12 @@ impl PackageBuildSession {
     where
         Error: std::fmt::Display + From<CompileResolvedPackageReviewsError>,
     {
-        match self.close() {
-            Ok(()) => result,
-            Err(mut error) => {
-                if let CompileResolvedPackageReviewsError::BuildStagingCleanup { prior, .. } =
-                    &mut error
-                {
-                    *prior = result.err().map(|error| error.to_string());
-                }
-                Err(Error::from(error))
-            }
+        let cleanup = self.close();
+        match result {
+            // Cleanup must not replace the primary typed cause, pending consent
+            // or its retained evaluation history with a diagnostic string.
+            Err(error) => Err(error),
+            Ok(value) => cleanup.map(|()| value).map_err(Error::from),
         }
     }
 }
