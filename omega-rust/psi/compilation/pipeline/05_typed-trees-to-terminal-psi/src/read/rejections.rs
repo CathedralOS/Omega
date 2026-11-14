@@ -286,6 +286,26 @@ mod tests {
                 }
             }
         }
+        // A definite family mismatch still names an open integer carrier
+        // without inventing its width or changing its parameter identity.
+        let open_integer = ScalarType::Integer(IntegerType::parameterized(
+            IntegerSign::Unsigned,
+            semantic_vocabulary::WidthParameter {
+                owner: MachineId::new(1).unwrap(),
+                value: semantic_vocabulary::ValueId::new(1).unwrap(),
+            },
+        ));
+        let refusal = program.mistyped(
+            MachineId::new(1).unwrap(),
+            SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
+            Destination::Result,
+            Some(ValueType::plain(ScalarType::Boolean)),
+            Some(ValueType::plain(open_integer)),
+            "test mismatch",
+        );
+        assert_eq!(refusal.reason, RefusalReason::Violation(None));
+        assert!(refusal.detail.contains("`u<width parameter>`"));
+        assert!(refusal.detail.contains("`bool`"));
     }
 
     #[test]
