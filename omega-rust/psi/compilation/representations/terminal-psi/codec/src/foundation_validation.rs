@@ -7418,7 +7418,7 @@ pub(crate) mod storage_foundations {
                 result: OperationResult::Scalar(ValueDeclaration {
                     id: offset,
                     scalar_type: scalar(64),
-                    qualifications: Vec::new(),
+                    qualifications: Default::default(),
                 }),
                 kind: OperationKind::IntegerConstant {
                     value: IntegerValue::Unsigned(0),
