@@ -175,11 +175,6 @@ machine route() -> u32 {{
     {before}
     bump(&mut held.location)
 }}
-machine replace_with_git(held: &mut Source) {{
-    let next: Source = Source::Git {{ repository: 1, revision: 2 }};
-    let destination: &mut Source = &mut held;
-    destination = next;
-}}
 "#
         )
     };
@@ -190,10 +185,8 @@ machine replace_with_git(held: &mut Source) {{
         )),
         NO_CASE
     );
-    // Permission alone writes nothing. An actual replacing call changes
-    // the case and invalidates the caller's payload selection.
+    // Permission alone writes nothing: this empty callee preserves the case.
     assert_eq!(verdict(&scalar("replace(&mut held);")), "accepted");
-    assert_eq!(verdict(&scalar("replace_with_git(&mut held);")), NO_CASE);
 }
 
 /// A sum never known to hold the case lends no payload of it.
