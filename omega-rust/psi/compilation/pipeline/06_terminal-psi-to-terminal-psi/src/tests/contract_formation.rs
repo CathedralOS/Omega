@@ -146,10 +146,11 @@ fn accepted_source(text: &str) {
 
 fn rejected_source(text: &str) {
     let verdict = source_result(text);
-    assert!(
-        matches!(verdict, RouteVerdict::Rejected { .. }),
-        "{verdict:?}"
-    );
+    match verdict {
+        RouteVerdict::Rejected { .. } => {}
+        RouteVerdict::Accepted(_) => panic!("invalid contract arithmetic was accepted"),
+        other => panic!("invalid contract arithmetic was not rejected: {other:?}"),
+    }
 }
 
 #[test]

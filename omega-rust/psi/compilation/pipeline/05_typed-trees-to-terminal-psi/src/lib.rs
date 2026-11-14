@@ -834,6 +834,7 @@ fn lower_generic_for<'source>(
     module.structural_types = declared.structural_types;
     module.native_layouts = declared.native_layouts;
     if let Some(source) = declarations {
+        source.publish_domains(diagnostic, &mut module)?;
         source.publish_services(diagnostic, &mut module)?;
         source.publish_boundaries(
             diagnostic,

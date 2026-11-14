@@ -118,6 +118,10 @@ pub(crate) struct Program<'t> {
         ),
     >,
     resolving_services: Vec<SymbolHandle>,
+    /// A domain's generic predicate must be formed before any particular
+    /// use can assume it. These exact source declarations feed the module's
+    /// existing domain catalogs, separately from use-site substitutions.
+    declared_domains: Vec<(SymbolHandle, ValueType)>,
     /// The services a Build selection awaits a provider for, in first-read
     /// order (`designate`, `publish_readiness`).
     readiness: Vec<semantic_vocabulary::ServiceId>,
@@ -315,6 +319,7 @@ impl<'t> Program<'t> {
             boundary_services: IdTable::default(),
             services: IdTable::default(),
             resolving_services: Vec::new(),
+            declared_domains: Vec::new(),
             readiness: Vec::new(),
             names: IdTable::default(),
             rigid,

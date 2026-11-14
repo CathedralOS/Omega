@@ -1,8 +1,9 @@
 /*
 A named domain's `requires` predicates, stated as ordinary contracts on the
-place whose declared type carries the domain. A domain predicate is not a
-kind of fact of its own: each place a type can be written on already has a
-contract the checker proves and assumes, and the predicate joins it.
+place whose declared type carries the domain. The generic declaration is
+retained in the module's domain catalog so its arithmetic forms before use.
+Each place a type can be written on already has a contract the checker proves
+and assumes, and the instantiated predicate joins that contract.
 
 | Where `T in D` is written | What the predicates of `D` become |
 | A formal | Entry `requires` clauses of the callable, over the formal. |
@@ -57,6 +58,186 @@ struct Predicate {
 }
 
 impl Program<'_> {
+    /// Domain uses retain their instantiated obligations, but those cannot
+    /// establish safety of the declaration for all carrier values. Publish
+    /// the uninstantiated theory and its original issuance restrictions in
+    /// the existing catalog for declaration formation.
+    pub(crate) fn publish_domains(
+        &self,
+        diagnostic: MachineId,
+        module: &mut terminal_psi::TerminalModule,
+    ) -> Checked<()> {
+        use semantic_vocabulary::{DomainSemanticId, ScalarDomainId, StructuralDomainId};
+        use terminal_psi::{
+            ScalarDomainDeclaration, ScalarDomainPredicate, StructuralDomainDeclaration,
+            StructuralDomainPredicate,
+        };
+        let sources =
+            source::source_identity::toolchain_source_identities(self.typed.symbols.source_files());
+        let mut identities = std::mem::take(&mut module.identities).into_builder();
+        let unavailable =
+            |what| refuse(diagnostic, Construct::Machine, Unserved::Declaration(what));
+        for (position, (symbol, carrier)) in self.declared_domains.iter().enumerate() {
+            let definition = self
+                .typed
+                .domain_definition(*symbol)
+                .ok_or_else(|| unavailable("retained domain lost its declaration"))?;
+            let identity = crate::declare::nominal(self.typed, &sources, *symbol, &mut identities)
+                .map_err(unavailable)?;
+            let semantic_domain = DomainSemanticId::new(position as u64 + 1)
+                .ok_or_else(|| unavailable("domain identity overflow"))?;
+            let establishment_routes =
+                self.domain_routes(diagnostic, definition, &sources, &mut identities)?;
+            let domains = crate::body::DomainSet::EMPTY
+                .with(*symbol)
+                .ok_or_else(|| unavailable("retained domain has no exact symbol"))?;
+            let qualification = Qualification {
+                policy: None,
+                domains,
+            };
+            match carrier {
+                ValueType::Scalar(carrier, _) => {
+                    let (clauses, _) = self.cast_predicates(diagnostic, qualification, *carrier)?;
+                    let id =
+                        ScalarDomainId::new(module.scalar_qualifications.domains.len() as u64 + 1)
+                            .ok_or_else(|| unavailable("scalar domain identity overflow"))?;
+                    module
+                        .scalar_qualifications
+                        .domains
+                        .push(ScalarDomainDeclaration {
+                            required_memberships: Some(Vec::new()),
+                            predicate: Some(ScalarDomainPredicate {
+                                subject: ValueId::new(1).expect("nonzero"),
+                                proposition: Proposition::Conjunction(clauses),
+                            }),
+                            id,
+                            semantic_domain,
+                            identity,
+                            carrier: *carrier,
+                            establishment_routes,
+                        });
+                }
+                ValueType::Record(carrier, _, regions) => {
+                    let clauses = self.field_predicates(
+                        diagnostic,
+                        &[],
+                        ValueType::Record(*carrier, qualification, *regions),
+                    )?;
+                    let id = StructuralDomainId::new(module.structural_domains.len() as u64 + 1)
+                        .ok_or_else(|| unavailable("structural domain identity overflow"))?;
+                    module.structural_domains.push(StructuralDomainDeclaration {
+                        required_memberships: Some(Vec::new()),
+                        complete_predicate_theory: true,
+                        predicate: Some(StructuralDomainPredicate {
+                            subject: crate::body::self_place().expect("nonzero"),
+                            proposition: Proposition::Conjunction(clauses),
+                        }),
+                        id,
+                        semantic_domain,
+                        identity,
+                        carrier: *carrier,
+                        content_projection: None,
+                        byte_predicate: None,
+                        establishment_routes,
+                    });
+                }
+                ValueType::Rigid(_) => {
+                    return Err(unavailable("domain retains an unresolved carrier"));
+                }
+            }
+        }
+        module.identities = identities.build();
+        Ok(())
+    }
+
+    fn domain_routes(
+        &self,
+        diagnostic: MachineId,
+        definition: &typed_trees::domain::DomainDefinition,
+        sources: &[(source::SourceId, [u8; 32])],
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    ) -> Checked<Option<Vec<terminal_psi::ScalarDomainEstablishmentRoute>>> {
+        use language_semantics::DomainEstablishmentRoute as Source;
+        use terminal_psi::{NominalDeclarationIdentity, ScalarDomainEstablishmentRoute as Route};
+        use typed_trees::domain::DomainIssuance;
+        let routes = match definition.issuance() {
+            DomainIssuance::Unrestricted => return Ok(None),
+            // The existing reader cannot evaluate an access plan. Such a
+            // declaration supplies no admitted issuer, never unrestricted
+            // issuance. Source use sites retain their existing refusal.
+            DomainIssuance::Planned(_) => return Ok(Some(Vec::new())),
+            DomainIssuance::Only(routes) => routes,
+        };
+        let unavailable =
+            |what| refuse(diagnostic, Construct::Machine, Unserved::Declaration(what));
+        let mut result = Vec::with_capacity(routes.len());
+        for route in routes {
+            let (symbol, boundary) = match *route {
+                Source::ExactMachine { machine } => {
+                    let machine = self
+                        .typed
+                        .machine_by_symbol(machine)
+                        .ok_or_else(|| unavailable("domain issuer lost its exact machine"))?;
+                    let identity = self
+                        .typed
+                        .machine_callable_identity_text(machine)
+                        .ok_or_else(|| unavailable("domain issuer lost its callable identity"))?;
+                    let declaration = NominalDeclarationIdentity::new(
+                        crate::declare::nominal(self.typed, sources, machine.symbol, identities)
+                            .map_err(unavailable)?,
+                    );
+                    result.push(Route::ExactMachine {
+                        declaration,
+                        machine_identity: identities.intern(&identity),
+                    });
+                    continue;
+                }
+                Source::CheckedRequirement {
+                    trait_definition,
+                    requirement,
+                } => ((trait_definition, requirement), false),
+                Source::BoundaryRequirement {
+                    boundary_trait,
+                    requirement,
+                } => ((boundary_trait, requirement), true),
+            };
+            let (owner, requirement) = self
+                .typed
+                .trait_machine_signature(symbol.1)
+                .filter(|(owner, requirement)| {
+                    owner.symbol == symbol.0
+                        && requirement.symbol == symbol.1
+                        && owner.is_boundary == boundary
+                })
+                .ok_or_else(|| unavailable("domain issuer lost its exact requirement"))?;
+            let identity = self
+                .typed
+                .trait_requirement_callable_identity_text(owner, requirement);
+            if identity.is_empty() {
+                return Err(unavailable("domain issuer lost its callable identity"));
+            }
+            let declaration = NominalDeclarationIdentity::new(
+                crate::declare::nominal(self.typed, sources, requirement.symbol, identities)
+                    .map_err(unavailable)?,
+            );
+            let requirement_identity = identities.intern(&identity);
+            result.push(if boundary {
+                Route::BoundaryRequirement {
+                    declaration,
+                    requirement_identity,
+                }
+            } else {
+                Route::CheckedRequirement {
+                    declaration,
+                    requirement_identity,
+                }
+            });
+        }
+        result.sort();
+        result.dedup();
+        Ok(Some(result))
+    }
+
     /// The predicates of every declared domain in `qualification`, in the
     /// domains' order and each domain's authored order. A clause that says
     /// nothing (`requires true`) is left out.

@@ -380,16 +380,10 @@ impl ClauseBindings for Scope<'_> {
                 }
             }
         }
-        let storage = terminal_semantics::canonical_structural_storage_path(
+        let found = terminal_semantics::canonical_primitive_read_type(
             self.module.structural_types.iter(),
             root.ty,
             path,
-        )
-        .ok_or("contract field has no exact declared path")?;
-        let found = terminal_semantics::primitive_projection_type(
-            self.module.structural_types.iter(),
-            root.ty,
-            &storage,
         )
         .ok_or("contract field is not an admitted scalar projection")?;
         if found != ty {

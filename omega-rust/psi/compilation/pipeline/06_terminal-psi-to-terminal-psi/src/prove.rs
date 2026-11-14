@@ -285,6 +285,9 @@ pub(crate) struct Prover<'a> {
     /// A branch already assumes one alternative of each cut on this path.
     /// Splitting that exact predicate again supplies no new information.
     active_cuts: Vec<Proposition>,
+    /// An auxiliary sign query can revisit its parent through contradiction
+    /// search. The same goal under these unchanged premises supplies no proof.
+    active_goals: Vec<Proposition>,
 }
 
 fn node(conclusion: Proposition, rule: ProofRule) -> ProofNode {
@@ -426,6 +429,7 @@ impl<'a> Prover<'a> {
             case_split: true,
             remaining_case_branches: CASE_BRANCH_BUDGET,
             active_cuts: Vec::new(),
+            active_goals: Vec::new(),
         }
     }
 
@@ -621,6 +625,16 @@ impl<'a> Prover<'a> {
     /// A certificate whose conclusion is exactly `goal`: directly, or by a
     /// case split over a disjunctive fact.
     pub(crate) fn prove(&mut self, goal: &Proposition) -> Result<ProofNode, Unproven> {
+        if self.active_goals.contains(goal) {
+            return Err("recursive goal under unchanged premises");
+        }
+        self.active_goals.push(goal.clone());
+        let result = self.prove_goal(goal);
+        self.active_goals.pop();
+        result
+    }
+
+    fn prove_goal(&mut self, goal: &Proposition) -> Result<ProofNode, Unproven> {
         let direct = self.prove_direct(goal);
         if direct.is_ok()
             || !self.case_split
