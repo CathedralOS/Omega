@@ -1640,28 +1640,35 @@ mod v6 {
             cursor: &mut Cursor<'_>,
         ) -> Result<Vec<terminal_psi::StructuralPathSegment>, PreAllocationMachineEffectDecodeError>
         {
+            use terminal_psi::structural_path_encoding::SegmentTag as Tag;
             let count = cursor.length()?;
             let mut path = Vec::with_capacity(count.min(cursor.remaining()));
             for _ in 0..count {
-                path.push(match cursor.byte()? {
-                    1 => Field(terminal_psi::TerminalIdentityIndex(cursor.u32()?)),
-                    2 => terminal_psi::StructuralPathSegment::FixedIndex(cursor.u64()?),
-                    3 => terminal_psi::StructuralPathSegment::Referent,
-                    4 => terminal_psi::StructuralPathSegment::FixedRange {
+                let tag = Tag::from_byte(cursor.byte()?)
+                    .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?;
+                path.push(match tag {
+                    Tag::Field => Field(terminal_psi::TerminalIdentityIndex(cursor.u32()?)),
+                    Tag::FixedIndex => {
+                        terminal_psi::StructuralPathSegment::FixedIndex(cursor.u64()?)
+                    }
+                    Tag::Referent => terminal_psi::StructuralPathSegment::Referent,
+                    Tag::FixedRange => terminal_psi::StructuralPathSegment::FixedRange {
                         start: cursor.u64()?,
                         end: cursor.u64()?,
                     },
-                    6 => terminal_psi::StructuralPathSegment::RuntimeIndex {
+                    Tag::RuntimeIndex => terminal_psi::StructuralPathSegment::RuntimeIndex {
                         index: semantic_vocabulary::ValueId::new(cursor.u64()?)
                             .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
                         obligation: ObligationId::new(cursor.u64()?)
                             .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
                     },
-                    7 => terminal_psi::StructuralPathSegment::Case(
+                    Tag::Case => terminal_psi::StructuralPathSegment::Case(
                         semantic_vocabulary::StructuralCaseId::new(cursor.u64()?)
                             .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
                     ),
-                    _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
+                    Tag::RepresentationView | Tag::AllElements => {
+                        return Err(PreAllocationMachineEffectDecodeError::InvalidField);
+                    }
                 });
             }
             Ok(path)
@@ -1760,12 +1767,15 @@ mod v6 {
                 assert_eq!(decode_cleanup(&mut cursor).unwrap(), action);
                 assert_eq!(cursor.remaining(), 0);
 
-                let mut retired_path = 1_u64.to_le_bytes().to_vec();
-                retired_path.push(5);
-                assert_eq!(
-                    decode_path(&mut Cursor::new(&retired_path)),
-                    Err(PreAllocationMachineEffectDecodeError::InvalidField)
-                );
+                // Sharing tags must not admit representation or qualification-only paths here.
+                for tag in [5, 8, 9, 10] {
+                    let mut invalid_path = 1_u64.to_le_bytes().to_vec();
+                    invalid_path.push(tag);
+                    assert_eq!(
+                        decode_path(&mut Cursor::new(&invalid_path)),
+                        Err(PreAllocationMachineEffectDecodeError::InvalidField)
+                    );
+                }
 
                 let mut retired_envelope = super::super::MAGIC.to_vec();
                 crate::codec_bytes::push_encoded(&mut retired_envelope, 32_u32.to_le_bytes());

@@ -453,43 +453,12 @@ mod ownership {
     }
 
     fn encode_projection(bytes: &mut Vec<u8>, segment: &StructuralPathSegment) {
-        match segment {
-            StructuralPathSegment::AllElements => bytes.push(10),
-            StructuralPathSegment::Case(case) => {
-                bytes.push(7);
-                crate::codec_bytes::push_encoded(bytes, case.get().to_le_bytes());
-            }
-            StructuralPathSegment::Referent => bytes.push(3),
-            StructuralPathSegment::FixedRange { start, end } => {
-                bytes.push(4);
-                crate::codec_bytes::push_encoded(bytes, start.to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, end.to_le_bytes());
-            }
-            StructuralPathSegment::Field(name) => {
-                bytes.push(1);
-                crate::codec_bytes::push_encoded(bytes, name.0.to_le_bytes());
-            }
-            StructuralPathSegment::FixedIndex(index) => {
-                bytes.push(2);
-                crate::codec_bytes::push_encoded(bytes, index.to_le_bytes());
-            }
-            StructuralPathSegment::RuntimeIndex { index, obligation } => {
-                bytes.push(6);
-                crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
-                crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-            }
-            StructuralPathSegment::RepresentationView {
-                structural_type,
-                stored_scalar,
-            } => {
-                bytes.push(8);
-                crate::codec_bytes::push_encoded(bytes, structural_type.get().to_le_bytes());
-                bytes.push(u8::from(stored_scalar.is_some()));
-                if let Some(scalar) = stored_scalar {
-                    crate::selected_instructions::plan_identity::encode_scalar_type(bytes, *scalar);
-                }
-            }
-        }
+        terminal_psi::structural_path_encoding::encode_structural_path_segment(
+            bytes,
+            segment,
+            Vec::extend_from_slice,
+            crate::selected_instructions::plan_identity::encode_scalar_type,
+        );
     }
 }
 mod provenance {
