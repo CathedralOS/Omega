@@ -2,6 +2,7 @@ module units;
 
 public domain u32::Distance;
 public domain u32::Span;
+public domain u32::Offset;
 
 // This helper belongs to the units module, not the package root.
 machine raw_sum(left: u32, right: u32) -> u32 {

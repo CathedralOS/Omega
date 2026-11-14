@@ -10,6 +10,7 @@ const FILES: &[&str] = &[
     "app/build.omg",
     "provider/main.omg",
     "provider/units.omg",
+    "provider/operations.omg",
     "provider/build.omg",
 ];
 
