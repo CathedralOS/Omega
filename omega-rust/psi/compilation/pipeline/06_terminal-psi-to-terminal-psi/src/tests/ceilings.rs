@@ -348,3 +348,104 @@ machine entry() {entry_invokes} {{ application(1); }}
     let messages = exceeded(&program("invokes Other"));
     assert_eq!(messages.len(), 1, "{messages:?}");
 }
+
+/// Ordinary callback traits must survive declaration projection even while
+/// execution through that entry identity remains explicitly unsupported.
+#[test]
+fn authored_invocation_projection_keeps_ordinary_callback_targets() {
+    let text = r#"
+trait Handler {
+    machine read() -> u32 reaches none crashes none;
+}
+boundary trait Registrar {
+    machine execute<const Callback: Handler::read>() -> u32
+        reaches none crashes none invokes Handler;
+}
+machine entry() invokes Handler {}
+"#;
+    let program = typed(text);
+    let handler = program
+        .traits()
+        .iter()
+        .find(|row| row.name.as_str() == "Handler")
+        .unwrap();
+    let handler_path = program.trait_declaration_path(handler);
+    let registrar = program
+        .traits()
+        .iter()
+        .find(|row| row.name.as_str() == "Registrar")
+        .unwrap();
+    let surface = typed_trees::service_declarations::projection::from_typed(
+        typed_trees::provider_declarations::ProviderPlanningContext::new(
+            &program,
+            source::DependencyScope::Product,
+        ),
+        registrar,
+    )
+    .unwrap();
+    assert_eq!(
+        surface.declaration.methods[0].synchronous_invocations,
+        [handler_path]
+    );
+    let frozen: typed_trees::FrozenTypedTrees = program.into();
+    let signature = frozen
+        .boundary_signatures()
+        .declarations()
+        .find(|row| row.method == "execute")
+        .unwrap();
+    let projection = signature.projection.as_ref().unwrap();
+    assert_eq!(projection.telescope.binders.len(), 1);
+    assert!(projection.telescope.binders[0].invokes_synchronously);
+    let refusal = verdict_kind(&judged(text));
+    assert!(
+        refusal.contains("invokes naming a requirement that is not a boundary trait"),
+        "{refusal}"
+    );
+}
+
+/// A misspelled entry must not become an empty provider contract, even when
+/// the declaration is prepared before its body is selected for checking.
+#[test]
+fn authored_invocation_projection_refuses_unresolved_targets() {
+    let text = r#"
+boundary trait Registrar {
+    machine execute() reaches none crashes none invokes Missing;
+}
+machine entry() invokes Missing {}
+"#;
+    let program = typed(text);
+    let registrar = program
+        .traits()
+        .iter()
+        .find(|row| row.name.as_str() == "Registrar")
+        .unwrap();
+    assert!(
+        typed_trees::service_declarations::projection::from_typed(
+            typed_trees::provider_declarations::ProviderPlanningContext::new(
+                &program,
+                source::DependencyScope::Product,
+            ),
+            registrar,
+        )
+        .is_none()
+    );
+    let frozen: typed_trees::FrozenTypedTrees = program.into();
+    let signature = frozen
+        .boundary_signatures()
+        .declarations()
+        .find(|row| row.method == "execute")
+        .unwrap();
+    assert!(
+        signature
+            .projection
+            .as_ref()
+            .err()
+            .unwrap()
+            .contains("Missing")
+    );
+    let refusal = verdict_kind(&judged(text));
+    assert!(
+        refusal.contains("invokes names nothing this program declares"),
+        "{refusal}"
+    );
+}

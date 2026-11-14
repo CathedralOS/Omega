@@ -2175,14 +2175,12 @@ pub mod invocations {
     use crate::signature::{
         AuthoredInvocation, AuthoredInvocationTarget, StateParameter, StateSignature,
     };
-    use crate::types::TypeReferenceHandle;
     use flow_effects::InvocationTarget;
-    use symbols::SymbolHandle;
 
     pub fn declared_signature_invocations(
         program: &TypedTrees,
         signature: &StateSignature,
-    ) -> Vec<InvocationTarget> {
+    ) -> Result<Vec<InvocationTarget>, String> {
         let parameters = program
             .state_signature_parameters(signature)
             .iter()
@@ -2197,7 +2195,7 @@ pub mod invocations {
     pub fn declared_machine_invocations(
         program: &TypedTrees,
         machine: &Machine,
-    ) -> Vec<InvocationTarget> {
+    ) -> Result<Vec<InvocationTarget>, String> {
         declared_targets(
             program,
             program.machine_invokes(machine),
@@ -2216,28 +2214,7 @@ pub mod invocations {
             .unwrap_or_default()
     }
 
-    pub fn boundary_requirement_symbol(
-        program: &TypedTrees,
-        type_reference: TypeReferenceHandle,
-    ) -> SymbolHandle {
-        program
-            .type_reference_node(type_reference)
-            .type_symbol(&program.type_reference_table)
-    }
-
-    pub fn boundary_service_for_type(
-        program: &TypedTrees,
-        type_reference: TypeReferenceHandle,
-    ) -> Option<SymbolHandle> {
-        let symbol = boundary_requirement_symbol(program, type_reference);
-        program
-            .traits()
-            .iter()
-            .any(|definition| definition.is_boundary && definition.symbol == symbol)
-            .then_some(symbol)
-    }
-
-    pub fn insert_target(targets: &mut Vec<InvocationTarget>, target: InvocationTarget) {
+    fn insert_target(targets: &mut Vec<InvocationTarget>, target: InvocationTarget) {
         if !targets.contains(&target) {
             targets.push(target);
             targets.sort_by_key(|target| match target {
@@ -2247,11 +2224,14 @@ pub mod invocations {
         }
     }
 
+    // Entry identities are not service reach: ordinary callback traits and
+    // parameter bindings remain meaningful. An unresolved row must refuse the
+    // projection instead of publishing a narrower contract than was authored.
     fn declared_targets(
         program: &TypedTrees,
         declarations: &[AuthoredInvocation],
         parameters: &[&StateParameter],
-    ) -> Vec<InvocationTarget> {
+    ) -> Result<Vec<InvocationTarget>, String> {
         let mut targets = Vec::new();
         for declaration in declarations {
             let target = match declaration.target {
@@ -2259,21 +2239,15 @@ pub mod invocations {
                 AuthoredInvocationTarget::Parameter { ordinal, symbol } => parameters
                     .get(ordinal as usize)
                     .filter(|parameter| parameter.symbol == symbol)
-                    .and_then(|parameter| {
-                        boundary_service_for_type(program, parameter.type_reference)
-                            .map(|_| InvocationTarget::Parameter(ordinal))
-                    }),
+                    .map(|_| InvocationTarget::Parameter(ordinal)),
                 AuthoredInvocationTarget::Service(symbol) => program
-                    .traits()
-                    .iter()
-                    .any(|definition| definition.symbol == symbol && definition.is_boundary)
-                    .then_some(InvocationTarget::Service(symbol)),
-            };
-            if let Some(target) = target {
-                insert_target(&mut targets, target);
+                    .trait_definition_by_symbol(symbol)
+                    .map(|_| InvocationTarget::Service(symbol)),
             }
+            .ok_or_else(|| format!("invokes `{declaration}` has no exact retained target"))?;
+            insert_target(&mut targets, target);
         }
-        targets
+        Ok(targets)
     }
 }
 pub mod layout_storage {
