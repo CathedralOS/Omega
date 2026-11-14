@@ -356,7 +356,10 @@ fn selection_requests(
             references.finish()?;
             let mut declared = SelectionReferences::new(typed, conformance.symbol);
             declared.extend([conformance.trait_symbol]);
-            for argument in typed.type_reference_handles(conformance.arguments) {
+            for argument in typed
+                .type_reference_table
+                .type_reference_handles(conformance.arguments)
+            {
                 typed_trees::references::visit_type_reference(typed, &mut declared, *argument);
             }
             let mut method = SelectionReferences::new(typed, {
@@ -386,7 +389,14 @@ fn selection_requests(
             (Err(_), _) => {}
         }
     }
-    for (_, result) in requests.iter_mut() {
+    for machine in &elaboration.module.machines {
+        let result = requests.get_mut(machine.id).ok_or_else(|| {
+            refuse(
+                machine.id,
+                Construct::Machine,
+                Unserved::Declaration("proof selection requests lost their emitted caller"),
+            )
+        })?;
         if let Ok(requests) = result {
             requests.sort_unstable_by_key(|request| (request.requester, request.owner));
             requests.dedup();
@@ -476,7 +486,11 @@ impl typed_trees::references::TypedReferences for SelectionReferences<'_> {
         if !aliases.is_empty() {
             for alias in aliases {
                 self.extend([alias.declaration]);
-                for argument in self.typed.type_reference_handles(alias.arguments) {
+                for argument in self
+                    .typed
+                    .type_reference_table
+                    .type_reference_handles(alias.arguments)
+                {
                     typed_trees::references::visit_type_reference(self.typed, self, *argument);
                 }
             }
