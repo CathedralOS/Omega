@@ -342,6 +342,36 @@ pub mod compute {
         ) -> Result<RecoveryClassification, RecoveryClassificationError> {
             Ok(RecoveryClassification::NoAdmittedRecovery { reason })
         }
+        #[cfg(test)]
+        mod tests {
+            use super::is_fixed_unsigned_u64;
+            use semantic_vocabulary::{
+                IntegerSign, IntegerType, MachineId, ScalarType, ValueId, WidthParameter,
+            };
+
+            #[test]
+            fn recovery_eligibility_requires_a_known_fixed_unsigned_64_width() {
+                let scalar =
+                    |sign, bits| ScalarType::Integer(IntegerType::new(sign, bits).unwrap());
+                assert!(is_fixed_unsigned_u64(scalar(IntegerSign::Unsigned, 64)));
+                let unknown = IntegerType::parameterized(
+                    IntegerSign::Unsigned,
+                    WidthParameter {
+                        owner: MachineId::new(1).unwrap(),
+                        value: ValueId::new(1).unwrap(),
+                    },
+                );
+                for candidate in [
+                    scalar(IntegerSign::Unsigned, 32),
+                    scalar(IntegerSign::Signed, 64),
+                    ScalarType::Integer(IntegerType::address(64).unwrap()),
+                    ScalarType::Integer(unknown),
+                    ScalarType::Boolean,
+                ] {
+                    assert!(!is_fixed_unsigned_u64(candidate), "{candidate:?}");
+                }
+            }
+        }
     }
     mod work_usage {
 
