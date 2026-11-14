@@ -597,6 +597,7 @@ pub(crate) mod affine_authority {
         pub(super) fn valid_transition(
             function: &PsiOptimizationFunction,
             types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+            unrestricted: &[PlaceId],
             entry: &OwnershipFrontierSnapshot,
             exit: &OwnershipFrontierSnapshot,
             actions: &[TerminalAffineCleanupAction],
@@ -606,7 +607,7 @@ pub(crate) mod affine_authority {
                 return false;
             };
             let Some(mut expected) =
-                retire_cleanup_roots(function, types, consumed.frontier, actions)
+                retire_cleanup_roots(function, types, unrestricted, consumed.frontier, actions)
             else {
                 return false;
             };
@@ -651,6 +652,7 @@ pub(crate) mod affine_authority {
         fn retire_cleanup_roots(
             function: &PsiOptimizationFunction,
             types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+            unrestricted: &[PlaceId],
             mut frontier: OwnershipFrontierSnapshot,
             actions: &[TerminalAffineCleanupAction],
         ) -> Option<OwnershipFrontierSnapshot> {
@@ -666,8 +668,7 @@ pub(crate) mod affine_authority {
                     .take_while(|action| action.place() == place)
                     .count();
                 let (group, rest) = remaining.split_at(count);
-                if crate::current_ownership::unrestricted_owned_cleanup_root(function, types, place)
-                {
+                if unrestricted.binary_search(&place).is_ok() {
                     if !matches!(group,
                         [TerminalAffineCleanupAction::RetireHome(root) | TerminalAffineCleanupAction::DiscardRoot(root)] if *root == place)
                         || frontier
@@ -918,6 +919,10 @@ pub(crate) mod affine_authority {
             .collect::<BTreeMap<_, _>>();
 
         for function in &unit.functions {
+            let unrestricted = crate::current_ownership::unrestricted_owned_cleanup_roots(
+                function,
+                &structural_types,
+            );
             for block in &function.blocks {
                 for (node_index, node) in block.nodes.iter().enumerate() {
                     let node_index = u32::try_from(node_index).expect("unit node index fits u32");
@@ -963,6 +968,7 @@ pub(crate) mod affine_authority {
                             if !block_bindings::valid_transition(
                                 function,
                                 &structural_types,
+                                &unrestricted,
                                 entry,
                                 exit,
                                 actions,

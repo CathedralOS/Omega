@@ -3193,30 +3193,89 @@ mod cleanup {
     /// Copyable values owe no disposal, but an explicit cleanup still needs
     /// their actual owned source and no-code declaration. Foundation validation
     /// checks that each cleanup use follows its dominating producer.
-    pub(crate) fn unrestricted_owned_cleanup_root(
+    pub(crate) fn unrestricted_owned_cleanup_roots(
         function: &PsiOptimizationFunction,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-        place: PlaceId,
-    ) -> bool {
-        crate::unit_validation::operation_contracts::structural_source_contract(function, place)
-            .filter(|source| {
-                source.access == terminal_psi::StructuralAccess::Owned
-                    && source.multiplicity == StructuralMultiplicity::Unrestricted
-                    && !function.entry_claim_declared(place)
-                    && !function.content_entry_claim_declared(place)
+    ) -> Vec<PlaceId> {
+        // Prepare the actual source roster once per cleanup transaction rather
+        // than searching the entire operation stream for each candidate home.
+        let mut claimed = function
+            .entry_claim_declarations
+            .iter()
+            .map(|claim| claim.input)
+            .chain(
+                function
+                    .content_entry_claims
+                    .iter()
+                    .map(|claim| claim.input.root),
+            )
+            .collect::<Vec<_>>();
+        claimed.sort_unstable();
+        claimed.dedup();
+        let eligible = |place, structural_type, multiplicity, access| {
+            access == terminal_psi::StructuralAccess::Owned
+                && multiplicity == StructuralMultiplicity::Unrestricted
+                && claimed.binary_search(&place).is_err()
+                && types.get(&structural_type).is_some_and(|declaration| {
+                    declaration.copyable
+                        && !declaration.owns_linear_claim
+                        && declaration.no_code_affine_cleanup
+                        && declaration.descriptor_cleanup
+                })
+        };
+        let mut roots = function
+            .structural_parameters
+            .iter()
+            .chain(function.block_structural_parameters())
+            .filter(|parameter| {
+                eligible(
+                    parameter.place,
+                    parameter.structural_type,
+                    parameter.multiplicity,
+                    parameter.access,
+                )
             })
-            .and_then(|source| types.get(&source.structural_type))
-            .is_some_and(|declaration| {
-                declaration.copyable
-                    && !declaration.owns_linear_claim
-                    && declaration.no_code_affine_cleanup
-                    && declaration.descriptor_cleanup
-            })
+            .map(|parameter| parameter.place)
+            .collect::<Vec<_>>();
+        for node in function.block_nodes() {
+            // Borrowed recipes have their own source rules and cannot own a
+            // disposable home, regardless of the carrier's copy permission.
+            if !node
+                .operation
+                .structural_result_metadata()
+                .is_some_and(|metadata| {
+                    matches!(
+                        metadata.role,
+                        abstract_operations::StructuralResultRole::OwnedValue
+                    )
+                })
+            {
+                continue;
+            }
+            if let Some(source) =
+                crate::unit_validation::operation_contracts::structural_operation_result_contract(
+                    function,
+                    &node.operation,
+                )
+                && let Some(result) = source.operation_result()
+                && eligible(
+                    result.place,
+                    source.structural_type,
+                    source.multiplicity,
+                    source.access,
+                )
+            {
+                roots.push(result.place);
+            }
+        }
+        roots.sort_unstable();
+        roots.dedup();
+        roots
     }
 
     pub(super) fn cleanup_root_order(
         function: &PsiOptimizationFunction,
-        types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+        unrestricted: &[PlaceId],
         frontier: &CurrentOwnership,
     ) -> Vec<PlaceId> {
         let mut results = Vec::new();
@@ -3224,7 +3283,7 @@ mod cleanup {
         for place in &function.structural_places {
             if !frontier.owned_places.contains_key(&place.id)
                 && !frontier.partial_custody_paths.contains_key(&place.id)
-                && !unrestricted_owned_cleanup_root(function, types, place.id)
+                && unrestricted.binary_search(&place.id).is_err()
             {
                 continue;
             }
@@ -3254,7 +3313,7 @@ mod cleanup {
                             || frontier
                                 .partial_custody_paths
                                 .contains_key(&parameter.place)
-                            || unrestricted_owned_cleanup_root(function, types, parameter.place)
+                            || unrestricted.binary_search(&parameter.place).is_ok()
                     })
                     .map(|parameter| parameter.place),
             )
@@ -3403,6 +3462,7 @@ mod cleanup {
         functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
         block: BlockId,
+        unrestricted: &[PlaceId],
         frontier: &mut CurrentOwnership,
         place: PlaceId,
         actions: &[TerminalAffineCleanupAction],
@@ -3412,7 +3472,7 @@ mod cleanup {
             machine: function.machine,
             block,
         };
-        if unrestricted_owned_cleanup_root(function, types, place) {
+        if unrestricted.binary_search(&place).is_ok() {
             if !matches!(actions,
                 [TerminalAffineCleanupAction::RetireHome(root) | TerminalAffineCleanupAction::DiscardRoot(root)] if *root == place)
                 || frontier.owned_places.contains_key(&place)
@@ -3823,7 +3883,9 @@ mod continuation {
             machine: function.machine,
             block,
         };
-        let roots = super::cleanup::cleanup_root_order(function, structural_types, frontier);
+        let unrestricted =
+            super::cleanup::unrestricted_owned_cleanup_roots(function, structural_types);
+        let roots = super::cleanup::cleanup_root_order(function, &unrestricted, frontier);
         let mut eligible = roots.into_iter();
         for group in actions.chunk_by(|left, right| left.place() == right.place()) {
             let place = group[0].place();
@@ -3835,6 +3897,7 @@ mod continuation {
                 functions,
                 structural_types,
                 block,
+                &unrestricted,
                 frontier,
                 place,
                 group,
@@ -9375,7 +9438,6 @@ mod structural {
     use crate::current_ownership::CurrentOwnership;
     use crate::current_ownership::residuals::partial_affine_residuals;
     use abstract_operations::AbstractOperation as O;
-    use abstract_operations::AbstractStructuralCallResult;
     use optimization_unit::PsiOptimizationFunction;
     use semantic_vocabulary::{PlaceId, StructuralTypeId};
     use std::collections::BTreeSet;
@@ -9443,40 +9505,23 @@ mod structural {
         else {
             return None;
         };
-        function
-            .block_nodes()
-            .find_map(|node| match &node.operation {
-                O::CallStructural {
-                    psi_operation,
-                    result: AbstractStructuralCallResult::Structural { result, .. },
-                    ..
-                }
-                | O::BoundaryCall {
-                    psi_operation,
-                    result: abstract_operations::AbstractBoundaryResult::Structural(result),
-                    ..
-                }
-                | O::EstablishStructuralArray {
-                    psi_operation,
-                    result,
-                    ..
-                }
-                | abstract_operations::establish_record_or_case_pattern!(
-                    psi_operation,
-                    result,
-                    ..
-                ) if *psi_operation == producer
-                    && result.place == place
-                    && result.structural_type == structural_type
-                    && result.multiplicity == StructuralMultiplicity::Affine
-                    && result.qualifications.is_empty()
-                    && result.projected_qualifications.is_empty()
-                    && result.claims.is_empty() =>
-                {
-                    Some(structural_type)
-                }
-                _ => None,
-            })
+        function.block_nodes().find_map(|node| {
+            let (operation, result) = node.operation.structural_result()?;
+            let source =
+                crate::unit_validation::operation_contracts::structural_operation_result_contract(
+                    function,
+                    &node.operation,
+                )?;
+            (operation == producer
+                && result.place == place
+                && result.structural_type == structural_type
+                && source.access == terminal_psi::StructuralAccess::Owned
+                && result.multiplicity == StructuralMultiplicity::Affine
+                && result.qualifications.is_empty()
+                && result.projected_qualifications.is_empty()
+                && result.claims.is_empty())
+            .then_some(structural_type)
+        })
     }
 
     pub(crate) fn partial_affine_root_is_drained(
@@ -10339,6 +10384,68 @@ mod value_custody {
         }
 
         #[test]
+        fn an_allocated_local_uses_its_real_result_contract_at_the_join() {
+            let (mut function, types, _) = context();
+            function.structural_parameters.clear();
+            function.structural_places[0].kind = StructuralPlaceKind::OperationResult {
+                producer: id(1),
+                structural_type: id(3),
+            };
+            function.blocks.push(optimization_unit::OptimizationBlock {
+                id: id(1),
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                nodes: vec![optimization_unit::OptimizationNode {
+                    operation: abstract_operations::AbstractOperation::EstablishStructuralLocal {
+                        psi_operation: id(1),
+                        result: terminal_psi::StructuralOperationResult {
+                            place: id(1),
+                            structural_type: id(3),
+                            multiplicity: StructuralMultiplicity::Affine,
+                            qualifications: Vec::new(),
+                            projected_qualifications: Vec::new(),
+                            additional_input_qualifications: Vec::new(),
+                            qualification_establishments: Vec::new(),
+                            claims: Vec::new(),
+                        },
+                    },
+                    provenance: Vec::new(),
+                    work: Vec::new(),
+                    effect: optimization_unit::EffectLink {
+                        input: 0,
+                        output: 1,
+                    },
+                    definitions: Vec::new(),
+                    uses: Vec::new(),
+                    successors: Vec::new(),
+                    ownership: Vec::new(),
+                }],
+            });
+            let children = current(vec![path(&[0, 0]), path(&[0, 1])]);
+            let parent = current(vec![path(&[0])]);
+            for (mut left, right) in [
+                (children.clone(), parent.clone()),
+                (parent.clone(), children.clone()),
+            ] {
+                join_owned_frontier(&function, &types, &mut left, &right).unwrap();
+                assert_eq!(left, parent);
+            }
+            for (producer, structural_type) in [(id(2), id(3)), (id(1), id(2))] {
+                let mut wrong = function.clone();
+                wrong.structural_places[0].kind = StructuralPlaceKind::OperationResult {
+                    producer,
+                    structural_type,
+                };
+                let mut left = children.clone();
+                assert!(join_owned_frontier(&wrong, &types, &mut left, &parent).is_none());
+                assert_eq!(
+                    left, children,
+                    "a mismatched declaration grants no local home authority"
+                );
+            }
+        }
+
+        #[test]
         fn a_join_compares_missing_regions_instead_of_their_partition_spelling() {
             let (function, types, destination) = context();
             let children = current(vec![path(&[0, 0]), path(&[0, 1])]);
@@ -10708,4 +10815,4 @@ fn reconstruct_entry_ownership(
 }
 
 pub(crate) use address_joins::validate_compatibility as validate_descriptor_compatibility;
-pub(crate) use cleanup::unrestricted_owned_cleanup_root;
+pub(crate) use cleanup::unrestricted_owned_cleanup_roots;
