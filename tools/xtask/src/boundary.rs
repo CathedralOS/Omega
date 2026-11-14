@@ -52,18 +52,6 @@ const PROVIDER_PLANNING: &str = "omega-rust/omega/compilation/realization/provid
 const REPRESENTATION_PLANNING: &str =
     "omega-rust/psi/compilation/validation/representation-planning";
 
-const SOURCE_STAGES: &[&str] = &[
-    "omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees",
-    "omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees",
-    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees",
-    "omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi",
-];
-
-const PARSER_STAGES: &[&str] = &[
-    "omega-rust/psi/compilation/pipeline/00_source-files-to-tokens",
-    "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees",
-];
-
 const PSI_STAGES: &[&str] = &[
     "omega-rust/psi/compilation/pipeline/00_source-files-to-tokens",
     "omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees",
@@ -73,6 +61,12 @@ const PSI_STAGES: &[&str] = &[
     "omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi",
     "omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi",
 ];
+
+// The final stage checks Terminal Psi; every earlier stage processes source.
+// Derive the source and parser subsets from the stage catalog so a separate
+// source roster cannot accidentally omit the lexer or parser from facade rules.
+const SOURCE_STAGES: &[&str] = PSI_STAGES.split_at(PSI_STAGES.len() - 1).0;
+const PARSER_STAGES: &[&str] = SOURCE_STAGES.split_at(2).0;
 
 const TERMINAL_STAGES: &[&str] = &[
     "omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi",
@@ -682,6 +676,38 @@ mod tests {
                     path: Some(format!("/repo/{dep_rel}")),
                 })
                 .collect(),
+        }
+    }
+
+    #[test]
+    fn facade_boundaries_follow_dependency_paths_not_source_or_alias_spelling() {
+        for (owner, stage, facade) in [
+            (CLI_APPLICATION, PSI_STAGES[0], BUILD_COORDINATOR),
+            (BUILD_COORDINATOR, OMEGA_STAGES[0], PRODUCT_COORDINATOR),
+            (PRODUCT_COORDINATOR, PSI_STAGES[0], PSI_FACADE),
+        ] {
+            for (dependency, kind, permitted) in [
+                (stage, None, false),
+                (stage, Some("build"), false),
+                (stage, Some("dev"), true),
+                (facade, None, true),
+            ] {
+                let metadata = Metadata {
+                    workspace_root: "/repo".to_owned(),
+                    packages: vec![pkg(
+                        "arbitrary_consumer_name",
+                        owner,
+                        &[("innocent_alias", dependency, kind)],
+                    )],
+                };
+                let violations =
+                    forbidden_dependency_violations(&metadata, &forbidden_rules()).unwrap();
+                assert_eq!(
+                    violations.is_empty(),
+                    permitted,
+                    "{owner} -> {dependency}: {violations:?}"
+                );
+            }
         }
     }
 
