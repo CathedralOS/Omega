@@ -1091,6 +1091,7 @@ mod tests {
             homed: false,
             erased: false,
             borrowed: None,
+            borrowed_regions: crate::body::Regions::NONE,
         };
         let slots = [slot()];
         let values = [Some(value)];
