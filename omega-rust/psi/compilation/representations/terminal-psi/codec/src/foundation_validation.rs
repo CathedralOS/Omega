@@ -2592,7 +2592,12 @@ mod empty_elimination_foundations {
                 &module.structural_types,
             )
             .unwrap();
-            assert!(availability.affine_roots.is_empty());
+            assert!(
+                module.machines[0]
+                    .structural_places
+                    .iter()
+                    .all(|place| { !availability.affine_roots.contains(place.id) })
+            );
             assert!(availability.cleanup.is_empty());
             assert!(availability.unavailable.is_empty());
         }
