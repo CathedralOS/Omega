@@ -249,6 +249,7 @@ fn selected_native_declarations_preserve_each_operational_flag() {
                 subjects: &[],
                 purpose: DependencyScope::Product,
                 selected: &[fixture.owner, fixture.requirement],
+                declaration_metadata: &[],
                 bindings: &[],
                 supplies: &[],
             },
