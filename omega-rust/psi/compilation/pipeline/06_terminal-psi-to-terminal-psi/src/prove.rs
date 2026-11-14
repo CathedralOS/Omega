@@ -1940,19 +1940,6 @@ impl<'a> Prover<'a> {
         right: &IntegerMathTerm,
     ) -> Result<ProofNode, Unproven> {
         let interval = self.arithmetic_interval(left, right);
-        #[cfg(test)]
-        if interval.is_err() && std::env::var_os("OMEGA_FORMATION_TRACE").is_some() {
-            eprintln!(
-                "ARITHMETIC goal={left:?} <= {right:?} relations={} result={interval:?}",
-                self.relations
-            );
-            for fact in &self.facts {
-                eprintln!(
-                    "ARITHMETIC fact={:?} axiom={:?}",
-                    fact.proposition, fact.axiom
-                );
-            }
-        }
         if interval.is_ok() || !self.relations {
             return interval;
         }
@@ -2120,13 +2107,6 @@ impl<'a> Prover<'a> {
                     Direction::Lower => order == Some(Ordering::Greater),
                 }
             });
-        #[cfg(test)]
-        if std::env::var_os("OMEGA_FORMATION_TRACE").is_some() {
-            eprintln!(
-                "AFFINE stronger={stronger} related={:?} interval={:?}",
-                related.conclusion, interval.conclusion
-            );
-        }
         Ok(if stronger { related } else { interval })
     }
 
@@ -2182,18 +2162,14 @@ impl<'a> Prover<'a> {
                         witness.definition_axioms.push(index);
                         witness.literal_axioms.push(None);
                     }
-                    let form = check_integer_affine_witness(self.context, self.axioms, &witness);
-                    #[cfg(test)]
-                    if std::env::var_os("OMEGA_FORMATION_TRACE").is_some() {
-                        eprintln!("AFFINE witness={witness:?} form={form:?}");
-                    }
-                    let Ok(form) = form else { continue };
-                    let conclusion = map_integer_affine_bound(&form, &fact.proposition);
-                    #[cfg(test)]
-                    if std::env::var_os("OMEGA_FORMATION_TRACE").is_some() {
-                        eprintln!("AFFINE conclusion={conclusion:?}");
-                    }
-                    let Ok(conclusion) = conclusion else { continue };
+                    let Ok(form) =
+                        check_integer_affine_witness(self.context, self.axioms, &witness)
+                    else {
+                        continue;
+                    };
+                    let Ok(conclusion) = map_integer_affine_bound(&form, &fact.proposition) else {
+                        continue;
+                    };
                     let (actual, limit, endpoint) = match (&conclusion, direction) {
                         (Proposition::IntegerMathLessOrEqual(actual, limit), Direction::Upper) => {
                             (actual, limit, 0)
@@ -2213,13 +2189,16 @@ impl<'a> Prover<'a> {
                     };
                     // Commuting the operands must itself have checked evidence.
                     // This also rejects an image for a different expression.
-                    let equality =
-                        self.closed(Proposition::IntegerMathEqual(actual.clone(), term.clone()));
-                    #[cfg(test)]
-                    if std::env::var_os("OMEGA_FORMATION_TRACE").is_some() {
-                        eprintln!("AFFINE equality={equality:?} actual={actual:?} term={term:?}");
-                    }
-                    let Some(equality) = equality else { continue };
+                    let (first, second) = if actual <= term {
+                        (actual, term)
+                    } else {
+                        (term, actual)
+                    };
+                    let Some(equality) =
+                        self.closed(Proposition::IntegerMathEqual(first.clone(), second.clone()))
+                    else {
+                        continue;
+                    };
                     let image = node(
                         conclusion,
                         ProofRule::IntegerAffineBound {
