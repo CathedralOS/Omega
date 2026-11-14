@@ -44,7 +44,7 @@
 20 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/candidates.rs
 128 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership.rs
 9 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/descriptor_results.rs
-290 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs
+284 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs
 1 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/construction.rs
 2 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/graph.rs
 9 omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/structural_places.rs
@@ -67,7 +67,7 @@
 1 omega-rust/psi/compilation/proof/admission/src/lib.rs
 2 omega-rust/psi/compilation/proof/admission/src/mathematical_core.rs
 6 omega-rust/psi/compilation/proof/admission/src/proof.rs
-9 omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs
+2 omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs
 1 omega-rust/psi/compilation/representations/terminal-psi/codec/src/term_wire.rs
 2 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/access.rs
 4 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/control_graph.rs

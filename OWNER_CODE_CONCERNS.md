@@ -185,13 +185,6 @@ framework or a list of features that remain unimplemented.
 - Cost: the surviving producer and consumers agree by spelling rather than a shared typed value; a reader that misses the form fails only at run time (`None`, or "dynamic family tuple identity is not an integer constant").
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### The Omega unit validator carries copies of two Terminal Psi codec checks
-- Category: one idea, several implementations
-- Where: `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs:17909` and `:17846`, against `omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs:8566` and `:11744`
-- Saw: `attachment_storage_types` differs between the two files in two lines (visibility and one `use`); `validate_structural_type_graph` is the same walk with a different error type and lookup
-- Cost: the type-graph rules live once on each side of the Psi/Omega boundary, so a fix on one side leaves the other accepting or rejecting something different, with no test found tying them together
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### The default ranking view is derived differently in resolution and typing
 - Category: re-deriving
 - Where: `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering_machine.rs` (`elaborate_single_subject_default`); `03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs` (`pending_ranking_default`)
