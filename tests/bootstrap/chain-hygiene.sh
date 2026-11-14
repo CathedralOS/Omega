@@ -19,6 +19,10 @@ command -v python3 >/dev/null 2>&1 || {
   echo "bootstrap owner inventory: skipped (python3 absent)"
   exit 0
 }
+[ -x "$OMEGA_XTASK_BIN" ] || {
+  echo "bootstrap owner inventory: skipped (xtask binary absent)"
+  exit 0
+}
 
 FIXTURE_PARENT=$(mktemp -d)
 trap 'rm -rf -- "$FIXTURE_PARENT"' EXIT HUP INT TERM

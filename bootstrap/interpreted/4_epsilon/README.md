@@ -177,7 +177,7 @@ identity, byte length, SHA-256 digest, and relative path. Declaration order is
 explicit. Directory enumeration never selects order; forward definitions share
 the same translation unit.
 
-[`source_closure.py`](../../../tools/bootstrap/source_closure.py) checks those
+`mbx xtask source-closure` checks those
 rows, closed ASCII source bytes, canonical nonsymlink member paths, and exact
 source inventory, then concatenates bytes without separators. It does not parse
 or lower Delta. Bootstrap callers use `OMEGA_PATH_EPSILON_COMPILER_SOURCES`

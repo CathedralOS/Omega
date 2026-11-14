@@ -9,10 +9,11 @@ OMEGA_REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/../.." && pwd -P)
 . "$SCRIPT_DIR/epsilon/evaluator_env.sh"
 . "$SCRIPT_DIR/omega/compiler_env.sh"
 
-command -v python3 >/dev/null 2>&1 || {
-  echo "bootstrap chain topology: skipped (python3 absent)"
+_xtask_bin=${OMEGA_XTASK_BIN:-"$OMEGA_REPO_ROOT/target/debug/xtask"}
+if [ ! -x "$_xtask_bin" ]; then
+  echo "bootstrap chain topology: skipped (xtask binary absent)"
   exit 0
-}
+fi
 
 fail() {
   echo "bootstrap paths: $*" >&2
@@ -75,8 +76,10 @@ done
   fail "bootstrap topology gate is not executable"
 [ -x "$OMEGA_REPO_ROOT/tests/bootstrap/alpha-beta-edge.sh" ] ||
   fail "Alpha-to-Beta edge gate is not executable"
-[ -x "$OMEGA_REPO_ROOT/tools/bootstrap/gamma/invoke.py" ] ||
-  fail "Gamma atomic invocation plumbing is not executable"
+xtask_usage=$("$_xtask_bin") ||
+  fail "xtask binary did not report its commands"
+printf '%s\n' "$xtask_usage" | grep -q 'gamma-invoke' ||
+  fail "Gamma atomic invocation plumbing is absent from xtask"
 [ -f "$OMEGA_PATH_BETA/LANGUAGE.md" ] || fail "Beta contract is absent"
 [ -f "$OMEGA_PATH_GAMMA/LANGUAGE.md" ] || fail "Gamma contract is absent"
 [ -f "$OMEGA_PATH_GAMMA/COMPOSED_ARTIFACT.md" ] ||
@@ -101,8 +104,10 @@ for compiler_rung in "$OMEGA_PATH_DELTA" "$OMEGA_PATH_EPSILON" "$OMEGA_PATH_OMEG
 do
   [ ! -e "$compiler_rung/compiler" ] || fail "redundant compiler directory remains: $compiler_rung/compiler"
 done
-[ -x "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" ] ||
-  fail "source-closure materializer is not executable"
+printf '%s\n' "$xtask_usage" | grep -q 'source-closure' ||
+  fail "source-closure materializer is absent from xtask"
+printf '%s\n' "$xtask_usage" | grep -q 'alpha-forge' ||
+  fail "Alpha Windows listing forge is absent from xtask"
 [ -x "$OMEGA_REPO_ROOT/tests/bootstrap/source-closure.sh" ] ||
   fail "source-closure gate is not executable"
 [ -f "$OMEGA_PATH_OMEGA/application/construction/build.omg" ] || fail "Omega compiler construction build root is absent"

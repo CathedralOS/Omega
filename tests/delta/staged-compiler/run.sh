@@ -15,7 +15,7 @@ CANONICAL_COMPILER="$TMP/compiler.gamma"
 # bound development driver entry packs on top of those bound members.
 require_delta_compiler_identity
 require_delta_compiler_development_entry_identity
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+bootstrap_xtask source-closure \
     "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$COMPILER" \
     --prefix "$OMEGA_PATH_DELTA_COMPILER_DEVELOPMENT_ENTRY"
 materialize_delta_compiler "$CANONICAL_COMPILER"

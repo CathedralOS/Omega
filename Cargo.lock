@@ -2985,8 +2985,10 @@ name = "xtask"
 version = "0.1.0"
 dependencies = [
  "bounded-process",
+ "libc",
  "serde",
  "serde_json",
+ "sha2",
  "shlex",
  "toml",
 ]

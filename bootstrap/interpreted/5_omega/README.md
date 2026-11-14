@@ -39,7 +39,7 @@ list or repeat target host/boundary policy; exact
 multi-target requests fan out into independently checked child compilations.
 
 The manifest, not directory enumeration or path order, selects and orders D's
-members. `tools/bootstrap/source_closure.py` validates every
+members. `mbx xtask source-closure` validates every
 declared length, digest, source byte, path, strictly increasing stable
 identity, and exact source inventory before concatenating bytes without separators.
 The current ten-member

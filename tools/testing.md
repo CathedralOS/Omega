@@ -395,7 +395,12 @@ reporting the host.
 ## Bootstrap gates
 
 Bootstrap gates are `sh` scripts, not Cargo tests, and skip on a host that
-cannot run them:
+cannot run them. Source-closure packing, the Alpha Windows listing forge, and
+Gamma evaluator invocation are `mbx xtask` commands and need the built `xtask`
+binary (`mbx build -p xtask`). The topology gate fails when that binary is
+absent. Admission does not run the gate: a pull request checks rules and
+formatting, and the workflow builds xtask only when pushing the xtask sources
+to `main`.
 
 ```bash
 sh tools/bootstrap/check-chain-hygiene.sh
