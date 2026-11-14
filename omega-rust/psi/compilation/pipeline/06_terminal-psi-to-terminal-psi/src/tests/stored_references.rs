@@ -395,3 +395,41 @@ machine build_entry(cell: &Cell) {{
         "{strengthened}"
     );
 }
+
+/// A whole data value is stored through the stored reference: a case of a
+/// sum field of the referent, as a Build writes `configuration.builder.
+/// subsystem = Subsystem::Unspecified { .. }`. The entry traps unless the
+/// cell it lent holds the new case with its payload and its scalar
+/// neighbour is untouched.
+#[test]
+fn a_data_value_is_stored_through_a_stored_reference() {
+    let status = run(r#"
+data Mode [copy] { case Idle; case Busy(level: u64); }
+data Engine { mode: Mode; count: u64; }
+data Holder<'storage> { engine: &'storage mut Engine; }
+machine start(holder: &mut Holder) { holder.engine.mode = Mode::Busy { level: 7 }; }
+machine entry() crashes Trap {
+    let mut engine: Engine = Engine { mode: Mode::Idle, count: 3 };
+    let mut holder: Holder = Holder { engine: &mut engine };
+    start(&mut holder);
+    transition engine.mode {
+        Mode::Busy { level } -> check(level, engine.count)
+        Mode::Idle -> bad()
+    }
+    machine check(level: u64, count: u64) crashes Trap {
+        transition level == 7 && count == 3 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#);
+    assert_eq!(
+        status,
+        Ok(terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        ))
+    );
+}

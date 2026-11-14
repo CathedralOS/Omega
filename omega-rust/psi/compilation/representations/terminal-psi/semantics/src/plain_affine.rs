@@ -1228,6 +1228,35 @@ impl Analysis<'_> {
                     // replacing one discardable value then preserves that
                     // availability without identifying or filling a hole.
                     let (mut receiving, exact) = self.observed(*destination, path)?;
+                    // A store through a reference lands in that reference's
+                    // backing, which is not this root's affine storage
+                    // (structural_access.md: "the explicit `Referent` path
+                    // segment crosses the borrowed boundary. Owned transfer,
+                    // claims, and referent cleanup cannot cross that
+                    // segment"). What this root owes is its descriptor, live
+                    // at the store. The backing is established for as long
+                    // as a reference to it exists (ownership.md: `&write T`
+                    // "requires an existing valid `T`, not vacant construction
+                    // storage"), so the store displaces a discardable value
+                    // and no region of this root changes.
+                    if !exact
+                        && path
+                            .iter()
+                            .any(|segment| matches!(segment, StructuralPathSegment::Referent))
+                    {
+                        self.read(state, *destination, &receiving, site)?;
+                        if settled {
+                            let required = StructuralStoreDisposition::ReplaceDiscardable;
+                            if self.verify_stores && *disposition != required {
+                                return Err(Error::malformed(
+                                    "a vacant store targets established storage behind a reference",
+                                ));
+                            }
+                            self.stores.push((operation.id, required));
+                        }
+                        // A field store produces no structural result.
+                        return Ok(());
+                    }
                     // An inline array owns its elements, not the external
                     // storage reached through one of their views/references.
                     if !exact
