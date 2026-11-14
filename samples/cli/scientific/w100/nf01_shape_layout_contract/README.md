@@ -8,7 +8,7 @@ runtime invalid layouts are handled separately by the consumer try operations.
 From the repository root, for each consumer:
 
 ```
-omega update --project samples/cli/scientific/w100/nf01_shape_layout_contract/readonly_consumer --target linux_x86_64
+omega packages update --project samples/cli/scientific/w100/nf01_shape_layout_contract/readonly_consumer --target linux_x86_64
 omega --check samples/cli/scientific/w100/nf01_shape_layout_contract/readonly_consumer/main.omg
 omega run samples/cli/scientific/w100/nf01_shape_layout_contract/readonly_consumer/main.omg
 omega run --both samples/cli/scientific/w100/nf01_shape_layout_contract/readonly_consumer/main.omg < /dev/null

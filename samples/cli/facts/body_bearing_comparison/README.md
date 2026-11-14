@@ -90,8 +90,8 @@ fetched baseline and are excluded from the scoped golden record.
 ```text
 omega run --both --keep samples/cli/facts/body_bearing_comparison/<place>/main.omg
 omega --check samples/cli/facts/body_bearing_comparison/<place>/invalid/main.omg
-omega inspect-terminal --machine main --output field.psi samples/cli/facts/body_bearing_comparison/field/main.omg
-omega inspect-terminal --artifact field.psi
+omega psi inspect --machine main --output field.psi samples/cli/facts/body_bearing_comparison/field/main.omg
+omega psi inspect --artifact field.psi
 python tools/corpus_gate.py --runner <qualified-runner> --filter facts/body_bearing_comparison
 ```
 

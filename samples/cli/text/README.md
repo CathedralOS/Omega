@@ -8,7 +8,7 @@ result. Each program pauses for Enter; EOF also completes it.
 From the repository root, for example on macOS ARM64:
 
 ```sh
-mbx run -p omega -- update --project samples/cli/text/parse_int --target macos_arm64
+mbx run -p omega -- packages update --project samples/cli/text/parse_int --target macos_arm64
 ```
 
 When review is requested, inspect the source findings and the project's
@@ -16,7 +16,7 @@ When review is requested, inspect the source findings and the project's
 then resume and execute:
 
 ```sh
-mbx run -p omega -- update --resume --project samples/cli/text/parse_int
+mbx run -p omega -- packages update --resume --project samples/cli/text/parse_int
 mbx run -p omega -- run samples/cli/text/parse_int/main.omg
 ```
 

@@ -524,9 +524,9 @@ owner calls the other owners it needs:
 
 | Command | Owner | Calls |
 | --- | --- | --- |
-| `omega <root.omg>` (build), `--check`, `inspect-terminal` | compiler | the interpreter engine, to execute Build programs |
+| `omega <root.omg>` (build), `--check`, `omega psi inspect` | compiler | the interpreter engine, to execute Build programs |
 | `omega run` | interpreter runtime | the compiler, for the program it executes |
-| `omega install`, `update`, `audit` | package manager | the compiler, for review |
+| `omega packages install`, `omega packages update`, `omega packages audit` | package manager | the compiler, for review |
 
 The interpreter engine is a library beneath both the compiler and the
 interpreter runtime, so neither command owner depends on the other's entrance.

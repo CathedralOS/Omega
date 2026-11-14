@@ -86,7 +86,7 @@ Recorded outcome on main base `33e34fd97e763f4725c6290f0a0d6ea1ec829224`:
   UID 65534. Supported per-command host execution reached ordinary checking.
 - Three application checks resolved authored arithmetic and borrow errors;
   the final check reports only the missing accepted std entry binding.
-- `omega update` checked both source packages and produced a 285-decision
+- `omega packages update` checked both source packages and produced a 285-decision
   review. Source rendering exceeded its resource limit; exact local sources
   are available. The first capture correctly refused a concurrent validator
   edit; the second completed with exit 3 and no accepted lock.

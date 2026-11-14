@@ -56,9 +56,9 @@ From the repository root, with a compiler built from the same checkout:
 
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
-omega update --project samples/cli/independent/spatial_sensor_deployment --target linux_x86_64
+omega packages update --project samples/cli/independent/spatial_sensor_deployment --target linux_x86_64
 # Read the produced review. Accept only its documented decisions, then resume.
-omega update --resume --project samples/cli/independent/spatial_sensor_deployment
+omega packages update --resume --project samples/cli/independent/spatial_sensor_deployment
 omega --check --target linux_x86_64 samples/cli/independent/spatial_sensor_deployment/main.omg
 printf 0 | omega run --both --keep samples/cli/independent/spatial_sensor_deployment/main.omg
 python3 samples/cli/independent/spatial_sensor_deployment/validate.py --omega /absolute/path/to/omega

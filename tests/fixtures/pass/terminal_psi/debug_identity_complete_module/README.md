@@ -10,8 +10,8 @@ either engine must exit 0 rather than taking the Trap branch.
 Public CLI reproduction from the repository root:
 
 ```text
-omega inspect-terminal --machine constant tests/omega/pass/terminal_psi/debug_identity_complete_module/main.omg
-omega inspect-terminal --machine state_graph tests/omega/pass/terminal_psi/debug_identity_complete_module/main.omg
-omega inspect-terminal --machine call_closure tests/omega/pass/terminal_psi/debug_identity_complete_module/main.omg
+omega psi inspect --machine constant tests/omega/pass/terminal_psi/debug_identity_complete_module/main.omg
+omega psi inspect --machine state_graph tests/omega/pass/terminal_psi/debug_identity_complete_module/main.omg
+omega psi inspect --machine call_closure tests/omega/pass/terminal_psi/debug_identity_complete_module/main.omg
 omega run --both tests/omega/pass/terminal_psi/debug_identity_complete_module/main.omg
 ```

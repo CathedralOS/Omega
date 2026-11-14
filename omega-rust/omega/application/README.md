@@ -6,9 +6,9 @@ into output and an exit status:
 
 | Command | Owner |
 | --- | --- |
-| `omega <root.omg>` (build), `--check`, `inspect-terminal` | the compiler |
+| `omega <root.omg>` (build), `--check`, `omega psi inspect` | the compiler |
 | `omega run` | the interpreter runtime |
-| `omega install`, `update`, `audit` | the package manager |
+| `omega packages install`, `omega packages update`, `omega packages audit` | the package manager |
 
 The owner calls whatever else it needs; the router holds no compile, run,
 build or package workflow of its own. See the

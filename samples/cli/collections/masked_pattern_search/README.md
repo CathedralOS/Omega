@@ -7,7 +7,7 @@ oracle checks three overlapping windows, a masked rejection, short/empty input,
 an empty pattern, a start beyond the input, and untouched boundary sentinels.
 
 ```sh
-omega update --project samples/cli/collections/masked_pattern_search --target macos_arm64 --offline --dangerously-accept-all
+omega packages update --project samples/cli/collections/masked_pattern_search --target macos_arm64 --offline --dangerously-accept-all
 omega run --both samples/cli/collections/masked_pattern_search/main.omg
 ```
 

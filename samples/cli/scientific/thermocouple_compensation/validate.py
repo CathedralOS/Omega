@@ -36,7 +36,7 @@ def main():
         result=invoke(prefix+['--check','--target','linux_x86_64',source],'check',output)
         return result.returncode
     if options.route=='terminal':
-        result=invoke(prefix+['inspect-terminal','--machine','Application::main','--target','linux_x86_64',source],'terminal',output)
+        result=invoke(prefix+['psi','inspect','--machine','Application::main','--target','linux_x86_64',source],'terminal',output)
         return result.returncode
     if options.route=='invalid':
         result=invoke(prefix+['--check','--target','linux_x86_64',str(ROOT/'controls/invalid_bounds/control.omg')],'invalid',output)

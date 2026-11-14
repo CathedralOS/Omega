@@ -5,7 +5,7 @@ emit objects and images, and capture Terminal-runtime provisions.
 `admit_realization` runs Omega 00 provider/entry admission and captures the
 admitted `TerminalRuntimeProvisions` before emission consumes the installation,
 so both `realize_native_artifact` and `admit_terminal_runtime` (`omega run
---engine terminal`) settle the exact same providers, entry, and host
+--engine psi`) settle the exact same providers, entry, and host
 realizations.
 */
 

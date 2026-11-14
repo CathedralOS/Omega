@@ -58,7 +58,7 @@ for name in ['phasor_power', 'quadrature_rotation', 'invalid_alias']:
     Build::depend_as(builder, "numerics", Source::Path {{ location: "{library}" }});
     Build::bind(builder, linux_x86_64::ProgramEntry, Main::main);
 }}\n''')
-    run(name, 'update', ['update', '--project', project, '--target', 'linux_x86_64'])
+    run(name, 'update', ['packages', 'update', '--project', project, '--target', 'linux_x86_64'])
     review = project / 'build/package-manager/review-linux_x86_64.txt'
     if review.exists():
         # Record the complete local-only findings before accepting. These are
@@ -66,7 +66,7 @@ for name in ['phasor_power', 'quadrature_rotation', 'invalid_alias']:
         shutil.copy2(review, output / f'{name}-review.txt')
         review.write_bytes(re.sub(rb'^(decision row [0-9a-f]+) pending$',
                                  rb'\1 accept', review.read_bytes(), flags=re.MULTILINE))
-        run(name, 'resume', ['update', '--project', project, '--resume'])
+        run(name, 'resume', ['packages', 'update', '--project', project, '--resume'])
     run(name, 'check', ['--check', '--target', 'linux_x86_64', project / 'main.omg'])
     if name != 'invalid_alias':
         run(name, 'native', ['run', project / 'main.omg'])

@@ -11,10 +11,10 @@ From the repository root, set `OMEGA_LIBRARY_ROOT` to this checkout's
 `source/library` and use a compiler built from the recorded base:
 
 ```sh
-omega update --project samples/cli/independent/gravimetric_mixture --target linux_x86_64
+omega packages update --project samples/cli/independent/gravimetric_mixture --target linux_x86_64
 # Review the generated build/package-manager/review-linux_x86_64.txt decisions; accept the std dependency
 # and its ordinary entry/provider grants, then:
-omega update --resume --project samples/cli/independent/gravimetric_mixture
+omega packages update --resume --project samples/cli/independent/gravimetric_mixture
 omega --check samples/cli/independent/gravimetric_mixture/main.omg
 omega run --both --keep samples/cli/independent/gravimetric_mixture/main.omg \
   < samples/cli/independent/gravimetric_mixture/data/nominal.txt

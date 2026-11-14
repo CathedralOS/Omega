@@ -349,13 +349,13 @@ fn accept_review(omega: &Path, root: &Path, project: &str, target: &str) -> Resu
     let _ = fs::remove_file(directory.join("omega.lock"));
     let update = |extra: &[&str]| -> Result<String, String> {
         let output = Command::new(omega)
-            .args(["update", "--project"])
+            .args(["packages", "update", "--project"])
             .arg(&directory)
             .args(extra)
             .current_dir(root)
             .stdin(Stdio::null())
             .output()
-            .map_err(|error| format!("omega update {project}: {error}"))?;
+            .map_err(|error| format!("omega packages update {project}: {error}"))?;
         let text = String::from_utf8_lossy(&output.stdout).into_owned()
             + &String::from_utf8_lossy(&output.stderr);
         Ok(if output.status.success() {

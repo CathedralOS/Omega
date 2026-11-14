@@ -38,9 +38,9 @@ gap competition, ambiguity, stable ties, coordinate recovery and traceback.
 From the repository root, use the current compiler binary as `omega`:
 
 ```sh
-omega update --project samples/cli/independent/bounded_sequence_alignment --target linux_x86_64
+omega packages update --project samples/cli/independent/bounded_sequence_alignment --target linux_x86_64
 # Review the generated package proposal; accept only the documented decisions.
-omega update --resume --project samples/cli/independent/bounded_sequence_alignment
+omega packages update --resume --project samples/cli/independent/bounded_sequence_alignment
 omega --check samples/cli/independent/bounded_sequence_alignment/main.omg
 omega samples/cli/independent/bounded_sequence_alignment/main.omg
 omega run --both --keep samples/cli/independent/bounded_sequence_alignment/main.omg < samples/cli/independent/bounded_sequence_alignment/data/gap.stdin

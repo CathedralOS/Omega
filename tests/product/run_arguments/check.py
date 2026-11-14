@@ -49,7 +49,7 @@ def main():
         source = repository / "samples/cli/facts/correlated_invariant_store/parameter"
         for name in ("main.omg", "build.omg"):
             shutil.copy2(source / name, project / name)
-        review = invoke("update", "--project", project, "--dangerously-accept-all")
+        review = invoke("packages", "update", "--project", project, "--dangerously-accept-all")
         assert review.returncode == 0, review
         inputs = workspace / "case inputs"
         inputs.mkdir()

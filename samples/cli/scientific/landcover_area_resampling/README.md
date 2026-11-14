@@ -51,9 +51,9 @@ From the repository root, using a compiler built at the recorded base:
 ```sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 omega --check --target linux_x86_64 samples/cli/independent/landcover_area_resampling/main.omg
-omega update --project samples/cli/independent/landcover_area_resampling --target linux_x86_64
+omega packages update --project samples/cli/independent/landcover_area_resampling --target linux_x86_64
 # Read the pending review. Accept only its reviewed decisions, then:
-omega update --resume --project samples/cli/independent/landcover_area_resampling
+omega packages update --resume --project samples/cli/independent/landcover_area_resampling
 omega --target linux_x86_64 samples/cli/independent/landcover_area_resampling/main.omg
 python3 samples/cli/independent/landcover_area_resampling/validate.py /absolute/path/to/native/executable --output samples/cli/independent/landcover_area_resampling/build/validation/native
 # Build the documented corpus_runner test target once, then reuse its executable.

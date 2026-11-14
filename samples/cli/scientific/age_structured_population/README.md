@@ -70,7 +70,7 @@ Here `omega` names that compiler and `S` is this sample directory:
 
 ```sh
 S=samples/cli/independent/age_structured_population
-omega update --project "$S" --target linux_x86_64
+omega packages update --project "$S" --target linux_x86_64
 # Review the exact generated pending decisions before accepting and resuming.
 omega --check "$S/main.omg"
 omega --build-dir "$S/build" "$S/main.omg"

@@ -15,7 +15,7 @@ Compile-checked only (no std dependency, no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/deferred_init_gated/main.omg
-mbx run -p omega -- update --project samples/cli/probes/deferred_init_gated
+mbx run -p omega -- packages update --project samples/cli/probes/deferred_init_gated
 ```
 
 Both green on Linux x86-64; `omega.lock` publishes locally, ignored.

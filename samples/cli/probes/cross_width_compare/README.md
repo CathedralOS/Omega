@@ -9,5 +9,5 @@ Compile-checked only (no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/cross_width_compare/main.omg
-mbx run -p omega -- update --project samples/cli/probes/cross_width_compare
+mbx run -p omega -- packages update --project samples/cli/probes/cross_width_compare
 ```

@@ -1,8 +1,8 @@
-// Parse arguments for `omega inspect-terminal`, selecting either source compilation (`--machine`) or a saved `.psi` file (`--artifact`).
+// Parse arguments for `omega psi inspect`, selecting either source compilation (`--machine`) or a saved `.psi` file (`--artifact`).
 
 use std::path::PathBuf;
 
-pub(super) const USAGE: &str = "usage: omega inspect-terminal --machine <qualified> [--target <name>] [--output <file>] <root.omg>\n       omega inspect-terminal --artifact <file>";
+pub(super) const USAGE: &str = "usage: omega psi inspect --machine <qualified> [--target <name>] [--output <file>] <root.omg>\n       omega psi inspect --artifact <file>";
 
 pub(crate) enum InspectTerminalArguments {
     Source {

@@ -107,9 +107,9 @@ build processes on one executor.
 
 ```sh
 sample=samples/cli/independent/nonlinear_diode_sweep
-omega update --project "$sample" --target linux_x86_64
+omega packages update --project "$sample" --target linux_x86_64
 # Read the resulting proposal, decide its exact review rows, then:
-omega update --resume --project "$sample"
+omega packages update --resume --project "$sample"
 omega --check --target linux_x86_64 "$sample/main.omg"
 omega run --keep "$sample/main.omg" < "$sample/data/mixed_bias.stdin"
 omega run --both --keep "$sample/main.omg" < "$sample/data/mixed_bias.stdin"

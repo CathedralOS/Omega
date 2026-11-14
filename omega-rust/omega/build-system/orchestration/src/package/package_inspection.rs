@@ -1,6 +1,6 @@
 /*
 
-Observational multi-target package audit (`omega audit packages`).
+Observational multi-target package audit (`omega packages audit`).
 
 `inspect_packages` opens a read-only `PackageInspectionTransaction` and a
 single `BuildSession` for the invocation, executes and settles the project's

@@ -1,6 +1,6 @@
 /*
 
-Console adapter for `omega install`, `omega update`, and `omega audit`.
+Console adapter for `omega packages install`, `omega packages update`, and `omega packages audit`.
 
 Package installation and update run inside a single retained `BuildSession` at
 `<project_root>/build/package-manager`. That session owns the temporary work
@@ -11,7 +11,7 @@ CLI invocation creates its own session and resource grant.
 When `execute_package_command` returns `PackageCommandStatus::ReviewRequired`,
 the normal workflow prints the review file paths and exits with code 3 so the
 user can inspect the findings, edit `decision ... pending` lines to `accept`,
-and run `omega install --resume` or `omega update --resume`.
+and run `omega packages install --resume` or `omega packages update --resume`.
 
 When `--dangerously-accept-all` is passed, `accept_pending_decisions` performs
 that exact text edit in place (`decision <subject> pending` ->

@@ -12,7 +12,7 @@ Borrowed computed-call temporaries select their cleanup after the call completes
 both empty and populated producer results preserve the captured answer 31.
 
 ```text
-omega update --project samples/cli/basics/sum_normal_cleanup
+omega packages update --project samples/cli/basics/sum_normal_cleanup
 omega run --both samples/cli/basics/sum_normal_cleanup/main.omg
 ```
 

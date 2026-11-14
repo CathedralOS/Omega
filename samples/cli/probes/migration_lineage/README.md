@@ -12,7 +12,7 @@ own non-aliased requirement identity.
   std-package path dependency route.
 - Package review staleness ("accepted package compiler identity
   changed"): `mbx run` rebuilds the compiler binary on sibling commits,
-  invalidating a just-run `omega update`. Invoke `target/debug/omega`
+  invalidating a just-run `omega packages update`. Invoke `target/debug/omega`
   directly after `mbx build -p omega` for update→check pairs.
 
 Compile-checked only: path-depends on `source/library/std`; run a

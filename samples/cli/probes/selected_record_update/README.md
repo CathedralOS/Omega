@@ -6,7 +6,7 @@ the original record and leave the third record untouched. Expected native and
 Terminal exit: 0.
 
 ```sh
-omega update --project samples/cli/collections/selected_record_update --target macos_arm64 --offline --dangerously-accept-all
+omega packages update --project samples/cli/collections/selected_record_update --target macos_arm64 --offline --dangerously-accept-all
 omega run --both samples/cli/collections/selected_record_update/main.omg
 ```
 

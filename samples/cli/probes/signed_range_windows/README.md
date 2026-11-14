@@ -27,7 +27,7 @@ Compile-checked only (no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/signed_range_windows/main.omg
-mbx run -p omega -- update --project samples/cli/probes/signed_range_windows
+mbx run -p omega -- packages update --project samples/cli/probes/signed_range_windows
 ```
 
 Both green on Linux x86-64; `omega.lock` publishes locally, ignored.

@@ -32,7 +32,7 @@ write access: GitHub hides drafts from read-only credentials. Download jobs
 expose the token only in the download step; the subsequent installed-compiler
 smoke has no release token and checkout does not persist Git credentials.
 Action dependencies are pinned by commit. These jobs do not implement installers
-or change `omega update`, which remains the package-update command.
+or change `omega packages update`, which remains the package-update command.
 
 The hosted matrix is an installation test, not the compiler-completion matrix.
 Release notes identify its tested hosts and verified source-acquisition paths.
@@ -121,7 +121,7 @@ directory containing spaces, checks the manifest and `--version`, checks source
 using the bundled library, and compiles/runs a native program that exits 42.
 The smoke process has an empty `PATH` and fresh temporary user/cache directories,
 so local compilation cannot rely on the producer's Rust toolchain, linker, or
-existing package snapshots. The fixed native fixture exercises `omega update`
+existing package snapshots. The fixed native fixture exercises `omega packages update`
 and accepts its generated local-library review decisions before compilation;
 this is not a dependency audit or automatic acceptance policy for user projects.
 Negative controls remove the installed library and corrupt one source: both must
@@ -161,7 +161,7 @@ Homebrew installs the complete bundle under `libexec` and symlinks only its
 command; WinGet's ZIP/portable manifest retains the archive layout and registers
 the nested executable. Both declare Git as a dependency. Neither runs Rust or
 builds Omega on the user's machine. Upgrades belong to those package managers;
-`omega update` remains project dependency review/update.
+`omega packages update` remains project dependency review/update.
 
 Before advertising a channel, validate its generated manifest with the actual
 manager, install it, run the source/native smoke through its registered command,

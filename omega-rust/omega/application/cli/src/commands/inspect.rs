@@ -1,6 +1,6 @@
 /*
 
-Console adapter for `omega inspect-terminal`.
+Console adapter for `omega psi inspect`.
 
 We either compile a source program and extract the requested machine's Terminal
 Psi module (`InspectTerminalArguments::Source`, optionally writing the encoded

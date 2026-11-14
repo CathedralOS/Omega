@@ -16,7 +16,7 @@ Compile-checked only (no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/const_generic_data/main.omg
-mbx run -p omega -- update --project samples/cli/probes/const_generic_data
+mbx run -p omega -- packages update --project samples/cli/probes/const_generic_data
 ```
 
 Both green on Linux x86-64 (exact-fraction warnings document the

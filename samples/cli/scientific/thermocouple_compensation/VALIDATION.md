@@ -56,7 +56,7 @@ compiles once and executes the one retained ELF artifact serially on all 23
 fixtures, then runs the independent frozen verifier. The comparison route uses
 `omega run --both --keep` on the representative fixtures in the README, checks
 Terminal/native exit agreement, and verifies the captured report independently.
-`inspect-terminal` records the public Terminal product inspection separately.
+`psi inspect` records the public Terminal product inspection separately.
 
 The invalid control uses `control.omg` as its explicit root, keeping it out of
 the generic valid-sample discovery of `main.omg`. Its first complete check
@@ -71,7 +71,7 @@ After those authoring fixes the optimized check reached exactly one remaining
 rejection: the Linux standard program-entry schema requires an accepted binding.
 This is the documented package-review boundary, not a compiler defect.
 
-Package review uses `omega update` and the generated exact review document. No
+Package review uses `omega packages update` and the generated exact review document. No
 validation command edits acceptance. Any denied acceptance is a remaining blocker
 and is retained without retry. Other hosts are described by build bindings, not
 claimed as validated by this Linux executor.
@@ -242,7 +242,7 @@ evidence. Its approved candidate `93eee04d41d32518c632f6f206dc52fffee1872d`
 and the prior accepted artifacts are preserved separately.
 
 The current-provider qualification builds one fresh optimized CLI against the
-integrated main, refreshes the package through ordinary `omega update --project
+integrated main, refreshes the package through ordinary `omega packages update --project
 samples/cli/independent/thermocouple_compensation --target linux_x86_64`, and
 retains the generated review and actual source/capability differences. Pending
 decisions require inspection before normal resume; denied acceptance is never

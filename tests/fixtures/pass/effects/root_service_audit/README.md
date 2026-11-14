@@ -6,7 +6,7 @@ The unselected state must not register `Untaken`. The driver's own Build
 registers `DependencyOnly`, which must not choose its consumer's audit policy.
 The root's unrelated `FilesystemContentWrite` spelling is not core-owned.
 
-`omega audit packages --project <this folder> --details` must highlight exactly
+`omega packages audit --project <this folder> --details` must highlight exactly
 `ConsumerAudit "audit_driver"::"MotorControl"` in the driver's findings, never
 `DependencyOnly`, `Untaken`, or the root's filesystem lookalike. Registration
 itself remains an acceptance-visible policy row, even without root exposure.

@@ -20,7 +20,7 @@ Compile-checked only (no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/case_domain_contract/main.omg
-mbx run -p omega -- update --project samples/cli/probes/case_domain_contract
+mbx run -p omega -- packages update --project samples/cli/probes/case_domain_contract
 ```
 
 Green on Linux x86-64 with the free-machine caller.

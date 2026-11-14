@@ -54,7 +54,7 @@ Concrete package preparation:
 
 ```sh
 export OMEGA_LIBRARY_ROOT=/workspace/Omega/.codex/worktrees/new084/source/library
-/workspace/new084-target/debug/omega update --project samples/cli/independent/error_correcting_telemetry --target linux_x86_64
+/workspace/new084-target/debug/omega packages update --project samples/cli/independent/error_correcting_telemetry --target linux_x86_64
 ```
 
 Exit 3, review required. Package keys:
@@ -149,7 +149,7 @@ FilesystemHost root permission, restricted-build request or host permission
 change was proposed. Exact current review SHA256:
 `359f3b2af66030e1f56f6198b5f1773df6b0f51aa86294355df497eea9248087`.
 
-The supported `omega update --resume --project
+The supported `omega packages update --resume --project
 samples/cli/independent/error_correcting_telemetry` action was nevertheless
 **rejected by automatic approval review before process creation**. The stated
 reason was persistent acceptance of all 285 decisions, including dangerous
