@@ -9,5 +9,3 @@
 1 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/output.rs
 7 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/register_allocation.rs
 5 omega-rust/omega/interpreter/terminal-runtime/src/runtime_boundary.rs
-3 omega-rust/psi/foundation/access-plans/src/tests.rs
-1 omega-rust/psi/interpreter/terminal-interpreter/src/embedding.rs

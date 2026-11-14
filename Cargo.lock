@@ -1616,7 +1616,6 @@ dependencies = [
  "effects",
  "optimization-core",
  "semantic-vocabulary",
- "source-audit",
  "target",
  "terminal-psi",
 ]
@@ -1693,7 +1692,6 @@ dependencies = [
  "runtime-abi",
  "semantic-vocabulary",
  "source",
- "source-audit",
  "symbols",
  "target",
  "terminal-codec",

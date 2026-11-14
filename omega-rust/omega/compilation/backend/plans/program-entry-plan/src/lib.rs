@@ -23,7 +23,6 @@ pub(crate) use optimization_core::digest_encoder;
 mod entry_signature;
 mod program_entry_physical;
 mod selected_entry;
-mod source_guards;
 
 pub use entry_signature::{ProgramEntryExtentFieldRole, ProgramEntryResultSignature};
 pub use entry_signature::{ProgramEntryExtentValueLayout, SelectedProgramEntrySignature};

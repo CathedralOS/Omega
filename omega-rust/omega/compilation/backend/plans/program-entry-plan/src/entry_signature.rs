@@ -459,3 +459,52 @@ fn push_shape(canonical: &mut Vec<u8>, shape: calling_conventions::ValueShape) {
     crate::codec_bytes::push_encoded(canonical, shape.byte_size.to_le_bytes());
     crate::codec_bytes::push_encoded(canonical, shape.alignment.to_le_bytes());
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn captured_callable_identity_uses_its_table_not_its_ordinal_or_display_name() {
+        let capture = |prefix, callable: &str, display: &str| {
+            let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+            if prefix {
+                identities.intern("unrelated identity");
+            }
+            let callable = identities.intern(callable);
+            SelectedProgramEntrySignature::from_checked_declaration(
+                target::TargetProfile::WindowsX64.program_entry_slot(),
+                "package::entry".into(),
+                display.into(),
+                "entry".into(),
+                callable,
+                Vec::new(),
+                identities.build(),
+            )
+            .unwrap()
+        };
+        let first = capture(false, "package::entry()", "entry");
+        let moved = capture(true, "package::entry()", "renamed display");
+        assert_ne!(
+            first.normalized_callable_identity(),
+            moved.normalized_callable_identity()
+        );
+        assert_eq!(first.identity(), moved.identity());
+        assert_ne!(
+            first.identity(),
+            capture(false, "other::entry()", "entry").identity()
+        );
+        assert!(
+            SelectedProgramEntrySignature::from_checked_declaration(
+                first.target_slot(),
+                "package::entry".into(),
+                "entry".into(),
+                "entry".into(),
+                terminal_psi::TerminalIdentityIndex::ABSENT,
+                Vec::new(),
+                first.identities().clone(),
+            )
+            .is_err()
+        );
+    }
+}

@@ -499,3 +499,53 @@ fn exact_package_source(package: Package) -> &'static [u8] {
         )),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn physical_contract_retains_interned_arrival_types_and_rejects_incomplete_inputs() {
+        let slot = TargetProfile::MacosArm64.program_entry_slot();
+        let package = Package::MacosArm64;
+        let calling = exact_hosted_physical_boundary_entry_plan(package).unwrap();
+        let parameters = vec![
+            MACOS_ARM64_I32_TYPE_IDENTITY.to_owned(),
+            MACOS_ARM64_ADDRESS_TYPE_IDENTITY.to_owned(),
+            MACOS_ARM64_ADDRESS_TYPE_IDENTITY.to_owned(),
+            MACOS_ARM64_ADDRESS_TYPE_IDENTITY.to_owned(),
+        ];
+        let capture = |parameters, result| {
+            ProgramEntryPhysicalContractPlan::new(
+                slot,
+                slot.physical_arrival_requirement.unwrap().to_owned(),
+                package,
+                exact_physical_contract_package_source_digest(package),
+                1,
+                parameters,
+                result,
+                calling.contract_report_fingerprint(),
+                calling.plan().clone(),
+            )
+        };
+        let plan = capture(parameters.clone(), MACOS_ARM64_I32_TYPE_IDENTITY.to_owned()).unwrap();
+        assert_eq!(
+            plan.identities().text(plan.requirement_identity()),
+            slot.physical_arrival_requirement
+        );
+        for (&identity, expected) in plan.parameter_type_identities().iter().zip(&parameters) {
+            assert_eq!(plan.identities().text(identity), Some(expected.as_str()));
+        }
+        assert_eq!(
+            plan.parameter_type_identities()[0],
+            plan.result_type_identity()
+        );
+        assert!(
+            plan.parameter_type_identities()[1..]
+                .iter()
+                .all(|identity| *identity == plan.parameter_type_identities()[1])
+        );
+        assert!(capture(Vec::new(), MACOS_ARM64_I32_TYPE_IDENTITY.to_owned()).is_err());
+        assert!(capture(parameters, String::new()).is_err());
+    }
+}
