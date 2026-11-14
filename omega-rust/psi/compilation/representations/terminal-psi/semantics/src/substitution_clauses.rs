@@ -103,6 +103,13 @@ pub fn substitute_clause<Error: From<&'static str>>(
                 Proposition::Falsehood
             }
         }
+        Proposition::Implication {
+            premise,
+            conclusion,
+        } => Proposition::Implication {
+            premise: Box::new(substitute_clause(premise, bindings)?),
+            conclusion: Box::new(substitute_clause(conclusion, bindings)?),
+        },
         Proposition::Conjunction(parts) => connective(parts, bindings, true)?,
         Proposition::Disjunction(parts) => connective(parts, bindings, false)?,
         _ => {
@@ -302,6 +309,54 @@ mod tests {
         assert_eq!(
             substitute_clause(&Proposition::LessThan(value(1), value(2)), &mut Inputs),
             Ok(Proposition::LessThan(value(2), value(1)))
+        );
+    }
+
+    #[test]
+    fn implication_substitution_keeps_both_scoped_operands_and_refuses_unbound_names() {
+        let predicate = |raw| {
+            Proposition::Equal(
+                ScalarTerm::value(ValueId::new(raw).unwrap(), ScalarType::Boolean),
+                ScalarTerm::Boolean(true),
+            )
+        };
+        let negated = Proposition::Implication {
+            premise: Box::new(predicate(1)),
+            conclusion: Box::new(Proposition::Falsehood),
+        };
+        assert_eq!(
+            substitute_clause(&negated, &mut Inputs),
+            Ok(Proposition::Implication {
+                premise: Box::new(predicate(2)),
+                conclusion: Box::new(Proposition::Falsehood),
+            })
+        );
+        let both = Proposition::Implication {
+            premise: Box::new(predicate(1)),
+            conclusion: Box::new(predicate(2)),
+        };
+        assert_eq!(
+            substitute_clause(&both, &mut Inputs),
+            Ok(Proposition::Implication {
+                premise: Box::new(predicate(2)),
+                conclusion: Box::new(predicate(1)),
+            })
+        );
+        let unknown_conclusion = Proposition::Implication {
+            premise: Box::new(Proposition::Falsehood),
+            conclusion: Box::new(predicate(3)),
+        };
+        assert_eq!(
+            substitute_clause(&unknown_conclusion, &mut Inputs),
+            Err("unbound value")
+        );
+        let unbound = Proposition::Implication {
+            premise: Box::new(predicate(3)),
+            conclusion: Box::new(Proposition::Truth),
+        };
+        assert_eq!(
+            substitute_clause(&unbound, &mut Inputs),
+            Err("unbound value")
         );
     }
 }

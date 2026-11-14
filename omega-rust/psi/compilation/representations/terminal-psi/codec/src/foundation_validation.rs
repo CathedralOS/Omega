@@ -13,7 +13,7 @@ pub(crate) mod call_foundations {
         validate_structural_path, validate_structural_qualifications,
     };
     use crate::codec_error::{CodecError, malformed};
-    use semantic_vocabulary::StructuralPlaceKind;
+    use semantic_vocabulary::{IntegerValue, ScalarTerm, ScalarType, StructuralPlaceKind, ValueId};
     use std::collections::BTreeSet;
     use terminal_psi::{
         Block, BoundaryDeclarationRole, BoundaryMachineResult, BoundaryStructuralResultDeclaration,
@@ -128,17 +128,21 @@ pub(crate) mod call_foundations {
         module: &TerminalModule,
         block: &Block,
         inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+        scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
+        sources: &terminal_semantics::normal_completion::ReturnSources<'_>,
     ) -> Result<(), CodecError> {
         let Terminator::InvokeNoNormal {
             callee,
             required_contract,
+            arguments,
+            erased_arguments,
             ..
-        } = block.terminator
+        } = &block.terminator
         else {
             return Ok(());
         };
         let contract = module
-            .invocation_machine_contract(callee, required_contract)
+            .invocation_machine_contract(*callee, *required_contract)
             .ok_or(CodecError::MalformedStructuralFoundation(
                 "no-normal invocation has no exact declared callee contract",
             ))?;
@@ -152,14 +156,101 @@ pub(crate) mod call_foundations {
         {
             return Ok(());
         }
-        if required_contract.is_some() {
-            return malformed("no-normal invocation has no uninhabited published result");
+        if published_postcondition_is_false(
+            contract,
+            arguments,
+            erased_arguments,
+            scalar_index,
+            sources,
+        )? {
+            return Ok(());
         }
-        match terminal_semantics::control_graph::normal_completion_possible(module, callee) {
+        if required_contract.is_some() {
+            return malformed("no-normal invocation has no published return exclusion");
+        }
+        match terminal_semantics::control_graph::normal_completion_possible(module, *callee) {
             Ok(false) => Ok(()),
             Ok(true) => malformed("no-normal invocation callee has a normal return"),
             Err(_) => malformed("no-normal invocation has no exact closed callee control graph"),
         }
+    }
+
+    fn boolean_actual(
+        value: ValueId,
+        scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
+        sources: &terminal_semantics::normal_completion::ReturnSources<'_>,
+    ) -> Option<bool> {
+        if sources.scalar_type(value) != Some(ScalarType::Boolean) {
+            return None;
+        }
+        match terminal_semantics::scalar_constant_value(value, |value| {
+            scalar_index.constant_origin(value)
+        })? {
+            (ScalarType::Boolean, IntegerValue::Unsigned(0)) => Some(false),
+            (ScalarType::Boolean, IntegerValue::Unsigned(1)) => Some(true),
+            _ => None,
+        }
+    }
+
+    fn published_postcondition_is_false(
+        contract: &terminal_psi::MachineContract,
+        arguments: &[ValueId],
+        erased_arguments: &[ScalarTerm],
+        scalar_index: &terminal_semantics::MachineScalarIndex<'_>,
+        sources: &terminal_semantics::normal_completion::ReturnSources<'_>,
+    ) -> Result<bool, CodecError> {
+        use terminal_semantics::inhabitation::{boolean_value_with, predicates_are_false_with};
+
+        if contract.parameters.len() != arguments.len()
+            || contract.erased_scalar_formals.len() != erased_arguments.len()
+        {
+            return malformed("no-normal invocation has the wrong scalar argument arity");
+        }
+        // Only genuine parameters of this visible contract name actuals.
+        // Looking a callee result/foreign ID up directly in the caller's
+        // constant index would let coincident numeric IDs invent a promise.
+        // Bind once, then borrow each retained clause without copying trees.
+        let mut booleans = Vec::with_capacity(arguments.len() + erased_arguments.len());
+        for (formal, actual) in contract.parameters.iter().zip(arguments) {
+            if sources.scalar_type(*actual) != Some(formal.scalar_type) {
+                return malformed("no-normal invocation has no exact scalar argument source");
+            }
+            let known = (formal.scalar_type == ScalarType::Boolean)
+                .then(|| boolean_actual(*actual, scalar_index, sources))
+                .flatten();
+            booleans.push((formal.id, known));
+        }
+        for (formal, actual) in contract.erased_scalar_formals.iter().zip(erased_arguments) {
+            if actual.scalar_type() != formal.scalar_type {
+                return malformed("no-normal invocation erased argument has the wrong carrier");
+            }
+            let known = (formal.scalar_type == ScalarType::Boolean)
+                .then(|| {
+                    boolean_value_with(actual, |value| boolean_actual(value, scalar_index, sources))
+                })
+                .flatten();
+            booleans.push((formal.id, known));
+        }
+        booleans.sort_unstable_by_key(|(formal, _)| *formal);
+        if booleans.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+            return malformed("no-normal invocation repeats a scalar formal identity");
+        }
+        Ok(contract.ensures.iter().any(|clause| {
+            predicates_are_false_with(std::slice::from_ref(&clause.proposition), |value| {
+                if contract
+                    .result
+                    .scalar_ref()
+                    .is_some_and(|result| result.id == value)
+                {
+                    None
+                } else {
+                    booleans
+                        .binary_search_by_key(&value, |(formal, _)| *formal)
+                        .ok()
+                        .and_then(|index| booleans[index].1)
+                }
+            })
+        }))
     }
 
     pub(crate) fn validate_call_unit(
@@ -956,7 +1047,14 @@ pub(crate) mod call_foundations {
     #[cfg(test)]
     mod no_normal_result_tests {
         use super::*;
-        use semantic_vocabulary::{ContractId, EdgeId, MachineId};
+        use semantic_vocabulary::{
+            ContractId, EdgeId, MachineId, ObligationId, OperationId, Proposition,
+        };
+        use terminal_psi::{
+            BoundaryParameterKind, ContractClause, MachineContract, StructuralRecordStorage,
+            StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+            TerminalIdentityIndex, ValueDeclaration,
+        };
         use terminal_semantics::inhabitation::{Inhabitation, TerminalContracts};
 
         fn invocation(required_contract: Option<ContractId>) -> Block {
@@ -979,6 +1077,92 @@ pub(crate) mod call_foundations {
                 crash_continuations: Vec::new(),
             };
             block
+        }
+
+        fn validate_caller(
+            module: &TerminalModule,
+            caller: &TerminalMachine,
+            query: &Inhabitation,
+        ) -> Result<(), CodecError> {
+            let index = terminal_semantics::MachineScalarIndex::new(caller);
+            let sources = terminal_semantics::normal_completion::ReturnSources::new(caller)
+                .map_err(CodecError::MalformedStructuralFoundation)?;
+            super::validate_no_normal_invocation(module, &caller.blocks[0], query, &index, &sources)
+        }
+
+        fn validate_no_normal_invocation(
+            module: &TerminalModule,
+            block: &Block,
+            query: &Inhabitation,
+        ) -> Result<(), CodecError> {
+            let mut caller = crate::semantic_module::target_family_tests::unit_machine(
+                MachineId::new(2).unwrap(),
+            );
+            caller.blocks[0] = block.clone();
+            validate_caller(module, &caller, query)
+        }
+
+        fn selected_contract(callee: &TerminalMachine) -> MachineContract {
+            let mut public = callee.contract.clone();
+            public.id = ContractId::new(2).unwrap();
+            public.selected_application = Some(terminal_psi::StaticRequirementDispatch {
+                conformance_application_report_fingerprint: 0,
+                conformance_application_commitment: Default::default(),
+                public_requirement_identity: Default::default(),
+                declaring_trait_identity: Default::default(),
+                requirement_identity: Default::default(),
+                realization_identity: Default::default(),
+                realization_callable_identity: Default::default(),
+                realization: callee.id,
+            });
+            public
+        }
+
+        fn boolean(raw: u64) -> ValueDeclaration {
+            ValueDeclaration {
+                id: ValueId::new(raw).unwrap(),
+                scalar_type: ScalarType::Boolean,
+                qualifications: Default::default(),
+            }
+        }
+
+        fn boolean_term(raw: u64) -> ScalarTerm {
+            ScalarTerm::Value {
+                id: ValueId::new(raw).unwrap(),
+                scalar_type: ScalarType::Boolean,
+            }
+        }
+
+        fn clause(proposition: Proposition) -> ContractClause {
+            ContractClause {
+                obligation: ObligationId::new(1).unwrap(),
+                proposition,
+            }
+        }
+
+        fn published(proposition: Proposition) -> (TerminalModule, TerminalMachine) {
+            let mut module = TerminalModule::declarations();
+            let mut callee = crate::semantic_module::target_family_tests::unit_machine(
+                MachineId::new(1).unwrap(),
+            );
+            callee.result = TerminalMachineResult::Scalar(boolean(42));
+            let mut contract = selected_contract(&callee);
+            contract.ensures.push(clause(proposition));
+            module.declaration_contracts.push(contract);
+            module.machines.push(callee);
+            let mut caller = crate::semantic_module::target_family_tests::unit_machine(
+                MachineId::new(2).unwrap(),
+            );
+            caller.blocks[0] = invocation(Some(ContractId::new(2).unwrap()));
+            (module, caller)
+        }
+
+        fn constant(caller: &mut TerminalMachine, raw: u64, value: bool) {
+            caller.blocks[0].operations.push(Operation::unsuspended(
+                OperationId::new(raw).unwrap(),
+                OperationResult::Scalar(boolean(raw)),
+                OperationKind::BooleanConstant { value },
+            ));
         }
 
         #[test]
@@ -1011,18 +1195,7 @@ pub(crate) mod call_foundations {
                 structural_arguments: Vec::new(),
                 cleanup_actions: Vec::new(),
             };
-            let mut public = callee.contract.clone();
-            public.id = ContractId::new(2).unwrap();
-            public.selected_application = Some(terminal_psi::StaticRequirementDispatch {
-                conformance_application_report_fingerprint: 0,
-                conformance_application_commitment: Default::default(),
-                public_requirement_identity: Default::default(),
-                declaring_trait_identity: Default::default(),
-                requirement_identity: Default::default(),
-                realization_identity: Default::default(),
-                realization_callable_identity: Default::default(),
-                realization: callee.id,
-            });
+            let public = selected_contract(&callee);
             module.declaration_contracts.push(public);
             module.machines.push(callee);
             let query = Inhabitation::prepare(&TerminalContracts::new([])).unwrap();
@@ -1036,7 +1209,233 @@ pub(crate) mod call_foundations {
                     &invocation(Some(ContractId::new(2).unwrap())),
                     &query,
                 ),
-                malformed("no-normal invocation has no uninhabited published result"),
+                malformed("no-normal invocation has no published return exclusion"),
+            );
+        }
+
+        #[test]
+        fn only_the_visible_false_postcondition_excludes_normal_return() {
+            let query = Inhabitation::prepare(&TerminalContracts::new([])).unwrap();
+            let (mut module, caller) = published(Proposition::Falsehood);
+            validate_caller(&module, &caller, &query).unwrap();
+            // These guard fixtures isolate contract visibility from the
+            // separate conformance/evidence checks on a complete artifact.
+            module.declaration_contracts[0].ensures[0].proposition = Proposition::Truth;
+            module.machines[0]
+                .ensures
+                .push(clause(Proposition::Falsehood));
+            assert!(validate_caller(&module, &caller, &query).is_err());
+        }
+
+        #[test]
+        fn published_boolean_parameters_use_exact_typed_actuals() {
+            let query = Inhabitation::prepare(&TerminalContracts::new([])).unwrap();
+            let (mut module, mut caller) = published(Proposition::Equal(
+                boolean_term(7),
+                ScalarTerm::Boolean(false),
+            ));
+            module.declaration_contracts[0].parameters.push(boolean(7));
+            let Terminator::InvokeNoNormal { arguments, .. } = &mut caller.blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            arguments.push(ValueId::new(9).unwrap());
+            constant(&mut caller, 9, true);
+            validate_caller(&module, &caller, &query).unwrap();
+            let mut wrong = boolean(9);
+            wrong.scalar_type = ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    8,
+                )
+                .unwrap(),
+            );
+            caller.blocks[0].operations[0].result = OperationResult::Scalar(wrong);
+            assert!(validate_caller(&module, &caller, &query).is_err());
+            caller.blocks[0].operations[0].result = OperationResult::Scalar(boolean(9));
+            caller.blocks[0].operations[0].kind = OperationKind::BooleanConstant { value: false };
+            assert!(validate_caller(&module, &caller, &query).is_err());
+            caller.blocks[0].operations.clear();
+            caller.parameters.push(boolean(9));
+            assert!(validate_caller(&module, &caller, &query).is_err());
+            caller.parameters.clear();
+            caller.result = TerminalMachineResult::Scalar(boolean(9));
+            assert!(validate_caller(&module, &caller, &query).is_err());
+            let Terminator::InvokeNoNormal { arguments, .. } = &mut caller.blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            arguments.clear();
+            assert!(validate_caller(&module, &caller, &query).is_err());
+        }
+
+        #[test]
+        fn erased_actuals_use_the_shared_caller_scoped_term_evaluator() {
+            let query = Inhabitation::prepare(&TerminalContracts::new([])).unwrap();
+            let (mut module, mut caller) = published(Proposition::Equal(
+                boolean_term(7),
+                ScalarTerm::Boolean(false),
+            ));
+            module.declaration_contracts[0]
+                .erased_scalar_formals
+                .push(boolean(7));
+            constant(&mut caller, 9, false);
+            let Terminator::InvokeNoNormal {
+                erased_arguments, ..
+            } = &mut caller.blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            erased_arguments.push(ScalarTerm::BooleanNot {
+                operand: Box::new(boolean_term(9)),
+            });
+            validate_caller(&module, &caller, &query).unwrap();
+            let Terminator::InvokeNoNormal {
+                erased_arguments, ..
+            } = &mut caller.blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            erased_arguments[0] = ScalarTerm::Boolean(false);
+            assert!(validate_caller(&module, &caller, &query).is_err());
+            let Terminator::InvokeNoNormal {
+                erased_arguments, ..
+            } = &mut caller.blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            erased_arguments[0] = ScalarTerm::StructuralRead {
+                root: semantic_vocabulary::PlaceId::new(1).unwrap(),
+                path: Vec::new(),
+                scalar_type: ScalarType::Boolean,
+            };
+            assert!(validate_caller(&module, &caller, &query).is_err());
+            let Terminator::InvokeNoNormal {
+                erased_arguments, ..
+            } = &mut caller.blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            erased_arguments[0] = ScalarTerm::BooleanNot {
+                operand: Box::new(boolean_term(42)),
+            };
+            caller.result = TerminalMachineResult::Scalar(boolean(42));
+            assert!(validate_caller(&module, &caller, &query).is_err());
+        }
+
+        #[test]
+        fn coincident_caller_constants_do_not_bind_result_or_foreign_contract_ids() {
+            let query = Inhabitation::prepare(&TerminalContracts::new([])).unwrap();
+            for unbound in [42, 99] {
+                let (module, mut caller) = published(Proposition::Equal(
+                    boolean_term(unbound),
+                    ScalarTerm::Boolean(false),
+                ));
+                constant(&mut caller, unbound, true);
+                assert!(validate_caller(&module, &caller, &query).is_err());
+            }
+        }
+
+        #[test]
+        fn an_empty_result_excludes_completion_despite_a_physical_structural_return() {
+            use semantic_vocabulary::{PlaceId, StructuralTypeId};
+
+            let mut module = TerminalModule::declarations();
+            let structural_type = StructuralTypeId::new(1).unwrap();
+            module.structural_types.push(StructuralTypeDeclaration {
+                id: structural_type,
+                identity: TerminalIdentityIndex::ABSENT,
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                copyable: true,
+                no_code_affine_cleanup: false,
+                descriptor_cleanup: false,
+                shape: StructuralTypeShape::Record {
+                    fields: Vec::new(),
+                    storage: StructuralRecordStorage::Packed,
+                },
+                scalar_restriction: None,
+                requires: vec![Proposition::Falsehood],
+            });
+            let parameter = StructuralParameterDeclaration {
+                place: PlaceId::new(1).unwrap(),
+                position: 0,
+                structural_type,
+                access: StructuralAccess::Owned,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
+            };
+            let input = StructuralPlaceDeclaration {
+                id: parameter.place,
+                kind: StructuralPlaceKind::Parameter { position: 0 },
+            };
+            let mut callee = crate::semantic_module::target_family_tests::unit_machine(
+                MachineId::new(1).unwrap(),
+            );
+            callee
+                .parameter_order
+                .push(BoundaryParameterKind::Structural);
+            callee.structural_parameters.push(parameter.clone());
+            callee.structural_places.push(input);
+            callee.result = TerminalMachineResult::Structural(StructuralResultDeclaration {
+                place: PlaceId::new(2).unwrap(),
+                structural_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                reference_sources: Vec::new(),
+            });
+            callee.structural_places.push(StructuralPlaceDeclaration {
+                id: PlaceId::new(2).unwrap(),
+                kind: StructuralPlaceKind::Result,
+            });
+            callee.blocks[0].terminator = Terminator::ReturnStructural {
+                edge: EdgeId::new(1).unwrap(),
+                source: parameter.place,
+                returned_claims: Vec::new(),
+                cleanup_actions: Vec::new(),
+            };
+            let callee_id = callee.id;
+            module.machines.push(callee);
+            let mut caller = crate::semantic_module::target_family_tests::unit_machine(
+                MachineId::new(2).unwrap(),
+            );
+            caller
+                .parameter_order
+                .push(BoundaryParameterKind::Structural);
+            caller.structural_parameters.push(parameter);
+            caller.structural_places.push(input);
+            caller.blocks[0] = invocation(None);
+            let Terminator::InvokeNoNormal {
+                structural_arguments,
+                ..
+            } = &mut caller.blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            structural_arguments.push(StructuralArgument::whole(
+                PlaceId::new(1).unwrap(),
+                StructuralAccess::Owned,
+            ));
+            assert!(
+                terminal_semantics::control_graph::normal_completion_possible(&module, callee_id)
+                    .unwrap()
+            );
+            let query =
+                Inhabitation::prepare(&TerminalContracts::new(module.structural_types.iter()))
+                    .unwrap();
+            // This tests the raw type/physical-graph admission boundary. No
+            // source acceptance or proof receipt is manufactured for the call.
+            validate_caller(&module, &caller, &query).unwrap();
+            module.structural_types[0].requires[0] = Proposition::Truth;
+            let query =
+                Inhabitation::prepare(&TerminalContracts::new(module.structural_types.iter()))
+                    .unwrap();
+            assert_eq!(
+                validate_caller(&module, &caller, &query),
+                malformed("no-normal invocation callee has a normal return")
             );
         }
     }
@@ -2456,12 +2855,34 @@ pub(crate) mod machine_foundations {
             )?;
         }
         validate_operation_result_places(machine)?;
+        let return_sources = validate_normal_return_shapes(machine, inhabitation)?;
+        let scalar_index = terminal_semantics::MachineScalarIndex::new(machine);
         for block in &machine.blocks {
             super::call_foundations::validate_external_completion(module, machine, block)?;
-            super::call_foundations::validate_no_normal_invocation(module, block, inhabitation)?;
+            super::call_foundations::validate_no_normal_invocation(
+                module,
+                block,
+                inhabitation,
+                &scalar_index,
+                &return_sources,
+            )?;
             validate_partial_affine_discards(module, machine, block)?;
         }
         Ok(())
+    }
+
+    fn validate_normal_return_shapes<'machine>(
+        machine: &'machine TerminalMachine,
+        inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+    ) -> Result<terminal_semantics::normal_completion::ReturnSources<'machine>, CodecError> {
+        let sources = terminal_semantics::normal_completion::ReturnSources::new(machine)
+            .map_err(CodecError::MalformedStructuralFoundation)?;
+        for block in &machine.blocks {
+            sources
+                .validate_return(&machine.result, &block.terminator, inhabitation)
+                .map_err(CodecError::MalformedStructuralFoundation)?;
+        }
+        Ok(sources)
     }
 
     fn validate_block_parameters(
@@ -2757,6 +3178,165 @@ pub(crate) mod machine_foundations {
             }
         }
         Ok(())
+    }
+
+    #[cfg(test)]
+    mod normal_return_shape_tests {
+        use super::*;
+        use semantic_vocabulary::{
+            EdgeId, IntegerSign, IntegerType, MachineId, PlaceId, Proposition, ScalarType,
+            StructuralTypeId, ValueId,
+        };
+        use terminal_psi::{
+            StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralRecordStorage,
+            StructuralResultDeclaration, StructuralTypeDeclaration, TerminalIdentityIndex,
+            TerminalMachineResult, ValueDeclaration,
+        };
+        use terminal_semantics::inhabitation::{Inhabitation, TerminalContracts};
+
+        fn scalar(raw: u64, scalar_type: ScalarType) -> ValueDeclaration {
+            ValueDeclaration {
+                id: ValueId::new(raw).unwrap(),
+                scalar_type,
+                qualifications: Default::default(),
+            }
+        }
+
+        fn record(raw: u64, empty: bool) -> StructuralTypeDeclaration {
+            StructuralTypeDeclaration {
+                id: StructuralTypeId::new(raw).unwrap(),
+                identity: TerminalIdentityIndex::ABSENT,
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                copyable: true,
+                no_code_affine_cleanup: false,
+                descriptor_cleanup: false,
+                shape: StructuralTypeShape::Record {
+                    fields: Vec::new(),
+                    storage: StructuralRecordStorage::Packed,
+                },
+                scalar_restriction: None,
+                requires: if empty {
+                    vec![Proposition::Falsehood]
+                } else {
+                    Vec::new()
+                },
+            }
+        }
+
+        fn machine() -> TerminalMachine {
+            crate::semantic_module::target_family_tests::unit_machine(MachineId::new(1).unwrap())
+        }
+
+        fn return_record(machine: &mut TerminalMachine, structural_type: StructuralTypeId) {
+            let place = PlaceId::new(1).unwrap();
+            machine
+                .structural_parameters
+                .push(StructuralParameterDeclaration {
+                    place,
+                    position: 0,
+                    structural_type,
+                    access: StructuralAccess::Owned,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                });
+            machine.structural_places.push(StructuralPlaceDeclaration {
+                id: place,
+                kind: StructuralPlaceKind::Parameter { position: 0 },
+            });
+            machine.blocks[0].terminator = Terminator::ReturnStructural {
+                edge: EdgeId::new(1).unwrap(),
+                source: place,
+                returned_claims: Vec::new(),
+                cleanup_actions: Vec::new(),
+            };
+        }
+
+        fn structural_result(structural_type: StructuralTypeId) -> TerminalMachineResult {
+            TerminalMachineResult::Structural(StructuralResultDeclaration {
+                place: PlaceId::new(2).unwrap(),
+                structural_type,
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                reference_sources: Vec::new(),
+            })
+        }
+
+        #[test]
+        fn normal_returns_match_actual_unit_and_scalar_sources() {
+            let query = Inhabitation::prepare(&TerminalContracts::new([])).unwrap();
+            let mut machine = machine();
+            validate_normal_return_shapes(&machine, &query).unwrap();
+            machine.result = TerminalMachineResult::Scalar(scalar(2, ScalarType::Boolean));
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+            machine.parameters.push(scalar(1, ScalarType::Boolean));
+            machine.blocks[0].terminator = Terminator::Return {
+                edge: EdgeId::new(1).unwrap(),
+                value: ValueId::new(1).unwrap(),
+                cleanup_actions: Vec::new(),
+            };
+            validate_normal_return_shapes(&machine, &query).unwrap();
+            machine.result = TerminalMachineResult::Unit;
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+            machine.result = TerminalMachineResult::Scalar(scalar(
+                2,
+                ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap()),
+            ));
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+            machine.parameters.clear();
+            machine.result = TerminalMachineResult::Scalar(scalar(1, ScalarType::Boolean));
+            // Neither the result placeholder nor an erased proof input is an
+            // executable scalar, even when its identity and type agree.
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+            machine
+                .erased_scalar_formals
+                .push(scalar(1, ScalarType::Boolean));
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+        }
+
+        #[test]
+        fn only_the_actual_owned_empty_source_can_cross_return_kinds() {
+            let types = [record(1, true), record(2, false)];
+            let query = Inhabitation::prepare(&TerminalContracts::new(&types)).unwrap();
+            let mut machine = machine();
+            return_record(&mut machine, types[0].id);
+            for result in [
+                TerminalMachineResult::Unit,
+                TerminalMachineResult::Scalar(scalar(1, ScalarType::Boolean)),
+                structural_result(types[1].id),
+            ] {
+                machine.result = result;
+                validate_normal_return_shapes(&machine, &query).unwrap();
+            }
+            machine.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+            machine.structural_parameters[0].access = StructuralAccess::Owned;
+            machine.result = TerminalMachineResult::Scalar(scalar(1, ScalarType::Boolean));
+            machine.structural_parameters[0].structural_type = types[1].id;
+            // An unrelated empty declaration grants no authority to return
+            // this inhabited record under a scalar result header.
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+            machine.structural_parameters[0].structural_type = types[0].id;
+            machine.structural_places.clear();
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+        }
+
+        #[test]
+        fn ordinary_structural_returns_require_the_declared_carrier() {
+            let types = [record(1, false), record(2, false)];
+            let query = Inhabitation::prepare(&TerminalContracts::new(&types)).unwrap();
+            let mut machine = machine();
+            return_record(&mut machine, types[0].id);
+            machine.result = structural_result(types[0].id);
+            validate_normal_return_shapes(&machine, &query).unwrap();
+            machine.result = structural_result(types[1].id);
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+            machine.structural_places[0].kind = StructuralPlaceKind::Result;
+            assert!(validate_normal_return_shapes(&machine, &query).is_err());
+        }
     }
 }
 pub(crate) mod native_layouts {

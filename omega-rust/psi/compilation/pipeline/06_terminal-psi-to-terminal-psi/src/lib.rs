@@ -396,10 +396,17 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
     // summarized under no input, and what it returns because of the input
     // its callers establish is a further clause. A summary already in the
     // contract is not added twice.
+    let diagnostic = elaboration
+        .module
+        .machines
+        .first()
+        .map(|machine| machine.id)
+        .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity"));
+    let inhabitation = prepare_inhabitation(&elaboration.module, diagnostic)?;
     let mut unreached = Unreached::new(elaboration);
-    result_summaries::infer(elaboration, &mut unreached)?;
-    entry_inputs::infer(elaboration, &mut unreached)?;
-    result_summaries::infer(elaboration, &mut unreached)?;
+    result_summaries::infer(elaboration, &mut unreached, &inhabitation)?;
+    entry_inputs::infer(elaboration, &mut unreached, &inhabitation)?;
+    result_summaries::infer(elaboration, &mut unreached, &inhabitation)?;
     let inputs = machine_inputs::PreparedMachineInputs::new(
         &elaboration.module,
         &elaboration.sources,
@@ -444,6 +451,7 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
         let beyond = unreached.values(terminal_machine(&module.machines, id, id)?, tables);
         machines.push(machine(
             module,
+            &inhabitation,
             &elaboration.domains,
             id,
             tables,
@@ -546,6 +554,7 @@ fn terminal_machine(
 
 fn machine(
     module: &TerminalModule,
+    inhabitation: &terminal_semantics::inhabitation::Inhabitation,
     domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
     id: MachineId,
     tables: &mut MachineTables,
@@ -569,7 +578,7 @@ fn machine(
         graph,
         context,
         reference_graph,
-    } = prepare(module, domains, id, tables)?;
+    } = prepare_with_inhabitation(module, domains, id, tables, inhabitation)?;
     let references = std::cell::RefCell::new(
         terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
             &module.structural_types,
@@ -1076,6 +1085,34 @@ pub(crate) fn prepare(
     id: MachineId,
     tables: &mut MachineTables,
 ) -> Checked<Prepared> {
+    let inhabitation = prepare_inhabitation(module, id)?;
+    prepare_with_inhabitation(module, domains, id, tables, &inhabitation)
+}
+
+fn prepare_inhabitation(
+    module: &TerminalModule,
+    id: MachineId,
+) -> Checked<terminal_semantics::inhabitation::Inhabitation> {
+    terminal_semantics::inhabitation::Inhabitation::prepare(
+        &terminal_semantics::inhabitation::TerminalContracts::new(&module.structural_types),
+    )
+    .map_err(|_| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            Construct::Machine,
+            "structural type contracts do not form one inhabitation family",
+        )
+    })
+}
+
+pub(crate) fn prepare_with_inhabitation(
+    module: &TerminalModule,
+    domains: &IdTable<StructuralTypeId, Vec<Proposition>>,
+    id: MachineId,
+    tables: &mut MachineTables,
+    inhabitation: &terminal_semantics::inhabitation::Inhabitation,
+) -> Checked<Prepared> {
     let machines = &module.machines;
     let structural_types = &module.structural_types;
     let lowered = terminal_machine(machines, id, id)?;
@@ -1085,7 +1122,7 @@ pub(crate) fn prepare(
     // owes, at its points, or deciding every row proves nothing (`minted`).
     // A consumer re-checking a saved proof decides rows too, so it checks
     // them the same way.
-    minted::follow_the_lowered_form(id, module, lowered, tables, &types)?;
+    minted::follow_the_lowered_form(id, module, lowered, tables, &types, inhabitation)?;
     minted::domains_are_declared(id, structural_types, domains)?;
     let graph = Graph::new(id, lowered, tables)?;
     // A ranking is admitted whole before any of its comparisons is decided,

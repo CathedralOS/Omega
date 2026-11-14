@@ -656,6 +656,9 @@ impl<'b> Walk<'b> {
                         .invocation((*callee).into(), *required_contract, machine)?;
                 let completes =
                     !crate::inhabitation::excludes_result(self.inhabitation, signature.result)
+                        && !terminal_semantics::inhabitation::predicates_are_false(
+                            &signature.ensures,
+                        )
                         && (required_contract.is_some() || reached.completes_normally);
                 let published = signature.operational.published(reached.operational);
                 for (contributes, published) in self.operational.iter_mut().zip(published) {

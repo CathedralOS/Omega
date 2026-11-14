@@ -1654,6 +1654,19 @@ impl<'a> Lowering<'a> {
     /// exclusive borrowed source uses `MoveStructuralField`, retaining its
     /// storage and restoration debt instead of consuming the incoming loan.
     pub(super) fn record(&mut self, expression: &Expression) -> Evaluation<PlaceId> {
+        let root = continuing!(self.owned_record(expression));
+        if self.empty_owned_value(root) {
+            // Keep the actual owned Empty expression as the completion. It
+            // cannot initialize a receiver, form a call argument or become a
+            // sibling value, so every consumer sees the same ended path.
+            self.return_record(root, expression.source)?;
+            Ok(Reached::Ended(expression.source))
+        } else {
+            Ok(Reached::Value(root))
+        }
+    }
+
+    fn owned_record(&mut self, expression: &Expression) -> Evaluation<PlaceId> {
         let at = continuing!(self.located(expression));
         if at.fresh && at.path.is_empty() {
             return Ok(Reached::Value(at.root));
