@@ -1953,6 +1953,7 @@ mod static_argument_positions {
     }
 }
 mod substitution {
+    use numerics::bignum::BigInt;
     /* Member and type-reference substitution. */
     use crate::preparation::declaration_selection;
     use crate::preparation::generic_data::ClosedArgumentIdentity;
@@ -2485,14 +2486,14 @@ mod substitution {
                 let argument_handles: Vec<TypeReferenceHandle> = syntax_type_references(syntax)
                     .type_reference_handles(arguments)
                     .to_vec();
-                let integer_types = generic_const_integer_types(syntax, base_name.as_str(syntax));
-                let const_bindings: HashMap<String, i128> = substitution
+                let integer_types = generic_const_integer_types(syntax, &base_name, selection);
+                let const_bindings: HashMap<String, BigInt> = substitution
                     .iter()
                     .filter_map(|(name, argument)| {
                         let value = syntax_type_references(syntax)
                             .type_reference(*argument)
                             .as_named()?;
-                        Some((name.clone(), value.as_str(syntax).parse::<i128>().ok()?))
+                        Some((name.clone(), value.as_str(syntax).parse::<BigInt>().ok()?))
                     })
                     .collect();
                 let mut substituted_arguments = Vec::with_capacity(argument_handles.len());
@@ -2899,6 +2900,7 @@ mod substitution {
     }
 }
 mod synthesis {
+    use numerics::bignum::BigInt;
     /* Closed-instance discovery, fixed-point synthesis and the ordered rewrite. */
     use crate::preparation::generic_data::ClosedArgumentIdentity;
     use crate::preparation::generic_data::ConstFactValue;
@@ -3366,7 +3368,7 @@ mod synthesis {
             .cloned()
             .zip(instance.argument_handles.iter().copied())
             .collect();
-        let const_parameter_values: HashMap<String, i128> = base_info
+        let const_parameter_values: HashMap<String, BigInt> = base_info
             .parameter_names
             .iter()
             .zip(&base_info.const_parameter_types)
@@ -3379,35 +3381,32 @@ mod synthesis {
                 Some((name.clone(), value.as_str(syntax).parse().ok()?))
             })
             .collect();
-        let const_parameter_type_names: HashMap<String, String> = base_info
+        let const_parameter_types = base_info
             .parameter_names
             .iter()
             .zip(&base_info.const_parameter_types)
             .filter_map(|(name, parameter_type)| {
-                let parameter_type = parameter_type.as_ref()?;
-                let type_name = syntax_type_references(syntax)
-                    .type_reference(*parameter_type)
-                    .as_named()?;
-                Some((name.clone(), type_name.as_str(syntax).to_string()))
+                let carrier = crate::preparation::generic_data::const_integer_type(
+                    syntax,
+                    (*parameter_type)?,
+                    selection,
+                )?;
+                Some((name.clone(), carrier))
             })
-            .collect();
+            .collect::<HashMap<_, _>>();
         let mut const_expressions: HashMap<String, ExpressionNode> = const_parameter_values
             .iter()
             .map(|(name, value)| {
-                use numerics::literals::{IntegerLanding, LandedIntegerType};
-                let Some(landed_type) = const_parameter_type_names
-                    .get(name)
-                    .map(String::as_str)
-                    .and_then(LandedIntegerType::from_name)
-                else {
+                use numerics::literals::IntegerLanding;
+                let Some(landed_type) = const_parameter_types.get(name).copied() else {
                     return Err(vec![Diagnostic::error(format!(
                         "const parameter `{name}` has no supported integer carrier for substitution"
                     ))]);
                 };
                 let literal = IntegerLiteral::from_parts(
-                    *value < 0,
+                    value.is_negative(),
                     IntegerRadix::Decimal,
-                    value.unsigned_abs().to_string().as_str(),
+                    value.abs().to_string().as_str(),
                 )
                 .expect("a concrete const argument is a valid decimal integer literal")
                 .with_landing(IntegerLanding {
@@ -3419,8 +3418,21 @@ mod synthesis {
             .collect::<Result<_, Vec<Diagnostic>>>()?;
         let mut const_parameter_scalars = const_parameter_values
             .iter()
-            .map(|(name, value)| (name.clone(), ConstScalarValue::Integer(*value)))
-            .collect::<HashMap<_, _>>();
+            .map(|(name, value)| {
+                let integer_type = const_parameter_types.get(name).copied().ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "const binding lost its selected integer carrier",
+                    )]
+                })?;
+                Ok((
+                    name.clone(),
+                    ConstScalarValue::DeclaredInteger {
+                        value: value.clone(),
+                        integer_type,
+                    },
+                ))
+            })
+            .collect::<Result<HashMap<_, _>, Vec<Diagnostic>>>()?;
         for (name, parameter_type) in base_info
             .parameter_names
             .iter()
@@ -3499,7 +3511,7 @@ mod synthesis {
                     snapshot,
                     membership,
                     &const_parameter_values,
-                    &const_parameter_type_names,
+                    &const_parameter_types,
                     selection,
                     warnings,
                 ),
@@ -3873,14 +3885,14 @@ pub(in crate::preparation::generic_data) use const_evaluation::{
     ConstPredicateAdmission, EvaluatedConst, canonicalize_closed_domain_indices,
     canonicalize_selected_declaration_value,
     canonicalize_selected_declaration_value_with_admission, canonicalize_selected_index_expression,
-    capture_machine_runtime_template_names, checked_fact_integer,
-    collect_callable_type_reference_positions, collect_data_type_reference_positions,
-    collect_selected_type_reference_positions, const_integer_in_envelope, const_integer_type,
-    domain_index_parameters, evaluate_const_argument_expression, generic_const_integer_types,
-    integer_literal_value, normalize_generic_template_const_expressions,
-    prepare_closed_application, prove_const_leaf_domain_constraints, qualified_const_name,
-    replace_const_expression_names_from, replace_machine_const_expression_names_from,
-    syntax_type_identity, validate_const_index_type, validate_syntax_integer_range,
+    capture_machine_runtime_template_names, collect_callable_type_reference_positions,
+    collect_data_type_reference_positions, collect_selected_type_reference_positions,
+    const_integer_type, const_integer_within_budget, domain_index_parameters,
+    evaluate_const_argument_expression, generic_const_integer_types, integer_literal_value,
+    normalize_generic_template_const_expressions, prepare_closed_application,
+    prove_const_leaf_domain_constraints, qualified_const_name, replace_const_expression_names_from,
+    replace_machine_const_expression_names_from, syntax_type_identity, validate_const_index_type,
+    validate_syntax_integer_range,
 };
 pub(in crate::preparation) use const_evaluation::{
     canonicalize_selected_const_definition, collect_type_positions,
@@ -4491,13 +4503,6 @@ pub(crate) fn canonicalize_pending_initializer_payload(
     The judgment retains the exact destination and completed initializer;
     encoding alone cannot publish an unproved qualification.
 */
-pub fn canonicalize_declared_const_definition(
-    syntax: &SyntaxTrees,
-    definition: &ConstDefinition,
-) -> Result<CanonicalConstValue, String> {
-    canonicalize_selected_declared_const_definition(syntax, definition, None)
-}
-
 pub(crate) fn canonicalize_selected_declared_const_definition(
     syntax: &SyntaxTrees,
     definition: &ConstDefinition,

@@ -30,7 +30,7 @@
 //! The standard library's Windows calling policy, which the compiler runs at
 //! compile time and no program calls:
 //!
-//!     --target windows_x86_64 --dependency omega_language_std=source/library/std --root WindowsX86_64::plan
+//!     --target windows_x86_64 --dependency omega_language_std=source/library/std --root windows_x86_64_entry_plan
 //!
 //! Without `--entry`, `main` is bound when the source declares it and a source
 //! without one is judged with no entry. `--target` defaults to `linux_x86_64`.

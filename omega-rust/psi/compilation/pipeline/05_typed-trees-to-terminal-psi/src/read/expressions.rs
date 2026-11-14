@@ -66,6 +66,46 @@ impl<'t> Program<'t> {
             })
     }
 
+    /// The rejection of a value path `Type::name` whose `Type` is a data
+    /// declaration with no member spelled `name`.
+    ///
+    /// data_and_literals.md: "Case values always use their carrier-qualified
+    /// member path", and "Cases, nested data and attached domains share
+    /// their owner's member namespace". A path through a data declaration to
+    /// a name it has no member of names nothing, in any program.
+    fn undeclared_data_member(
+        &self,
+        id: MachineId,
+        path: &TableNamePath,
+        source: SourceOrigin,
+    ) -> Checked<()> {
+        let typed = self.typed;
+        let (Some(symbol), [_, member]) = (
+            path.resolved_symbol(),
+            typed.expression_table.name_path_members(path.members),
+        ) else {
+            return Ok(());
+        };
+        if typed.symbols.get(symbol).kind != symbols::SymbolKind::Data
+            || typed
+                .symbols
+                .find_child_by_name(symbol, member.as_str())
+                .is_some()
+        {
+            return Ok(());
+        }
+        Err(reject(
+            id,
+            source,
+            format!(
+                "data `{}` has no member `{}`: a case value is written by its \
+                 carrier-qualified path, and this path names nothing the type declares",
+                typed.symbols.display_path(symbol, "::"),
+                member.as_str()
+            ),
+        ))
+    }
+
     pub(super) fn node(
         &self,
         id: MachineId,
@@ -106,6 +146,7 @@ impl<'t> Program<'t> {
                 (ExpressionKind::Boolean(*value), ScalarType::Boolean)
             }
             ExpressionNode::Name(path) => {
+                self.undeclared_data_member(id, path, source)?;
                 let slot = self.slot_of(id, slots, path)?;
                 let bound = &slots[slot];
                 match bound.value_type {
@@ -157,10 +198,11 @@ impl<'t> Program<'t> {
                 (ExpressionKind::Boolean(*value), ScalarType::Boolean)
             }
             ExpressionNode::Name(path) => {
+                self.undeclared_data_member(id, path, source)?;
                 let slot = self.slot_of(id, slots, path)?;
-                // The deleted checker rejected this program ("erased
-                // parameter ... has no runtime value"); this route does not
-                // own that rejection yet, so the closure falls back to it.
+                // An erased binding supplies no executable value. This
+                // reader does not materialize it; unsupported classification
+                // still prevents artifact acceptance.
                 if slots[slot].erased {
                     return unserved("runtime use of an erased binding");
                 }
@@ -176,7 +218,7 @@ impl<'t> Program<'t> {
                     result: Some(slots[slot].value_type),
                     source,
                 };
-                return self.observed(id, value, expected);
+                return self.held(id, slots, handle, value, expected, source);
             }
             ExpressionNode::Unary(unary) => {
                 let operand = self.expression(id, slots, unary.operand, expected)?;
@@ -419,7 +461,7 @@ impl<'t> Program<'t> {
             }
             ExpressionNode::Member(member) => {
                 let value = self.member(id, slots, member, source)?;
-                return self.observed(id, value, expected);
+                return self.held(id, slots, handle, value, expected, source);
             }
             ExpressionNode::Borrow(_) => {
                 let Some(expected) = expected else {
@@ -441,6 +483,34 @@ impl<'t> Program<'t> {
             result: Some(ValueType::Scalar(result, Qualification::NONE)),
             source,
         })
+    }
+
+    /// A named place where a value is expected. A place that holds a
+    /// reference of another access than the reference expected lends its
+    /// referent on with the expected access: an exclusive reference stored
+    /// into a shared field is a shared reborrow through it, which freezes
+    /// it (loans.md, "Reborrow lineage and access"), and the reverse asks a
+    /// shared reference for access it does not hold and is rejected there.
+    /// Every other place is seen as `observed` says.
+    fn held(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        handle: ExpressionHandle,
+        value: Expression,
+        expected: Option<ValueType>,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        if let (Some(wanted @ ValueType::Record(wanted_row, _, _)), Some(carried)) =
+            (expected, value.result)
+            && let ValueType::Record(carried_row, _, _) = carried
+            && wanted_row != carried_row
+            && self.reference_referent(id, wanted)?.is_some()
+            && self.reference_referent(id, carried)?.is_some()
+        {
+            return self.borrow_value(id, slots, handle, wanted, source);
+        }
+        self.observed(id, value, expected)
     }
 
     /// A place that holds a reference, as the context that names it sees it.
@@ -946,11 +1016,9 @@ fn binary_expression(
     // domain"). Two different policies select no operator ("incompatible
     // policies do not mix implicitly").
     //
-    // The plain partner is served when it is a literal, the case that
-    // sentence names. Whether a plain *binding* is one too is open
-    // (`OWNER_QUESTIONS.md`, decision `policy-operator-plain-operand`):
-    // the sentence reads that way, and the deleted checker rejected it as
-    // mixed arithmetic domains.
+    // The reader currently serves a plain partner only when it is a literal.
+    // Policy-domain signatures also permit a plain binding of the same
+    // carrier; that implementation gap is tracked by OPERATION-ARITHMETIC-POLICY.
     let carried = |value_type| match value_type {
         // domains.md, "Operands": builtin operators take unqualified
         // operands only. An arithmetic policy is the one qualification that

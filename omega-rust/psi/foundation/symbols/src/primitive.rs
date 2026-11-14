@@ -31,7 +31,6 @@ impl PrimitiveType {
             crate::BuiltinTypeAtom::Slice
             | crate::BuiltinTypeAtom::SyscallResult
             | crate::BuiltinTypeAtom::Terminal
-            | crate::BuiltinTypeAtom::Never
             | crate::BuiltinTypeAtom::UInt
             | crate::BuiltinTypeAtom::Int
             | crate::BuiltinTypeAtom::AtomicBool

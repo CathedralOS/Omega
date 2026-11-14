@@ -19,6 +19,9 @@
 //! that artifact and its seals stay beside it for Omega 00. An executable
 //! child requests its calling declarations before publication and receives a
 //! new judgment over the same source and full roster.
+#[path = "support/artifact_trust.rs"]
+mod artifact_trust;
+
 use psi_work::WorkMeter;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
@@ -139,9 +142,9 @@ fn an_accepted_program_is_published_from_the_routes_module_and_runs() {
         !expected.is_empty(),
         "the program has discharged operations"
     );
-    let input = terminal_psi_to_abstract_operations::lower_module_with_evidence(
-        publication.artifact.semantic_module(),
-        publication.seals.clone(),
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
+        &artifact_trust::authorize(&publication.artifact),
+        Some(publication.seals.clone()),
     )
     .expect("Omega 00 lowers the published module with its seals")
     .into_optimization_artifact()

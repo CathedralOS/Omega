@@ -873,8 +873,15 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
         .unwrap(),
     );
     let (recovered, recovered_permissions, installation_assumptions) =
-        terminal_psi_to_abstract_operations::recover_native_derivation_inputs(artifact, bytes)
-            .expect("reload the closed binding from its canonical artifact and saved inputs");
+        terminal_psi_to_abstract_operations::recover_native_derivation_inputs(
+            {
+                let authorization = pending.terminal.authorization().clone();
+                authorization.require_artifact(&artifact).unwrap();
+                authorization
+            },
+            bytes,
+        )
+        .expect("reload the closed binding from its canonical artifact and saved inputs");
     assert_eq!(recovered, pending.terminal);
     assert_eq!(recovered_permissions, pending.accepted_package_permissions);
     assert!(installation_assumptions.is_empty());
@@ -905,40 +912,18 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
             module.identities.text(declaration.owner.identity()),
             module.identities.text(declaration.identity),
         ));
-        for (label, plans) in [
-            (
-                "selected",
-                proposal
-                    .providers()
-                    .selection
-                    .plans()
-                    .iter()
-                    .collect::<Vec<_>>(),
-            ),
-            (
-                "declarations",
-                proposal
-                    .providers()
-                    .declarations
-                    .iter()
-                    .map(|row| &row.plan)
-                    .collect(),
-            ),
-        ] {
-            for plan in plans {
-                for row in plan.rows.iter().filter(|row| {
-                    plan.identities.text(row.declared_requirement_identity)
-                        == abi.requirement_identity
-                }) {
-                    binding_context.push_str(&format!(
-                        "{label} target={} root={:?} selected={:?} declared={:?} abi={:?}\n",
-                        plan.target,
-                        plan.schema.root_application_identity(),
-                        plan.identities.text(row.requirement_identity),
-                        plan.identities.text(row.declared_requirement_identity),
-                        row.calling_signature,
-                    ));
-                }
+        for plan in proposal.providers().selection.plans() {
+            for row in plan.rows.iter().filter(|row| {
+                plan.identities.text(row.declared_requirement_identity) == abi.requirement_identity
+            }) {
+                binding_context.push_str(&format!(
+                    "selected target={} root={:?} selected={:?} declared={:?} abi={:?}\n",
+                    plan.target,
+                    plan.schema.root_application_identity(),
+                    plan.identities.text(row.requirement_identity),
+                    plan.identities.text(row.declared_requirement_identity),
+                    row.calling_signature,
+                ));
             }
         }
     }
@@ -951,15 +936,12 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
                     selection.plans.len()
                 ));
                 for selected in &selection.plans {
-                    for row in &selected.plan.rows {
+                    for row in &selected.rows {
                         if row.calling_signature.is_some() {
                             binding_context.push_str(&format!(
                                 "publication selected={:?} declared={:?} abi={:?}\n",
-                                selected.plan.identities.text(row.requirement_identity),
-                                selected
-                                    .plan
-                                    .identities
-                                    .text(row.declared_requirement_identity),
+                                selected.identities.text(row.requirement_identity),
+                                selected.identities.text(row.declared_requirement_identity),
                                 row.calling_signature,
                             ));
                         }

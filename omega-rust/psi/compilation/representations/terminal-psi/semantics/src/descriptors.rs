@@ -2584,10 +2584,16 @@ pub mod descriptor_results {
                 root_type: StructuralTypeId,
             ) -> Option<()> {
                 self.validate_using(types, root_type, |carrier, path, _| {
-                    descriptor_location_type(types, carrier, path)
+                    descriptor_path(types, carrier, path)?;
+                    Some(descriptor_location_type(types, carrier, path))
                 })
             }
 
+            /// `location_type` answers `Some` for a path that resolves from
+            /// its carrier, holding the structural type at the path's end
+            /// when the end has one. A leaf need not: a byte view held in a
+            /// field resolves and has no declaration of its own. A query may
+            /// end at such a leaf and may not step through it.
             pub(crate) fn validate_using(
                 &self,
                 types: &[StructuralTypeDeclaration],
@@ -2596,7 +2602,7 @@ pub mod descriptor_results {
                     StructuralTypeId,
                     &[DescriptorPathSegment],
                     bool,
-                ) -> Option<StructuralTypeId>,
+                ) -> Option<Option<StructuralTypeId>>,
             ) -> Option<()> {
                 let mut tip = root_type;
                 let mut original = true;
@@ -2605,7 +2611,7 @@ pub mod descriptor_results {
                     match step {
                         DescriptorContentsStep::Address(segment) => path.push(segment.clone()),
                         DescriptorContentsStep::AnyElement { element } => {
-                            tip = location_type(tip, &path, original)?;
+                            tip = location_type(tip, &path, original)??;
                             let declaration = terminal_psi::find_structural_type(types, tip)?;
                             match declaration.shape {
                                 StructuralTypeShape::FixedArray {

@@ -375,7 +375,7 @@ fn requirements_with_no_crash_ceiling(source: &str) -> Vec<String> {
 #[test]
 fn every_build_host_operation_writes_its_crash_ceiling() {
     assert_eq!(
-        requirements_with_no_crash_ceiling(&crate::build_prelude_source()),
+        requirements_with_no_crash_ceiling(&crate::build_prelude().declarations),
         Vec::<String>::new()
     );
     // The same reading reports a requirement that leaves the clause out.
@@ -393,8 +393,8 @@ fn every_build_host_operation_writes_its_crash_ceiling() {
 
 #[test]
 fn build_selection_preparation_requires_the_original_mutable_build() {
-    let prelude = crate::build_prelude_source();
-    let parsed = psi_compiler::parse_text(&prelude).expect("Build API parses");
+    let prelude = crate::build_prelude();
+    let parsed = psi_compiler::parse_text(&prelude.declarations).expect("Build API parses");
     let syntax = &parsed.syntax;
     let protocol = syntax
         .root_items()
@@ -430,5 +430,33 @@ fn build_selection_preparation_requires_the_original_mutable_build() {
             (exclusive, true),
             "{name}"
         );
+    }
+}
+
+#[test]
+fn build_helpers_belong_to_modules_instead_of_data_carriers() {
+    let prelude = crate::build_prelude();
+    for (namespace, text) in std::iter::once((None, prelude.declarations)).chain(
+        prelude
+            .modules
+            .into_iter()
+            .map(|(namespace, text)| (Some(namespace), text)),
+    ) {
+        let syntax = psi_compiler::parse_text(&text)
+            .expect("compiler-owned prelude source")
+            .syntax;
+        let modules = syntax
+            .root_items()
+            .filter(|item| matches!(item, syntax_trees::item::Item::Module(_)))
+            .count();
+        assert_eq!(modules, usize::from(namespace.is_some()), "{namespace:?}");
+        for item in syntax.root_items() {
+            if let syntax_trees::item::Item::Machine(machine) = item {
+                assert!(
+                    machine.attached_data.is_none(),
+                    "{namespace:?}: a helper still names a data owner"
+                );
+            }
+        }
     }
 }

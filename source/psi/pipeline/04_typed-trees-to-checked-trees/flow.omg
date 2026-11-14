@@ -1278,7 +1278,7 @@ crashes Trap
         transition { _ -> arm(checker, syntax, resolution, typing, statement, offset + 1, checking, captured) }
     }
 
-    // Typing proved the arms cover the subject (typing/coverage.omg): no
+    // Typing proved the arms cover the subject (pipeline/03_symbol-resolved-trees-to-typed-trees/coverage.omg): no
     // path passes over every arm.
     machine finished(checker: &mut Checker, floor: u64 in Trapping) {
         checker.retained_values = floor;

@@ -255,19 +255,6 @@ machine wrong(viewed: &mut Viewed) {
     );
 }
 
-#[test]
-fn a_record_holding_shared_access_to_the_build_cannot_bind_an_entry() {
-    rejected_with(
-        "held_shared_binding",
-        "data Viewed<'activation, 'storage> { builder: &'activation Build<'storage>; }
-machine wrong(viewed: &mut Viewed) {
-    Build::bind(viewed.builder, linux_arm64::ProgramEntry, main);
-}
-",
-        "the reference it is reached through grants shared access only",
-    );
-}
-
 /// A field that leaves out the Build's own lifetime does not say which of
 /// its owner's lifetimes the Build's views live for, and is refused by name.
 #[test]
@@ -280,5 +267,74 @@ machine wrap<'activation>(builder: &'activation mut Build) -> Configuration<'act
 }
 ",
         "data field that elides a lifetime argument",
+    );
+}
+
+/// A helper that only holds the `Build` shared cannot bind an entry through
+/// it. entry_roots.md, "Source selection is not invocation": "The first
+/// argument explicitly supplies the current activation's mutable Build
+/// value; ordinary helpers may forward that value." The twin forwards it
+/// `&mut` and is accepted.
+#[test]
+fn binding_an_entry_needs_the_mutable_build_value() {
+    let helper = |access: &str| {
+        format!(
+            "machine helper(builder: &{access}Build) {{
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+}}
+"
+        )
+    };
+    assert_eq!(
+        refusals("bind-mutable", &helper("mut ")),
+        Vec::<String>::new()
+    );
+    rejected_with(
+        "bind-shared",
+        &helper(""),
+        "the reference it is reached through grants shared access only",
+    );
+}
+
+/// The same rule through a record that keeps the Build it was lent
+/// (`samples/cli/facts/build_activation_borrow`): binding through a stored
+/// `&mut Build` is the activation's mutable value forwarded, and through a
+/// stored `&Build` it is not, whether the record was built from the formal
+/// or from a local that held the exclusive reference first.
+#[test]
+fn binding_through_a_stored_build_reference_needs_it_stored_mutable() {
+    let holder = |access: &str, construction: &str| {
+        format!(
+            "data Configuration<'activation, 'storage> {{ builder: &'activation {access}Build<'storage>; }}
+machine bind_configuration(configuration: &mut Configuration) {{
+    Build::bind(configuration.builder, linux_arm64::ProgramEntry, main);
+}}
+machine helper(builder: &mut Build) {{
+    {construction}
+    bind_configuration(&mut configuration);
+}}
+"
+        )
+    };
+    let direct = "let mut configuration: Configuration = Configuration { builder: builder };";
+    let through_local = "let view: &mut Build = builder;
+    let mut configuration: Configuration = Configuration { builder: view };";
+    assert_eq!(
+        refusals("stored-mutable", &holder("mut ", direct)),
+        Vec::<String>::new()
+    );
+    assert_eq!(
+        refusals("stored-mutable-local", &holder("mut ", through_local)),
+        Vec::<String>::new()
+    );
+    rejected_with(
+        "stored-shared",
+        &holder("", direct),
+        "the caller lends only immutable access to this argument",
+    );
+    rejected_with(
+        "stored-shared-local",
+        &holder("", through_local),
+        "the caller lends only immutable access to this argument",
     );
 }

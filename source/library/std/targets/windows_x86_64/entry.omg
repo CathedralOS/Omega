@@ -14,14 +14,13 @@ boundary trait WindowsProcessEntry {
     machine enter() -> u32 reaches none crashes Trap crashes Abort;
 }
 
-data WindowsX86_64 {}
 WindowsX86_64CallingPolicy satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
-        WindowsX86_64::plan(signature)
+        windows_x86_64_entry_plan(signature)
     }
 }
 
-machine WindowsX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
+machine windows_x86_64_entry_plan(signature: BoundarySignature) -> BoundaryPlanResult
     satisfies CallingPolicy::plan
 {
     transition signature.parameter_count {
@@ -47,7 +46,7 @@ machine WindowsX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
     }
 
     machine physical_shape(result: ValueShape) -> BoundaryPlanResult {
-        transition HostedEntryShapes::integer_shape(&result, 4) {
+        transition hosted_entry_integer_shape(&result, 4) {
             true -> build_physical()
             _ -> reject()
         }
@@ -59,7 +58,7 @@ machine WindowsX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         output.call.has_result = true;
         // Process completion status returns in eax; the loader maps it to the
         // process exit code.
-        output.call.result = HostedEntryShapes::named_word(4,
+        output.call.result = hosted_entry_named_word(4,
             MachineRegister::X86Rax);
         transition { _ -> finish(output) }
     }
@@ -87,8 +86,8 @@ machine WindowsX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
     machine semantic_shapes(image: ValueShape, storage: ValueShape,
         signature: BoundarySignature) -> BoundaryPlanResult
     {
-        transition HostedEntryShapes::extent_shape(image, &signature)
-            && HostedEntryShapes::extent_shape(storage, &signature)
+        transition hosted_entry_extent_shape(image, &signature)
+            && hosted_entry_extent_shape(storage, &signature)
         {
             true -> build_semantic()
             _ -> reject()
@@ -101,9 +100,9 @@ machine WindowsX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
         // The generated bridge passes the image and initial-storage roots as
         // Microsoft x64 indirect aggregates: their pointers arrive in rcx and
         // rdx, with caller-owned copies at stack offsets 32 and 48.
-        output.call.parameters[0] = WindowsX86_64::extent_reference(
+        output.call.parameters[0] = windows_x86_64_entry_extent_reference(
             MachineRegister::X86Rcx, 32);
-        output.call.parameters[1] = WindowsX86_64::extent_reference(
+        output.call.parameters[1] = windows_x86_64_entry_extent_reference(
             MachineRegister::X86Rdx, 48);
         transition { _ -> finish(output) }
     }
@@ -169,7 +168,7 @@ machine WindowsX86_64::plan(signature: BoundarySignature) -> BoundaryPlanResult
     }
 }
 
-machine WindowsX86_64::extent_reference(register: MachineRegister,
+machine windows_x86_64_entry_extent_reference(register: MachineRegister,
     copy_stack_byte_offset: u64) -> ValuePlacement
 {
     // Integer fragments describe ABI placement only. The source application

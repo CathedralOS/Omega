@@ -74,7 +74,6 @@ pub(crate) fn prepare(
     graph: &Graph,
     context: &PropositionContext,
     invariants: &[ScalarBlockInvariant],
-    infer_joins: bool,
 ) -> Checked<Vec<(BlockId, Proposition)>> {
     let mut declared = Vec::new();
     for invariant in invariants.iter().filter(|row| row.machine == id) {
@@ -89,9 +88,7 @@ pub(crate) fn prepare(
         );
         declared.push((invariant.header, invariant.predicate.clone()));
     }
-    if infer_joins {
-        infer(lowered, id, tables, graph, context)?;
-    }
+    infer(lowered, id, tables, graph, context)?;
     Ok(declared)
 }
 
@@ -601,7 +598,6 @@ pub(crate) struct Machine<'a> {
     pub(crate) types: &'a semantic_vocabulary::IdTable<ValueId, ScalarType>,
     pub(crate) graph: &'a Graph,
     pub(crate) context: &'a PropositionContext,
-    pub(crate) relations: bool,
     /// Keep the producer's original predicates separate from inferred facts.
     /// An inference can be discarded; a failed declared claim still rejects.
     pub(crate) declared: &'a [(BlockId, Proposition)],
@@ -656,7 +652,6 @@ pub(crate) fn check(
                     obligation,
                     point,
                     goal,
-                    machine.relations,
                     machine.unreached,
                 )
                 .map(Discharged::Certificate)
