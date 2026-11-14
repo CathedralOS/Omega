@@ -87,6 +87,13 @@ framework or a list of features that remain unimplemented.
 - Cost: a second, looser reading of the Provider position stays served for no library; delete `DefaultClosure` and the `ProviderForm` parameter, turn the test into the refusal twin, and give the probe a named implementation
 - Reported: 2026-11-14, worker-15 (Claude Code), while moving std's ProcessExit defaults to a named implementation
 
+### A selected provider plan travels in two carriers, and only one knows its provider declaration
+- Category: 1. One idea, several implementations.
+- Where: `omega-rust/omega/compilation/realization/selected-dispatch/src/selected_execution.rs` (`SelectedExecution`), `backend-plan/src/target_providers.rs:30` (`TerminalTargetProviderPlan`), `effects/src/provider_evidence.rs:200` (`SelectedProviderPlanFacts`)
+- Saw: the checked-adapter join needs each plan's selecting declaration, which `ProviderPlan` does not hold; `TerminalTargetProviderPlan` wraps the plan with it, `SelectedProviderPlanFacts` sorts and validates bare plans, so `SelectedExecution` keeps both and `require_selected_provider_declarations` rejoins them by equality.
+- Cost: every consumer of selected plans must be handed both carriers and trust they agree; the declaration belongs in the plan.
+- Reported: 2026-11-14, Claude Code worker-10, while forming provider plans from settled supplies.
+
 ### Compiler operations are recognized by their bare spelling, and no declaration answers them
 - Category: one idea, several implementations
 - Where: `"code_layout"` in stage 02 `constant.rs:2063,2362`, `selection_authored.rs:392,1265` and stage 03 `statement_lowering.rs:1336`, `expression_lowering.rs:1445`; `"address_of"` in `expression_lowering.rs:1076`; `Quotient::lift`/`define` and `LayoutPlan::place_private` by namespace spelling in `expression_lowering.rs`
