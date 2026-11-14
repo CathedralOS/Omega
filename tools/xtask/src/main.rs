@@ -16,6 +16,7 @@
 //! - `cargo xtask alpha-forge LISTING OUTPUT` or `alpha-forge LISTING --check COMMITTED`
 //! - `cargo xtask gamma-invoke --evaluator PATH --source PATH --output PATH [--input PATH] [--timeout SECONDS]`
 //! - `cargo xtask source-closure MANIFEST OUTPUT [--prefix ENTRY]`
+//! - `cargo xtask sweep [--quick | --cause <text> --previous <sweep.tsv>] [--jobs <n>] [--out <file>]`
 
 mod alpha_forge;
 mod attached_machines;
@@ -36,6 +37,7 @@ mod rules;
 mod rust_producer_omission;
 mod samples;
 mod source_closure;
+mod sweep;
 mod worktree;
 
 use std::path::PathBuf;
@@ -69,7 +71,8 @@ commands:
   retire-attached-machines  Rewrite retired `machine Data::member` declarations as free machines
   alpha-forge      Resolve an Alpha Windows .hex listing into the seed image
   gamma-invoke     Frame Gamma source and run one evaluator
-  source-closure   Check and concatenate an ordered source-closure manifest"
+  source-closure   Check and concatenate an ordered source-closure manifest
+  sweep            Run omega --check over the programs and group where each one stops"
 }
 
 fn main() -> ExitCode {
@@ -97,6 +100,7 @@ fn main() -> ExitCode {
         "alpha-forge" => alpha_forge::run(&args),
         "gamma-invoke" => gamma_invoke::run(&args),
         "source-closure" => source_closure::run(&args),
+        "sweep" => sweep::run(&args),
         other => {
             eprintln!("xtask: unknown command `{other}`\n\n{}", usage());
             return ExitCode::from(2);
