@@ -339,6 +339,10 @@ impl PreparedBuildMachineProgram {
         request: &typed_trees::expression::TableCallExpression,
         request_expression: typed_trees::expression::ExpressionHandle,
         arguments: &[crate::BuildTimeValue],
+        selected: Option<(
+            &typed_trees::expression::StaticMachineArgument,
+            SymbolHandle,
+        )>,
     ) -> Result<PreparedBuildMachineEntry, String> {
         if !self.source.symbols.symbols().nodes().is_valid(requester)
             || self
@@ -356,6 +360,7 @@ impl PreparedBuildMachineProgram {
             request,
             arguments,
             request_expression,
+            selected,
         )?;
         // The call's source reaches the checker the way every program does,
         // through typed preparation; there is no second way to freeze it.
@@ -566,7 +571,7 @@ impl PreparedBuildMachineProgram {
         {
             return Err("source job call lost its complete argument list".into());
         }
-        self.prepare_call(requester, declaration, call, expression, arguments)
+        self.prepare_call(requester, declaration, call, expression, arguments, None)
     }
 
     pub fn entry(
@@ -595,6 +600,95 @@ impl PreparedBuildMachineProgram {
             &call,
             typed_trees::expression::ExpressionHandle::invalid(),
             arguments,
+            None,
+        )
+    }
+
+    /// Construct an ordinary call through an exact named implementation. The
+    /// operand describes a requested choice; the returned entry has still
+    /// passed the same actual-argument and independent refinement judgments.
+    /// Domain consumers must separately authenticate their owning source
+    /// coordinate against this entry before adopting its result as a policy.
+    pub fn entry_selected(
+        &self,
+        requester: SymbolHandle,
+        selection_owner: SymbolHandle,
+        selection: &typed_trees::expression::StaticMachineArgument,
+        requirement: SymbolHandle,
+        arguments: &[crate::BuildTimeValue],
+    ) -> Result<PreparedBuildMachineEntry, String> {
+        use typed_trees::type_identity::{
+            DeclaredStaticOperandIdentityRequest, IndexIdentityArgument,
+        };
+        if !self
+            .source
+            .symbols
+            .symbols()
+            .nodes()
+            .is_valid(selection_owner)
+            || self
+                .source
+                .symbols
+                .symbol_provenance_source_span(selection_owner)
+                .is_none()
+        {
+            return Err("selected source invocation lost its actual supplying declaration".into());
+        }
+        if !self
+            .source
+            .symbols
+            .symbols()
+            .nodes()
+            .is_valid(selection.symbol)
+            || self.source.symbols.get(selection.symbol).kind != symbols::SymbolKind::Conformance
+        {
+            return Err(
+                "selected source invocation has no retained implementation declaration".into(),
+            );
+        }
+        if selection.type_reference.is_valid()
+            && !self
+                .source
+                .type_reference_table
+                .contains_type_reference(selection.type_reference)
+        {
+            return Err("selected source invocation has a stale operand reference".into());
+        }
+        self.source
+            .static_operand_region_supplier(selection, selection_owner)?;
+        self.source
+            .declared_static_operand_identity(DeclaredStaticOperandIdentityRequest {
+                operand: IndexIdentityArgument::StaticArgument(selection),
+                lexical_owner: selection_owner,
+                binders: &[],
+                lifetime_binders: &[],
+            })
+            .ok_or("selected source invocation has no complete operand identity")?;
+        let (_, _, signature) = self
+            .source
+            .named_conformance_member(selection.symbol, requirement)?
+            .ok_or("selected source invocation needs a named implementation requirement")?;
+        // The current named-member owner serves a closed, nongeneric map.
+        // Until it serves applied maps, extra arguments cannot be discarded.
+        if selection.application.as_ref().is_some_and(|application| {
+            application.member.is_valid()
+                || !application.arguments.is_empty()
+                || !application.lifetime_arguments.is_empty()
+        }) || selection.const_literal.is_some()
+            || selection.evidence_projection.is_some()
+        {
+            return Err(
+                "selected source invocation needs its prepared complete application".into(),
+            );
+        }
+        let call = invocation::declaration_call(signature.symbol, signature.name.clone());
+        self.prepare_call(
+            requester,
+            typed_trees::callable_signature_shapes::CallableDeclaration::Signature(signature),
+            &call,
+            typed_trees::expression::ExpressionHandle::invalid(),
+            arguments,
+            Some((selection, selection_owner)),
         )
     }
 }
@@ -696,6 +790,60 @@ pub(crate) mod tests {
             panic!("the returned value is the authored call")
         };
         (machine.symbol, *expression)
+    }
+
+    #[test]
+    fn source_jobs_retain_the_selected_implementation_member() {
+        // Selecting an implementation names its exact private member; it does
+        // not select another map with the same requirement or attached name.
+        let source = typed(
+            "trait Policy {
+             machine plan(value: u64) -> u64 requires value > 0;
+             }
+             public First satisfies Policy {
+                 machine plan(value: u64) -> u64 requires value > 0 { value }
+             }
+             public Second satisfies Policy {
+                 machine plan(value: u64) -> u64 requires value > 0 { 23u64 }
+             }
+             public Applied<T> satisfies Policy {
+                 machine plan(value: u64) -> u64 requires value > 0 { value }
+             }
+             machine first() -> u64 { First::plan(7u64) }
+             machine second() -> u64 { Second::plan(7u64) }
+             machine narrow() -> u64 { Applied<u32>::plan(7u64) }
+             machine wide() -> u64 { Applied<u64>::plan(7u64) }",
+        );
+        let program = PreparedBuildMachineProgram::prepare(&source, None).unwrap();
+        for (name, expected) in [("first", 7), ("second", 23), ("narrow", 7), ("wide", 7)] {
+            let (requester, call) = returned_source_call(program.typed(), name);
+            let entry = program
+                .entry_call(requester, call, &[BuildTimeValue::Int(7)])
+                .unwrap();
+            let mut accounting = crate::SourceCompletionAccounting::default();
+            let result = entry
+                .invoke_recorded(target(), &mut accounting)
+                .expect("the exact ordinary selected member executes");
+            assert_eq!(result.value(), &BuildTimeValue::Int(expected));
+            let [crate::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+                panic!("one actual selected call")
+            };
+            assert_eq!(receipt.requester(), requester);
+            let authored = source.expression_table.call_node(call).unwrap();
+            let retained = receipt.call().unwrap();
+            assert_eq!(retained.target_symbol, authored.target_symbol);
+            assert_eq!(retained.receiver, authored.receiver);
+            assert_eq!(
+                retained.authored_machine_application,
+                authored.authored_machine_application
+            );
+            assert_eq!(retained.machine_arguments, authored.machine_arguments);
+            let error = match program.entry_call(requester, call, &[BuildTimeValue::Int(0)]) {
+                Ok(_) => panic!("the public requirement must establish its actual input"),
+                Err(error) => error,
+            };
+            assert!(error.contains("requires"), "{error}");
+        }
     }
 
     #[test]
