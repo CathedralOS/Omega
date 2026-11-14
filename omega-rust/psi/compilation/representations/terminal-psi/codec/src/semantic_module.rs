@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 263`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 264`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -3719,6 +3719,7 @@ mod routed_scalar_tests {
         module.machines[0].blocks[0].operations.push(Operation {
             id: semantic_vocabulary::OperationId::new(1).unwrap(),
             static_reach_binding: None,
+            required_contract: None,
             suspension_crossing: None,
             result: OperationResult::Scalar(ValueDeclaration {
                 id: ValueId::new(3).unwrap(),
@@ -4569,6 +4570,7 @@ pub(crate) mod target_family_tests {
                 },
             }],
             contract: terminal_psi::MachineContract {
+                selected_application: None,
                 declaration: Some(terminal_psi::CheckedMachineDeclaration {
                     semantic_declaration: Default::default(),
                     parameter_types: Vec::new(),
@@ -4754,11 +4756,11 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 262 distinguishes an opaque supplied value from an empty record.
-// Earlier decoders cannot interpret that shape. The complete write frames,
-// numeric meanings and finite families published in 261/260/259 remain intact.
-// Marker 263 retains independent operational ceilings and call acknowledgements.
-pub(crate) const FORMAT_MARKER: u16 = 263;
+// Marker 264 retains each selected call's public contract and closed application
+// separately from its executable body. Marker 263 operational ceilings and call
+// acknowledgements, 262 opaque contexts, 261 write summaries and the earlier
+// numeric and finite-family identities remain part of the same format.
+pub(crate) const FORMAT_MARKER: u16 = 264;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

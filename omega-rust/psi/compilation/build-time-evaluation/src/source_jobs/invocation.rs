@@ -317,16 +317,23 @@ pub(crate) fn direct_call(
 ) -> Result<TableCallExpression, String> {
     let entry =
         entry_state(program, machine).ok_or("constant invocation has no exact entry state")?;
-    Ok(TableCallExpression {
+    Ok(declaration_call(entry.symbol, entry.name.clone()))
+}
+
+pub(crate) fn declaration_call(
+    target: SymbolHandle,
+    name: typed_trees::name::Identifier,
+) -> TableCallExpression {
+    TableCallExpression {
         authored_call_selection: None,
         authored_call_binding: None,
         authored_machine_application: Default::default(),
         requirement_application: Default::default(),
         exact_coercion_target: typed_trees::types::TypeReferenceHandle::invalid(),
         receiver: ExpressionHandle::invalid(),
-        target_symbol: entry.symbol,
+        target_symbol: target,
         static_machine_parameter: SymbolHandle::invalid(),
-        target: entry.name.clone(),
+        target: name,
         static_requirement_dispatch: None,
         machine_arguments: Box::default(),
         quotient_operation: None,
@@ -338,7 +345,7 @@ pub(crate) fn direct_call(
         arguments: Default::default(),
         evidence_arguments: Box::default(),
         operational_acknowledgement: language_semantics::CallOperationalAcknowledgement::default(),
-    })
+    }
 }
 
 pub(crate) struct PreparedSourceInvocation {
@@ -353,10 +360,14 @@ pub(crate) struct PreparedSourceInvocation {
 pub(crate) fn prepare_value_invocation(
     program: &TypedTrees,
     requester: SymbolHandle,
-    machine: &Machine,
+    declaration: typed_trees::callable_signature_shapes::CallableDeclaration<'_>,
     request: &TableCallExpression,
     arguments: &[crate::BuildTimeValue],
     request_expression: ExpressionHandle,
+    selected: Option<(
+        &typed_trees::expression::StaticMachineArgument,
+        SymbolHandle,
+    )>,
 ) -> Result<PreparedSourceInvocation, String> {
     if request.authored_machine_application.is_valid()
         && !program
@@ -379,9 +390,8 @@ pub(crate) fn prepare_value_invocation(
     } else {
         None
     };
-    let entry =
-        entry_state(program, machine).ok_or("constant invocation has no exact entry state")?;
-    let parameters = program.state_parameters(entry);
+    let shape = declaration.shape(program)?;
+    let parameters = shape.parameters;
     let declaration_argument =
         typed_trees::reflection::construction::declaration_query_argument_role(
             program,
@@ -415,8 +425,8 @@ pub(crate) fn prepare_value_invocation(
             "source invocation static arguments differ from their retained application".into(),
         );
     }
-    let type_parameters = program.machine_type_parameters(machine);
-    if !machine.lifetime_parameters.is_empty() {
+    let type_parameters = declaration.static_parameters(program)?;
+    if declaration.has_lifetime_parameters(program)? {
         return Err("source invocation lifetime arguments are not materialized".into());
     }
     if type_parameters
@@ -489,7 +499,7 @@ pub(crate) fn prepare_value_invocation(
     }
     let result_type = probe
         .type_reference_table
-        .instantiate(entry.return_type, &substitutions)?;
+        .instantiate(shape.return_type, &substitutions)?;
     let (probe_machine, mut state) =
         invocation_probe_declarations(&mut probe, requester, "@const-invocation", result_type);
     let mut actuals = Vec::with_capacity(arguments.len());
@@ -556,6 +566,24 @@ pub(crate) fn prepare_value_invocation(
         actuals.push(actual);
     }
     let mut call = request.clone();
+    if let Some((selection, selection_owner)) = selected {
+        if request_expression.is_valid() || request.receiver.is_valid() {
+            return Err("a selected invocation cannot replace an authored receiver".into());
+        }
+        if !program.symbols.symbols().nodes().is_valid(selection_owner) {
+            return Err("selected invocation lost its supplying declaration".into());
+        }
+        // This is a new ordinary call request. The operand's complete retained
+        // tuple is copied into its receiver; execution still goes through the
+        // same preparation, public contract and refinement judgments.
+        let selection = probe
+            .expression_table
+            .copy_static_argument_from_self(selection);
+        let name = typed_trees::name::Identifier::from(probe.symbols.name(selection.symbol));
+        let mut path = probe_name_path(&mut probe, selection.symbol, name);
+        path.static_application = probe.expression_table.insert_static_member(selection);
+        call.receiver = probe.expression_table.insert(ExpressionNode::Name(path));
+    }
     if materialized && !call.machine_arguments.is_empty() {
         call.machine_arguments = supplied.into_boxed_slice();
     }

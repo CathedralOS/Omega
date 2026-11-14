@@ -56,9 +56,13 @@ impl Axis {
     const ALL: [Axis; 2] = [Axis::Reach, Axis::Entries];
 
     fn of_machine(self, machine: &TerminalMachine) -> &[ServiceId] {
+        self.of_contract(&machine.contract)
+    }
+
+    fn of_contract(self, contract: &terminal_psi::MachineContract) -> &[ServiceId] {
         match self {
-            Axis::Reach => &machine.published_service_ceiling,
-            Axis::Entries => &machine.published_synchronous_entries,
+            Axis::Reach => &contract.published_service_ceiling,
+            Axis::Entries => &contract.published_synchronous_entries,
         }
     }
 
@@ -198,7 +202,14 @@ pub(crate) fn judge(module: &TerminalModule, tables: &CheckTables) -> Checked<Ve
                     Construct::Edge(edge)
                 }
             };
-            contribution(module, caller, callee, at, &mut found)?;
+            contribution(
+                module,
+                caller,
+                callee,
+                call.required_contract,
+                at,
+                &mut found,
+            )?;
         }
         for formation in &caller.call_formations {
             if let (terminal_psi::CallSite::Edge(edge), Some(callee)) =
@@ -208,6 +219,7 @@ pub(crate) fn judge(module: &TerminalModule, tables: &CheckTables) -> Checked<Ve
                     module,
                     caller,
                     callee.into(),
+                    None,
                     Construct::Edge(edge),
                     &mut found,
                 )?;
@@ -223,14 +235,15 @@ fn contribution(
     module: &TerminalModule,
     caller: &TerminalMachine,
     callee: TargetMachineCallable,
+    required_contract: Option<semantic_vocabulary::ContractId>,
     at: Construct,
     found: &mut Vec<Excess>,
 ) -> Checked<()> {
     for axis in Axis::ALL {
         let contributes = match callee {
-            TargetMachineCallable::Machine(id) => {
-                module.machine(id).map(|machine| axis.of_machine(machine))
-            }
+            TargetMachineCallable::Machine(id) => module
+                .invocation_machine_contract(id, required_contract)
+                .map(|contract| axis.of_contract(contract)),
             TargetMachineCallable::Boundary(id) => module
                 .boundary_machine(id)
                 .map(|boundary| axis.of_boundary(boundary)),

@@ -549,6 +549,7 @@ impl<'t> Program<'t> {
         requirement: SymbolHandle,
         arguments: &[semantic_vocabulary::ScalarTerm],
         implementation: SymbolHandle,
+        expected: Option<&'t StateSignature>,
     ) -> Checked<MachineId> {
         let id = self.next_identity()?;
         if self.rigid {
@@ -592,16 +593,52 @@ impl<'t> Program<'t> {
                 Unserved::Machine("witness needs its exact closed trait application"),
             ));
         }
-        self.witnessed_signature(declared, arguments)
+        if expected.is_some_and(|signature| {
+            self.typed
+                .closed_requirement_application(signature.symbol)
+                .map_or(signature.symbol, |application| application.template)
+                != requirement
+        }) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("selected witness names another public declaration"),
+            ));
+        }
+        self.witnessed_signature(declared, arguments, expected)
     }
 
-    pub fn witnessed_signature(
+    fn witnessed_signature(
         &mut self,
         declared: &'t StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
+        expected: Option<&'t StateSignature>,
     ) -> Checked<MachineId> {
         let id = self.next_identity()?;
         let (signature, names) = self.requirement_signature(id, declared, arguments)?;
+        // The owning-row query chooses the witness contract. A selected call
+        // must agree with it; the call cannot replace the body's requirement
+        // or supply a different public contract to make the witness pass.
+        if let Some(expected) = expected.filter(|expected| *expected != declared) {
+            let (expected, _) = self.requirement_signature(
+                id,
+                expected,
+                if expected.type_parameters.is_empty() {
+                    &[]
+                } else {
+                    arguments
+                },
+            )?;
+            if expected != signature {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Machine(
+                        "selected call disagrees with its independent public witness",
+                    ),
+                ));
+            }
+        }
         self.symbols.push(declared.symbol);
         self.signatures.push(signature);
         self.names.push(names);
@@ -2352,7 +2389,20 @@ impl<'t> Program<'t> {
                 }
                 StatementNode::Assignment(assignment) => self.assignment(id, &slots, assignment)?,
                 StatementNode::Call(call) => {
-                    let called = self.call_statement(id, &slots, call)?;
+                    let called = self.call_statement(
+                        id,
+                        &slots,
+                        call,
+                        state
+                            .statement_nodes
+                            .handle_at(u32::try_from(position).map_err(|_| {
+                                refuse(
+                                    id,
+                                    Construct::Machine,
+                                    Unserved::Statement("statement coordinate overflows"),
+                                )
+                            })?),
+                    )?;
                     if !call.discards_result {
                         undiscarded(id, &called)?;
                     }

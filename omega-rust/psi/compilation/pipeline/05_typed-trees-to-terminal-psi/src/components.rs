@@ -38,6 +38,7 @@ pub(crate) type Components = IdTable<MachineId, Vec<MachineId>>;
 struct CallSite {
     callee: MachineId,
     terminal: bool,
+    required_contract: Option<semantic_vocabulary::ContractId>,
 }
 
 fn index(machine: MachineId) -> usize {
@@ -104,6 +105,14 @@ pub(crate) fn components(
             }
         }
         if !members.is_empty() {
+            // A frame-reusing jump cannot yet retain the public call's exact
+            // invocation association. Keep that contract instead of erasing it.
+            if calls[this]
+                .iter()
+                .any(|site| site.required_contract.is_some() && members.contains(&site.callee))
+            {
+                return unserved(Unserved::Call("selected public contract on a call cycle"));
+            }
             if calls[this]
                 .iter()
                 .any(|site| !site.terminal && members.contains(&site.callee))
@@ -202,7 +211,10 @@ fn target(target: &Target, sites: &mut Vec<CallSite>) {
         Target::Unit | Target::Crash(_) => {}
         Target::Value(value) => match &value.kind {
             ExpressionKind::Call {
-                callee, arguments, ..
+                callee,
+                required_contract,
+                arguments,
+                ..
             } => {
                 for argument in arguments {
                     expression(argument, sites);
@@ -211,6 +223,7 @@ fn target(target: &Target, sites: &mut Vec<CallSite>) {
                     sites.push(CallSite {
                         callee: *callee,
                         terminal: true,
+                        required_contract: *required_contract,
                     });
                 }
             }
@@ -281,7 +294,10 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
             expression(right, sites);
         }
         ExpressionKind::Call {
-            callee, arguments, ..
+            callee,
+            required_contract,
+            arguments,
+            ..
         } => {
             for argument in arguments {
                 expression(argument, sites);
@@ -290,6 +306,7 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
                 sites.push(CallSite {
                     callee: *callee,
                     terminal: false,
+                    required_contract: *required_contract,
                 });
             }
         }
