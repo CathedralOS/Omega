@@ -2172,8 +2172,8 @@ pub(crate) fn verify(
     })
 }
 
-/// Every searched or retained certificate reaches this kernel call before it
-/// can justify a declaration or an executable obligation.
+/// The kernel checks the exact goal and independent premises before this
+/// certificate can justify a declaration or an executable obligation.
 fn verify_certificate(
     context: &PropositionContext,
     id: MachineId,

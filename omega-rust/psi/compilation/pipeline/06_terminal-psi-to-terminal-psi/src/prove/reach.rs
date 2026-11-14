@@ -60,7 +60,7 @@ impl Prover<'_> {
     }
 
     fn any_beyond_rules(&self, mut pending: Vec<ValueId>, unreached: &[ValueId]) -> bool {
-        let mut seen = vec![false; self.values.len()];
+        let mut seen = vec![false; self.values.count()];
         while let Some(value) = pending.pop() {
             let Some(seen) = seen.get_mut(value_index(value)) else {
                 continue;
