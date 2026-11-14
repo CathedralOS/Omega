@@ -64,48 +64,9 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q1 - May a qualified operator be declared outside the domain's module?
-
-Decision name: `unresolved-qualified-operator-home`.
-
-**Customer.** No authored source and no product requirement needs an operator
-declared outside its domain's module. The only user is the #2965 homing test.
-
-**Gap.** [Operator families](wiki/spec/language/expressions.md#operator-families)
-(`expressions.md:299-328`), [declaration and membership](wiki/spec/language/domains.md#declaration-and-membership)
-(`domains.md:23-29`), [foreign attached paths](wiki/spec/language/modules.md#foreign-attached-declaration-paths)
-(`modules.md:77-94`), and [operators on a domain](wiki/language_guide/chapter_8_domains.md#operators-on-a-domain)
-(`chapter_8_domains.md:111-123`) were checked. A qualified name establishes a
-home, operations are separate machines, a short path selects an exposed domain,
-and the guide places the operator beside the domain. Those clauses are silent
-on a root file declaring `Carrier::Leaf::op`.
-
-```omega
-// Form A, inside the domain's module.
-module units;
-public domain u64::Distance requires self > 0;
-public operator + u64::Distance::add(
-    left: u64 in u64::Distance, right: u64 in u64::Distance
-) -> u64 in u64::Distance;
-
-// Form B, root file.
-use units;
-public operator + u64::Distance::add(
-    left: u64 in u64::Distance, right: u64 in u64::Distance
-) -> u64 in u64::Distance;
-```
-
-Before #2965, Form B stays a root item, so `a + b` fails to resolve.
-Now Form B is homed on `u64::Distance`, so `a + b` resolves.
-
-**Question.** (a) Allow the root form (current behavior)? (b) Or reject a
-qualified operator declared outside the domain's module?
-
-**Until answered.** The compiler homes Form B on `u64::Distance`.
-
 <a id="native-cache-producer-authorization"></a>
 
-### Q2 - Does enabling a native component cache authorize its producer?
+### Q1 - Does enabling a native component cache authorize its producer?
 
 Decision name: `native-cache-producer-authorization`.
 
