@@ -319,7 +319,7 @@ impl PreparedBuildMachineProgram {
     fn prepare_call(
         &self,
         requester: SymbolHandle,
-        machine: &typed_trees::machine::Machine,
+        declaration: typed_trees::callable_signature_shapes::CallableDeclaration<'_>,
         request: &typed_trees::expression::TableCallExpression,
         request_expression: typed_trees::expression::ExpressionHandle,
         arguments: &[crate::BuildTimeValue],
@@ -336,7 +336,7 @@ impl PreparedBuildMachineProgram {
         let (source, caller, call) = invocation::prepare_value_invocation(
             &self.source,
             requester,
-            machine,
+            declaration,
             request,
             arguments,
             request_expression,
@@ -385,8 +385,40 @@ impl PreparedBuildMachineProgram {
                     .machine_holding_state(actual_call.target_symbol)
             })
             .ok_or("source invocation has no accepted concrete body")?;
-        if physical.symbol != machine.symbol {
-            return Err("source invocation changed its required concrete declaration".into());
+        match declaration {
+            typed_trees::callable_signature_shapes::CallableDeclaration::Machine(required) => {
+                if physical.symbol != required {
+                    return Err("source invocation changed its required concrete declaration".into());
+                }
+            }
+            typed_trees::callable_signature_shapes::CallableDeclaration::Signature(required) => {
+                let dispatch = actual_call.static_requirement_dispatch.as_ref()
+                    .ok_or("selected source invocation has no retained requirement dispatch")?;
+                let original = self.source.closed_requirement_application(required.symbol)
+                    .map_or(required.symbol, |application| application.template);
+                if dispatch.requirement != original {
+                    return Err("selected source invocation changed its public requirement".into());
+                }
+                let mut sites = accepted.source_call_sites(caller, call);
+                let (canonical_caller, site) = sites.next()
+                    .ok_or("selected source invocation has no exact emitted call site")?;
+                if sites.next().is_some() {
+                    return Err("selected source invocation has multiple emitted call sites".into());
+                }
+                let module = &accepted.closure().elaboration.module;
+                let invocation = module.machine(canonical_caller)
+                    .and_then(|machine| machine.module_invocations().find(|invocation| invocation.site == site))
+                    .ok_or("selected source invocation lost its canonical operation")?;
+                let required_contract = invocation.inputs.required_contract
+                    .ok_or("selected source invocation lost its public contract")?;
+                let contract = module.invocation_machine_contract(invocation.inputs.callee, Some(required_contract))
+                    .ok_or("selected source invocation has no exact public contract and body")?;
+                if accepted.closure().elaboration.machines.get(invocation.inputs.callee) != Some(&physical.symbol)
+                    || contract.selected_application.is_none()
+                {
+                    return Err("selected source invocation changed its actual implementation".into());
+                }
+            }
         }
         Ok(PreparedBuildMachineEntry {
             source: Arc::clone(&self.source),
@@ -450,28 +482,15 @@ impl PreparedBuildMachineProgram {
         {
             return Err("source job call has another requesting declaration".into());
         }
-        let machine = self
-            .source
-            .machine_by_symbol(call.target_symbol)
-            .or_else(|| self.source.machine_holding_state(call.target_symbol))
-            .ok_or("source job call has no concrete machine declaration")?;
-        let direct = invocation::direct_call(&self.source, machine)?;
-        if call.target_symbol != direct.target_symbol && call.target_symbol != machine.symbol {
-            return Err("source job call does not select the declared entry".into());
-        }
-        let [state] = self.source.machine_states(machine) else {
-            return Err("source job call has no exact entry state".into());
-        };
-        if self
-            .source
-            .expression_table
-            .expression_handles(call.arguments)
-            .len()
-            != self.source.state_parameters(state).len()
+        let declaration = self.source.source_call_declaration(
+            requester, typed_trees::references::StaticArgumentCall::Expression(expression, call),
+        ).map_err(str::to_owned)?;
+        if self.source.expression_table.expression_handles(call.arguments).len()
+            != declaration.shape(&self.source).map_err(str::to_owned)?.parameters.len()
         {
             return Err("source job call lost its complete argument list".into());
         }
-        self.prepare_call(requester, machine, call, expression, arguments)
+        self.prepare_call(requester, declaration, call, expression, arguments)
     }
 
     pub fn entry(
@@ -496,7 +515,7 @@ impl PreparedBuildMachineProgram {
         let call = invocation::direct_call(&self.source, machine)?;
         self.prepare_call(
             requester,
-            machine,
+            typed_trees::callable_signature_shapes::CallableDeclaration::Machine(machine.symbol),
             &call,
             typed_trees::expression::ExpressionHandle::invalid(),
             arguments,

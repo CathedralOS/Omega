@@ -614,8 +614,7 @@ fn requirement_application(
     if bindings.is_empty() || bindings.len() != closed.portable_local_arguments.len() {
         return Err("a closed requirement binds other than one argument per parameter");
     }
-    let mut commitment = Commitment(DomainDigestEncoder::new(APPLICATION_DOMAIN));
-    callable.hash(&mut commitment);
+    let mut selected = Vec::with_capacity(bindings.len());
     let mut arguments = Vec::with_capacity(bindings.len());
     for (binding, identity) in bindings.iter().zip(closed.portable_local_arguments) {
         let text = typed
@@ -624,13 +623,17 @@ fn requirement_application(
             .ok_or("a closed requirement's argument has no identity")?;
         match &binding.value {
             StaticMachineBindingValue::Type(_) => {
-                text.hash(&mut commitment);
+                selected.push(
+                    language_semantics::conformance_identity::MachineOperandSelectionIdentity::Type(
+                        text.clone(),
+                    ),
+                );
                 arguments.push(terminal_psi::ClosedReachArgument::Type(
                     identities.intern(&text),
                 ));
             }
             StaticMachineBindingValue::Const(_) => {
-                ("value", text.as_str()).hash(&mut commitment);
+                selected.push(language_semantics::conformance_identity::MachineOperandSelectionIdentity::Const(text.clone()));
                 arguments.push(terminal_psi::ClosedReachArgument::Const(
                     identities.intern(&text),
                 ));
@@ -655,7 +658,10 @@ fn requirement_application(
             )?),
             template_callable: identities.intern(&callable),
             template_semantic_declaration: semantic,
-            commitment: commitment.0.finish(),
+            commitment:
+                language_semantics::conformance_identity::requirement_application_commitment(
+                    &callable, &selected,
+                )?,
         },
         arguments,
     ))

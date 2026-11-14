@@ -1084,53 +1084,47 @@ pub mod closed_conformances {
         if callee != dispatch.realization {
             return Err("static requirement dispatch differs from its ordinary runtime call");
         }
-            let applications = module
-                .closed_conformance_applications
-                .iter()
-                .filter(|application| {
-                    application.owner == caller
-                        && application.commitment == dispatch.conformance_application_commitment
-                        && application.report_fingerprint
-                            == dispatch.conformance_application_report_fingerprint
-                })
-                .collect::<Vec<_>>();
-            let [application] = applications.as_slice() else {
-                return Err(
-                    "static requirement dispatch has no unique closed conformance application",
-                );
-            };
-            if application
-                .schemas
-                .iter()
-                .filter(|schema| {
-                    schema.declaring_trait_identity == dispatch.declaring_trait_identity
-                        && schema.public_requirement_identity
-                            == dispatch.public_requirement_identity
-                        && schema.requirement_identity == dispatch.requirement_identity
-                        && schema.realization_identity == dispatch.realization_identity
-                })
-                .count()
-                != 1
-            {
-                return Err("static requirement dispatch has no exact original schema");
-            }
-            if application
-                .static_applications
-                .iter()
-                .filter(|applied| {
-                    applied.public_requirement_identity == dispatch.public_requirement_identity
-                        && applied.realization_identity == dispatch.realization_identity
-                        && applied.source_callable_identity
-                            == dispatch.realization_callable_identity
-                        && applied.callable == TargetMachineCallable::Machine(dispatch.realization)
-                })
-                .count()
-                != 1
-            {
-                return Err(
-                    "static requirement dispatch has no exact executable method application",
-                );
-            }
+        let applications = module
+            .closed_conformance_applications
+            .iter()
+            .filter(|application| {
+                application.owner == caller
+                    && application.commitment == dispatch.conformance_application_commitment
+                    && application.report_fingerprint
+                        == dispatch.conformance_application_report_fingerprint
+            })
+            .collect::<Vec<_>>();
+        let [application] = applications.as_slice() else {
+            return Err("static requirement dispatch has no unique closed conformance application");
+        };
+        if application
+            .schemas
+            .iter()
+            .filter(|schema| {
+                schema.declaring_trait_identity == dispatch.declaring_trait_identity
+                    && schema.public_requirement_identity == dispatch.public_requirement_identity
+                    && schema.requirement_identity == dispatch.requirement_identity
+                    && schema.realization_identity == dispatch.realization_identity
+            })
+            .count()
+            != 1
+        {
+            return Err("static requirement dispatch has no exact original schema");
+        }
+        if application
+            .static_applications
+            .iter()
+            .filter(|applied| {
+                applied.public_requirement_identity == dispatch.public_requirement_identity
+                    && applied.realization_identity == dispatch.realization_identity
+                    && applied.source_callable_identity == dispatch.realization_callable_identity
+                    && applied.callable == TargetMachineCallable::Machine(dispatch.realization)
+            })
+            .count()
+            != 1
+        {
+            return Err("static requirement dispatch has no exact executable method application");
+        }
         Ok(*application)
     }
 
@@ -1408,9 +1402,11 @@ pub mod closed_conformances {
             let Some(dispatch) = &invocation.static_requirement_dispatch else {
                 continue;
             };
-            let callee = invocation.runtime_call.as_ref().ok_or(
-                "static requirement dispatch has no ordinary runtime call",
-            )?.callee;
+            let callee = invocation
+                .runtime_call
+                .as_ref()
+                .ok_or("static requirement dispatch has no ordinary runtime call")?
+                .callee;
             dispatch_application(module, invocation.caller, dispatch, callee)?;
         }
         for machine in &module.machines {
@@ -1418,37 +1414,99 @@ pub mod closed_conformances {
                 let Some(required) = invocation.inputs.required_contract else {
                     continue;
                 };
-                let contract = module.invocation_machine_contract(invocation.inputs.callee, Some(required))
+                let contract = module
+                    .invocation_machine_contract(invocation.inputs.callee, Some(required))
                     .ok_or("selected call has no exact public contract and body association")?;
-                let body = module.machine(invocation.inputs.callee).ok_or(
-                    "selected public contract lost its executable body",
-                )?;
+                let body = module
+                    .machine(invocation.inputs.callee)
+                    .ok_or("selected public contract lost its executable body")?;
                 if (contract.declared_service_reach.is_none()
                     && contract.published_service_ceiling != body.published_service_ceiling)
                     || (contract.declared_synchronous_entries.is_none()
-                        && contract.published_synchronous_entries != body.published_synchronous_entries)
+                        && contract.published_synchronous_entries
+                            != body.published_synchronous_entries)
                     || (contract.declared_crash_routes.is_none()
                         && contract.crash_routes != body.crash_routes)
                 {
                     return Err("selected public effects differ from their exact implementation");
                 }
-                let dispatch = contract.selected_application.as_ref().ok_or(
-                    "selected call public contract has no closed application",
-                )?;
-                let application = dispatch_application(module, machine.id, dispatch, invocation.inputs.callee)?;
-                let declaration = contract.declaration.as_ref().ok_or(
-                    "selected call public contract has no source declaration",
-                )?;
-                let schema = application.schemas.iter().find(|schema| {
-                    schema.declaring_trait_identity == dispatch.declaring_trait_identity
-                        && schema.public_requirement_identity == dispatch.public_requirement_identity
-                        && schema.requirement_identity == dispatch.requirement_identity
-                        && schema.realization_identity == dispatch.realization_identity
-                }).ok_or("selected public contract has no original requirement schema")?;
-                if declaration.state != schema.requirement_declaration
-                    || declaration.callable != schema.requirement_identity
-                {
-                    return Err("selected public contract differs from its complete requirement application");
+                let dispatch = contract
+                    .selected_application
+                    .as_ref()
+                    .ok_or("selected call public contract has no closed application")?;
+                let application =
+                    dispatch_application(module, machine.id, dispatch, invocation.inputs.callee)?;
+                let declaration = contract
+                    .declaration
+                    .as_ref()
+                    .ok_or("selected call public contract has no source declaration")?;
+                let schema = application
+                    .schemas
+                    .iter()
+                    .find(|schema| {
+                        schema.declaring_trait_identity == dispatch.declaring_trait_identity
+                            && schema.public_requirement_identity
+                                == dispatch.public_requirement_identity
+                            && schema.requirement_identity == dispatch.requirement_identity
+                            && schema.realization_identity == dispatch.realization_identity
+                    })
+                    .ok_or("selected public contract has no original requirement schema")?;
+                match &declaration.specialization {
+                    None => {
+                        if declaration.state != schema.requirement_declaration
+                            || declaration.callable != schema.requirement_identity
+                        {
+                            return Err(
+                                "selected public contract differs from its complete requirement application",
+                            );
+                        }
+                    }
+                    Some(specialization) => {
+                        if specialization.capture.is_some()
+                            || specialization.template != schema.requirement_declaration
+                            || specialization.template_callable
+                                != schema.public_requirement_identity
+                        {
+                            return Err("selected public member has another source template");
+                        }
+                        let mut methods = application.static_applications.iter().filter(|method| {
+                            method.public_requirement_identity
+                                == dispatch.public_requirement_identity
+                                && method.realization_identity == dispatch.realization_identity
+                                && method.source_callable_identity
+                                    == dispatch.realization_callable_identity
+                                && method.callable
+                                    == TargetMachineCallable::Machine(dispatch.realization)
+                        });
+                        let method = methods
+                            .next()
+                            .ok_or("selected public member lost its exact method application")?;
+                        if methods.next().is_some() || method.method_arguments.is_empty() {
+                            return Err(
+                                "selected public member has no unique complete method tuple",
+                            );
+                        }
+                        let arguments = method.method_arguments.iter().map(|argument| {
+                            use language_semantics::conformance_identity::MachineOperandSelectionIdentity;
+                            match argument {
+                                ClosedReachArgument::Type(index) => {
+                                    Ok(MachineOperandSelectionIdentity::Type(identity(module, *index)?.to_owned()))
+                                }
+                                ClosedReachArgument::Const(index) => {
+                                    Ok(MachineOperandSelectionIdentity::Const(identity(module, *index)?.to_owned()))
+                                }
+                                _ => Err("selected public member needs a complete type or value tuple"),
+                            }
+                        }).collect::<Result<Vec<_>, _>>()?;
+                        let commitment = language_semantics::conformance_identity::requirement_application_commitment(
+                            identity(module, specialization.template_callable)?, &arguments,
+                        )?;
+                        if commitment != specialization.commitment {
+                            return Err(
+                                "selected public member differs from the invoked method tuple",
+                            );
+                        }
+                    }
                 }
             }
         }

@@ -34,6 +34,91 @@ pub struct ParameterOccurrence {
     pub symbol: SymbolHandle,
 }
 
+/// Caller construction reads the public declaration before selection has an
+/// executable body. The view borrows the existing signature or machine; it
+/// conveys no permission or refinement result.
+#[derive(Clone, Copy)]
+pub enum CallableDeclaration<'source> {
+    Signature(&'source crate::signature::StateSignature),
+    Machine(SymbolHandle),
+}
+
+impl<'source> CallableDeclaration<'source> {
+    pub fn symbol(self) -> SymbolHandle {
+        match self {
+            Self::Signature(signature) => signature.symbol,
+            Self::Machine(symbol) => symbol,
+        }
+    }
+
+    pub fn shape(self, program: &'source crate::TypedTrees) -> Result<CallableSignatureShape<'source>, &'static str> {
+        let (parameters, return_type, generic_arity) = match self {
+            Self::Signature(signature) => (
+                program.state_signature_parameters(signature), signature.return_type,
+                program.state_signature_type_parameters(signature).len(),
+            ),
+            Self::Machine(symbol) => {
+                let machine = program.machine_by_symbol(symbol)
+                    .ok_or("callable declaration lost its exact machine")?;
+                let [state] = program.machine_states(machine) else {
+                    return Err("callable declaration has no unique entry state");
+                };
+                (program.state_parameters(state), state.return_type, program.machine_type_parameters(machine).len())
+            }
+        };
+        Ok(CallableSignatureShape { generic_arity, parameters, return_type })
+    }
+
+    pub fn static_parameters(self, program: &'source crate::TypedTrees) -> Result<&'source [crate::data::TypeParameter], &'static str> {
+        match self {
+            Self::Signature(signature) => Ok(program.state_signature_type_parameters(signature)),
+            Self::Machine(symbol) => program.machine_by_symbol(symbol)
+                .map(|machine| program.machine_type_parameters(machine))
+                .ok_or("callable declaration lost its exact machine"),
+        }
+    }
+
+    pub fn has_lifetime_parameters(self, program: &crate::TypedTrees) -> Result<bool, &'static str> {
+        match self {
+            Self::Signature(signature) => Ok(!signature.lifetime_parameters.is_empty()),
+            Self::Machine(symbol) => program.machine_by_symbol(symbol)
+                .map(|machine| !machine.lifetime_parameters.is_empty())
+                .ok_or("callable declaration lost its exact machine"),
+        }
+    }
+}
+
+impl crate::TypedTrees {
+    pub fn source_call_declaration<'source>(
+        &'source self,
+        owner: SymbolHandle,
+        call: crate::references::StaticArgumentCall<'_>,
+    ) -> Result<CallableDeclaration<'source>, &'static str> {
+        for application in call.applications() {
+            if !self.expression_table.static_machine_application_is_valid(application) {
+                return Err("callable declaration has a stale source application");
+            }
+        }
+        let (target, dispatch) = match call {
+            crate::references::StaticArgumentCall::Expression(_, call) => (call.target_symbol, call.static_requirement_dispatch.is_some()),
+            crate::references::StaticArgumentCall::Statement(call) => (call.target_symbol, call.static_requirement_dispatch.is_some()),
+        };
+        if dispatch || self.trait_machine_signature(target).is_some() {
+            return self.resolve_requirement_static_call_signature(owner, call)
+                .map(CallableDeclaration::Signature);
+        }
+        let machine = self.machine_by_symbol(target).or_else(|| self.machine_holding_state(target))
+            .ok_or("source call has no retained callable declaration")?;
+        let [state] = self.machine_states(machine) else {
+            return Err("source call has no unique declared entry state");
+        };
+        if target != machine.symbol && target != state.symbol {
+            return Err("source call does not name its declared entry state");
+        }
+        Ok(CallableDeclaration::Machine(machine.symbol))
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct CallableSignatureShape<'a> {
     pub generic_arity: usize,

@@ -271,7 +271,7 @@ pub(crate) fn direct_call(
 pub(crate) fn prepare_value_invocation(
     program: &TypedTrees,
     requester: SymbolHandle,
-    machine: &Machine,
+    declaration: typed_trees::callable_signature_shapes::CallableDeclaration<'_>,
     request: &TableCallExpression,
     arguments: &[crate::BuildTimeValue],
     request_expression: ExpressionHandle,
@@ -297,9 +297,8 @@ pub(crate) fn prepare_value_invocation(
     } else {
         None
     };
-    let entry =
-        entry_state(program, machine).ok_or("constant invocation has no exact entry state")?;
-    let parameters = program.state_parameters(entry);
+    let shape = declaration.shape(program)?;
+    let parameters = shape.parameters;
     let declaration_argument =
         typed_trees::reflection::construction::declaration_query_argument_role(
             program,
@@ -333,8 +332,8 @@ pub(crate) fn prepare_value_invocation(
             "source invocation static arguments differ from their retained application".into(),
         );
     }
-    let type_parameters = program.machine_type_parameters(machine);
-    if !machine.lifetime_parameters.is_empty() {
+    let type_parameters = declaration.static_parameters(program)?;
+    if declaration.has_lifetime_parameters(program)? {
         return Err("source invocation lifetime arguments are not materialized".into());
     }
     if type_parameters
@@ -407,7 +406,7 @@ pub(crate) fn prepare_value_invocation(
     }
     let result_type = probe
         .type_reference_table
-        .instantiate(entry.return_type, &substitutions)?;
+        .instantiate(shape.return_type, &substitutions)?;
     let (probe_machine, mut state) =
         invocation_probe_declarations(&mut probe, requester, "@const-invocation", result_type);
     let mut actuals = Vec::with_capacity(arguments.len());

@@ -66,6 +66,23 @@ impl AcceptedTerminalSource {
         })
     }
 
+    /// Preserve every emitted site of this exact typed call and source member.
+    /// The canonical caller is part of the coordinate because specializations
+    /// can reuse an authored expression while emitting distinct invocations.
+    pub fn source_call_sites(
+        &self,
+        declaration: symbols::SymbolHandle,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> impl Iterator<Item = (semantic_vocabulary::MachineId, semantic_vocabulary::InvocationSite)> + '_ {
+        self.correspondence.calls.iter().flat_map(move |(caller, calls)| {
+            calls.iter().filter_map(move |(member, retained, statement, site)| {
+                (*retained == expression && !statement.is_valid()
+                    && self.closure.elaboration.machines.get(*member) == Some(&declaration))
+                    .then_some((caller, *site))
+            })
+        })
+    }
+
     /// The advisory diagnostics of the accepted compilation: warnings and
     /// their notes, none of which is an error. They are data on the
     /// accepted judgment for whoever reports the compilation; nothing here
