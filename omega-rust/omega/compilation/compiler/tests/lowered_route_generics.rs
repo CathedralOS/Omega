@@ -549,3 +549,71 @@ fn the_default_product_publishes_distinct_nested_static_contexts_and_checks_thei
         .unwrap();
     });
 }
+
+/// Actual Build preparation and the ordinary publication factory must retain
+/// both complete map tuples, rather than borrowing one body's capture.
+#[test]
+fn the_default_product_publishes_generic_named_map_captures() {
+    let _guard = FIXTURE_COMPILATIONS.lock().unwrap();
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            let main = repository("tests/fixtures/run/generics/named_map_own_telescope/main.omg");
+            let checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+            )
+            .result
+            .unwrap_or_else(|failure| panic!("named map source: {:?}", failure.into_diagnostics()));
+            let accepted = checked.terminal_publication().accepted().unwrap();
+            let publication = accepted.closure().publish().unwrap();
+            assert_eq!(publication.artifact.semantic_module(), accepted.module());
+            let source = accepted.source();
+            let captures = source
+                .captured_machine_applications
+                .iter()
+                .map(|(_, capture)| capture)
+                .filter(|capture| {
+                    source
+                        .symbols
+                        .name(capture.conformance_application.declaration)
+                        == "Selected"
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(captures.len(), 2);
+            assert_ne!(captures[0].instance, captures[1].instance);
+            assert_ne!(
+                captures[0].conformance_application.identity_encoding,
+                captures[1].conformance_application.identity_encoding
+            );
+            let template = source.machine_by_symbol(captures[0].template).unwrap();
+            let commitments = accepted
+                .module()
+                .machines
+                .iter()
+                .filter_map(|machine| machine.declaration.as_ref()?.specialization.as_ref())
+                .filter(|specialization| {
+                    accepted
+                        .module()
+                        .identities
+                        .text(specialization.template_callable)
+                        == source.machine_callable_identity_text(template).as_deref()
+                })
+                .map(|specialization| specialization.commitment)
+                .collect::<Vec<_>>();
+            assert_eq!(commitments.len(), 2);
+            assert_ne!(commitments[0], commitments[1]);
+            let (_, application) = compiler::prepare_program_entry(&checked).unwrap();
+            assert_eq!(
+                application
+                    .receipt
+                    .unwrap()
+                    .unwrap()
+                    .terminal_psi_identity(),
+                publication.artifact.manifest().semantic()
+            );
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+    });
+}
