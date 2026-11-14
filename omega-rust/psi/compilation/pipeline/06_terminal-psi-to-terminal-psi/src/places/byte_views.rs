@@ -1,6 +1,6 @@
-//! A shared slice names existing backing; it does not create ownership or
-//! access. Check that origin independently, then prove the two bounds against
-//! the descriptor measured immediately before formation.
+//! A byte view borrows existing storage without creating ownership or access.
+//! Authenticate that storage when lending an array or reading a descriptor;
+//! check slice bounds against the descriptor measured immediately before use.
 
 use super::{Shape, Storage};
 use semantic_vocabulary::{
@@ -8,8 +8,8 @@ use semantic_vocabulary::{
 };
 use terminal_check_tables::{Checked, Construct, ProgramPoint};
 use terminal_psi::{
-    Operation, OperationKind, StructuralAccess, StructuralMultiplicity, StructuralPathSegment,
-    StructuralTypeShape,
+    Operation, OperationKind, StructuralAccess, StructuralArgument, StructuralMultiplicity,
+    StructuralPathSegment, StructuralTypeShape,
 };
 
 fn count_type() -> ScalarType {
@@ -88,6 +88,85 @@ impl Storage<'_> {
             .ok_or_else(|| {
                 self.unsupported(concerns, "a byte view without its exact descriptor type")
             })
+    }
+
+    /// A slice call borrows the array's real storage. Formation and normal
+    /// return use the same rule, so the callee cannot establish a stronger
+    /// array type or gain authority that its caller did not lend.
+    pub(super) fn byte_array_presentation(
+        &self,
+        argument: &StructuralArgument,
+        parameter: &terminal_psi::StructuralParameterDeclaration,
+        concerns: Construct,
+    ) -> Checked<bool> {
+        let actual_type = self.root_type(argument.place, concerns)?;
+        let Some(selected) = terminal_semantics::runtime_structural_path_tip(
+            self.types.iter(),
+            actual_type,
+            &argument.path,
+        ) else {
+            return Ok(false);
+        };
+        let (
+            terminal_psi::StructuralTypeShape::FixedArray { element, .. },
+            terminal_psi::StructuralTypeShape::ByteSequence(_),
+        ) = (
+            &selected.shape,
+            &self.declaration(parameter.structural_type, concerns)?.shape,
+        )
+        else {
+            return Ok(false);
+        };
+        // The call lends this array's actual storage. A descriptor
+        // parameter receives its extent through the existing byte
+        // presentation rule; the source never acquires the formal's type.
+        let backing = terminal_semantics::structural_argument_source(
+            self.lowered,
+            argument.place,
+            parameter.position,
+        )
+        .ok_or_else(|| self.foreign(concerns, "an array loan lost its actual root contract"))?;
+        let unclaimed = !self
+            .lowered
+            .entry_claims
+            .iter()
+            .any(|claim| claim.input == argument.place)
+            && !self
+                .lowered
+                .content_entry_claims
+                .iter()
+                .any(|claim| claim.input.root == argument.place)
+            && self
+                .lowered
+                .producing_operation(argument.place)
+                .is_none_or(|(operation, _)| {
+                    operation.result.as_structural().is_some_and(|result| {
+                        result.claims.is_empty() && result.qualification_establishments.is_empty()
+                    })
+                });
+        let plain_element = self.domains.get(selected.id).is_some_and(Vec::is_empty)
+            && self.domains.get(*element).is_some_and(Vec::is_empty)
+            && self
+                .declaration(*element, concerns)?
+                .scalar_restriction
+                .is_none();
+        if !unclaimed
+            || !plain_element
+            || terminal_semantics::fixed_byte_array_loan(
+                self.types.iter(),
+                self.module.structural_domains.iter(),
+                &backing,
+                argument,
+                parameter,
+            )
+            .is_none()
+        {
+            return Err(self.unsupported(
+                concerns,
+                "an array loan without byte-view type, extent and qualification correspondence",
+            ));
+        }
+        Ok(true)
     }
 
     pub(super) fn readable_byte_view(&self, operation: &Operation, root: PlaceId) -> Checked<()> {

@@ -329,8 +329,10 @@ fn fixed_byte_arrays_can_supply_borrowed_view_parameters() {
             machine build_entry() {{
                 let mut bytes: [u8; 3] = [17, 42, 99];
                 use(count({access} bytes), middle({access} bytes));
+                use_byte(bytes[0]);
             }}
             machine use(extent: u64, middle: u8) {{}}
+            machine use_byte(byte: u8) {{}}
         "#
         );
         assert_eq!(verdict(&program), "accepted", "{program}");

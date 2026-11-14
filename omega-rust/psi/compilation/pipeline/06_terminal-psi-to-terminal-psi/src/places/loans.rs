@@ -385,66 +385,7 @@ impl Storage<'_> {
                     "an invocation row's place is not the place the call lends",
                 ));
             }
-            let actual_type = self.root_type(argument.place, concerns)?;
-            if let Some(selected) = terminal_semantics::runtime_structural_path_tip(
-                self.types.iter(),
-                actual_type,
-                &argument.path,
-            ) && let (
-                terminal_psi::StructuralTypeShape::FixedArray { element, .. },
-                terminal_psi::StructuralTypeShape::ByteSequence(_),
-            ) = (
-                &selected.shape,
-                &self.declaration(parameter.structural_type, concerns)?.shape,
-            ) {
-                // The call lends this array's actual storage. A descriptor
-                // parameter receives its extent through the existing byte
-                // presentation rule; the source never acquires the formal's type.
-                let backing = terminal_semantics::structural_argument_source(
-                    self.lowered,
-                    argument.place,
-                    parameter.position,
-                )
-                .ok_or_else(|| {
-                    self.foreign(concerns, "an array loan lost its actual root contract")
-                })?;
-                let unclaimed = !self
-                    .lowered
-                    .entry_claims
-                    .iter()
-                    .any(|claim| claim.input == argument.place)
-                    && !self
-                        .lowered
-                        .content_entry_claims
-                        .iter()
-                        .any(|claim| claim.input.root == argument.place)
-                    && self.lowered.producing_operation(argument.place).is_none_or(
-                        |(operation, _)| {
-                            operation.result.as_structural().is_some_and(|result| {
-                                result.claims.is_empty()
-                                    && result.qualification_establishments.is_empty()
-                            })
-                        },
-                    );
-                let plain_element = self.domains.get(*element).is_some_and(Vec::is_empty)
-                    && self
-                        .declaration(*element, concerns)?
-                        .scalar_restriction
-                        .is_none();
-                if !unclaimed
-                    || !plain_element
-                    || terminal_semantics::fixed_byte_array_loan(
-                        self.types.iter(),
-                        self.module.structural_domains.iter(),
-                        &backing,
-                        argument,
-                        parameter,
-                    )
-                    .is_none()
-                {
-                    return Err(self.unsupported(concerns, "an array loan without byte-view type, extent and qualification correspondence"));
-                }
-            }
+            self.byte_array_presentation(argument, parameter, concerns)?;
             let (expected_lender, parent, from, permitted) =
                 self.source_lender(&lent, access, concerns)?;
             let (obligation, row) = tables
