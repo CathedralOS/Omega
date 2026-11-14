@@ -469,3 +469,18 @@ fn a_conditional_public_postcondition_uses_the_actual_boolean_argument() {
         scalar_postcondition_call(&accepted(&source), Some(actual), actual);
     }
 }
+
+#[test]
+fn a_published_no_return_promise_still_owes_its_own_bodys_guarantee() {
+    for text in [
+        "public machine stop() -> u32 ensures false { 7u32 } machine main() {}",
+        "public machine stop(fatal: bool) -> u32 ensures !fatal { 7u32 } machine main() {}",
+    ] {
+        let verdicts = program(text);
+        assert!(
+            matches!(&verdicts[0], Ok(RouteVerdict::Rejected { unproved, .. })
+                if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. }))),
+            "a public postcondition cannot waive its own returning body's proof: {verdicts:?}",
+        );
+    }
+}
