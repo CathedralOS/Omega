@@ -1540,7 +1540,10 @@ pub mod expression {
                 )
             }
 
-            pub(crate) fn copy_call_operands_from(
+            /// Copy the existing call inputs and application into this table.
+            /// The caller assigns the new invocation owner and judges it; the
+            /// original application's tuple and scope remain untouched.
+            pub fn copy_call_operands_from(
                 &mut self,
                 source: &ExpressionTable,
                 expressions: &[ExpressionHandle],

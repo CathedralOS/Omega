@@ -3144,21 +3144,28 @@ pub(crate) mod namespaces {
             if !self
                 .type_reference_table
                 .contains_type_reference(call.requirement_application)
-                || !matches!(self.type_reference_node(call.requirement_application),
-                    crate::types::TypeReferenceNode::Generic { base_symbol, lifetime_arguments, .. }
-                        if *base_symbol == receiver.symbol && lifetime_arguments.is_empty())
                 || !self
                     .expression_table
                     .static_machine_application_is_valid(call.authored_machine_application)
             {
                 return Err("named application changed its retained map or source application");
             }
-            let crate::types::TypeReferenceNode::Generic { arguments, .. } =
-                self.type_reference_node(call.requirement_application)
-            else {
-                unreachable!()
+            let arguments = match self.type_reference_node(call.requirement_application) {
+                crate::types::TypeReferenceNode::Named { symbol, .. }
+                    if *symbol == receiver.symbol && parameters.is_empty() =>
+                {
+                    &[][..]
+                }
+                crate::types::TypeReferenceNode::Generic {
+                    base_symbol,
+                    lifetime_arguments,
+                    arguments,
+                    ..
+                } if *base_symbol == receiver.symbol && lifetime_arguments.is_empty() => {
+                    self.type_reference_handles(*arguments)
+                }
+                _ => return Err("named application changed its complete map constructor"),
             };
-            let arguments = self.type_reference_handles(*arguments);
             if arguments.len() != parameters.len()
                 || arguments.iter().any(|argument| {
                     !self.type_reference_table.contains_type_reference(*argument)
@@ -6936,6 +6943,20 @@ pub(crate) mod trait_scopes {
     use crate::{TypedTrees, signature, trait_definition::AppliedTraitScope};
     use symbols::SymbolHandle;
 
+    // The existing installation loop owns these transient requests for both a
+    // program preparation and a newly constructed call's exact application.
+    type CallableSignatureRequest = (
+        SymbolHandle,
+        SymbolHandle,
+        crate::type_identity::NormalizedTypeIdentity,
+        SymbolHandle,
+        crate::trait_definition::TraitApplicationEnvironment,
+        Vec<(
+            crate::trait_definition::TraitRefinementClause,
+            crate::trait_definition::TraitApplicationEnvironment,
+        )>,
+    );
+
     impl TypedTrees {
         pub fn applied_callable_signature(
             &self,
@@ -6986,6 +7007,38 @@ pub(crate) mod trait_scopes {
                     .iter()
                     .filter_map(|scope| scope.scope(self)),
             );
+            let pending = self.applied_callable_signature_requests(roots);
+            self.prepare_applied_callable_signature_requests(pending)
+        }
+
+        /// Prepare the public signatures of the exact retained application
+        /// before constructing its runtime actuals. The ordinary program pass
+        /// uses the same request and installation operations; this grants no
+        /// conformance proof or executable body.
+        pub fn prepare_applied_callable_signatures_for_application(
+            &mut self,
+            lexical_owner: SymbolHandle,
+            application: crate::types::TypeReferenceHandle,
+        ) -> Result<(), &'static str> {
+            if !self
+                .type_reference_table
+                .contains_type_reference(application)
+                || !self.symbols.symbols().nodes().is_valid(lexical_owner)
+            {
+                return Err("applied callable lost its source application owner");
+            }
+            let scope = self
+                .applied_requirement_scope(lexical_owner, application)
+                .ok_or("applied callable lost its complete requirement application")?;
+            let pending = self.applied_callable_signature_requests(vec![scope]);
+            self.prepare_applied_callable_signature_requests(pending)?;
+            Ok(())
+        }
+
+        fn applied_callable_signature_requests<'program>(
+            &'program self,
+            mut roots: Vec<AppliedTraitScope<'program>>,
+        ) -> Vec<CallableSignatureRequest> {
             let mut bound_roots = Vec::new();
             for root in &roots {
                 root.visit(self, &mut |scope| {
@@ -7046,6 +7099,13 @@ pub(crate) mod trait_scopes {
                     }
                 });
             }
+            pending
+        }
+
+        fn prepare_applied_callable_signature_requests(
+            &mut self,
+            pending: Vec<CallableSignatureRequest>,
+        ) -> Result<(Vec<signature::StateSignature>, bool), &'static str> {
             let row_key =
                 |requirement: SymbolHandle,
                  declaration: SymbolHandle,
