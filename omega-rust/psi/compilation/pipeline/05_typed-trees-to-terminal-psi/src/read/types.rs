@@ -50,10 +50,10 @@ pub(super) fn atom_type(atom: BuiltinTypeAtom, machine: MachineId) -> Checked<Sc
             Construct::Machine,
             Unserved::Type("syscall result"),
         )),
-        BuiltinTypeAtom::Terminal | BuiltinTypeAtom::Never => Err(refuse(
+        BuiltinTypeAtom::Terminal => Err(refuse(
             machine,
             Construct::Machine,
-            Unserved::Type("terminal or never"),
+            Unserved::Type("terminal"),
         )),
         BuiltinTypeAtom::UInt | BuiltinTypeAtom::Int => Err(refuse(
             machine,
