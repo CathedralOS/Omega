@@ -18,7 +18,7 @@ The obsolete checked-source and Build-provider production request interfaces
 and checked-provider inventory reexport are removed. Their lowering stage and
 intermediate Lowered Psi, optimization and publication wrappers are deleted.
 Missing capabilities belong on the lowered-form route; no old checker supplies
-a fallback artifact. This crate has no checked-tree dependency.
+a fallback artifact.
 
 [src/lib.rs](src/lib.rs) exposes the production and application contracts.
 [custody.rs](src/custody.rs) retains code, evidence, companions and source

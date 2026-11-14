@@ -38,7 +38,7 @@ Run from the repository root with a compiler built from the recorded source:
 
 ```sh
 APP=samples/cli/independent/stiff_reaction_kinetics
-omega update --project "$APP" --target linux_x86_64
+omega packages update --project "$APP" --target linux_x86_64
 omega run --both "$APP/main.omg" < "$APP/data/robertson_4_1_r100000.stdin"
 ```
 

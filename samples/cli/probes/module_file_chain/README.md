@@ -15,7 +15,7 @@ only (no std dependency):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/module_file_chain/main.omg
-mbx run -p omega -- update --project samples/cli/probes/module_file_chain
+mbx run -p omega -- packages update --project samples/cli/probes/module_file_chain
 ```
 
 Both green on Linux x86-64 (18 source files: 16 core + left + right);

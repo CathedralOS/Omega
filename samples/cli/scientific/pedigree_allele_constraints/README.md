@@ -56,9 +56,9 @@ From repository root, with a compiler built from the recorded base:
 
 ```sh
 omega --check --target linux_x86_64 samples/cli/independent/pedigree_allele_constraints/main.omg
-omega update --project samples/cli/independent/pedigree_allele_constraints --target linux_x86_64
+omega packages update --project samples/cli/independent/pedigree_allele_constraints --target linux_x86_64
 # Read the produced review, decide its individual requests, then resume if authorized.
-omega update --resume --project samples/cli/independent/pedigree_allele_constraints
+omega packages update --resume --project samples/cli/independent/pedigree_allele_constraints
 omega samples/cli/independent/pedigree_allele_constraints/main.omg
 python3 samples/cli/independent/pedigree_allele_constraints/validation/verify.py /absolute/path/to/compiled/application
 omega run --both samples/cli/independent/pedigree_allele_constraints/main.omg < samples/cli/independent/pedigree_allele_constraints/fixtures/shared_ancestry.stdin

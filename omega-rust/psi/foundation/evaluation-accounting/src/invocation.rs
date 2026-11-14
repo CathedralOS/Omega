@@ -81,7 +81,6 @@ impl TerminalStorageScheduleIdentity {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum EvaluationMeasurementIdentity {
-    CheckedTree,
     TerminalPsi {
         work_schedule: WorkScheduleIdentity,
         storage_schedule: TerminalStorageScheduleIdentity,
@@ -89,9 +88,15 @@ pub enum EvaluationMeasurementIdentity {
 }
 
 impl EvaluationMeasurementIdentity {
+    pub fn current() -> Self {
+        Self::TerminalPsi {
+            work_schedule: WorkScheduleIdentity::new(1).expect("schedule marker 1 is nonzero"),
+            storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+        }
+    }
+
     pub const fn is_current(self) -> bool {
         match self {
-            Self::CheckedTree => true,
             Self::TerminalPsi {
                 work_schedule,
                 storage_schedule,
@@ -101,7 +106,6 @@ impl EvaluationMeasurementIdentity {
 
     pub const fn is_supported(self, schema: u32, schedule: u32) -> bool {
         match self {
-            Self::CheckedTree => schema == 7 && schedule == 1,
             Self::TerminalPsi {
                 work_schedule,
                 storage_schedule,
@@ -408,12 +412,9 @@ impl EvaluationInvocationAccount {
     pub fn snapshot(&self) -> Result<EvaluationInvocationUsage, EvaluationAccountingError> {
         let (shared, local) = self.account.consumption()?;
         let limits = self.account.sponsor.limits();
-        let (usage_schema_version, step_schedule_marker) = match self.account.measurement {
-            EvaluationMeasurementIdentity::CheckedTree => (7, 1),
-            EvaluationMeasurementIdentity::TerminalPsi { work_schedule, .. } => {
-                (8, work_schedule.marker())
-            }
-        };
+        let EvaluationMeasurementIdentity::TerminalPsi { work_schedule, .. } =
+            self.account.measurement;
+        let (usage_schema_version, step_schedule_marker) = (8, work_schedule.marker());
         Ok(EvaluationInvocationUsage {
             account: Arc::clone(&self.account),
             record: BuildEvaluationUsage {
@@ -534,5 +535,22 @@ impl EvaluationStorageLease {
 impl Drop for EvaluationStorageLease {
     fn drop(&mut self) {
         self.account.release_storage(self.cells, self.payload_bytes);
+    }
+}
+
+#[cfg(test)]
+mod measurement_record {
+    use super::EvaluationMeasurementIdentity;
+
+    #[test]
+    fn terminal_measurement_record_round_trips() {
+        let limits = compiler_storage::RecordLimits::default();
+        let identity = EvaluationMeasurementIdentity::current();
+        let bytes =
+            compiler_storage::encode(&identity, limits).expect("current measurement encodes");
+        assert_eq!(
+            compiler_storage::decode::<EvaluationMeasurementIdentity>(&bytes, limits).unwrap(),
+            identity
+        );
     }
 }

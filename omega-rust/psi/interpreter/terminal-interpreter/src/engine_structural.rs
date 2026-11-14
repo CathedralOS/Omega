@@ -128,7 +128,7 @@ impl TerminalExecution<'_> {
             result.structural_type,
             result.qualifications.clone(),
         );
-        let view = self.stage_host_referent(referent, &supply)?;
+        let view = self.stage_host_referent(result.place, referent, &supply)?;
         self.reference_referents.insert(
             StructuralRuntimePlace::from(&value),
             crate::storage::reference::ReferenceReferent {
@@ -154,6 +154,7 @@ impl TerminalExecution<'_> {
 
     fn stage_host_referent(
         &mut self,
+        source: semantic_vocabulary::PlaceId,
         referent: StructuralTypeId,
         supply: &crate::boundary::effects::results::TerminalReferenceResult,
     ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
@@ -195,7 +196,7 @@ impl TerminalExecution<'_> {
             }
             crate::boundary::effects::results::TerminalReferencePayload::Zeroed => {
                 if supply.references.is_empty() {
-                    self.materialize_zeroed_structural_storage(&view)?;
+                    self.materialize_zeroed_structural_storage(source, &view)?;
                 } else {
                     let leaves = terminal_semantics::zeroed_structural_leaves_modulo_references(
                         self.structural_types().values(),
@@ -206,13 +207,13 @@ impl TerminalExecution<'_> {
                             "host referent's zeroed leaves cannot be materialized",
                         ),
                     )?;
-                    self.materialize_zeroed_leaves(&view, &leaves)?;
+                    self.materialize_zeroed_leaves(source, &view, &leaves)?;
                 }
             }
         }
         for (path, nested) in &supply.references {
             let (nested_referent, _access) = self.host_referent_field_reference(referent, path)?;
-            let nested_view = self.stage_host_referent(nested_referent, nested)?;
+            let nested_view = self.stage_host_referent(source, nested_referent, nested)?;
             self.reference_referents.insert(
                 StructuralRuntimePlace {
                     opaque_identity: view.opaque_identity,
@@ -578,7 +579,7 @@ impl TerminalExecution<'_> {
             projected_qualifications: result.projected_qualifications.clone(),
             path: Vec::new(),
         };
-        self.materialize_zeroed_structural_storage(&value)?;
+        self.materialize_zeroed_structural_storage(result.place, &value)?;
         self.structural_values.insert(result.place, value)?;
         self.track_affine_result(result);
         Ok(OperationFlow::Advance)
@@ -586,13 +587,15 @@ impl TerminalExecution<'_> {
 
     pub(crate) fn materialize_zeroed_structural_storage(
         &mut self,
+        source: semantic_vocabulary::PlaceId,
         value: &TerminalStructuralValue,
     ) -> Result<(), TerminalInterpretError> {
-        self.materialize_zeroed_structural_storage_with_established_fields(value, &[])
+        self.materialize_zeroed_structural_storage_with_established_fields(source, value, &[])
     }
 
     pub(crate) fn materialize_zeroed_structural_storage_with_established_fields(
         &mut self,
+        source: semantic_vocabulary::PlaceId,
         value: &TerminalStructuralValue,
         established_fields: &[terminal_semantics::EstablishedErasedStructuralField],
     ) -> Result<(), TerminalInterpretError> {
@@ -604,11 +607,12 @@ impl TerminalExecution<'_> {
         .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
             "zeroed structural backing or erased establishment cannot be materialized",
         ))?;
-        self.materialize_zeroed_leaves(value, &leaves)
+        self.materialize_zeroed_leaves(source, value, &leaves)
     }
 
     fn materialize_zeroed_leaves(
         &mut self,
+        source: semantic_vocabulary::PlaceId,
         value: &TerminalStructuralValue,
         leaves: &[ZeroedStructuralLeaf],
     ) -> Result<(), TerminalInterpretError> {
@@ -649,7 +653,11 @@ impl TerminalExecution<'_> {
                     self.structural_scalar_fields
                         .insert(cell, zero(*scalar_type).ok_or_else(malformed)?)?;
                 }
-                ZeroedStructuralLeaf::ByteSequenceField { field, .. } => {
+                ZeroedStructuralLeaf::EmptyView {
+                    field: Some(field),
+                    carrier,
+                    ..
+                } if carrier.byte_sequence_carrier().is_some() => {
                     self.structural_byte_sequence_fields.insert(
                         StructuralByteSequenceRuntimeField {
                             parent: StructuralRuntimePlace {
@@ -664,6 +672,41 @@ impl TerminalExecution<'_> {
                         )),
                     )?;
                 }
+                ZeroedStructuralLeaf::EmptyView {
+                    field: None,
+                    carrier: StructuralFieldType::Structural(ty),
+                    ..
+                } => {
+                    use crate::storage::element_views::{
+                        ElementView, immutable_sequence::ImmutableStructuralSequence,
+                    };
+                    if !matches!(
+                        self.structural_declaration(*ty)?.shape,
+                        StructuralTypeShape::ElementView {
+                            access: None | Some(StructuralAccess::SharedBorrow),
+                            ..
+                        }
+                    ) {
+                        return Err(malformed());
+                    }
+                    let descriptor = TerminalStructuralValue {
+                        opaque_identity: value.opaque_identity,
+                        structural_type: *ty,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        path: storage_path(),
+                    };
+                    let empty = ImmutableStructuralSequence::from_values(
+                        0,
+                        std::iter::empty(),
+                        self.account.as_ref(),
+                    )?;
+                    self.structural_element_view_fields.insert(
+                        StructuralRuntimePlace::from(&descriptor),
+                        ElementView::immutable_sequence(empty, descriptor, source),
+                    )?;
+                }
+                ZeroedStructuralLeaf::EmptyView { .. } => return Err(malformed()),
                 ZeroedStructuralLeaf::CaseField {
                     path: _,
                     field,

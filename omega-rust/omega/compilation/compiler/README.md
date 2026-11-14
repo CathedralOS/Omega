@@ -13,7 +13,7 @@ publishes an accepted lowered-form module with the same evidence and retained
 source owner. This driver supplies product policy and timing observations;
 [entry receipts](../../../psi/compilation/representations/terminal-psi/codec/src/entry_receipt.rs)
 belong to the codec. A missing product capability refuses with
-`no product route yet`; no old checked-tree lowering sequence is called.
+`no product route yet`; no old lowering sequence is called.
 
 The independent [native compiler](../native-compiler/README.md) owns the
 Terminal-to-image sequence behind a source-free dependency boundary. This
@@ -52,7 +52,7 @@ windows_x86_64 linux_arm64 macos_arm64`: the missing entry rejects without
 discarding either successful sibling.
 
 Product constants and declaration conditions now travel in the shared Terminal
-artifact rather than closing a checked-tree copy for each target. Scalar completion
+artifact rather than closing a separate program copy for each target. Scalar completion
 retains exact provider/target inputs and evaluation charges. `--check` publishes
 rootless declarations when scalar obligations require completion, and otherwise
 stops before Terminal production. `--compare-single-targets --run` additionally
@@ -255,11 +255,6 @@ Its private declaration-admission operation still uses the preliminary Psi
 checked pass; eliminating that duplicate semantic work is separate from moving
 the protocol out of the coordinator. There is no compiler-private package gate
 or public raw Build checkpoint that can bypass the evaluation protocol.
-Checked-product selection belongs to
-[Psi 05](../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/products.rs):
-the coordinator supplies the requested roots after rollback; the stage owns the
-identity case, root validation, pruning and selection evidence. It consumes only
-checked trees, not the Omega provider-settlement carrier.
 The result retains the selected-execution settlement intact. Its evaluated Build
 is one shared immutable product: configuration, observations, usage, optimization
 report intent and generated outputs are not dismantled into parallel fields.
@@ -512,10 +507,10 @@ Checking-only task validation stays separate from artifact-based native task
 demand. Source and role errors now precede Terminal/task errors when both exist;
 native-source refusals stay deferred, and native permission/trust admission stays
 after production. This is still a
-checked-tree realization seam; moving it out of the coordinator does not
+source-realization seam; moving it out of the coordinator does not
 complete the separate task of installing providers behind Terminal Psi.
 
-Boundary calls remain canonical in checked trees. Ordinary compilation does
+Boundary calls remain canonical in the checked program. Ordinary compilation does
 not build or retain receiver/requirement/entry-state dispatch associations. Neither selection nor
 evaluation fabricates replacement source calls. Terminal
 publication borrows the checked program directly. Package review reads the same

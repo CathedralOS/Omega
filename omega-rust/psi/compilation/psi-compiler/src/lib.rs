@@ -1,7 +1,7 @@
 /*
     Target-neutral source parsing, resolution, typing, and preparation. This
     facade supplies frozen typed input to the lowered-form checker; it produces
-    no source-checker judgment, checked-tree cache, or selected checked product.
+    no source-checker judgment or selected product cache.
 */
 
 /*
@@ -18,7 +18,7 @@
     continuation and Product policy admission, `source_checking`
     (`SourcePreparationRequest` and `FrozenSource`) before lowered-form
     checking. Accepted source publication and artifact retention belong to
-    `psi-terminal-production`; no checked-tree cache remains in this facade.
+    `psi-terminal-production`.
 */
 
 #![forbid(unsafe_code)]

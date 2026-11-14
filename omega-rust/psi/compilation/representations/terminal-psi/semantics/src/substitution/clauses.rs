@@ -22,6 +22,18 @@ pub trait ClauseBindings {
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, Self::Error>;
+    /// The current extent of this exact descriptor at the consumer's point.
+    /// Consumers without its version-bound observation must refuse it.
+    fn extent(
+        &mut self,
+        _root: PlaceId,
+        _path: &[CanonicalStructuralPathSegment],
+        _scalar_type: semantic_vocabulary::IntegerType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        Err(Self::Error::from(
+            "clause extent has no descriptor observation",
+        ))
+    }
     /// Whether the sum at `path` beneath `root` is `case`, by structure.
     fn case(
         &mut self,
@@ -105,6 +117,11 @@ pub fn substitute_clause_term<Error: From<&'static str>>(
             scalar_type,
         } => bindings.field(*root, path, ScalarType::Integer(*scalar_type)),
         ScalarTerm::BooleanField { root, path } => bindings.field(*root, path, ScalarType::Boolean),
+        ScalarTerm::ViewExtent {
+            root,
+            path,
+            scalar_type,
+        } => bindings.extent(*root, path, *scalar_type),
         ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_) => Ok(term.clone()),
         ScalarTerm::StructuralRead { .. } => Err(Error::from(
             "clause structural read is outside the scalar subset",

@@ -73,31 +73,25 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
-### Two proofs of "this machine refines that contract"
-- Category: zombie machinery
-- Where: `omega-rust/psi/compilation/pipeline/lowered-discharge/src/refinement.rs` (`prove_callable_refinement`) and `lowered-discharge/src/verdict.rs` (`judge_compilation_for`, which judges each `ConformanceWitness` row through `elaborate_witness`)
-- Saw: both build a witness machine that has the required contract and calls the supplied one. The first has no caller outside its own test and adds a ceiling check by hand; the second is what every implementation row, `satisfies` clause and chosen provider goes through
-- Cost: a rule added to one (a new ceiling axis, a new clause form) is missing from the other, and a reader cannot tell which one decides
-- Reported: 2026-11-13, Claude Code, while having chosen providers judged against the requirement they supply
+### Typing imports the preceding resolution stage for retained handoffs
+- Category: stage ownership
+- Where: `03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs` and `call_and_product_selections.rs`, with a production Cargo dependency on stage 02
+- Saw: deferred frontier/completion carriers live in stage 02, and stage 03 calls its `resolve_signature_free_requirement` helper rather than consuming a representation-owned result
+- Cost: the earlier source stages cannot enforce the same adjacent-stage dependency ban as the numbered Terminal stages; one stage still reconstructs input meaning through its predecessor
+- Reported: 2026-11-13, Codex, while separating Psi 05/06 preparation and checking
+
 ### A view passed from a place is lent as that place, so it conflicts with a loan of its holder
 - Category: one idea, several implementations
-- Where: `structure-elaboration/src/read/calls.rs` (`lent`, `lent_storage_is_untouched` with `holds_view`), `lower/calls.rs` (`arguments`, the `Borrow` arm), `lowered-discharge/src/places/loans.rs`
+- Where: `05_typed-trees-to-terminal-psi/src/read/calls.rs` (`lent`, `lent_storage_is_untouched` with `holds_view`), `lower/calls.rs` (`arguments`, the `Borrow` arm), `06_terminal-psi-to-terminal-psi/src/places/loans.rs`
 - Saw: the reader says a place that holds a byte view "lends none of its binding's storage: the callee is given the view", and so allows `both(&mut session, session.name)`. Lowering then passes the view as a shared loan of the place `session.name`, and the checker rejects the call: "state `both` receives `session` as both mutable and read-only". The same holds for a view in a case payload. The reader and the lowered form disagree about what passing a view lends, and the checker's rejection of a program lifetimes.md allows ("not a borrow of the caller's private carrier storage") reads as the program's error
 - Cost: a correct program is rejected, not refused as unsupported, and the message blames the author. Passing a stored view needs a form that copies the descriptor out before the exclusive loan is formed
 - Reported: 2026-11-13, Claude Code, while lending case payloads
 
-### Four walks from a place to its root in the reader, each with its own list of steps
-- Category: one idea, several implementations
-- Where: `structure-elaboration/src/read/calls.rs` (`root_slot`), `read/statements.rs` (the assignment target loop), `read/authority.rs` (`written_through`), `read/expressions.rs` (`names_storage`)
-- Saw: `lent` had a fifth, which stopped at a case payload and at a saved match subject though `root_slot` beside it walked both; that was the whole of `call borrow of a case payload`. `written_through` stopped at a saved subject, so an exclusive loan of a payload of `match holder.field` authorized no write through `holder`
-- Cost: each new step kind (payload, saved subject) is taught to one walk at a time, and the ones that are missed either refuse a served program or skip an authority check
-- Reported: 2026-11-13, Claude Code, while lending case payloads
-
 ### Whether a type is a scalar is decided twice, once by its spelling and once by its symbol
 - Category: one idea, several implementations
-- Where: `typed-trees/src/type_system.rs` (`TypeReferenceNode::primitive_type` calls `PrimitiveType::from_name(name)`; `type_symbol` returns no symbol when the name spells a primitive); `structure-elaboration/src/read/types.rs` (`atom_type` through `SymbolTable::builtin_type_atom`); `symbol-resolved-trees/src/type_system_and_names.rs` (a second `PrimitiveType` with its own `from_name`)
+- Where: `typed-trees/src/type_system.rs` (`TypeReferenceNode::primitive_type` calls `PrimitiveType::from_name(name)`; `type_symbol` returns no symbol when the name spells a primitive); `05_typed-trees-to-terminal-psi/src/read/types.rs` (`atom_type` through `SymbolTable::builtin_type_atom`); `symbol-resolved-trees/src/type_system_and_names.rs` (a second `PrimitiveType` with its own `from_name`)
 - Saw: typing reads `u32` as an integer because the text of the name is `u32`, with `AtomicU32` and `AtomicU32#AccessField<` mapped to the same carrier by string prefix; the lowered-form checker reads it as an integer because its symbol sits in a compiler-installed root slot. Two enums named `PrimitiveType` restate the answer for the two tree representations
-- Cost: a package type spelled like a primitive and the width-indexed spellings (`u13`, `u<N>`) each have to be taught to both routes, and the two can disagree about one type reference
+- Cost: a package type spelled like a primitive has to be taught to both routes, and the two can disagree about one type reference. The width spellings were taught to both (`u13` is a name to typing and an installed builtin symbol to the checker), which made them agree without removing the second route. Typing still lets two mismatches through that only the checker stops, as `not-supported` instead of a typing error: `machine f(value: u1) -> bool { value }` (`typing arm value type`) and a suffixed literal outside its carrier such as `1i1` or `8192u13` (`integer literal outside its type`)
 - Reported: 2026-11-13, Claude Code, while replacing the eight integer names with a sign and a width
 
 ### Three vocabularies still list eight integer widths by name
@@ -109,35 +103,35 @@ framework or a list of features that remain unimplemented.
 
 ### The lowered form drops declared domains, so only the reader knows a value's type
 - Category: a verdict with nothing behind it
-- Where: `structure-elaboration/src/lower.rs` and `policy.rs` (`qualifications: ScalarQualificationSetId::ZERO`); `terminal-psi/src/types_and_values.rs` (`ScalarQualificationCatalog`, `ScalarDomainDeclaration`, `ScalarQualificationCoercion`)
+- Where: `05_typed-trees-to-terminal-psi/src/lower.rs` and `policy.rs` (`qualifications: ScalarQualificationSetId::ZERO`); `terminal-psi/src/types_and_values.rs` (`ScalarQualificationCatalog`, `ScalarDomainDeclaration`, `ScalarQualificationCoercion`)
 - Saw: Terminal Psi has a catalog for scalar domains, their predicates and the edge where a value is coerced into one, and the lowered route fills none of it. Which domains a value carries, and who may add one, is decided in the reader and erased before the checker sees the program. A domain's predicates do reach the checker, as ordinary contracts and as the invariant of the block a cast continues in, but the nominal part does not.
 - Cost: the checker cannot re-derive that `value as +D` was authorized or that an argument carries the domain its parameter declares; a reader bug there is accepted with no row to contradict it, and a published artifact says nothing about domains
 - Reported: 2026-11-13, Claude Code, while stating domain predicates as contracts
 
 ### Data applied at a lifetime is one record whose stored views name only the data's own binders
 - Category: a verdict with nothing behind it
-- Where: `structure-elaboration/src/read/types.rs` (`value_type`, the `Inner<'a>` arm), `read/places.rs` (`lifetime_binders`, `declared_field`), `read/bytes.rs` (`byte_view_type`)
+- Where: `05_typed-trees-to-terminal-psi/src/read/types.rs` (`value_type`, the `Inner<'a>` arm), `read/places.rs` (`lifetime_binders`, `declared_field`), `read/bytes.rs` (`byte_view_type`)
 - Saw: `Session<'a>` and bare `Session` are the same `ValueType::Record`, and the field `name: &'storage [u8]` has the type "view of `Session`'s `'storage`" in every value. So `long.name = short.name` between two `Session` values is accepted without anything relating the regions the two were applied at, and `with_alias<'s>(d: &mut Description<'s>, alias: &'s [u8]) { d.alias = alias; }` is refused as a type mismatch because the lifetime argument relates nothing. It is safe today only because a view of a formal's region can never enter a record at all
 - Cost: the toolchain's own `dependency::with_alias` cannot be judged, and the first slice that lets a formal's view into a record (or forms a view of local storage) inherits an unchecked exchange between records of different regions. The type of a record value needs its lifetime arguments
 - Reported: 2026-11-13, Claude Code, while reading machines with lifetime parameters
 
 ### Every view written without a lifetime is one type in every machine
 - Category: a verdict with nothing behind it
-- Where: `typed-trees/src/type_identity.rs` (`RegionForm::Elided`, no owner and no position); `structure-elaboration/src/read/bytes.rs` (`source_byte_view`), `read/calls.rs` (`view_regions`)
+- Where: `typed-trees/src/type_identity.rs` (`RegionForm::Elided`, no owner and no position); `05_typed-trees-to-terminal-psi/src/read/bytes.rs` (`source_byte_view`), `read/calls.rs` (`view_regions`)
 - Saw: `&[u8]` renders one identity wherever it is written, so two formals without a lifetime have the same type and `pick(a: &[u8], b: &[u8]) -> &[u8] { b }` is accepted as a declaration, though lifetimes.md says "Ambiguous elision requires an explicit relation". The call is what refuses it, and only when the two views passed are of different regions
 - Cost: the elision rule has no owner at the declaration; a reader of the callee alone cannot tell which input the result is related to, and the diagnostic lands on a caller
 - Reported: 2026-11-13, Claude Code, while giving a call's lifetimes the regions of the views it passes
 
 ### The reader and its README still justify decisions by what the deleted checker did
 - Category: zombie machinery
-- Where: `structure-elaboration/src/read/machine.rs` (the retired data-qualified machine spelling), `read/expressions.rs`, `read/calls.rs`, `declare.rs`, `names.rs`; `lowered-discharge/src/describe.rs`, `verdict.rs`; both crates' `README.md`; `lowered-discharge/src/lib.rs` (`Knowledge::WithoutBranchConditions`, `Knowledge::LiteralIntervals`)
+- Where: `05_typed-trees-to-terminal-psi/src/read/machine.rs` (the retired data-qualified machine spelling), `read/expressions.rs`, `read/calls.rs`, `declare.rs`, `names.rs`; `06_terminal-psi-to-terminal-psi/src/describe.rs`, `verdict.rs`; both crates' `README.md`; `06_terminal-psi-to-terminal-psi/src/lib.rs` (`Knowledge::WithoutBranchConditions`, `Knowledge::LiteralIntervals`)
 - Saw: about fifty comments said "the current checker" does this or that; they now say "the deleted checker" did, which is true but leaves the reasoning hollow where the old checker was the reason: a retired spelling is served because refusing it "would only send the same program" to a checker that accepted it, and message wording is pinned to that checker's sentences. The `Knowledge` knob is threaded through discharge only for the comparison example this change deleted
 - Cost: a reader cannot tell which behaviours are the specification's and which were kept for agreement with a checker that no longer exists, and the knob is dead weight in every discharge signature
 - Reported: 2026-11-13, Claude Code, while removing the two-checker names
 
 ### A clause the specification rejects can only be reported as not supported yet
 - Category: a verdict with nothing behind it
-- Where: `omega-rust/psi/compilation/representations/terminal-psi/check-tables/src/lib.rs` (`RefusalReason`); `structure-elaboration/src/read/contracts.rs` (`term`, the `Trapping` arm)
+- Where: `omega-rust/psi/compilation/representations/terminal-psi/check-tables/src/lib.rs` (`RefusalReason`); `05_typed-trees-to-terminal-psi/src/read/contracts.rs` (`term`, the `Trapping` arm)
 - Saw: `ensures result == left +! right` is an error of the program (`wiki/spec/proofs/contracts.md`, "Total arithmetic": an operation that can transfer control "cannot form a proof term"), but the reader's only negative result that is not a storage or ownership judgment is `Unsupported`, so the clause is refused with the same outcome as a construct nobody has built yet. A wholly anonymous `7 +% 1` and a suffix on a qualified operand are reported the same way
 - Cost: the author is told the compiler cannot judge a program that the language forbids, and a test cannot tell a rule of the language from a gap in the checker
 - Reported: 2026-11-13, Claude Code, while reading suffixed operators in contracts
@@ -151,7 +145,7 @@ framework or a list of features that remain unimplemented.
 
 ### Nothing makes a new reader site ask before it looks inside a qualified data value
 - Category: a verdict with nothing behind it
-- Where: `structure-elaboration/src/read/` (`authority.rs`, and every `ValueType::Record(record, _)` pattern in `places.rs`, `expressions.rs`, `transitions.rs`, `arrays.rs`, `contracts.rs`, `statements.rs`)
+- Where: `05_typed-trees-to-terminal-psi/src/read/` (`authority.rs`, and every `ValueType::Record(record, _)` pattern in `places.rs`, `expressions.rs`, `transitions.rs`, `arrays.rs`, `contracts.rs`, `statements.rs`)
 - Saw: a type is a carrier and its domains, and about thirty sites match the carrier and discard the domains with `_`. The sites that take a value apart now call `authority::opened`, but the pattern still compiles anywhere, and two sites were typing a literal with whatever qualified type its context expected until this change (`arrays.rs` array literal, `places.rs` record literal). A store's destination is also read through the expression reader, so it asks read authority where only write authority is owed.
 - Cost: the next site that projects, compares or constructs a record with `_` silently ignores a domain's reader, writer or issuer rule, and no test fails until someone writes the twin for that exact site
 - Reported: 2026-11-13, Claude Code, while reading declared domains on data carriers
@@ -198,13 +192,6 @@ framework or a list of features that remain unimplemented.
 - Cost: the surviving producer and consumers agree by spelling rather than a shared typed value; a reader that misses the form fails only at run time (`None`, or "dynamic family tuple identity is not an integer constant").
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Structural size and alignment is computed three times, and each copy aligns a wide integer to 8 alone but 16 as a field
-- Category: one idea, several implementations
-- Where: `omega-rust/omega/compilation/backend/calling-conventions/src/terminal_layout.rs:398`, `:407`, `:458`; `.../calling-conventions/src/structural_shapes.rs:478`, `:487`, `:534`; `omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact.rs:4568`, `:4954`, `:4962`
-- Saw: three hand-written walks over the same structural type declarations in two crates; in all three a standalone integer scalar gets `next_power_of_two().min(8)` and the same integer as a record field gets `.min(16)`
-- Cost: a layout fix has to be made three times, and the 8 or 16 answer depends on which function is asked, so the copies agree with each other while possibly disagreeing with the ABI
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### A structural path segment has five hand-written byte encoders with three different numberings
 - Category: one idea, several implementations
 - Where: `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/identity.rs:213` and `.../optimization-unit/src/ownership.rs:171`, `.../selected-instructions/src/effects/program/identity.rs:476`, `.../selected-instructions/src/plan_identity.rs:606`, `.../target-operations/legalized-operations/src/identity/structural_types.rs:208`
@@ -217,20 +204,6 @@ framework or a list of features that remain unimplemented.
 - Where: `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs:17909` and `:17846`, against `omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs:8566` and `:11744`
 - Saw: `attachment_storage_types` differs between the two files in two lines (visibility and one `use`); `validate_structural_type_graph` is the same walk with a different error type and lookup
 - Cost: the type-graph rules live once on each side of the Psi/Omega boundary, so a fix on one side leaves the other accepting or rejecting something different, with no test found tying them together
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### "Is this domain exposed to this reference" has a shared predicate and two private rewrites
-- Category: one idea, several implementations
-- Where: `omega-rust/psi/foundation/symbols/src/table.rs:963` (comment at `:937-942` calls it "this shared predicate"), `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection.rs:2598`, `omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference.rs:482`
-- Saw: the shared one checks visibility, same package and module, ambient toolchain symbols and what each import binding exposes; the stage 02 copy compares module names and import paths as strings with no visibility or package test; the stage 03 copy compares module symbols, matches import paths as strings and answers false when there is no reference span
-- Cost: a change to import or visibility rules made in the symbol table does not reach operator-home selection in stage 02 or domain lookup in stage 03, so the stages can disagree on which domain a name selects
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### `match_pattern_dependencies` is written three times and two copies leave out the destructure fields
-- Category: one idea, several implementations
-- Where: `omega-rust/psi/compilation/representations/syntax-trees/src/values_and_types.rs:1507-1534`, `.../symbol-resolved-trees/src/values.rs:2831-2860`, `.../typed-trees/src/values.rs:3113-3142`
-- Saw: the syntax-trees copy passes `pattern.fields` and lists every field `Equal` value; the symbol-resolved and typed-trees copies pass `HandleSpan::empty()` for a destructure pattern, so their loop over fields never yields anything, although both pattern structs carry `fields` (`symbol-resolved-trees/src/values.rs:3635`, `typed-trees/src/values.rs:4986`)
-- Cost: a caller asking "which expressions does this pattern depend on" gets a different answer depending on which tree it holds, and the leftover field loop makes the two short copies look complete
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### The default ranking view is derived differently in resolution and typing
@@ -254,12 +227,12 @@ framework or a list of features that remain unimplemented.
 - Cost: a new instruction kind that misses the effect table is declared effect-free and passes validation by construction; "validated catalog" reads as an independent check and is not one
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Every obligation becomes an "accepted" fact, and no later stage can tell a proven one from an unproven one
+### Native lowering accepts module bytes without artifact-bound host producer trust
 - Category: a verdict with nothing behind it
-- Where: `omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/verified_unit.rs:194-400` and `:412-425`; readers at `.../01_.../src/rules.rs`, `.../03_target-operations-to-selected-instructions/src/legalization.rs:234-244`
-- Saw: `source_checked_obligation_facts` pushes one `AcceptedObligationFact` per obligation reference; the proof fingerprint is 32 zero bytes unless a seal names it, and the comment says no module the current pipeline produces has seals; the only readers of the fingerprint are a measurement printout, the identity hash and one equality against a proof question; stage 03 takes the first matching fact and needs only that it exists
-- Cost: the names "accepted" and "source checked" read as proof; stages 01 and 03 remove or omit runtime checks on the strength of a fact that only records that an obligation was stated
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
+- Where: `00_terminal-psi-to-abstract-operations/src/artifact_admission.rs` (`lower_artifact`), `abstract-operations/verified-input/src/lib.rs` (`VerifiedPsiOptimizationInput::lowered`), and `01_abstract-operations-to-abstract-operations/src/verified_unit.rs` (`source_checked_obligation_facts`)
+- Saw: the public byte-lowering route canonically decodes a module and can produce accepted obligation facts without an artifact-bound host producer-trust witness. Zero proof fingerprints are not themselves the defect: `product.md#publication-and-separate-consumption` permits reuse of a trusted producer's judgments without transported derivations.
+- Cost: an embedding caller can reach native optimization with asserted obligations but no explicit authorization of their producer; repair the ingress trust boundary under `PSI-CLAIM-ADMISSION`, not by replaying proofs on every trusted internal stage handoff.
+- Reported: 2026-11-12, Claude Code; narrowed against the ratified execution-admission contract by Codex on 2026-11-13 while auditing accepted facts
 
 ### A default compile seals the native artifact without running the replay, and a failed replay under `--both` is reported as declined
 - Category: a verdict with nothing behind it
@@ -282,11 +255,11 @@ framework or a list of features that remain unimplemented.
 - Cost: a reader takes stage 03 as the owner of "every case is covered" when for these runs it decides nothing, and the question of who does is left to whoever next breaks it
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### A stale or invalid arena handle reads a default row, and a write through one changes the shared default
+### Unchecked arena lookups still conflate stale handles with the zero sentinel
 - Category: a verdict with nothing behind it
-- Where: `omega-rust/psi/foundation/arena/src/arena.rs:1023-1038`, `:1113`; `paged.rs:462-476`, `:1093-1095`
-- Saw: `get` returns the dummy row when the index or generation does not match; `get_mut` returns `&mut self.dummy`; `span_or_empty` turns a span it cannot resolve into an empty slice; the crate header (`lib.rs:20`) gives the reason for handle zero only, not for a stale generation
-- Cost: every table in the Psi half sits on these containers, so a dangling handle anywhere looks like an empty declaration, not an error, and the next reader of the dummy sees whatever was last written to it
+- Where: `omega-rust/psi/foundation/arena/src/arena.rs` (`get`, `get_mut`, `span_or_empty`); `paged.rs` (corresponding paged lookups)
+- Saw: unchecked lookups return the shared default or an empty slice for unresolved nonzero handles; mutable lookups can change that default. Handle zero deliberately names absence, including its shared default; generation checks alone cannot establish ownership between arenas using the same generation.
+- Cost: consumers without an owning-boundary validation can interpret a stale handle as a missing declaration or mutate the shared default. Those consumers need recoverable validation before using these infallible APIs, without changing legitimate zero-sentinel behavior.
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### The Terminal interpreter reports a failed run-time check as a malformed artifact, with one error for 1,329 sites
@@ -294,13 +267,6 @@ framework or a list of features that remain unimplemented.
 - Where: `omega-rust/psi/interpreter/terminal-interpreter/src/boundary_values.rs:696`; example at `engine_execution.rs:3691`
 - Saw: `malformed()` returns `VerifiedOperationMalformed` and is called 1,329 times across 15 files; an exact add, multiply or divide whose result does not fit ends in `.ok_or(malformed())?`; a program crash is built on only 7 lines (trapping integer, trapping float, crash terminator, host effect); no crate outside the interpreter names the variant
 - Cost: an overflow or zero divisor that native code would trap on shows up as "the verified artifact is malformed" with no reason, so a native and Psi disagreement reads as an interpreter failure and the cause must be found by hand
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### A missing target profile is replaced by the build host at 16 places
-- Category: a verdict with nothing behind it
-- Where: `omega-rust/omega/build-system/build-settings/src/admission/checking.rs:149`, `:190`; `omega-rust/omega/compilation/compiler/src/checked/target_preparation.rs:104`, `execution_settlement.rs:286`, `:368`, `:412`, `product_execution/component.rs:132`, `terminal/terminal_artifact.rs:238`, `:365`, `:389`; `omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement.rs:246`, `:395`, `target_machines.rs:143`, `:167`, `target_machines/prepared_providers.rs:352`, `provider_planning/provenance_replay/plan_derivation.rs:192`
-- Saw: 16 `unwrap_or_else(TargetProfile::host)` calls across three crates; `checking.rs:171-175` reports "Build provider planning requires an admitted execution profile" for the same absence when candidates exist
-- Cost: a caller that forgets to pass the target gets host answers with no diagnostic, which only shows up as a wrong result when cross-compiling; nothing says which of the 16 are meant
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### Architecture rules are enforced by searching source text for substrings
@@ -362,7 +328,7 @@ framework or a list of features that remain unimplemented.
 ### An `invokes` row that names an ordinary trait is dropped without a word
 - Category: a verdict with nothing behind it
 - Where: `typed-trees/src/declarations.rs` (`declared_targets`, consumed by `declared_machine_invocations`)
-- Saw: `declared_targets` keeps an `invokes` target only when it is a boundary trait or a parameter of boundary type and silently discards any other, so `invokes Handler` over an ordinary trait reads as no target to its consumers. Conformance refinement is now judged by `lowered-discharge/src/verdict.rs`; that no longer explains the loss.
+- Saw: `declared_targets` keeps an `invokes` target only when it is a boundary trait or a parameter of boundary type and silently discards any other, so `invokes Handler` over an ordinary trait reads as no target to its consumers. Conformance refinement is now judged by `06_terminal-psi-to-terminal-psi/src/verdict.rs`; that no longer explains the loss.
 - Cost: a written entry ceiling can vanish before the checker sees it. Preserve or explicitly reject the authored target instead of silently narrowing the request during extraction.
 - Reported: 2026-11-13, Claude Code, while putting `invokes` on the lowered-form checker
 
@@ -375,15 +341,15 @@ framework or a list of features that remain unimplemented.
 
 ### A generated machine is identified three ways and copied by a hand-kept list
 - Category: one idea, several implementations
-- Where: `typed-trees` (`MachineSpecialization` rows, `Symbol::generated_from`, `executable_application_template`); `structure-elaboration/src/lib.rs` (`template_of`), `read/calls.rs` (`applies_nothing`), `declare.rs`; `04_typed-trees-to-typed-trees/src/passes/specialization.rs` (`template`, `held_types`)
+- Where: `typed-trees` (`MachineSpecialization` rows, `Symbol::generated_from`, `executable_application_template`); `05_typed-trees-to-terminal-psi/src/lib.rs` (`template_of`), `read/calls.rs` (`applies_nothing`), `declare.rs`; `04_typed-trees-to-typed-trees/src/passes/specialization.rs` (`template`, `held_types`)
 - Saw: "this machine was generated from that generic machine" is read from the state symbol's `generated_from` in three places and from the `machine_specializations` row in a fourth, and nothing ties the two; the row also keeps eight string and commitment fields that only the deleted checker filled. Separately, an expression copy shares the types its nodes hold, so the pass lists by hand which node kinds hold a type (`held_types`) and which body constructs it cannot copy
 - Cost: a pass that sets one marker and not the other produces a machine the reader accepts and the declaration step refuses, or the reverse; a new expression node that holds a type is silently left pointing at the generic machine's type until someone adds it to the list
 - Reported: 2026-11-13, Claude Code, while rebuilding specialization as a typed preparation pass
 
-### An implementation's refinement witness is built twice, and its dispatch row keeps fields nobody fills
+### A selected refinement witness is discharged twice, and its dispatch row keeps unused fields
 - Category: one idea, several implementations
-- Where: `lowered-discharge/src/verdict.rs` (`witnesses`, and the witness parts of `judge_compilation_for`); `typed-trees` (`StaticRequirementDispatch`); `04_typed-trees-to-typed-trees/src/passes/specialization.rs` (`selections`)
-- Saw: "this machine refines that requirement" is elaborated and discharged once to carry a generic form's proofs into a generated machine, where a failure is silently skipped, and a second time as the part that gives the verdict; the two share `elaborate_witness` and nothing else. Separately, the dispatch a generated call carries has an application fingerprint, a commitment, a selection application and a contract signature that only the deleted checker filled, so the pass writes four of nine fields
+- Where: `06_terminal-psi-to-terminal-psi/src/verdict.rs` (`witnesses`, and the witness parts of `judge_compilation`); `typed-trees` (`StaticRequirementDispatch`); `04_typed-trees-to-typed-trees/src/passes/specialization.rs` (`selections`)
+- Saw: preparation emits each conformance witness once, but checking clones and discharges a selected witness for generic-proof reuse before judging the original witness for the compilation verdict. Separately, the dispatch a generated call carries has an application fingerprint, a commitment, a selection application and a contract signature that only the deleted checker filled, so the pass writes four of nine fields
 - Cost: every selected implementation is proved twice per compilation, and a reader of the dispatch cannot tell an empty commitment from one that was never computed
 - Reported: 2026-11-13, Claude Code, while serving implementation parameters in the specialization pass
 
@@ -396,14 +362,28 @@ framework or a list of features that remain unimplemented.
 
 ### The parser still accepts a boundary requirement with no `crashes` clause
 - Category: a verdict with nothing behind it
-- Where: `01_tokens-to-syntax-trees/src/declarations.rs` (refuses a boundary requirement without `reaches`, says nothing about `crashes`); `structure-elaboration/src/read/calls.rs` (`boundary`); `samples/` and `tests/fixtures/`
+- Where: `01_tokens-to-syntax-trees/src/declarations.rs` (refuses a boundary requirement without `reaches`, says nothing about `crashes`); `05_typed-trees-to-terminal-psi/src/read/calls.rs` (`boundary`); `samples/` and `tests/fixtures/`
 - Saw: effects.md says a boundary requirement "must likewise write `crashes`". Only the lowered-form checker enforces it, and only at a call. The bundled library now writes the clause on all 400 of its requirements, but 1,745 requirements in 1,062 files under `samples/` and 70 in 40 files under `tests/fixtures/` do not, so the parser cannot refuse the omission until those are migrated, each to the ceiling its providers really have
 - Cost: a library or program author learns that the clause is missing only when some caller is refused, and 30 library requirements with no provider and no caller carry `crashes Trap crashes Abort` because nothing in the repository says what narrower ceiling their owner intends
 - Reported: 2026-11-13, Claude Code, while writing the bundled library's crash ceilings
 
 ### Typing lets a bare literal be stored into a field declared in a domain
-- Category: a verdict with nothing behind it
-- Where: `03_symbol-resolved-trees-to-typed-trees` (assignment typing); `structure-elaboration/src/read/authority.rs` (`Access::Replace`); `compiler/tests/build_value_protection.rs` (`replacing_the_seal_is_not_accepted`)
-- Saw: `Sealed { seal: Seal { } }` is refused by typing ("record literal field type") because a literal is the bare carrier, but `builder.seal = BuildSeal { };` passes typing. The program is stopped only because the lowered-form checker refuses every replacement of a policy-governed value. For a domain with no policy the store of a bare carrier into a qualified field would reach the checker with nothing refusing it
-- Cost: the rule "the supplied expression's static type must carry exactly the domains the destination declares" has two owners for construction and one accidental owner for assignment; when plans are evaluated and a writer is admitted, the assignment form loses its only guard
+- Category: one idea built twice
+- Where: `03_symbol-resolved-trees-to-typed-trees` (assignment typing); `05_typed-trees-to-terminal-psi/src/read/rejections.rs` (`mistyped`)
+- Saw: `Sealed { seal: Seal { } }` is refused by typing ("record literal field type") because a literal is the bare carrier, but `builder.seal = BuildSeal { };`, a plain argument for a qualified parameter and a plain value for a qualified result all pass typing. The lowered-form reader now rejects each by the rule (one carrier, two domain sets), so nothing is accepted, but typing checks the rule for one form and the reader for all of them
+- Cost: "the supplied expression's static type must carry exactly the domains the destination declares" has two owners with different coverage and different wording, so the same mistake reads differently by where it is written
 - Reported: 2026-11-13, Claude Code, while declaring the seal that protects the compiler-owned `Build`
+
+### Build selection calls are found and published by the spelling of their protocol operation
+- Category: one idea built twice
+- Where: `03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs` (finds `BuildBindingOperations` and `bind_native` by name); `psi-compiler/terminal-production/src/build_companions.rs` (`binding`, matches the same names again)
+- Saw: typing picks the protocol operation of a Build selection by comparing strings, and publication recovers which operation a boundary call is by comparing the requirement's name a second time. The typed call also carries no static application, so `bind_native<Locator>` reaches the checker as an open requirement although typing knows the locator argument it was written with
+- Cost: the host row's operation is decided twice from text, and the native binding cannot be closed at its locator type by the pass that closes every other application until typing records that application on the call
+- Reported: 2026-11-13, Claude Code, while closing boundary requirements at the types their calls apply
+
+### A call of a machine nothing declares is refused as "not supported yet", not as an error
+- Category: a verdict with nothing behind it
+- Where: `typed-trees/src/deferred_refusals.rs` (`DeferredRequest::UnresolvedCallTarget`); `05_typed-trees-to-terminal-psi/src/read.rs` (raises the row as `RefusalReason::Unsupported`); `compiler/tests/route_probe.rs` (`an_unknown_machine_after_a_call_that_never_returns_is_not_accepted`)
+- Saw: typing records a call whose name no declaration answers as a deferred row beside rows for constructs no pass serves yet, and the reader raises every row the same way. `undeclared_machine(x);` in a program's own machine therefore reaches the user as "not supported yet ... with no claim that it is wrong" and never as a rejection
+- Cost: a misspelled machine name reads as a compiler limitation; state_contracts.md ("an unknown machine name or malformed type is an error wherever it appears") is met only in that the program is not accepted, and the outcome word is `not-supported` where it should be `rejected`
+- Reported: 2026-11-13, Claude Code, while accepting statements after a call that never returns

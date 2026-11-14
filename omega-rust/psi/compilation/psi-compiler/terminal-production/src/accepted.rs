@@ -3,15 +3,19 @@
 //! be attached to an artifact after the route has decided it.
 
 use diagnostics::Diagnostic;
-use lowered_discharge::{AcceptedClosure, CompilationRefusal, RouteVerdict};
 use std::sync::Arc;
+use terminal_psi_to_terminal_psi::{AcceptedClosure, CompilationRefusal, RouteVerdict};
 use typed_trees::FrozenTypedTrees;
 
 #[derive(Debug)]
 pub struct AcceptedTerminalSource {
     source: Arc<FrozenTypedTrees>,
     closure: Box<AcceptedClosure>,
+    correspondence: typed_trees_to_terminal_psi::SourceCorrespondence,
     publication: terminal_codec::TerminalPublication,
+    /// What the route says about the accepted source without refusing it
+    /// (`advisories`), in the order the parts were judged.
+    advisories: Vec<Diagnostic>,
 }
 
 /// One boundary requirement a machine of an accepted module calls.
@@ -31,16 +35,29 @@ pub struct ReachedBoundaryRequirement {
 impl AcceptedTerminalSource {
     pub fn judge(
         source: Arc<FrozenTypedTrees>,
-        compilation: structure_elaboration::Compilation<'_>,
+        compilation: typed_trees_to_terminal_psi::Compilation<'_>,
         publication: terminal_codec::TerminalPublication,
     ) -> Result<Self, Vec<Diagnostic>> {
-        let verdicts = lowered_discharge::judge_compilation_for(&source, compilation, publication);
+        let prepared =
+            typed_trees_to_terminal_psi::prepare_compilation(&source, compilation, publication);
+        let verdicts = terminal_psi_to_terminal_psi::judge_compilation(prepared.program);
+        let advisories = advisories(&verdicts);
         let closure = accept_compilation(verdicts)?;
         Ok(Self {
             source,
             closure,
+            correspondence: prepared.source,
             publication,
+            advisories,
         })
+    }
+
+    /// The advisory diagnostics of the accepted compilation: warnings and
+    /// their notes, none of which is an error. They are data on the
+    /// accepted judgment for whoever reports the compilation; nothing here
+    /// prints them and no later stage reads them.
+    pub fn advisories(&self) -> &[Diagnostic] {
+        &self.advisories
     }
 
     /// Binds source companions to this exact accepted code owner. The Build
@@ -108,10 +125,10 @@ impl AcceptedTerminalSource {
             })
             .collect();
         // The published module is the elaboration's module, so the rows
-        // name the artifact's own operations. Native formations stay empty:
-        // the reader refuses the native binding that would need one.
-        let companions = crate::build_companions::produce(&self.source, elaboration)
-            .map_err(|diagnostic| vec![diagnostic])?;
+        // name the artifact's own operations and original source formations.
+        let companions =
+            crate::build_companions::produce(&self.source, elaboration, &self.correspondence)
+                .map_err(|diagnostic| vec![diagnostic])?;
         crate::build_bindings::validate_companions(
             program.view(),
             &companions.bindings,
@@ -125,7 +142,7 @@ impl AcceptedTerminalSource {
             companions.bindings,
             companions.declarations,
             companions.queries,
-            Vec::new(),
+            companions.native_formations,
         );
         let build_requests = crate::TerminalBuildRequests::new(program.view(), companions.requests);
         let build_filesystem =
@@ -138,15 +155,19 @@ impl AcceptedTerminalSource {
             build_filesystem,
             applications,
             provenance,
-            source_records: elaboration.source_records.clone(),
+            source_records: self.correspondence.records.clone(),
         })
     }
 
     /// What this accepted Build program asks of its host, read from the
     /// same rows `produce` publishes.
     pub fn build_protocol_use(&self) -> Result<crate::BuildProtocolUse, Vec<Diagnostic>> {
-        let companions = crate::build_companions::produce(&self.source, &self.closure.elaboration)
-            .map_err(|diagnostic| vec![diagnostic])?;
+        let companions = crate::build_companions::produce(
+            &self.source,
+            &self.closure.elaboration,
+            &self.correspondence,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
         Ok(crate::BuildProtocolUse {
             reaches_outside: companions.unowned != 0,
             filesystem: !companions.filesystem.is_empty(),
@@ -170,8 +191,8 @@ impl AcceptedTerminalSource {
             .map(|(_, symbol)| *symbol)
             .chain(elaboration.boundaries.iter().map(|(_, symbol)| *symbol))
             .chain(
-                elaboration
-                    .source_records
+                self.correspondence
+                    .records
                     .iter()
                     .map(|record| record.declaration),
             )
@@ -271,6 +292,36 @@ impl AcceptedTerminalSource {
     }
 }
 
+/// The advisories of every accepted part: the entry closure and each
+/// generic check form. One authored machine may be judged in more than one
+/// part, and its advisory is the same in each, so an advisory already listed
+/// is not listed again.
+fn advisories(verdicts: &[Result<RouteVerdict, CompilationRefusal>]) -> Vec<Diagnostic> {
+    let mut advisories: Vec<Diagnostic> = Vec::new();
+    for verdict in verdicts {
+        let Ok(RouteVerdict::Accepted(accepted)) = verdict else {
+            continue;
+        };
+        // A warning and the note after it are one advisory.
+        let part = accepted.advisories();
+        let mut rest = &part[..];
+        while !rest.is_empty() {
+            let length = 1 + rest[1..]
+                .iter()
+                .take_while(|diagnostic| {
+                    diagnostic.severity == diagnostics::DiagnosticSeverity::Note
+                })
+                .count();
+            let (advisory, after) = rest.split_at(length);
+            if !advisories.windows(length).any(|listed| listed == advisory) {
+                advisories.extend_from_slice(advisory);
+            }
+            rest = after;
+        }
+    }
+    advisories
+}
+
 fn accept_compilation(
     verdicts: Vec<Result<RouteVerdict, CompilationRefusal>>,
 ) -> Result<Box<AcceptedClosure>, Vec<Diagnostic>> {
@@ -285,6 +336,7 @@ fn accept_compilation(
             }
             Ok(RouteVerdict::Rejected {
                 formations,
+                violations,
                 unproved,
                 unestablished,
                 conflicts,
@@ -292,6 +344,7 @@ fn accept_compilation(
             }) => {
                 let before = diagnostics.len();
                 diagnostics.extend(formations.iter().map(|entry| entry.reject_diagnostic()));
+                diagnostics.extend(violations.iter().map(|entry| entry.reject_diagnostic()));
                 for entry in unproved.iter().filter(|entry| !entry.cause.is_incomplete()) {
                     diagnostics.push(entry.reject_diagnostic());
                     diagnostics.extend(entry.opening_diagnostic());
@@ -341,9 +394,9 @@ fn route_defect(detail: &str) -> Diagnostic {
 mod tests {
     use super::*;
     use semantic_vocabulary::{IdTable, MachineId};
-    use structure_elaboration::{Body, CrashCeiling, Signature, Termination};
+    use typed_trees_to_terminal_psi::{Body, CrashCeiling, Signature, Termination};
 
-    fn elaboration() -> structure_elaboration::Elaboration {
+    fn elaboration() -> typed_trees_to_terminal_psi::Elaboration {
         let mut bodies = IdTable::default();
         bodies.push(Body {
             slots: Vec::new(),
@@ -357,12 +410,12 @@ mod tests {
             result: None,
             requires: Vec::new(),
             ensures: Vec::new(),
-            reaches: structure_elaboration::Ceiling::Inferred,
-            invokes: structure_elaboration::Ceiling::Inferred,
+            reaches: typed_trees_to_terminal_psi::Ceiling::Inferred,
+            invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
         });
-        structure_elaboration::lower_bodies(
+        typed_trees_to_terminal_psi::lower_bodies(
             MachineId::new(1).unwrap(),
             &bodies,
             &signatures,
@@ -372,7 +425,7 @@ mod tests {
     }
 
     fn accepted() -> RouteVerdict {
-        lowered_discharge::judge(Ok(elaboration())).unwrap()
+        terminal_psi_to_terminal_psi::judge(Ok(elaboration())).unwrap()
     }
 
     #[test]
@@ -383,7 +436,8 @@ mod tests {
         stated.module.identities =
             terminal_psi::TerminalIdentityTableBuilder::for_invocation().build();
         let closure = accept_compilation(vec![
-            lowered_discharge::judge(Ok(stated)).map_err(CompilationRefusal::Elaboration),
+            terminal_psi_to_terminal_psi::judge(Ok(stated))
+                .map_err(CompilationRefusal::Elaboration),
         ])
         .unwrap();
         let published = closure.publish_invocation().unwrap();

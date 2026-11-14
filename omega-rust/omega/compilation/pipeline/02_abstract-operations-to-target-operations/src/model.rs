@@ -15,6 +15,7 @@ pub use provider_admission::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LoweringError {
+    NativeStructuralLayout(calling_conventions::terminal_layout::TerminalLayoutError),
     ForeignLoweringFacts(&'static str),
     ForeignNativeCallbackCohort,
     ForeignInstalledInterruptCohort,

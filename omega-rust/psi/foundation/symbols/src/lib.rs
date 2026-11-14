@@ -24,7 +24,7 @@
 /*
     This is a Psi foundation crate with no pipeline stage of its own. Stage
     02 (`syntax-trees-to-symbol-resolved-trees`) builds the table and assigns
-    every handle; the symbol-resolved, typed and checked tree representations
+    every handle; the symbol-resolved and typed representations
     store those handles, and stages 03 through 08, validation, proof,
     build-time evaluation, the interpreters and Omega's realization and
     package crates read them. Start at `table`; `symbol` holds the handle,

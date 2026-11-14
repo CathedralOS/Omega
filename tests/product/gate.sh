@@ -39,7 +39,7 @@ fi
 rm -f "${gate:?}/omega.lock" "${gate:?}/omega.admissions"
 rm -rf "${gate:?}/build/package-manager"
 review_status=0
-"$omega_cli" update --project "$gate" --target "$target" || review_status=$?
+"$omega_cli" packages update --project "$gate" --target "$target" || review_status=$?
 if [ "$review_status" -ne 0 ] && [ "$review_status" -ne 3 ]; then
     exit "$review_status"
 fi
@@ -47,7 +47,7 @@ review="$gate/build/package-manager/review-$target.txt"
 if [ -f "$review" ] && grep -Eq '^decision row [0-9a-f]+ pending$' "$review"; then
     sed -E 's/^(decision row [0-9a-f]+) pending$/\1 accept/' "$review" > "$review.accepted"
     mv "$review.accepted" "$review"
-    "$omega_cli" update --project "$gate" --resume
+    "$omega_cli" packages update --project "$gate" --resume
 fi
 
 gate_outputs="$gate/build/product-gates"

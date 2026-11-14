@@ -29,7 +29,7 @@ review pass. Admission uses Psi's exact-input reuse, then freshly settles
 comparison execution, filesystem custody, restricted consent and execution;
 an unchanged language judgment cannot lend an earlier invocation's grants.
 To observe the distinction, set `OMEGA_REVIEW_TIMINGS=1` and run ordinary
-`omega update --project <project> --target macos_arm64 --offline` on a
+`omega packages update --project <project> --target macos_arm64 --offline` on a
 disposable copy of `samples/cli/basics/print_number` with its relative std
 dependency preserved. An unchanged bound pass reports `settled_checks=0`;
 the operation still checks Build and Product. This is a macOS observation command,
@@ -113,9 +113,8 @@ The source `Build::accept_component_assumption` approval call is removed:
 Build evaluation records no component approval. Each verified component's
 assumptions become `component_assumption` rows of the root Product occurrence,
 and root admission compares them with the consuming project's lock.
-Build evaluation decodes wire demands; Psi's
-[typed-to-checked stage](../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checking.rs)
-checks their meaning before publishing checked trees. Package review reconstructs grants through
+Build evaluation decodes wire demands; Psi
+checks their meaning before publishing the checked program. Package review reconstructs grants through
 the same trust owner without calling the Build evaluator.
 
 Target-declaration preparation, provider-selection decoding and settlement belong to
@@ -171,9 +170,9 @@ This follows [result caching](../../../../wiki/spec/language/evaluation.md#resul
 so a warm result cannot bypass a ceiling a cold evaluation would exceed.
 
 Run `mbx run -p compiler --example build_session` from the repository root.
-This public compiler measurement requires two target products, two preliminary
-admissions and one Build execution. It also requires a later one-unit work
-account to reject and a different source input to execute its own Build.
+This public compiler measurement requires two target products and one Build
+execution. It also requires a later one-unit work account to reject and a
+different source input to execute its own Build.
 This is the repeated-work acceptance for `BUILD-EVALUATES-ONCE`, not a new
 language fact row or a foreign-host execution claim. The broader capability,
 including generated-source and target-row completion, remains open.

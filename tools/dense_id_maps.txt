@@ -3,10 +3,9 @@
 # flat tables (AGENTS.md conventions).
 # Written by `python tools/check_rules.py --update-dense-id-maps`.
 3 omega-rust/omega/compilation/backend/artifacts/component-description/src/component_description.rs
-22 omega-rust/omega/compilation/backend/calling-conventions/src/structural_shapes.rs
 1 omega-rust/omega/compilation/backend/calling-conventions/src/terminal_layout.rs
 2 omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs
-17 omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact.rs
+8 omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact.rs
 1 omega-rust/omega/compilation/backend/runtime/installation-evidence/src/lib.rs
 4 omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/lowering.rs
 4 omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/lowering_scalars.rs
@@ -74,7 +73,7 @@
 4 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/control_graph.rs
 14 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_replay.rs
 13 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs
-9 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/scalars.rs
+3 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/scalars.rs
 19 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/storage.rs
 19 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural.rs
 9 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/substitution.rs
@@ -83,7 +82,7 @@
 1 omega-rust/psi/compilation/representations/typed-trees/src/lib.rs
 2 omega-rust/psi/compilation/representations/typed-trees/src/product_and_trait_declarations.rs
 25 omega-rust/psi/compilation/representations/typed-trees/src/references.rs
-4 omega-rust/psi/compilation/representations/typed-trees/src/type_system.rs
+1 omega-rust/psi/compilation/representations/typed-trees/src/type_system.rs
 2 omega-rust/psi/compilation/terminal-installation/src/evaluation_and_synchronous_calls.rs
 4 omega-rust/psi/compilation/terminal-installation/src/provider_and_target_installation.rs
 2 omega-rust/psi/foundation/semantic-vocabulary/src/proposition.rs

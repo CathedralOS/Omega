@@ -68,10 +68,10 @@ pub struct DemandedRequirement {
     pub supplies: Vec<ProviderSupply>,
 }
 
-/// The demand of one accepted module on one target.
+/// The demand of one accepted module, retaining an optional selected deployment.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedTargetSupply {
-    target: String,
+    target: Option<String>,
     requirements: Vec<DemandedRequirement>,
 }
 
@@ -84,8 +84,8 @@ pub struct TargetSupplyRequest<'a> {
     pub build: &'a [ProviderSelection],
     /// The defaults target packages retain.
     pub defaults: &'a [TargetProviderDefaults],
-    /// The canonical name of the target being prepared.
-    pub target: &'a str,
+    /// The selected deployment, or no deployment for targetless checking.
+    pub target: Option<&'a str>,
 }
 
 impl PreparedTargetSupply {
@@ -99,10 +99,17 @@ impl PreparedTargetSupply {
         } = request;
         let mut refusals = unplanned_demands(module)
             .into_iter()
-            .map(|demand| refuse(target, demand))
+            .map(|demand| refuse(target.unwrap_or("<unscoped>"), demand))
             .collect::<Vec<_>>();
         let mut requirements = Vec::with_capacity(reached.len());
         for requirement in reached {
+            let Some(target) = target else {
+                refusals.push(Diagnostic::error(format!(
+                    "boundary requirement `{}` requires an explicit deployment target",
+                    requirement.name
+                )));
+                continue;
+            };
             match unplanned_boundary(module, requirement) {
                 Ok(()) => {}
                 Err(demand) => {
@@ -139,7 +146,7 @@ impl PreparedTargetSupply {
         }
         if module.boundary_machines.len() != reached.len() {
             refusals.push(refuse(
-                target,
+                target.unwrap_or("<unscoped>"),
                 "boundary declarations that differ from the requirements it reaches",
             ));
         }
@@ -147,13 +154,13 @@ impl PreparedTargetSupply {
             return Err(refusals);
         }
         Ok(Self {
-            target: target.to_owned(),
+            target: target.map(str::to_owned),
             requirements,
         })
     }
 
-    pub fn target(&self) -> &str {
-        &self.target
+    pub fn target(&self) -> Option<&str> {
+        self.target.as_deref()
     }
 
     pub fn requirements(&self) -> &[DemandedRequirement] {
@@ -177,7 +184,7 @@ pub struct SettledRequirement {
 /// The supply chosen for every requirement one target's module demands.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SettledTargetSupply {
-    target: String,
+    target: Option<String>,
     requirements: Vec<SettledRequirement>,
 }
 
@@ -192,6 +199,11 @@ impl PreparedTargetSupply {
         let mut rejections = Vec::new();
         let mut settled = Vec::with_capacity(requirements.len());
         for DemandedRequirement { reached, supplies } in requirements {
+            let target = target.as_deref().ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "provider settlement lost its deployment target",
+                )]
+            })?;
             let Some(authority) = supplies.iter().map(|supply| supply.authority).max() else {
                 rejections.push(Diagnostic::error(format!(
                     "boundary requirement `{}` has no provider on target `{target}`: the Build selects none and the target package declares no default",
@@ -234,8 +246,8 @@ impl PreparedTargetSupply {
 }
 
 impl SettledTargetSupply {
-    pub fn target(&self) -> &str {
-        &self.target
+    pub fn target(&self) -> Option<&str> {
+        self.target.as_deref()
     }
 
     pub fn requirements(&self) -> &[SettledRequirement] {
@@ -256,7 +268,7 @@ impl SettledTargetSupply {
             .map(|requirement| {
                 Diagnostic::error(format!(
                     "no product route yet: provider settlement for `{}`: `{}` is supplied by `{}`, and no provider or calling plan can be formed for a selected provider on this route",
-                    self.target,
+                    self.target.as_deref().unwrap_or("<unscoped>"),
                     requirement.reached.name,
                     requirement.supply.selection.provider_type.authored_path,
                 ))

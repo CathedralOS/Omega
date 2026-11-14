@@ -1217,6 +1217,7 @@ pub(crate) mod original_residence {
                 StructuralAccess::SharedBorrow,
                 &leaves,
                 &[],
+                None,
             )?;
             scalars
                 .into_iter()
@@ -1497,6 +1498,7 @@ pub(crate) mod original_residence {
                     access,
                     &leaves,
                     normal_qualifications,
+                    None,
                 )?
                 .1;
                 &observed_scalars
@@ -2447,6 +2449,7 @@ impl BoundaryStorageInputs {
                 parameter.access,
                 &leaves,
                 &[],
+                None,
             )?;
             let identity = Arc::new(());
             self.buffers.push(TerminalBoundaryStorageBuffer::Structural(
@@ -2514,6 +2517,7 @@ impl BoundaryStorageInputs {
             parameter.access,
             &leaves,
             &normal_qualifications,
+            None,
         )?;
         let identity = Arc::new(());
         self.buffers.push(TerminalBoundaryStorageBuffer::Structural(

@@ -159,8 +159,7 @@ impl Site {
         let (target, selected_otherwise) = match &call {
             StaticArgumentCall::Expression(_, call) => (
                 call.target_symbol,
-                elsewhere(&call.static_requirement_dispatch, call.target_symbol)
-                    || call.build_selection.is_valid(),
+                elsewhere(&call.static_requirement_dispatch, call.target_symbol),
             ),
             StaticArgumentCall::Statement(call) => (
                 call.target_symbol,
@@ -277,7 +276,13 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut Vec<Generated>) -
         return Ok(());
     }
     let Some(machine) = program.machine_by_symbol(callee) else {
-        return bind_requirement(program, &applied, &arguments);
+        if program
+            .evidence_requirement_declaration(applied.target)
+            .is_ok_and(|requirement| requirement.is_some())
+        {
+            return bind_requirement(program, &applied, &arguments);
+        }
+        return apply_requirement(program, site, &applied, &arguments);
     };
     // Its type and value parameters, then each implementation parameter
     // its bounds declare: the order a call's static arguments are given in.
@@ -375,11 +380,83 @@ fn bind_requirement(
     Ok(())
 }
 
+/// A call that names a trait's requirement and applies the requirement's own
+/// parameters, `Probe::take<Reading>(reading)`. A requirement has no body to
+/// copy, so what the application selects is the requirement's signature and
+/// contract with each parameter replaced: one closed requirement per
+/// application, which the call then names. generics.md, "Closed applications
+/// and canonical identity": two calls at the same arguments name the same
+/// closed requirement (`TypedTrees::instantiate_requirement_application`
+/// keys it by the application's identity).
+///
+/// Served for a requirement of a trait with no parameters of its own, given
+/// the operands every application here reads ([`Operand::read`]). A trait
+/// applied at arguments, and any operand that reading does not serve, leave
+/// the call as typing wrote it.
+fn apply_requirement(
+    program: &mut TypedTrees,
+    site: Site,
+    applied: &Applied,
+    arguments: &[StaticMachineArgument],
+) -> Served<()> {
+    let Some((owner, requirement)) = program.trait_machine_signature(applied.target) else {
+        return Ok(());
+    };
+    if requirement.symbol != applied.target {
+        return Ok(());
+    }
+    let parameters = program
+        .state_signature_type_parameters(requirement)
+        .iter()
+        .map(|parameter| (parameter.symbol, parameter.kind.clone()))
+        .collect::<Vec<_>>();
+    if parameters.is_empty() {
+        return Ok(());
+    }
+    if !owner.type_parameters.is_empty()
+        || !owner.lifetime_parameters.is_empty()
+        || !requirement.lifetime_parameters.is_empty()
+        || parameters.len() != arguments.len()
+    {
+        return Err(Stop::Unserved);
+    }
+    let environment =
+        typed_trees::trait_definition::AppliedTraitScope::abstract_scope(owner).environment();
+    let mut operands = Vec::with_capacity(parameters.len());
+    for ((parameter, kind), argument) in parameters.iter().zip(arguments) {
+        operands.push(Operand::read(program, *parameter, kind, argument)?);
+    }
+    bind(program, applied.application, &operands);
+    // Open at a parameter of the enclosing generic machine: closed in each
+    // machine generated from that one.
+    if operands.iter().any(|operand| operand.is_open(program)) {
+        return Ok(());
+    }
+    let table = &mut program.expression_table;
+    if table
+        .static_machine_application(applied.application)
+        .registration_operation
+        != applied.target
+    {
+        return Err(Stop::Unserved);
+    }
+    table
+        .static_machine_application_mut(applied.application)
+        .binding_declaration = applied.target;
+    table.set_static_machine_application_lifetimes(applied.application, applied.target, &[]);
+    let closed = program
+        .instantiate_requirement_application(&environment, applied.target, &[], applied.application)
+        .map_err(|_| Stop::Unserved)?;
+    site.enter(program, closed);
+    Ok(())
+}
+
 /// What a static argument is, as the identity an application is keyed by:
 /// two applications of one machine are the same application when each
 /// parameter is given the same declaration or the same value.
 #[derive(Clone, PartialEq, Eq)]
 enum Identity {
+    Type(typed_trees::type_identity::TypeIdentityId),
     /// The declaration the argument names: a type, an implementation, or a
     /// parameter of the enclosing generic machine.
     Declaration(SymbolHandle),
@@ -417,10 +494,14 @@ impl Operand {
         let (identity, value) = match kind {
             TypeParameterKind::Type => {
                 let reference = named_type(program, argument)?;
-                (
-                    Identity::Declaration(argument.symbol),
-                    StaticMachineBindingValue::Type(reference),
-                )
+                let identity = if argument.symbol.is_valid()
+                    && program.symbols.get(argument.symbol).kind == SymbolKind::TypeParameter
+                {
+                    Identity::Declaration(argument.symbol)
+                } else {
+                    Identity::Type(program.normalized_type_identity(reference))
+                };
+                (identity, StaticMachineBindingValue::Type(reference))
             }
             TypeParameterKind::Implementation => (
                 Identity::Declaration(named_implementation(program, parameter, argument)?),
@@ -456,7 +537,7 @@ impl Operand {
     fn declaration(&self) -> Option<SymbolHandle> {
         match &self.identity {
             Identity::Declaration(symbol) => Some(*symbol),
-            Identity::Scalar(_) => None,
+            Identity::Scalar(_) | Identity::Type(_) => None,
         }
     }
 
@@ -476,6 +557,7 @@ impl Operand {
         match &self.identity {
             Identity::Declaration(symbol) => program.symbols.name(*symbol).to_owned(),
             Identity::Scalar(value) => value.clone(),
+            Identity::Type(identity) => program.type_identity_text(*identity).unwrap_or_default(),
         }
     }
 }
@@ -676,14 +758,37 @@ fn selections(program: &TypedTrees, operands: &[Operand]) -> Served<Vec<Selectio
     Ok(selected)
 }
 
-/// The type a static argument names when it is only a name: a builtin type,
-/// a type parameter in scope, or a data declaration with no parameters of
-/// its own. An applied type (`Pair<u8>`), a projection and a literal are
-/// unserved here.
+/// A type retained by typing is used with its complete applied data view.
+/// Region-bearing applications remain refused until specialization retains
+/// their supplying scope. A plain authored name still admits a builtin type,
+/// an open type parameter, or data with no parameters of its own.
 fn named_type(
     program: &mut TypedTrees,
     argument: &StaticMachineArgument,
 ) -> Served<TypeReferenceHandle> {
+    if argument.type_reference.is_valid() {
+        let reference = argument.type_reference;
+        if program
+            .type_reference_table
+            .contains_type_reference(reference)
+            && program
+                .region_free_scoped_type_identity(
+                    typed_trees::type_identity::TypeIdentityRequest::ordinary(reference),
+                    &[],
+                )
+                .is_some()
+            && !matches!(
+                program.type_reference_table.type_reference(reference),
+                TypeReferenceNode::ConstExpression(_)
+            )
+            && program
+                .prepare_data_application_view(reference)
+                .map_err(|_| Stop::Unserved)?
+        {
+            return Ok(reference);
+        }
+        return Err(Stop::Unserved);
+    }
     let only_a_name = only_a_name(program, argument) && argument.const_literal.is_none();
     let symbol = argument.symbol;
     if !only_a_name || !symbol.is_valid() || !program.symbols.symbols().nodes().is_valid(symbol) {
@@ -842,12 +947,8 @@ fn copied_parts(
         .chain([state.return_type])
         .collect::<Vec<_>>();
     for root in roots.into_iter().filter(|root| root.is_valid()) {
-        program.subtree_for_each(root, SubtreeEdges::default(), |handle, node| {
+        program.subtree_for_each(root, SubtreeEdges::default(), |_handle, node| {
             types.extend(held_types(node));
-            copied &= program
-                .expression_table
-                .index_expression_authority(handle)
-                .is_none();
             copied &= match node {
                 ExpressionNode::Call(call) => {
                     call.layout_query.is_none()
@@ -1123,6 +1224,7 @@ fn generate(
         .map(|operand| match &operand.identity {
             Identity::Declaration(symbol) => program.symbols.display_path(*symbol, "::"),
             Identity::Scalar(value) => value.clone(),
+            Identity::Type(identity) => program.type_identity_text(*identity).unwrap_or_default(),
         })
         .collect::<Vec<_>>();
     program.machine_specializations.push(MachineSpecialization {

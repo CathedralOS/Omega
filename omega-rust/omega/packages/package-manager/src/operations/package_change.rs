@@ -158,7 +158,7 @@ fn verify_compiler_identity(expected: [u8; 32]) -> Result<(), PackageChangeError
         .map_err(PackageChangeError::CompilerIdentity)?;
     if current != expected {
         return Err(PackageChangeError::CompilerIdentity(
-            "compiler or toolchain library inputs changed after review; run omega update again"
+            "compiler or toolchain library inputs changed after review; run omega packages update again"
                 .into(),
         ));
     }

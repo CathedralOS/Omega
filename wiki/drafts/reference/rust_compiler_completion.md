@@ -157,7 +157,7 @@ each fixture using its authored Build declaration:
 
 ```sh
 fixture=tests/omega/pass/borrows/borrowed_record_stack_parameter_writeback_exit
-omega update --project "$fixture" --target linux_arm64 --dangerously-accept-all
+omega packages update --project "$fixture" --target linux_arm64 --dangerously-accept-all
 omega --target linux_arm64 --build-dir "$fixture/build/linux-arm64" "$fixture/main.omg"
 ```
 
@@ -258,7 +258,7 @@ its authored Build declaration. For example:
 
 ```sh
 fixture=tests/omega/pass/ownership/runtime_captured_selector_call_exit
-omega update --project "$fixture" --target linux_arm64 --dangerously-accept-all
+omega packages update --project "$fixture" --target linux_arm64 --dangerously-accept-all
 omega --target linux_arm64 --build-dir "$fixture/build/linux-arm64" "$fixture/main.omg"
 ```
 
@@ -272,7 +272,7 @@ colima ssh -- sh -c '"/absolute/checkout/tests/omega/pass/ownership/runtime_capt
 The emulated comparison uses a separately emitted x86-64 product:
 
 ```sh
-omega update --project "$fixture" --target linux_x86_64 --dangerously-accept-all
+omega packages update --project "$fixture" --target linux_x86_64 --dangerously-accept-all
 omega --target linux_x86_64 --build-dir "$fixture/build/linux-x86-64" "$fixture/main.omg"
 colima ssh -- sh -c 'qemu-x86_64 "/absolute/checkout/tests/omega/pass/ownership/runtime_captured_selector_call_exit/build/linux-x86-64/omega-program"; observed_exit=$?; printf "emulated exit %s\n" "$observed_exit"; test "$observed_exit" -eq 0'
 ```
@@ -354,7 +354,7 @@ checks both fresh and identity replacements. The final program retains a
 declared scalar range when passing an established affine result to another
 machine.
 
-Each project was prepared with `omega update --project <fixture> --target
+Each project was prepared with `omega packages update --project <fixture> --target
 linux_arm64 --target linux_x86_64`. The console-backed record fixture required
 acceptance of 570 first-party review decisions across those targets; its local
 proposal was resumed with `--dangerously-accept-all`. That is not evidence of

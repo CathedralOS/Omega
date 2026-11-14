@@ -6,12 +6,12 @@
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
 
-use lowered_discharge::{RouteVerdict, judge_compilation};
-use structure_elaboration::Compilation;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalExecutionStatus, TerminalStructuralInputs,
 };
+use terminal_psi_to_terminal_psi::RouteVerdict;
+use typed_trees_to_terminal_psi::Compilation;
 use unbuilt_frontier::{fixture_frontier, repository};
 
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -36,16 +36,20 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
     );
     // Match the default router's complete scope, including every generic
     // check form it claims; one undecided form refuses the whole compilation.
-    let mut verdicts = judge_compilation(
-        &frontier.typed,
-        Compilation {
-            entries: &frontier.entries,
-            subjects: &[frontier.subject],
-            purpose: source::DependencyScope::Product,
-            selected: &frontier.selected,
-            bindings: &frontier.bindings,
-            supplies: &[],
-        },
+    let mut verdicts = terminal_psi_to_terminal_psi::judge_compilation(
+        typed_trees_to_terminal_psi::prepare_compilation(
+            &frontier.typed,
+            Compilation {
+                entries: &frontier.entries,
+                subjects: &[frontier.subject],
+                purpose: source::DependencyScope::Product,
+                selected: &frontier.selected,
+                bindings: &frontier.bindings,
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .program,
     )
     .into_iter();
     let closure = match verdicts.next().expect("the entry closure is judged") {
@@ -106,16 +110,20 @@ fn borrowing_after_an_earlier_operand_moves_the_local_is_rejected() {
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     let frontier = fixture_frontier("tests/fixtures/fail/borrows/owned_address_after_operand_move");
-    let verdicts = judge_compilation(
-        &frontier.typed,
-        Compilation {
-            entries: &frontier.entries,
-            subjects: &[frontier.subject],
-            purpose: source::DependencyScope::Product,
-            selected: &frontier.selected,
-            bindings: &frontier.bindings,
-            supplies: &[],
-        },
+    let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
+        typed_trees_to_terminal_psi::prepare_compilation(
+            &frontier.typed,
+            Compilation {
+                entries: &frontier.entries,
+                subjects: &[frontier.subject],
+                purpose: source::DependencyScope::Product,
+                selected: &frontier.selected,
+                bindings: &frontier.bindings,
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .program,
     );
     let mut unestablished = Vec::new();
     for verdict in verdicts {
@@ -140,6 +148,217 @@ fn borrowing_after_an_earlier_operand_moves_the_local_is_rejected() {
     );
 }
 
+fn execute_refilled_owner(closure: &terminal_psi_to_terminal_psi::AcceptedClosure) {
+    let publication = closure.publish().expect("refilled ownership publishes");
+    assert!(
+        publication
+            .artifact
+            .semantic_module()
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .any(|block| matches!(
+                block.terminator,
+                terminal_psi::Terminator::Conditional { .. }
+            )),
+        "the interpreted module retains its exact-value execution oracle"
+    );
+    let input = terminal_psi_to_abstract_operations::lower_module_with_evidence(
+        publication.artifact.semantic_module(),
+        publication.seals.clone(),
+    )
+    .expect("Omega 00 carries the exact restoration")
+    .into_optimization_artifact()
+    .into_optimization_input();
+    let (_, unit) =
+        abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
+            input,
+            psi_work::WorkSchedule::CURRENT.identity(),
+        )
+        .expect("Omega 01 verifies the restored owned home")
+        .into_parts();
+    optimization_unit_semantics::validate_psi_optimization_unit_with_admitted_cycle_machines(
+        &unit,
+        &[],
+    )
+    .expect("the independent current ownership walk reconstructs the restored owner");
+    let bytes = terminal_codec::encode_module(publication.artifact.semantic_module())
+        .expect("restored module encodes");
+    let mut execution =
+        TerminalExecution::start_artifact(&bytes, &[], TerminalStructuralInputs::default())
+            .expect("restored module loads");
+    let status = execution
+        .resume(
+            &mut psi_work::WorkMeter::with_budget(1_000_000),
+            &mut NoEffects,
+        )
+        .expect("the old moved value and restored owner execute independently");
+    assert!(
+        matches!(status, TerminalExecutionStatus::Complete(_)),
+        "{status:?}"
+    );
+}
+
+#[test]
+fn refilling_the_moved_field_restores_its_owner_but_writing_a_sibling_does_not() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let source = r#"
+data Item { value: u64; }
+data Pair { first: Item; second: Item; }
+machine main() crashes Trap {
+    let mut pair: Pair = Pair {
+        first: Item { value: 3 }, second: Item { value: 5 }
+    };
+    let previous: Item = pair.first;
+    pair.first = Item { value: 7 };
+    let restored: Pair = pair;
+    let total: u64 = restored.first.value + restored.second.value + previous.value;
+    transition total == 15 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#;
+    for wrong_sibling in [false, true] {
+        let source = if wrong_sibling {
+            source.replace("pair.first =", "pair.second =")
+        } else {
+            source.to_owned()
+        };
+        let frontier = unbuilt_frontier::staged_frontier(
+            if wrong_sibling {
+                "refilled-sibling"
+            } else {
+                "refilled-field"
+            },
+            &source,
+        );
+        let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
+            typed_trees_to_terminal_psi::prepare_compilation(
+                &frontier.typed,
+                Compilation {
+                    entries: &frontier.entries,
+                    subjects: &[frontier.subject],
+                    purpose: source::DependencyScope::Product,
+                    selected: &frontier.selected,
+                    bindings: &frontier.bindings,
+                    supplies: &[],
+                },
+                terminal_codec::TerminalPublication::Portable,
+            )
+            .program,
+        );
+        if wrong_sibling {
+            assert!(
+                verdicts.iter().any(|verdict| matches!(
+                    verdict,
+                    Ok(RouteVerdict::Rejected { unestablished, .. })
+                        if unestablished.iter().any(|used| used.detail
+                            == "owned storage is used after its value was transferred or consumed")
+                )),
+                "writing the sibling cannot restore the missing field: {verdicts:?}"
+            );
+            continue;
+        }
+        let mut verdicts = verdicts.into_iter();
+        let closure = match verdicts.next().expect("entry closure") {
+            Ok(RouteVerdict::Accepted(closure)) => closure,
+            other => panic!("the exact refilled owner must be usable: {other:?}"),
+        };
+        for verdict in verdicts {
+            assert!(
+                matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                "{verdict:?}"
+            );
+        }
+        execute_refilled_owner(&closure);
+    }
+}
+
+#[test]
+fn a_whole_subrecord_can_be_refilled_after_all_its_owned_children_move() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let source = r#"
+data Item { value: u64; }
+data Pair { first: Item; second: Item; }
+data Outer { selected: Pair; other: Pair; }
+machine main() crashes Trap {
+    let mut outer: Outer = Outer {
+        selected: Pair { first: Item { value: 3 }, second: Item { value: 5 } },
+        other: Pair { first: Item { value: 13 }, second: Item { value: 17 } }
+    };
+    let first: Item = outer.selected.first;
+    let second: Item = outer.selected.second;
+    outer.selected = Pair { first: Item { value: 7 }, second: Item { value: 11 } };
+    let restored: Outer = outer;
+    let total: u64 = first.value + second.value
+        + restored.selected.first.value + restored.selected.second.value
+        + restored.other.first.value + restored.other.second.value;
+    transition total == 56 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#;
+    for wrong_region in [false, true] {
+        let source = if wrong_region {
+            source.replace("outer.selected =", "outer.other =")
+        } else {
+            source.to_owned()
+        };
+        let frontier = unbuilt_frontier::staged_frontier(
+            if wrong_region {
+                "subrecord-wrong-region"
+            } else {
+                "subrecord-refill"
+            },
+            &source,
+        );
+        let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
+            typed_trees_to_terminal_psi::prepare_compilation(
+                &frontier.typed,
+                Compilation {
+                    entries: &frontier.entries,
+                    subjects: &[frontier.subject],
+                    purpose: source::DependencyScope::Product,
+                    selected: &frontier.selected,
+                    bindings: &frontier.bindings,
+                    supplies: &[], // This source-only check runs no Build provider selections.
+                },
+                terminal_codec::TerminalPublication::Portable,
+            )
+            .program,
+        );
+        if wrong_region {
+            assert!(verdicts.iter().any(|verdict| matches!(verdict,
+                Ok(RouteVerdict::Rejected { unestablished, .. })
+                    if unestablished.iter().any(|used| used.detail == "owned storage is used after its value was transferred or consumed")
+            )), "a sibling store cannot fill the moved subrecord: {verdicts:?}");
+            continue;
+        }
+        let mut verdicts = verdicts.into_iter();
+        let closure = match verdicts.next().expect("entry closure") {
+            Ok(RouteVerdict::Accepted(closure)) => closure,
+            other => panic!("all moved children leave the exact subrecord vacant: {other:?}"),
+        };
+        for verdict in verdicts {
+            assert!(
+                matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                "{verdict:?}"
+            );
+        }
+        execute_refilled_owner(&closure);
+    }
+}
+
 /// Exercise the same whole transfers without repeating source acquisition: a
 /// factory result enters a named home, moves to a call argument, and is consumed.
 #[test]
@@ -147,7 +366,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
     use semantic_vocabulary::{
         IdTable, IntegerSign, IntegerType, IntegerValue, PsiSemanticId, ScalarType,
     };
-    use structure_elaboration::{
+    use typed_trees_to_terminal_psi::{
         Body, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType, Signature,
         SourceOrigin, Statement, Target, Termination, Unpositioned, ValueType,
     };
@@ -183,10 +402,11 @@ fn whole_owned_transfers_consume_their_homes_once() {
     records.push(RecordType {
         copyable: false,
         identity: "Owned".into(),
-        shape: structure_elaboration::StorageShape::Record(vec![RecordField {
+        shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![RecordField {
             id: id(1),
             identity: "number".into(),
             value_type: scalar,
+            byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
         }]),
         requires: Vec::new(),
     });
@@ -238,18 +458,15 @@ fn whole_owned_transfers_consume_their_homes_once() {
             result,
             requires: Vec::new(),
             ensures: Vec::new(),
-            reaches: structure_elaboration::Ceiling::Inferred,
-            invokes: structure_elaboration::Ceiling::Inferred,
+            reaches: typed_trees_to_terminal_psi::Ceiling::Inferred,
+            invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
             crashes: CrashCeiling::Authored(Vec::new()),
             termination: Termination::Silent,
         });
     }
-    let closure = match lowered_discharge::judge(structure_elaboration::lower_bodies(
-        id(1),
-        &bodies,
-        &signatures,
-        &records,
-    )) {
+    let closure = match terminal_psi_to_terminal_psi::judge(
+        typed_trees_to_terminal_psi::lower_bodies(id(1), &bodies, &signatures, &records),
+    ) {
         Ok(RouteVerdict::Accepted(closure)) => closure,
         other => panic!("whole transfers must check: {other:?}"),
     };
@@ -335,7 +552,7 @@ mod transferred_on_one_path {
     use semantic_vocabulary::{
         IdTable, IntegerSign, IntegerType, IntegerValue, PsiSemanticId, ScalarType,
     };
-    use structure_elaboration::{
+    use typed_trees_to_terminal_psi::{
         Body, CrashCeiling, Expression, ExpressionKind, RecordField, RecordType, Signature,
         SourceOrigin, Statement, Target, Termination, Unpositioned, ValueType,
     };
@@ -368,18 +585,23 @@ mod transferred_on_one_path {
             id: id(raw),
             identity: identity.into(),
             value_type,
+            byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
         };
         let mut records = IdTable::default();
         records.push(RecordType {
             copyable: false,
             identity: "Inner".into(),
-            shape: structure_elaboration::StorageShape::Record(vec![field(3, "number", number())]),
+            shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![field(
+                3,
+                "number",
+                number(),
+            )]),
             requires: Vec::new(),
         });
         records.push(RecordType {
             copyable: false,
             identity: "Pair".into(),
-            shape: structure_elaboration::StorageShape::Record(vec![
+            shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
                 field(1, "a", ValueType::record(id(1))),
                 field(2, "b", ValueType::record(id(1))),
             ]),
@@ -452,6 +674,15 @@ mod transferred_on_one_path {
         whole: bool,
         result: Expression,
     ) -> Result<RouteVerdict, terminal_check_tables::Refusal> {
+        judged_with_restoration(whole, result, false, true)
+    }
+
+    fn judged_with_restoration(
+        whole: bool,
+        result: Expression,
+        restore: bool,
+        flag: bool,
+    ) -> Result<RouteVerdict, terminal_check_tables::Refusal> {
         let owned_type = ValueType::record(id(if whole { 1 } else { 2 }));
         let inner_type = ValueType::record(id(1));
         let moved = if whole {
@@ -472,25 +703,35 @@ mod transferred_on_one_path {
         let mut bodies = IdTable::default();
         bodies.push(Body {
             slots: vec![owned_type, boolean()],
-            statements: vec![
-                Statement::Bind {
-                    slot: 0,
-                    value: invoke(3, Vec::new(), owned_type),
-                },
-                Statement::Bind {
-                    slot: 1,
-                    value: invoke(4, Vec::new(), boolean()),
-                },
-                Statement::Evaluate(expression(
-                    ExpressionKind::ShortCircuit {
-                        conjunction: true,
-                        left: Box::new(slot(1, boolean())),
-                        right: Box::new(invoke(2, vec![moved], boolean())),
+            statements: {
+                let mut statements = vec![
+                    Statement::Bind {
+                        slot: 0,
+                        value: invoke(3, Vec::new(), owned_type),
                     },
-                    Some(boolean()),
-                )),
-                finish(result),
-            ],
+                    Statement::Bind {
+                        slot: 1,
+                        value: invoke(4, Vec::new(), boolean()),
+                    },
+                    Statement::Evaluate(expression(
+                        ExpressionKind::ShortCircuit {
+                            conjunction: true,
+                            left: Box::new(slot(1, boolean())),
+                            right: Box::new(invoke(2, vec![moved], boolean())),
+                        },
+                        Some(boolean()),
+                    )),
+                ];
+                if restore {
+                    statements.push(Statement::Store {
+                        destination: field(slot(0, owned_type), 0, inner_type),
+                        value: inner(11),
+                        source: SOURCE,
+                    });
+                }
+                statements.push(finish(result));
+                statements
+            },
         });
         bodies.push(Body {
             slots: vec![inner_type],
@@ -506,7 +747,7 @@ mod transferred_on_one_path {
         bodies.push(Body {
             slots: Vec::new(),
             statements: vec![finish(expression(
-                ExpressionKind::Boolean(true),
+                ExpressionKind::Boolean(flag),
                 Some(boolean()),
             ))],
         });
@@ -524,13 +765,13 @@ mod transferred_on_one_path {
                 result: Some(result),
                 requires: Vec::new(),
                 ensures: Vec::new(),
-                reaches: structure_elaboration::Ceiling::Inferred,
-                invokes: structure_elaboration::Ceiling::Inferred,
+                reaches: typed_trees_to_terminal_psi::Ceiling::Inferred,
+                invokes: typed_trees_to_terminal_psi::Ceiling::Inferred,
                 crashes: CrashCeiling::Authored(Vec::new()),
                 termination: Termination::Silent,
             });
         }
-        lowered_discharge::judge(structure_elaboration::lower_bodies(
+        terminal_psi_to_terminal_psi::judge(typed_trees_to_terminal_psi::lower_bodies(
             id(1),
             &bodies,
             &signatures,
@@ -542,6 +783,13 @@ mod transferred_on_one_path {
     /// Omega 01 and run to completion.
     fn carried_through(
         verdict: Result<RouteVerdict, terminal_check_tables::Refusal>,
+    ) -> terminal_psi::TerminalModule {
+        carried_through_with_value(verdict, None)
+    }
+
+    fn carried_through_with_value(
+        verdict: Result<RouteVerdict, terminal_check_tables::Refusal>,
+        expected: Option<u128>,
     ) -> terminal_psi::TerminalModule {
         let closure = match verdict {
             Ok(RouteVerdict::Accepted(closure)) => closure,
@@ -585,6 +833,20 @@ mod transferred_on_one_path {
             matches!(status, TerminalExecutionStatus::Complete(_)),
             "{status:?}"
         );
+        if let Some(expected) = expected {
+            assert_eq!(
+                status,
+                TerminalExecutionStatus::Complete(
+                    terminal_interpreter::TerminalExecutionResult::Scalar(
+                        terminal_interpreter::TerminalScalarValue::Integer {
+                            scalar_type: IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                            value: IntegerValue::Unsigned(expected),
+                        },
+                    ),
+                ),
+                "restoring the field installs its new value on either path"
+            );
+        }
         publication.artifact.semantic_module().clone()
     }
 
@@ -607,6 +869,30 @@ mod transferred_on_one_path {
             true,
             field(slot(0, ValueType::record(id(1))), 0, number())
         )));
+    }
+
+    #[test]
+    fn a_field_vacated_at_a_join_can_be_restored_after_either_arrival() {
+        for flag in [false, true] {
+            let inner_type = ValueType::record(id(1));
+            let result = field(
+                field(slot(0, ValueType::record(id(2))), 0, inner_type),
+                0,
+                number(),
+            );
+            let module = carried_through_with_value(
+                judged_with_restoration(false, result, true, flag),
+                Some(11),
+            );
+            assert!(module.machines[0].operations().any(|operation| matches!(
+                &operation.kind,
+                terminal_psi::OperationKind::StoreStructuralField {
+                    disposition: terminal_psi::StructuralStoreDisposition::Vacant,
+                    path,
+                    ..
+                } if !path.is_empty()
+            )));
+        }
     }
 
     #[test]

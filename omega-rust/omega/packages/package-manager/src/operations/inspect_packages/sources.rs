@@ -45,7 +45,7 @@ pub(super) fn review(
         .map_err(failure)?
     {
         return Err(failure(
-            "executed source graph differs from the accepted graph; use omega update for fresh review; no selector was refreshed",
+            "executed source graph differs from the accepted graph; use omega packages update for fresh review; no selector was refreshed",
         ));
     }
     let exact = closure.for_exact_target(target);

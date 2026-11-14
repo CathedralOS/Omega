@@ -90,7 +90,7 @@ machine kernel(image: Extent in Granted, storage: Extent in Granted) {
         source = source.replace("satisfies UefiPhysicalEntry::enter {", "{")
     write(application / "main.omg", source)
     result = subprocess.run(
-        [str(omega), "update", "--project", str(application), "--target", "uefi_x86_64"],
+        [str(omega), "packages", "update", "--project", str(application), "--target", "uefi_x86_64"],
         capture_output=True, text=True, encoding="utf-8", errors="replace",
         env={**os.environ, "OMEGA_LIBRARY_ROOT": str(repository / "source/library")},
     )

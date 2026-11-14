@@ -77,7 +77,7 @@ python3 -B "$APP/validation/validate.py" --omega "$CLI" --route invalid
 ```
 
 Package preparation must already be accepted for this exact origin. An ordinary
-`omega update --project "$APP" --target linux_x86_64` can refresh source/compiler
+`omega packages update --project "$APP" --target linux_x86_64` can refresh source/compiler
 identity only when all accepted meanings are unchanged and there are zero new
 decision rows. Stop on pending authority or denial. Archived locks are evidence;
 do not transplant them, repeat the original acceptance, reconstruct grants, or replace a held

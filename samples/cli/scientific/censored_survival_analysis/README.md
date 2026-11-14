@@ -9,7 +9,7 @@ numbers, invalid flags, out-of-range counts/times and input over 4096 bytes exit
 2 with `ERROR invalid input`. No patient data or clinical interpretation.
 
 ```sh
-omega update --project samples/cli/independent/censored_survival_analysis --target linux_x86_64
+omega packages update --project samples/cli/independent/censored_survival_analysis --target linux_x86_64
 omega --check --target linux_x86_64 samples/cli/independent/censored_survival_analysis/main.omg
 omega run --both samples/cli/independent/censored_survival_analysis/main.omg < samples/cli/independent/censored_survival_analysis/data/tied/input.txt
 ```

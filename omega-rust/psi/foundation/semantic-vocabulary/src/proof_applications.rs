@@ -52,8 +52,12 @@ impl<Declaration: Copy + Eq + Default + 'static> ProofApplicationPlan<Declaratio
         });
     }
 
-    pub fn callable_for_target(&self, symbol: Declaration, target: &str) -> Option<Declaration> {
-        self.target_machine(self.called_machine(symbol)?, target)
+    pub fn callable_for_target<'scope>(
+        &self,
+        symbol: Declaration,
+        target: impl Into<Option<&'scope str>>,
+    ) -> Option<Declaration> {
+        self.target_machine(self.called_machine(symbol)?, target.into())
             .map(|row| row.machine)
     }
 
@@ -72,8 +76,12 @@ impl<Declaration: Copy + Eq + Default + 'static> ProofApplicationPlan<Declaratio
         symbol: Declaration,
         target: &str,
     ) -> Option<Declaration> {
-        self.target_machine_matching(self.matching_machine(symbol, |_| true)?, target, |_| true)
-            .map(|row| row.machine)
+        self.target_machine_matching(
+            self.matching_machine(symbol, |_| true)?,
+            Some(target),
+            |_| true,
+        )
+        .map(|row| row.machine)
     }
 
     fn called_machine(&self, symbol: Declaration) -> Option<&ProofApplicationMachine<Declaration>> {
@@ -99,7 +107,7 @@ impl<Declaration: Copy + Eq + Default + 'static> ProofApplicationPlan<Declaratio
     fn target_machine<'a>(
         &'a self,
         machine: &'a ProofApplicationMachine<Declaration>,
-        target: &str,
+        target: Option<&str>,
     ) -> Option<&'a ProofApplicationMachine<Declaration>> {
         self.target_machine_matching(machine, target, |row| row.product_selected)
     }
@@ -107,7 +115,7 @@ impl<Declaration: Copy + Eq + Default + 'static> ProofApplicationPlan<Declaratio
     fn target_machine_matching<'a>(
         &'a self,
         machine: &'a ProofApplicationMachine<Declaration>,
-        target: &str,
+        target: Option<&str>,
         accepts: fn(&ProofApplicationMachine<Declaration>) -> bool,
     ) -> Option<&'a ProofApplicationMachine<Declaration>> {
         if machine.family_interface {
@@ -115,13 +123,13 @@ impl<Declaration: Copy + Eq + Default + 'static> ProofApplicationPlan<Declaratio
                 .target_members
                 .span_or_empty(machine.family_members)
                 .iter()
-                .find(|member| member.target == target)?;
+                .find(|member| Some(member.target.as_str()) == target)?;
             return self.matching_machine(member.machine, accepts);
         }
         machine
             .authored_target
             .as_deref()
-            .is_none_or(|declared| declared == target)
+            .is_none_or(|declared| Some(declared) == target)
             .then_some(machine)
     }
 
@@ -348,10 +356,10 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
 
     pub fn required_scopes<'request>(
         &'request self,
-        primary: &'request str,
+        primary: Option<&'request str>,
         owners: &[Declaration],
         unscoped: bool,
-    ) -> Vec<&'request str> {
+    ) -> Vec<Option<&'request str>> {
         let mut scopes = vec![primary];
         if owners.is_empty() && !unscoped {
             return scopes;
@@ -360,7 +368,7 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
             let Some(scope) = machine.authored_target.as_deref() else {
                 continue;
             };
-            if !machine.product_selected || scopes.contains(&scope) {
+            if !machine.product_selected || scopes.contains(&Some(scope)) {
                 continue;
             }
             let (machines, declarations) = self.membership(
@@ -375,21 +383,21 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
                     .chain(&declarations)
                     .any(|owner| owners.contains(owner))
             {
-                scopes.push(scope);
+                scopes.push(Some(scope));
             }
         }
         scopes
     }
 
-    pub fn membership(
+    pub fn membership<'scope>(
         &self,
-        scope: &str,
+        scope: impl Into<Option<&'scope str>>,
         selected_product: bool,
         providers: &[(Declaration, Declaration)],
         roots: Option<&[Declaration]>,
     ) -> (Vec<Declaration>, Vec<Declaration>) {
         let machines = self
-            .reachability(scope, selected_product, providers, roots)
+            .reachability(scope.into(), selected_product, providers, roots)
             .machines;
         let mut declarations = self.plan.declaration_membership(&machines);
         declarations.sort_unstable_by_key(|declaration| Calls::declaration_order(*declaration));
@@ -397,13 +405,14 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
         (machines, declarations)
     }
 
-    pub fn reachability(
+    pub fn reachability<'scope>(
         &self,
-        target: &str,
+        target: impl Into<Option<&'scope str>>,
         selected_product: bool,
         provider_edges: &[(Declaration, Declaration)],
         roots: Option<&[Declaration]>,
     ) -> ProofApplicationReachability<Declaration> {
+        let target = target.into();
         let mut pending = roots
             .into_iter()
             .flatten()
@@ -415,7 +424,7 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
         for (_, machine) in self.plan.machines.iter() {
             let authored = machine.source_target.as_deref();
             if machine.product_selected
-                && (authored.is_some_and(|name| name == target)
+                && (authored.is_some_and(|name| Some(name) == target)
                     || (roots.is_none() && selected_product && authored.is_none()))
             {
                 pending.push(Application {
@@ -424,23 +433,12 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
                 });
             }
         }
-        self.walk_applications(Some(target), provider_edges, pending)
+        self.walk_applications(target, provider_edges, pending)
     }
 
-    pub fn invocation_reachability(
+    pub fn invocation_reachability<'scope>(
         &self,
-        target: &str,
-        provider_edges: &[(Declaration, Declaration)],
-        roots: &[Declaration],
-    ) -> ProofApplicationReachability<Declaration> {
-        self.invocation_reachability_for(Some(target), provider_edges, roots)
-    }
-
-    /// Reachability for an invocation with an explicitly optional target.
-    /// Untargeted traversal never selects a tagged body or a family member.
-    pub fn invocation_reachability_for(
-        &self,
-        target: Option<&str>,
+        target: impl Into<Option<&'scope str>>,
         provider_edges: &[(Declaration, Declaration)],
         roots: &[Declaration],
     ) -> ProofApplicationReachability<Declaration> {
@@ -451,7 +449,7 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
                 bindings: Vec::new(),
             })
             .collect();
-        self.walk_applications(target, provider_edges, pending)
+        self.walk_applications(target.into(), provider_edges, pending)
     }
 
     fn walk_applications(
@@ -1031,7 +1029,7 @@ mod tests {
             ..Default::default()
         });
         let applications = ProofApplications::new(&plan, &graph);
-        let absent = applications.invocation_reachability_for(None, &[], &[1]);
+        let absent = applications.invocation_reachability(None, &[], &[1]);
         assert!(
             absent.calls.contains(&2),
             "admission must still see the demanded tagged call"
@@ -1192,14 +1190,17 @@ mod tests {
         let head = plan.called_machine(symbol(1)).expect("family head");
         let member = plan.called_machine(symbol(2)).expect("exact member");
         assert_eq!(
-            plan.target_machine(head, "windows_x86_64")
+            plan.target_machine(head, Some("windows_x86_64"))
                 .map(|body| body.machine),
             Some(symbol(3))
         );
-        assert!(plan.target_machine(head, "linux_arm64").is_none());
-        assert!(plan.target_machine(member, "windows_x86_64").is_none());
+        assert!(plan.target_machine(head, Some("linux_arm64")).is_none());
+        assert!(
+            plan.target_machine(member, Some("windows_x86_64"))
+                .is_none()
+        );
         assert_eq!(
-            plan.target_machine(member, "macos_arm64")
+            plan.target_machine(member, Some("macos_arm64"))
                 .map(|body| body.machine),
             Some(symbol(2))
         );

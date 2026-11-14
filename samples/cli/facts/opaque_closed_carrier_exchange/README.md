@@ -207,7 +207,7 @@ interpreter-agreement rows (`built ... exit:0 interpreter-exit:0
 interpreter:agrees`) in `tests/omega/corpus_both_macos_arm64.txt`, recorded at
 `98309d77b143`; the check-leg rows already carry `check-target:macos_arm64`
 facts. The root `main.omg` retains its Console/std
-route and needs an accepted macOS program-entry binding (`omega update` review)
+route and needs an accepted macOS program-entry binding (`omega packages update` review)
 before it checks on a fresh host.
 
 The parent still requires complete composition-edge rejection of provider,

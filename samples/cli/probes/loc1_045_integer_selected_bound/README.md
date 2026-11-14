@@ -16,7 +16,7 @@ rosters (`LoweredSelectedIeeeFloatComparisonOccurrence` and
 The build binds all four hosted entries. After normal package review:
 
 ```sh
-omega update --project samples/cli/probes/loc1_045_integer_selected_bound --target macos_arm64
+omega packages update --project samples/cli/probes/loc1_045_integer_selected_bound --target macos_arm64
 omega run --both samples/cli/probes/loc1_045_integer_selected_bound/main.omg
 ```
 

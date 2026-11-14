@@ -16,7 +16,7 @@ which would leave generic bodies unchecked at the alternatives nobody uses.
 (`advance<Selected satisfies Step>`) once and carried its certificates into two
 specializations. It found three things the lowered form cannot hold for a type
 parameter
-([lowered-discharge README](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#what-the-lowered-form-does-not-carry)):
+([terminal-psi-to-terminal-psi README](../../../omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/README.md#what-the-lowered-form-does-not-carry)):
 
 - a value row holds a concrete `ScalarType` (`Boolean`, `Integer(sign,
   width)`, `IeeeFloat(format)`), and a place a declared `StructuralTypeId`;
@@ -72,7 +72,7 @@ contract guards the conjuncts after it. So the generic form with a
 check-only terminator is not needed and not built. Each listed type is
 checked, used or not, and each generated machine takes the certificates of
 the alternative whose body it is
-([lowered-discharge README](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md#finite-families)).
+([terminal-psi-to-terminal-psi README](../../../omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/README.md#finite-families)).
 
 ## What the specification asks
 
@@ -395,8 +395,8 @@ Order, smallest change first, each with its pass and fail twin and `omega run
 ## Method
 
 Read on `main` at `a9779875f`: `check_on_lowered_form.md` (the gate and its
-open questions), the `#2378` description, the lowered-discharge and
-structure-elaboration READMEs, `ScalarType` (`semantic-vocabulary/src/scalar_terms.rs`)
+open questions), the `#2378` description, the terminal-psi-to-terminal-psi and
+typed-trees-to-terminal-psi READMEs, `ScalarType` (`semantic-vocabulary/src/scalar_terms.rs`)
 and `PropositionContext` (`semantic-vocabulary/src/proposition.rs`), the
 cited spec sections, and the witness fixtures and their rows in
 `tests/omega/corpus_outcomes.txt`, where each is `checked` (pass) or

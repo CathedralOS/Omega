@@ -603,13 +603,12 @@ pub(crate) mod expression {
                     ) -> Result<typed::expression::ExpressionHandle, Diagnostic>
                     {
                         let subject = self.lower_value(dispatch.subject)?;
-                        let capture = if dispatch.capture.is_valid() {
-                            self.target().insert_match_subject(subject)
-                        } else {
-                            Handle::invalid()
-                        };
+                        // Even a fieldless case match owns one completed
+                        // subject for dispatch and cleanup. Resolution needs a
+                        // saved-subject name only when an arm refers to it.
+                        let capture = self.target().insert_match_subject(subject);
                         let outer_captures = self.match_captures.len();
-                        if capture.is_valid() {
+                        if dispatch.capture.is_valid() {
                             self.match_captures.push((dispatch.capture, capture));
                         }
                         let lowered = (|| {
@@ -901,19 +900,11 @@ pub(crate) mod expression {
                     let Some(program) = self.program else {
                         return Ok(typed::types::TypeReferenceHandle::invalid());
                     };
-                    let symbol = program
-                        .symbols
-                        .child_handles(program.symbols.root())
-                        .and_then(|mut symbols| {
-                            symbols.find(|symbol| {
-                                program.symbols.builtin_type_atom(*symbol) == Some(atom)
-                            })
-                        })
-                        .ok_or_else(|| {
-                            Diagnostic::error(
-                                "typed expression lost its compiler-installed builtin type",
-                            )
-                        })?;
+                    let symbol = program.symbols.builtin_atom_symbol(atom).ok_or_else(|| {
+                        Diagnostic::error(
+                            "typed expression lost its compiler-installed builtin type",
+                        )
+                    })?;
                     Ok(self
                         .target_trees
                         .type_reference_table
@@ -922,8 +913,8 @@ pub(crate) mod expression {
                             self.target_trees.type_reference_table.insert(
                                 typed::types::TypeReferenceNode::Named {
                                     symbol,
-                                    name: typed::name::Identifier::generated_static(
-                                        atom.symbol_name(),
+                                    name: typed::name::Identifier::generated(
+                                        atom.symbol_name().as_ref(),
                                     ),
                                 },
                             )
@@ -1557,19 +1548,22 @@ pub(crate) mod expression {
                             self.lower_membership_expression(membership)
                         }
                         resolved::expression::ExpressionNode::Member(member) => {
-                            if CollectionMeasure::from_authored_spelling(member.member.as_str())
-                                == Some(CollectionMeasure::Length)
-                            {
+                            let (selection, case_variant) = self.selected_member(member);
+                            if matches!(
+                                selection,
+                                typed::expression::MemberSelection::CollectionMeasure(
+                                    CollectionMeasure::Length
+                                )
+                            ) {
                                 self.retain_builtin_type_reference(symbols::BuiltinTypeAtom::U64)?;
                             }
-                            let (member_symbol, case_variant) = self.declared_member(member);
                             let receiver = self.lower_value(member.receiver)?;
                             Ok(self
                                 .target()
                                 .insert(typed::expression::ExpressionNode::Member(
                                     typed::expression::TableMemberExpression {
                                         receiver,
-                                        member_symbol,
+                                        selection,
                                         member: lower_name(&member.member),
                                         case_variant: case_variant.as_ref().map(lower_name),
                                     },
@@ -2434,6 +2428,44 @@ pub(crate) mod expression {
             }
 
             impl ExpressionTableLowerer<'_, '_, '_> {
+                pub(crate) fn selected_member(
+                    &self,
+                    member: &TableMemberExpression,
+                ) -> (
+                    typed_trees::expression::MemberSelection,
+                    Option<resolved::name::DiagnosticName>,
+                ) {
+                    use language_semantics::declaration_selection::CollectionMeasure;
+                    use typed_trees::expression::MemberSelection;
+                    let (field, case) = self.declared_member(member);
+                    if field.is_valid() {
+                        return (MemberSelection::Field(field), case);
+                    }
+                    // A same-spelled nominal field keeps its exact selection.
+                    // Only an actual builtin collection type gives this
+                    // observation its meaning; unknown receivers stay unresolved.
+                    let collection = self.program.is_some_and(|program| {
+                        declared_type(program, self.source, member.receiver, 0).is_some_and(
+                            |reference| {
+                                matches!(
+                                    peel(program, reference),
+                                    TypeReference::Slice(_) | TypeReference::FixedArray(_)
+                                )
+                            },
+                        )
+                    });
+                    let selected = if collection
+                        && case.is_none()
+                        && CollectionMeasure::from_authored_spelling(member.member.as_str())
+                            == Some(CollectionMeasure::Length)
+                    {
+                        MemberSelection::CollectionMeasure(CollectionMeasure::Length)
+                    } else {
+                        MemberSelection::Unresolved
+                    };
+                    (selected, case)
+                }
+
                 pub(crate) fn declared_member(
                     &self,
                     member: &TableMemberExpression,
@@ -3717,7 +3749,7 @@ pub(crate) mod expression {
                         .insert(typed::expression::ExpressionNode::Member(
                             typed::expression::TableMemberExpression {
                                 receiver: place,
-                                member_symbol: field.symbol,
+                                selection: typed::expression::MemberSelection::Field(field.symbol),
                                 member: lower_name(&field.name),
                                 case_variant: case_variant.map(|variant| lower_name(&variant.name)),
                             },

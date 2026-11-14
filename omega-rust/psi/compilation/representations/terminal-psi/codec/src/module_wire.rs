@@ -2543,7 +2543,7 @@ pub(crate) mod declaration_wire {
             predicate: Optional<DomainPredicate>,
             byte_predicate: OptionalBytePredicate,
             content_projection: Optional<ContentProjection>,
-            establishment_routes: List<Route>,
+            establishment_routes: Optional<List<Route>>,
         }
         DomainPredicate: StructuralDomainPredicate { subject: Id, proposition: Proposition }
         Service: ServiceDeclaration { id: Id, identity: Index, parents: Ids }
@@ -2594,19 +2594,15 @@ pub(crate) mod declaration_wire {
 
     pub(crate) fn encode_establishment_routes(
         writer: &mut Writer,
-        routes: &[StructuralEstablishmentRoute],
+        routes: &Option<Vec<StructuralEstablishmentRoute>>,
     ) -> Result<(), CodecError> {
-        writer.len("domain establishment routes", routes.len())?;
-        for route in routes {
-            Route::write(writer, route)?;
-        }
-        Ok(())
+        Optional::<List<Route>>::write(writer, routes)
     }
 
     pub(crate) fn decode_establishment_routes(
         reader: &mut Reader<'_>,
-    ) -> Result<Vec<StructuralEstablishmentRoute>, CodecError> {
-        List::<Route>::read(reader)
+    ) -> Result<Option<Vec<StructuralEstablishmentRoute>>, CodecError> {
+        Optional::<List<Route>>::read(reader)
     }
 }
 pub(crate) mod dynamic_dispatch_wire {
@@ -4974,6 +4970,7 @@ wire_record! {
         suspension_call_plans: List<SuspensionPlan>,
         scalar_block_invariants: List<scalar_block_invariant_wire::Invariant>,
         operation_crash_contracts: List<operation_crash_contract_wire::Contract>,
+        declaration_contracts: List<super::contract_wire::Contract>,
         machines: List<Machine>,
         target_machine_families: List<TargetFamily>,
         target_layout_applications: List<target_layout_wire::Application>,

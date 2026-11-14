@@ -812,6 +812,9 @@ pub(crate) mod component_memberships {
         right: &TerminalModule,
         target: &StructuralDomainDeclaration,
     ) -> bool {
+        if source.establishment_routes.is_none() != target.establishment_routes.is_none() {
+            return false;
+        }
         let same_name = |a, b| {
             NominalDeclarationIdentity::new(a).same_identity_as(
                 &left.identities,
@@ -862,6 +865,8 @@ pub(crate) mod component_memberships {
         let routes = |module: &TerminalModule, domain: &StructuralDomainDeclaration| {
             let mut rows = domain
                 .establishment_routes
+                .as_deref()
+                .unwrap_or_default()
                 .iter()
                 .map(|route| {
                     let kind = match route {
@@ -895,6 +900,94 @@ pub(crate) mod component_memberships {
         routes(left, source)
             .zip(routes(right, target))
             .is_some_and(|(a, b)| a == b)
+    }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use semantic_vocabulary::{DomainSemanticId, MachineId, PlaceId, Proposition};
+        use terminal_psi::{
+            StructuralDomainPredicate, StructuralRecordStorage, StructuralTypeDeclaration,
+            StructuralTypeShape, TerminalIdentityTableBuilder,
+        };
+
+        fn module(
+            domain: u64,
+            carrier: u64,
+            pad_identity: bool,
+            deny_issuance: bool,
+        ) -> TerminalModule {
+            let mut identities = TerminalIdentityTableBuilder::default();
+            if pad_identity {
+                identities.intern("unrelated declaration");
+            }
+            let carrier_identity = identities.intern("test::Cell");
+            let domain_identity = identities.intern("test::Cell::Controlled");
+            let carrier = StructuralTypeId::new(carrier).unwrap();
+            let mut module = TerminalModule::for_entry(MachineId::new(1).unwrap());
+            module.identities = identities.build();
+            module.structural_types.push(StructuralTypeDeclaration {
+                requires: Vec::new(),
+                id: carrier,
+                identity: carrier_identity,
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                no_code_affine_cleanup: true,
+                copyable: true,
+                descriptor_cleanup: false,
+                scalar_restriction: None,
+                shape: StructuralTypeShape::Record {
+                    storage: StructuralRecordStorage::Packed,
+                    fields: Vec::new(),
+                },
+            });
+            module.structural_domains.push(StructuralDomainDeclaration {
+                required_memberships: Some(Vec::new()),
+                complete_predicate_theory: true,
+                predicate: Some(StructuralDomainPredicate {
+                    subject: PlaceId::new(1).unwrap(),
+                    proposition: Proposition::Truth,
+                }),
+                id: StructuralDomainId::new(domain).unwrap(),
+                semantic_domain: DomainSemanticId::new(domain).unwrap(),
+                identity: domain_identity,
+                carrier,
+                content_projection: None,
+                byte_predicate: None,
+                establishment_routes: deny_issuance.then(Vec::new),
+            });
+            module
+        }
+
+        // Provider membership compatibility compares the actual declarations,
+        // including issuer choice, even when each module numbers them differently.
+        #[test]
+        fn component_memberships_distinguish_empty_denial_from_unrestricted_issuance() {
+            for deny in [false, true] {
+                let receiver = module(1, 1, false, deny);
+                let provider = module(7, 9, true, deny);
+                let source = &receiver.structural_domains[0];
+                let target = &provider.structural_domains[0];
+                assert_ne!(source.identity, target.identity);
+                assert_eq!(
+                    admit_memberships(
+                        &receiver,
+                        source.carrier,
+                        &[source.id],
+                        &provider,
+                        target.carrier,
+                        &[target.id]
+                    )
+                    .unwrap(),
+                    [(source.id, target.id)],
+                );
+
+                let mismatched = module(7, 9, true, !deny);
+                let target = &mismatched.structural_domains[0];
+                let reason = admit_memberships(&receiver, source.carrier, &[source.id], &mismatched, target.carrier, &[target.id])
+                    .expect_err("an empty issuer denial cannot substitute for unrestricted issuance in either direction");
+                assert!(reason.contains("membership theories differ"), "{reason}");
+            }
+        }
     }
 }
 
@@ -970,6 +1063,33 @@ pub(crate) mod target_families {
     }
 
     impl AdmittedTargetMachineSelections {
+        /// Resolve an ordinary entry without manufacturing a deployment.
+        /// Target-family members require the caller's explicit selection.
+        pub fn resolve_entry(
+            selected: Option<&Self>,
+            identity: TerminalPsiIdentity,
+            module: &terminal_psi::TerminalModule,
+            root: TargetMachineCallable,
+        ) -> Result<semantic_vocabulary::MachineId, TargetMachineSelectionError> {
+            if let Some(selected) = selected {
+                return selected.entry(identity, module, root);
+            }
+            let TargetMachineCallable::Machine(machine) = root else {
+                return Err(TargetMachineSelectionError::MissingDeployment { head: root });
+            };
+            if module
+                .target_machine_families
+                .iter()
+                .any(|family| family.members.iter().any(|member| member.callable == root))
+            {
+                return Err(TargetMachineSelectionError::MissingDeployment { head: root });
+            }
+            if module.machine(machine).is_none() {
+                return Err(TargetMachineSelectionError::MissingMachine(machine));
+            }
+            Ok(machine)
+        }
+
         pub fn entry(
             &self,
             identity: TerminalPsiIdentity,
@@ -1103,6 +1223,10 @@ pub(crate) mod target_families {
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum TargetMachineSelectionError {
         TerminalIdentityMismatch,
+        MissingDeployment {
+            head: TargetMachineCallable,
+        },
+        MissingMachine(semantic_vocabulary::MachineId),
         NonExecutableEntry {
             head: TargetMachineCallable,
             target: String,
@@ -1116,6 +1240,13 @@ pub(crate) mod target_families {
     impl std::fmt::Display for TargetMachineSelectionError {
         fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             match self {
+                Self::MissingDeployment { head } => write!(
+                    formatter,
+                    "entry {head:?} requires an explicit deployment selection"
+                ),
+                Self::MissingMachine(machine) => {
+                    write!(formatter, "entry machine {machine:?} is absent")
+                }
                 Self::TerminalIdentityMismatch => {
                     formatter.write_str("entry selection names a different Terminal artifact")
                 }

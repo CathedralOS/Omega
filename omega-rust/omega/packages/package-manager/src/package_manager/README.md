@@ -17,10 +17,10 @@ package_manager/
 ```
 
 ```text
-omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>]
-omega update [package-or-alias...] [--to <revision>]
-omega install --resume
-omega update --resume
+omega packages install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>]
+omega packages update [package-or-alias...] [--to <revision>]
+omega packages install --resume
+omega packages update --resume
 omega <install|update> --discard-review
 ```
 
@@ -49,9 +49,9 @@ are unchanged by this proposal-format revision.
 work and cached accepted/proposed Git pins remain usable; missing recorded
 content fails without fetching or changing accepted files. New or explicitly
 refreshed Git requests reject even if a moving selector was cached earlier.
-In particular, `omega update --offline` does not silently preserve the Git
+In particular, `omega packages update --offline` does not silently preserve the Git
 repositories it was asked to update. Resolve an update online first, then use
-`omega update --resume --offline` to finish its review from cached proposed pins.
+`omega packages update --resume --offline` to finish its review from cached proposed pins.
 The same applies to install/resume, including named workspace packages.
 
 This option also prevents old-source diff recovery from fetching. Missing old
@@ -71,8 +71,8 @@ supplies its default alias; `--as` overrides only that local alias. Unknown or
 duplicate declared names reject before publication. For example:
 
 ```text
-omega install https://example.org/team/libraries.git --package exact-math
-omega install https://example.org/team/libraries.git --package exact-math --as math
+omega packages install https://example.org/team/libraries.git --package exact-math
+omega packages install https://example.org/team/libraries.git --package exact-math --as math
 ```
 
 Selection stays in the proposed declaration and source graph during review.

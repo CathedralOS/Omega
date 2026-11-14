@@ -35,8 +35,8 @@ shared numerical project, external optimizer, or generated semantic witness.
 From the repository root, with a compiler built from this exact main base:
 
 ```sh
-omega update --project samples/cli/independent/transport_planner --target linux_x86_64
-# Read and accept the actual pending review, then omega update --resume.
+omega packages update --project samples/cli/independent/transport_planner --target linux_x86_64
+# Read and accept the actual pending review, then omega packages update --resume.
 omega --check --target linux_x86_64 samples/cli/independent/transport_planner/main.omg
 omega run --both --keep samples/cli/independent/transport_planner/main.omg < samples/cli/independent/transport_planner/data/nontrivial.txt
 omega --target linux_x86_64 samples/cli/independent/transport_planner/main.omg

@@ -64,22 +64,75 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q1 - Is code after a call that never returns an error, a warning, or accepted?
+### Q1 - May a qualified operator be declared outside the domain's module?
 
-Decision name: `code-after-no-return-call`.
+Decision name: `unresolved-qualified-operator-home`.
 
-**Customer.** The lowered-form checker judges calls that never return (process
-exit and machines whose every path exits) since #2890; every program that exits
-through `ProcessExit` meets the rule.
+**Customer.** No authored source and no product requirement needs an operator
+declared outside its domain's module. The only user is the #2965 homing test.
 
-**Gap.** [Process exit](wiki/spec/language/process_exit.md) says a helper may
-exit on one branch and return on another and that there is no `never` type; no
-page says what a statement written after a call that never returns means:
-whether the program is rejected, accepted with the statement unreachable, or
-accepted with a warning.
+**Gap.** [Operator families](wiki/spec/language/expressions.md#operator-families)
+(`expressions.md:299-328`), [declaration and membership](wiki/spec/language/domains.md#declaration-and-membership)
+(`domains.md:23-29`), [foreign attached paths](wiki/spec/language/modules.md#foreign-attached-declaration-paths)
+(`modules.md:77-94`), and [operators on a domain](wiki/language_guide/chapter_8_domains.md#operators-on-a-domain)
+(`chapter_8_domains.md:111-123`) were checked. A qualified name establishes a
+home, operations are separate machines, a short path selects an exposed domain,
+and the guide places the operator beside the domain. Those clauses are silent
+on a root file declaring `Carrier::Leaf::op`.
 
-**Question.** (a) Is a statement after a call that never returns a compile
-error? (b) Or is it accepted as unreachable, with or without a warning?
+```omega
+// Form A, inside the domain's module.
+module units;
+public domain u64::Distance requires self > 0;
+public operator + u64::Distance::add(
+    left: u64 in u64::Distance, right: u64 in u64::Distance
+) -> u64 in u64::Distance;
 
-**Until answered.** The checker refuses it as not supported (`statement after a
-call that never returns`).
+// Form B, root file.
+use units;
+public operator + u64::Distance::add(
+    left: u64 in u64::Distance, right: u64 in u64::Distance
+) -> u64 in u64::Distance;
+```
+
+Before #2965, Form B stays a root item, so `a + b` fails to resolve.
+Now Form B is homed on `u64::Distance`, so `a + b` resolves.
+
+**Question.** (a) Allow the root form (current behavior)? (b) Or reject a
+qualified operator declared outside the domain's module?
+
+**Until answered.** The compiler homes Form B on `u64::Distance`.
+
+### Q2 - How does a caller in another verification unit know a machine never returns?
+
+Decision name: `published-no-return`.
+
+**Customer.** A library helper whose every path exits or crashes (an `abort`
+or `fail` machine in `std`) called from an application. Under
+[statements after a call that never returns](wiki/spec/language/state_contracts.md#statements-after-a-call-that-never-returns)
+the caller's continuation is unreachable only when checked evidence excludes
+normal return; without that evidence the caller must still prove everything
+after the call, including a result it can never produce.
+
+**Gap.** [Local call summaries](wiki/spec/language/state_contracts.md#local-call-summaries)
+says that across a verification-unit boundary a call uses the published
+contract, that extra result and state guarantees are authored rather than
+exported from the body, and lists what a published contract retains from
+inference: reach, write frames, ownership, borrow-origin, validity and callback
+dependencies. Absence of normal return is not in that list, and
+`code-after-no-return-call` introduces no `never` type or keyword. The pages
+give no way to author it, and do not say it is retained. The canonical
+`ProcessExit::exit_process` requirement is covered by
+[process exit](wiki/spec/language/process_exit.md); an ordinary machine wrapping
+it is not. Pages checked: those two, plus "Verification-unit boundary" and
+"Unreachable branches" in `state_contracts.md`.
+
+**Question.** Across a unit boundary, is a machine's lack of any normal return
+(a) authored with an existing construct, `ensures false`, which under partial
+correctness already means no normal return can occur; (b) retained
+automatically in the published contract like inferred reach; or (c) not
+visible, so the caller treats non-return as unknown?
+
+**Until answered.** The checker uses every machine's body-derived outcome
+regardless of unit (behaviour that predates the rule, kept by #2983). That is
+(b) in effect and is wider than the unit rule as written.

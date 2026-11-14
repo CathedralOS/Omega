@@ -129,11 +129,12 @@ impl ProductTerminalPublication {
     }
 
     pub fn accepted(&self) -> Result<&psi_compiler::AcceptedTerminalSource, Vec<Diagnostic>> {
-        // The factory seals the judged module with the empty Psi execution
-        // record. A requested transform needs its own evidence transport.
+        // The factory seals the module the unoptimized check judged. A
+        // nonempty selection needs the second lowered-form check, which has
+        // no route yet.
         if !self.optimizations.project_psi().selections().is_empty() {
             return Err(vec![Diagnostic::error(
-                "no product route yet: selected Psi optimizations have no accepted evidence transport",
+                "no product route yet: selected Psi optimizations have no second lowered-form check",
             )]);
         }
         self.accepted
@@ -230,10 +231,9 @@ mod tests {
     fn accepted_publication_refuses_unexecuted_psi_optimizations() {
         let selected = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
         let publication = ProductTerminalPublication::new(selected);
-        assert!(
-            publication.accepted().unwrap_err()[0]
-                .message
-                .contains("Psi optimizations")
+        assert_eq!(
+            publication.accepted().unwrap_err()[0].message,
+            "no product route yet: selected Psi optimizations have no second lowered-form check"
         );
     }
 }

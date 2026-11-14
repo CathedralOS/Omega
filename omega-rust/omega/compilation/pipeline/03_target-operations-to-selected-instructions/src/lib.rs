@@ -102,7 +102,7 @@ pub(crate) mod installed_interrupt_geometry {
 
     impl InstalledInterruptOperandLayout {
         pub fn derive(
-            declarations: &[StructuralTypeDeclaration],
+            declarations: &crate::native_geometry::NativeGeometry<'_>,
             types: [StructuralTypeId; 6],
         ) -> Result<Self, &'static str> {
             let table = geometry::shape(types[0], declarations)
@@ -691,6 +691,7 @@ mod legalization_reference_custody;
 mod legalization_scalar_graph;
 mod legalization_source;
 mod legalization_target;
+mod native_geometry;
 mod optimized;
 mod selection;
 mod selection_access_lifecycles;
@@ -722,3 +723,6 @@ pub use selection::{ValidatedSelectedInstructions, selected_instruction_plan_ide
 pub use legalization::{
     LegalizationError as TargetOperationAuditError, verify_target_operation_plan,
 };
+
+#[cfg(test)]
+mod sum_layout_selection;

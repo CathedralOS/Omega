@@ -9,7 +9,7 @@ SysVValuePlan satisfies ValuePlan {
     machine plan(signature: BoundarySignature, allow_vectors: bool, width: u64) -> BoundaryPlanResult {
         transition LocalEntry::value() == 42 {
             true -> scalar_plan(signature, allow_vectors, width, CallingConvention::SystemVAMD64, MachineRegister::X86Rax, MachineRegime::X86Long64, 0)
-            false -> BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "selected helper returned the wrong scalar" } }
+            false -> BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "selected helper returned the wrong scalar" as +Utf8 } }
         }
     }
 }
@@ -17,7 +17,7 @@ MicrosoftValuePlan satisfies ValuePlan {
     machine plan(signature: BoundarySignature, allow_vectors: bool, width: u64) -> BoundaryPlanResult {
         transition LocalEntry::value() == 42 {
             true -> scalar_plan(signature, allow_vectors, width, CallingConvention::MicrosoftX64, MachineRegister::X86Rax, MachineRegime::X86Long64, 32)
-            false -> BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "selected helper returned the wrong scalar" } }
+            false -> BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "selected helper returned the wrong scalar" as +Utf8 } }
         }
     }
 }
@@ -25,7 +25,7 @@ AapcsValuePlan satisfies ValuePlan {
     machine plan(signature: BoundarySignature, allow_vectors: bool, width: u64) -> BoundaryPlanResult {
         transition LocalEntry::value() == 42 {
             true -> scalar_plan(signature, allow_vectors, width, CallingConvention::Aapcs64, MachineRegister::Aarch64X { index: 0 }, MachineRegime::Aarch64A64 { exception_level: 0 }, 0)
-            false -> BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "selected helper returned the wrong scalar" } }
+            false -> BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "selected helper returned the wrong scalar" as +Utf8 } }
         }
     }
 }
@@ -73,7 +73,7 @@ machine scalar_plan(signature: BoundarySignature, allow_vectors: bool, width: u6
         BoundaryPlanResult::Accepted { plan: plan }
     }
     machine reject() -> BoundaryPlanResult {
-        BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "one scalar result" } }
+        BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "one scalar result" as +Utf8 } }
     }
 }
 

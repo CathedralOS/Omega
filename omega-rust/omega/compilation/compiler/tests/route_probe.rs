@@ -14,7 +14,7 @@
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
 
-use lowered_discharge::RouteVerdict;
+use terminal_psi_to_terminal_psi::RouteVerdict;
 
 // Compilation shares process-wide counters; run one at a time.
 static COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -68,7 +68,7 @@ fn verdicts(name: &str, source: &str) -> Vec<&'static str> {
 fn judged(
     name: &str,
     source: &str,
-) -> Vec<Result<RouteVerdict, lowered_discharge::CompilationRefusal>> {
+) -> Vec<Result<RouteVerdict, terminal_psi_to_terminal_psi::CompilationRefusal>> {
     let _compilation = COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -83,17 +83,21 @@ fn judged(
 
 fn judge(
     frontier: &compiler::TypedFrontier,
-) -> Vec<Result<RouteVerdict, lowered_discharge::CompilationRefusal>> {
-    lowered_discharge::judge_compilation(
-        &frontier.typed,
-        structure_elaboration::Compilation {
-            entries: &frontier.entries,
-            subjects: &[frontier.subject],
-            purpose: source::DependencyScope::Product,
-            selected: &frontier.selected,
-            bindings: &frontier.bindings,
-            supplies: &[],
-        },
+) -> Vec<Result<RouteVerdict, terminal_psi_to_terminal_psi::CompilationRefusal>> {
+    terminal_psi_to_terminal_psi::judge_compilation(
+        typed_trees_to_terminal_psi::prepare_compilation(
+            &frontier.typed,
+            typed_trees_to_terminal_psi::Compilation {
+                entries: &frontier.entries,
+                subjects: &[frontier.subject],
+                purpose: source::DependencyScope::Product,
+                selected: &frontier.selected,
+                bindings: &frontier.bindings,
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .program,
     )
 }
 
@@ -206,7 +210,7 @@ machine main() { }",
         (
             "ensures_trapping_sum",
             pair("ensures result == left +! right", "left +% right"),
-            "contract Trapping policy operator in a clause, where an operation that can crash forms no term",
+            "rejected",
         ),
         (
             "ensures_wrapping_quotient",
@@ -457,7 +461,8 @@ fn judged_with_dependencies(
     directory: &str,
     entry: &str,
     dependencies: &[(&str, &str)],
-) -> Result<Vec<Result<RouteVerdict, lowered_discharge::CompilationRefusal>>, Vec<String>> {
+) -> Result<Vec<Result<RouteVerdict, terminal_psi_to_terminal_psi::CompilationRefusal>>, Vec<String>>
+{
     let _compilation = COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -633,12 +638,110 @@ fn a_call_that_never_returns_may_not_be_lent_one_place_twice() {
     );
 }
 
+/// A statement written after `ProcessExit::exit_process` is unreachable, not
+/// an error (`wiki/spec/language/state_contracts.md`, "Statements after a
+/// call that never returns"). The kept program's `let next: i32 = root.count
+/// + 1;` after the exit is not lowered: `main` ends in the exit with no
+/// addition before it, so the range the addition would owe is owed by
+/// nobody and the program is accepted. The accepted closure carries one
+/// warning at the `let` and one note at the call.
+#[test]
+fn a_statement_after_a_call_that_never_returns_is_accepted_with_one_warning() {
+    let _compilation = COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let frontier = unbuilt_frontier::frontier(
+        &unbuilt_frontier::repository("tests/fixtures/run/calls/statement_after_process_exit")
+            .join("main.omg"),
+        Some("entry_start"),
+        &[],
+    )
+    .unwrap_or_else(|stopped| panic!("Psi 00 through 04 must complete: {stopped:?}"));
+    let parts = judge(&frontier);
+    let [Ok(RouteVerdict::Accepted(closure))] = &parts[..] else {
+        panic!("the entry closure accepted: {parts:?}");
+    };
+    let operations = closure
+        .elaboration
+        .module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations);
+    assert!(
+        operations.clone().all(|operation| !matches!(
+            operation.kind,
+            terminal_psi::OperationKind::ExactIntegerAdd { .. }
+        )),
+        "the addition after the exit is not lowered"
+    );
+    let advisories = closure.advisories();
+    let [warning, note] = &advisories[..] else {
+        panic!("one warning and its note: {advisories:?}");
+    };
+    assert_eq!(warning.severity, diagnostics::DiagnosticSeverity::Warning);
+    assert!(
+        warning
+            .message
+            .starts_with("unreachable statement in machine `main` state `"),
+        "{}",
+        warning.message
+    );
+    assert_eq!(note.severity, diagnostics::DiagnosticSeverity::Note);
+    assert_eq!(note.message, "this call never returns");
+    // The warning is at the `let` and the note at the call before it.
+    let (statement, call) = (
+        warning.source_span.expect("the statement is authored"),
+        note.source_span.expect("the call is authored"),
+    );
+    assert!(
+        call.span.end <= statement.span.start,
+        "{call:?} {statement:?}"
+    );
+}
+
+/// Its twin calls a helper that exits on one arm and returns on the other.
+/// "The call can return on some paths: the continuation is checked on those
+/// returning paths", so the same `let` is lowered, its addition owes its
+/// range, nothing bounds `root.count`, and the program is rejected. Nothing
+/// is reported as unreachable.
+#[test]
+fn a_statement_after_a_call_that_may_return_is_checked() {
+    assert_eq!(
+        exit_verdicts("tests/fixtures/fail/calls/statement_after_conditional_exit"),
+        ["rejected"]
+    );
+}
+
+/// Its other twin names a machine nothing declares in the statement after
+/// the exit. "Unreachable statements are still source": leaving the
+/// statement out of the lowered form does not excuse the name, and the
+/// program is not accepted. It is refused where an unknown call name is
+/// refused anywhere today: the reader raises the row typing left on the
+/// declaration that holds the call (`typed_trees::deferred_refusals`).
+#[test]
+fn an_unknown_machine_after_a_call_that_never_returns_is_not_accepted() {
+    let parts = judged_with_dependencies(
+        "tests/fixtures/fail/calls/unknown_machine_after_process_exit",
+        "entry_start",
+        &[],
+    )
+    .unwrap_or_else(|stopped| panic!("Psi 00 through 04 must complete: {stopped:?}"));
+    let [Ok(RouteVerdict::FallBack(refusal))] = &parts[..] else {
+        panic!("the unknown name refuses the program: {parts:?}");
+    };
+    assert_eq!(
+        refusal.detail,
+        "declaration holding a call whose name resolves to no declaration"
+    );
+}
+
 /// A machine that declares a lifetime is one machine, judged once
 /// (`wiki/spec/language/lifetimes.md`: "Lifetime arguments are erased
 /// regions"): it may return the view it was given for the lifetime its
 /// result names, and a call gives that lifetime the region of the view it
 /// passes. The twin returns the view of the other lifetime ("A signature
-/// does not authorize returning unrelated storage") and is not accepted.
+/// does not authorize returning unrelated storage") and is rejected.
 #[test]
 fn a_machine_with_a_lifetime_returns_a_view_of_that_lifetime_only() {
     let program = |returned: &str| {
@@ -651,7 +754,7 @@ fn a_machine_with_a_lifetime_returns_a_view_of_that_lifetime_only() {
     assert_eq!(verdicts("lifetime_view", &program("view")), ["accepted"]);
     assert_eq!(
         verdicts("lifetime_other_view", &program("other")),
-        ["not-supported"]
+        ["rejected"]
     );
 }
 
@@ -744,4 +847,219 @@ fn each_built_in_integer_name_is_judged_at_its_own_sign_and_width() {
         }
     }
     assert!(wrong.is_empty(), "{wrong:#?}");
+}
+
+/// An integer type is a sign and a width at every width, not only the eight
+/// conventional ones (`wiki/spec/language/numeric_values.md`, "Width-indexed
+/// integers": "All existing fixed-integer operations apply at N, not at a
+/// convenient machine register width"). Each row is a carrier no machine
+/// register has, with its greatest value.
+///
+/// As for the built-in names, `value + 1` is accepted when `requires` keeps
+/// `value` below the carrier's greatest value and rejected when it allows
+/// the greatest value itself, and the Wrapping add of a literal suffixed
+/// with the same carrier (`1u13`) is accepted with nothing known about
+/// `value`. `u1` holds zero and one and is an integer, not `bool`.
+#[test]
+fn an_integer_of_any_width_is_judged_at_its_own_sign_and_width() {
+    let mut wrong = Vec::new();
+    for (carrier, greatest) in [
+        ("u1", "1"),
+        ("u13", "8191"),
+        ("i13", "4095"),
+        ("u24", "16777215"),
+        ("i48", "140737488355327"),
+        ("u63", "9223372036854775807"),
+    ] {
+        let bounded = |relation: &str| {
+            format!(
+                "machine next(value: {carrier}) -> {carrier} requires value {relation} {greatest} {{ value + 1 }}
+                 machine main() {{ }}
+"
+            )
+        };
+        let wrapped = format!(
+            "machine next(value: {carrier}) -> {carrier} {{ value +% 1{carrier} }}
+             machine main() {{ }}
+"
+        );
+        for (case, source, expected) in [
+            ("below_greatest", bounded("<"), "accepted"),
+            ("at_greatest", bounded("<="), "rejected"),
+            ("suffixed_literal", wrapped, "accepted"),
+        ] {
+            let name = format!("{carrier}_{case}");
+            let found = verdicts(&name, &source);
+            if found != [expected] {
+                wrong.push(format!("{name}: {found:?}, expected {expected}"));
+            }
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
+}
+
+/// `u<N>` and `i<N>` are the same types their decimal shorthand names
+/// ("`u32` and `u<32>` are exactly the same type, not convertible
+/// wrappers"). A parameter written `u<13>` is returned as a `u13` and judged
+/// at thirteen bits: accepted below the greatest value, rejected at it.
+///
+/// A width is "a positive proof-static `u64`": "Zero widths and runtime
+/// width arguments reject", each before typing and for its own reason.
+///
+/// A width that is a const parameter is kept for the specialization that
+/// substitutes it. The lowered-form checker has no integer type whose width
+/// is a parameter yet, so such a program is refused by name, not judged at
+/// some other width.
+#[test]
+fn an_indexed_width_is_the_type_its_shorthand_names() {
+    let spare = |declaration: &str| format!("{declaration}\nmachine main() {{ }}\n");
+    for (name, declaration, expected) in [
+        (
+            "indexed_conventional",
+            "machine next(value: u<32>) -> u32 { value }",
+            "accepted",
+        ),
+        (
+            "indexed_below_greatest",
+            "machine next(value: u<13>) -> u13 requires value < 8191 { value + 1 }",
+            "accepted",
+        ),
+        (
+            "indexed_at_greatest",
+            "machine next(value: u<13>) -> u13 requires value <= 8191 { value + 1 }",
+            "rejected",
+        ),
+        (
+            "indexed_signed_above_least",
+            "machine next(value: i<13>) -> i13 requires value > -4096 { value - 1 }",
+            "accepted",
+        ),
+        (
+            "indexed_signed_at_least",
+            "machine next(value: i<13>) -> i13 requires value >= -4096 { value - 1 }",
+            "rejected",
+        ),
+    ] {
+        assert_eq!(verdicts(name, &spare(declaration)), [expected], "{name}");
+    }
+    /* The empty `main` is judged; the generic form of `next` is what is refused. */
+    assert_eq!(
+        verdicts(
+            "symbolic_width",
+            &spare("machine next<const N: u64>(value: u<N>) -> u<N> { value }")
+        ),
+        ["accepted", "not-supported"]
+    );
+    for (name, declaration, reason) in [
+        (
+            "zero_width",
+            "machine next(value: u<0>) -> u32 { 1 }",
+            "zero width",
+        ),
+        (
+            "runtime_width",
+            "machine next(count: u64, value: u<count>) -> u32 { 1 }",
+            "runtime value",
+        ),
+    ] {
+        let stopped = unbuilt_frontier::staged(name, &spare(declaration))
+            .err()
+            .unwrap_or_else(|| panic!("{name}: a malformed width must not be typed"));
+        assert!(
+            stopped.iter().any(|message| message.contains(reason)),
+            "{name}: {stopped:?}"
+        );
+    }
+}
+
+/// Saturating arithmetic and exact conversion are judged at the carrier's
+/// own width ("Exact numerical conversion preserves value and proves
+/// destination fit"). `u16` to `u13` is accepted when `requires` keeps the
+/// value within thirteen bits and rejected when it does not; the widening
+/// `u13` to `u16` and the Saturating add at `u13` owe nothing.
+///
+/// A width the checker cannot state is refused by that width, never read as
+/// a narrower one: its statements hold integers up to 128 bits, so `u128`
+/// is judged and `u257` is not supported yet.
+#[test]
+fn conversions_and_policies_are_judged_at_the_width_the_program_names() {
+    let spare = |declaration: &str| format!("{declaration}\nmachine main() {{ }}\n");
+    for (name, declaration, expected) in [
+        (
+            "narrowing_within",
+            "machine next(value: u16) -> u13 requires value <= 8191 { value as u13 }",
+            "accepted",
+        ),
+        (
+            "narrowing_beyond",
+            "machine next(value: u16) -> u13 requires value <= 8192 { value as u13 }",
+            "rejected",
+        ),
+        (
+            "widening",
+            "machine next(value: u13) -> u16 { value as u16 }",
+            "accepted",
+        ),
+        (
+            "saturating_add",
+            "machine next(value: u13) -> u13 { value +| 8191u13 }",
+            "accepted",
+        ),
+        (
+            "beyond_a_register_below_greatest",
+            "machine next(value: u65) -> u65 requires value < 5 { value + 1 }",
+            "accepted",
+        ),
+        (
+            "beyond_a_register_unbounded",
+            "machine next(value: u65) -> u65 { value + 1 }",
+            "rejected",
+        ),
+        (
+            "beyond_the_checker",
+            "machine next(value: u257) -> u257 { value }",
+            "not-supported",
+        ),
+    ] {
+        assert_eq!(verdicts(name, &spare(declaration)), [expected], "{name}");
+    }
+}
+
+/// A dispatch over an owned sum that is not `[copy]`. The `Root` arm names
+/// nothing of the subject, so the subject is discarded on that case's edge
+/// (`wiki/spec/terminal-psi/control_flow.md`: "Selected payload fields become
+/// scalar parameters on that case's edge before cleanup."); the `Named` arm
+/// keeps it for the view it lends. The twin hands the same owned sum to two
+/// calls and is rejected: it was moved by the first.
+#[test]
+fn an_owned_sum_is_dispatched_and_disposed_of_once() {
+    let program = |again: &str| {
+        format!(
+            "data Selection<'storage> {{\n\
+                 case Root;\n\
+                 case Named(package: &'storage [u8]);\n\
+             }}\n\
+             machine take(view: &[u8]) {{ }}\n\
+             machine select(view: &[u8], selection: Selection) {{\n\
+                 transition selection {{\n\
+                     Selection::Root -> take(view)\n\
+                     Selection::Named {{ package }} -> take(package)\n\
+                 }}\n\
+             }}\n\
+             machine main() {{\n\
+                 let chosen: Selection = Selection::Named {{ package: \"here\" }};\n\
+                 let other: Selection = Selection::Root;\n\
+                 select(\"first\", chosen);\n\
+                 select(\"second\", {again});\n\
+             }}\n"
+        )
+    };
+    assert_eq!(
+        verdicts("owned_sum_dispatched", &program("other")),
+        ["accepted"]
+    );
+    assert_eq!(
+        verdicts("owned_sum_moved_twice", &program("chosen")),
+        ["rejected"]
+    );
 }

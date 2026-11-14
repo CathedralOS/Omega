@@ -95,7 +95,7 @@ impl TerminalPermissionAcceptance {
     pub fn validate(&self, input: &RuntimePermissionInput<'_>) -> Result<(), Vec<Diagnostic>> {
         if self.schema_version != PACKAGE_POLICY_ROW_VERSION {
             return Err(vec![Diagnostic::error(
-                "accepted runtime policy uses an obsolete schema; run omega update",
+                "accepted runtime policy uses an obsolete schema; run omega packages update",
             )]);
         }
         let rows = input.declarations.rows(input, self.target, self.package)?;
@@ -133,7 +133,7 @@ impl TerminalPermissionAcceptance {
                 .into_iter()
                 .map(|meaning| {
                     Diagnostic::error(format!(
-                        "the consuming project has not accepted this independent component assumption; review it with omega update: {}",
+                        "the consuming project has not accepted this independent component assumption; review it with omega packages update: {}",
                         meaning.trim_end()
                     ))
                 })
@@ -142,7 +142,7 @@ impl TerminalPermissionAcceptance {
         rows.sort_unstable_by_key(|(key, _)| *key);
         if rows != self.rows {
             return Err(vec![Diagnostic::error(
-                "checked runtime policy differs from accepted root Product permissions and assumed bindings; run omega update",
+                "checked runtime policy differs from accepted root Product permissions and assumed bindings; run omega packages update",
             )]);
         }
         Ok(())

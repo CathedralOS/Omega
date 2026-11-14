@@ -3,8 +3,8 @@
 // These relaxed atomics measure requests and frontier reuse across the process,
 // not semantic authority or per-invocation snapshots when compilations overlap.
 // Executed (non-memoized) check counts live with Psi's repeated-check owner;
-// comparing `preliminary_check_totals` or `settled_check_totals` against Psi's
-// executed-check counter distinguishes fresh checks from memoized hits.
+// comparing `settled_check_totals` against Psi's executed-check counter
+// distinguishes fresh checks from memoized hits.
 
 static CHECKED_COMPILATION_CALLS: std::sync::atomic::AtomicU64 =
     std::sync::atomic::AtomicU64::new(0);
@@ -108,26 +108,6 @@ pub fn settled_check_totals() -> (u64, u64) {
 pub fn record_settled_check(elapsed: std::time::Duration) {
     SETTLED_CHECK_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     SETTLED_CHECK_MICROS.fetch_add(
-        u64::try_from(elapsed.as_micros()).unwrap_or(u64::MAX),
-        std::sync::atomic::Ordering::Relaxed,
-    );
-}
-
-static PRELIMINARY_CHECK_CALLS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-static PRELIMINARY_CHECK_MICROS: std::sync::atomic::AtomicU64 =
-    std::sync::atomic::AtomicU64::new(0);
-
-#[doc(hidden)]
-pub fn preliminary_check_totals() -> (u64, u64) {
-    (
-        PRELIMINARY_CHECK_CALLS.load(std::sync::atomic::Ordering::Relaxed),
-        PRELIMINARY_CHECK_MICROS.load(std::sync::atomic::Ordering::Relaxed),
-    )
-}
-
-pub fn record_preliminary_check(elapsed: std::time::Duration) {
-    PRELIMINARY_CHECK_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-    PRELIMINARY_CHECK_MICROS.fetch_add(
         u64::try_from(elapsed.as_micros()).unwrap_or(u64::MAX),
         std::sync::atomic::Ordering::Relaxed,
     );

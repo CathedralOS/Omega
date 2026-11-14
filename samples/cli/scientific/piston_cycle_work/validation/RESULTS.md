@@ -170,7 +170,7 @@ source /workspace/cloud-setup/activate.sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 export CARGO_TARGET_DIR="$PWD/build/rust-target"
 mbx build --locked -p omega --release -j4
-build/rust-target/release/omega update --project samples/cli/independent/piston_cycle_work --offline
+build/rust-target/release/omega packages update --project samples/cli/independent/piston_cycle_work --offline
 # Review any new policy meanings; only already authorized exact meanings may be accepted.
 build/rust-target/release/omega --check --target linux_x86_64 --build-dir samples/cli/independent/piston_cycle_work/build/check samples/cli/independent/piston_cycle_work/main.omg
 build/rust-target/release/omega --target linux_x86_64 --build-dir samples/cli/independent/piston_cycle_work/build/native-current samples/cli/independent/piston_cycle_work/main.omg

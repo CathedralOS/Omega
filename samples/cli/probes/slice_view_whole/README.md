@@ -9,7 +9,7 @@ The original calculation is `(3 + 5 + 7 + 9) + 7 == 31`. The hosted wrapper
 exits zero only when that calculation succeeds. After normal package review:
 
 ```sh
-omega update --project samples/cli/probes/slice_view_whole --target macos_arm64
+omega packages update --project samples/cli/probes/slice_view_whole --target macos_arm64
 omega run --both samples/cli/probes/slice_view_whole/main.omg
 ```
 

@@ -1,4 +1,4 @@
-// Parse arguments for `omega install` and `omega update`, including `--resume`, `--discard-review`, and `--dangerously-accept-all`.
+// Parse arguments for `omega packages install` and `omega packages update`, including `--resume`, `--discard-review`, and `--dangerously-accept-all`.
 
 use super::{parse_build_input, take_text, take_value};
 use package_compilation::BuildSourceCaptureRequest;
@@ -7,13 +7,15 @@ use std::ffi::OsString;
 use std::path::PathBuf;
 use target::TargetProfile;
 
+pub(super) const USAGE: &str = "usage: omega packages install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] ...\n       omega packages update [package-or-alias...] [--to <revision>] ...\n       omega packages audit --kind <local|git> <locator> [--rev <rev>]\n       omega packages audit [--project <dir>] [--target <name>]... [--details] ...\n       omega packages <install|update> --resume [--project <dir>] [--offline]\n       omega packages <install|update> --discard-review [--project <dir>] [--offline]\nRun `omega packages <install|update|audit> --help` for that command's options.";
+
 pub(super) fn usage(kind: &PackageCommandKind) -> &'static str {
     match kind {
         PackageCommandKind::Install => {
-            "usage: omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]... [--dangerously-accept-all]\n       omega install --resume [--project <dir>] [--offline]\n       omega install --discard-review [--project <dir>] [--offline]\n       omega install --help\n--offline disables package source network acquisition for this invocation.\n--package selects a Git workspace member by its declared name.\n--discard-review abandons pending review; it does not discard publication recovery.\n--dangerously-accept-all accepts every pending review decision unread and publishes; omega.lock records each acceptance as if edited by hand."
+            "usage: omega packages install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]... [--dangerously-accept-all]\n       omega packages install --resume [--project <dir>] [--offline]\n       omega packages install --discard-review [--project <dir>] [--offline]\n       omega packages install --help\n--offline disables package source network acquisition for this invocation.\n--package selects a Git workspace member by its declared name.\n--discard-review abandons pending review; it does not discard publication recovery.\n--dangerously-accept-all accepts every pending review decision unread and publishes; omega.lock records each acceptance as if edited by hand."
         }
         PackageCommandKind::Update => {
-            "usage: omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]... [--dangerously-accept-all]\n       omega update --resume [--project <dir>] [--offline]\n       omega update --discard-review [--project <dir>] [--offline]\n       omega update --help\n--offline disables package source network acquisition for this invocation.\n--discard-review abandons pending review; it does not discard publication recovery.\n--dangerously-accept-all accepts every pending review decision unread and publishes; omega.lock records each acceptance as if edited by hand."
+            "usage: omega packages update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]... [--dangerously-accept-all]\n       omega packages update --resume [--project <dir>] [--offline]\n       omega packages update --discard-review [--project <dir>] [--offline]\n       omega packages update --help\n--offline disables package source network acquisition for this invocation.\n--discard-review abandons pending review; it does not discard publication recovery.\n--dangerously-accept-all accepts every pending review decision unread and publishes; omega.lock records each acceptance as if edited by hand."
         }
     }
 }

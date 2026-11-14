@@ -8,7 +8,7 @@ The authored oracle is exit 0 in both native and Terminal execution.
 From the repository root, with the development compiler on `PATH`:
 
 ```sh
-omega update --project samples/cli/collections/selected_scan_visitor --target macos_arm64 --offline --dangerously-accept-all
+omega packages update --project samples/cli/collections/selected_scan_visitor --target macos_arm64 --offline --dangerously-accept-all
 omega run --both samples/cli/collections/selected_scan_visitor/main.omg
 ```
 

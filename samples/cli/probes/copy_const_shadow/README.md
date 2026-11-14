@@ -17,7 +17,7 @@ every read agrees on 1 (constant) or 9 (parameter). Compile-checked only
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/copy_const_shadow/main.omg
-mbx run -p omega -- update --project samples/cli/probes/copy_const_shadow
+mbx run -p omega -- packages update --project samples/cli/probes/copy_const_shadow
 ```
 
 Both green on Linux x86-64; `omega.lock` publishes locally, ignored.

@@ -270,7 +270,9 @@ impl CheckingCompilation {
                 .admit_trust()
                 .map_err(CompilationProductError::TrustAdmission)?;
             match self.report.prepare(&checked)? {
-                CheckedProductReport::Complete(report) => Ok(CompilationOutput::Report(report)),
+                CheckedProductReport::Complete(report) => Ok(CompilationOutput::Report(
+                    report.with_advisories(advisories(&checked)),
+                )),
                 _ => Err(vec![Diagnostic::error(
                     "declaration checking unexpectedly requested executable production",
                 )]
@@ -284,6 +286,21 @@ impl CheckingCompilation {
             }
         })
     }
+}
+
+/// The advisory diagnostics of the accepted source this compilation checked
+/// (`AcceptedTerminalSource::advisories`), each placed in its source file.
+/// They are warnings about a program that was accepted, so a compilation
+/// with no retained judgment simply has none.
+fn advisories(checked: &compilation_products::CheckedCompilation) -> Vec<Diagnostic> {
+    let Ok(accepted) = checked.terminal_publication().accepted() else {
+        return Vec::new();
+    };
+    let mut advisories = accepted.advisories().to_vec();
+    if let Some(sources) = accepted.source().symbols.source_map() {
+        crate::checked::checking::attribute_diagnostics(&mut advisories, &sources, None);
+    }
+    advisories
 }
 
 impl ProductRequest {

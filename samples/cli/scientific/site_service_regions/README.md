@@ -56,8 +56,8 @@ From repository root, set `OMEGA_LIBRARY_ROOT` to this checkout's
 and review the existing std package through the ordinary documented workflow:
 
 ```text
-omega update --project samples/cli/independent/site_service_regions --target linux_x86_64
-omega update --resume --project samples/cli/independent/site_service_regions
+omega packages update --project samples/cli/independent/site_service_regions --target linux_x86_64
+omega packages update --resume --project samples/cli/independent/site_service_regions
 omega --check --target linux_x86_64 samples/cli/independent/site_service_regions/main.omg
 omega --target linux_x86_64 samples/cli/independent/site_service_regions/main.omg
 omega run --both samples/cli/independent/site_service_regions/main.omg < samples/cli/independent/site_service_regions/data/split.txt

@@ -14,7 +14,7 @@ Compile-checked only (no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/atomic_cell/main.omg
-mbx run -p omega -- update --project samples/cli/probes/atomic_cell
+mbx run -p omega -- packages update --project samples/cli/probes/atomic_cell
 ```
 
 Both green on Linux x86-64; `omega.lock` publishes locally, ignored.

@@ -54,7 +54,7 @@ python3 tools/corpus_gate.py --filter facts/predicate_array_copy
 ```
 
 Run a place with `omega run --both --keep <place>/main.omg`, then independently
-consume its saved `program.oterm` using `omega inspect-terminal --artifact
+consume its saved `program.oterm` using `omega psi inspect --artifact
 <saved>/program.oterm`. The second command matters: execution alone did not
 detect the canonical reader's stricter copy-membership rule.
 

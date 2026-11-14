@@ -37,19 +37,53 @@ fn package() -> semantic_vocabulary::PackageKeyIdentity {
 }
 
 fn typed(build: &str) -> typed_trees::TypedTrees {
+    typed_with_prelude(build, PRELUDE)
+}
+
+fn typed_with_prelude(build: &str, prelude: &str) -> typed_trees::TypedTrees {
+    typed_with_external_binding(build, prelude, None)
+}
+
+fn typed_with_external_binding(
+    build: &str,
+    prelude: &str,
+    external_binding: Option<&str>,
+) -> typed_trees::TypedTrees {
     let mut sources = source::SourceMap::default();
     let mut syntax = None;
     let mut ids = Vec::new();
-    for (path, text, origin) in [
-        ("package/build.omg", build, source::SourceOrigin::User),
-        ("<build-prelude>", PRELUDE, source::SourceOrigin::Toolchain),
-    ] {
+    let mut inputs = vec![
+        (
+            "package/build.omg",
+            build,
+            "package",
+            Some(package()),
+            source::SourceOrigin::User,
+        ),
+        (
+            "<build-prelude>",
+            prelude,
+            "package",
+            Some(package()),
+            source::SourceOrigin::Toolchain,
+        ),
+    ];
+    if let Some(external_binding) = external_binding {
+        inputs.push((
+            "source/library/core/external_binding.omg",
+            external_binding,
+            "source/library/core",
+            None,
+            source::SourceOrigin::Toolchain,
+        ));
+    }
+    for (path, text, package_root, owner, origin) in inputs {
         let id = sources
             .add_checked_instance(
                 path.into(),
                 text,
-                "package".into(),
-                Some(package()),
+                package_root.into(),
+                owner,
                 origin,
                 source::SourceResolutionStratum::Base,
                 DependencyScope::Build,
@@ -74,6 +108,15 @@ fn typed(build: &str) -> typed_trees::TypedTrees {
     request.top_level_bindings = vec![symbols::SourceScopedTopLevelBinding::new(
         ids[0], ids[1], "Build",
     )];
+    if external_binding.is_some() {
+        for name in ["ForeignBinding", "DllImport"] {
+            request
+                .top_level_bindings
+                .push(symbols::SourceScopedTopLevelBinding::new(
+                    ids[0], ids[2], name,
+                ));
+        }
+    }
     let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
     symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
 }
@@ -86,19 +129,36 @@ fn accepted_for(
     build: &str,
     publication: terminal_codec::TerminalPublication,
 ) -> Result<AcceptedTerminalSource, Vec<diagnostics::Diagnostic>> {
-    let typed = typed(build);
+    accepted_frontier(typed(build), publication)
+}
+
+fn accepted_frontier(
+    typed: typed_trees::TypedTrees,
+    publication: terminal_codec::TerminalPublication,
+) -> Result<AcceptedTerminalSource, Vec<diagnostics::Diagnostic>> {
+    accepted_frontier_with_subjects(typed, publication, &[Some(package())])
+}
+
+fn accepted_frontier_with_subjects(
+    typed: typed_trees::TypedTrees,
+    publication: terminal_codec::TerminalPublication,
+    subjects: &[Option<semantic_vocabulary::PackageKeyIdentity>],
+) -> Result<AcceptedTerminalSource, Vec<diagnostics::Diagnostic>> {
     let entry = typed
         .machines()
         .iter()
         .find(|machine| machine.name.as_str() == "build")
         .unwrap()
         .symbol;
-    let frozen: typed_trees::FrozenTypedTrees = typed.into();
+    let (frozen, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        typed,
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )?;
     AcceptedTerminalSource::judge(
         Arc::new(frozen),
-        structure_elaboration::Compilation {
+        typed_trees_to_terminal_psi::Compilation {
             entries: &[entry],
-            subjects: &[Some(package())],
+            subjects,
             purpose: DependencyScope::Build,
             selected: &[],
             bindings: &[],
@@ -508,4 +568,325 @@ fn an_accepted_build_states_each_constant_its_declarations_name() {
         let accepted = accepted(build).unwrap_or_else(|refused| panic!("{build}: {refused:?}"));
         assert_eq!(accepted.constants_read(), ["LIMIT"], "{build}");
     }
+}
+
+fn native_binding_prelude() -> String {
+    let protocol = PRELUDE.replace(
+        "machine bind(activation: u64) reaches none crashes none;",
+        "machine bind(activation: u64) reaches none crashes none;\n    machine bind_native<Locator>(activation: u64, target: u64, locator: Locator) reaches none crashes none;",
+    );
+    // Use the same target catalog and conversion as the Build prelude.
+    let mut targets = String::from("public data BuildTarget [copy] {\n");
+    for target in language_semantics::declaration_selection::ProductTarget::ALL {
+        targets.push_str(&format!("    case {};\n", target.source_case()));
+    }
+    targets.push_str("}\n");
+    for target in language_semantics::declaration_selection::ProductTarget::ALL {
+        targets.push_str(&format!(
+            "public const {}: BuildTarget = BuildTarget::{};\n",
+            target.canonical_name(),
+            target.source_case()
+        ));
+    }
+    targets.push_str(
+        "public machine build_selection_target(target: BuildTarget) -> u64 { match target {\n",
+    );
+    for target in language_semantics::declaration_selection::ProductTarget::ALL {
+        targets.push_str(&format!(
+            "BuildTarget::{} -> {}u64\n",
+            target.source_case(),
+            target.code()
+        ));
+    }
+    targets.push_str("} }\n");
+    format!("{protocol}\n{targets}")
+}
+
+fn native_binding_program(build: &str) -> ProducedTerminalProgram {
+    accepted_frontier(
+        typed_with_external_binding(
+            build,
+            &native_binding_prelude(),
+            Some(include_str!(
+                "../../../../../../source/library/core/external_binding.omg"
+            )),
+        ),
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .unwrap_or_else(|refused| panic!("the native binding must be checked: {refused:?}"))
+    .produce(
+        TerminalProductionCustody::default(),
+        &mut UnmeasuredProduction,
+    )
+    .unwrap()
+}
+
+fn published_native_locator(
+    program: &ProducedTerminalProgram,
+) -> &psi_terminal_production::TerminalBuildNativeLocator {
+    program
+        .build_bindings()
+        .calls_for(program.view())
+        .unwrap()
+        .iter()
+        .find(|call| call.action == TerminalBuildBindingOperation::BindNative)
+        .expect("the published native call keeps its source-issued row")
+        .native_locator
+        .as_ref()
+        .expect("the host needs the exact locator shape")
+}
+
+#[test]
+fn a_native_binding_publishes_its_closed_locator_shape() {
+    let prelude = native_binding_prelude();
+    let build = r#"
+machine build(builder: &mut Build) {
+    Build::bind<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 });
+}
+"#;
+    let program = native_binding_program(build);
+    let locator = published_native_locator(&program);
+    assert_eq!(locator.widths, [0, 0, 0]);
+    let formations = program
+        .build_bindings()
+        .native_formations_for(program.view())
+        .unwrap();
+    let [formation] = formations.as_ref() else {
+        panic!("the native call keeps one source formation")
+    };
+    assert!(formation.root_scope);
+    assert_eq!(formation.author_package, Some(package()));
+    assert_ne!(formation.source_occurrence_digest, [0; 32]);
+
+    // Identical syntax and storage do not authorize an edited core source.
+    let lookalike = format!(
+        "{}\n",
+        include_str!("../../../../../../source/library/core/external_binding.omg")
+    );
+    // Explicit widths keep this control focused on publication custody;
+    // inactive-width inference itself belongs only to the real core type.
+    let lookalike_build = r#"
+machine build(builder: &mut Build) {
+    let locator: ForeignBinding<0, 0, 0> = ForeignBinding::Syscall { number: 9u64 };
+    Build::bind<Probe::poke>(builder, linux_x86_64, locator);
+}
+"#;
+    let lookalike = accepted_frontier(
+        typed_with_external_binding(lookalike_build, &prelude, Some(&lookalike)),
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .unwrap_or_else(|refused| panic!("ordinary lookalike data still checks: {refused:?}"));
+    let refused = lookalike
+        .produce(
+            TerminalProductionCustody::default(),
+            &mut UnmeasuredProduction,
+        )
+        .expect_err("a same-shaped edited source cannot supply the native vocabulary");
+    assert!(refused.iter().any(|diagnostic| {
+        diagnostic
+            .to_string()
+            .contains("bundled core ForeignBinding declaration")
+    }));
+}
+
+#[test]
+fn a_native_import_infers_nested_byte_widths_and_publishes_their_shapes() {
+    use psi_terminal_production::TerminalBuildValueShape;
+    let program = native_binding_program(
+        r#"
+machine build(builder: &mut Build) {
+    Build::bind<Probe::poke>(builder, windows_x86_64, ForeignBinding::DllImport {
+        import: DllImport::PeByName { library: "winmm.dll", export: "PlaySoundW" }
+    });
+}
+"#,
+    );
+    let locator = published_native_locator(&program);
+    assert_eq!(locator.widths, [9, 10, 0]);
+    let TerminalBuildValueShape::Sum { cases } = locator.shape.as_ref() else {
+        panic!("the locator retains its checked sum")
+    };
+    let import = cases.iter().find(|case| case.name == "DllImport").unwrap();
+    let [import] = import.fields.as_slice() else {
+        panic!("DllImport retains one import field")
+    };
+    let TerminalBuildValueShape::Sum { cases } = import.shape.as_ref() else {
+        panic!("the nested import retains its checked sum")
+    };
+    let named = cases.iter().find(|case| case.name == "PeByName").unwrap();
+    assert_eq!(
+        named
+            .fields
+            .iter()
+            .map(|field| field.name.as_str())
+            .collect::<Vec<_>>(),
+        ["library", "export"]
+    );
+    for (field, expected) in named.fields.iter().zip([9, 10]) {
+        let TerminalBuildValueShape::Array { length, .. } = field.shape.as_ref() else {
+            panic!("each import coordinate retains its fixed array")
+        };
+        assert_eq!(*length, expected);
+    }
+}
+
+#[test]
+fn an_ordinary_helper_result_keeps_its_closed_native_locator_application() {
+    let program = native_binding_program(
+        r#"
+machine locator() -> ForeignBinding<9, 10, 0> {
+    ForeignBinding::DllImport {
+        import: DllImport::PeByName { library: "winmm.dll", export: "PlaySoundW" }
+    }
+}
+machine build(builder: &mut Build) {
+    Build::bind<Probe::poke>(builder, windows_x86_64, locator());
+}
+"#,
+    );
+    assert_eq!(published_native_locator(&program).widths, [9, 10, 0]);
+}
+
+#[test]
+fn a_closed_generic_boundary_call_keeps_its_type_argument() {
+    let prelude = PRELUDE.replace("machine poke(value: u64) reaches none crashes none;", "machine poke(value: u64) reaches none crashes none;\n    machine send<T>(value: T) reaches none crashes none;");
+    let accepted = accepted_frontier(
+        typed_with_prelude(
+            r#"
+machine build(builder: &mut Build) { Probe::send<u64>(9u64); Probe::send(11u64); }
+"#,
+            &prelude,
+        ),
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .unwrap_or_else(|refused| panic!("the closed requirement must be checked: {refused:?}"));
+    let program = accepted
+        .produce(
+            TerminalProductionCustody::default(),
+            &mut UnmeasuredProduction,
+        )
+        .unwrap();
+    let module = program.view().module();
+    assert_eq!(
+        module.boundary_machines.len(),
+        1,
+        "explicit and inferred applications share one declaration"
+    );
+    let boundary = module
+        .boundary_machines
+        .iter()
+        .find(|boundary| {
+            boundary.scalar_parameters
+                == [semantic_vocabulary::ScalarType::Integer(
+                    semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Unsigned,
+                        64,
+                    )
+                    .unwrap(),
+                )]
+        })
+        .expect("the call has the concrete scalar parameter");
+    assert_eq!(
+        boundary
+            .declaration
+            .as_ref()
+            .unwrap()
+            .method_arguments
+            .len(),
+        1
+    );
+}
+
+#[test]
+fn inferred_const_arguments_still_have_to_fit_their_declared_carriers() {
+    let prelude = PRELUDE.replace(
+        "machine poke(value: u64) reaches none crashes none;",
+        "machine poke(value: u64) reaches none crashes none;\n    machine send<T>(value: T) reaches none crashes none;",
+    );
+    let build = |bytes: &str| {
+        format!(
+            r#"
+data Bytes<const N: u8> {{ bytes: [u8; N]; }}
+machine build(builder: &mut Build) {{ Probe::send(Bytes {{ bytes: "{bytes}" }}); }}
+"#
+        )
+    };
+    accepted_frontier_with_subjects(
+        typed_with_prelude(&build("abc"), &prelude),
+        terminal_codec::TerminalPublication::Invocation,
+        &[],
+    )
+    .expect("a payload determines a closed three-byte carrier");
+    let refused = accepted_frontier_with_subjects(
+        typed_with_prelude(&build(&"x".repeat(256)), &prelude),
+        terminal_codec::TerminalPublication::Invocation,
+        &[],
+    )
+    .expect_err("inference cannot put 256 into a u8 const binder");
+    assert!(
+        refused.iter().any(|diagnostic| diagnostic
+            .to_string()
+            .contains("record const argument does not inhabit its declared carrier")),
+        "{refused:?}"
+    );
+}
+
+#[test]
+fn a_case_value_pattern_cannot_discard_its_applied_type() {
+    use typed_trees::expression::{ExpressionNode, MatchPattern};
+    use typed_trees::types::TypeReferenceNode;
+    let mut typed = typed_with_external_binding(
+        "machine build(builder: &mut Build) { Build::bind<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 }); }",
+        &native_binding_prelude(),
+        Some(include_str!(
+            "../../../../../../source/library/core/external_binding.omg"
+        )),
+    );
+    let head = typed
+        .expression_table
+        .expression_entries()
+        .find_map(|(_, expression)| {
+            let ExpressionNode::Match(matched) = expression else {
+                return None;
+            };
+            let MatchPattern::Value(head) =
+                typed.expression_table.match_arms(matched.arms)[0].pattern
+            else {
+                return None;
+            };
+            Some(head)
+        })
+        .expect("the target conversion has case-value arms");
+    let ExpressionNode::Name(path) = typed.expression_table.expression(head).clone() else {
+        panic!("the target conversion names its case")
+    };
+    let case = path.symbol;
+    let owner = typed.symbols.get(case).parent;
+    let type_name = typed_trees::name::Identifier::generated(typed.symbols.name(owner).to_owned());
+    let case_name = typed_trees::name::Identifier::generated(typed.symbols.name(case).to_owned());
+    let applied = typed
+        .type_reference_table
+        .insert(TypeReferenceNode::Generic {
+            base_symbol: owner,
+            base_name: type_name.clone(),
+            arguments: Default::default(),
+            lifetime_arguments: vec![typed_trees::name::Identifier::generated("foreign")],
+        });
+    *typed.expression_table.expression_mut(head) =
+        ExpressionNode::StructLiteral(typed_trees::expression::TableStructLiteral {
+            application_type: applied,
+            type_name,
+            type_symbol: owner,
+            case_name: Some(case_name),
+            case_symbol: Some(case),
+            fields: Default::default(),
+        });
+    let refused = accepted_frontier(typed, terminal_codec::TerminalPublication::Invocation)
+        .expect_err("a bare case symbol cannot erase an unsupported application");
+    assert!(
+        refused.iter().any(|diagnostic| diagnostic
+            .to_string()
+            .contains("pattern of an applied type")),
+        "{refused:?}"
+    );
 }

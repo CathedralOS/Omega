@@ -555,7 +555,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         i += 1;
     }
 
-    let root = repo_root();
+    let root = repo_root()?;
     let run_op = || -> Result<(Value, u8), String> {
         match sub {
             "status" => {

@@ -132,6 +132,6 @@ does not acquire sources or execute code.
 This is the project application owner, not another compiler pipeline. It depends
 on facades and product contracts, not intermediate source representations or
 stage crates. Ordinary and review dependency scheduling are now here.
-Completing Psi's facade and replacing the checked-tree Build evaluator with Terminal
+Completing Psi's facade and replacing the source Build evaluator with Terminal
 continuations remain explicit obligations of the
 [ownership migration](../../../pipeline.md#build-and-compiler-ownership-migration).

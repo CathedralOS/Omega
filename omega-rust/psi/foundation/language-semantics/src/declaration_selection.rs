@@ -1858,7 +1858,7 @@ impl AuthoredDeclarationSelectionTarget {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CollectionMeasure {
     Length,
     Capacity,

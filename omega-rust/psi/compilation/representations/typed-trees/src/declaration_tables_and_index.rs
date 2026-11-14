@@ -1496,7 +1496,6 @@ pub mod declaration_index {
 
     #[derive(Clone, Default)]
     pub struct DomainCandidateIndex {
-        pub qualified: Vec<Box<str>>,
         pub by_qualified: HashMap<Box<str>, Vec<u32>>,
         pub by_relative: HashMap<Box<str>, Vec<u32>>,
     }

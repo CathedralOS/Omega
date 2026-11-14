@@ -24,7 +24,7 @@ child by segment (`PlaceRow::children`), and the writes to a place
 
 use semantic_vocabulary::{PlaceId, StructuralCaseId, StructuralFieldId, ValueId};
 
-use crate::{ExactPlaceId, ProgramPoint, ReferentSetId, WriteId};
+use crate::{ExactPlaceId, ProgramPoint, WriteId};
 
 /// One exact place. `AGENTS.md` framing rule 3: "Track facts, loans, and
 /// restoration obligations at the exact projected place (`root.field` or case
@@ -82,6 +82,13 @@ pub enum Segment {
     /// value never changes, a later write to the selector's source names a
     /// different value and therefore a different place.
     RuntimeIndex { selector: ValueId },
+    /// The descriptor's current extent, a scalar observation of its
+    /// contents. This is metadata, not a physical field or another owner.
+    /// byte_views.md: "a validated length observation of a machine or block
+    /// parameter equals that exact parameter's `ViewExtent`".
+    /// Replacing any ancestor descriptor replaces this observation's
+    /// reaching content, just as a store replaces a scalar field's.
+    Extent,
 }
 
 /// One write, in program order: within a block, `WriteId`s increase in
@@ -103,13 +110,6 @@ pub struct WriteRow {
 pub enum Content {
     /// Exactly this scalar value.
     Value(ValueId),
-    /// A reference that may denote these places. References are structural
-    /// places in the lowered form, so their denotation is installed by a write
-    /// rather than held by a value (see `may_sets`).
-    /// `wiki/spec/language/lifetimes.md`: "Assignment evaluates the
-    /// replacement while old loans remain active, ends the overwritten field's
-    /// carried loans, then installs the replacement's exact loans."
-    Reference(ReferentSetId),
     /// New contents with no known value identity, for the place and
     /// everything beneath it: an unknown or conservative write frame.
     /// dependent_values.md: "An unrepresentable origin or incomplete

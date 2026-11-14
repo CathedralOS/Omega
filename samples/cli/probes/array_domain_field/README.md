@@ -12,7 +12,7 @@ Compile-checked only, with no ProcessExit provider:
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/array_domain_field/main.omg
-mbx run -p omega -- update --project samples/cli/probes/array_domain_field
+mbx run -p omega -- packages update --project samples/cli/probes/array_domain_field
 ```
 
 Project acceptance is local; `omega.lock` is ignored.

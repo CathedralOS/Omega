@@ -41,7 +41,9 @@ mod canonical_scalar {
     #[derive(Debug, Clone, Record)]
     pub(crate) struct CanonicalScalarScope {
         artifact: RecordedArtifact,
-        target: String,
+        // Replay must preserve unscoped evaluation instead of substituting
+        // whichever deployment happens to host the reader.
+        target: Option<String>,
         providers: Vec<ProviderInstallationSelection>,
         assumptions: Vec<AssumedBindingSelection>,
         carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
@@ -50,7 +52,7 @@ mod canonical_scalar {
     impl CanonicalScalarScope {
         pub(crate) fn capture(
             artifact: &Arc<CanonicalTerminalArtifact>,
-            target: &str,
+            target: Option<&str>,
             providers: &terminal_installation::AdmittedProviderSelections,
             carrier_layout: Option<semantic_vocabulary::TargetCarrierLayout>,
         ) -> Result<Arc<Self>, String> {
@@ -92,7 +94,7 @@ mod canonical_scalar {
                 .collect();
             Ok(Arc::new(Self {
                 artifact: RecordedArtifact(Arc::clone(artifact)),
-                target: target.to_owned(),
+                target: target.map(str::to_owned),
                 providers: selections,
                 assumptions,
                 carrier_layout,
@@ -135,8 +137,8 @@ mod canonical_scalar {
         pub fn artifact(&self) -> &CanonicalTerminalArtifact {
             &self.scope.artifact.0
         }
-        pub fn target(&self) -> &str {
-            &self.scope.target
+        pub fn target(&self) -> Option<&str> {
+            self.scope.target.as_deref()
         }
         pub fn outcome(&self) -> &PureTerminalEvaluationOutcome {
             &self.outcome
@@ -193,9 +195,9 @@ impl compiler_storage::Record for PureEvaluationRecord {
     ) -> Result<(), compiler_storage::RecordError> {
         output.record(|output| match self {
             Self::CanonicalScalar(receipt) => {
-                // Preserve the existing canonical-scalar wire coordinate. Slot
-                // zero belonged to retired tree-based evaluation receipts.
-                compiler_storage::Record::write(&1_u32, output)?;
+                // This coordinate retains an optional deployment explicitly;
+                // older scalar receipts always encoded a target string.
+                compiler_storage::Record::write(&2_u32, output)?;
                 compiler_storage::Record::write(receipt, output)
             }
             Self::Invocation(_) => Err(output.error(
@@ -208,10 +210,11 @@ impl compiler_storage::Record for PureEvaluationRecord {
     ) -> Result<Self, compiler_storage::RecordError> {
         input.record(
             |input| match <u32 as compiler_storage::Record>::read(input)? {
-                1 => Ok(Self::CanonicalScalar(compiler_storage::Record::read(
+                2 => Ok(Self::CanonicalScalar(compiler_storage::Record::read(
                     input,
                 )?)),
                 0 => Err(input.error("no product route yet: retired tree-evaluation receipt")),
+                1 => Err(input.error("retired scalar receipt without explicit deployment scope")),
                 _ => Err(input.error("unknown PureEvaluationRecord variant")),
             },
         )

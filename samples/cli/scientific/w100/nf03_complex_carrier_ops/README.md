@@ -22,9 +22,9 @@ original tolerance, and still require the original frozen interval.
 From repository root, prepare each authored project through the normal route:
 
 ```sh
-omega update --project samples/cli/scientific/w100/nf03_complex_carrier_ops/phasor_power --target linux_x86_64 --offline
+omega packages update --project samples/cli/scientific/w100/nf03_complex_carrier_ops/phasor_power --target linux_x86_64 --offline
 # Read each proposed dependency/source decision before recording acceptance.
-omega update --resume --project samples/cli/scientific/w100/nf03_complex_carrier_ops/phasor_power --offline
+omega packages update --resume --project samples/cli/scientific/w100/nf03_complex_carrier_ops/phasor_power --offline
 omega --check samples/cli/scientific/w100/nf03_complex_carrier_ops/phasor_power/main.omg
 omega run samples/cli/scientific/w100/nf03_complex_carrier_ops/phasor_power/main.omg
 ```

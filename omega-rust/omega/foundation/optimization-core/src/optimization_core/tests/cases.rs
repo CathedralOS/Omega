@@ -1,4 +1,4 @@
-// Unit tests for `Optimization` tag contiguity, `OptimizationSelections`
+// Unit tests for `Optimization` tag density, `OptimizationSelections`
 // canonical sorting and wire round-trips, and phase/Psi/post-Terminal
 // projections.
 
@@ -12,7 +12,8 @@ use std::collections::BTreeSet;
 fn authoritative_vocabulary_has_contiguous_tags_and_unique_nonempty_names() {
     let mut case_names = BTreeSet::new();
     for (index, optimization) in Optimization::ALL.into_iter().enumerate() {
-        assert_eq!(usize::from(optimization as u8), index + 1);
+        let tag = optimization as u8;
+        assert_eq!(tag, u8::try_from(index + 1).unwrap());
         assert!(!optimization.build_case_name().is_empty());
         assert!(case_names.insert(optimization.build_case_name()));
         assert_eq!(
@@ -200,11 +201,6 @@ fn phase_projection_retains_complete_policy_and_represents_identity_phases() {
         &[Optimization::CopyPropagation]
     );
 
-    let checked = selections.project_phase(OptimizationExecutionPhase::CheckedTrees);
-    assert_eq!(checked.phase(), OptimizationExecutionPhase::CheckedTrees);
-    assert_eq!(checked.complete_selection(), complete);
-    assert!(checked.is_empty());
-
     for phase in OptimizationExecutionPhase::ALL {
         let projection = selections.project_phase(phase);
         assert_eq!(projection.phase(), phase);
@@ -279,10 +275,7 @@ fn post_terminal_selection_type_rejects_every_earlier_phase_name() {
         let result = PostTerminalOptimizationSelections::new(selected);
         assert_eq!(
             result.is_ok(),
-            !matches!(
-                optimization.execution_phase(),
-                OptimizationExecutionPhase::CheckedTrees | OptimizationExecutionPhase::Psi
-            ),
+            optimization.execution_phase() != OptimizationExecutionPhase::Psi,
             "post-Terminal classification drifted for {}",
             optimization.build_case_name()
         );

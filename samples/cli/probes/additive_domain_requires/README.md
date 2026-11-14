@@ -17,7 +17,7 @@ Compile-checked only (no std dependency):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/additive_domain_requires/main.omg
-mbx run -p omega -- update --project samples/cli/probes/additive_domain_requires
+mbx run -p omega -- packages update --project samples/cli/probes/additive_domain_requires
 ```
 
 Both green on Linux x86-64; `omega.lock` publishes locally, ignored.

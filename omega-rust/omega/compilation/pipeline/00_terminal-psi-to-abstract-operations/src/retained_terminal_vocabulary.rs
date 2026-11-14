@@ -1632,6 +1632,7 @@ mod semantic {
     record_variants!(diagnostics::DiagnosticSeverity {
         0 => Error,
         1 => Warning,
+        2 => Note,
     });
 
     record_variants!(language_semantics::DomainPredicatePresence {

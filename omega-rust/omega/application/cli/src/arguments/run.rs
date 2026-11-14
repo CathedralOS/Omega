@@ -8,7 +8,7 @@
 use crate::execution::ExecutionSelection;
 
 pub(crate) struct RunArguments {
-    pub(crate) selection: ExecutionSelection, // Native unless --engine terminal or --both was named.
+    pub(crate) selection: ExecutionSelection, // Native unless --engine psi or --both was named.
     pub(crate) build_inputs: Option<package_compilation::BuildSourceCaptureRequest>,
     pub(crate) psi_work_budget: Option<std::num::NonZeroU64>,
     pub(crate) private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
@@ -20,7 +20,7 @@ pub(crate) struct RunArguments {
     pub(crate) main_path: std::path::PathBuf,
 }
 
-pub(super) const USAGE: &str = "usage: omega run [--engine <native|terminal> | --both] [--psi-work-budget <positive-u64>] [--keep] [--build-input <path>]... [--optional-build-input <path>]... [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>";
+pub(super) const USAGE: &str = "usage: omega run [--engine <native|psi> | --both] [--psi-work-budget <positive-u64>] [--keep] [--build-input <path>]... [--optional-build-input <path>]... [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>";
 
 pub(super) fn parse_arguments(
     mut arguments: impl Iterator<Item = std::ffi::OsString>,
@@ -50,13 +50,13 @@ pub(super) fn parse_arguments(
                     return Err("duplicate --engine".into());
                 }
                 let value = super::option_value(&mut arguments)
-                    .ok_or("--engine requires `native` or `terminal`")?;
+                    .ok_or("--engine requires `native` or `psi`")?;
                 engine = Some(match value.to_str() {
                     Some("native") => ExecutionSelection::Native,
-                    Some("terminal") => ExecutionSelection::Terminal,
+                    Some("psi") => ExecutionSelection::Terminal,
                     _ => {
                         return Err(format!(
-                            "--engine requires `native` or `terminal`, not `{}`",
+                            "--engine requires `native` or `psi`, not `{}`",
                             value.to_string_lossy()
                         ));
                     }
@@ -174,7 +174,10 @@ pub(super) fn parse_arguments(
     }
     let selection = match (engine, both) {
         (Some(_), true) => {
-            return Err("--engine and --both are mutually exclusive: --both already runs native and Terminal".into());
+            return Err(
+                "--engine and --both are mutually exclusive: --both already runs native and Psi"
+                    .into(),
+            );
         }
         (Some(engine), false) => engine,
         (None, true) => ExecutionSelection::Both,
@@ -192,10 +195,10 @@ pub(super) fn parse_arguments(
         return Err("case runs execute on the host; they cannot take --target".into());
     }
     if cases && terminal {
-        return Err("case runs do not yet support --engine terminal; use --both".into());
+        return Err("case runs do not yet support --engine psi; use --both".into());
     }
     if psi_work_budget.is_some() && !terminal && (!both || target_name.is_some()) {
-        return Err("--psi-work-budget requires --engine terminal or --both host execution".into());
+        return Err("--psi-work-budget requires --engine psi or --both host execution".into());
     }
     if help {
         return Ok(None);
@@ -237,7 +240,7 @@ mod tests {
         use package_compilation::BuildSourceCaptureObligation::{Optional, Required};
         for route in [
             vec!["--engine", "native"],
-            vec!["--engine", "terminal"],
+            vec!["--engine", "psi"],
             vec!["--both"],
             vec!["--both", "--input", "case.stdin", "--outputs", "out"],
         ] {
@@ -386,26 +389,20 @@ mod tests {
                 ExecutionSelection::Native,
             ),
             (
-                vec!["--engine", "terminal", "main.omg"],
+                vec!["--engine", "psi", "main.omg"],
                 ExecutionSelection::Terminal,
             ),
             (
-                vec!["main.omg", "--engine", "terminal"],
+                vec!["main.omg", "--engine", "psi"],
                 ExecutionSelection::Terminal,
             ),
             (vec!["--both", "main.omg"], ExecutionSelection::Both),
             (
-                vec![
-                    "--engine",
-                    "terminal",
-                    "--target",
-                    "linux_x86_64",
-                    "main.omg",
-                ],
+                vec!["--engine", "psi", "--target", "linux_x86_64", "main.omg"],
                 ExecutionSelection::Terminal,
             ),
             (
-                vec!["--engine", "terminal", "--psi-work-budget", "5", "main.omg"],
+                vec!["--engine", "psi", "--psi-work-budget", "5", "main.omg"],
                 ExecutionSelection::Terminal,
             ),
         ] {
@@ -419,15 +416,16 @@ mod tests {
     #[test]
     fn engine_rejects_both_unknown_names_and_duplicates() {
         for arguments in [
-            vec!["--engine", "terminal", "--both", "main.omg"],
+            vec!["--engine", "psi", "--both", "main.omg"],
             vec!["--both", "--engine", "native", "main.omg"],
             vec!["--engine", "jit", "main.omg"],
+            vec!["--engine", "terminal", "main.omg"],
             vec!["--engine", "main.omg"],
-            vec!["--engine", "native", "--engine", "terminal", "main.omg"],
+            vec!["--engine", "native", "--engine", "psi", "main.omg"],
             vec!["--engine", "native", "--psi-work-budget", "5", "main.omg"],
             vec![
                 "--engine",
-                "terminal",
+                "psi",
                 "--inputs",
                 "d",
                 "--outputs",

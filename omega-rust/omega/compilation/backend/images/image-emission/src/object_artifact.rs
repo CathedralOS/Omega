@@ -4513,474 +4513,289 @@ pub(crate) mod replay {
 
     pub(crate) mod structural {
         pub(crate) mod condition_layout {
-            use calling_conventions::ValueShape;
-            use semantic_vocabulary::{ScalarType, StructuralTypeId};
+            use calling_conventions::{
+                ValueShape,
+                terminal_layout::{NativeGeometry, checked_align_up_u32},
+            };
+            use semantic_vocabulary::{NonDenseIdentities, StructuralTypeId};
+            use terminal_psi::{
+                StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration,
+                StructuralTypeShape,
+            };
 
-            fn checked_align_up(value: u32, alignment: u32) -> Option<u32> {
-                value
-                    .checked_add(alignment.checked_sub(1)?)
-                    .map(|value| value / alignment * alignment)
+            // One declaration index and native-layout query context serves every
+            // segment and argument in the enclosing replay. Geometry is rebuilt
+            // from retained declarations, never accepted from the claimed output.
+            pub(crate) struct StructuralReplay<'a> {
+                layouts: NativeGeometry<'a>,
             }
 
-            fn layout_field(field: &terminal_psi::StructuralFieldDeclaration) -> bool {
-                !field.relevance.is_erased()
-                    && !matches!(
-                        field.field_type,
-                        terminal_psi::StructuralFieldType::Erased { .. }
-                    )
-            }
-
-            fn replay_structural_shape(
-                structural_type: StructuralTypeId,
-                declarations: &std::collections::BTreeMap<
-                    StructuralTypeId,
-                    &terminal_psi::StructuralTypeDeclaration,
-                >,
-                cache: &mut std::collections::BTreeMap<StructuralTypeId, ValueShape>,
-                active: &mut std::collections::BTreeSet<StructuralTypeId>,
-            ) -> Option<ValueShape> {
-                if let Some(shape) = cache.get(&structural_type) {
-                    return Some(*shape);
-                }
-                if !active.insert(structural_type) {
-                    return None;
-                }
-                let declaration = declarations.get(&structural_type)?;
-                let shape = match &declaration.shape {
-                    terminal_psi::StructuralTypeShape::Reference { referent, .. } => {
-                        let scalar_codec = match declarations.get(referent)?.shape {
-                            terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar) => {
-                                runtime_abi::ScalarStorageCodec::from_scalar(scalar)
-                            }
-                            _ => None,
-                        };
-                        ValueShape::integer(if scalar_codec.is_some() { 16 } else { 8 }, 8)
-                    }
-                    terminal_psi::StructuralTypeShape::AtomicCell(cell) => {
-                        replay_structural_field_shape(&(*cell).into(), declarations, cache, active)?
-                    }
-                    terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean) => {
-                        ValueShape::integer(1, 1)
-                    }
-                    terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
-                        integer,
-                    )) => ValueShape::standalone_integer(*integer),
-                    terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    )) => ValueShape::float(4),
-                    terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    )) => ValueShape::float(8),
-                    terminal_psi::StructuralTypeShape::ByteSequence(_)
-                    | terminal_psi::StructuralTypeShape::ElementView { .. } => return None,
-                    terminal_psi::StructuralTypeShape::Record { fields, .. } => {
-                        let mut byte_size = 0_u32;
-                        let mut alignment = 1_u16;
-                        for field in fields.iter().filter(|field| layout_field(field)) {
-                            let field_shape = replay_structural_field_shape(
-                                &field.field_type,
-                                declarations,
-                                cache,
-                                active,
-                            )?;
-                            alignment = alignment.max(field_shape.alignment);
-                            byte_size =
-                                checked_align_up(byte_size, u32::from(field_shape.alignment))?
-                                    .checked_add(field_shape.byte_size)?;
-                        }
-                        byte_size = checked_align_up(byte_size, u32::from(alignment))?;
-                        ValueShape::integer(byte_size, alignment)
-                    }
-                    terminal_psi::StructuralTypeShape::FixedArray {
-                        length: terminal_psi::ArrayExtent::Literal(0),
-                        ..
-                    } => ValueShape::integer(0, 1),
-                    terminal_psi::StructuralTypeShape::FixedArray { element, length } => {
-                        let length = length.literal()?;
-                        let element =
-                            replay_structural_shape(*element, declarations, cache, active)?;
-                        let stride =
-                            checked_align_up(element.byte_size, u32::from(element.alignment))?;
-                        let byte_size = u64::from(stride)
-                            .checked_mul(length)
-                            .and_then(|size| u32::try_from(size).ok())?;
-                        ValueShape::integer(byte_size, element.alignment)
-                    }
-                    terminal_psi::StructuralTypeShape::Sum { cases } => {
-                        replay_sum_layout(&[], cases, declarations, cache, active)?.shape
-                    }
-                    terminal_psi::StructuralTypeShape::Mixed { fields, cases } => {
-                        replay_sum_layout(fields, cases, declarations, cache, active)?.shape
-                    }
-                };
-                active.remove(&structural_type);
-                cache.insert(structural_type, shape);
-                Some(shape)
-            }
-
-            fn replay_sum_layout(
-                common: &[terminal_psi::StructuralFieldDeclaration],
-                cases: &[terminal_psi::StructuralCaseDeclaration],
-                declarations: &std::collections::BTreeMap<
-                    StructuralTypeId,
-                    &terminal_psi::StructuralTypeDeclaration,
-                >,
-                cache: &mut std::collections::BTreeMap<StructuralTypeId, ValueShape>,
-                active: &mut std::collections::BTreeSet<StructuralTypeId>,
-            ) -> Option<calling_conventions::ConventionalSumLayout> {
-                let common = common
-                    .iter()
-                    .filter(|field| !field.relevance.is_erased())
-                    .map(|field| {
-                        replay_structural_field_shape(
-                            &field.field_type,
-                            declarations,
-                            cache,
-                            active,
-                        )
+            impl<'a> StructuralReplay<'a> {
+                pub(crate) fn new(
+                    declarations: &'a [StructuralTypeDeclaration],
+                ) -> Result<Self, NonDenseIdentities> {
+                    Ok(Self {
+                        layouts: NativeGeometry::new(declarations)?,
                     })
-                    .collect::<Option<Vec<_>>>()?;
-                let payloads = cases
-                    .iter()
-                    .map(|case| {
-                        case.fields
-                            .iter()
-                            .filter(|field| !field.relevance.is_erased())
-                            .map(|field| {
-                                replay_structural_field_shape(
-                                    &field.field_type,
-                                    declarations,
-                                    cache,
-                                    active,
-                                )
-                            })
-                            .collect::<Option<Vec<_>>>()
-                    })
-                    .collect::<Option<Vec<_>>>()?;
-                calling_conventions::evaluate_conventional_sum_layout(&common, &payloads).ok()
-            }
-
-            pub(crate) fn replay_structural_sum_layout(
-                structural_type: StructuralTypeId,
-                declarations: &[terminal_psi::StructuralTypeDeclaration],
-            ) -> Option<calling_conventions::ConventionalSumLayout> {
-                let declaration_count = declarations.len();
-                let declarations = declarations
-                    .iter()
-                    .map(|declaration| (declaration.id, declaration))
-                    .collect::<std::collections::BTreeMap<_, _>>();
-                if declarations.len() != declaration_count {
-                    return None;
                 }
-                let (common, cases) = match &declarations.get(&structural_type)?.shape {
-                    terminal_psi::StructuralTypeShape::Sum { cases } => (&[][..], cases),
-                    terminal_psi::StructuralTypeShape::Mixed { fields, cases } => {
-                        (fields.as_slice(), cases)
-                    }
-                    _ => return None,
-                };
-                replay_sum_layout(
-                    common,
-                    cases,
-                    &declarations,
-                    &mut std::collections::BTreeMap::new(),
-                    &mut std::collections::BTreeSet::new(),
-                )
-            }
 
-            pub(crate) fn replay_structural_value_shape(
-                structural_type: StructuralTypeId,
-                declarations: &[terminal_psi::StructuralTypeDeclaration],
-            ) -> Option<ValueShape> {
-                let declarations = declarations
-                    .iter()
-                    .map(|declaration| (declaration.id, declaration))
-                    .collect::<std::collections::BTreeMap<_, _>>();
-                let mut cache = std::collections::BTreeMap::new();
-                let mut active = std::collections::BTreeSet::new();
-                replay_structural_shape(structural_type, &declarations, &mut cache, &mut active)
-            }
-
-            pub(crate) fn replay_structural_projection(
-                mut structural_type: StructuralTypeId,
-                path: &[terminal_psi::StructuralPathSegment],
-                declarations: &[terminal_psi::StructuralTypeDeclaration],
-            ) -> Option<(StructuralTypeId, ValueShape, u32)> {
-                let declaration_count = declarations.len();
-                let declarations = declarations
-                    .iter()
-                    .map(|declaration| (declaration.id, declaration))
-                    .collect::<std::collections::BTreeMap<_, _>>();
-                if declarations.len() != declaration_count {
-                    return None;
+                pub(crate) fn geometry(&self) -> &NativeGeometry<'a> {
+                    &self.layouts
                 }
-                let mut cache = std::collections::BTreeMap::new();
-                let mut active = std::collections::BTreeSet::new();
-                let mut total_offset = 0_u32;
-                let mut selected_shape = None;
-                let mut segments = path.iter();
-                while let Some(segment) = segments.next() {
-                    let (selected_type, shape, local_offset) = match segment {
-                        terminal_psi::StructuralPathSegment::AllElements => return None,
-                        terminal_psi::StructuralPathSegment::Case(identity) => {
-                            let declaration = declarations.get(&structural_type)?;
-                            let (common, cases) = match &declaration.shape {
-                                terminal_psi::StructuralTypeShape::Sum { cases } => {
-                                    (&[][..], cases)
+
+                pub(crate) fn value_shape(&mut self, root: StructuralTypeId) -> Option<ValueShape> {
+                    self.layouts.shape(root).ok()
+                }
+
+                pub(crate) fn sum_layout(
+                    &mut self,
+                    root: StructuralTypeId,
+                ) -> Option<calling_conventions::ConventionalSumLayout> {
+                    self.layouts.sum_layout(root).ok()
+                }
+
+                pub(crate) fn runtime_projection(
+                    &mut self,
+                    mut structural_type: StructuralTypeId,
+                    path: &[StructuralPathSegment],
+                ) -> Option<(StructuralTypeId, ValueShape, u32, Vec<(u64, u32)>)> {
+                    let root_alignment = self.value_shape(structural_type)?.alignment;
+                    let mut total_offset = 0u32;
+                    let mut selected_shape = None;
+                    let mut elements = Vec::new();
+                    let mut authored_stride = None;
+                    let mut segments = path.iter();
+                    while let Some(segment) = segments.next() {
+                        let declaration = self.layouts.declaration(structural_type).ok()?;
+                        let (selected, shape, local_offset, next_stride) = match segment {
+                            StructuralPathSegment::Case(identity) => {
+                                let cases = match &declaration.shape {
+                                    StructuralTypeShape::Sum { cases }
+                                    | StructuralTypeShape::Mixed { cases, .. } => cases,
+                                    _ => return None,
+                                };
+                                let mut matches = cases
+                                    .iter()
+                                    .enumerate()
+                                    .filter(|(_, case)| case.id == *identity);
+                                let (case_position, case) = matches.next()?;
+                                if matches.next().is_some() {
+                                    return None;
                                 }
-                                terminal_psi::StructuralTypeShape::Mixed { fields, cases } => {
-                                    (fields.as_slice(), cases)
+                                let StructuralPathSegment::Field(identity) = segments.next()?
+                                else {
+                                    return None;
+                                };
+                                let mut fields = case
+                                    .fields
+                                    .iter()
+                                    .filter(|field| !field.relevance.is_erased())
+                                    .enumerate()
+                                    .filter(|(_, field)| field.identity == *identity);
+                                let (field_position, field) = fields.next()?;
+                                if fields.next().is_some() {
+                                    return None;
                                 }
-                                _ => return None,
-                            };
-                            let mut matching_cases = cases
-                                .iter()
-                                .enumerate()
-                                .filter(|(_, case)| case.id == *identity);
-                            let (case_position, case) = matching_cases.next()?;
-                            if matching_cases.next().is_some() {
-                                return None;
+                                let selected = field.field_type.as_structural()?;
+                                let layout = self.sum_layout(structural_type)?;
+                                let offset = layout
+                                    .cases
+                                    .get(case_position)?
+                                    .fields
+                                    .get(field_position)?
+                                    .byte_offset;
+                                (selected, self.value_shape(selected)?, offset, None)
                             }
-                            let Some(terminal_psi::StructuralPathSegment::Field(field_identity)) =
-                                segments.next()
-                            else {
-                                return None;
-                            };
-                            let mut matching_fields = case
-                                .fields
-                                .iter()
-                                .filter(|field| !field.relevance.is_erased())
-                                .enumerate()
-                                .filter(|(_, field)| field.identity == *field_identity);
-                            let (field_position, field) = matching_fields.next()?;
-                            if matching_fields.next().is_some() {
-                                return None;
-                            }
-                            let selected = field.field_type.as_structural()?;
-                            let layout = replay_sum_layout(
-                                common,
-                                cases,
-                                &declarations,
-                                &mut cache,
-                                &mut active,
-                            )?;
-                            let field_offset = layout
-                                .cases
-                                .get(case_position)?
-                                .fields
-                                .get(field_position)?
-                                .byte_offset;
-                            let shape = replay_structural_shape(
-                                selected,
-                                &declarations,
-                                &mut cache,
-                                &mut active,
-                            )?;
-                            (selected, shape, field_offset)
-                        }
-                        terminal_psi::StructuralPathSegment::Referent
-                        | terminal_psi::StructuralPathSegment::RepresentationView { .. }
-                        | terminal_psi::StructuralPathSegment::FixedRange { .. }
-                        | terminal_psi::StructuralPathSegment::RuntimeIndex { .. } => return None,
-                        terminal_psi::StructuralPathSegment::Field(identity) => {
-                            let declaration = declarations.get(&structural_type)?;
-                            let (fields, common_layout) = match &declaration.shape {
-                                terminal_psi::StructuralTypeShape::Record { fields, .. } => {
-                                    (fields, None)
-                                }
-                                terminal_psi::StructuralTypeShape::Mixed { fields, cases } => {
-                                    let layout = replay_sum_layout(
-                                        fields,
-                                        cases,
-                                        &declarations,
-                                        &mut cache,
-                                        &mut active,
-                                    )?;
-                                    (fields, Some(layout))
-                                }
-                                _ => return None,
-                            };
-                            let mut field_offset = 0_u32;
-                            let mut selected = None;
-                            for (field_position, field) in fields
-                                .iter()
-                                .filter(|field| !field.relevance.is_erased())
-                                .enumerate()
-                            {
-                                if !layout_field(field) {
-                                    continue;
-                                }
-                                let shape = replay_structural_field_shape(
-                                    &field.field_type,
-                                    &declarations,
-                                    &mut cache,
-                                    &mut active,
-                                )?;
-                                field_offset = match &common_layout {
-                                    Some(layout) => {
-                                        layout.common_fields.get(field_position)?.byte_offset
+                            StructuralPathSegment::Field(identity) => {
+                                let (fields, common_layout) = match &declaration.shape {
+                                    StructuralTypeShape::Record { fields, .. } => (fields, None),
+                                    StructuralTypeShape::Mixed { fields, .. } => {
+                                        (fields, Some(self.sum_layout(structural_type)?))
                                     }
-                                    None => {
-                                        checked_align_up(field_offset, u32::from(shape.alignment))?
+                                    _ => return None,
+                                };
+                                let mut matching = fields.iter().filter(|field| {
+                                    !field.relevance.is_erased()
+                                        && !matches!(
+                                            field.field_type,
+                                            StructuralFieldType::Erased { .. }
+                                        )
+                                        && field.identity == *identity
+                                });
+                                let target = matching.next()?;
+                                if matching.next().is_some() {
+                                    return None;
+                                }
+                                let mut offset = 0;
+                                let mut selected = None;
+                                for (position, field) in fields
+                                    .iter()
+                                    .filter(|field| !field.relevance.is_erased())
+                                    .enumerate()
+                                {
+                                    if matches!(
+                                        field.field_type,
+                                        StructuralFieldType::Erased { .. }
+                                    ) {
+                                        continue;
+                                    }
+                                    // Explicit placements do not depend on preceding
+                                    // fields (which may themselves be fragmented).
+                                    if common_layout.is_none()
+                                        && target.storage.is_some()
+                                        && field.identity != *identity
+                                    {
+                                        continue;
+                                    }
+                                    let (shape, field_offset, stride) =
+                                        if let Some(layout) = &common_layout {
+                                            (
+                                                self.layouts
+                                                    .field_shape(&field.field_type, structural_type)
+                                                    .ok()?,
+                                                layout.common_fields.get(position)?.byte_offset,
+                                                None,
+                                            )
+                                        } else {
+                                            let placement = self
+                                                .layouts
+                                                .field_placement(field, structural_type, offset)
+                                                .ok()?;
+                                            (
+                                                placement.shape,
+                                                placement.byte_offset,
+                                                placement.element_stride,
+                                            )
+                                        };
+                                    if field.identity == *identity {
+                                        // A storage codec's physical bytes do not by
+                                        // themselves establish an ordinary reference
+                                        // to the semantic field value.
+                                        if let Some(stored) = field
+                                            .storage
+                                            .as_ref()
+                                            .and_then(|storage| storage.stored_scalar())
+                                        {
+                                            let nested = field.field_type.as_structural()?;
+                                            if self.layouts.declaration(nested).ok()?.shape
+                                                != StructuralTypeShape::PrimitiveScalar(stored)
+                                            {
+                                                return None;
+                                            }
+                                        }
+                                        selected = Some((
+                                            field.field_type.as_structural()?,
+                                            shape,
+                                            field_offset,
+                                            stride,
+                                        ));
+                                        break;
+                                    }
+                                    offset = field_offset.checked_add(shape.byte_size)?;
+                                }
+                                selected?
+                            }
+                            StructuralPathSegment::FixedIndex(_)
+                            | StructuralPathSegment::RuntimeIndex { .. } => {
+                                let StructuralTypeShape::FixedArray { element, length } =
+                                    declaration.shape
+                                else {
+                                    return None;
+                                };
+                                let length = length.literal()?;
+                                let shape = self.value_shape(element)?;
+                                let stride = authored_stride.or_else(|| {
+                                    checked_align_up_u32(
+                                        shape.byte_size,
+                                        u32::from(shape.alignment),
+                                    )
+                                })?;
+                                let offset = match segment {
+                                    StructuralPathSegment::FixedIndex(index) => {
+                                        if *index >= length {
+                                            return None;
+                                        }
+                                        u64::from(stride)
+                                            .checked_mul(*index)
+                                            .and_then(|offset| u32::try_from(offset).ok())?
+                                    }
+                                    _ => {
+                                        elements.push((length, stride));
+                                        0
                                     }
                                 };
-                                if field.identity == *identity {
-                                    let nested = field.field_type.as_structural()?;
-                                    selected = Some((nested, shape, field_offset));
-                                    break;
-                                }
-                                field_offset = field_offset.checked_add(shape.byte_size)?;
+                                (element, shape, offset, None)
                             }
-                            selected?
-                        }
-                        terminal_psi::StructuralPathSegment::FixedIndex(index) => {
-                            let declaration = declarations.get(&structural_type)?;
-                            let terminal_psi::StructuralTypeShape::FixedArray {
-                                element,
-                                length: terminal_psi::ArrayExtent::Literal(length),
-                            } = declaration.shape
-                            else {
-                                return None;
-                            };
-                            if *index >= length {
-                                return None;
-                            }
-                            let shape = replay_structural_shape(
-                                element,
-                                &declarations,
-                                &mut cache,
-                                &mut active,
-                            )?;
-                            let stride =
-                                checked_align_up(shape.byte_size, u32::from(shape.alignment))?;
-                            let offset = u64::from(stride)
-                                .checked_mul(*index)
-                                .and_then(|offset| u32::try_from(offset).ok())?;
-                            (element, shape, offset)
-                        }
-                    };
-                    total_offset = total_offset.checked_add(local_offset)?;
-                    structural_type = selected_type;
-                    selected_shape = Some(shape);
-                }
-                Some((structural_type, selected_shape?, total_offset))
-            }
-
-            pub(crate) fn replay_runtime_projection(
-                mut structural_type: StructuralTypeId,
-                path: &[terminal_psi::StructuralPathSegment],
-                declarations: &[terminal_psi::StructuralTypeDeclaration],
-            ) -> Option<(StructuralTypeId, ValueShape, u32, Vec<(u64, u32)>)> {
-                let mut total_offset = 0_u32;
-                let mut selected_shape = None;
-                let mut elements = Vec::new();
-                let mut segments = path.iter();
-                while let Some(segment) = segments.next() {
-                    if let terminal_psi::StructuralPathSegment::RuntimeIndex { .. } = segment {
-                        let declaration =
-                            terminal_psi::find_structural_type(declarations, structural_type)?;
-                        let terminal_psi::StructuralTypeShape::FixedArray {
-                            element,
-                            length: terminal_psi::ArrayExtent::Literal(length),
-                        } = declaration.shape
+                            StructuralPathSegment::AllElements
+                            | StructuralPathSegment::Referent
+                            | StructuralPathSegment::RepresentationView { .. }
+                            | StructuralPathSegment::FixedRange { .. } => return None,
+                        };
+                        total_offset = total_offset.checked_add(local_offset)?;
+                        structural_type = selected;
+                        selected_shape = Some(shape);
+                        authored_stride = next_stride;
+                    }
+                    let physical = selected_shape?;
+                    let semantic = self.value_shape(structural_type)?;
+                    let alignment = u32::from(semantic.alignment);
+                    if let Some(stride) = authored_stride {
+                        let StructuralTypeShape::FixedArray { element, .. } =
+                            self.layouts.declaration(structural_type).ok()?.shape
                         else {
                             return None;
                         };
-                        let shape = replay_structural_value_shape(element, declarations)?;
-                        let stride = checked_align_up(shape.byte_size, u32::from(shape.alignment))?;
-                        elements.push((length, stride));
-                        structural_type = element;
-                        selected_shape = Some(shape);
-                    } else {
-                        let pair;
-                        let projection =
-                            if matches!(segment, terminal_psi::StructuralPathSegment::Case(_)) {
-                                pair = [segment.clone(), segments.next()?.clone()];
-                                pair.as_slice()
-                            } else {
-                                std::slice::from_ref(segment)
-                            };
-                        let (selected_type, shape, local_offset) = replay_structural_projection(
-                            structural_type,
-                            projection,
-                            declarations,
-                        )?;
-                        total_offset = total_offset.checked_add(local_offset)?;
-                        structural_type = selected_type;
-                        selected_shape = Some(shape);
+                        let element = self.value_shape(element)?;
+                        if checked_align_up_u32(element.byte_size, u32::from(element.alignment))
+                            != Some(stride)
+                        {
+                            return None;
+                        }
                     }
+                    // Cleanup receivers are ordinary borrowed values, not encoded
+                    // access views. Prove their actual address and every dynamic
+                    // stride meet the referent's geometry before attesting a loan.
+                    if physical.byte_size != semantic.byte_size
+                        || u32::from(root_alignment).checked_rem(alignment) != Some(0)
+                        || total_offset.checked_rem(alignment) != Some(0)
+                        || elements
+                            .iter()
+                            .any(|(_, stride)| stride.checked_rem(alignment) != Some(0))
+                    {
+                        return None;
+                    }
+                    Some((structural_type, semantic, total_offset, elements))
                 }
-                Some((structural_type, selected_shape?, total_offset, elements))
             }
 
-            fn replay_structural_field_shape(
-                field_type: &terminal_psi::StructuralFieldType,
-                declarations: &std::collections::BTreeMap<
-                    StructuralTypeId,
-                    &terminal_psi::StructuralTypeDeclaration,
-                >,
-                cache: &mut std::collections::BTreeMap<StructuralTypeId, ValueShape>,
-                active: &mut std::collections::BTreeSet<StructuralTypeId>,
+            #[cfg(test)]
+            fn replay_structural_value_shape(
+                root: StructuralTypeId,
+                declarations: &[StructuralTypeDeclaration],
             ) -> Option<ValueShape> {
-                match field_type {
-                    terminal_psi::StructuralFieldType::RefinedScalar(refinement) => {
-                        replay_structural_field_shape(
-                            &terminal_psi::StructuralFieldType::Scalar(refinement.carrier()),
-                            declarations,
-                            cache,
-                            active,
-                        )
-                    }
-                    terminal_psi::StructuralFieldType::Atomic(_)
-                    | terminal_psi::StructuralFieldType::AtomicBoundedInteger(_) => {
-                        replay_structural_field_shape(
-                            &terminal_psi::StructuralFieldType::Scalar(
-                                field_type.atomic_scalar_type()?,
-                            ),
-                            declarations,
-                            cache,
-                            active,
-                        )
-                    }
-                    terminal_psi::StructuralFieldType::Scalar(ScalarType::Boolean) => {
-                        Some(ValueShape::integer(1, 1))
-                    }
-                    terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
-                        Some(ValueShape::field_integer(*integer))
-                    }
-                    terminal_psi::StructuralFieldType::BoundedInteger(bounds) => {
-                        Some(ValueShape::field_integer(bounds.integer_type()))
-                    }
-                    terminal_psi::StructuralFieldType::Scalar(ScalarType::IeeeFloat(
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    )) => Some(ValueShape::float(4)),
-                    terminal_psi::StructuralFieldType::Scalar(ScalarType::IeeeFloat(
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    )) => Some(ValueShape::float(8)),
-                    terminal_psi::StructuralFieldType::IeeeFloat(
-                        semantic_vocabulary::IeeeFloatFormat::Binary32,
-                    ) => Some(ValueShape::float(4)),
-                    terminal_psi::StructuralFieldType::IeeeFloat(
-                        semantic_vocabulary::IeeeFloatFormat::Binary64,
-                    ) => Some(ValueShape::float(8)),
-                    terminal_psi::StructuralFieldType::ByteSequence(carrier)
-                    | terminal_psi::StructuralFieldType::PredicateByteSequence {
-                        carrier, ..
-                    } => {
-                        let byte_size: u32 = match carrier {
-                            terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => 16,
-                            terminal_psi::ByteSequenceCarrier::BoundedView { .. } => 8,
-                            terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => {
-                                capacity.checked_add(8)?.try_into().ok()?
-                            }
-                        };
-                        Some(ValueShape::integer(byte_size, 8))
-                    }
-                    terminal_psi::StructuralFieldType::Structural(nested) => {
-                        replay_structural_shape(*nested, declarations, cache, active)
-                    }
-                    terminal_psi::StructuralFieldType::Erased { .. } => None,
-                }
+                StructuralReplay::new(declarations).ok()?.value_shape(root)
+            }
+
+            #[cfg(test)]
+            fn replay_runtime_projection(
+                root: StructuralTypeId,
+                path: &[StructuralPathSegment],
+                declarations: &[StructuralTypeDeclaration],
+            ) -> Option<(StructuralTypeId, ValueShape, u32, Vec<(u64, u32)>)> {
+                StructuralReplay::new(declarations)
+                    .ok()?
+                    .runtime_projection(root, path)
+            }
+
+            #[cfg(test)]
+            fn replay_structural_projection(
+                root: StructuralTypeId,
+                path: &[StructuralPathSegment],
+                declarations: &[StructuralTypeDeclaration],
+            ) -> Option<(StructuralTypeId, ValueShape, u32)> {
+                let (selected, shape, offset, indices) =
+                    replay_runtime_projection(root, path, declarations)?;
+                indices.is_empty().then_some((selected, shape, offset))
             }
 
             #[cfg(test)]
@@ -4999,6 +4814,243 @@ pub(crate) mod replay {
                     BindingRelevance, StructuralCaseDeclaration, StructuralFieldDeclaration,
                     StructuralFieldType, StructuralPathSegment, StructuralTypeShape,
                 };
+
+                #[test]
+                fn storage_shape_replay_preserves_authored_geometry() {
+                    let root = StructuralTypeId::new(1).unwrap();
+                    let types = [structural_declaration(
+                        root,
+                        terminal_psi::TerminalIdentityIndex(1),
+                        StructuralTypeShape::Record {
+                            storage: terminal_psi::StructuralRecordStorage::Authored(
+                                semantic_vocabulary::AuthoredRecordStorage {
+                                    byte_size: 32,
+                                    byte_alignment: 16,
+                                },
+                            ),
+                            fields: vec![StructuralFieldDeclaration {
+                                inline_carrier: None,
+                                storage: Some(semantic_vocabulary::AuthoredFieldStorage::Scalar {
+                                    byte_offset: 0,
+                                    stored_scalar: None,
+                                }),
+                                id: StructuralFieldId::new(1).unwrap(),
+                                identity: terminal_psi::TerminalIdentityIndex(2),
+                                relevance: BindingRelevance::Relevant,
+                                field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+                            }],
+                        },
+                    )];
+                    let native =
+                        calling_conventions::terminal_layout::StructuralLayouts::new(types.iter())
+                            .unwrap()
+                            .shape(root)
+                            .unwrap();
+                    assert_eq!(native, ValueShape::integer(32, 16));
+                    assert_eq!(replay_structural_value_shape(root, &types), Some(native));
+                }
+
+                #[test]
+                fn storage_shape_replay_refuses_ambiguous_and_unselected_geometry() {
+                    let root = StructuralTypeId::new(1).unwrap();
+                    let scalar = structural_declaration(
+                        root,
+                        terminal_psi::TerminalIdentityIndex(1),
+                        StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean),
+                    );
+                    assert_eq!(
+                        replay_structural_value_shape(root, std::slice::from_ref(&scalar)),
+                        Some(ValueShape::integer(1, 1))
+                    );
+                    assert_eq!(
+                        replay_structural_value_shape(root, &[scalar.clone(), scalar]),
+                        None
+                    );
+                    let unselected = structural_declaration(
+                        root,
+                        terminal_psi::TerminalIdentityIndex(1),
+                        StructuralTypeShape::Record {
+                            storage: terminal_psi::StructuralRecordStorage::TargetLayout(
+                                terminal_psi::LayoutApplicationId(1),
+                            ),
+                            fields: Vec::new(),
+                        },
+                    );
+                    assert_eq!(replay_structural_value_shape(root, &[unselected]), None);
+                }
+
+                #[test]
+                fn storage_shape_replay_preserves_authored_projection_stride() {
+                    let root = StructuralTypeId::new(1).unwrap();
+                    let array = StructuralTypeId::new(2).unwrap();
+                    let element = StructuralTypeId::new(3).unwrap();
+                    let member = terminal_psi::TerminalIdentityIndex(2);
+                    let types = [
+                        structural_declaration(
+                            root,
+                            terminal_psi::TerminalIdentityIndex(1),
+                            StructuralTypeShape::Record {
+                                storage: terminal_psi::StructuralRecordStorage::Authored(
+                                    semantic_vocabulary::AuthoredRecordStorage {
+                                        byte_size: 80,
+                                        byte_alignment: 8,
+                                    },
+                                ),
+                                fields: vec![StructuralFieldDeclaration {
+                                    id: StructuralFieldId::new(1).unwrap(),
+                                    identity: member,
+                                    inline_carrier: None,
+                                    relevance: BindingRelevance::Relevant,
+                                    field_type: StructuralFieldType::Structural(array),
+                                    storage: Some(
+                                        semantic_vocabulary::AuthoredFieldStorage::Repeated {
+                                            byte_offset: 16,
+                                            element_stride: 24,
+                                        },
+                                    ),
+                                }],
+                            },
+                        ),
+                        structural_declaration(
+                            array,
+                            terminal_psi::TerminalIdentityIndex(3),
+                            StructuralTypeShape::FixedArray {
+                                element,
+                                length: terminal_psi::ArrayExtent::Literal(2),
+                            },
+                        ),
+                        structural_declaration(
+                            element,
+                            terminal_psi::TerminalIdentityIndex(4),
+                            StructuralTypeShape::PrimitiveScalar(ScalarType::IeeeFloat(
+                                IeeeFloatFormat::Binary64,
+                            )),
+                        ),
+                    ];
+                    let fixed = [
+                        StructuralPathSegment::Field(member),
+                        StructuralPathSegment::FixedIndex(1),
+                    ];
+                    assert_eq!(
+                        replay_structural_projection(root, &fixed, &types),
+                        Some((element, ValueShape::float(8), 40))
+                    );
+                    let runtime = [
+                        StructuralPathSegment::Field(member),
+                        StructuralPathSegment::RuntimeIndex {
+                            index: ValueId::new(1).unwrap(),
+                            obligation: ObligationId::new(1).unwrap(),
+                        },
+                    ];
+                    assert_eq!(
+                        replay_runtime_projection(root, &runtime, &types),
+                        Some((element, ValueShape::float(8), 16, vec![(2, 24)]))
+                    );
+                    let mut malformed = types.clone();
+                    let StructuralTypeShape::Record { fields, .. } = &mut malformed[0].shape else {
+                        unreachable!()
+                    };
+                    fields[0].storage = Some(semantic_vocabulary::AuthoredFieldStorage::Repeated {
+                        byte_offset: 16,
+                        element_stride: 4,
+                    });
+                    assert!(replay_structural_projection(root, &fixed, &malformed).is_none());
+
+                    // Empty arrays have equal total footprints at every stride,
+                    // but a whole-array view must still retain its native layout.
+                    let mut empty = types.clone();
+                    empty[1].shape = StructuralTypeShape::FixedArray {
+                        element,
+                        length: terminal_psi::ArrayExtent::Literal(0),
+                    };
+                    let whole_array = [StructuralPathSegment::Field(member)];
+                    assert!(replay_structural_projection(root, &whole_array, &empty).is_none());
+                    let StructuralTypeShape::Record { fields, .. } = &mut empty[0].shape else {
+                        unreachable!()
+                    };
+                    fields[0].storage = Some(semantic_vocabulary::AuthoredFieldStorage::Repeated {
+                        byte_offset: 16,
+                        element_stride: 8,
+                    });
+                    assert!(replay_structural_projection(root, &whole_array, &empty).is_some());
+
+                    // Physical placement alone must not certify an ordinary loan:
+                    // a direct field needs alignment and a codec needs the same
+                    // representation as the semantic referent.
+                    let mut direct = types.clone();
+                    let path = [StructuralPathSegment::Field(member)];
+                    for (storage, accepted) in [
+                        (
+                            semantic_vocabulary::AuthoredFieldStorage::Direct { byte_offset: 16 },
+                            true,
+                        ),
+                        (
+                            semantic_vocabulary::AuthoredFieldStorage::Direct { byte_offset: 17 },
+                            false,
+                        ),
+                        (
+                            semantic_vocabulary::AuthoredFieldStorage::Scalar {
+                                byte_offset: 16,
+                                stored_scalar: Some(ScalarType::IeeeFloat(
+                                    IeeeFloatFormat::Binary32,
+                                )),
+                            },
+                            false,
+                        ),
+                        (
+                            semantic_vocabulary::AuthoredFieldStorage::Scalar {
+                                byte_offset: 16,
+                                stored_scalar: Some(ScalarType::IeeeFloat(
+                                    IeeeFloatFormat::Binary64,
+                                )),
+                            },
+                            true,
+                        ),
+                    ] {
+                        let StructuralTypeShape::Record { fields, .. } = &mut direct[0].shape
+                        else {
+                            unreachable!()
+                        };
+                        fields[0].field_type = StructuralFieldType::Structural(element);
+                        fields[0].storage = Some(storage);
+                        assert_eq!(
+                            replay_structural_projection(root, &path, &direct).is_some(),
+                            accepted
+                        );
+                    }
+                }
+
+                #[test]
+                fn storage_shape_replay_refuses_missing_referents_and_zero_alignment() {
+                    let root = StructuralTypeId::new(1).unwrap();
+                    let missing = StructuralTypeId::new(2).unwrap();
+                    for shape in [
+                        StructuralTypeShape::Reference {
+                            referent: missing,
+                            access: terminal_psi::StructuralAccess::SharedBorrow,
+                        },
+                        StructuralTypeShape::FixedArray {
+                            element: missing,
+                            length: terminal_psi::ArrayExtent::Literal(0),
+                        },
+                        StructuralTypeShape::Record {
+                            fields: Vec::new(),
+                            storage: terminal_psi::StructuralRecordStorage::Authored(
+                                semantic_vocabulary::AuthoredRecordStorage {
+                                    byte_size: 8,
+                                    byte_alignment: 0,
+                                },
+                            ),
+                        },
+                    ] {
+                        let types = [structural_declaration(
+                            root,
+                            terminal_psi::TerminalIdentityIndex(1),
+                            shape,
+                        )];
+                        assert!(replay_structural_value_shape(root, &types).is_none());
+                    }
+                }
 
                 #[test]
                 fn case_projection_replay_preserves_sum_and_mixed_backing_geometry() {

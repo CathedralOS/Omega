@@ -256,6 +256,17 @@ public data FieldInfo {
     has_stable_number: bool;
     is_erased: bool;
     stable_number: u64;
+    source_revision: &[u8];
+}
+
+// A checked declaration query supplies this description. Reaching the body
+// cannot produce a substitute field identity or permission.
+public machine field(declaration: ()) -> FieldInfo
+reaches none
+crashes Trap
+terminates
+{
+    crash Trap;
 }
 
 // A compiler-known operation on this exact toolchain declaration. It closes

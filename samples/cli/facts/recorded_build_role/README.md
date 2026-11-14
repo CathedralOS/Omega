@@ -38,7 +38,7 @@ The source programs already check on base
 `e9f492c5ccc6f84731ce0e65eb9a9d4f56fdb067`. The failing consumer is historical
 source comparison, not source admission: publish the dependency's old source
 with the source-acquisition SDK's `resolve_local_source_snapshot_in_lane`, run
-`omega update --project <place> --target linux_x86_64`, append a comment to
+`omega packages update --project <place> --target linux_x86_64`, append a comment to
 `library/values.omg`, and update again. This explicitly retains the old cache;
 a missing historical cache is allowed to limit code review.
 

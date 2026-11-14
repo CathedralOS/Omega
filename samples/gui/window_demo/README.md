@@ -4,8 +4,8 @@ From the repository root with the development `omega` CLI, prepare the matching
 host target and complete the generated local capability review:
 
 ```sh
-omega update --project samples/gui/window_demo --target windows_x86_64 --offline
-omega update --project samples/gui/window_demo --resume --offline
+omega packages update --project samples/gui/window_demo --target windows_x86_64 --offline
+omega packages update --project samples/gui/window_demo --resume --offline
 omega run --keep samples/gui/window_demo/main.omg
 ```
 

@@ -1097,6 +1097,8 @@ pub struct TerminalModule {
     pub suspension_call_plan_count: u32,
     pub suspension_call_sites: Vec<TerminalSuspensionCallSite>,
     pub suspension_call_plans: Vec<TerminalSuspensionCallPlan>,
+    /// Real declaration contracts with no executable body, ordered by ContractId.
+    pub declaration_contracts: Vec<crate::MachineContract>,
     pub machines: Vec<TerminalMachine>,
     pub target_machine_families: Vec<TargetMachineFamily>,
     pub target_layout_applications: Vec<crate::TargetLayoutApplication>,
@@ -1156,6 +1158,16 @@ impl TerminalModule {
 
     pub fn machine(&self, id: MachineId) -> Option<&TerminalMachine> {
         self.machines.iter().find(|machine| machine.id == id)
+    }
+
+    pub fn declaration_contract(
+        &self,
+        id: semantic_vocabulary::ContractId,
+    ) -> Option<&crate::MachineContract> {
+        self.declaration_contracts
+            .binary_search_by_key(&id, |contract| contract.id)
+            .ok()
+            .map(|position| &self.declaration_contracts[position])
     }
 
     /// Read the written contract of the exact declaration a call names. A
@@ -1336,6 +1348,7 @@ impl TerminalModule {
             suspension_call_plan_count: 0,
             suspension_call_sites: Vec::new(),
             suspension_call_plans: Vec::new(),
+            declaration_contracts: Vec::new(),
             machines: Vec::new(),
             target_machine_families: Vec::new(),
             target_layout_applications: Vec::new(),

@@ -18,7 +18,7 @@ ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/generic_data_match/main.omg
-mbx run -p omega -- update --project samples/cli/probes/generic_data_match
+mbx run -p omega -- packages update --project samples/cli/probes/generic_data_match
 ```
 
 Both complete green on Linux x86-64; `omega.lock` publishes locally and is

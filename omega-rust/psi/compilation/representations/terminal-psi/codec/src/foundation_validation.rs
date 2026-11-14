@@ -1712,10 +1712,16 @@ pub(crate) mod declaration_foundations {
             {
                 return malformed("complete structural domain lost part of its required theory");
             }
-            if !strictly_increasing(domain.establishment_routes.iter()) {
+            if !strictly_increasing(
+                domain
+                    .establishment_routes
+                    .as_deref()
+                    .unwrap_or_default()
+                    .iter(),
+            ) {
                 return malformed("structural domain issuer routes must be canonical and unique");
             }
-            for route in &domain.establishment_routes {
+            for route in domain.establishment_routes.as_deref().unwrap_or_default() {
                 let declaration = route.declaration().identity();
                 let callable = route.identity();
                 if [declaration, callable]
@@ -2930,29 +2936,8 @@ pub(crate) mod proof_scope {
                     }
                 }
                 ProofScopeDeclaration::Callable(row) => {
-                    for identity in [
-                        row.machine.identity(),
-                        row.state.identity(),
-                        row.semantic_declaration,
-                        row.callable,
-                        row.result_type,
-                    ] {
+                    for identity in super::declaration_identity_references(row) {
                         text(identity)?;
-                    }
-                    for identity in &row.parameter_types {
-                        text(*identity)?;
-                    }
-                    if let Some(specialization) = &row.specialization {
-                        for identity in [
-                            specialization.template.identity(),
-                            specialization.template_callable,
-                            specialization.template_semantic_declaration,
-                        ] {
-                            text(identity)?;
-                        }
-                        if let Some(capture) = &specialization.capture {
-                            text(capture.template_identity)?;
-                        }
                     }
                 }
             }
@@ -4253,7 +4238,7 @@ pub(crate) mod scalar_fields {
                                     domains.iter().all(|id| {
                                         super::scalar_domain(module, *id).is_some_and(|domain| {
                                             domain.predicate.is_none()
-                                                && domain.establishment_routes.is_empty()
+                                                && domain.establishment_routes.is_none()
                                                 && domain.has_no_required_memberships()
                                         })
                                     })
@@ -4712,7 +4697,12 @@ pub(crate) mod scalar_qualifications {
             {
                 return malformed("scalar domain has no retained identity");
             }
-            if !domain.establishment_routes.is_empty() && domain.predicate.is_none() {
+            if domain
+                .establishment_routes
+                .as_deref()
+                .is_some_and(|routes| !routes.is_empty())
+                && domain.predicate.is_none()
+            {
                 return malformed("routed scalar domain lost its predicate component");
             }
             if let Some(predicate) = &domain.predicate {
@@ -4727,16 +4717,22 @@ pub(crate) mod scalar_qualifications {
                     return malformed("scalar domain predicate escapes its formal subject");
                 }
             }
-            if domain.establishment_routes.iter().any(|route| {
-                module
-                    .identities
-                    .text(route.identity())
-                    .is_none_or(str::is_empty)
-                    || module
+            if domain
+                .establishment_routes
+                .as_deref()
+                .unwrap_or_default()
+                .iter()
+                .any(|route| {
+                    module
                         .identities
-                        .text(route.declaration().identity())
+                        .text(route.identity())
                         .is_none_or(str::is_empty)
-            }) {
+                        || module
+                            .identities
+                            .text(route.declaration().identity())
+                            .is_none_or(str::is_empty)
+                })
+            {
                 return malformed("scalar domain lost an issuer identity");
             }
         }
@@ -4783,7 +4779,7 @@ pub(crate) mod scalar_qualifications {
                     .is_none_or(|missing| {
                         missing.iter().any(|node| {
                             node.predicate.is_some()
-                                || !node.establishment_routes.is_empty()
+                                || node.establishment_routes.is_some()
                                 || !node.has_no_required_memberships()
                         })
                     })
@@ -4879,7 +4875,7 @@ pub(crate) mod scalar_qualifications {
                     ScalarReturnOrigin::Vacuous => {
                         matches!(returned.site, ScalarReturnSite::Completion { .. })
                             && domain.predicate.is_none()
-                            && domain.establishment_routes.is_empty()
+                            && domain.establishment_routes.is_none()
                             && domain.has_no_required_memberships()
                     }
                     ScalarReturnOrigin::Forwarded => catalog.sets.iter().any(|set| {
@@ -4894,7 +4890,7 @@ pub(crate) mod scalar_qualifications {
                                 "scalar issuer lost its checked declaration",
                             ),
                         )?;
-                        match domain.establishment_routes.get(*route as usize) {
+                        match domain.establishment_routes.as_deref().unwrap_or_default().get(*route as usize) {
                             Some(ScalarDomainEstablishmentRoute::ExactMachine { declaration: issuer, machine_identity }) => {
                                 (module.identities.text(*machine_identity).zip(module.identities.text(declaration.callable))
                                     .is_some_and(|(issued, callable)| issued == terminal_psi::CheckedMachineDeclaration::callable_evidence_identity(
@@ -4933,7 +4929,7 @@ pub(crate) mod scalar_qualifications {
                         .missing_membership_requirements(&catalog.domains, supplied)
                         .is_some_and(|missing| {
                             missing.iter().all(|node| {
-                                node.id == domain.id || node.establishment_routes.is_empty()
+                                node.id == domain.id || node.establishment_routes.is_none()
                             })
                         })
                 } else {
@@ -4961,6 +4957,8 @@ pub(crate) mod scalar_qualifications {
                     let issuer = match origin {
                         ScalarReturnOrigin::Established { route } => domain
                             .establishment_routes
+                            .as_deref()
+                            .unwrap_or_default()
                             .get(*route as usize)
                             .map(|route| {
                                 let callable = match route {
@@ -5078,7 +5076,7 @@ pub(crate) mod scalar_qualifications {
                             .is_none_or(|required| {
                                 required
                                     .iter()
-                                    .any(|node| !node.establishment_routes.is_empty())
+                                    .any(|node| node.establishment_routes.is_some())
                             })
                 })
             }) {
@@ -6899,10 +6897,7 @@ pub(crate) mod storage_foundations {
                     .ok_or(CodecError::MalformedStructuralFoundation(
                         "value transfer has unknown prerequisites",
                     ))?;
-                if missing
-                    .iter()
-                    .any(|row| !row.establishment_routes.is_empty())
-                {
+                if missing.iter().any(|row| row.establishment_routes.is_some()) {
                     return malformed(
                         "value transfer cannot establish unsupplied routed prerequisites",
                     );
@@ -9881,18 +9876,44 @@ pub(crate) mod value_foundations {
             || !machine.structural_places.iter().any(|place| place.id == result.place && matches!(place.kind, StructuralPlaceKind::OperationResult { producer, structural_type } if producer == operation.id && structural_type == result.structural_type)) {
             return malformed("array result custody is noncanonical");
         }
-        let Some(StructuralTypeShape::FixedArray { element, length }) = module
+        let shape = &module
             .structural_type(result.structural_type)
-            .map(|row| &row.shape)
-        else {
-            return malformed("structural array result is not a fixed array");
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "array result type is absent",
+            ))?
+            .shape;
+        let element = match shape {
+            StructuralTypeShape::FixedArray { element, length } => {
+                let Some(length) = length.literal() else {
+                    return malformed("array construction requires a closed element count");
+                };
+                if u64::try_from(elements.len()).ok() != Some(length) {
+                    return malformed("array element count differs");
+                }
+                *element
+            }
+            StructuralTypeShape::ElementView {
+                element,
+                access: None | Some(StructuralAccess::SharedBorrow),
+            } => {
+                let declaration = module.structural_type(*element).ok_or(
+                    CodecError::MalformedStructuralFoundation("sequence element type is absent"),
+                )?;
+                if !result.projected_qualifications.is_empty()
+                    || !result.qualification_establishments.is_empty()
+                    || !result.claims.is_empty()
+                    || declaration.owns_linear_claim
+                    || !declaration.no_code_affine_cleanup
+                    || !declaration.descriptor_cleanup
+                {
+                    return malformed(
+                        "immutable sequence cannot discard element custody or executable cleanup",
+                    );
+                }
+                *element
+            }
+            _ => return malformed("array construction result is not its declared collection"),
         };
-        let Some(length) = length.literal() else {
-            return malformed("array construction requires a closed element count");
-        };
-        if u64::try_from(elements.len()).ok() != Some(length) {
-            return malformed("array element count differs");
-        }
         for argument in elements {
             if argument.access != StructuralAccess::Owned || argument.place == result.place {
                 return malformed("array element is not an independent owned source");
@@ -9900,14 +9921,14 @@ pub(crate) mod value_foundations {
             let Some(root) = super::structural_place_type(machine, argument.place) else {
                 return malformed("array element source is absent");
             };
-            if super::validate_structural_path(module, root, &argument.path)? != *element {
+            if super::validate_structural_path(module, root, &argument.path)? != element {
                 return malformed("array element type differs");
             }
             validate_constructor_projection(
                 module,
                 machine,
                 argument,
-                &StructuralFieldType::Structural(*element),
+                &StructuralFieldType::Structural(element),
             )?;
         }
         Ok(())
@@ -10074,7 +10095,251 @@ pub(crate) fn values(machine: &TerminalMachine) -> impl Iterator<Item = &ValueDe
         )
 }
 
+// Declaration identities keep the same full reference walk wherever the
+// declaration is received. Each receiving context keeps its own diagnostic.
+fn declaration_identity_references(
+    declaration: &terminal_psi::CheckedMachineDeclaration,
+) -> impl Iterator<Item = terminal_psi::TerminalIdentityIndex> + '_ {
+    [
+        declaration.machine.identity(),
+        declaration.state.identity(),
+        declaration.semantic_declaration,
+        declaration.callable,
+        declaration.result_type,
+    ]
+    .into_iter()
+    .chain(declaration.parameter_types.iter().copied())
+    .chain(
+        declaration
+            .specialization
+            .iter()
+            .flat_map(|specialization| {
+                [
+                    specialization.template.identity(),
+                    specialization.template_callable,
+                    specialization.template_semantic_declaration,
+                ]
+                .into_iter()
+                .chain(
+                    specialization
+                        .capture
+                        .iter()
+                        .map(|capture| capture.template_identity),
+                )
+            }),
+    )
+}
+
+// Public requirements describe inputs and promises without supplying code.
+// Validate their own formal namespace before any invocation can use them.
+fn validate_declaration_contracts(module: &TerminalModule) -> Result<(), CodecError> {
+    use semantic_vocabulary::{PropositionContext, StructuralPlaceKind};
+    use terminal_psi::TerminalMachineResult;
+
+    // Existing bodies are addressed by MachineId, even when an older producer
+    // reused a contract coordinate. A new declaration-only coordinate must
+    // never alias one of those body-owned contracts.
+    let mut body_contracts = module
+        .machines
+        .iter()
+        .map(|machine| machine.contract.id)
+        .collect::<Vec<_>>();
+    body_contracts.sort_unstable();
+    for contract in &module.declaration_contracts {
+        if body_contracts.binary_search(&contract.id).is_ok() {
+            return malformed("bodyless contract aliases a body-owned contract identity");
+        }
+    }
+    for contract in module
+        .declaration_contracts
+        .iter()
+        .chain(module.machines.iter().map(|machine| &machine.contract))
+    {
+        if contract
+            .declared_service_reach
+            .as_ref()
+            .is_some_and(|row| row != &contract.published_service_ceiling)
+            || contract
+                .declared_synchronous_entries
+                .as_ref()
+                .is_some_and(|row| row != &contract.published_synchronous_entries)
+            || contract
+                .declared_crash_routes
+                .as_ref()
+                .is_some_and(|row| row != &contract.crash_routes)
+        {
+            return malformed("authored callable effects differ from their published promises");
+        }
+        require_known_services(
+            module,
+            contract
+                .declared_service_reach
+                .as_deref()
+                .unwrap_or_default(),
+        )?;
+        require_known_services(
+            module,
+            contract
+                .declared_synchronous_entries
+                .as_deref()
+                .unwrap_or_default(),
+        )?;
+    }
+    for contract in &module.declaration_contracts {
+        contract
+            .validate_parameter_order()
+            .map_err(CodecError::MalformedStructuralFoundation)?;
+        let declaration =
+            contract
+                .declaration
+                .as_ref()
+                .ok_or(CodecError::MalformedStructuralFoundation(
+                    "public contract has no source declaration",
+                ))?;
+        if declaration.contract == [0; 32] {
+            return malformed("public contract has no source commitment");
+        }
+        for identity in declaration_identity_references(declaration) {
+            if module.identities.text(identity).is_none_or(str::is_empty) {
+                return malformed("public contract lost an exact source identity");
+            }
+        }
+        if declaration.parameter_types.len()
+            != contract.parameter_order.len()
+                + contract.erased_scalar_formals.len()
+                + contract.erased_proof_formals.len()
+        {
+            return malformed("public contract source signature has another formal roster");
+        }
+        validate_structural_parameters(module, &contract.structural_parameters)?;
+        require_known_services(
+            module,
+            contract
+                .declared_service_reach
+                .as_deref()
+                .unwrap_or_default(),
+        )?;
+        require_known_services(
+            module,
+            contract
+                .declared_synchronous_entries
+                .as_deref()
+                .unwrap_or_default(),
+        )?;
+        require_known_services(module, &contract.published_service_ceiling)?;
+        require_known_services(module, &contract.published_synchronous_entries)?;
+        for formal in contract
+            .parameters
+            .iter()
+            .chain(&contract.erased_scalar_formals)
+            .chain(contract.result.scalar_ref())
+        {
+            if qualification_domains(module, formal.qualifications).is_none() {
+                return malformed("public contract scalar formal has unknown qualifications");
+            }
+        }
+        let places = contract
+            .structural_parameters
+            .iter()
+            .map(|parameter| {
+                (
+                    parameter.place,
+                    StructuralPlaceKind::Parameter {
+                        position: parameter.position,
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+        let requires = PropositionContext::from_value_types_and_places(
+            contract
+                .parameters
+                .iter()
+                .chain(&contract.erased_scalar_formals)
+                .map(|formal| (formal.id, formal.scalar_type)),
+            places.iter().copied(),
+        )
+        .map_err(CodecError::MalformedProposition)?;
+        for proposition in contract
+            .requires
+            .iter()
+            .chain(&contract.source_checked_requires)
+        {
+            requires
+                .validate(proposition)
+                .map_err(CodecError::MalformedProposition)?;
+        }
+        let result_place = match &contract.result {
+            TerminalMachineResult::Structural(result) => {
+                if !has_structural_type(module, result.structural_type) {
+                    return malformed("public contract result references an unknown type");
+                }
+                validate_structural_qualifications(
+                    module,
+                    result.structural_type,
+                    &result.qualifications,
+                    &result.projected_qualifications,
+                )?;
+                Some((result.place, StructuralPlaceKind::Result))
+            }
+            _ => None,
+        };
+        let ensures = PropositionContext::from_value_types_and_places(
+            contract
+                .parameters
+                .iter()
+                .chain(&contract.erased_scalar_formals)
+                .chain(contract.result.scalar_ref())
+                .map(|formal| (formal.id, formal.scalar_type)),
+            places.iter().copied().chain(result_place),
+        )
+        .map_err(CodecError::MalformedProposition)?;
+        for proposition in contract
+            .ensures
+            .iter()
+            .map(|clause| &clause.proposition)
+            .chain(
+                contract
+                    .outcome_specific_ensures
+                    .iter()
+                    .map(|clause| &clause.proposition),
+            )
+        {
+            ensures
+                .validate(proposition)
+                .map_err(CodecError::MalformedProposition)?;
+        }
+        for bucket in contract
+            .crash_routes
+            .iter()
+            .chain(contract.declared_crash_routes.iter().flatten())
+        {
+            for guard in &bucket.alternatives {
+                if let terminal_psi::CrashRouteGuard::Predicate(predicate) = guard {
+                    requires
+                        .validate(predicate.proposition())
+                        .map_err(CodecError::MalformedProposition)?;
+                }
+            }
+        }
+        for claim in &contract.entry_claims {
+            let parameter = contract
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == claim.input)
+                .ok_or(CodecError::MalformedStructuralFoundation(
+                    "public contract claim has no structural formal",
+                ))?;
+            if parameter.multiplicity == StructuralMultiplicity::Unrestricted {
+                return malformed("public contract claim cannot bind an unrestricted formal");
+            }
+            validate_structural_path(module, parameter.structural_type, &claim.path)?;
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<(), CodecError> {
+    validate_declaration_contracts(module)?;
     scalar_applications::validate(module)?;
     task_activation::validate(module)?;
     module

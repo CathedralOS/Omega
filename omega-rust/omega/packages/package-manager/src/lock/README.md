@@ -61,7 +61,7 @@ review snapshots.
 Under the owner ruling of 2026-10-03, ordinary compilation compares every accepted
 occurrence's source and compiler identities, including the root, before using
 its retained bindings. A match skips package-review discovery/bound passes. A
-mismatch rejects with the package name and `omega update`; compilation does not
+mismatch rejects with the package name and `omega packages update`; compilation does not
 perform an inline audit or update acceptance. The compiler input digest joins
 the compiler's embedded build-input identity with the selected toolchain library
 content. It invalidates stale acceptance; it is not compiler, host, or reviewer

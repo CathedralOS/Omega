@@ -184,14 +184,14 @@ either becomes the real surface or deletes.
 - One invocation over `{linux_x86_64, windows_x86_64}` performs source
   loading, parsing, resolution, typing, and build evaluation once each
   (measurable via `--timings` legs or a test counting stage entries).
-- A two-target package operation (e.g. `omega audit packages --target a
+- A two-target package operation (e.g. `omega packages audit --target a
   --target b`) makes one compile call, not one per target.
 - Per-target diagnostics and outcomes are unchanged in content and
   attribution; a one-target rejection does not suppress siblings.
 - `NativeInputReuse`, `repeat_n` source cloning, and
   `CandidateSourcePreparation` are gone or reduced to trivial ownership
   transfer — identical work is never performed rather than deduplicated after.
-- Single-target CLI behavior (`--check`, native, `run`, `inspect-terminal`)
+- Single-target CLI behavior (`--check`, native, `run`, `psi inspect`)
   is byte-identical in observable output.
 - The named spine exists: the stage order for each product is readable in one
   function per product, matching `omega-rust/pipeline.md`'s table.

@@ -70,9 +70,9 @@ With an exact qualified compiler, from the repository root:
 
 ```sh
 project=samples/cli/independent/orbital_dynamics
-omega update --project "$project" --target linux_x86_64
+omega packages update --project "$project" --target linux_x86_64
 # Read the generated review; accept only the intended scoped decisions.
-omega update --resume --project "$project"
+omega packages update --resume --project "$project"
 omega --check "$project/main.omg"
 omega run --both --keep "$project/main.omg" < "$project/data/circular.stdin"
 python3 -B "$project/validation/run_native.py" /path/to/retained/executable /path/to/native-observations

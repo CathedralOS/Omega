@@ -16,8 +16,8 @@
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
 
-use lowered_discharge::{RouteVerdict, judge};
-use structure_elaboration::{Compilation, elaborate};
+use terminal_psi_to_terminal_psi::{RouteVerdict, judge};
+use typed_trees_to_terminal_psi::{Compilation, elaborate};
 
 // Fixture compilation shares process-wide counters; run one at a time.
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());

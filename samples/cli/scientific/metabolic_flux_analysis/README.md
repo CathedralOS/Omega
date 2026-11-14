@@ -68,7 +68,7 @@ From repository root, using the documented environment setup and its authorized
 execution route:
 
 ```
-omega update --project samples/cli/independent/metabolic_flux_analysis --target linux_x86_64
+omega packages update --project samples/cli/independent/metabolic_flux_analysis --target linux_x86_64
 omega run samples/cli/independent/metabolic_flux_analysis/main.omg < samples/cli/independent/metabolic_flux_analysis/input.txt
 python3 samples/cli/independent/metabolic_flux_analysis/validation/validate.py --omega /absolute/path/to/omega --route all
 ```
