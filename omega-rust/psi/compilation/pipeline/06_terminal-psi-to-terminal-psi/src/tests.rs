@@ -50,6 +50,7 @@ mod ranges;
 mod reach;
 mod references;
 mod result_summaries;
+mod runtime_indexed_elements;
 mod sequence_regions;
 mod stored_views;
 mod type_parameters;
