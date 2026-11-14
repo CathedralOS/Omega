@@ -443,6 +443,37 @@ impl<'program> DeclaredCallTargets<'program> {
             )
     }
 
+    /// The public requirement is the authored target; the named map owns
+    /// its separate body demand. Close only a unique owned row with its real
+    /// entry state, leaving open maps and reference selections unresolved.
+    fn owned_named_call(&self, target: SymbolHandle, receiver: CallReceiver) -> bool {
+        let CallReceiver::Named(namespace) = receiver else {
+            return false;
+        };
+        let Ok(Some((owner, row, _))) = self.program.named_conformance_member(namespace, target)
+        else {
+            return false;
+        };
+        if !row.source.owns_realization() {
+            return false;
+        }
+        let Some((actual_owner, actual_row)) = self
+            .program
+            .owned_conformance_realization(row.realization_machine)
+        else {
+            return false;
+        };
+        let Some(machine) = self.program.machine_by_symbol(row.realization_machine) else {
+            return false;
+        };
+        let [entry] = self.program.machine_states(machine) else {
+            return false;
+        };
+        actual_owner.symbol == owner.symbol
+            && actual_row == row
+            && entry.symbol == row.realization_state
+    }
+
     /// What a call typing did not bind still asks of a later pass, or `None`
     /// for a call of a declared target.
     fn unserved(&self, target: SymbolHandle, receiver: CallReceiver) -> Option<DeferredRequest> {
@@ -466,8 +497,9 @@ impl<'program> DeclaredCallTargets<'program> {
     }
 }
 
-/// Records every call typing left without a declared target on the
-/// declaration that holds it (`typed_trees::deferred_refusals`).
+/// Closes exact named operation choices before recording calls typing left
+/// without a declared target on their owning declaration. Selection closure
+/// identifies a public requirement; it grants no body or contract judgment.
 ///
 /// Typing sees the program with every bundled library and does not know what
 /// an entry reaches, so such a call is not an error of the program: it is a
@@ -483,6 +515,7 @@ pub(crate) fn defer_unbound_calls(
     use typed_trees::statement::TransitionTargetNode;
     let mut in_expressions = Vec::new();
     let mut in_declarations = Vec::new();
+    let mut closed_selections = Vec::new();
     {
         let program = &*program;
         let targets = DeclaredCallTargets::new(program);
@@ -502,6 +535,11 @@ pub(crate) fn defer_unbound_calls(
             if let Some(request) = targets.unserved(call.target_symbol, receiver) {
                 in_expressions.push((handle, request));
             }
+            if targets.owned_named_call(call.target_symbol, receiver)
+                && let Some(occurrence) = call.authored_call_selection
+            {
+                closed_selections.push((occurrence, call.target_symbol));
+            }
         }
         for (ordinal, machine) in program.machines().iter().enumerate() {
             let in_cohort = ordinal >= frontier || completed.contains(&machine.symbol);
@@ -519,6 +557,11 @@ pub(crate) fn defer_unbound_calls(
                         };
                         if let Some(request) = targets.unserved(call.target_symbol, receiver) {
                             in_declarations.push((machine.symbol, request, call.source_span));
+                        }
+                        if targets.owned_named_call(call.target_symbol, receiver)
+                            && let Some(occurrence) = call.authored_call_selection
+                        {
+                            closed_selections.push((occurrence, call.target_symbol));
                         }
                     }
                     let Some(transition) = statement.as_transition() else {
@@ -569,6 +612,50 @@ pub(crate) fn defer_unbound_calls(
                     .with_source_span(source_span));
                 }
             }
+        }
+    }
+    if !closed_selections.is_empty() {
+        use typed_trees::{
+            AuthoredDeclarationSelectionKind as Kind,
+            AuthoredDeclarationSelectionLateBinding as Binding,
+            AuthoredDeclarationSelectionTarget as Target,
+        };
+        for (occurrence, target) in closed_selections {
+            let selection = program
+                .authored_declaration_selections()
+                .get(occurrence)
+                .ok_or_else(|| {
+                    Diagnostic::error("named operation call lost its authored selection")
+                })?;
+            let span = selection.source_span();
+            if selection.kind() != Kind::Call {
+                return Err(
+                    Diagnostic::error("named operation call has a non-call selection")
+                        .with_source_span(span),
+                );
+            }
+            match selection.target() {
+                Target::Resolved(actual) if actual.selected_symbol() == target => continue,
+                Target::LateBound(Binding::CheckedCall) => {}
+                _ => {
+                    return Err(Diagnostic::error(
+                        "named operation call has contradictory selection custody",
+                    )
+                    .with_source_span(span));
+                }
+            }
+            program
+                .finalize_late_bound_authored_declaration_selection(
+                    occurrence,
+                    Binding::CheckedCall,
+                    target,
+                )
+                .map_err(|error| {
+                    Diagnostic::error(format!(
+                        "named operation call lost its closed choice: {error:?}"
+                    ))
+                    .with_source_span(span)
+                })?;
         }
     }
     for (declaration, request, source_span) in in_declarations {

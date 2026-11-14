@@ -2874,6 +2874,19 @@ pub(crate) mod declaration_tables {
                 .record_late_bound(source_span, exposure, kind, binding)
         }
 
+        /// Close one retained source choice through its existing ledger
+        /// protocol without copying every unrelated selection in the cohort.
+        pub fn finalize_late_bound_authored_declaration_selection(
+            &mut self,
+            occurrence: language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+            expected: language_semantics::declaration_selection::AuthoredDeclarationSelectionLateBinding,
+            selected: symbols::SymbolHandle,
+        ) -> Result<(), language_semantics::declaration_selection::AuthoredDeclarationSelectionFinalizationError>{
+            self.tables
+                .authored_declaration_selections
+                .finalize_late_bound(occurrence, expected, selected)
+        }
+
         pub fn record_resolved_authored_declaration_selection_once(
             &mut self,
             source_span: source::SourceSpan,
