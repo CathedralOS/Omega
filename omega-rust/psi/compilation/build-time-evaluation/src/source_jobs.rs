@@ -1689,7 +1689,7 @@ pub(crate) mod tests {
         let error = run(&entry, &[unknown], &mut meter)
             .expect_err("unknown case is not supplied by a number");
         assert!(
-            error.contains("case is not declared by its formal"),
+            error.contains("invocation case `#99` is not declared by formal"),
             "{error}"
         );
         assert_eq!(meter.usage().total_units(), 0);

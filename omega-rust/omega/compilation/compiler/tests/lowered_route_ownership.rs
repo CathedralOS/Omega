@@ -431,6 +431,7 @@ machine main() crashes Trap {
             typed_trees_to_terminal_psi::prepare_compilation(
                 &frontier.typed,
                 Compilation {
+                    declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
                     purpose: source::DependencyScope::Product,
