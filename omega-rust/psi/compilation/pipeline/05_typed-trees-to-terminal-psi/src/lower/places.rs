@@ -2507,6 +2507,75 @@ impl<'a> Lowering<'a> {
         .map(Reached::Value)
     }
 
+    /// `left == right` on two borrowed byte views. Each operand is located
+    /// in source order, then each is measured, then the two are compared:
+    /// the comparison names each measurement as the length of its operand
+    /// (byte_views.md, "The operand retains its own dominating length
+    /// observation, readable access, and establishment").
+    pub(super) fn byte_equal(
+        &mut self,
+        left: &Expression,
+        right: &Expression,
+        source: SourceOrigin,
+    ) -> Evaluation<Value> {
+        let left = continuing!(self.located(left));
+        let right = continuing!(self.located(right));
+        let count = ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid"),
+        );
+        let mut operands = Vec::with_capacity(2);
+        for at in [left, right] {
+            if !matches!(
+                self.record_type(at.record)?.shape,
+                StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+                })
+            ) {
+                return Err(self.internal("a byte comparison has no byte descriptor"));
+            }
+            // The comparison names a whole view root, as a byte read does.
+            if !at.path.is_empty() {
+                return Err(refuse(
+                    self.id,
+                    Construct::Machine,
+                    Unserved::Expression("comparison of a view stored in a field"),
+                ));
+            }
+            self.name_contents(at.place, ValueType::record(at.record))?;
+            self.project(at.place, Segment::Extent)?;
+            let view = StructuralArgument {
+                place: at.root,
+                path: Vec::new(),
+                access: StructuralAccess::SharedBorrow,
+            };
+            let measurement = self.operation_identity(source);
+            let Value::Scalar(length) = self.emit(
+                measurement,
+                Some(count),
+                OperationKind::ByteSequenceLength {
+                    source: view.clone(),
+                },
+            )?
+            else {
+                return Err(self.internal("a length observation produced no scalar"));
+            };
+            operands.push(terminal_psi::control_flow::ByteSequenceOperand::Whole {
+                source: view,
+                length,
+            });
+        }
+        let right = operands.pop().expect("two operands");
+        let left = operands.pop().expect("two operands");
+        let operation = self.operation_identity(source);
+        self.emit(
+            operation,
+            Some(ScalarType::Boolean),
+            OperationKind::ByteSequenceEqual { left, right },
+        )
+        .map(Reached::Value)
+    }
+
     /// `view[index]` on a borrowed byte view. The view is measured and then
     /// read, in that order and with nothing between: the read names the
     /// measurement as its length and owes `index < length` against it

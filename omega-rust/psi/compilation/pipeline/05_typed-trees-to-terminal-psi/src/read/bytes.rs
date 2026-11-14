@@ -247,6 +247,22 @@ impl Program<'_> {
         ))
     }
 
+    /// Whether a value of this type is a readable borrowed byte view with no
+    /// domain: domains.md, "Operands": "Builtin operators and comparisons
+    /// ... accept unqualified operands only."
+    pub(super) fn is_plain_readable_bytes(
+        &self,
+        machine: MachineId,
+        value: Option<ValueType>,
+    ) -> Checked<bool> {
+        match value {
+            Some(ValueType::Record(row, Qualification::NONE, _)) => {
+                self.is_readable_byte_view(machine, row)
+            }
+            _ => Ok(false),
+        }
+    }
+
     /// `view[index]`: one byte of a borrowed byte view. The index is a
     /// `u64` (byte_views.md, `ByteSequenceRead`: "`u64` index and length"),
     /// and whether it lies inside the view is the checker's judgment, not

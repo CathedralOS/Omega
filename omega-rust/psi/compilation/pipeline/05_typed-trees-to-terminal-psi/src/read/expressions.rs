@@ -304,6 +304,41 @@ impl<'t> Program<'t> {
                     )?;
                     (left, right)
                 };
+                // conformances.md, "Core equality acquisition": text is
+                // "compared by byte content". Two unqualified byte views
+                // compare by the bytes they hold; `!=` is that comparison
+                // negated (structural_predicates.md, "Byte-sequence equality
+                // compares live lengths and live byte prefixes").
+                if suffix.is_none()
+                    && matches!(
+                        binary.operator,
+                        BinaryOperator::Equal | BinaryOperator::NotEqual
+                    )
+                    && self.is_plain_readable_bytes(id, left.result)?
+                    && self.is_plain_readable_bytes(id, right.result)?
+                {
+                    let boolean = Some(ValueType::plain(ScalarType::Boolean));
+                    let equal = Expression {
+                        call_context: None,
+                        kind: ExpressionKind::Strict {
+                            operation: Strict::Equal,
+                            left: Box::new(left),
+                            right: Box::new(right),
+                        },
+                        result: boolean,
+                        source,
+                    };
+                    return Ok(if binary.operator == BinaryOperator::NotEqual {
+                        Expression {
+                            call_context: None,
+                            kind: ExpressionKind::Not(Box::new(equal)),
+                            result: boolean,
+                            source,
+                        }
+                    } else {
+                        equal
+                    });
+                }
                 let anonymous = (
                     self.wholly_anonymous(binary.left),
                     self.wholly_anonymous(binary.right),
