@@ -1658,6 +1658,7 @@ pub(crate) mod total_scalar_identity_rules {
     #[cfg(test)]
     mod width_tests {
         use super::*;
+        use semantic_vocabulary::IntegerSign;
 
         #[test]
         fn bitwise_all_ones_requires_an_unsigned_endpoint_without_dropping_zero_laws() {
