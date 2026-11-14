@@ -87,7 +87,7 @@ pub(super) fn validate(
     let signed_wide = IntegerType::new(IntegerSign::Signed, 64).map_err(|_| invalid())?;
     let scalar = ScalarType::Integer;
     let selector_valid = matches!(signature.scalar_parameters.as_slice(),
-        [ScalarType::Integer(integer)] if integer.bits() == 32 && !integer.is_address());
+        [ScalarType::Integer(integer)] if integer.bits() == Some(32) && !integer.is_address());
     let status_valid = signature.result.is_unit()
         || signature.result.scalar() == Some(scalar(signed))
         || (matches!(namespace, ClockNamespace::Linux)
@@ -157,6 +157,9 @@ pub(super) fn validate(
             ClockOperation::Nanosleep(timespec::admit(signature, storage_layouts, implementation)?)
         }
     };
+    // ABI geometry comes from the same published program that owns this import.
+    let closed_module = program.closed_module().map_err(|_| invalid())?;
+    let closed_types = closed_module.closed_types();
     let mut native_signature = CallSignature {
         parameters: Vec::new(),
         result: None,
@@ -168,8 +171,8 @@ pub(super) fn validate(
                 let Some(ScalarType::Integer(integer)) = scalar_parameters.next() else {
                     return Err(invalid());
                 };
-                let bytes = integer.bits() / 8;
-                ValueShape::integer(u32::from(bytes), bytes)
+                let integer = closed_types.integer(*integer).map_err(|_| invalid())?;
+                ValueShape::for_closed_integer(integer).ok_or_else(invalid)?
             }
             BoundaryParameterKind::Structural => ValueShape::integer(8, 8),
         };
@@ -177,8 +180,8 @@ pub(super) fn validate(
     }
     native_signature.result = match signature.result.scalar() {
         Some(ScalarType::Integer(integer)) => {
-            let bytes = integer.bits() / 8;
-            Some(ValueShape::integer(u32::from(bytes), bytes))
+            let integer = closed_types.integer(integer).map_err(|_| invalid())?;
+            Some(ValueShape::for_closed_integer(integer).ok_or_else(invalid)?)
         }
         _ => None,
     };
