@@ -230,7 +230,9 @@ machine build_entry(session: &mut Session) { session.ready = true; }
 
 /// A declaration the program never names as a type has no occurrence to
 /// keep. It is still a record of the judged program, identified by its
-/// declaration; data with a type parameter is not such a record.
+/// declaration. Data with a type parameter is not such a record: it has no
+/// field types until a type applies it, so the declaration is read as
+/// written and gives no row. One that also declares a lifetime is not read.
 #[test]
 fn a_declaration_nothing_names_is_a_record_without_an_occurrence() {
     assert_eq!(
@@ -243,13 +245,23 @@ machine build_entry() { }
         [("Unused".to_owned(), false)]
     );
     assert_eq!(
-        refusal(
+        record_rows(
             r#"
 data Unused<Payload> { count: u32; payload: Payload; }
 machine build_entry() { }
 "#
         ),
-        "type generic data"
+        []
+    );
+    assert_eq!(
+        refusal(
+            r#"
+data Unused<'held, Payload> { count: u32; payload: &'held Payload; }
+machine build_entry() { }
+"#
+        ),
+        "type generic data with lifetimes, bounds, requirements, cleanup, a quotient or retired \
+         members"
     );
 }
 

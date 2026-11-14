@@ -998,7 +998,7 @@ pub(crate) mod const_arguments {
                 }
                 // `Buffer<capacity()>`: the evaluator gives the call its
                 // value, and that value is one of the type the machine
-                // returns. generics.md, "Generic declarations": "`const N:
+                // returns. generics.md, "Applications and specialization": "`const N:
                 // u64` binds a static value of the declared carrier", and
                 // "Transparent type aliases": "A computed const value
                 // retains its declared carrier". A machine that returns
