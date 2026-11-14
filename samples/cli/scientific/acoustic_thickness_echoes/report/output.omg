@@ -1,5 +1,6 @@
 use omega_language_std::console;
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_i64_to_i32_saturating;
+use omega::language::core::narrow_u64_to_i64_saturating;
 use model::records;
 // Decimal output is authored here rather than relying on a numeric library.
 public machine write_number(value: i64 in Saturating) reaches Console

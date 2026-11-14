@@ -23516,6 +23516,33 @@ mod structural {
                         alignment: 8,
                     }],
                 };
+                assert_eq!(
+                    super::super::incoming_location(StructuralAccess::Owned, &placement).unwrap(),
+                    StructuralSourceLocation::IncomingIndirectPointer { register }
+                );
+                let mut stack = placement.clone();
+                let [ValueLocation::Indirect { pointer, .. }] = stack.locations.as_mut_slice()
+                else {
+                    panic!("one indirect parameter");
+                };
+                *pointer = IndirectPointerLocation::Stack {
+                    stack_byte_offset: 32,
+                    alignment: 8,
+                };
+                let location = super::super::incoming_location(StructuralAccess::Owned, &stack)
+                    .expect("owned stack pointer retains its residence");
+                assert_eq!(
+                    location,
+                    StructuralSourceLocation::IncomingIndirectStackPointer {
+                        stack_byte_offset: 32,
+                        alignment: 8,
+                    }
+                );
+                assert!(
+                    validate_incoming_location(StructuralAccess::Owned, &stack, location).is_ok()
+                );
+                stack.shape = ValueShape::integer(8, 8);
+                assert!(super::super::incoming_location(StructuralAccess::Owned, &stack).is_err());
                 assert!(
                     validate_incoming_location(
                         StructuralAccess::Owned,
@@ -23750,9 +23777,20 @@ mod structural {
                     "owned incoming home differs from value shape",
                 ));
             }
-            return Ok(
-                crate::installation_record::graph_structural::indirect_source_location(pointer),
-            );
+            return Ok(match pointer {
+                IndirectPointerLocation::Register(register) => {
+                    StructuralSourceLocation::IncomingIndirectPointer {
+                        register: *register,
+                    }
+                }
+                IndirectPointerLocation::Stack {
+                    stack_byte_offset,
+                    alignment,
+                } => StructuralSourceLocation::IncomingIndirectStackPointer {
+                    stack_byte_offset: *stack_byte_offset,
+                    alignment: *alignment,
+                },
+            });
         }
         let scalar_descriptor =
             placement.shape.class == calling_conventions::ValueClass::BorrowedScalarReference;

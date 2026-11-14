@@ -891,7 +891,7 @@ impl Analysis<'_> {
                 if self.root(projection.root)?.is_none() {
                     return Ok(());
                 }
-                let path = self.canonical(projection.root, projection.path)?;
+                let (path, _) = self.observed(projection.root, projection.path)?;
                 self.read(state, projection.root, &path, site)
             }
             StructuralStorageUse::Canonical { root, path }
@@ -947,8 +947,12 @@ impl Analysis<'_> {
                 ..
             } => {
                 if self.root(*destination)?.is_some() {
-                    let mut path = self.canonical(*destination, path)?;
-                    path.push(Segment::Field(*field));
+                    // A scalar written into an element chosen at run time
+                    // needs that element's home live, so the whole array.
+                    let (mut path, exact) = self.observed(*destination, path)?;
+                    if exact {
+                        path.push(Segment::Field(*field));
+                    }
                     if state.regions[index(destination.get())?].is_none() {
                         self.read(state, *destination, &path, site)?;
                     } else if !state.regions[index(destination.get())?]
@@ -1252,6 +1256,63 @@ impl Analysis<'_> {
             .ok_or(Error::Unsupported(
                 "affine projection outside the static structural vocabulary",
             ))
+    }
+
+    /// The region an observation of `path` under `root` depends on, and
+    /// whether that region is exactly the projected place.
+    ///
+    /// A projection whose every step is static has exactly its own region.
+    /// An element chosen at run time has none of its own: which element it
+    /// is is not known here, so the observation depends on the whole fixed
+    /// array it indexes and is answered from that array's region. This is
+    /// the only widening, and it is one-sided: it can refuse an observation
+    /// of an element that is in fact available, never admit one of an
+    /// element that is not. Nothing is moved or established through it; a
+    /// transfer keeps `canonical`, which has no region for such an element.
+    fn observed(
+        &self,
+        root: PlaceId,
+        path: &[StructuralPathSegment],
+    ) -> Result<(Vec<Segment>, bool), Error> {
+        match self.canonical(root, path) {
+            Ok(exact) => return Ok((exact, true)),
+            Err(Error::Unsupported(_)) => {}
+            Err(malformed) => return Err(malformed),
+        }
+        let outside =
+            Error::Unsupported("affine projection outside the static structural vocabulary");
+        let declaration = self
+            .root(root)?
+            .ok_or(Error::Malformed("untracked affine root"))?;
+        let Some(indexed) = path
+            .iter()
+            .position(|segment| matches!(segment, StructuralPathSegment::RuntimeIndex { .. }))
+        else {
+            return Err(outside);
+        };
+        let Some((array, indexed_type)) = crate::canonical_static_projection(
+            self.types.iter(),
+            declaration.structural_type,
+            &path[..indexed],
+        ) else {
+            return Err(outside);
+        };
+        // An element view's elements lie outside the storage that holds the
+        // view, so only an inline array's region covers its elements. The
+        // rest of the path must still be a projection the types declare.
+        if !matches!(
+            indexed_type.shape,
+            terminal_psi::StructuralTypeShape::FixedArray { .. }
+        ) || crate::runtime_structural_path_tip(
+            self.types.iter(),
+            declaration.structural_type,
+            path,
+        )
+        .is_none()
+        {
+            return Err(outside);
+        }
+        Ok((array, false))
     }
 
     fn read(

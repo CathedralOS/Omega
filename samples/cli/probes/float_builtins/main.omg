@@ -1,5 +1,8 @@
-use omega::language::core::math;
-use omega::language::core::float_operations;
+use omega::language::core::max_f32;
+use omega::language::core::min_f32;
+use omega::language::core::min_f64;
+use omega::language::core::sqrt_f32;
+use omega::language::core::sqrt_f64;
 
 // Ordinary float extrema and roots imported from std math. Carrier-specific
 // declarations select f32 or f64, including for anonymous literal operands.

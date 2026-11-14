@@ -1,6 +1,6 @@
 module io::report;
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::I64::from_f64;
 use io::decimal;
 // Sixteen significant decimal digits with explicit exponent. Normalization bounds integer
 // conversion without imposing an arbitrary application concentration limit.
@@ -34,7 +34,8 @@ public machine scaled(value:f64,offset:i64 in Wrapping) reaches Console invokes 
 // deviations refuse. This changes reporting, never a transport weight.
 use model::scale;
 use model::courant;
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_i64_to_u64_saturating;
+use omega::language::core::narrow_u64_to_i64_saturating;
 public machine field(value:f64,power:i32 in Wrapping,lower:u64 in Wrapping,lower_power:i32 in Wrapping,upper:u64 in Wrapping,upper_power:i32 in Wrapping,lower_value:f64,lower_value_power:i32 in Wrapping,upper_value:f64,upper_value_power:i32 in Wrapping) reaches Console invokes Console {
  let mut parts:model::scale::Scale; model::scale::normalize(value,&mut parts);
  let scaled:f64=parts.mantissa*1000000000000000.0;

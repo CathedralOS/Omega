@@ -1,4 +1,4 @@
-use omega::language::core::program_image;
+use omega::language::core::ProgramImage;
 
 boundary trait Unprovided {
     machine value() -> addr reaches;

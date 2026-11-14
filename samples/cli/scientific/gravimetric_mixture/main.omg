@@ -3,7 +3,7 @@
 // Expected exit: 2.
 // Expected output contains: INVALID: record
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::I32::from_f64;
 use domain::mixture;
 
 data Main {

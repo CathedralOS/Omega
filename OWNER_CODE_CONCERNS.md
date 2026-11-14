@@ -185,13 +185,6 @@ framework or a list of features that remain unimplemented.
 - Cost: the surviving producer and consumers agree by spelling rather than a shared typed value; a reader that misses the form fails only at run time (`None`, or "dynamic family tuple identity is not an integer constant").
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### A structural path segment has five hand-written byte encoders with three different numberings
-- Category: one idea, several implementations
-- Where: `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/identity.rs:213` and `.../optimization-unit/src/ownership.rs:171`, `.../selected-instructions/src/effects/program/identity.rs:476`, `.../selected-instructions/src/plan_identity.rs:606`, `.../target-operations/legalized-operations/src/identity/structural_types.rs:208`
-- Saw: each file matches on all eight `StructuralPathSegment` variants and writes its own tag bytes; `RuntimeIndex` is 5 in three of them, 6 in the machine-effect identity and 4 in the selected plan identity, where `Field`, `FixedIndex`, `Referent` and `FixedRange` are also renumbered
-- Cost: a new path segment kind needs five encoders and at least two decoders (`register-homes/src/recovery/structural_declarations.rs:714`, `selected-instructions/src/effects/program/encoding.rs:1654`) edited by hand, and nothing says which numbering is the reference
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### The Omega unit validator carries copies of two Terminal Psi codec checks
 - Category: one idea, several implementations
 - Where: `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs:17909` and `:17846`, against `omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs:8566` and `:11744`
@@ -281,13 +274,6 @@ framework or a list of features that remain unimplemented.
 - Where: `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/fragment_object_publication.rs:161`, `.../native-artifact/src/physical/derivation/evidence.rs:78-79`, `.../native-artifact/src/physical/` (10,168 lines)
 - Saw: the only non-test place that sets a scope sets `NativePhysicalEvidenceScope::Unavailable`, and derivation returns at once for that scope; the other two scopes are built only in `native_artifact/tests.rs`; seven `#[expect(dead_code)]` markers say "unwired, not superseded" and point at a task
 - Cost: the artifact identity and validation chain carry an evidence slot that is always empty; an agent fixing custody code there is fixing code no shipped compile runs
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### The installed-code path is types and plans with no producer and no caller
-- Category: zombie machinery
-- Where: `omega-rust/omega/compilation/backend/runtime/executable-installation/` (1,062 lines), `omega-rust/omega/compilation/backend/plans/program-entry-plan/Cargo.toml:13` and `src/lib.rs:28`, `:41-47`, `omega-rust/omega/compilation/backend/images/image-emission/src/installation_record.rs:36`
-- Saw: no struct literal anywhere builds `InstalledCode`, `CodePlacement`, `FrozenPlacement`, `ValidatedPlacement`, `AdmittedArtifact` or `ArtifactRecord`; the feature `installed-writer` that compiles the 330-line `post_handoff_writer.rs` is enabled by no manifest in the repository; the three exported entry points of `optimized_semantic_entry.rs` and `optimized_semantic_wrapper.rs` (1,183 lines) have no caller beyond their re-export; `InstallationError` in image-emission has no constructor
-- Cost: about 2,500 lines look like a working installation pipeline and are compiled, linted and kept in step by hand, some of it not even built by default
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### `pipeline.md` says the default compile runs no stage validators; two run, and one stage header misdescribes its own

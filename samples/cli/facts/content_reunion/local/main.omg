@@ -1,8 +1,8 @@
 // One owned root may be partitioned and reconstructed from its complete live descendant claims; equal geometry alone supplies no ownership.
 // Expected exit: 0
-use omega::language::core::content;
-use omega::language::core::drop;
-use omega::language::core::nat;
+use omega::language::core::Content;
+use omega::language::core::IntervalSet;
+use omega::language::core::Nat;
 
 data Region [linear] dropped by drop_region { base: u64; length: u64; }
 

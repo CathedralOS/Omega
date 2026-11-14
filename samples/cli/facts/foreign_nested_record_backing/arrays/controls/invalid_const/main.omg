@@ -1,7 +1,7 @@
 // Fact: Completion consumes Pending and returns the original nested array Buffer with its declared ResidentValue and MarkerValue predicates restored, permitting exact subtraction; C writes the middle cell to 73 while marker 91, neighbors 305419896 and 1515863100, and the earlier copy 37 stay unchanged.
 // Expected rejection: invalid ResidentValue constant. Completion updates the nested cell; marker and copied scalar retain their original values.
-use omega::language::core::content;
-use omega::language::core::drop;
+use omega::language::core::Content;
+use omega::language::core::CountedQuantity;
 public data ByteUnit {}
 public domain u64::ResidentValue requires self >= 0 && self <= 2147483647 && self != 42;
 public domain u64::MarkerValue requires self >= 0 && self <= 100;

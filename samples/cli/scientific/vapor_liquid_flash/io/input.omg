@@ -1,6 +1,6 @@
 module io::input;
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::I32::from_f64;
 
 public data Raw { values: [f64; 17]; count: u32; }
 public data Feed { count: u32; fractions: [f64; 8]; ratios: [f64; 8]; }

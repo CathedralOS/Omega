@@ -2,7 +2,7 @@
 use domain::input;
 use domain::model;
 use domain::report;
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i32;
 use omega_language_std::console;
 
 data Application { reader: Reader; }

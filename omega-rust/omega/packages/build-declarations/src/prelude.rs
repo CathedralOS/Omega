@@ -21,7 +21,9 @@ const BUILD_PRELUDE: &str = r#"
 // Toolchain-provided build vocabulary.
 use omega::language::core::AccessPolicy;
 use omega::language::core::AccessPlan;
-use omega::language::core::Schema;
+use omega::language::core::reflect::TypeSchema;
+use omega::language::core::Issuance;
+use omega::language::core::AccessPlan::new;
 public data Subsystem {
     case Console;
     case Gui;
@@ -229,9 +231,8 @@ public data BuildTests {
 public data BuildSeal {
 }
 BuildSealAccess satisfies AccessPolicy {
-    machine plan(schema: Schema) -> AccessPlan {
-        let plan: AccessPlan;
-        plan
+    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
+        AccessPlan::new(&schema, Issuance::Only { routes: [] })
     }
 }
 public domain BuildSeal::Issued

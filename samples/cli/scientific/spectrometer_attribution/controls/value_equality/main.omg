@@ -2,7 +2,7 @@
 // Expected output contains: float equality: equal and unequal
 module spectrometer_equality_control;
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i32;
 
 public data Main { }
 

@@ -3,7 +3,6 @@
 // ticket, affine label and assigned worker. Completing either job consumes both
 // tickets and checks their contents and worker association before returning its
 // checksum. Zero, odd and even rounds select the corresponding job.
-use omega::language::core::drop;
 
 data Worker { identifier: u32; last_round: u32; }
 data Workers { first: Worker; second: Worker; }

@@ -1,4 +1,5 @@
-use omega::language::core::math;
+use omega::language::core::max_i32;
+use omega::language::core::min_i32;
 
 // A persistent software-rendered windowed calculator.
 //

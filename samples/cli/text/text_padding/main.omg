@@ -18,7 +18,7 @@
 // Expected output contains: ALERT temp
 
 use omega_language_std::console;
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_u64_to_i32_saturating;
 
 domain [u8]::Utf8
 requires

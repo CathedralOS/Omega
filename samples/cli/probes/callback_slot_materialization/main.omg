@@ -17,7 +17,12 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-use omega::language::core::layout;
+use omega::language::core::FieldEntry;
+use omega::language::core::FieldPlan;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutPlan::place_private;
+use omega::language::core::PrivateCallbackSlot;
+use omega::language::core::Schema;
 
 public boundary trait WindowProcedure {
     machine call(message: u64) reaches;

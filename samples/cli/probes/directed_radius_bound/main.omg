@@ -3,7 +3,14 @@
 // Directed square root of a planar radius. A 3-4-5 hypotenuse is exact in
 // every mode. sqrt(2) is not, so each directed mode selects its own neighbor
 // and nearest square root cannot stand in for a directed one.
-use omega::language::core::float_operations;
+use omega::language::core::F32::square_root;
+use omega::language::core::F32::square_root_toward_negative;
+use omega::language::core::F32::square_root_toward_positive;
+use omega::language::core::F32::square_root_toward_zero;
+use omega::language::core::F64::square_root;
+use omega::language::core::F64::square_root_toward_negative;
+use omega::language::core::F64::square_root_toward_positive;
+use omega::language::core::F64::square_root_toward_zero;
 use omega_language_std::console;
 
 data Main { squared: f64; }

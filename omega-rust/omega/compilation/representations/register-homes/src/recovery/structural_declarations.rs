@@ -699,23 +699,28 @@ fn decode_projection(
     cursor: &mut Cursor<'_>,
     tag: u8,
 ) -> Result<StructuralPathSegment, FixedViewCopyDecodeError> {
-    Ok(match tag {
-        1 => StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(cursor.u32()?)),
-        2 => StructuralPathSegment::FixedIndex(cursor.u64()?),
-        3 => StructuralPathSegment::Referent,
-        7 => StructuralPathSegment::Case(decode_id(
+    use terminal_psi::structural_path_encoding::SegmentTag as Tag;
+    let kind =
+        Tag::from_byte(tag).ok_or(FixedViewCopyDecodeError::UnknownStructuralPathSegment(tag))?;
+    Ok(match kind {
+        Tag::Field => {
+            StructuralPathSegment::Field(terminal_psi::TerminalIdentityIndex(cursor.u32()?))
+        }
+        Tag::FixedIndex => StructuralPathSegment::FixedIndex(cursor.u64()?),
+        Tag::Referent => StructuralPathSegment::Referent,
+        Tag::Case => StructuralPathSegment::Case(decode_id(
             cursor,
             semantic_vocabulary::StructuralCaseId::new,
         )?),
-        4 => StructuralPathSegment::FixedRange {
+        Tag::FixedRange => StructuralPathSegment::FixedRange {
             start: cursor.u64()?,
             end: cursor.u64()?,
         },
-        6 => StructuralPathSegment::RuntimeIndex {
+        Tag::RuntimeIndex => StructuralPathSegment::RuntimeIndex {
             index: decode_id(cursor, semantic_vocabulary::ValueId::new)?,
             obligation: decode_id(cursor, semantic_vocabulary::ObligationId::new)?,
         },
-        8 => StructuralPathSegment::RepresentationView {
+        Tag::RepresentationView => StructuralPathSegment::RepresentationView {
             structural_type: decode_id(cursor, StructuralTypeId::new)?,
             stored_scalar: if decode_bool(cursor)? {
                 Some(decode_scalar(cursor)?)
@@ -723,7 +728,9 @@ fn decode_projection(
                 None
             },
         },
-        tag => return Err(FixedViewCopyDecodeError::UnknownStructuralPathSegment(tag)),
+        Tag::AllElements => {
+            return Err(FixedViewCopyDecodeError::UnknownStructuralPathSegment(tag));
+        }
     })
 }
 

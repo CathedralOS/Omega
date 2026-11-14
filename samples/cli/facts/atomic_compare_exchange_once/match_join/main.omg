@@ -1,6 +1,7 @@
 // Expected exit: 0.
 // A single-attempt exchange reports success or the instruction-observed failure value at its exact atomic cell.
-use omega::language::core::layout;
+use omega::language::core::AtomicCompareExchangeOnceOutcome;
+use omega::language::core::write;
 data Cells { selected: AtomicU32; untouched: AtomicU32; }
 machine marked(outcome: AtomicCompareExchangeOnceOutcome<u32>, path: &write u64) -> AtomicCompareExchangeOnceOutcome<u32> {
     path = 1;

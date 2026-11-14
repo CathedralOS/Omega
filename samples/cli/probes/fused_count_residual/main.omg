@@ -13,7 +13,8 @@
 // AVX+FMA3; that feature is not inferred from the host.
 
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::F64::fused_multiply_add;
+use omega::language::core::F64::multiply_then_add;
 
 data Moment {
     differences: [f64; 3];

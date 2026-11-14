@@ -1,8 +1,7 @@
-use omega::language::core::math;
+use omega::language::core::abs_f64;
 
 // Runtime checks of the independently frozen oracle make Terminal exit
 // comparison meaningful despite the CLI exposing only native stdout.
-use omega::language::core::float_operations;
 use physics::model;
 public machine expected_result(lab:&Lab,choice:i32)->bool {
  transition choice {

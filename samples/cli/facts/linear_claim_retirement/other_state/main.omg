@@ -1,7 +1,6 @@
 // A linear Token [linear] carries its exact payload across the place and retires through its explicit consuming machine on every normal exit.
 // Place: other state. A successor state receives the linear Token before retirement.
 // Expected exit: 0
-use omega::language::core::drop;
 
 data Token [linear] dropped by drop_token { value: u64; }
 machine drop_token(token: &mut Token) {}

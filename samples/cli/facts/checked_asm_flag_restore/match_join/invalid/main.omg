@@ -1,5 +1,4 @@
 // A literal is not a saved-flags place.
-use omega::language::core::assembly;
 
 machine main() reaches MachineControl crashes Trap {
     join(true);

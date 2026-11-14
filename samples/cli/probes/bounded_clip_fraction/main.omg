@@ -3,7 +3,6 @@
 // numerator in [0, 4] by that denominator is computed.
 //
 // Expected exit: 0
-use omega::language::core::float_operations;
 
 data Gap { difference: f64; }
 

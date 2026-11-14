@@ -1,6 +1,6 @@
 // Specific enthalpy is zero at onset of melting. Both sensible phases
 // use the material's declared heat capacity. Temperature is continuous.
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i32;
 public data Material [copy] { mass: f64; capacity: f64; latent: f64; melting: f64; initial: f64; }
 public data Problem [copy] { first: Material; second: Material; conductance: f64; }
 public data Evolution [copy] { energy: f64; elapsed: f64; success: bool; }

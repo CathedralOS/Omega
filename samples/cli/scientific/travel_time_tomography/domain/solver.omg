@@ -4,7 +4,6 @@
 // this also includes all corners. Rank-one ties prefer the minimum norm.
 // Integer input gives exact Gram products within f64's integer range. A nonzero
 // two-column determinant is an integer >= 1, so the 0.5 rank cutoff is exact.
-use omega::language::core::float_operations;
 use domain::model;
 
 public data Normal [copy] { aa: f64; ab: f64; bb: f64; at: f64; bt: f64; }

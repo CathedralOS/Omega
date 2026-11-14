@@ -1,7 +1,8 @@
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::I64::from_f64;
 use domain::indexing;
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_i64_to_i32_saturating;
+use omega::language::core::narrow_u64_to_i32_saturating;
 // These exact metadata values are bounded by the search (at most 765
 // hypotheses and Miller components <=4), far below integer precision loss.
 public machine integer(value: u64) reaches Console invokes Console {

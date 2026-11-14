@@ -68,7 +68,6 @@ members = [
     "omega-rust/omega/foundation/platform-custody",
     "omega-rust/omega/compilation/backend/target",
     "omega-rust/omega/compilation/backend/calling-conventions",
-    "omega-rust/omega/compilation/backend/runtime/executable-installation",
     "omega-rust/omega/compilation/backend/plans/post-handoff-writer-plan",
     "omega-rust/omega/compilation/backend/plans/program-entry-plan",
     "omega-rust/omega/compilation/backend/artifacts/native-artifact",

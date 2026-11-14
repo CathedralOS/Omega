@@ -2,7 +2,7 @@
 // This retains picounit resolution for small displacements without overflowing
 // a scaled i64 when strain energy or work is large.
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::I64::from_f64;
 use domain::model;
 public data Output { }
 public machine write_scaled(output: &mut Output, value: f64) reaches Console invokes Console {

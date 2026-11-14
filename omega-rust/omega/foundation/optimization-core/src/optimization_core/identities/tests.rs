@@ -12,9 +12,6 @@ use super::{
     OptimizationValidatorIdentity, OptimizationWorkloadProfileIdentity,
     OptimizedAbstractPlanProjectionIdentity, OptimizedObjectArtifactIdentity,
     OptimizedObjectArtifactManifestIdentity, OptimizedOrdinaryCallableEntryManifestIdentity,
-    OptimizedProgramStorageSemanticWrapperObjectContainerIdentity,
-    OptimizedProgramStorageSemanticWrapperObjectIdentity,
-    OptimizedProgramStorageSemanticWrapperObjectManifestIdentity,
     OptimizedTerminalOrdinaryCallableEntryIdentity, PostAllocationOptimizationManifestIdentity,
     PreAllocationOptimizationCompletionIdentity, RelocationFreeObjectContainerIdentity,
     RelocationFreeObjectPlanIdentity, ScalarConstantFactIdentity,
@@ -75,13 +72,6 @@ fn identity_domains_are_distinct_for_equal_canonical_bytes() {
         OptimizedObjectArtifactManifestIdentity::from_canonical_bytes(b"same").bytes(),
         OptimizedTerminalOrdinaryCallableEntryIdentity::from_canonical_bytes(b"same").bytes(),
         OptimizedOrdinaryCallableEntryManifestIdentity::from_canonical_bytes(b"same").bytes(),
-        OptimizedProgramStorageSemanticWrapperObjectIdentity::from_canonical_bytes(b"same").bytes(),
-        OptimizedProgramStorageSemanticWrapperObjectContainerIdentity::from_canonical_bytes(
-            b"same",
-        )
-        .bytes(),
-        OptimizedProgramStorageSemanticWrapperObjectManifestIdentity::from_canonical_bytes(b"same")
-            .bytes(),
         OptimizationDecisionIdentity::from_canonical_bytes(b"same").bytes(),
         OptimizationDecisionSchemaIdentity::from_canonical_bytes(b"same").bytes(),
         OptimizationDecisionTargetIdentity::from_canonical_bytes(b"same").bytes(),

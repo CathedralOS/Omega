@@ -1,6 +1,9 @@
 // Fact: Explicit fallible representation conversions preserve the semantic byte across two selected formats, and malformed input never yields a destination.
 // Expected exit: 0
-use omega::language::core::conversion;
+use omega::language::core::Result;
+use omega::language::core::TryFrom;
+use omega::language::core::compose;
+use omega::language::core::convert;
 
 data FirstFrame [copy] { tag: u8; bits: u8; }
 data SecondFrame [copy] { tag: u8; bits: u8; }

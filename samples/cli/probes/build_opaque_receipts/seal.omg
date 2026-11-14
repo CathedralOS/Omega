@@ -2,7 +2,7 @@
 // its own satisfies lands textually later, reversing declaration order
 // relative to the two boundary data declarations' module order.
 
-use omega::language::core::representation;
+use omega::language::core::OpaqueRepresentation;
 
 public boundary data Seal;
 
