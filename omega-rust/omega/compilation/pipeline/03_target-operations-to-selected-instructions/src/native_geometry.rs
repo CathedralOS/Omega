@@ -50,11 +50,46 @@ impl<'a> NativeGeometries<'a> {
 pub(crate) struct NativeInput<'a, T> {
     source: &'a T,
     geometry: &'a NativeGeometry<'a>,
+    closed_types: Option<&'a terminal_codec::ClosedTypeCatalog>,
 }
 
 impl<'a, T> NativeInput<'a, T> {
     pub(crate) fn new(source: &'a T, geometry: &'a NativeGeometry<'a>) -> Self {
-        Self { source, geometry }
+        Self::with_types(source, geometry, None)
+    }
+
+    /// Published inputs retain their exact catalog. Independent plan metadata
+    /// has no publication authority and can only close concrete descriptors.
+    pub(crate) fn with_types(
+        source: &'a T,
+        geometry: &'a NativeGeometry<'a>,
+        closed_types: Option<&'a terminal_codec::ClosedTypeCatalog>,
+    ) -> Self {
+        Self {
+            source,
+            geometry,
+            closed_types,
+        }
+    }
+
+    pub(crate) fn closed_scalar(
+        &self,
+        scalar: semantic_vocabulary::ScalarType,
+    ) -> Option<semantic_vocabulary::ClosedScalarType> {
+        match self.closed_types {
+            Some(types) => types.scalar(scalar).ok(),
+            None => scalar.try_into().ok(),
+        }
+    }
+
+    pub(crate) fn closed_integer(
+        &self,
+        integer: semantic_vocabulary::IntegerType,
+    ) -> Option<semantic_vocabulary::ClosedIntegerType> {
+        match self.closed_types {
+            Some(types) => types.integer(integer).ok(),
+            None => integer.try_into().ok(),
+        }
     }
 
     pub(crate) fn geometry(&self) -> &'a NativeGeometry<'a> {
@@ -100,6 +135,45 @@ mod tests {
             descriptor_cleanup: false,
             scalar_restriction: None,
         }
+    }
+
+    #[test]
+    fn published_inputs_refuse_foreign_types_instead_of_closing_them_again() {
+        let integer = IntegerType::new(IntegerSign::Unsigned, 13).unwrap();
+        let scalar = ScalarType::Integer(integer);
+        let geometry = NativeGeometry::new(&[]).unwrap();
+        let source = ();
+        let independent = super::NativeInput::new(&source, &geometry);
+        assert_eq!(independent.closed_integer(integer).unwrap().bits(), 13);
+        let mut module = terminal_psi::TerminalModule::declarations();
+        let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
+        let identity = identities.intern("native_closed_input");
+        module.identities = identities.build();
+        let mut row = declaration(1, StructuralTypeShape::PrimitiveScalar(scalar));
+        row.identity = identity;
+        module.structural_types.push(row);
+        let published = terminal_codec::ClosedTerminalModule::new(module).unwrap();
+        let verified =
+            super::NativeInput::with_types(&source, &geometry, Some(published.closed_types()));
+        assert_eq!(verified.closed_integer(integer).unwrap().bits(), 13);
+        assert!(verified.closed_scalar(scalar).is_some());
+        let foreign = IntegerType::new(IntegerSign::Unsigned, 17).unwrap();
+        assert!(independent.closed_integer(foreign).is_some());
+        assert!(verified.closed_integer(foreign).is_none());
+        assert!(
+            verified
+                .closed_scalar(ScalarType::Integer(foreign))
+                .is_none()
+        );
+        let symbolic = IntegerType::parameterized(
+            IntegerSign::Unsigned,
+            semantic_vocabulary::WidthParameter {
+                owner: semantic_vocabulary::MachineId::new(1).unwrap(),
+                value: semantic_vocabulary::ValueId::new(1).unwrap(),
+            },
+        );
+        assert!(independent.closed_integer(symbolic).is_none());
+        assert!(verified.closed_integer(symbolic).is_none());
     }
 
     #[test]

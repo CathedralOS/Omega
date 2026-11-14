@@ -7024,6 +7024,7 @@ pub(crate) fn block_containing_operation(
 pub(crate) fn build_with_environment(
     function: usize,
     source: &legalized_operations::LegalizedScalarFunction,
+    closed_types: Option<&terminal_codec::ClosedTypeCatalog>,
     geometry: &crate::native_geometry::NativeGeometry<'_>,
     constraints: &SelectedSelectionConstraints,
     environment: &register_environment::ValidatedTargetRegisterEnvironment,
@@ -7033,7 +7034,7 @@ pub(crate) fn build_with_environment(
     interrupt_helpers: &crate::installed_interrupts::PreparedHelperCohort<'_>,
     installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
 ) -> Result<SelectedFunction, SelectedInstructionError> {
-    let source = crate::native_geometry::NativeInput::new(source, geometry);
+    let source = crate::native_geometry::NativeInput::with_types(source, geometry, closed_types);
     let mut current_operation = None;
     select_function(
         function,
