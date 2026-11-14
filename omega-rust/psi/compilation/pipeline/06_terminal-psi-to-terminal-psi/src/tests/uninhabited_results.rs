@@ -76,12 +76,12 @@ fn check_no_normal(accepted: &crate::verdict::AcceptedClosure) -> MachineId {
     accepted
         .publish_invocation()
         .expect("actual accepted publication");
-    let bytes = terminal_codec::encode_module(module).expect("the exact accepted module encodes");
-    assert_eq!(
-        terminal_codec::decode_module(&bytes)
-            .expect("receiving admission retains the empty-result proof"),
-        *module,
-    );
+    let closed = terminal_codec::ClosedTerminalModule::new(module.clone())
+        .expect("the exact invocation module encodes in its own scope");
+    let received =
+        terminal_codec::ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes())
+            .expect("receiving admission retains the empty-result proof");
+    assert_eq!(received.module(), module);
     *callee
 }
 
@@ -90,7 +90,7 @@ fn river(declarations: &str, result: &str) -> String {
         r#"
 {declarations}
 public machine halt() -> {result} crashes Trap {{ crash Trap; }}
-machine checked_value(value: u32, fatal: bool) -> u32
+public machine checked_value(value: u32, fatal: bool) -> u32
 ensures result == value
 crashes Trap {{
     transition fatal {{ true -> halt() false -> value }}
@@ -109,6 +109,20 @@ machine main() crashes Trap {{
 fn a_false_default_domain_preserves_the_actual_call_and_sibling_value() {
     let accepted = accepted(&river("public data Empty requires false {}", "Empty"));
     check_no_normal(&accepted);
+}
+
+#[test]
+fn a_first_empty_match_arm_does_not_choose_the_common_or_inferred_type() {
+    for matched in [
+        "match fatal { true -> halt() false -> value }",
+        "let inferred = match fatal { true -> halt() false -> value }; inferred",
+    ] {
+        let original = river("public data Empty requires false {}", "Empty");
+        let dispatch = "transition fatal { true -> halt() false -> value }";
+        assert_eq!(original.matches(dispatch).count(), 1);
+        let text = original.replace(dispatch, matched);
+        check_no_normal(&accepted(&text));
+    }
 }
 
 #[test]
@@ -182,5 +196,19 @@ fn an_impossible_postcondition_does_not_change_the_declared_result_type() {
     type_refusal(
         "public machine stop() -> u32 ensures false crashes Trap { crash Trap; } \
          machine main() crashes Trap { let value: bool = stop(); }",
+    );
+}
+
+#[test]
+fn a_nonreturning_initializer_does_not_replace_an_unreachable_locals_annotation() {
+    check_no_normal(&accepted(
+        "public data Empty requires false {} \
+         public machine halt() -> Empty crashes Trap { crash Trap; } \
+         machine main() crashes Trap { let n: u32 = halt(); }",
+    ));
+    type_refusal(
+        "public data Empty requires false {} \
+         public machine halt() -> Empty crashes Trap { crash Trap; } \
+         machine main() crashes Trap { let n: u32 = halt(); let b: bool = n; }",
     );
 }
