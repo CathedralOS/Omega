@@ -2855,7 +2855,7 @@ pub(crate) mod literal_compare_input {
         LegalizedScalarBlock, LegalizedScalarComparison, LegalizedScalarInstruction,
         LegalizedScalarInstructionKind,
     };
-    use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
+    use semantic_vocabulary::{IntegerSign, IntegerValue};
 
     fn folded_literal<'a>(
         function: &crate::native_geometry::NativeFunction<'_>,
