@@ -21514,7 +21514,6 @@ mod structural {
                     ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
                         Some(8)
                     }
-                    _ => None,
                 }
             }
 
