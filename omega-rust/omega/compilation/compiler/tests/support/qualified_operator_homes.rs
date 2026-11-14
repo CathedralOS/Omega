@@ -2,6 +2,9 @@
 
 use std::path::{Path, PathBuf};
 
+#[path = "fixture_package_inputs.rs"]
+mod fixture_package_inputs;
+
 const FILES: &[&str] = &[
     "app/main.omg",
     "app/build.omg",
@@ -14,9 +17,12 @@ struct Project(PathBuf);
 
 impl Project {
     fn copy_fixture(label: &str) -> Self {
+        let projects =
+            fixture_package_inputs::repo_root().join("build/qualified-operator-home/test-projects");
+        std::fs::create_dir_all(&projects).unwrap();
         let root = (0u64..)
             .find_map(|sequence| {
-                let path = std::env::temp_dir().join(format!(
+                let path = projects.join(format!(
                     "omega-operator-home-{}-{label}-{sequence}",
                     std::process::id()
                 ));
@@ -49,10 +55,17 @@ impl Drop for Project {
     }
 }
 
-fn check(main: &Path) -> compilation_products::CheckedCompileOutcome {
-    orchestration::check_source(
-        &mut compiler::CompilationSession::default(),
-        compiler::CheckedCompileRequest::new(main, Some("linux_x86_64")),
+fn check(main: &Path) -> Result<compiler::CheckedCompilation, Vec<diagnostics::Diagnostic>> {
+    // Dependencies belong to the same executed discovery and Product admission
+    // used by package-aware fixtures, before checking the retained target plan.
+    let mut prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+        main,
+        Some("linux_x86_64"),
+    )?;
+    fixture_package_inputs::check_fixture(
+        &mut prepared,
+        "linux_x86_64",
+        compiler::OptimizationRollback::default(),
     )
 }
 
@@ -62,9 +75,8 @@ fn domain_operators_cross_package_boundaries_without_importing_their_module() {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
             let positive = Project::copy_fixture("public");
-            let checked = check(&positive.main()).result.unwrap_or_else(|failure| {
-                panic!("public operator source: {:?}", failure.into_diagnostics())
-            });
+            let checked = check(&positive.main())
+                .unwrap_or_else(|diagnostics| panic!("public operator source: {diagnostics:?}"));
             let accepted = checked.terminal_publication().accepted().unwrap();
             let publication = accepted.closure().publish().unwrap();
             assert_eq!(publication.artifact.semantic_module(), accepted.module());
@@ -89,9 +101,8 @@ fn domain_operators_cross_package_boundaries_without_importing_their_module() {
             assert_ne!(changed, original);
             std::fs::write(declaration, changed).unwrap();
             let failure = check(&private.main())
-                .result
                 .expect_err("a public domain must not publish its private operator");
-            let diagnostics = failure.into_diagnostics();
+            let diagnostics = failure;
             assert!(
                 diagnostics.iter().any(|diagnostic| {
                     diagnostic.message.contains("operator")
