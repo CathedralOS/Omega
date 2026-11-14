@@ -1897,7 +1897,7 @@ pub(crate) mod owned_arguments {
         function: &abstract_operations::AbstractFunction,
         prepared: &crate::function_signature::PreparedFunctionSignature,
         live: &LiveDefinitions,
-        types: &StructuralLayouts<'_>,
+        types: &crate::structural_type_lookup::StructuralTypeLookup<'_>,
     ) -> Result<TargetStructuralArgument, LoweringError> {
         let invalid = |reason| LoweringError::InvalidOwnedStructuralArgument {
             source: argument.place,
