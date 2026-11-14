@@ -188,13 +188,19 @@ pub(crate) fn produce_products<Owner>(
 
     work.into_iter()
         .map(|(owner, planned)| {
-            let outcome = planned.and_then(|product| match terminals.next() {
-                Some(Ok(terminal)) => product.finish(terminal),
-                Some(Err(diagnostics)) => Err(diagnostics.into()),
-                None => Err(vec![Diagnostic::error(
-                    "Terminal production lost a requested application",
-                )]
-                .into()),
+            let outcome = planned.and_then(|product| {
+                let terminal = terminals.next().unwrap_or_else(|| {
+                    Err(vec![Diagnostic::error(
+                        "Terminal production lost a requested application",
+                    )])
+                });
+                match terminal {
+                    Ok(terminal) => product.finish(terminal),
+                    Err(diagnostics) => Err(CompilationProductError::from(diagnostics)
+                        .with_source_completion_accounting(
+                            product.source_completion_accounting().clone(),
+                        )),
+                }
             });
             (owner, outcome)
         })

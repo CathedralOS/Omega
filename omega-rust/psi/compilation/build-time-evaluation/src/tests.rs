@@ -1279,11 +1279,14 @@ fn an_exhausted_constant_job_keeps_its_failed_invocation_usage() {
     let crate::PureEvaluationRecord::Invocation(receipt) = &accounting.receipts()[0] else {
         panic!("actual invocation")
     };
-    assert!(receipt.usage().total_units() > 0);
-    assert!(matches!(
-        receipt.outcome(),
-        crate::PureTerminalEvaluationOutcome::Failed { .. }
-    ));
+    assert_eq!(
+        receipt.usage().total_units(),
+        crate::evaluation_accounting::PURE_PSI_WORK_BUDGET,
+    );
+    let crate::PureTerminalEvaluationOutcome::Failed { reason } = receipt.outcome() else {
+        panic!("exhausted invocation returned a value")
+    };
+    assert!(reason.contains("BudgetExhausted(Work)"), "{reason}");
     accounting.validate_charges().unwrap();
     assert!(program.const_declarations()[0].evaluated_value.is_none());
 }

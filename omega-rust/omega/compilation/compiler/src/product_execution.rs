@@ -296,13 +296,17 @@ impl ProductRequest {
                 permissions,
             } => (realization, root, product, permissions),
             Self::Component(checked) => {
+                let accounting = checked.source_completion_accounting().clone();
                 if checked.sources().package_identity().is_none() {
-                    return Err(vec![Diagnostic::error(
+                    return Err(CompilationProductError::from(vec![Diagnostic::error(
                         "component publication requires package-aware checked custody for the dependency compiled as its own component",
-                    )]
-                    .into());
+                    )])
+                    .with_source_completion_accounting(accounting));
                 }
-                return Err(refuse_executable_product("a component").into());
+                return Err(CompilationProductError::from(refuse_executable_product(
+                    "a component",
+                ))
+                .with_source_completion_accounting(accounting));
             }
         };
         let requested = match product {
@@ -317,12 +321,14 @@ impl ProductRequest {
         };
         let report = ProductReportPlan::new(root, requested, &realization.custody.build);
         if report.needs_terminal(&realization.custody.build_admission) {
-            return Err(refuse_executable_product(if report.is_native() {
-                "a native"
-            } else {
-                "a Terminal"
-            })
-            .into());
+            return Err(CompilationProductError::from(refuse_executable_product(
+                if report.is_native() {
+                    "a native"
+                } else {
+                    "a Terminal"
+                },
+            ))
+            .with_source_completion_accounting(realization.custody.source_completion_accounting));
         }
         // The accepted Terminal module always exists on this route, so every
         // non-executing stop checks its target-local conditions against it.
@@ -341,6 +347,15 @@ fn refuse_executable_product(product: &str) -> Vec<Diagnostic> {
 }
 
 impl TerminalCompilation {
+    pub(crate) fn source_completion_accounting(
+        &self,
+    ) -> &build_time_evaluation::SourceCompletionAccounting {
+        match self {
+            Self::Checking(product) => &product.realization.custody.source_completion_accounting,
+            Self::Inspection(product) => product.source_completion_accounting(),
+        }
+    }
+
     pub(crate) fn terminal_request(&mut self) -> TerminalProductRequest<'_> {
         match self {
             Self::Checking(product) => product.terminal_request(),
