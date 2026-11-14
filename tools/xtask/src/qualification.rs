@@ -7,7 +7,7 @@ use std::process::{Command, Stdio};
 
 use serde_json::json;
 
-use crate::{execution, producer, repo_root, samples};
+use crate::{execution, producer, samples};
 
 /// The most sample programs one request may name.
 const SELECTION_BUDGET: usize = 200;
@@ -120,7 +120,7 @@ fn execute(
 
 pub fn run(args: &[String]) -> Result<(), u8> {
     let result = (|| {
-        let root = repo_root();
+        let root = crate::repository::current()?;
         let mut selection = Vec::new();
         let mut directory = None;
         let mut target = producer::host_target().to_owned();

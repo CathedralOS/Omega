@@ -348,7 +348,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         );
         return Ok(());
     }
-    let repo = repo_root();
+    let repo = repo_root()?;
     let cmd = args[0].as_str();
     let (version, mut record) = fetch_snapshot(&repo)?;
 
