@@ -1,21 +1,18 @@
-# Access plans and resident views
+# Access and backing validation
+
+This crate checks field-operation demands against layout geometry and supplied
+backing capabilities. Compiler stages and the interpreter consume its normalized
+plans, operation authorization, resource profiles and compatibility results.
+
+- [plan.rs](src/plan.rs) owns the normalized layout/access/reach bundle and its
+  validated snapshot. This internal bundle is not the source `AccessPlan` policy.
+- [access_fields.rs](src/access_fields.rs) owns field descriptors and projections.
+- [plan_policy.rs](src/plan_policy.rs) validates field geometry and operations.
+- [resources.rs](src/resources.rs) validates provider profiles, restricted loans,
+  initialization and relocation supply.
+
+These validators do not create runtime views, issue backing authority or prove
+that a schema describes a physical device. Execution and custody transitions
+belong to their Terminal Psi and interpreter consumers.
 
 Contract: [access policies](../../../../wiki/spec/resources/access.md).
-[lib.rs](src/lib.rs) is the entry map. `AccessFields` contains a `LayoutPlan`,
-field-operation decisions, and required reach. Layout owns representation and
-geometry without access rights. `Access<P, T>` is the complete view;
-`Accessor<T>` is a projected operation handle, not an unrestricted lvalue.
-
-Owned Stable and Atomic resident lifecycles, borrowed resident views, projection,
-specialization, and checked/runtime correspondence are separate owners. Every
-transition rejoins exact admission, resource/profile, occurrence, claim, receipt,
-and lifecycle data. Rejecting a transition returns its complete inputs.
-
-These carriers remain below Terminal. The observing Atomic contract/runtime join
-preserves a non-clonable specialized request and verifies its exact resident/result
-shape; it does not issue an atomic operation or establish source-call, runtime
-result, provider-selection, or native authority.
-
-The policy and compatibility checks consume the backing's actual authority and
-capabilities. They do not issue a grant, invent resident custody, or establish
-that a schema corresponds to the physical device.

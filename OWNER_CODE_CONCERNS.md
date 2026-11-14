@@ -290,13 +290,6 @@ framework or a list of features that remain unimplemented.
 - Cost: about 2,500 lines look like a working installation pipeline and are compiled, linted and kept in step by hand, some of it not even built by default
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### The placement and primitive-request half of `access-plans` is called only by its own tests
-- Category: zombie machinery
-- Where: `omega-rust/psi/foundation/access-plans/src/placements.rs` (3,028 lines; `admit_access` at `:244`, `admit_owned_access` at `:264`, `adopt_owned_stable` at `:1754`), `primitive_access.rs` (1,251 lines), `plan_policy.rs:694`
-- Saw: no file outside the crate names `admit_access`, `admit_owned_access`, the three `adopt_owned_*` functions, `bind_schema_correspondence_to_access_plan`, `effect_footprints_conflict`, `PrimitiveAccessRequest`, `EstablishedOwnedAccess`, `SchemaCorrespondedAccessView` or `AccessAdmission`; inside the crate only `tests.rs` (7,168 lines, 109 tests) calls them; twelve crates depend on the crate for its validators
-- Cost: the crate header (`lib.rs:9-15`) says every stable, atomic or external access request is authorized before lowering, and a reader will believe a pipeline stage does that when none calls it
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### `pipeline.md` says the default compile runs no stage validators; two run, and one stage header misdescribes its own
 - Category: the documents disagree
 - Where: `omega-rust/pipeline.md:66-68` and `:91-93`; `omega-rust/omega/compilation/backend/machine-emission/src/exit_contract.rs:153` and `:205-222`; `omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding/src/lib.rs:45-47` against `.../src/validation.rs:630`, `:639` and `.../src/row_encoding.rs:661`, `:670`
