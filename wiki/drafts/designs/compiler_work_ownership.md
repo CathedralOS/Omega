@@ -44,6 +44,9 @@ Links name stage owners; the proposed splits are not already served APIs.
 
 This diagram preserves stage handoffs. It does not promise cross-stage streaming
 or removal of a whole-program barrier before its actual dependencies are known.
+It shows the eventual ownership direction, not a scheduler implementation
+checklist: remove repeated work first, trial one existing independent boundary,
+and defer specialization discovery and summary concurrency until justified.
 
 ```mermaid
 flowchart TD
@@ -88,6 +91,31 @@ private, not a second semantic sidecar or a callback into an earlier stage.
 Freeze only the shared inputs needed at that boundary. This is an ownership
 contract, not a requirement to replace every bounded Vec with paged storage.
 
+**Ownership unit versus scheduling unit.** A body owns its tables, but the job
+boundary follows the dependencies of the particular operation:
+
+| Work | Initial scheduling unit |
+| --- | --- |
+| Ordinary lowering or final checking | One demanded body/check form, or a batch of small ones |
+| Specialization, if later parallelized | One exact template application, deduplicated by canonical arguments |
+| Recursive summary inference, if later parallelized | The relevant dependency group with its defined cycle treatment |
+| Expressions, statements and ordinary obligations | Sequential work inside the owning job |
+
+Two mutually dependent summaries may need group treatment without forcing every
+later pass over those bodies to be serial. Conversely, distinct bodies are not
+independent while one still needs facts inferred from the other.
+
+Semantic identity is separate from storage coordinates. Canonical declarations
+and exact specialization applications need stable identity; local nodes can use
+ordinary dense vectors and body-local IDs. Do not introduce global interning or
+canonical-number assignment in every hot loop. Deterministic publication happens
+at the appropriate ownership join.
+
+Discovery retention is selective: retain compact module/import information and
+reusable syntax where it avoids work, then release unneeded syntax when ownership
+permits. Invocation-scoped reuse does not mean retaining every discovered file's
+full tree until the invocation ends.
+
 **One execution budget.** Invocation-wide admission covers source groups,
 product/target jobs and machine batches. Prefer existing coarse independent work
 when it fills the budget; expose ready body batches when it does not. Nested
@@ -100,18 +128,41 @@ Bound active workers, queued payloads and in-flight intermediate bytes. Final
 retained program storage necessarily grows with input size; the bounded quantity
 is additional live work, not total program size. Define oversized-job behavior
 explicitly so backpressure cannot deadlock or silently discard a compilation.
+Queued jobs hold lightweight keys and shared references; substantial job-local
+tables and proof contexts are materialized only after admission. Distinguish
+estimated memory reservations used to choose concurrency from enforced limits:
+proof work can grow after admission, so an estimate is not a hard memory bound.
+Use the applicable resource-limit/refusal handling for actual exhaustion; report
+any missing enforcement rather than claiming estimates guarantee containment.
 
 **Deterministic ownership joins.** Reserve or derive canonical identities from
 stable inputs, never task completion order. Merge diagnostics in defined source
 or machine order, and publish only the exact module/evidence accepted by checking.
 Cancellation or rejection must release reservations and scratch without exposing
 partial output as accepted.
+Thread scheduling must not decide which proof receives its logical work allowance:
+a shared race-consumed proof-fuel counter can change acceptance with worker count.
+Allocate logical allowances independently of completion order. Likewise, the first
+error to finish must not accidentally become the selected diagnostic.
 
 ## Experiments and acceptance
 
 A smooth CPU graph and a fixed number of hourglass pinches are not acceptance
 criteria. Extra work can saturate CPUs; a faster algorithm may use fewer CPU
 seconds. Measure elapsed critical-path time and explain remaining waits.
+
+### Evidence proportional to the repair
+
+| Change | Required evidence |
+| --- | --- |
+| Remove repeated work | Preservation tests; fewer relevant visits, copies or allocations; a focused benchmark and no material regression in the affected path |
+| Refactor ownership | Untouched storage remains shared; selected changes do not copy unrelated bodies; preservation tests and appropriate time/memory checks |
+| Introduce concurrency | The scheduling baseline and closure protocol below: end-to-end benefit, scaling, bounded execution, memory and scheduling-independent outcomes |
+
+The full multi-worker and idle-state tracing protocol applies when concurrency
+changes. Indexing per-machine inputs does not by itself require a scheduler study.
+Combined changes satisfy the evidence for each kind; do not hide a concurrency
+change inside a storage refactor.
 
 ### Baseline and decision before changing scheduling
 
@@ -142,30 +193,39 @@ performance acceptance claim. Do not adjust the limits afterward to fit a result
 | --- | --- |
 | Elapsed-time benefit | Primary workload meets its predeclared improvement target; tiny and dependency-heavy controls meet their regression limits. Report stage times and end-to-end time, including preparation, joins and publication. |
 | Useful scaling | One/few/budget-worker results identify where speedup stops. Account for dependency depth, memory bandwidth, allocation, locking, scheduling and insufficient ready work; high CPU use alone passes nothing. |
-| Bounded execution | Trace maximum active workers and in-flight jobs/bytes across nested compilation. They respect the declared limits; rejection/cancellation and oversized units terminate without reservation leaks or deadlock. |
+| Bounded execution | Trace maximum active workers, queued payloads and actual in-flight jobs/bytes across nested compilation. Separate estimated reservations from enforced limits and exercise the applicable resource-exhaustion path. Rejection/cancellation and oversized units terminate without reservation leaks or deadlock. |
 | Ownership and work | Changed-body continuation retains untouched storage. Count parsing, graph visits, metadata scans and copied bytes for the relevant repair. No whole-program clone, hot central mutation lock or mandatory flatten/rebuild is introduced to enable threads. |
 | Semantic preservation | Worker counts and perturbed completion orders preserve accepted/rejected outcomes, required diagnostic ordering and canonical artifact identity where specified. Focused negatives exercise actual obligations, including recursive and inferred-contract cases. No proof or validation-subject coverage is removed. |
 | Explained idle time | A trace distinguishes running jobs, ready jobs waiting for admission, dependency-blocked jobs and input waits. Investigate each interval above a predeclared materiality threshold; no unexplained serialization of independent bodies remains in the repaired path. |
 
-Every implementation PR reports total CPU time and peak resident/live working
+Every concurrency implementation PR reports total CPU time and peak resident/live working
 memory alongside elapsed time. A table records each remaining material pinch,
 its dependency, critical-path duration and disposition. There is no target pinch
 count. Final acceptance is a legitimate join; expensive preparation that repeatedly
 walks all bodies is a candidate repair, not automatically an unavoidable join.
 
-### Bounded first implementation
+### Implementation order
 
-Measure Psi 05 lowering and Psi 06 post-inference checking, then choose the one
-with enough independent expensive work. Repair its ownership/preparation and use
-one bounded executor through the full compilation path. Compare it against the
-same candidate at one worker to distinguish work elimination from parallel speedup.
-A failed performance hypothesis is documented and the scheduling change revised
-or dropped; a separately demonstrated work-removal repair may still stand.
+1. Remove demonstrated repeated work first: compact call components instead of
+   all-pairs reachability, and indexed per-machine branch/carried-proof inputs
+   instead of repeated global scans. Validate each as a useful sequential repair;
+   neither depends on a scheduler or a frontend representation rewrite.
+2. Re-measure the cheaper compiler. Compare Psi 05 lowering with Psi 06
+   post-inference checking and choose one boundary with enough independent
+   expensive work. Psi 06 already has shared module inputs, one machine's mutable
+   tables and an owned discharge result; Psi 05 similarly returns owned lowering
+   results. This shape makes both credible, not measured hotspots.
+3. Run a bounded parallel batch, collect in defined order and continue the
+   existing pipeline. Compare against the same candidate at one worker. A failed
+   threading hypothesis is revised or dropped; the earlier work-removal gains
+   remain independently reviewable.
 
 Extend the pattern to Psi 02–04 or summary inference only when their measured
 cost warrants it. Their dependencies remain explicit in this proposal, but
 implementing all candidate boundaries is not a prerequisite for the first useful
-repair.
+repair. Initially leave specialization discovery and summary inference scheduling
+unchanged. Cross-stage streaming must earn its complexity through a measured
+critical-path bottleneck.
 
 ## Actionable repair references
 
