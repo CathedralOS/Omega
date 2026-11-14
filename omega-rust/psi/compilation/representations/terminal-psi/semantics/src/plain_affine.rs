@@ -152,6 +152,14 @@ impl Region {
             prefix.pop();
         }
     }
+
+    fn has_rebuilt_hole(&self) -> bool {
+        !self.base && !self.children.is_empty()
+            || self
+                .children
+                .iter()
+                .any(|(_, child)| child.has_rebuilt_hole())
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -845,7 +853,7 @@ impl Analysis<'_> {
                         if let Some(Some(there)) = there
                             && there != region
                         {
-                            let discards = self.equalize(place, region, there)?;
+                            let discards = self.equalize(place, region, there, residual_budget)?;
                             residual_budget = residual_budget.checked_sub(discards.len()).ok_or(
                                 Error::Malformed("affine residual partition exceeds its output"),
                             )?;
@@ -1150,54 +1158,66 @@ impl Analysis<'_> {
         Ok(actions)
     }
 
-    /// Discards what `held` still holds of `place` and the join does not
-    /// (`joined`, a region within it), keeping the home: each vacancy of the
-    /// join this arrival still holds whole is one residual discard, the
-    /// same consumption a projected move performs. A vacancy this arrival
-    /// holds only part of is refused; its exact complement is not yet
-    /// partitioned here.
+    /// Discards the live complement this arrival holds inside the join's
+    /// vacancies, keeping the allocated home. The shared typed partition
+    /// retains reverse declaration/index order across all receiving regions,
+    /// including a region this arrival has already moved out of in part.
     fn equalize(
         &self,
         place: PlaceId,
         held: &Region,
         joined: &Region,
+        max_residuals: usize,
     ) -> Result<Vec<TerminalAffineCleanupAction>, Error> {
+        use std::collections::BTreeSet;
         let info = self
             .root(place)?
             .ok_or(Error::Malformed("missing affine owner"))?;
-        let mut vacated = Vec::new();
-        joined.vacancies(&mut Vec::new(), &mut vacated);
-        let mut actions = Vec::new();
-        for path in vacated {
-            if self.vacant_region(place, held, &path)? {
-                continue;
-            }
-            if path.is_empty() || !held.available(&path) {
-                return Err(Error::Unsupported(
-                    "a partly moved region at a reconvergence",
-                ));
-            }
-            let storage = crate::canonical_structural_storage_path(
-                self.types.iter(),
-                info.structural_type,
-                &path,
-            )
-            .ok_or(Error::Malformed("moved region has no typed storage path"))?;
-            let (_, declaration) = crate::canonical_static_projection(
-                self.types.iter(),
-                info.structural_type,
-                &storage,
-            )
-            .ok_or(Error::Malformed("moved region has no structural type"))?;
-            actions.push(TerminalAffineCleanupAction::DiscardResidual(
-                terminal_psi::StructuralAffineDiscard {
-                    place,
-                    path: storage,
-                    structural_type: declaration.id,
-                },
+        // A missing ancestor with individually rebuilt children cannot be
+        // flattened to an absent ancestor: that would hide its live children.
+        // Receiving stores do not serve that partial-construction state yet.
+        if held.has_rebuilt_hole() || joined.has_rebuilt_hole() {
+            return Err(Error::Unsupported(
+                "a partially rebuilt home at a reconvergence",
             ));
         }
-        Ok(actions)
+        let missing = |region: &Region| {
+            let mut paths = Vec::new();
+            region.vacancies(&mut Vec::new(), &mut paths);
+            paths
+                .into_iter()
+                .map(|path| {
+                    crate::canonical_structural_storage_path(
+                        self.types.iter(),
+                        info.structural_type,
+                        &path,
+                    )
+                })
+                .collect::<Option<BTreeSet<_>>>()
+                .ok_or(Error::Malformed("moved region has no typed storage path"))
+        };
+        let residuals = crate::partial_affine_residuals_in_regions(
+            self.types,
+            info.structural_type,
+            &missing(held)?,
+            &missing(joined)?,
+            max_residuals,
+        )
+        .ok_or(Error::Malformed(
+            "affine reconvergence partition exceeds its output or has no typed complement",
+        ))?;
+        Ok(residuals
+            .into_iter()
+            .map(|(path, structural_type)| {
+                TerminalAffineCleanupAction::DiscardResidual(
+                    terminal_psi::StructuralAffineDiscard {
+                        place,
+                        path,
+                        structural_type,
+                    },
+                )
+            })
+            .collect())
     }
 
     fn root(&self, root: PlaceId) -> Result<Option<&Root>, Error> {
@@ -1417,5 +1437,302 @@ mod tests {
         let mut vacancies = Vec::new();
         joined.vacancies(&mut Vec::new(), &mut vacancies);
         assert_eq!(vacancies, [vec![field(1)], vec![field(2)]]);
+    }
+
+    fn reconvergence_types() -> [StructuralTypeDeclaration; 3] {
+        use terminal_psi::{
+            BindingRelevance, StructuralFieldDeclaration, StructuralFieldType,
+            StructuralRecordStorage, StructuralTypeShape, TerminalIdentityIndex,
+        };
+
+        let member = |raw, child| StructuralFieldDeclaration {
+            id: StructuralFieldId::new(raw).unwrap(),
+            identity: TerminalIdentityIndex(raw as u32),
+            relevance: BindingRelevance::Relevant,
+            field_type: StructuralFieldType::Structural(StructuralTypeId::new(child).unwrap()),
+            storage: None,
+            inline_carrier: None,
+        };
+        let record = |raw, fields| StructuralTypeDeclaration {
+            id: StructuralTypeId::new(raw).unwrap(),
+            identity: TerminalIdentityIndex(raw as u32),
+            owns_linear_claim: false,
+            copyable: false,
+            no_code_affine_cleanup: true,
+            descriptor_cleanup: true,
+            quotient_carrier: None,
+            scalar_restriction: None,
+            requires: Vec::new(),
+            shape: StructuralTypeShape::Record {
+                fields,
+                storage: StructuralRecordStorage::Packed,
+            },
+        };
+        [
+            record(1, vec![member(1, 2), member(2, 2)]),
+            record(2, vec![member(3, 3), member(4, 3)]),
+            record(3, Vec::new()),
+        ]
+    }
+
+    fn owned_analysis(types: &[StructuralTypeDeclaration]) -> Analysis<'_> {
+        Analysis {
+            types,
+            roots: vec![Some(Root {
+                structural_type: StructuralTypeId::new(1).unwrap(),
+                owned: true,
+                parameter: false,
+            })],
+            unavailable: Vec::new(),
+            unavailable_roots: vec![None],
+            stores: Vec::new(),
+            verify_stores: false,
+        }
+    }
+
+    #[test]
+    fn a_partly_moved_arrival_discards_only_the_nested_remainder_at_a_join() {
+        use terminal_psi::{StructuralPathSegment, TerminalIdentityIndex};
+        // One arrival transferred selected.first; the other transferred
+        // selected whole. Equalizing their retained owner must discard only
+        // selected.second, leaving the sibling subtree and moved value alone.
+        let types = reconvergence_types();
+        let analysis = owned_analysis(&types);
+        let mut partial = Region::new(true);
+        partial.set(&[field(1), field(3)], false);
+        let mut whole = Region::new(true);
+        whole.set(&[field(1)], false);
+        let place = PlaceId::new(1).unwrap();
+        let actions = analysis
+            .equalize(place, &partial, &whole, 1)
+            .expect("the partial arrival has one exact no-code residual");
+        assert_eq!(
+            actions,
+            [TerminalAffineCleanupAction::DiscardResidual(
+                terminal_psi::StructuralAffineDiscard {
+                    place,
+                    path: vec![
+                        StructuralPathSegment::Field(TerminalIdentityIndex(1)),
+                        StructuralPathSegment::Field(TerminalIdentityIndex(4)),
+                    ],
+                    structural_type: StructuralTypeId::new(3).unwrap(),
+                },
+            )]
+        );
+        assert!(analysis.equalize(place, &partial, &whole, 0).is_err());
+        assert!(
+            analysis
+                .equalize(place, &whole, &whole, 0)
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn reconvergence_scopes_keep_reverse_declaration_order_across_regions() {
+        use terminal_psi::{
+            StructuralPathSegment as Path, StructuralTypeShape, TerminalIdentityIndex as Identity,
+        };
+        let mut types = reconvergence_types();
+        let StructuralTypeShape::Record { fields, .. } = &mut types[0].shape else {
+            unreachable!()
+        };
+        let mut third = fields[1].clone();
+        third.id = StructuralFieldId::new(5).unwrap();
+        fields[0].identity = Identity(9);
+        fields[1].identity = Identity(2);
+        third.identity = Identity(5);
+        fields.push(third);
+        let moved = [vec![Path::Field(Identity(9)), Path::Field(Identity(3))]]
+            .into_iter()
+            .collect();
+        let scopes = [9, 2, 5]
+            .map(|identity| vec![Path::Field(Identity(identity))])
+            .into_iter()
+            .collect();
+        let root = StructuralTypeId::new(1).unwrap();
+        let residuals =
+            crate::partial_affine_residuals_in_regions(&types, root, &moved, &scopes, 3).unwrap();
+        assert_eq!(
+            residuals
+                .iter()
+                .map(|(path, ty)| (path.clone(), ty.get()))
+                .collect::<Vec<_>>(),
+            [
+                (vec![Path::Field(Identity(5))], 2),
+                (vec![Path::Field(Identity(2))], 2),
+                (vec![Path::Field(Identity(9)), Path::Field(Identity(4))], 3),
+            ]
+        );
+        assert!(
+            crate::partial_affine_residuals_in_regions(&types, root, &moved, &scopes, 2).is_none()
+        );
+        let sibling = [vec![Path::Field(Identity(2))]].into_iter().collect();
+        assert_eq!(
+            crate::partial_affine_residuals_in_regions(&types, root, &moved, &sibling, 1).unwrap(),
+            [(
+                vec![Path::Field(Identity(2))],
+                StructuralTypeId::new(2).unwrap()
+            ),]
+        );
+    }
+
+    #[test]
+    fn a_scoped_array_partition_does_not_enumerate_untouched_elements() {
+        use terminal_psi::{
+            ArrayExtent, StructuralPathSegment as Path, StructuralTypeShape,
+            TerminalIdentityIndex as Identity,
+        };
+        let mut types = reconvergence_types();
+        types[0].shape = StructuralTypeShape::FixedArray {
+            element: StructuralTypeId::new(2).unwrap(),
+            length: ArrayExtent::Literal(u64::MAX),
+        };
+        let root = StructuralTypeId::new(1).unwrap();
+        let moved = [vec![Path::FixedIndex(1), Path::Field(Identity(3))]]
+            .into_iter()
+            .collect();
+        let selected = [vec![Path::FixedIndex(1)]].into_iter().collect();
+        assert_eq!(
+            crate::partial_affine_residuals_in_regions(&types, root, &moved, &selected, 1).unwrap(),
+            [(
+                vec![Path::FixedIndex(1), Path::Field(Identity(4))],
+                StructuralTypeId::new(3).unwrap()
+            ),]
+        );
+        let whole = [Vec::new()].into_iter().collect();
+        assert!(
+            crate::partial_affine_residuals_in_regions(&types, root, &moved, &whole, 1).is_none()
+        );
+    }
+
+    #[test]
+    fn rebuilt_children_cannot_be_erased_as_an_absent_ancestor() {
+        let types = reconvergence_types();
+        let analysis = owned_analysis(&types);
+        let mut partial = Region::new(true);
+        partial.set(&[field(1)], false);
+        partial.set(&[field(1), field(3)], true);
+        assert!(matches!(
+            analysis.equalize(PlaceId::new(1).unwrap(), &partial, &Region::new(false), 2),
+            Err(Error::Unsupported(_))
+        ));
+    }
+
+    #[test]
+    fn a_common_field_scope_does_not_require_or_invent_payload_membership() {
+        use semantic_vocabulary::StructuralCaseId;
+        use std::collections::BTreeSet;
+        use terminal_psi::{
+            StructuralCaseDeclaration, StructuralPathSegment as Path, StructuralTypeShape,
+            TerminalIdentityIndex as Identity,
+        };
+        let mut types = reconvergence_types();
+        let fields = types[0].shape.direct_fields().unwrap().to_vec();
+        let mut second_payload = fields[1].clone();
+        second_payload.id = StructuralFieldId::new(5).unwrap();
+        second_payload.identity = Identity(5);
+        types[0].shape = StructuralTypeShape::Mixed {
+            fields: vec![fields[0].clone()],
+            cases: vec![
+                StructuralCaseDeclaration {
+                    id: StructuralCaseId::new(1).unwrap(),
+                    identity: Identity(10),
+                    fields: vec![fields[1].clone()],
+                },
+                StructuralCaseDeclaration {
+                    id: StructuralCaseId::new(2).unwrap(),
+                    identity: Identity(11),
+                    fields: vec![second_payload],
+                },
+            ],
+        };
+        let root = StructuralTypeId::new(1).unwrap();
+        let common = [vec![Path::Field(Identity(1))]].into_iter().collect();
+        let missing = BTreeSet::new();
+        assert_eq!(
+            crate::partial_affine_residuals_in_regions(&types, root, &missing, &common, 1).unwrap(),
+            [(
+                vec![Path::Field(Identity(1))],
+                StructuralTypeId::new(2).unwrap()
+            ),]
+        );
+        let payload = [vec![
+            Path::Case(StructuralCaseId::new(1).unwrap()),
+            Path::Field(Identity(2)),
+        ]]
+        .into_iter()
+        .collect();
+        assert!(
+            crate::partial_affine_residuals_in_regions(&types, root, &missing, &payload, 1)
+                .is_none(),
+            "a receiving scope does not establish its payload case"
+        );
+        let moved = [vec![
+            Path::Case(StructuralCaseId::new(1).unwrap()),
+            Path::Field(Identity(2)),
+            Path::Field(Identity(3)),
+        ]]
+        .into_iter()
+        .collect();
+        assert_eq!(
+            crate::partial_affine_residuals_in_regions(&types, root, &moved, &payload, 1).unwrap(),
+            [(
+                vec![
+                    Path::Case(StructuralCaseId::new(1).unwrap()),
+                    Path::Field(Identity(2)),
+                    Path::Field(Identity(4))
+                ],
+                StructuralTypeId::new(3).unwrap()
+            ),]
+        );
+    }
+
+    #[test]
+    fn scoped_cleanup_does_not_inspect_an_unrequested_erased_field() {
+        use terminal_psi::{
+            BindingRelevance, StructuralFieldDeclaration, StructuralFieldType,
+            StructuralPathSegment as Path, StructuralTypeShape, TerminalIdentityIndex as Identity,
+        };
+        let mut types = reconvergence_types();
+        let StructuralTypeShape::Record { fields, .. } = &mut types[0].shape else {
+            unreachable!()
+        };
+        fields.push(StructuralFieldDeclaration {
+            id: StructuralFieldId::new(5).unwrap(),
+            identity: Identity(50),
+            relevance: BindingRelevance::Erased,
+            field_type: StructuralFieldType::Erased {
+                type_identity: Identity(60),
+            },
+            storage: None,
+            inline_carrier: None,
+        });
+        let root = StructuralTypeId::new(1).unwrap();
+        let moved = [vec![Path::Field(Identity(1)), Path::Field(Identity(3))]]
+            .into_iter()
+            .collect();
+        let selected = [vec![Path::Field(Identity(1))]].into_iter().collect();
+        assert_eq!(
+            crate::partial_affine_residuals_in_regions(&types, root, &moved, &selected, 1)
+                .expect("an unrelated erased field is outside the cleanup scope"),
+            [(
+                vec![Path::Field(Identity(1)), Path::Field(Identity(4))],
+                StructuralTypeId::new(3).unwrap()
+            ),]
+        );
+        let erased = [vec![Path::Field(Identity(50))]].into_iter().collect();
+        assert!(
+            crate::partial_affine_residuals_in_regions(&types, root, &moved, &erased, 1).is_none(),
+            "scoping cannot create runtime custody for an erased field"
+        );
+        let whole = [Vec::new()].into_iter().collect();
+        assert!(
+            crate::partial_affine_residuals_in_regions(&types, root, &moved, &whole, 3).is_none()
+        );
+        assert!(
+            crate::partial_affine_residuals(&types, root, &moved, 3).is_none(),
+            "the existing whole-partition refusal remains unchanged"
+        );
     }
 }
