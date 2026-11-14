@@ -98,6 +98,17 @@ fn a_prepared_bodyless_contract_cannot_follow_changed_application_bindings() {
     let relay = source.realized_machine_named("relay").unwrap().symbol;
     let other = source.realized_machine_named("other").unwrap().symbol;
     let call = |owner| {
+        let describe = |symbol| {
+            if source.symbols.symbols().nodes().is_valid(symbol) {
+                format!(
+                    "{} at {:?}",
+                    source.symbols.name(symbol),
+                    source.symbols.symbol_provenance_source_span(symbol)
+                )
+            } else {
+                format!("invalid {symbol:?}")
+            }
+        };
         let mut calls =
             source
                 .expression_table
@@ -114,7 +125,44 @@ fn a_prepared_bodyless_contract_cannot_follow_changed_application_bindings() {
                             == owner)
                         .then_some((call.authored_machine_application, call.target_symbol))
                 });
-        let result = calls.next().expect("actual authored core borrow");
+        let result = calls.next().unwrap_or_else(|| {
+            let observed = source
+                .expression_table
+                .iter_expressions()
+                .filter_map(|(expression, node)| {
+                    let ExpressionNode::Call(call) = node else {
+                        return None;
+                    };
+                    let lexical = typed_trees::references::StaticArgumentCall::Expression(
+                        expression, call,
+                    )
+                    .lexical_owner(&source);
+                    let factory = source.access_borrow_factory(call.target_symbol);
+                    let containing = source.machine_holding_state(lexical);
+                    (lexical == owner
+                        || containing.is_some_and(|machine| machine.symbol == owner)
+                        || factory.is_some())
+                    .then(|| {
+                        format!(
+                            "call {} from {}; canonical factory: {}; retained application: {:?}",
+                            describe(call.target_symbol),
+                            describe(lexical),
+                            factory.is_some(),
+                            call.authored_machine_application,
+                        )
+                    })
+                })
+                .collect::<Vec<_>>();
+            let factories = source
+                .access_borrow_factories
+                .iter()
+                .map(|factory| describe(factory.factory))
+                .collect::<Vec<_>>();
+            panic!(
+                "actual authored core borrow in {} was not found; observed: {observed:?}; retained factories: {factories:?}",
+                describe(owner),
+            );
+        });
         assert!(calls.next().is_none());
         result
     };
