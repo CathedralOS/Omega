@@ -1138,9 +1138,9 @@ impl Program<'_> {
     /// that can fail rejects; a binding introduces no hidden branch, trap,
     /// fallback or runtime assertion." A binding has no node of its own:
     /// stage 01 replaces each use of it by the payload member it names. The
-    /// pattern must name every payload field unless it ends in `..`; the
-    /// deleted checker enforced that law in validation, after the typed
-    /// trees this route reads are frozen, so it is enforced here too.
+    /// pattern must name every payload field unless it ends in `..`;
+    /// frozen typed trees retain the roster, not a coverage verdict, so
+    /// this reader checks that rule before lowering the binding.
     ///
     /// A pattern that lists payload fields and names one twice, or misses
     /// one without `..`, is wrong in every program and rejected at `at`:

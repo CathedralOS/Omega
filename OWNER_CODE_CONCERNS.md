@@ -157,12 +157,6 @@ framework or a list of features that remain unimplemented.
 - Cost: the elision rule has no owner at the declaration; a reader of the callee alone cannot tell which input the result is related to, and the diagnostic lands on a caller
 - Reported: 2026-11-13, Claude Code, while giving a call's lifetimes the regions of the views it passes
 
-### The reader and its README still justify decisions by what the deleted checker did
-- Category: zombie machinery
-- Where: `05_typed-trees-to-terminal-psi/src/read/machine.rs` (the retired data-qualified machine spelling), `read/expressions.rs`, `read/calls.rs`, `declare.rs`, `names.rs`; `06_terminal-psi-to-terminal-psi/src/describe.rs`, `verdict.rs`; both crates' `README.md`; `06_terminal-psi-to-terminal-psi/src/lib.rs` (`Knowledge::WithoutBranchConditions`, `Knowledge::LiteralIntervals`)
-- Saw: about fifty comments said "the current checker" does this or that; they now say "the deleted checker" did, which is true but leaves the reasoning hollow where the old checker was the reason: a retired spelling is served because refusing it "would only send the same program" to a checker that accepted it, and message wording is pinned to that checker's sentences. The `Knowledge` knob is threaded through discharge only for the comparison example this change deleted
-- Cost: a reader cannot tell which behaviours are the specification's and which were kept for agreement with a checker that no longer exists, and the knob is dead weight in every discharge signature
-- Reported: 2026-11-13, Claude Code, while removing the two-checker names
 
 ### `Console::exit_process` ends the process without publishing `reaches ProcessExit`
 - Category: a verdict with nothing behind it
