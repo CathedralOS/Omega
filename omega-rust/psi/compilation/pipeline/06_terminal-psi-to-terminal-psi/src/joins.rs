@@ -332,30 +332,19 @@ fn describe(
             Some(ValueOrigin::StorageContent { place, after: None }) if crate::places::input_content(lowered, tables, place)
         ))
     };
-    // Earlier parameters can already be related to their own arguments by a
-    // block predicate. Their available conjunct equalities are definitions
-    // too: unfolding only operations strands a later result at those earlier
-    // parameters and loses it at this scope boundary. The kernel still proves
-    // the complete predicate on every arrival; alternatives are not flattened.
-    let mut pending: Vec<&Proposition> = available
+    let mut equations: Vec<&Proposition> = available
         .iter()
+        .filter(|(justification, proposition, _)| {
+            matches!(justification, Justification::OperationSemantics(_))
+                && matches!(
+                    proposition,
+                    Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition)
+                        if matches!(subject.scalar_type(), ScalarType::Boolean | ScalarType::Integer(_))
+                            || entry_content(definition)
+                )
+        })
         .map(|(_, proposition, _)| *proposition)
         .collect();
-    let mut equations = Vec::new();
-    while let Some(proposition) = pending.pop() {
-        match proposition {
-            Proposition::Conjunction(parts) => pending.extend(parts),
-            Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition)
-                if matches!(
-                    subject.scalar_type(),
-                    ScalarType::Boolean | ScalarType::Integer(_)
-                ) || entry_content(definition) =>
-            {
-                equations.push(proposition)
-            }
-            _ => {}
-        }
-    }
     let mut defined_values: Vec<ValueId> = equations
         .iter()
         .filter_map(|equation| match equation {
@@ -384,6 +373,33 @@ fn describe(
         })
         .map(|(_, proposition, _)| *proposition)
         .collect();
+    let operation_equations = equations.len();
+    // A checked block predicate can also relate an earlier parameter to its
+    // argument. These conjuncts extend transport after the operation roster
+    // above has identified true definitions: an edge fixing a join result to
+    // a literal must remain a path selection, not become its definition.
+    // Operation equations keep priority, and alternatives are never flattened.
+    let mut pending: Vec<&Proposition> = available
+        .iter()
+        .filter(|(justification, _, _)| {
+            matches!(justification, Justification::BlockInvariant { .. })
+        })
+        .map(|(_, proposition, _)| *proposition)
+        .collect();
+    while let Some(proposition) = pending.pop() {
+        match proposition {
+            Proposition::Conjunction(parts) => pending.extend(parts),
+            Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition)
+                if matches!(
+                    subject.scalar_type(),
+                    ScalarType::Boolean | ScalarType::Integer(_)
+                ) || entry_content(definition) =>
+            {
+                equations.push(proposition)
+            }
+            _ => {}
+        }
+    }
     let names_fixed = |proposition: &Proposition| {
         let mut named = false;
         proposition.visit_value_ids(|value| {
@@ -437,7 +453,11 @@ fn describe(
                 && let Ok(denotation) = check_value_equality_denotation(
                     context,
                     proposition,
-                    equations.iter().chain(&fixed).copied(),
+                    equations[..operation_equations]
+                        .iter()
+                        .chain(&fixed)
+                        .chain(&equations[operation_equations..])
+                        .copied(),
                 )
                 && let Some(denotation) = rename(&denotation, &renaming)
             {
