@@ -25,7 +25,7 @@ fn facts() -> layout_plans::LayoutTargetFacts {
 
 fn target(facts: &layout_plans::LayoutTargetFacts) -> InvocationTarget<'_> {
     InvocationTarget {
-        name: &facts.profile,
+        name: Some(facts.profile.as_str()),
         layout_target: Some(facts),
         address_model: None,
         carrier_layout: Some(semantic_vocabulary::TargetCarrierLayout {

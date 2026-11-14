@@ -115,9 +115,7 @@ impl CompilationSession {
             let selected = self
                 .select_completed_source(source, returned, None)
                 .result
-                .map_err(|failure| {
-                    crate::CompilationProductError::Production(failure.into_diagnostics())
-                })?;
+                .map_err(crate::CompilationProductError::from)?;
             let mut outputs = crate::target_batch::produce_products(vec![(
                 (),
                 Ok(crate::product_execution::ProductRequest::Requested {
@@ -339,7 +337,7 @@ impl CompilationSession {
         &mut self,
         source: SourceCompilation,
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
-    ) -> Result<compilation_products::CheckedProductSource, Vec<diagnostics::Diagnostic>> {
+    ) -> Result<compilation_products::CheckedProductSource, CompileFailure> {
         source.check(returned)
     }
 }

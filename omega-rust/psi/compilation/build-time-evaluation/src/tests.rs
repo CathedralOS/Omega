@@ -208,13 +208,54 @@ fn typed_base(
     symbol_resolved_trees_to_typed_trees::SeededTypingBase,
     crate::PreCheckEvaluation,
 ) {
+    typed_base_scoped(files, None)
+}
+
+fn constant_base(
+    files: &[(&str, &str)],
+) -> (
+    std::sync::Arc<source::SourceMap>,
+    Vec<source::SourceId>,
+    symbol_resolved_trees_to_typed_trees::SeededTypingBase,
+    crate::PreCheckEvaluation,
+) {
+    typed_base_scoped(
+        files,
+        semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]),
+    )
+}
+
+fn typed_base_scoped(
+    files: &[(&str, &str)],
+    package: Option<semantic_vocabulary::PackageKeyIdentity>,
+) -> (
+    std::sync::Arc<source::SourceMap>,
+    Vec<source::SourceId>,
+    symbol_resolved_trees_to_typed_trees::SeededTypingBase,
+    crate::PreCheckEvaluation,
+) {
     let mut sources = source::SourceMap::from_files(Vec::new());
     let mut identities = Vec::new();
     let mut syntax: Option<syntax_trees::SyntaxTrees> = None;
     for (path, text) in files {
-        let source_id = sources
-            .add(std::path::PathBuf::from(path), (*text).to_owned())
-            .source_id;
+        let source_id = match package {
+            Some(package) => {
+                sources
+                    .add_with_metadata(
+                        std::path::Path::new("/constant-job").join(path),
+                        (*text).to_owned(),
+                        "/constant-job".into(),
+                        Some(package),
+                        source::SourceOrigin::User,
+                    )
+                    .source_id
+            }
+            None => {
+                sources
+                    .add(std::path::PathBuf::from(path), (*text).to_owned())
+                    .source_id
+            }
+        };
         identities.push(source_id);
         let tokens = source_files_to_tokens::Lexer::new(text)
             .tokenize()
@@ -586,4 +627,727 @@ machine entry() {
         .source_span
         .expect("the refusal points at the read");
     assert_eq!(span.span.start, read);
+}
+
+trait RequestedConstants {
+    fn evaluate_requested_constants(
+        self,
+        program: &mut typed_trees::TypedTrees,
+    ) -> Result<crate::RecordedPreCheck, Vec<diagnostics::Diagnostic>>;
+}
+impl RequestedConstants for crate::PreCheckEvaluation {
+    fn evaluate_requested_constants(
+        self,
+        program: &mut typed_trees::TypedTrees,
+    ) -> Result<crate::RecordedPreCheck, Vec<diagnostics::Diagnostic>> {
+        let mut recorded = self.evaluate_or_defer_recorded(program)?;
+        let subject = program
+            .const_declarations()
+            .first()
+            .and_then(|constant| {
+                program
+                    .symbols
+                    .symbol_provenance_source_span(constant.symbol)
+            })
+            .and_then(|span| program.symbols.source_file(span))
+            .and_then(|file| file.package_identity);
+        crate::evaluate_constant_initializers(
+            program,
+            psi_terminal_production::TerminalSourceCompilation {
+                declaration_metadata: &[],
+                entries: &[],
+                subjects: &[subject],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            None,
+            &mut recorded.accounting,
+        )?;
+        Ok(recorded)
+    }
+}
+
+#[test]
+fn a_machine_call_constant_retains_its_accepted_value_and_receipt() {
+    let (_, _, base, pending) = constant_base(&[(
+        "main.omg",
+        r#"
+        const SCALE: u64 = opaque();
+        machine opaque() -> u64 { 4u64 }
+        machine answer() -> u64 { SCALE }
+    "#,
+    )]);
+    let mut program = base.typed().clone();
+    let recorded = pending
+        .evaluate_requested_constants(&mut program)
+        .expect("the actual constant invocation is accepted and evaluated");
+    crate::validate_constant_evaluations(&program, &recorded.accounting).unwrap();
+    assert_eq!(recorded.accounting.receipts().len(), 1);
+    let crate::PureEvaluationRecord::Invocation(receipt) = &recorded.accounting.receipts()[0]
+    else {
+        panic!("a source job retains its actual invocation receipt")
+    };
+    assert_eq!(receipt.admission().target(), None);
+    assert!(receipt.usage().total_units() > 0);
+    assert!(matches!(
+        receipt.outcome(),
+        crate::PureTerminalEvaluationOutcome::Materialized {
+            value: crate::BuildTimeValue::Int(4),
+            ..
+        }
+    ));
+    let answer = program.realized_machine_named("answer").unwrap().symbol;
+    let entry = crate::PreparedBuildMachineProgram::prepare(&program, None)
+        .unwrap()
+        .entry(answer, answer, &[])
+        .unwrap();
+    let mut meter = psi_work::WorkMeter::unbounded();
+    let value = entry
+        .invoke(
+            crate::InvocationTarget {
+                name: None,
+                layout_target: None,
+                carrier_layout: None,
+                address_model: None,
+            },
+            &mut meter,
+        )
+        .unwrap();
+    assert_eq!(value, crate::BuildTimeValue::Int(4));
+}
+
+#[test]
+fn a_constant_invocation_must_establish_the_callee_requirement() {
+    let (_, _, base, pending) = constant_base(&[(
+        "main.omg",
+        r#"
+        const SCALE: u64 = bounded(9u64);
+        machine bounded(value: u64) -> u64 requires value <= 5 { value }
+        machine answer() -> u64 { SCALE }
+    "#,
+    )]);
+    let mut program = base.typed().clone();
+    let errors = pending
+        .evaluate_requested_constants(&mut program)
+        .err()
+        .expect("a representable result does not establish the invocation's premise");
+    let error = diagnostics::join_messages(&errors);
+    assert!(
+        error.contains("requires")
+            || error.contains("requirement")
+            || error.contains("precondition"),
+        "{error}"
+    );
+    assert!(program.const_declarations()[0].evaluated_value.is_none());
+}
+
+#[test]
+fn constant_dependencies_are_evaluated_before_their_callers() {
+    let (_, _, base, pending) = constant_base(&[(
+        "main.omg",
+        r#"
+        const EXTRA: u64 = LAST + 1u64;
+        const LAST: u64 = produce();
+        const FIRST: u64 = seed();
+        machine produce() -> u64 { FIRST + 1u64 }
+        machine seed() -> u64 { 4u64 }
+        machine answer() -> u64 { EXTRA }
+    "#,
+    )]);
+    let mut program = base.typed().clone();
+    let recorded = pending.evaluate_requested_constants(&mut program).unwrap();
+    crate::validate_constant_evaluations(&program, &recorded.accounting).unwrap();
+    assert_eq!(recorded.accounting.receipts().len(), 3);
+    let last = program
+        .const_declarations()
+        .iter()
+        .find(|row| program.symbols.name(row.symbol) == "LAST")
+        .unwrap();
+    let value = typed_trees::canonical_const_declaration_value(&program, last.symbol).unwrap();
+    assert!(matches!(
+        value.decode_encoding(),
+        Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer { value: 5, .. })
+    ));
+    let extra = program
+        .const_declarations()
+        .iter()
+        .find(|row| program.symbols.name(row.symbol) == "EXTRA")
+        .unwrap();
+    let value = typed_trees::canonical_const_declaration_value(&program, extra.symbol).unwrap();
+    assert!(matches!(
+        value.decode_encoding(),
+        Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer { value: 6, .. })
+    ));
+}
+
+#[test]
+fn a_constant_receipt_cannot_be_swapped_rewritten_or_reused_after_source_changes() {
+    let text = r#"
+        const FIRST: u64 = first();
+        const SECOND: u64 = second();
+        machine first() -> u64 { 4u64 }
+        machine second() -> u64 { 5u64 }
+        machine use_values() -> u64 { FIRST + SECOND }
+    "#;
+    let (_, _, base, pending) = constant_base(&[("main.omg", text)]);
+    let mut program = base.typed().clone();
+    let recorded = pending.evaluate_requested_constants(&mut program).unwrap();
+    crate::validate_constant_evaluations(&program, &recorded.accounting).unwrap();
+    let handles = program
+        .roots
+        .const_declarations
+        .handles()
+        .collect::<Vec<_>>();
+    let mut changed_use = program.clone();
+    let first = program.const_declarations()[0].symbol;
+    let crate::PureEvaluationRecord::Invocation(first_receipt) = &recorded.accounting.receipts()[0]
+    else {
+        panic!("actual invocation")
+    };
+    let original = first_receipt.request_source();
+    let expression = typed_trees::references::collect_program_references(original)
+        .expressions
+        .into_iter()
+        .find(|expression| {
+            original
+                .expression_table
+                .name_path_node(*expression)
+                .and_then(|path| path.resolved_symbol())
+                == Some(first)
+        })
+        .expect("the source retains its named use");
+    *changed_use.expression_table.expression_mut(expression) =
+        typed_trees::expression::ExpressionNode::Boolean(false);
+    assert!(crate::validate_constant_evaluations(&changed_use, &recorded.accounting).is_err());
+    let mut changed = program.clone();
+    changed
+        .tables
+        .const_declarations
+        .get_mut(handles[0])
+        .evaluated_value = Some(
+        language_semantics::const_value::CanonicalConstIdentity::integer("u64", 99)
+            .encoding
+            .into(),
+    );
+    assert!(
+        crate::validate_constant_evaluations(&changed, &recorded.accounting)
+            .unwrap_err()
+            .contains("outcome")
+    );
+    let mut swapped = program.clone();
+    let other = swapped
+        .tables
+        .const_declarations
+        .get(handles[1])
+        .evaluation_entry;
+    swapped
+        .tables
+        .const_declarations
+        .get_mut(handles[0])
+        .evaluation_entry = other;
+    assert!(
+        crate::validate_constant_evaluations(&swapped, &recorded.accounting)
+            .unwrap_err()
+            .contains("swapped")
+    );
+    assert!(
+        crate::validate_constant_evaluations(
+            &program,
+            &crate::SourceCompletionAccounting::default()
+        )
+        .is_err()
+    );
+    let mut missing = program.clone();
+    let declaration = missing.tables.const_declarations.get_mut(handles[0]);
+    declaration.evaluation_entry = Default::default();
+    declaration.evaluation_expression = Default::default();
+    assert!(
+        crate::validate_constant_evaluations(
+            &missing,
+            &crate::SourceCompletionAccounting::default()
+        )
+        .unwrap_err()
+        .contains("lost its initializer")
+    );
+    let first = program.realized_machine_named("first").unwrap();
+    let state = &program.machine_states(first)[0];
+    let typed_trees::statement::StatementNode::Transition(transition) =
+        &program.statement_table.statements(state.statement_nodes)[0]
+    else {
+        panic!("source returns a value")
+    };
+    let typed_trees::statement::TransitionTargetNode::Value(expression) =
+        program.statement_table.transition_target(transition.target)
+    else {
+        panic!("source returns a value")
+    };
+    let expression = *expression;
+    let replacement = program
+        .tables
+        .const_declarations
+        .get(handles[1])
+        .materialized_initializer;
+    let value = program.expression_table.expression(replacement).clone();
+    let mut stale = program.clone();
+    *stale.expression_table.expression_mut(expression) = value;
+    assert!(
+        crate::validate_constant_evaluations(&stale, &recorded.accounting)
+            .unwrap_err()
+            .contains("stale")
+    );
+    let (_, _, other, pending) = constant_base(&[("main.omg", text)]);
+    let mut other = other.typed().clone();
+    pending.evaluate_or_defer_recorded(&mut other).unwrap();
+    assert!(
+        crate::validate_constant_evaluations(&other, &recorded.accounting)
+            .unwrap_err()
+            .contains("source owner")
+    );
+}
+
+#[test]
+fn a_constant_cannot_acquire_a_target_from_an_untagged_caller() {
+    let (_, _, base, pending) = constant_base(&[(
+        "main.omg",
+        r#"
+        const VALUE: u64 = answer();
+        machine answer() -> u64 { selected() }
+        linux_x86_64 machine selected() -> u64 { 7u64 }
+    "#,
+    )]);
+    let mut program = base.typed().clone();
+    let errors = pending
+        .evaluate_requested_constants(&mut program)
+        .err()
+        .expect("no caller chose this target body");
+    let error = diagnostics::join_messages(&errors);
+    assert!(error.contains("target"), "{error}");
+    assert!(program.const_declarations()[0].evaluated_value.is_none());
+}
+
+#[test]
+fn constant_evaluation_obeys_a_helpers_written_service_ceiling() {
+    let (_, _, base, pending) = constant_base(&[(
+        "main.omg",
+        r#"
+        boundary trait Requests { machine observe() reaches none crashes none; }
+        machine helper() -> u64 reaches Requests { 7u64 }
+        const VALUE: u64 = helper();
+    "#,
+    )]);
+    let mut program = base.typed().clone();
+    let errors = pending
+        .evaluate_requested_constants(&mut program)
+        .err()
+        .expect("a pure body does not shrink a published service ceiling");
+    let error = diagnostics::join_messages(&errors);
+    assert!(
+        error.contains("service") || error.contains("reach"),
+        "{error}"
+    );
+    assert!(program.const_declarations()[0].evaluated_value.is_none());
+}
+
+#[test]
+fn an_unowned_constant_request_cannot_bypass_declaration_admission() {
+    let (_, _, base, pending) = typed_base(&[(
+        "main.omg",
+        "const VALUE: u64 = answer(); machine answer() -> u64 { 7u64 }",
+    )]);
+    let mut program = base.typed().clone();
+    let error = pending
+        .evaluate_requested_constants(&mut program)
+        .err()
+        .expect("an unowned user source has no package execution custody");
+    assert!(diagnostics::join_messages(&error).contains("without reconciled package custody"));
+    assert!(program.const_declarations()[0].evaluated_value.is_none());
+}
+
+#[test]
+fn constant_snapshots_preserve_boolean_and_unsigned_high_bits() {
+    let (_, _, base, pending) = constant_base(&[(
+        "main.omg",
+        r#"
+        const FLAG: bool = flag();
+        const HIGH: u64 = high();
+        machine flag() -> bool { true }
+        machine high() -> u64 { 0xFFFF_FFFF_FFFF_FFFFu64 }
+    "#,
+    )]);
+    let mut program = base.typed().clone();
+    let recorded = pending.evaluate_requested_constants(&mut program).unwrap();
+    crate::validate_constant_evaluations(&program, &recorded.accounting).unwrap();
+    for constant in program.const_declarations() {
+        let value = typed_trees::canonical_const_declaration_value(&program, constant.symbol)
+            .unwrap()
+            .decode_encoding()
+            .unwrap();
+        match program.symbols.name(constant.symbol) {
+            "FLAG" => assert_eq!(
+                value,
+                language_semantics::const_value::DecodedCanonicalConstValue::Boolean(true)
+            ),
+            "HIGH" => assert!(
+                matches!(value, language_semantics::const_value::DecodedCanonicalConstValue::Integer { value, .. }
+                if value == i128::from(u64::MAX))
+            ),
+            _ => panic!("only authored constants are inspected"),
+        }
+    }
+}
+
+#[test]
+fn a_complete_subject_with_machine_constants_publishes_its_actual_module() {
+    let (_, _, base, pending) = constant_base(&[(
+        "main.omg",
+        r#"
+        const FIRST: u64 = first();
+        const SECOND: u64 = second();
+        machine first() -> u64 { 4u64 }
+        machine second() -> u64 { 5u64 }
+        machine main() -> u64 { FIRST + SECOND }
+    "#,
+    )]);
+    let mut program = base.typed().clone();
+    let recorded = pending.evaluate_requested_constants(&mut program).unwrap();
+    crate::validate_constant_evaluations(&program, &recorded.accounting).unwrap();
+    let main = program.realized_machine_named("main").unwrap().symbol;
+    let (source, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        program,
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap();
+    let accepted = psi_terminal_production::AcceptedTerminalSource::judge(
+        std::sync::Arc::new(source),
+        psi_terminal_production::TerminalSourceCompilation {
+            declaration_metadata: &[],
+            entries: &[main],
+            subjects: &[semantic_vocabulary::PackageKeyIdentity::from_digest(
+                [1; 32],
+            )],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Portable,
+    )
+    .unwrap();
+    let produced = accepted
+        .produce(
+            Default::default(),
+            &mut psi_terminal_production::UnmeasuredProduction,
+        )
+        .unwrap();
+    assert_eq!(
+        produced.view().module(),
+        &accepted.closure().elaboration.module
+    );
+    let program = terminal_interpreter::TerminalProgram::borrow(produced.view());
+    let mut instance = program
+        .instantiate(terminal_interpreter::TerminalInstantiation::default())
+        .unwrap();
+    let mut meter = psi_work::WorkMeter::unbounded();
+    let terminal_interpreter::TerminalExecutionStatus::Complete(
+        terminal_interpreter::TerminalExecutionResult::Scalar(value),
+    ) = instance.invoke(&mut meter).unwrap()
+    else {
+        panic!("the published program returns the computed constants")
+    };
+    assert_eq!(
+        crate::terminal_values::scalar_result(value).unwrap(),
+        crate::BuildTimeValue::Int(9)
+    );
+}
+
+#[test]
+fn an_unread_machine_constant_is_pending_until_the_actual_scope_demands_it() {
+    for body in [
+        "machine helper() -> u64 { selected() } linux_x86_64 machine selected() -> u64 { 7u64 }",
+        "boundary trait Requests { machine observe() reaches none crashes none; } machine helper() -> u64 reaches Requests { 7u64 }",
+    ] {
+        let text = format!(
+            "const VALUE: u64 = helper(); machine main() -> u64 {{ 0u64 }} machine demanded() -> u64 {{ VALUE }} {body}"
+        );
+        let (_, _, base, pending) = constant_base(&[("main.omg", &text)]);
+        let mut program = base.typed().clone();
+        let recorded = pending.evaluate_or_defer_recorded(&mut program).unwrap();
+        assert!(recorded.accounting.receipts().is_empty());
+        let main = program.realized_machine_named("main").unwrap().symbol;
+        let request = psi_terminal_production::TerminalSourceCompilation {
+            declaration_metadata: &[],
+            entries: &[main],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        };
+        let mut accounting = crate::SourceCompletionAccounting::default();
+        crate::evaluate_constant_initializers(&mut program, request, None, &mut accounting)
+            .unwrap();
+        assert!(accounting.receipts().is_empty());
+        assert!(program.const_declarations()[0].evaluated_value.is_none());
+        crate::validate_constant_evaluations(&program, &accounting).unwrap();
+        let demanded = program.realized_machine_named("demanded").unwrap().symbol;
+        for requested in [
+            psi_terminal_production::TerminalSourceCompilation {
+                declaration_metadata: &[],
+                entries: &[demanded],
+                ..request
+            },
+            psi_terminal_production::TerminalSourceCompilation {
+                subjects: &[semantic_vocabulary::PackageKeyIdentity::from_digest(
+                    [1; 32],
+                )],
+                ..request
+            },
+        ] {
+            let error = crate::evaluate_constant_initializers(
+                &mut program.clone(),
+                requested,
+                None,
+                &mut crate::SourceCompletionAccounting::default(),
+            )
+            .unwrap_err();
+            let diagnostic = diagnostics::join_messages(&error);
+            assert!(
+                diagnostic.contains("target")
+                    || diagnostic.contains("service")
+                    || diagnostic.contains("reach"),
+                "{diagnostic}"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_constant_receipt_authenticates_ordered_argument_storage() {
+    for (arguments, replacement, expected) in [("1u64", "2u64", 1i64), ("1u64, 2u64", "2u64", 1i64)]
+    {
+        let text = if arguments.contains(',') {
+            format!(
+                "const VALUE:u64=f(); machine f()->u64 {{ g({arguments}) }} machine g(a:u64,b:u64)->u64 {{ a }} machine spare()->u64 {{ {replacement} }}"
+            )
+        } else {
+            format!(
+                "const VALUE:u64=f(); machine f()->u64 {{ g({arguments}) }} machine g(a:u64)->u64 {{ a }} machine spare()->u64 {{ {replacement} }}"
+            )
+        };
+        let (_, _, base, pending) = constant_base(&[("main.omg", &text)]);
+        let mut program = base.typed().clone();
+        let recorded = pending.evaluate_requested_constants(&mut program).unwrap();
+        crate::validate_constant_evaluations(&program, &recorded.accounting).unwrap();
+        let crate::PureEvaluationRecord::Invocation(receipt) = &recorded.accounting.receipts()[0]
+        else {
+            panic!("actual invocation")
+        };
+        assert!(
+            matches!(receipt.outcome(), crate::PureTerminalEvaluationOutcome::Materialized { value: crate::BuildTimeValue::Int(value), .. } if *value==expected)
+        );
+        let g = program.realized_machine_named("g").unwrap().symbol;
+        let references = typed_trees::references::collect_program_references(&program);
+        let (expression, call) = references
+            .expressions
+            .iter()
+            .find_map(|expression| {
+                let typed_trees::expression::ExpressionNode::Call(call) =
+                    program.expression_table.expression(*expression)
+                else {
+                    return None;
+                };
+                program
+                    .machine_by_symbol(call.target_symbol)
+                    .or_else(|| program.machine_holding_state(call.target_symbol))
+                    .is_some_and(|machine| machine.symbol == g)
+                    .then(|| (*expression, call.clone()))
+            })
+            .expect("the actual call to g");
+        let old = program
+            .expression_table
+            .expression_handles(call.arguments)
+            .to_vec();
+        let two = references.expressions.iter().find(|expression| {
+            matches!(program.expression_table.expression(**expression), typed_trees::expression::ExpressionNode::Integer(literal) if literal.value_u64()==Some(2))
+        }).copied().unwrap();
+        program
+            .expression_table
+            .set_expression_handle_at_offset(call.arguments, 0, two);
+        if old.len() == 2 {
+            program
+                .expression_table
+                .set_expression_handle_at_offset(call.arguments, 1, old[0]);
+        }
+        assert_eq!(
+            program.expression_table.expression(expression),
+            &typed_trees::expression::ExpressionNode::Call(call)
+        );
+        assert!(
+            crate::validate_constant_evaluations(&program, &recorded.accounting)
+                .unwrap_err()
+                .contains("input storage")
+        );
+    }
+}
+
+#[test]
+fn a_later_constant_admission_failure_keeps_the_work_of_earlier_jobs() {
+    let (_, _, base, pending) = constant_base(&[(
+        "main.omg",
+        r#"
+        const FIRST:u64 = first();
+        const SECOND:u64 = bounded(9u64);
+        machine first()->u64 { 4u64 }
+        machine bounded(value:u64)->u64 requires value <= 5 { value }
+    "#,
+    )]);
+    let mut program = base.typed().clone();
+    pending.evaluate_or_defer_recorded(&mut program).unwrap();
+    let mut accounting = crate::SourceCompletionAccounting::default();
+    let error = crate::evaluate_constant_initializers(
+        &mut program,
+        psi_terminal_production::TerminalSourceCompilation {
+            declaration_metadata: &[],
+            entries: &[],
+            subjects: &[semantic_vocabulary::PackageKeyIdentity::from_digest(
+                [1; 32],
+            )],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        None,
+        &mut accounting,
+    )
+    .unwrap_err();
+    assert!(diagnostics::join_messages(&error).contains("requires"));
+    assert_eq!(accounting.receipts().len(), 1);
+    let crate::PureEvaluationRecord::Invocation(receipt) = &accounting.receipts()[0] else {
+        panic!("actual invocation")
+    };
+    assert!(receipt.usage().total_units() > 0);
+    assert!(matches!(
+        receipt.outcome(),
+        crate::PureTerminalEvaluationOutcome::Materialized {
+            value: crate::BuildTimeValue::Int(4),
+            ..
+        }
+    ));
+    accounting.validate_charges().unwrap();
+    assert!(program.const_declarations()[0].evaluated_value.is_some());
+    assert!(program.const_declarations()[1].evaluated_value.is_none());
+}
+
+#[test]
+fn an_exhausted_constant_job_keeps_its_failed_invocation_usage() {
+    let mut text = String::from("machine leaf() {}\n");
+    let mut previous = String::from("leaf");
+    for level in 0..18 {
+        let name = format!("branch_{level}");
+        text.push_str(&format!(
+            "machine {name}() {{ {previous}(); {previous}(); }}\n"
+        ));
+        previous = name;
+    }
+    text.push_str(&format!(
+        "machine answer()->u64 {{ {previous}(); 4u64 }} const VALUE:u64=answer();"
+    ));
+    let (_, _, base, pending) = constant_base(&[("main.omg", &text)]);
+    let mut program = base.typed().clone();
+    pending.evaluate_or_defer_recorded(&mut program).unwrap();
+    let mut accounting = crate::SourceCompletionAccounting::default();
+    let error = crate::evaluate_constant_initializers(
+        &mut program,
+        psi_terminal_production::TerminalSourceCompilation {
+            declaration_metadata: &[],
+            entries: &[],
+            subjects: &[semantic_vocabulary::PackageKeyIdentity::from_digest(
+                [1; 32],
+            )],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        None,
+        &mut accounting,
+    )
+    .unwrap_err();
+    assert_eq!(
+        accounting.receipts().len(),
+        1,
+        "{}",
+        diagnostics::join_messages(&error)
+    );
+    let crate::PureEvaluationRecord::Invocation(receipt) = &accounting.receipts()[0] else {
+        panic!("actual invocation")
+    };
+    assert_eq!(
+        receipt.usage().total_units(),
+        crate::evaluation_accounting::PURE_PSI_WORK_BUDGET,
+    );
+    let crate::PureTerminalEvaluationOutcome::Failed { reason } = receipt.outcome() else {
+        panic!("exhausted invocation returned a value")
+    };
+    assert!(reason.contains("BudgetExhausted(Work)"), "{reason}");
+    accounting.validate_charges().unwrap();
+    assert!(program.const_declarations()[0].evaluated_value.is_none());
+}
+
+#[test]
+fn shared_account_joins_retain_one_record_per_actual_invocation() {
+    let (_, _, base, pending) = constant_base(&[(
+        "main.omg",
+        "const VALUE:u64=answer(); machine answer()->u64 { 4u64 }",
+    )]);
+    let mut program = base.typed().clone();
+    let recorded = pending.evaluate_requested_constants(&mut program).unwrap();
+    let mut accounting = recorded.accounting.clone();
+    accounting.append(recorded.accounting.clone());
+    assert_eq!(accounting.receipts().len(), 1);
+    let requester = program.const_declarations()[0].symbol;
+    let answer = program.realized_machine_named("answer").unwrap().symbol;
+    let prepared = crate::PreparedBuildMachineProgram::prepare(&program, None).unwrap();
+    let entry = prepared.entry(requester, answer, &[]).unwrap();
+    let mut separate = crate::SourceCompletionAccounting::default();
+    for _ in 0..2 {
+        entry
+            .invoke_recorded(
+                crate::InvocationTarget {
+                    name: None,
+                    layout_target: None,
+                    carrier_layout: None,
+                    address_model: None,
+                },
+                &mut separate,
+            )
+            .unwrap();
+    }
+    assert_eq!(
+        separate.receipts().len(),
+        2,
+        "equal invocations are genuinely separate executions"
+    );
+    let mut projected = recorded.accounting.clone();
+    projected.append(separate);
+    accounting.append(projected.clone());
+    accounting.append(projected.clone());
+    assert_eq!(accounting.receipts().len(), 3);
+    for (actual, expected) in accounting.receipts().iter().zip(projected.receipts()) {
+        let (
+            crate::PureEvaluationRecord::Invocation(actual),
+            crate::PureEvaluationRecord::Invocation(expected),
+        ) = (actual, expected)
+        else {
+            panic!("actual invocations")
+        };
+        assert!(
+            std::sync::Arc::ptr_eq(actual, expected),
+            "joins preserve the incoming order after retained occurrences"
+        );
+    }
+    accounting.validate_charges().unwrap();
 }

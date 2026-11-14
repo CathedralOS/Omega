@@ -49,11 +49,18 @@ enum EngineOutcome {
 pub(crate) fn run_tests(
     tests: Vec<PendingTestProduct>,
     notes: Vec<TestRosterEntry>,
-) -> Result<Vec<TestRosterEntry>, Vec<Diagnostic>> {
+) -> Result<
+    (
+        Vec<TestRosterEntry>,
+        compilation_products::SourceCompletionAccounting,
+    ),
+    compiler::CompilationProductError,
+> {
+    let mut accounting = compilation_products::SourceCompletionAccounting::default();
     let mut failures = Vec::new();
     let mut roster = Vec::with_capacity(tests.len() + notes.len());
     for test in tests {
-        match run_test(test.product.map_err(join), &test.identity) {
+        match run_test(test.product, &test.identity, &mut accounting) {
             Ok(status) => roster.push(TestRosterEntry {
                 group: test.identity.group.clone(),
                 test: Some(test.identity.test.clone()),
@@ -68,27 +75,42 @@ pub(crate) fn run_tests(
         }
     }
     if !failures.is_empty() {
-        return Err(failures);
+        return Err(compiler::CompilationProductError::Production(failures)
+            .with_source_completion_accounting(accounting));
     }
     roster.extend(notes);
-    Ok(roster)
+    Ok((roster, accounting))
 }
 
 fn run_test(
-    product: Result<Box<compilation_products::PendingNativeProduct>, String>,
+    product: Result<
+        Box<compilation_products::PendingNativeProduct>,
+        compilation_products::CompileFailure,
+    >,
     identity: &TestRootIdentity,
+    accounting: &mut compilation_products::SourceCompletionAccounting,
 ) -> Result<TestRosterStatus, String> {
-    let product = product.map_err(|reason| format!("cannot be produced: {reason}"))?;
+    let product = product.map_err(|failure| {
+        if let Some(charged) = failure.source_completion_accounting() {
+            accounting.append(charged.clone());
+        }
+        format!("cannot be produced: {}", join(failure.into_diagnostics()))
+    })?;
     let report = match super::native_completion::complete_native(*product) {
         Ok(CompilationOutput::Report(report)) => report,
         Ok(_) => return Err("native completion produced no test report".to_owned()),
         Err(error) => {
+            let failure = compilation_products::CompileFailure::from(error);
+            if let Some(charged) = failure.source_completion_accounting() {
+                accounting.append(charged.clone());
+            }
             return Err(format!(
                 "cannot be produced: {}",
-                join(error.into_diagnostics())
+                join(failure.into_diagnostics())
             ));
         }
     };
+    accounting.append(report.source_completion_accounting().clone());
     let interpreted = interpret(&report, identity.target, identity.filesystem);
     let native = if target::TargetProfile::host_if_supported() == Some(identity.target) {
         execute_native(report, identity.filesystem)

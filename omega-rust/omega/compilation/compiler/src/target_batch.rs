@@ -91,23 +91,32 @@ impl crate::CompilationSession {
             } = prepared;
             let source = match source {
                 Some(Ok(source)) => self.check_completed_source(source, returned),
-                Some(Err(failure)) => Err(failure.into_diagnostics()),
+                Some(Err(failure)) => Err(failure),
                 None => Err(vec![Diagnostic::error(
                     "admitted target has no shared source preparation",
-                )]),
+                )]
+                .into()),
             };
             let prepared_targets: Vec<_> = targets
                 .into_iter()
                 .map(|(profile, target)| {
-                    let prepared = target.and_then(|target| {
-                        let source = source.as_ref().map_err(Clone::clone)?;
-                        let prepared = PreparedProductTarget::capture(
-                            source,
-                            target.profile(),
-                            target.package_inputs(),
-                        )?;
-                        Ok((target, source, prepared))
-                    });
+                    let prepared = target
+                        .map_err(crate::CompileFailure::from)
+                        .and_then(|target| {
+                            let source = source.as_ref().map_err(Clone::clone)?;
+                            let prepared = PreparedProductTarget::capture(
+                                source,
+                                target.profile(),
+                                target.package_inputs(),
+                            )
+                            .map_err(|diagnostics| {
+                                crate::CompileFailure::source_completion(
+                                    diagnostics,
+                                    source.source_completion_accounting.clone(),
+                                )
+                            })?;
+                            Ok((target, source, prepared))
+                        });
                     (profile, prepared)
                 })
                 .collect();
@@ -115,12 +124,16 @@ impl crate::CompilationSession {
                 .into_iter()
                 .map(|(profile, prepared)| {
                     let product = prepared.and_then(|(target, source, prepared)| {
-                        select_target_product(&shared, target, source, prepared)
+                        select_target_product(&shared, target, source, prepared).map_err(
+                            |diagnostics| {
+                                crate::CompileFailure::source_completion(
+                                    diagnostics,
+                                    source.source_completion_accounting.clone(),
+                                )
+                            },
+                        )
                     });
-                    (
-                        profile,
-                        product.map_err(CompilationProductError::Production),
-                    )
+                    (profile, product.map_err(CompilationProductError::from))
                 })
                 .collect();
 
@@ -177,13 +190,19 @@ pub(crate) fn produce_products<Owner>(
 
     work.into_iter()
         .map(|(owner, planned)| {
-            let outcome = planned.and_then(|product| match terminals.next() {
-                Some(Ok(terminal)) => product.finish(terminal),
-                Some(Err(diagnostics)) => Err(diagnostics.into()),
-                None => Err(vec![Diagnostic::error(
-                    "Terminal production lost a requested application",
-                )]
-                .into()),
+            let outcome = planned.and_then(|product| {
+                let terminal = terminals.next().unwrap_or_else(|| {
+                    Err(vec![Diagnostic::error(
+                        "Terminal production lost a requested application",
+                    )])
+                });
+                match terminal {
+                    Ok(terminal) => product.finish(terminal),
+                    Err(diagnostics) => Err(CompilationProductError::from(diagnostics)
+                        .with_source_completion_accounting(
+                            product.source_completion_accounting().clone(),
+                        )),
+                }
             });
             (owner, outcome)
         })

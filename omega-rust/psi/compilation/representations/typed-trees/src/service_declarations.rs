@@ -624,7 +624,7 @@ pub mod projection {
                 &mut requirements,
                 &mut methods,
                 &mut identities,
-            );
+            )?;
         }
         let receiver_applications =
             applied_receivers::receiver_applications(program, &scopes, &mut identities)?;
@@ -800,7 +800,7 @@ pub mod projection {
                     synchronous_invocations: machine_synchronous_invocation_names(
                         program,
                         requirement,
-                    ),
+                    )?,
                     may_suspend: requirement.suspends,
                     may_block: requirement.blocks,
                     terminates_guarantee: published_termination.promises_termination(),
@@ -817,7 +817,7 @@ pub mod projection {
         requirements: &mut Vec<ServiceRequirementSource>,
         methods: &mut Vec<ServiceMethod>,
         identities: &mut ProviderIdentityTable,
-    ) {
+    ) -> Option<()> {
         let trait_definition = scope.declaration;
         for signature in program.trait_machine_signatures(trait_definition) {
             let requirement_identity = identities.intern(
@@ -872,13 +872,14 @@ pub mod projection {
                     .unwrap_or_default(),
                 result_claims: service_result_claims(program, scope, signature),
                 service_reach: service_reach_names(program, trait_definition, signature),
-                synchronous_invocations: synchronous_invocation_names(program, signature),
+                synchronous_invocations: synchronous_invocation_names(program, signature)?,
                 may_suspend: signature.suspends,
                 may_block: signature.blocks,
                 terminates_guarantee: signature.termination_guarantee.promises_termination(),
                 termination_premises: service_progress_premises(program, signature, identities),
             });
         }
+        Some(())
     }
 
     fn service_progress_premises(
@@ -1225,14 +1226,14 @@ pub mod projection {
     fn synchronous_invocation_names(
         program: &crate::TypedTrees,
         signature: &crate::signature::StateSignature,
-    ) -> Vec<String> {
+    ) -> Option<Vec<String>> {
         let parameters = program
             .state_signature_parameters(signature)
             .iter()
             .collect::<Vec<_>>();
-        boundary_invocation_names(
+        invocation_names(
             program,
-            crate::invocations::declared_signature_invocations(program, signature),
+            crate::invocations::declared_signature_invocations(program, signature).ok()?,
             &parameters,
         )
     }
@@ -1240,19 +1241,17 @@ pub mod projection {
     fn machine_synchronous_invocation_names(
         program: &crate::TypedTrees,
         machine: &crate::machine::Machine,
-    ) -> Vec<String> {
-        let Some(entry) = program.machine_states(machine).first() else {
-            return Vec::new();
-        };
+    ) -> Option<Vec<String>> {
+        let entry = program.machine_states(machine).first()?;
         let parameters = program.state_parameters(entry).iter().collect::<Vec<_>>();
-        boundary_invocation_names(
+        invocation_names(
             program,
-            crate::invocations::declared_machine_invocations(program, machine),
+            crate::invocations::declared_machine_invocations(program, machine).ok()?,
             &parameters,
         )
     }
 
-    fn boundary_trait_name_for_type(
+    fn invocation_trait_name_for_type(
         program: &crate::TypedTrees,
         type_reference: crate::types::TypeReferenceHandle,
     ) -> Option<String> {
@@ -1262,34 +1261,34 @@ pub mod projection {
         program
             .traits()
             .iter()
-            .find(|definition| definition.is_boundary && definition.symbol == symbol)
+            .find(|definition| definition.symbol == symbol)
             .map(|definition| program.trait_declaration_path(definition))
     }
 
-    fn boundary_invocation_names(
+    fn invocation_names(
         program: &crate::TypedTrees,
         targets: Vec<flow_effects::InvocationTarget>,
         parameters: &[&crate::signature::StateParameter],
-    ) -> Vec<String> {
+    ) -> Option<Vec<String>> {
         let mut names = targets
             .into_iter()
-            .filter_map(|target| match target {
+            .map(|target| match target {
                 flow_effects::InvocationTarget::Parameter(index) => parameters
                     .get(index as usize)
                     .map(|parameter| parameter.type_reference)
                     .and_then(|type_reference| {
-                        boundary_trait_name_for_type(program, type_reference)
+                        invocation_trait_name_for_type(program, type_reference)
                     }),
                 flow_effects::InvocationTarget::Service(symbol) => program
                     .traits()
                     .iter()
-                    .find(|definition| definition.is_boundary && definition.symbol == symbol)
+                    .find(|definition| definition.symbol == symbol)
                     .map(|definition| program.trait_declaration_path(definition)),
             })
-            .collect::<Vec<_>>();
+            .collect::<Option<Vec<_>>>()?;
         names.sort_unstable();
         names.dedup();
-        names
+        Some(names)
     }
 }
 pub use projection::ProjectedServiceSurface;
@@ -3158,7 +3157,7 @@ pub mod signatures {
         let mut binders = Vec::new();
         let mut callback_sources = Vec::new();
         let mut static_machine_ordinal = 0u32;
-        let invocations = crate::invocations::declared_signature_invocations(typed, signature);
+        let invocations = crate::invocations::declared_signature_invocations(typed, signature)?;
         for parameter in typed.state_signature_type_parameters(signature) {
             let crate::data::TypeParameterKind::Machine { contract } = &parameter.kind else {
                 continue;

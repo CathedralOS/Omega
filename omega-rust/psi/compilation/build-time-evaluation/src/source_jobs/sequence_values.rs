@@ -31,7 +31,7 @@ fn target() -> InvocationTarget<'static> {
     // The existing explicit pure invocation fixture profile, not host inference
     // or native execution. No layout/provider context is supplied by this test.
     InvocationTarget {
-        name: "linux_x86_64",
+        name: Some("linux_x86_64"),
         layout_target: None,
         carrier_layout: None,
         address_model: None,

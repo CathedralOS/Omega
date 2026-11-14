@@ -410,15 +410,8 @@ impl SourceCompilation {
     pub(super) fn check(
         self,
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
-    ) -> Result<compilation_products::CheckedProductSource, Vec<Diagnostic>> {
-        let prepared = self
-            .source
-            .complete(
-                returned.map_err(CompileFailure::into_diagnostics)?,
-                None,
-                None,
-            )
-            .map_err(CompileFailure::into_diagnostics)?;
+    ) -> Result<compilation_products::CheckedProductSource, CompileFailure> {
+        let prepared = self.source.complete(returned?, None, None)?;
         let source = complete_prepared_build(prepared, self.inputs.as_ref())?;
         check_product_source(source, self.inputs.as_ref(), &self.rollback, None)
     }
@@ -511,6 +504,7 @@ pub(super) fn select_completed_build(
         .computed_build_config
         .independent_components();
     match complete_prepared_build(prepared, package_inputs)
+        .map_err(CompileFailure::from)
         .and_then(|source| check_product_source(source, package_inputs, rollback, frontier))
     {
         Ok(source) => crate::execution_settlement::select_product_target(
@@ -522,7 +516,7 @@ pub(super) fn select_completed_build(
             ),
         ),
         Err(diagnostics) => SelectedCompileOutcome {
-            result: Err(CompileFailure::from(diagnostics)),
+            result: Err(diagnostics),
             independent_components,
             tests: Vec::new(),
             test_notes: Vec::new(),
@@ -539,6 +533,16 @@ fn attribute_failure(
         CompileFailure::Diagnostics(mut diagnostics) => {
             attribute_diagnostics(&mut diagnostics, sources, package_inputs);
             CompileFailure::Diagnostics(diagnostics)
+        }
+        CompileFailure::SourceCompletion {
+            mut diagnostics,
+            accounting,
+        } => {
+            attribute_diagnostics(&mut diagnostics, sources, package_inputs);
+            CompileFailure::SourceCompletion {
+                diagnostics,
+                accounting,
+            }
         }
         other => other,
     }

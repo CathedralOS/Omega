@@ -108,6 +108,7 @@ pub(in crate::checked) fn typed_frontier_without_build(
     let PreparedProductSource {
         typed,
         computed_build_config,
+        source_completion_accounting,
         ..
     } = complete_prepared_build(
         compilation_products::PreparedBuild {
@@ -117,11 +118,12 @@ pub(in crate::checked) fn typed_frontier_without_build(
         },
         package_inputs,
     )?;
-    Ok(frozen_frontier(
+    frozen_frontier(
         typed,
+        source_completion_accounting,
         &computed_build_config.config,
         package_inputs.map(|inputs| inputs.root()),
-    )?)
+    )
 }
 
 /// The product check's own preparation (`source_checking::check_product_source`)
@@ -130,9 +132,10 @@ pub(in crate::checked) fn typed_frontier_without_build(
 /// graph, when it gave one.
 fn frozen_frontier(
     typed: typed_trees::TypedTrees,
+    accounting: build_time_evaluation::SourceCompletionAccounting,
     build: &compilation_products::BuildConfig,
     root_package: Option<semantic_vocabulary::PackageKeyIdentity>,
-) -> Result<TypedFrontier, Vec<Diagnostic>> {
+) -> Result<TypedFrontier, CompileFailure> {
     let layout_scopes = super::source_checking::layout_target_scopes(&typed, build)?;
     let entries = build.program_roots();
     let bindings = super::entry_shapes::bound_program_entry_shapes(&typed, &build.root_bindings)?;
@@ -154,7 +157,8 @@ fn frozen_frontier(
                     return Err(vec![Diagnostic::error(
                         "a program judged without its Build has authored sources of more than \
                          one package",
-                    )]);
+                    )]
+                    .into());
                 }
             }
         }
@@ -166,6 +170,16 @@ fn frozen_frontier(
     // checker projection or an interrupted source-checking request.
     let prepared = psi_compiler::SourcePreparationRequest {
         program: typed,
+        accounting,
+        compilation: psi_compiler::TerminalSourceCompilation {
+            declaration_metadata: &[],
+            entries: &entries,
+            subjects: &[subject],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &bindings,
+            supplies: &[],
+        },
         admission: psi_compiler::SourceAdmission {
             external_roots: &[],
             layout_scopes: &layout_scopes,
@@ -181,9 +195,11 @@ fn frozen_frontier(
             declarations: None,
         },
     }
-    .prepare()?;
+    .prepare()
+    .map_err(CompileFailure::from)?;
     Ok(TypedFrontier {
         typed: prepared.program.as_ref().clone(),
+        source_completion_accounting: prepared.accounting,
         entries,
         subject,
         selected: Vec::new(),

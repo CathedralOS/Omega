@@ -50,9 +50,10 @@ impl std::fmt::Display for ProjectSourceResolutionError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Preparation(error) => error.fmt(formatter),
-            Self::Compilation(CompileFailure::Diagnostics(diagnostics)) => {
-                diagnostics::write_bounded_diagnostics(formatter, diagnostics)
-            }
+            Self::Compilation(
+                CompileFailure::Diagnostics(diagnostics)
+                | CompileFailure::SourceCompletion { diagnostics, .. },
+            ) => diagnostics::write_bounded_diagnostics(formatter, diagnostics),
             Self::Compilation(CompileFailure::BuildConsentRequired(requests)) => write!(
                 formatter,
                 "restricted Build execution requires explicit consent before effects; pending requests: {requests:?}"

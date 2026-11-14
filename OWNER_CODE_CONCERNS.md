@@ -185,13 +185,6 @@ framework or a list of features that remain unimplemented.
 - Cost: the surviving producer and consumers agree by spelling rather than a shared typed value; a reader that misses the form fails only at run time (`None`, or "dynamic family tuple identity is not an integer constant").
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### The Omega unit validator carries copies of two Terminal Psi codec checks
-- Category: one idea, several implementations
-- Where: `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs:17909` and `:17846`, against `omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs:8566` and `:11744`
-- Saw: `attachment_storage_types` differs between the two files in two lines (visibility and one `use`); `validate_structural_type_graph` is the same walk with a different error type and lookup
-- Cost: the type-graph rules live once on each side of the Psi/Omega boundary, so a fix on one side leaves the other accepting or rejecting something different, with no test found tying them together
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### The default ranking view is derived differently in resolution and typing
 - Category: re-deriving
 - Where: `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering_machine.rs` (`elaborate_single_subject_default`); `03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs` (`pending_ranking_default`)
@@ -290,13 +283,6 @@ framework or a list of features that remain unimplemented.
 - Cost: a reader cannot tell a typing rule that was not rebuilt from a proof the checker must supply, so each stop is investigated from scratch and the wording invites routing typing work to the checker
 - Reported: 2026-11-13, Claude Code, while getting the route probe through typing
 
-### An `invokes` row that names an ordinary trait is dropped without a word
-- Category: a verdict with nothing behind it
-- Where: `typed-trees/src/declarations.rs` (`declared_targets`, consumed by `declared_machine_invocations`)
-- Saw: `declared_targets` keeps an `invokes` target only when it is a boundary trait or a parameter of boundary type and silently discards any other, so `invokes Handler` over an ordinary trait reads as no target to its consumers. Conformance refinement is now judged by `06_terminal-psi-to-terminal-psi/src/verdict.rs`; that no longer explains the loss.
-- Cost: a written entry ceiling can vanish before the checker sees it. Preserve or explicitly reject the authored target instead of silently narrowing the request during extraction.
-- Reported: 2026-11-13, Claude Code, while putting `invokes` on the lowered-form checker
-
 ### A whole-program stage refuses every program for a library construct nobody calls
 - Category: a verdict with nothing behind it
 - Where: `03_symbol-resolved-trees-to-typed-trees` (the remaining `unavailable_judgment` callers, such as "mathematical call receiving types" and "selected call parameter types" in `call_and_product_selections.rs` and `typing_queries.rs`); `build-time-evaluation/src/source_frontier.rs` (`source_jobs`: the side tables it still refuses whole, such as constant recipes and wire plans); any by-name refusal added to `04_typed-trees-to-typed-trees`
@@ -310,13 +296,6 @@ framework or a list of features that remain unimplemented.
 - Saw: "this machine was generated from that generic machine" is read from the state symbol's `generated_from` in three places and from the `machine_specializations` row in a fourth, and nothing ties the two; the row also keeps eight string and commitment fields that only the deleted checker filled. Separately, an expression copy shares the types its nodes hold, so the pass lists by hand which node kinds hold a type (`held_types`) and which body constructs it cannot copy
 - Cost: a pass that sets one marker and not the other produces a machine the reader accepts and the declaration step refuses, or the reverse; a new expression node that holds a type is silently left pointing at the generic machine's type until someone adds it to the list
 - Reported: 2026-11-13, Claude Code, while rebuilding specialization as a typed preparation pass
-
-### Static requirement dispatch retains fields its producer never fills
-- Category: stale representation and consumers
-- Where: `typed-trees` (`StaticRequirementDispatch`, `selected_conformance_applications`); `04_typed-trees-to-typed-trees/src/passes/specialization.rs` (`selections`)
-- Saw: the dispatch producer writes five of nine fields; application fingerprint, commitment, selection application and contract signature stay at their defaults, but copy walks and conformance-signature lookup still consume them
-- Cost: readers cannot distinguish an empty commitment from an uncomputed one; retirement needs to reconcile those consumers with the actual specialization evidence, not substitute unchecked defaults
-- Reported: 2026-11-13, Claude Code, while serving implementation parameters in the specialization pass
 
 ### A typing unit test is red on `main` and nothing runs it before merge
 - Category: a test that pins nothing while it is red

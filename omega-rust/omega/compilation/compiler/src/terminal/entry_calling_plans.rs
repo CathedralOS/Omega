@@ -245,7 +245,7 @@ pub(crate) fn prepare(
         }
     });
     let invocation_target = InvocationTarget {
-        name: profile.target_name(),
+        name: Some(profile.target_name()),
         layout_target: Some(&layout),
         carrier_layout: profile
             .native_realization()
