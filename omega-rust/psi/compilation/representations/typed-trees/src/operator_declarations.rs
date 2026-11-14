@@ -2688,14 +2688,25 @@ pub mod operator {
                 }
                 let names = program.with_domain_candidate_index(
                     |index| {
-                        index.qualified.extend(
-                            program
-                                .domain_definitions()
-                                .iter()
-                                .map(|row| row.name.as_str().into()),
-                        );
+                        for (position, row) in program.domain_definitions().iter().enumerate() {
+                            index
+                                .by_qualified
+                                .entry(row.name.as_str().into())
+                                .or_default()
+                                .push(position as u32);
+                        }
                     },
-                    |index| index.qualified.clone(),
+                    |index| {
+                        let mut names = index
+                            .by_qualified
+                            .iter()
+                            .flat_map(|(name, positions)| {
+                                positions.iter().map(|position| (*position, name.clone()))
+                            })
+                            .collect::<Vec<_>>();
+                        names.sort_by_key(|(position, _)| *position);
+                        names.into_iter().map(|(_, name)| name).collect::<Vec<_>>()
+                    },
                 );
                 assert_eq!(
                     names,

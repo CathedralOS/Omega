@@ -133,6 +133,15 @@ pub(crate) mod declaration_selection {
             self.retained.as_deref()
         }
 
+        /*
+            Early declaration consumers share the prepared namespace's visibility
+            and import identities. These handles belong to this header table;
+            consumers rejoin declarations before publishing resolved symbols.
+        */
+        pub(crate) fn header_symbols(&self) -> &SymbolTable {
+            &self.symbols
+        }
+
         pub(crate) fn shared_retained_base(
             &self,
         ) -> Option<Arc<symbol_resolved_trees::SymbolResolvedTrees>> {

@@ -5340,14 +5340,6 @@ impl syntax_trees::SyntaxTextContext for NamespaceDeclarations {
 }
 
 impl NamespaceDeclarations {
-    pub(crate) fn module_paths(&self) -> &[Vec<syntax_trees::identifier::Identifier>] {
-        &self.modules
-    }
-
-    pub(crate) fn import_paths(&self) -> &[Vec<syntax_trees::identifier::Identifier>] {
-        &self.imports
-    }
-
     pub(crate) fn record_module(
         &mut self,
         syntax: &syntax_trees::SyntaxTrees,

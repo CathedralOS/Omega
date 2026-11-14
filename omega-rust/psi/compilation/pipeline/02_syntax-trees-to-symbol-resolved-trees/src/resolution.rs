@@ -2620,8 +2620,8 @@ fn drive_recorded(
 > {
     lowering::lower_items(&mut lowerer, syntax)?;
     lower_mathematical_definitions(&mut lowerer, syntax)?;
-    let constant_selection = lowerer.take_constant_selection()?;
     selection::select_operator_homes(&mut lowerer)?;
+let constant_selection = lowerer.take_constant_selection()?;
     crate::symbols::assign(&mut lowerer, syntax)?;
     finish_resolution(&mut lowerer, syntax, &[], &[])?;
     let links = lowerer.equation_sources.take();
