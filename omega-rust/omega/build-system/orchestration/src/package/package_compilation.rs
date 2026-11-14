@@ -78,7 +78,7 @@ pub fn compile_packages(
                 position,
                 product.map_err(|error| PackageCompileFailure {
                     occurrence: root,
-                    failure: error.into_diagnostics().into(),
+                    failure: error.into(),
                 }),
             ));
         }

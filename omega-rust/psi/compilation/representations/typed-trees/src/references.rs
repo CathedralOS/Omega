@@ -1628,11 +1628,28 @@ pub fn collect_selected_program_references(
 pub fn collect_declaration_symbol_dependencies(
     program: &TypedTrees,
 ) -> Vec<(SymbolHandle, Vec<SymbolHandle>)> {
+    declaration_symbol_dependencies(program, true)
+}
+
+/// Actual source computation dependencies omit derived receipt/provenance
+/// ownership edges. Those edges keep source custody alive but do not request
+/// evaluating the owner again.
+pub fn collect_computation_symbol_dependencies(
+    program: &TypedTrees,
+) -> Vec<(SymbolHandle, Vec<SymbolHandle>)> {
+    declaration_symbol_dependencies(program, false)
+}
+
+fn declaration_symbol_dependencies(
+    program: &TypedTrees,
+    derived: bool,
+) -> Vec<(SymbolHandle, Vec<SymbolHandle>)> {
     #[derive(Default)]
     struct Declarations {
         rows: Vec<(SymbolHandle, Vec<SymbolHandle>)>,
         owner: SymbolHandle,
         current: ReferenceCollector,
+        derived: bool,
     }
 
     impl Declarations {
@@ -1659,6 +1676,9 @@ pub fn collect_declaration_symbol_dependencies(
     }
 
     impl TypedReferences for Declarations {
+        fn derived_declaration_references(&self) -> bool {
+            self.derived
+        }
         fn declaration(&mut self, symbol: SymbolHandle) -> bool {
             self.finish();
             self.owner = symbol;
@@ -1686,10 +1706,24 @@ pub fn collect_declaration_symbol_dependencies(
         }
     }
 
-    let mut declarations = Declarations::default();
+    let mut declarations = Declarations {
+        derived,
+        ..Default::default()
+    };
     visit_program(program, &mut declarations);
     declarations.finish();
     declarations.rows
+}
+
+/// Prepare one expression's actual referenced family through the same source
+/// owner used for machine and program references.
+pub fn collect_expression_references(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> ProgramReferences {
+    let mut references = ReferenceCollector::default();
+    visit_expression(program, &mut references, expression);
+    finish_references(references)
 }
 
 pub fn collect_program_references_with_roles(

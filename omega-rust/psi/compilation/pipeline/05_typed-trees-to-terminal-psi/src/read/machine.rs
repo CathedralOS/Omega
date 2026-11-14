@@ -637,17 +637,19 @@ impl<'t> Program<'t> {
         if machine.spelling.is_some() {
             return unserved("operator spelling");
         }
-        if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
-            return unserved("supply mode other than a checked body");
-        }
-        if machine.purpose != MachinePurpose::Runtime {
-            return unserved("provider-default purpose");
-        }
+        // An unselected target family is also a boundary. Report the missing
+        // target decision before the generic boundary-body refusal.
         if machine.target.is_some()
             || machine.authored_target.is_some()
             || machine.target_family_interface
         {
             return unserved("target selection");
+        }
+        if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
+            return unserved("supply mode other than a checked body");
+        }
+        if machine.purpose != MachinePurpose::Runtime {
+            return unserved("provider-default purpose");
         }
         if !machine.body_is_present || machine.body_status != MachineBodyStatus::Complete {
             return unserved("no complete body");

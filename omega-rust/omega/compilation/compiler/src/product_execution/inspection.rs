@@ -25,6 +25,12 @@ impl InspectionCompilation {
         }
     }
 
+    pub(crate) fn source_completion_accounting(
+        &self,
+    ) -> &build_time_evaluation::SourceCompletionAccounting {
+        &self.realization.custody.source_completion_accounting
+    }
+
     pub(crate) fn terminal_request(&mut self) -> TerminalProductRequest<'_> {
         TerminalProductRequest::inspection(
             &mut self.realization.custody,
