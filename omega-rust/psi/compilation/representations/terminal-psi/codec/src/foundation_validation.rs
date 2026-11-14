@@ -2548,6 +2548,160 @@ mod empty_elimination_foundations {
             assert!(admitted(&module).is_err());
         }
 
+        fn result(place: PlaceId) -> terminal_psi::OperationResult {
+            terminal_psi::OperationResult::Structural(terminal_psi::StructuralOperationResult {
+                place,
+                structural_type: StructuralTypeId::new(1).unwrap(),
+                multiplicity: StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                projected_qualifications: Vec::new(),
+                additional_input_qualifications: Vec::new(),
+                qualification_establishments: Vec::new(),
+                claims: Vec::new(),
+            })
+        }
+
+        #[test]
+        fn a_copy_preserves_value_availability_without_affine_cleanup() {
+            let mut module = module();
+            let machine = &mut module.machines[0];
+            let place = PlaceId::new(2).unwrap();
+            let operation = semantic_vocabulary::OperationId::new(1).unwrap();
+            machine.structural_places.push(StructuralPlaceDeclaration {
+                id: place,
+                kind: StructuralPlaceKind::OperationResult {
+                    producer: operation,
+                    structural_type: StructuralTypeId::new(1).unwrap(),
+                },
+            });
+            machine.blocks[0]
+                .operations
+                .push(terminal_psi::Operation::unsuspended(
+                    operation,
+                    result(place),
+                    terminal_psi::OperationKind::MoveStructuralValue {
+                        source: terminal_psi::StructuralArgument::whole(
+                            PlaceId::new(1).unwrap(),
+                            StructuralAccess::Owned,
+                        ),
+                    },
+                ));
+            admitted(&module).unwrap();
+            let availability = terminal_semantics::plain_affine::verify(
+                &module.machines[0],
+                &module.structural_types,
+            )
+            .unwrap();
+            assert!(availability.affine_roots.is_empty());
+            assert!(availability.cleanup.is_empty());
+            assert!(availability.unavailable.is_empty());
+        }
+
+        #[test]
+        fn zero_leaf_storage_is_not_an_initialized_empty_value() {
+            let mut module = module();
+            let machine = &mut module.machines[0];
+            machine.structural_parameters.clear();
+            machine.parameter_order.clear();
+            let operation = semantic_vocabulary::OperationId::new(1).unwrap();
+            machine.structural_places[0].kind = StructuralPlaceKind::OperationResult {
+                producer: operation,
+                structural_type: StructuralTypeId::new(1).unwrap(),
+            };
+            machine.blocks[0]
+                .operations
+                .push(terminal_psi::Operation::unsuspended(
+                    operation,
+                    result(PlaceId::new(1).unwrap()),
+                    terminal_psi::OperationKind::EstablishStructuralLocal {},
+                ));
+            assert_eq!(
+                admitted(&module),
+                malformed("empty elimination observes unavailable storage")
+            );
+        }
+
+        #[test]
+        fn empty_payload_needs_its_actual_selected_case_on_every_arrival() {
+            use semantic_vocabulary::{BlockId, StructuralCaseId, StructuralFieldId};
+            use terminal_psi::{
+                StructuralCaseDeclaration, StructuralCaseSuccessorEdge, StructuralFieldDeclaration,
+                StructuralFieldType,
+            };
+            let mut module = module();
+            let mut sum = module.structural_types[0].clone();
+            sum.id = StructuralTypeId::new(2).unwrap();
+            sum.requires.clear();
+            sum.shape = StructuralTypeShape::Sum {
+                cases: vec![
+                    StructuralCaseDeclaration {
+                        id: StructuralCaseId::new(1).unwrap(),
+                        identity: TerminalIdentityIndex(1),
+                        fields: Vec::new(),
+                    },
+                    StructuralCaseDeclaration {
+                        id: StructuralCaseId::new(2).unwrap(),
+                        identity: TerminalIdentityIndex(2),
+                        fields: vec![StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(1).unwrap(),
+                            identity: TerminalIdentityIndex(3),
+                            relevance: Default::default(),
+                            field_type: StructuralFieldType::Structural(
+                                StructuralTypeId::new(1).unwrap(),
+                            ),
+                            inline_carrier: None,
+                            storage: None,
+                        }],
+                    },
+                ],
+            };
+            module.structural_types.push(sum);
+            let machine = &mut module.machines[0];
+            machine.structural_parameters[0].structural_type = StructuralTypeId::new(2).unwrap();
+            let mut normal = machine.blocks[0].clone();
+            normal.id = BlockId::new(2).unwrap();
+            normal.terminator = Terminator::ReturnUnit {
+                edge: EdgeId::new(3).unwrap(),
+                cleanup_actions: Vec::new(),
+            };
+            let mut excluded = machine.blocks[0].clone();
+            excluded.id = BlockId::new(3).unwrap();
+            excluded.terminator = Terminator::EliminateEmpty {
+                edge: EdgeId::new(4).unwrap(),
+                source: PlaceId::new(1).unwrap(),
+                path: vec![StructuralPathSegment::Case(
+                    StructuralCaseId::new(2).unwrap(),
+                )],
+            };
+            machine.blocks[0].terminator = Terminator::StructuralCase {
+                source: PlaceId::new(1).unwrap(),
+                path: Vec::new(),
+                cases: (1..=2)
+                    .map(|case| StructuralCaseSuccessorEdge {
+                        edge: EdgeId::new(case).unwrap(),
+                        target: BlockId::new(case + 1).unwrap(),
+                        case: StructuralCaseId::new(case).unwrap(),
+                        payload_fields: Vec::new(),
+                        structural_arguments: Vec::new(),
+                        cleanup_actions: Vec::new(),
+                    })
+                    .collect(),
+            };
+            machine.blocks.extend([normal, excluded]);
+            admitted(&module).unwrap();
+            let Terminator::StructuralCase { cases, .. } =
+                &mut module.machines[0].blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            cases[0].target = BlockId::new(3).unwrap();
+            cases[1].target = BlockId::new(2).unwrap();
+            assert_eq!(
+                admitted(&module),
+                malformed("empty elimination has no current selected case at its source path")
+            );
+        }
+
         #[test]
         fn unknown_domain_foreign_place_and_result_placeholder_do_not_eliminate() {
             let mut module = module();
