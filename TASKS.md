@@ -107,6 +107,10 @@ Write each item so any agent can start from it alone: current state, files and e
 
 ## Lowering, checker, and data-flow
 
+- **SAME-FAMILY-RECORD-TRANSPORT.** Admit explicitly supplied records across proved-compatible indices without forwarding machines ([contract and acceptance](wiki/spec/proofs/contracts.md#exact-matching-and-evidence-transport)); extends **OPERATION-RECORD-IMPLEMENTATIONS** and indexed-value compatibility.
+  - Extend the shared record/callable compatibility judgment in the lowered-form checker, not conformance search. A requirement-bound selection crosses to a provably equal application of the same requirement declaration and stays bound to it; keep dependency-ordered evidence and mutable source handback through specialization, projection and published Psi; migrate the blanket reindexing refusal.
+  Acceptance: the spec's static/runtime, requirement-binding and route, generic-premise, dependent-law, linear-custody, mutable-handback and artifact controls pass, with native/Psi agreement on executable positives across hosted targets. Canonical keys stay stable; no wrapper declarations, new authority or runtime conversion are introduced. Reuse indexed-value and implementation-record fixtures; no new fact family.
+
 - **MUTABLE-PARAMETER-CONTRACT-NAME.** Implement [immutable logical contract inputs](wiki/spec/language/state_contracts.md#contract-inputs-and-working-values) separately from mutable executable parameter storage.
   Acceptance: a mutable by-value counter proves a result against its original input, including mutation through a helper; a final-local-value interpretation and incorrectly covered crash reject. Preserve borrowed final/`old` observations, contained-reference invalidation, fresh recursive/terminal inputs and non-copy ownership without a runtime snapshot. Pin focused tests beside the changed code and demonstrate native/Psi agreement; do not restore the frozen checker.
 
