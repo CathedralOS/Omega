@@ -365,7 +365,7 @@ impl NativeContext {
                     .map_err(|_| rejection("original byte index exceeds the host address space"))?;
                 let logical = value.value().scalar_type();
                 if offset >= extent
-                    || !matches!(logical, ScalarType::Integer(integer) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8)
+                    || !matches!(logical, ScalarType::Integer(integer) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == Some(8))
                 {
                     return Err(rejection(
                         "original byte owner has an invalid byte coordinate or carrier",
@@ -588,7 +588,7 @@ impl NativeContext {
                 .cells
                 .get(&path)
                 .ok_or_else(|| rejection("native byte view includes an unestablished byte"))?;
-            if !matches!(cell.logical, ScalarType::Integer(integer) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8)
+            if !matches!(cell.logical, ScalarType::Integer(integer) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == Some(8))
                 || cell.stored != cell.logical
             {
                 return Err(rejection(
