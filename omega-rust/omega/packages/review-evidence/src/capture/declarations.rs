@@ -16,6 +16,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::{DataField, DataMember};
+use typed_trees::domain::DomainDefinition;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::types::TypeReferenceHandle;
 
@@ -273,7 +274,7 @@ impl<'a> PackageReviewInput<'a> {
                 };
                 predicate_facts.push(PackageReviewContractFact::Expression(self.expression(
                     *expression,
-                    definition.subject_symbol,
+                    definition,
                     0,
                 )?));
             }
@@ -296,44 +297,91 @@ impl<'a> PackageReviewInput<'a> {
         Ok(rows)
     }
 
-    /// An operator's spelling alone does not identify its meaning. Preserve
-    /// the one selection attached to this exact accepted expression; an
-    /// unserved overload must not be rendered as a builtin operation.
-    fn builtin_operator(&self, expression: ExpressionHandle) -> Result<(), Vec<Diagnostic>> {
-        use language_semantics::declaration_selection::{
-            AuthoredDeclarationSelectionIntrinsic as Intrinsic,
-            AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionTarget as Target,
+    /// Selection and operand identity decide a spelled operator's meaning.
+    /// The ledger need not contain a row for a fixed builtin connective, and
+    /// absence of a row cannot itself turn an unresolved operator into one.
+    fn builtin_operator(
+        &self,
+        expression: ExpressionHandle,
+        domain: &DomainDefinition,
+    ) -> Result<(), Vec<Diagnostic>> {
+        let typed = self.typed();
+        let ExpressionNode::Binary(binary) = typed.expression_table.expression(expression) else {
+            return Err(unavailable("a non-binary contract operator"));
         };
-        let mut found = None;
-        for occurrence in self
-            .typed()
-            .expression_table
-            .authored_selection_occurrences(expression)
-        {
-            let selection = self
-                .typed()
-                .authored_declaration_selections()
-                .get(occurrence)
-                .ok_or_else(|| unavailable("a dangling contract operator selection"))?;
-            if selection.kind() != Kind::Operator {
-                continue;
-            }
-            if found.replace(selection).is_some() {
-                return Err(unavailable("an ambiguous contract operator selection"));
-            }
+        // Conjunction and disjunction are fixed clause connectives, not
+        // overloadable operator families. The accepted judgment checked both
+        // operands as clauses, and recursive projection still retains them.
+        if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or) {
+            return Ok(());
         }
-        match found.map(|selection| selection.target()) {
-            Some(Target::Intrinsic(Intrinsic::BuiltinOperator)) => Ok(()),
-            _ => Err(unavailable(
-                "a missing or non-builtin contract operator selection",
-            )),
+        let spelling = typed_trees::operator::binary_operator_spelling(binary.operator)
+            .ok_or_else(|| unavailable("an unserved contract operator family"))?;
+        let operands = [
+            self.operand_type(binary.left, domain)?,
+            self.operand_type(binary.right, domain)?,
+        ];
+        if typed_trees::operator::has_builtin_spelled_expression_meaning(
+            typed,
+            domain.symbol,
+            expression,
+            spelling,
+            &operands,
+        ) {
+            Ok(())
+        } else {
+            Err(unavailable(
+                "a selected or unresolved contract operator meaning",
+            ))
         }
+    }
+
+    fn operand_type(
+        &self,
+        expression: ExpressionHandle,
+        domain: &DomainDefinition,
+    ) -> Result<Option<TypeReferenceHandle>, Vec<Diagnostic>> {
+        let typed = self.typed();
+        let table = &typed.expression_table;
+        let retained = table.constructed_value_type_reference(expression);
+        if retained.is_valid() && typed.contains_type_reference(retained) {
+            return Ok(Some(retained));
+        }
+        let (atom, policy) = match table.expression(expression) {
+            ExpressionNode::Name(name) if name.symbol == domain.subject_symbol => {
+                return Ok(Some(domain.target_type));
+            }
+            ExpressionNode::Integer(literal) => {
+                let Some(landing) = literal.landing() else {
+                    return Ok(None);
+                };
+                (
+                    typed_trees::types::builtin_type_atom(landing.landed_type),
+                    landing.domain,
+                )
+            }
+            ExpressionNode::Boolean(_) => (
+                symbols::BuiltinTypeAtom::Bool,
+                numerics::arithmetic::ArithmeticDomain::Exact,
+            ),
+            _ => return Err(unavailable("a contract operand's retained type")),
+        };
+        let reference = typed
+            .symbols
+            .builtin_atom_symbol(atom)
+            .and_then(|symbol| {
+                typed
+                    .type_reference_table
+                    .find_arithmetic_result_type_reference(symbol, policy)
+            })
+            .ok_or_else(|| unavailable("a literal's canonical declared carrier"))?;
+        Ok(Some(reference))
     }
 
     pub(super) fn expression(
         &self,
         expression: ExpressionHandle,
-        subject: SymbolHandle,
+        domain: &DomainDefinition,
         depth: usize,
     ) -> Result<PackageReviewContractExpression, Vec<Diagnostic>> {
         use PackageReviewContractBinaryOperator as Output;
@@ -349,11 +397,13 @@ impl<'a> PackageReviewInput<'a> {
         Ok(match self.typed().expression_table.expression(expression) {
             ExpressionNode::Boolean(value) => Expression::Boolean(*value),
             ExpressionNode::Integer(value) => Expression::Integer(value.to_string()),
-            ExpressionNode::Name(name) if name.symbol == subject && subject.is_valid() => {
+            ExpressionNode::Name(name)
+                if name.symbol == domain.subject_symbol && domain.subject_symbol.is_valid() =>
+            {
                 Expression::DomainSubject
             }
             ExpressionNode::Binary(binary) => {
-                self.builtin_operator(expression)?;
+                self.builtin_operator(expression, domain)?;
                 let operator = match binary.operator {
                     BinaryOperator::Add => Output::Add,
                     BinaryOperator::And => Output::And,
@@ -383,8 +433,8 @@ impl<'a> PackageReviewInput<'a> {
                 Expression::Binary {
                     meaning: PackageReviewContractOperatorMeaning::Builtin,
                     operator,
-                    left: Box::new(self.expression(binary.left, subject, depth + 1)?),
-                    right: Box::new(self.expression(binary.right, subject, depth + 1)?),
+                    left: Box::new(self.expression(binary.left, domain, depth + 1)?),
+                    right: Box::new(self.expression(binary.right, domain, depth + 1)?),
                 }
             }
             _ => return Err(unavailable("this contract expression form")),
