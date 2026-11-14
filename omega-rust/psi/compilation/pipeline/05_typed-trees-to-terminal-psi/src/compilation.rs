@@ -40,16 +40,23 @@ pub fn prepare_compilation(
             };
         }
     }
-    let (mut closure, source) = match crate::elaborate_source_for(typed, compilation, publication) {
-        Ok(prepared) => (Ok(prepared.program), prepared.source),
-        Err(refusal) => (Err(refusal), Default::default()),
-    };
+    let captures = crate::named_captures(typed);
+    let (mut closure, source) =
+        match crate::elaborate_source_for(typed, compilation, publication, captures.clone()) {
+            Ok(prepared) => (Ok(prepared.program), prepared.source),
+            Err(refusal) => (Err(refusal), Default::default()),
+        };
     let mut templates = Vec::new();
     let mut rows: Vec<WitnessRow> = Vec::new();
     let mut specializations = semantic_vocabulary::IdTable::default();
     let mut selection_witnesses = Vec::new();
     if let Ok(closure) = &mut closure {
         templates = std::mem::take(&mut closure.generic_templates);
+        let mut indexed_templates = templates
+            .iter()
+            .copied()
+            .map(|template| (template, ()))
+            .collect::<symbols::SymbolMap<_>>();
         rows.extend(
             std::mem::take(&mut closure.conformance_witnesses)
                 .into_iter()
@@ -67,10 +74,10 @@ pub fn prepare_compilation(
             // A closed invocation still owes the generic source declaration's
             // universal check, even when no whole-package subject was requested.
             if let Some(template) = template
+                && indexed_templates.insert(template, ()).is_none()
                 && typed
                     .machine_by_symbol(template)
                     .is_some_and(|machine| crate::is_generic_template(typed, machine))
-                && !templates.contains(&template)
             {
                 templates.push(template);
             }
@@ -96,17 +103,18 @@ pub fn prepare_compilation(
             selection_witnesses.push((selection, position));
         }
     }
-    let forms = prepare_generic_forms(typed, templates);
+    let forms = prepare_generic_forms(typed, templates, &captures);
     let mut witnesses = Vec::new();
     let mut next = 0;
     while next < rows.len() {
         let (declaring_trait, requirement, arguments, implementation) = &rows[next];
-        let mut witness = crate::elaborate_witness(
+        let mut witness = crate::elaborate_witness_with_captures(
             typed,
             *declaring_trait,
             *requirement,
             arguments,
             *implementation,
+            captures.clone(),
         );
         if let Ok(witness) = &mut witness {
             for row in std::mem::take(&mut witness.conformance_witnesses) {
@@ -139,12 +147,14 @@ pub fn prepare_compilation(
 fn prepare_generic_forms(
     typed: &TypedTrees,
     mut templates: Vec<SymbolHandle>,
+    captures: &crate::NamedCaptures,
 ) -> Vec<GenericForms> {
     let mut forms = Vec::new();
     let mut next = 0;
     while next < templates.len() {
         let template = templates[next];
-        let elaborated = crate::elaborate_generic_forms(typed, &[template]);
+        let elaborated =
+            crate::elaborate_generic_forms_with_captures(typed, &[template], captures.clone());
         let mut applies = Some(Vec::new());
         for form in elaborated.iter().flatten() {
             for application in &form.applications {

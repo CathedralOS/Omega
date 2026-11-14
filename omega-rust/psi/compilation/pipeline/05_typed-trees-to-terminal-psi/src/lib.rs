@@ -61,6 +61,13 @@ mod policy;
 mod proof_scope;
 mod read;
 
+// One compilation's forms read the same frozen owner and its immutable
+// capture index. Sharing this scratch never transfers source or proof authority.
+type NamedCaptures = std::sync::Arc<typed_trees::NamedConformanceCaptureIndex>;
+fn named_captures(typed: &TypedTrees) -> NamedCaptures {
+    std::sync::Arc::new(typed_trees::NamedConformanceCaptureIndex::new(typed))
+}
+
 pub use body::{
     Axis, Body, Borrowed, CaseType, Ceiling, CrashCeiling, DomainSet, Expression, ExpressionKind,
     Policy, Qualification, RecordField, RecordType, Selector, Signature, Statement, StorageShape,
@@ -255,15 +262,17 @@ pub fn elaborate_for(
     compilation: Compilation<'_>,
     publication: terminal_codec::TerminalPublication,
 ) -> Checked<Elaboration> {
-    elaborate_source_for(typed, compilation, publication).map(|prepared| prepared.program)
+    elaborate_source_for(typed, compilation, publication, named_captures(typed))
+        .map(|prepared| prepared.program)
 }
 
 fn elaborate_source_for(
     typed: &TypedTrees,
     compilation: Compilation<'_>,
     publication: terminal_codec::TerminalPublication,
+    captures: NamedCaptures,
 ) -> Checked<PreparedProgram> {
-    let mut program = read::Program::new(typed, false);
+    let mut program = read::Program::with_captures(typed, false, captures);
     program.publication = publication;
     program.declaration_metadata = compilation.declaration_metadata.to_vec();
     let first = MachineId::new(1).expect("1 is nonzero");
@@ -296,7 +305,7 @@ fn elaborate_source_for(
 /// carrying a generic body's proofs into one of its specializations. Any
 /// refusal refuses the whole closure.
 pub fn elaborate_closure(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Elaboration> {
-    elaborate_form(typed, entry, false)
+    elaborate_form(typed, entry, false, named_captures(typed))
 }
 
 /// Elaborates the generic check form of `template`, a machine whose generic
@@ -309,7 +318,7 @@ pub fn elaborate_closure(typed: &TypedTrees, entry: SymbolHandle) -> Checked<Ela
 /// once, against the requirements alone, and is never sealed, encoded or
 /// run.
 pub fn elaborate_generic(typed: &TypedTrees, template: SymbolHandle) -> Checked<Elaboration> {
-    elaborate_form(typed, template, true)
+    elaborate_form(typed, template, true, named_captures(typed))
 }
 
 /// Elaborates a generic machine over a finite type family once per
@@ -327,12 +336,21 @@ pub fn elaborate_alternatives(
     typed: &TypedTrees,
     template: SymbolHandle,
 ) -> Checked<Vec<Elaboration>> {
+    elaborate_alternatives_with_captures(typed, template, named_captures(typed))
+}
+
+fn elaborate_alternatives_with_captures(
+    typed: &TypedTrees,
+    template: SymbolHandle,
+    captures: NamedCaptures,
+) -> Checked<Vec<Elaboration>> {
     let first = MachineId::new(1).expect("1 is nonzero");
-    let alternatives = read::Program::new(typed, false).family_alternatives(first, template)?;
+    let alternatives = read::Program::with_captures(typed, false, captures.clone())
+        .family_alternatives(first, template)?;
     alternatives
         .into_iter()
         .map(|arguments| {
-            let mut program = read::Program::new(typed, false);
+            let mut program = read::Program::with_captures(typed, false, captures.clone());
             program.alternative = Some(arguments);
             let entry = program.machine(template)?;
             finish_reading(program, Some(entry), IdTable::default(), None)
@@ -350,14 +368,30 @@ pub fn elaborate_generic_forms(
     typed: &TypedTrees,
     templates: &[SymbolHandle],
 ) -> Checked<Vec<Elaboration>> {
+    elaborate_generic_forms_with_captures(typed, templates, named_captures(typed))
+}
+
+fn elaborate_generic_forms_with_captures(
+    typed: &TypedTrees,
+    templates: &[SymbolHandle],
+    captures: NamedCaptures,
+) -> Checked<Vec<Elaboration>> {
     let mut forms = Vec::new();
     for template in templates {
-        match elaborate_generic(typed, *template) {
+        if let Some(declared) = typed.trait_definition_by_symbol(*template) {
+            let mut program = read::Program::with_captures(typed, true, captures.clone());
+            program.generic_trait(declared)?;
+            forms.push(finish_reading(program, None, IdTable::default(), None)?.program);
+            continue;
+        }
+        match elaborate_form(typed, *template, true, captures.clone()) {
             Ok(form) => forms.push(form),
-            Err(rigid) => match elaborate_alternatives(typed, *template) {
-                Ok(alternatives) => forms.extend(alternatives),
-                Err(_) => return Err(rigid),
-            },
+            Err(rigid) => {
+                match elaborate_alternatives_with_captures(typed, *template, captures.clone()) {
+                    Ok(alternatives) => forms.extend(alternatives),
+                    Err(_) => return Err(rigid),
+                }
+            }
         }
     }
     Ok(forms)
@@ -417,7 +451,28 @@ pub fn elaborate_witness(
     arguments: &[semantic_vocabulary::ScalarTerm],
     implementation: SymbolHandle,
 ) -> Checked<Elaboration> {
-    let mut program = read::Program::new(typed, false);
+    elaborate_witness_with_captures(
+        typed,
+        declaring_trait,
+        requirement,
+        arguments,
+        implementation,
+        named_captures(typed),
+    )
+}
+
+fn elaborate_witness_with_captures(
+    typed: &TypedTrees,
+    declaring_trait: SymbolHandle,
+    requirement: SymbolHandle,
+    arguments: &[semantic_vocabulary::ScalarTerm],
+    implementation: SymbolHandle,
+    captures: NamedCaptures,
+) -> Checked<Elaboration> {
+    let generic = typed
+        .machine_by_symbol(implementation)
+        .is_some_and(|machine| is_generic_template(typed, machine));
+    let mut program = read::Program::with_captures(typed, generic, captures);
     let entry = program.witnessed(declaring_trait, requirement, arguments, implementation)?;
     let callee = program.implementation(implementation, declaring_trait, requirement)?;
     elaborate_witness_call(program, entry, callee)
@@ -481,8 +536,13 @@ fn elaborate_witness_call(
     finish_reading(program, Some(entry), bodies, None).map(|prepared| prepared.program)
 }
 
-fn elaborate_form(typed: &TypedTrees, entry: SymbolHandle, rigid: bool) -> Checked<Elaboration> {
-    let mut program = read::Program::new(typed, rigid);
+fn elaborate_form(
+    typed: &TypedTrees,
+    entry: SymbolHandle,
+    rigid: bool,
+    captures: NamedCaptures,
+) -> Checked<Elaboration> {
+    let mut program = read::Program::with_captures(typed, rigid, captures);
     let entry = program.machine(entry)?;
     finish_reading(program, Some(entry), IdTable::default(), None).map(|prepared| prepared.program)
 }

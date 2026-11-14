@@ -2153,3 +2153,66 @@ fn generic_named_map_closed_call_also_judges_its_original_template() {
         "a selected integer instance cannot validate an arbitrary Value body"
     );
 }
+
+fn full_named_map_verdicts(typed: &typed_trees::TypedTrees) -> Vec<RouteVerdict> {
+    crate::judge_compilation(
+        typed_trees_to_terminal_psi::prepare_compilation(
+            typed,
+            typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
+                entries: &[entry(typed)],
+                subjects: &[None],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program,
+    )
+    .into_iter()
+    .map(Result::unwrap)
+    .collect()
+}
+
+#[test]
+fn generic_named_map_full_subject_judges_its_schema_and_owning_body() {
+    let prepared = prepare_named_map(generic_named_map_source());
+    assert_named_invocation_value(
+        full_named_map_verdicts(&prepared),
+        semantic_vocabulary::IntegerValue::Unsigned(7),
+    );
+}
+
+#[test]
+fn generic_named_map_full_subject_refuses_the_universal_literal_body() {
+    let prepared = prepare_named_map(&generic_named_map_source().replace("{ input }", "{ 0 }"));
+    let verdicts = full_named_map_verdicts(&prepared);
+    assert!(
+        verdicts
+            .iter()
+            .any(|verdict| !matches!(verdict, RouteVerdict::Accepted(_))),
+        "one integer instance is not proof for arbitrary Value"
+    );
+}
+
+#[test]
+fn generic_named_map_full_subject_reads_unused_generic_requirement_headers() {
+    let text = generic_named_map_source().replace(
+        "machine entry()",
+        r#"
+trait Unused<Value> {
+    machine bad(input: Value) requires input > 0 crashes none;
+}
+machine entry()"#,
+    );
+    let prepared = prepare_named_map(&text);
+    let verdicts = full_named_map_verdicts(&prepared);
+    assert!(
+        verdicts
+            .iter()
+            .any(|verdict| !matches!(verdict, RouteVerdict::Accepted(_))),
+        "the unused header must still support its arbitrary Value parameter"
+    );
+}

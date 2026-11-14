@@ -61,7 +61,7 @@ pub(crate) struct Program<'t> {
     pub publication: terminal_codec::TerminalPublication,
     pub declaration_metadata: Vec<SymbolHandle>,
     typed: &'t TypedTrees,
-    named_captures: typed_trees::NamedConformanceCaptureIndex,
+    named_captures: crate::NamedCaptures,
     /// Irreversible storage-description phase, entered after the body closure.
     descriptor_storage: bool,
     /// The typed-tree machine of each discovered `MachineId`.
@@ -239,12 +239,21 @@ impl<'t> Program<'t> {
         Ok(())
     }
 
+    #[cfg(test)]
     pub fn new(typed: &'t TypedTrees, rigid: bool) -> Self {
+        Self::with_captures(typed, rigid, crate::named_captures(typed))
+    }
+
+    pub fn with_captures(
+        typed: &'t TypedTrees,
+        rigid: bool,
+        captures: crate::NamedCaptures,
+    ) -> Self {
         Self {
             publication: terminal_codec::TerminalPublication::Portable,
             declaration_metadata: Vec::new(),
             typed,
-            named_captures: typed_trees::NamedConformanceCaptureIndex::new(typed),
+            named_captures: captures,
             descriptor_storage: false,
             symbols: IdTable::default(),
             signatures: IdTable::default(),

@@ -80,6 +80,25 @@ impl<'t> Program<'t> {
         Ok(if enclosing.is_empty() { own } else { enclosing })
     }
 
+    fn generic_scope(
+        &self,
+        id: MachineId,
+        machine: &'t Machine,
+    ) -> Checked<Vec<(SymbolHandle, ValueType)>> {
+        Ok(self
+            .generic_parameters(id, machine)?
+            .iter()
+            .enumerate()
+            .filter(|(_, parameter)| parameter.kind == typed_trees::data::TypeParameterKind::Type)
+            .map(|(position, parameter)| {
+                (
+                    parameter.symbol,
+                    ValueType::Rigid(terminal_check_tables::values::RigidType(position as u32)),
+                )
+            })
+            .collect())
+    }
+
     /// A helper with no written input requirement can use what every caller
     /// guarantees. A written `requires true` must still support every input.
     /// Its declaration marker survives when normalization removes the literal
@@ -414,7 +433,10 @@ impl<'t> Program<'t> {
                 Unserved::Declaration("machine admission after storage metadata"),
             ));
         }
-        if self.unapplied_map_body(symbol) && !matches!(reading, Reading::GenericEntry) {
+        if self.unapplied_map_body(symbol)
+            && !matches!(reading, Reading::GenericEntry)
+            && !(self.rigid && matches!(reading, Reading::Implementation))
+        {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -502,6 +524,19 @@ impl<'t> Program<'t> {
         implementation: SymbolHandle,
     ) -> Checked<MachineId> {
         let id = self.next_identity()?;
+        if self.rigid {
+            let machine = self
+                .typed
+                .machine_by_symbol(implementation)
+                .ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Machine("generic witness lost its actual body"),
+                    )
+                })?;
+            self.scope = self.generic_scope(id, machine)?;
+        }
         let mut declared = self.declared_requirement(id, declaring_trait, requirement)?;
         // An owning body's unique map is also the witness's application.
         // Recover that same prepared contract rather than checking a bare
@@ -545,7 +580,7 @@ impl<'t> Program<'t> {
         self.names.push(names);
         self.value_parameters.push(0);
         self.value_arguments.push(arguments.to_vec());
-        self.scopes.push(Vec::new());
+        self.scopes.push(self.scope.clone());
         Ok(id)
     }
 
@@ -1041,19 +1076,9 @@ impl<'t> Program<'t> {
         self.machine_shape(id, machine, reading)?;
         // What each type parameter stands for while this machine is read.
         self.scope = match reading {
+            Reading::Implementation if self.rigid => self.generic_scope(id, machine)?,
             Reading::Closed | Reading::Implementation | Reading::Provider => Vec::new(),
-            Reading::GenericEntry => self
-                .generic_parameters(id, machine)?
-                .iter()
-                .enumerate()
-                .filter(|(_, parameter)| {
-                    parameter.kind == typed_trees::data::TypeParameterKind::Type
-                })
-                .map(|(position, parameter)| {
-                    let rigid = terminal_check_tables::values::RigidType(position as u32);
-                    (parameter.symbol, ValueType::Rigid(rigid))
-                })
-                .collect(),
+            Reading::GenericEntry => self.generic_scope(id, machine)?,
             Reading::Applied(arguments) | Reading::Alternative(arguments) => self
                 .typed
                 .machine_type_parameters(machine)
