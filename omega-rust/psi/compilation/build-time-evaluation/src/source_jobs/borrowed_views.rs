@@ -176,11 +176,9 @@ machine run() -> i64 crashes none {
     );
     assert_ne!(aliased, source);
     let refusal = run(&aliased).expect_err("fresh lifetime instantiation cannot hide an alias");
-    assert!(
-        refusal.contains(
-            "an exclusive loan of storage an earlier argument of the same call lends exclusively"
-        ),
-        "{refusal}",
+    assert_eq!(
+        refusal,
+        "state `Writer::write` receives `&mut left` as mutable more than once (conflicting loans)",
     );
     let tied = source.replace("right: &'second mut i64", "right: &'first mut i64");
     assert_ne!(tied, source);
