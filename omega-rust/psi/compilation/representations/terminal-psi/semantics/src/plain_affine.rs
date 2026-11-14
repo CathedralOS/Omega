@@ -1684,6 +1684,8 @@ mod tests {
         assert!(plan(&transferring(&[id(2)], &[id(3)], vec![borrowed]), &types).is_err());
         let mut borrowed_source = transferring(&[id(2)], &[id(3)], vec![field_argument(3)]);
         borrowed_source.contract.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+        borrowed_source.contract.structural_parameters[0].multiplicity =
+            terminal_psi::StructuralMultiplicity::Unrestricted;
         assert!(matches!(
             plan(&borrowed_source, &types),
             Err(Error::Unsupported("owned extraction from borrowed storage"))
