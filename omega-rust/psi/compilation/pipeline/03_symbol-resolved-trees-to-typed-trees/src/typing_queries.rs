@@ -599,6 +599,13 @@ impl<'program> DeclaredCallTargets<'program> {
         )
     }
 
+    fn named_expression_call(&self, call: &typed_trees::expression::TableCallExpression) -> bool {
+        matches!(
+            self.program.named_conformance_call_member(call),
+            Ok(Some(_))
+        )
+    }
+
     /// What a call typing did not bind still asks of a later pass, or `None`
     /// for a call of a declared target.
     fn unserved(&self, target: SymbolHandle, receiver: CallReceiver) -> Option<DeferredRequest> {
@@ -689,7 +696,7 @@ pub(crate) fn defer_unbound_calls(
                 .then_some(call.target.as_str());
                 in_expressions.push((handle, request, bare));
             }
-            if targets.named_call(call.target_symbol, receiver)
+            if targets.named_expression_call(call)
                 && let Some(occurrence) = call.authored_call_selection
             {
                 closed_selections.push((occurrence, call.target_symbol));

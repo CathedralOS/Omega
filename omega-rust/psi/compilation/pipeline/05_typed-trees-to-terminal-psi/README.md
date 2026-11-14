@@ -138,15 +138,31 @@ file is the subject's. A declaration with no source file is refused.
 Subject declarations that are not machines are also roots. A `data`
 declaration is resolved as a record, so one outside the record subset refuses
 the compilation even when no machine names it. A trait that only lists
-requirements has each requirement's contract read. An implementation of such
-a trait, with no parameter of its own, has each of its rows set aside
-(`Elaboration::conformance_witnesses`): the checker judges, as a part of its
-own, that the machine the row selects refines the requirement. A trait or
-implementation with parameters, schema clauses or a refinement, and a
-boundary trait, are refused by name. Every other kind (`const`, `domain`,
+requirements has each requirement's contract read. An eligible type-only
+generic trait gets its own rigid header form, with real bodyless requirements
+and no executable entry. An implementation has each exact row set aside
+(`Elaboration::conformance_witnesses`): its actual body must refine the
+requirement. An owning generic map uses the same source telescope for that
+universal witness; its concrete captures also retain their own witnesses.
+Schema clauses, refinements, unsupported telescopes and generic reference-row
+witnesses remain refused by name. Every other kind (`const`, `domain`,
 `operator`, a proposition, a measure, a mathematical definition, a type
 alias, a wire schema, a machine token binding) is refused as
 `declaration <kind>`: the route judges none of them yet.
+
+For a call such as `Selected<u32>::apply(7)`, the reader authenticates the
+complete map tuple, actual caller, unique owned row, captured instance and
+entry correspondence. Callers receive the public requirement contract; the
+owning body is checked independently under its written and inherited clauses.
+Entry-only compilation also queues the reached original generic source form.
+One immutable capture index serves the compilation's root, forms and witnesses.
+
+Proof forms retain their actual static source binders in
+`Elaboration::generic_binders`, including unused binders, alongside the existing
+static-value counts and rigid value rows. Publication refuses those forms.
+A declared call may transport a rigid result, whose value row keeps its exact
+rigid identity; the physical stand-in grants no bounds or other scalar facts.
+Closed runtime instances retain no open binder roster.
 
 Two sets the specification's closure names are not roots, so the route's
 verdict does not cover them and a router must not treat it as if it did.

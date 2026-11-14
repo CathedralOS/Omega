@@ -226,7 +226,15 @@ impl crate::TypedTrees {
                 })
                 .ok_or_else(|| "public call has no complete applied requirement signature".into());
         }
-        if let Some((_, _, signature)) = self.named_conformance_member(namespace, target)? {
+        let named = match call {
+            crate::references::StaticArgumentCall::Expression(_, call) => {
+                self.named_conformance_call_member(call)?
+            }
+            crate::references::StaticArgumentCall::Statement(_) => {
+                self.named_conformance_member(namespace, target)?
+            }
+        };
+        if let Some((_, _, signature)) = named {
             return Ok(signature);
         }
         if let Some(application) = self.closed_requirement_application(target) {
@@ -290,9 +298,19 @@ impl crate::TypedTrees {
             StaticArgumentCall::Expression(_, call) => call.target_symbol,
             StaticArgumentCall::Statement(call) => call.target_symbol,
         };
-        self.named_conformance_member(namespace, target)?
-            .ok_or("selected call lost its exact named requirement row")?;
-        let operand = if let Some(receiver) = receiver {
+        let member = match call {
+            StaticArgumentCall::Expression(_, call) => self.named_conformance_call_member(call)?,
+            StaticArgumentCall::Statement(_) => self.named_conformance_member(namespace, target)?,
+        };
+        member.ok_or("selected call lost its exact named requirement row")?;
+        let operand = if let StaticArgumentCall::Expression(_, call) = call
+            && call.requirement_application.is_valid()
+        {
+            let mut operand =
+                self.static_operand_from_type_reference(call.requirement_application)?;
+            operand.type_reference = call.requirement_application;
+            std::borrow::Cow::Owned(operand)
+        } else if let Some(receiver) = receiver {
             let path = self
                 .expression_table
                 .name_path_node(receiver)

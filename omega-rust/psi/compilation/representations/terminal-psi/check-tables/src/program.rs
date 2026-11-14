@@ -198,6 +198,10 @@ pub struct Elaboration {
     /// passes them. Zero for every machine of a concrete module, and empty
     /// for bodies lowered without typed trees.
     pub value_parameters: IdTable<MachineId, usize>,
+    /// The actual static source binders whose telescope this check form
+    /// quantifies, including unused binders. They are not runtime formals.
+    /// Closed instances have none; a nonempty roster cannot be published.
+    pub generic_binders: Vec<SymbolHandle>,
     /// The literals a requirement's value parameters are bound to in the
     /// machine that stands for it, in declaration order: a requirement read
     /// at the static arguments of a call (`Step::apply<7>(x)`), in a generic
