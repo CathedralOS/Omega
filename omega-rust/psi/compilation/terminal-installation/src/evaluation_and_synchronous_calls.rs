@@ -1204,45 +1204,28 @@ pub(crate) mod compiler_evaluation {
         owner: DeclarationCustody,
         authority: Option<&dyn DeclarationSelectionAuthority>,
     ) -> Result<(), String> {
-        match (requester, owner) {
-            (DeclarationCustody::Missing, _) | (_, DeclarationCustody::Missing) => {
-                Err("build-time invocation lacks compiler-owned source/package provenance".into())
-            }
-            // Exact checked selections bind the contract closure before lowering.
-            // Its retained role never grants a package caller a default std edge.
-            (DeclarationCustody::ToolchainContract, DeclarationCustody::Package(_))
-            | (DeclarationCustody::Package(_), DeclarationCustody::ToolchainContract) => {
-                Err("build-time invocation crosses closed-contract/package custody".into())
-            }
-            (DeclarationCustody::ToolchainContract, DeclarationCustody::ToolchainContract) => {
-                Ok(())
-            }
-            (DeclarationCustody::Toolchain, _) | (_, DeclarationCustody::Toolchain) => Ok(()),
-            (DeclarationCustody::Package(requester), DeclarationCustody::Package(owner))
-                if requester == owner =>
-            {
-                Ok(())
-            }
-            (DeclarationCustody::Package(requester), DeclarationCustody::Package(owner))
-                if authority.is_some_and(|authority| {
-                    authority.allows_declaration_selection(requester, owner)
-                }) =>
-            {
-                Ok(())
-            }
-            (DeclarationCustody::Package(requester), DeclarationCustody::Package(owner)) => {
-                let authority = authority
-                    .ok_or("build-time invocation has no direct dependency selection authority")?;
-                Err(format!(
-                    "build-time invocation selects package {} from package {} without direct dependency authority",
-                    authority.package_label(owner),
-                    authority.package_label(requester)
-                ))
-            }
-            (DeclarationCustody::UnownedUser, _) | (_, DeclarationCustody::UnownedUser) => Err(
-                "build-time invocation has user source without reconciled package custody".into(),
-            ),
+        let Some(request) =
+            semantic_vocabulary::compiler_evaluation::declaration_authority_request(
+                requester, owner,
+            )
+            .map_err(str::to_owned)?
+        else {
+            return Ok(());
+        };
+        if request.requester == request.owner
+            || authority.is_some_and(|authority| {
+                authority.allows_declaration_selection(request.requester, request.owner)
+            })
+        {
+            return Ok(());
         }
+        let authority = authority
+            .ok_or("build-time invocation has no direct dependency selection authority")?;
+        Err(format!(
+            "build-time invocation selects package {} from package {} without direct dependency authority",
+            authority.package_label(request.owner),
+            authority.package_label(request.requester),
+        ))
     }
 
     #[test]

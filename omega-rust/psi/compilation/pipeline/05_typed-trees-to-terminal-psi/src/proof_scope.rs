@@ -19,7 +19,12 @@ use typed_trees::TypedTrees;
 
 use crate::{Elaboration, Unserved, refuse};
 
-pub(crate) fn declare(typed: &TypedTrees, elaboration: &mut Elaboration) -> Checked<()> {
+pub(crate) fn declare(
+    typed: &TypedTrees,
+    elaboration: &mut Elaboration,
+    selected_calls: &[crate::compilation::SelectedSourceCall<'_>],
+) -> Checked<()> {
+    let selection_requests = selection_requests(typed, elaboration, selected_calls)?;
     let mut scope = ProofApplicationScope::default();
     let mut declarations = Vec::with_capacity(elaboration.module.machines.len());
     for machine in &elaboration.module.machines {
@@ -132,17 +137,6 @@ pub(crate) fn declare(typed: &TypedTrees, elaboration: &mut Elaboration) -> Chec
                 }
             }
         }
-        // A generated static selection needs its complete applied declaration
-        // authority, not just the direct body the lowered call reaches.
-        if elaboration
-            .selections
-            .iter()
-            .any(|selected| selected.caller == machine.id)
-        {
-            unavailable = Some(
-                "proof scope needs the complete static selection authority correspondence".into(),
-            );
-        }
         if source.target.is_some()
             || source.authored_target.is_some()
             || source.target_family_interface
@@ -152,15 +146,7 @@ pub(crate) fn declare(typed: &TypedTrees, elaboration: &mut Elaboration) -> Chec
             );
         }
         let package = typed.symbols.symbol_package_identity(symbol);
-        let custody = match (package, typed.symbols.symbol_source_origin(symbol)) {
-            (Some(package), _) => DeclarationCustody::Package(package),
-            (_, Some(source::SourceOrigin::Toolchain)) => DeclarationCustody::Toolchain,
-            (_, Some(source::SourceOrigin::ToolchainContract)) => {
-                DeclarationCustody::ToolchainContract
-            }
-            (_, Some(source::SourceOrigin::User)) => DeclarationCustody::UnownedUser,
-            _ => DeclarationCustody::Missing,
-        };
+        let custody = declaration_custody(typed, symbol);
         let evaluation = (|| {
             if let Some(reason) = unavailable {
                 return Err(reason);
@@ -232,7 +218,10 @@ pub(crate) fn declare(typed: &TypedTrees, elaboration: &mut Elaboration) -> Chec
                     || !machine.contract.source_checked_requires.is_empty(),
                 linear_carrier,
                 static_application: None,
-                selections: Ok(Vec::new()),
+                selections: selection_requests
+                    .get(machine.id)
+                    .ok_or("proof selection requests lost their emitted caller")?
+                    .clone(),
             })
         })();
         scope.callable_headers.insert(ProofCallableHeader {
@@ -307,4 +296,202 @@ pub(crate) fn declare(typed: &TypedTrees, elaboration: &mut Elaboration) -> Chec
     }
     elaboration.module.scalar_applications.proof_scope = scope;
     Ok(())
+}
+
+fn declaration_custody(typed: &TypedTrees, symbol: symbols::SymbolHandle) -> DeclarationCustody {
+    if !typed.symbols.symbols().nodes().is_valid(symbol) {
+        return DeclarationCustody::Missing;
+    }
+    match (
+        typed.symbols.symbol_package_identity(symbol),
+        typed.symbols.symbol_source_origin(symbol),
+    ) {
+        (Some(package), _) => DeclarationCustody::Package(package),
+        (_, Some(source::SourceOrigin::Toolchain)) => DeclarationCustody::Toolchain,
+        (_, Some(source::SourceOrigin::ToolchainContract)) => DeclarationCustody::ToolchainContract,
+        (_, Some(source::SourceOrigin::User)) => DeclarationCustody::UnownedUser,
+        _ if typed.symbols.builtin_type_atom(symbol).is_some() => DeclarationCustody::Toolchain,
+        _ => DeclarationCustody::Missing,
+    }
+}
+
+fn selection_requests(
+    typed: &TypedTrees,
+    elaboration: &Elaboration,
+    calls: &[crate::compilation::SelectedSourceCall<'_>],
+) -> Checked<
+    semantic_vocabulary::IdTable<
+        MachineId,
+        Result<Vec<semantic_vocabulary::compiler_evaluation::DeclarationAuthorityRequest>, String>,
+    >,
+> {
+    use semantic_vocabulary::compiler_evaluation::DeclarationAuthorityRequest;
+    let mut requests = semantic_vocabulary::IdTable::default();
+    for _ in &elaboration.module.machines {
+        requests.push(Ok(Vec::<DeclarationAuthorityRequest>::new()));
+    }
+    for selected in calls {
+        let result = (|| {
+            let (member, required, body) = selected.key;
+            let owner = *elaboration
+                .machines
+                .get(member)
+                .ok_or("selected proof call lost its source member")?;
+            let header = elaboration
+                .module
+                .invocation_machine_contract(body, Some(required))
+                .ok_or("selected proof call lost its exact public contract and implementation")?;
+            if header.selected_application.is_none() {
+                return Err("selected proof call has no complete closed application".to_owned());
+            }
+            let (operand, supplier) = typed.source_call_selected_operand(owner, selected.call)?;
+            let conformance = typed
+                .conformance_by_symbol(operand.symbol)
+                .ok_or("selected proof call lost its implementation declaration")?;
+            let mut references = SelectionReferences::new(typed, supplier);
+            // The caller supplied this operand. The implementation declaration,
+            // separately, selected its trait and that trait's explicit arguments.
+            // Its source scope cannot replace the original caller's package edge.
+            typed_trees::references::visit_static_argument(typed, &mut references, &operand);
+            references.finish()?;
+            let mut declared = SelectionReferences::new(typed, conformance.symbol);
+            declared.extend([conformance.trait_symbol]);
+            for argument in typed.type_reference_handles(conformance.arguments) {
+                typed_trees::references::visit_type_reference(typed, &mut declared, *argument);
+            }
+            let mut method = SelectionReferences::new(typed, {
+                let actual = selected.call.lexical_owner(typed);
+                if actual.is_valid() { actual } else { owner }
+            });
+            for argument in selected.call.arguments(typed) {
+                typed_trees::references::visit_static_argument(typed, &mut method, argument);
+            }
+            let mut all = references.requests;
+            declared.finish()?;
+            method.finish()?;
+            all.extend(declared.requests);
+            all.extend(method.requests);
+            Ok(all)
+        })();
+        let target = requests.get_mut(selected.emitted_caller).ok_or_else(|| {
+            refuse(
+                selected.emitted_caller,
+                Construct::Machine,
+                Unserved::Declaration("selected call has no emitted proof-scope caller"),
+            )
+        })?;
+        match (target, result) {
+            (Ok(known), Ok(incoming)) => known.extend(incoming),
+            (target @ Ok(_), Err(reason)) => *target = Err(reason),
+            (Err(_), _) => {}
+        }
+    }
+    for (_, result) in requests.iter_mut() {
+        if let Ok(requests) = result {
+            requests.sort_unstable_by_key(|request| (request.requester, request.owner));
+            requests.dedup();
+        }
+    }
+    Ok(requests)
+}
+
+/// Use the existing source-reference walker for the operand's declaration
+/// choices. An alias retains its authored selection and arguments; its
+/// expanded carrier is a semantic dependency, not a new caller selection.
+struct SelectionReferences<'source> {
+    typed: &'source TypedTrees,
+    supplier: symbols::SymbolHandle,
+    requests: Vec<semantic_vocabulary::compiler_evaluation::DeclarationAuthorityRequest>,
+    visited: Vec<(u32, u32)>,
+    failed: Option<String>,
+}
+
+impl<'source> SelectionReferences<'source> {
+    fn new(typed: &'source TypedTrees, supplier: symbols::SymbolHandle) -> Self {
+        Self {
+            typed,
+            supplier,
+            requests: Vec::new(),
+            visited: Vec::new(),
+            failed: None,
+        }
+    }
+    fn finish(&self) -> Result<(), String> {
+        self.failed
+            .as_ref()
+            .map_or(Ok(()), |reason| Err(reason.clone()))
+    }
+}
+
+impl Extend<symbols::SymbolHandle> for SelectionReferences<'_> {
+    fn extend<T: IntoIterator<Item = symbols::SymbolHandle>>(&mut self, symbols: T) {
+        use semantic_vocabulary::compiler_evaluation::declaration_authority_request;
+        for symbol in symbols {
+            if self.failed.is_some() {
+                return;
+            }
+            match declaration_authority_request(
+                declaration_custody(self.typed, self.supplier),
+                declaration_custody(self.typed, symbol),
+            ) {
+                Ok(Some(request)) => self.requests.push(request),
+                Ok(None) => {}
+                Err(reason) => self.failed = Some(reason.to_owned()),
+            }
+        }
+    }
+}
+
+impl typed_trees::references::TypedReferences for SelectionReferences<'_> {
+    fn type_reference(&mut self, reference: typed_trees::types::TypeReferenceHandle) -> bool {
+        if self.failed.is_some() {
+            return false;
+        }
+        if !self
+            .typed
+            .type_reference_table
+            .contains_type_reference(reference)
+        {
+            self.failed = Some("selected application has a stale argument type".to_owned());
+            return false;
+        }
+        let key = (reference.arena_index(), reference.generation());
+        match self.visited.binary_search(&key) {
+            Ok(_) => return false,
+            Err(position) => self.visited.insert(position, key),
+        }
+        if self
+            .typed
+            .static_const_literal_from_type_reference(reference)
+            .is_some()
+        {
+            return false;
+        }
+        let aliases = self
+            .typed
+            .type_reference_table
+            .type_alias_applications(reference)
+            .cloned()
+            .collect::<Vec<_>>();
+        if !aliases.is_empty() {
+            for alias in aliases {
+                self.extend([alias.declaration]);
+                for argument in self.typed.type_reference_handles(alias.arguments) {
+                    typed_trees::references::visit_type_reference(self.typed, self, *argument);
+                }
+            }
+            return false;
+        }
+        true
+    }
+    fn expression(&mut self, expression: typed_trees::expression::ExpressionHandle) -> bool {
+        if self.typed.expression_table.expression_is_valid(expression) {
+            return self.failed.is_none();
+        }
+        self.failed = Some("selected application has a stale argument expression".to_owned());
+        false
+    }
+    fn declaration_description_dependency(&mut self, symbol: symbols::SymbolHandle) {
+        self.extend([symbol]);
+    }
 }

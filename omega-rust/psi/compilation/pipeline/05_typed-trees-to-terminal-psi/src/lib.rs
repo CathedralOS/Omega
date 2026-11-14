@@ -257,11 +257,11 @@ pub fn elaborate_for(
     elaborate_source_for(typed, compilation, publication).map(|prepared| prepared.program)
 }
 
-fn elaborate_source_for(
-    typed: &TypedTrees,
+fn elaborate_source_for<'source>(
+    typed: &'source TypedTrees,
     compilation: Compilation<'_>,
     publication: terminal_codec::TerminalPublication,
-) -> Checked<PreparedProgram> {
+) -> Checked<PreparedProgram<'source>> {
     let mut program = read::Program::new(typed, false);
     program.publication = publication;
     let first = MachineId::new(1).expect("1 is nonzero");
@@ -284,7 +284,9 @@ fn elaborate_source_for(
     program.supplied_slots(first, compilation.supplies)?;
     program.subject_declarations(first, compilation.subjects, compilation.purpose)?;
     let mut elaboration = finish_reading(program, entry, IdTable::default())?;
-    proof_scope::declare(typed, &mut elaboration.program)?;
+    elaboration.selected_calls =
+        compilation::prepare_selected_signatures(typed, &elaboration.program, &elaboration.source)?;
+    proof_scope::declare(typed, &mut elaboration.program, &elaboration.selected_calls)?;
     Ok(elaboration)
 }
 
@@ -504,11 +506,11 @@ fn elaborate_form(typed: &TypedTrees, entry: SymbolHandle, rigid: bool) -> Check
 /// through the same declaration owner, including in proof inputs. A synthetic
 /// witness root has no source machine and remains unpublishable; no body is
 /// accepted merely by describing its header.
-fn finish_reading(
-    mut program: read::Program<'_>,
+fn finish_reading<'source>(
+    mut program: read::Program<'source>,
     entry: Option<MachineId>,
     mut bodies: IdTable<MachineId, Body>,
-) -> Checked<PreparedProgram> {
+) -> Checked<PreparedProgram<'source>> {
     // Refusals need a coordinate even for an empty declaration module. This
     // diagnostic anchor is never installed as an entry or an input boundary.
     let diagnostic = entry.unwrap_or_else(|| MachineId::new(1).expect("1 is nonzero"));
@@ -531,6 +533,7 @@ fn finish_reading(
     let PreparedProgram {
         program: mut elaboration,
         mut source,
+        ..
     } = lower_generic_for(
         entry,
         &bodies,
@@ -581,6 +584,7 @@ fn finish_reading(
     Ok(PreparedProgram {
         program: elaboration,
         source,
+        selected_calls: Vec::new(),
     })
 }
 
@@ -640,15 +644,15 @@ pub fn lower_generic(
     .map(|prepared| prepared.program)
 }
 
-fn lower_generic_for(
+fn lower_generic_for<'source>(
     entry: Option<MachineId>,
     bodies: &IdTable<MachineId, Body>,
     signatures: body::Signatures<'_>,
     records: &IdTable<StructuralTypeId, RecordType>,
     requirements: &[MachineId],
     publication: terminal_codec::TerminalPublication,
-    declarations: Option<&read::Program<'_>>,
-) -> Checked<PreparedProgram> {
+    declarations: Option<&read::Program<'source>>,
+) -> Checked<PreparedProgram<'source>> {
     let diagnostic = entry.unwrap_or_else(|| MachineId::new(1).expect("1 is nonzero"));
     for requirement in requirements {
         let body =
@@ -868,6 +872,7 @@ fn lower_generic_for(
     }
     Ok(PreparedProgram {
         source,
+        selected_calls: Vec::new(),
         program: Elaboration {
             module,
             tables,

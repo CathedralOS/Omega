@@ -1940,6 +1940,153 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn selected_calls_keep_the_suppliers_declaration_authority_requests() {
+        use semantic_vocabulary::PackageKeyIdentity;
+        let packages = [1, 2, 3].map(|byte| PackageKeyIdentity::from_digest([byte; 32]).unwrap());
+        let texts = [
+            "machine request() -> u64 { 0u64 }",
+            "public First satisfies Policy { machine plan(value: u64) -> u64 requires value > 0 { value } }",
+            "public trait Policy { machine plan(value: u64) -> u64 requires value > 0; }",
+        ];
+        let mut sources = source::SourceMap::default();
+        let mut syntax = None;
+        let mut ids = Vec::new();
+        for (index, text) in texts.into_iter().enumerate() {
+            let root = format!("/selection-{index}");
+            let source = sources
+                .add_with_metadata(
+                    format!("{root}/source.omg").into(),
+                    text.into(),
+                    root.into(),
+                    Some(packages[index]),
+                    source::SourceOrigin::User,
+                )
+                .source_id;
+            ids.push(source);
+            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            if let Some(syntax) = &mut syntax {
+                tokens_to_syntax_trees::parse(syntax, source, &tokens).unwrap();
+            } else {
+                syntax = Some(
+                    tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap(),
+                );
+            }
+        }
+        let mut request =
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax.unwrap());
+        request.sources = Some(Arc::new(sources));
+        request.top_level_bindings = vec![symbols::SourceScopedTopLevelBinding::new(
+            ids[1], ids[2], "Policy",
+        )];
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
+        let source =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        let requester = source
+            .machines()
+            .iter()
+            .find(|machine| {
+                source.symbols.symbol_package_identity(machine.symbol) == Some(packages[0])
+            })
+            .unwrap()
+            .symbol;
+        let selected = source
+            .conformances()
+            .iter()
+            .find(|selected| {
+                source.symbols.symbol_package_identity(selected.symbol) == Some(packages[1])
+            })
+            .unwrap();
+        let [row] = selected.rows.as_slice() else {
+            panic!("one actual owned member")
+        };
+        let operand = typed_trees::expression::StaticMachineArgument {
+            symbol: selected.symbol,
+            ..Default::default()
+        };
+        struct Edges(Vec<(PackageKeyIdentity, PackageKeyIdentity)>);
+        impl BuildTimeSelectionAuthority for Edges {
+            fn allows_declaration_selection(
+                &self,
+                requester: PackageKeyIdentity,
+                owner: PackageKeyIdentity,
+            ) -> bool {
+                self.0.contains(&(requester, owner))
+            }
+            fn package_label(&self, package: PackageKeyIdentity) -> String {
+                format!("{package:?}")
+            }
+        }
+        let limited = PreparedBuildMachineProgram::prepare(
+            &source,
+            Some(Arc::new(Edges(vec![(packages[0], packages[1])]))),
+        )
+        .unwrap();
+        let entry = limited
+            .entry_selected(
+                requester,
+                requester,
+                &operand,
+                row.requirement,
+                &[BuildTimeValue::Int(1)],
+            )
+            .unwrap();
+        let produced = entry.produce_invocation().unwrap();
+        let error = entry
+            .admit_invocation(&produced, target())
+            .expect_err("the implementation's separate trait selection needs its own package edge");
+        assert!(
+            error.contains("without direct dependency authority"),
+            "{error}"
+        );
+        assert!(
+            error.contains(&format!("{:?}", packages[2]))
+                && error.contains(&format!("{:?}", packages[1])),
+            "{error}"
+        );
+        let mut meter = psi_work::WorkMeter::unbounded();
+        assert_eq!(entry.invoke(target(), &mut meter).unwrap_err(), error);
+        assert_eq!(meter.usage().total_units(), 0);
+        let complete = PreparedBuildMachineProgram::prepare(
+            &source,
+            Some(Arc::new(Edges(vec![
+                (packages[0], packages[1]),
+                (packages[1], packages[2]),
+            ]))),
+        )
+        .unwrap();
+        assert!(
+            complete
+                .entry(
+                    requester,
+                    row.realization_machine,
+                    &[BuildTimeValue::Int(1)]
+                )
+                .err()
+                .unwrap()
+                .contains("private machine of another package")
+        );
+        let entry = complete
+            .entry_selected(
+                requester,
+                requester,
+                &operand,
+                row.requirement,
+                &[BuildTimeValue::Int(1)],
+            )
+            .unwrap();
+        let mut accounting = crate::SourceCompletionAccounting::default();
+        let value = entry.invoke_recorded(target(), &mut accounting).unwrap();
+        assert_eq!(value.value(), &BuildTimeValue::Int(1));
+        let [crate::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+            panic!("one actual selected receipt")
+        };
+        let (_, call) = receipt.invocation().unwrap().unwrap();
+        assert!(call.inputs.required_contract.is_some());
+        assert_eq!(receipt.requester(), requester);
+        assert_eq!(receipt.machine(), row.realization_machine);
+    }
+
+    #[test]
     fn source_jobs_authenticate_the_requesters_direct_dependency_selection() {
         use semantic_vocabulary::PackageKeyIdentity;
         let requester_package = PackageKeyIdentity::from_digest([1; 32]).unwrap();

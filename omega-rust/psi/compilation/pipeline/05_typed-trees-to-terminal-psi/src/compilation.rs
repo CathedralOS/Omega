@@ -41,10 +41,15 @@ pub fn prepare_compilation(
             };
         }
     }
-    let (mut closure, source) = match crate::elaborate_source_for(typed, compilation, publication) {
-        Ok(prepared) => (Ok(prepared.program), prepared.source),
-        Err(refusal) => (Err(refusal), Default::default()),
-    };
+    let (mut closure, source, signatures) =
+        match crate::elaborate_source_for(typed, compilation, publication) {
+            Ok(prepared) => (
+                Ok(prepared.program),
+                prepared.source,
+                prepared.selected_calls,
+            ),
+            Err(refusal) => (Err(refusal), Default::default(), Vec::new()),
+        };
     let mut templates = Vec::new();
     let mut rows: Vec<WitnessRow<'_>> = Vec::new();
     let mut selected_failure = None;
@@ -68,13 +73,6 @@ pub fn prepare_compilation(
         for (_, symbol) in closure.machines.iter() {
             specializations.push(crate::template_of(typed, *symbol));
         }
-        let signatures = match prepare_selected_signatures(typed, closure, &source) {
-            Ok(signatures) => signatures,
-            Err(reason) => {
-                selected_failure = Some(reason);
-                Vec::new()
-            }
-        };
         for (selection, selected) in closure.selections.iter().enumerate() {
             if selected_failure.is_some() {
                 break;
@@ -84,8 +82,8 @@ pub fn prepare_compilation(
             };
             let signature = match selected_signature_key(selected).and_then(|key| {
                 signatures
-                    .binary_search_by_key(&key, |(key, _)| *key)
-                    .map(|position| signatures[position].1)
+                    .binary_search_by_key(&key, |row| row.key)
+                    .map(|position| signatures[position].signature)
                     .map_err(|_| {
                         crate::refuse(
                             selected.caller,
@@ -178,10 +176,15 @@ type SelectedSignatureKey = (
     semantic_vocabulary::ContractId,
     semantic_vocabulary::MachineId,
 );
-type SelectedSignatures<'source> = Vec<(
-    SelectedSignatureKey,
-    &'source typed_trees::signature::StateSignature,
-)>;
+/// A borrowed view of the call already joined to its emitted operation. It
+/// stays inside source preparation and is discarded before Terminal checking.
+/// It describes the chosen contract; no call or witness is accepted by it.
+pub(crate) struct SelectedSourceCall<'source> {
+    pub key: SelectedSignatureKey,
+    pub signature: &'source typed_trees::signature::StateSignature,
+    pub call: typed_trees::references::StaticArgumentCall<'source>,
+    pub emitted_caller: semantic_vocabulary::MachineId,
+}
 
 fn selected_signature_key(
     selected: &crate::Selected,
@@ -199,11 +202,11 @@ fn selected_signature_key(
 /// Several public contracts can select the same body. Join each source call
 /// to its exact emitted site once, then reuse that applied signature for the
 /// independent witnesses. A body's identity cannot choose its public contract.
-fn prepare_selected_signatures<'source>(
+pub(crate) fn prepare_selected_signatures<'source>(
     typed: &'source TypedTrees,
     closure: &crate::Elaboration,
     source: &crate::SourceCorrespondence,
-) -> terminal_check_tables::Checked<SelectedSignatures<'source>> {
+) -> terminal_check_tables::Checked<Vec<SelectedSourceCall<'source>>> {
     use terminal_check_tables::Construct;
     use typed_trees::expression::ExpressionNode;
     let mut demanded = closure
@@ -325,13 +328,18 @@ fn prepare_selected_signatures<'source>(
                     "selected witness differs from the invocation's public signature",
                 ));
             }
-            signatures.push((key, applied));
+            signatures.push(SelectedSourceCall {
+                key,
+                signature: applied,
+                call,
+                emitted_caller: caller,
+            });
         }
     }
-    signatures.sort_unstable_by_key(|(key, _)| *key);
+    signatures.sort_unstable_by_key(|row| row.key);
     for pair in signatures.windows(2) {
-        if pair[0].0 == pair[1].0 && pair[0].1 != pair[1].1 {
-            let (caller, _, _) = pair[0].0;
+        if pair[0].key == pair[1].key && pair[0].signature != pair[1].signature {
+            let (caller, _, _) = pair[0].key;
             return Err(crate::refuse(
                 caller,
                 Construct::Machine,
@@ -341,7 +349,23 @@ fn prepare_selected_signatures<'source>(
             ));
         }
     }
-    signatures.dedup_by_key(|(key, _)| *key);
+    // Equal signatures can originate in different supplying scopes. Keep
+    // every occurrence for declaration-authority requests, while witnesses
+    // reuse any matching signature only after full equality was checked.
+    for (caller, required, body) in demanded {
+        if signatures
+            .binary_search_by_key(&(caller, required, body), |row| row.key)
+            .is_err()
+        {
+            return Err(crate::refuse(
+                caller,
+                Construct::Machine,
+                crate::Unserved::Declaration(
+                    "selected witness has no exact source call correspondence",
+                ),
+            ));
+        }
+    }
     Ok(signatures)
 }
 

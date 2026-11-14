@@ -241,6 +241,100 @@ impl crate::TypedTrees {
         Ok(signature)
     }
 
+    /// Borrow the implementation operand that supplied this retained call.
+    /// A parameter keeps its original binding scope; a named call keeps its
+    /// receiver application. This describes a selection without accepting it.
+    pub fn source_call_selected_operand<'source>(
+        &'source self,
+        owner: SymbolHandle,
+        call: crate::references::StaticArgumentCall<'source>,
+    ) -> Result<
+        (
+            std::borrow::Cow<'source, crate::expression::StaticMachineArgument>,
+            SymbolHandle,
+        ),
+        String,
+    > {
+        use crate::expression::StaticMachineArgument;
+        use crate::references::StaticArgumentCall;
+        let (namespace, dispatch, receiver) = match call {
+            StaticArgumentCall::Expression(_, call) => (
+                self.expression_table
+                    .name_path_node(call.receiver)
+                    .map_or_else(SymbolHandle::invalid, |path| path.symbol),
+                call.static_requirement_dispatch.as_ref(),
+                Some(call.receiver),
+            ),
+            StaticArgumentCall::Statement(call) => (
+                call.receiver_symbol,
+                call.static_requirement_dispatch.as_ref(),
+                None,
+            ),
+        };
+        let lexical_owner = call.lexical_owner(self);
+        let owner = if lexical_owner.is_valid() {
+            lexical_owner
+        } else {
+            owner
+        };
+        if !self.symbols.symbols().nodes().is_valid(owner) {
+            return Err("selected call lost its supplying declaration".into());
+        }
+        if let Some(dispatch) = dispatch {
+            let (operand, supplying) =
+                self.selected_implementation_operand(owner, dispatch.evidence_parameter)?;
+            self.static_operand_region_supplier(operand, supplying)?;
+            return Ok((std::borrow::Cow::Borrowed(operand), supplying));
+        }
+        let target = match call {
+            StaticArgumentCall::Expression(_, call) => call.target_symbol,
+            StaticArgumentCall::Statement(call) => call.target_symbol,
+        };
+        self.named_conformance_member(namespace, target)?
+            .ok_or("selected call lost its exact named requirement row")?;
+        let operand = if let Some(receiver) = receiver {
+            let path = self
+                .expression_table
+                .name_path_node(receiver)
+                .ok_or("selected call lost its named receiver")?;
+            if path.static_application.is_valid() {
+                std::borrow::Cow::Borrowed(
+                    self.expression_table
+                        .static_member(path.static_application)
+                        .ok_or("selected call has a stale receiver application")?,
+                )
+            } else {
+                std::borrow::Cow::Owned(self.declaration_operand_from_expression(receiver)?)
+            }
+        } else {
+            // The named-row query above serves only nongeneric maps here;
+            // the statement form therefore has no unrepresented outer tuple.
+            std::borrow::Cow::Owned(StaticMachineArgument {
+                symbol: namespace,
+                ..Default::default()
+            })
+        };
+        if operand.symbol != namespace {
+            return Err("selected call receiver changed its retained implementation".into());
+        }
+        let conformance = self
+            .conformance_by_symbol(namespace)
+            .ok_or("selected call receiver lost its implementation declaration")?;
+        if operand.const_literal.is_some()
+            || operand.evidence_projection.is_some()
+            || operand.application.as_ref().is_some_and(|application| {
+                application.member.is_valid()
+                    || application.arguments.len()
+                        != self.conformance_type_parameters(conformance).len()
+                    || application.lifetime_arguments.len() != conformance.lifetime_parameters.len()
+            })
+        {
+            return Err("selected call receiver lost its complete implementation tuple".into());
+        }
+        self.static_operand_region_supplier(&operand, owner)?;
+        Ok((operand, owner))
+    }
+
     pub fn source_call_declaration<'source>(
         &'source self,
         owner: SymbolHandle,

@@ -22,9 +22,10 @@ pub struct SourceCorrespondence {
     >,
 }
 
-pub(crate) struct PreparedProgram {
+pub(crate) struct PreparedProgram<'source> {
     pub program: Elaboration,
     pub source: SourceCorrespondence,
+    pub selected_calls: Vec<crate::compilation::SelectedSourceCall<'source>>,
 }
 
 /// The designated operands of one Build selection.
