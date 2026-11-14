@@ -227,7 +227,7 @@ public SlotCalling satisfies CallingPolicy {
             BoundaryPlanResult::Accepted { plan: plan }
         }
         machine reject() -> BoundaryPlanResult {
-            BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "one parameter, one result, and at most 33 private destinations required" } }
+            BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "one parameter, one result, and at most 33 private destinations required" as +Utf8 } }
         }
     }
 }

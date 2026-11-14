@@ -288,10 +288,12 @@ impl Program<'_> {
                 self.fields_minted += 1;
                 let field = StructuralFieldId::new(self.fields_minted)
                     .ok_or_else(|| unserved("field identity overflow"))?;
+                let byte_predicates = self.view_predicates(id, value_type)?;
                 declared.push(RecordField {
                     id: field,
                     identity,
                     value_type,
+                    byte_predicates,
                 });
             }
             Ok(declared)
@@ -491,7 +493,7 @@ impl Program<'_> {
                 Unserved::Typing("data field that elides a lifetime argument"),
             ));
         }
-        let value_type = self.value_type(id, field.type_reference)?;
+        let value_type = self.qualified_view_type(id, field.type_reference)?;
         // lifetimes.md: "A lifetime relates a borrowed result or stored view
         // to storage that remains valid for its use." The one view a field
         // may store is a byte view, a `Record` here, and its type is keyed

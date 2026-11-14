@@ -11,7 +11,7 @@ public WindowsFilesystemTransferCalling satisfies CallingPolicy {
         transition accepted {
             true -> BoundaryPlanResult::Accepted { plan: windows_filesystem_transfer_entry() }
             _ -> BoundaryPlanResult::Rejected { reason: CallingPolicyRejection {
-                reason: "expected handle, whole byte view, count reference and overlapped"
+                reason: "expected handle, whole byte view, count reference and overlapped" as +Utf8
             } }
         }
     }

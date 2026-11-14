@@ -75,7 +75,7 @@ public WordCalling satisfies CallingPolicy {
         BoundaryPlanResult::Accepted { plan: plan }
     }
     machine reject() -> BoundaryPlanResult {
-        BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "one scalar result" } }
+        BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "one scalar result" as +Utf8 } }
     }
     }
 }
