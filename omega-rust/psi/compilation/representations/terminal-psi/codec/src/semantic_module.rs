@@ -4509,11 +4509,11 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 256 adds the published synchronous-entry row to every machine and
-// boundary machine row, after the closed reach application and the published
-// service ceiling respectively. Marker 255, which encodes every recursive
-// term as a postorder table of rows whose children are handles to earlier
-// rows and has no entry row, and all earlier layouts are incompatible.
+// Marker 257 preserves the domain issuer choice explicitly: an absent route
+// set is unrestricted, while a present empty set permits nobody. Marker 256
+// stored only a route list and cannot distinguish those meanings. Its layout,
+// including the synchronous-entry rows added in 256, and every earlier layout
+// is incompatible with this format.
 pub(crate) const FORMAT_MARKER: u16 = 257;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
@@ -4825,6 +4825,31 @@ mod normal_qualification_tests {
             published_service_ceiling: Vec::new(),
         });
         module
+    }
+
+    // A dormant structural declaration still commits its issuer choice. No
+    // boundary in this module may establish membership merely to test its wire.
+    #[test]
+    fn structural_wire_preserves_an_explicit_empty_issuer_set() {
+        let mut unrestricted = module();
+        unrestricted.boundary_machines.clear();
+        let unrestricted_bytes = encode_module(&unrestricted).unwrap();
+        assert_eq!(decode_module(&unrestricted_bytes).unwrap(), unrestricted);
+
+        let mut denied = unrestricted.clone();
+        denied.structural_domains[0].establishment_routes = Some(Vec::new());
+        let denied_bytes = encode_module(&denied).unwrap();
+        let decoded = decode_module(&denied_bytes).unwrap();
+        assert_eq!(decoded, denied);
+        assert_eq!(
+            decoded.structural_domains[0].establishment_routes,
+            Some(Vec::new())
+        );
+        assert_ne!(denied_bytes, unrestricted_bytes);
+        assert_ne!(
+            semantic_fingerprint(&denied).unwrap(),
+            semantic_fingerprint(&unrestricted).unwrap()
+        );
     }
 
     #[test]
