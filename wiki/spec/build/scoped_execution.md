@@ -574,9 +574,10 @@ authority. Source acquisition and compiled code may be shared only where their
 actual checked identities permit it. Build results, generated code and effects
 are not shared merely because package bytes or aliases match. Joining produced
 variants still requires compatible exact product identities; separate execution
-does not authorize merging contradictory generated declarations. Reuse happens
-within one build invocation; Build results are not stored for later invocations
-under [compiler storage](compiler_storage.md).
+does not authorize merging contradictory generated declarations. Build
+execution results are not persisted or recovered through compiler caches under
+[compiler storage](compiler_storage.md); requested outputs remain governed by
+their ordinary publication and later-input rules.
 
 Before reusing an execution result, prove applicability to the exact code,
 purpose, execution profile, configuration, selected providers, actual backing

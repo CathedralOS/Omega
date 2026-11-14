@@ -315,8 +315,10 @@ PolicyCharge = interpret(UsageRecord, selected cost policy)
 Changing accounting weights does not invalidate a semantically unchanged
 result. Missing telemetry may require remeasurement without invalidating that
 result. Reusing a result within the current build graph charges its recorded
-logical charge, so reuse cannot change a hard-ceiling decision. Results are not
-reused across builds under [compiler storage](../build/compiler_storage.md).
+logical charge, so reuse cannot change a hard-ceiling decision. Evaluator
+memoization does not persist across build invocations under
+[compiler storage](../build/compiler_storage.md); explicitly published evidence
+remains governed by the admission rules below.
 Linking an already-built dependency does not charge its historical
 production cost.
 
