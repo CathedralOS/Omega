@@ -2406,7 +2406,9 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
                 spans(field, binder, out);
             }
         }
-        ExpressionKind::Field { base, .. } | ExpressionKind::Payload { base, .. } => {
+        ExpressionKind::Field { base, .. }
+        | ExpressionKind::Payload { base, .. }
+        | ExpressionKind::CollectionMeasure { base, .. } => {
             spans(base, binder, out);
         }
         ExpressionKind::IsCase { subject, .. } => spans(subject, binder, out),
@@ -2555,7 +2557,9 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
                 expression_slot_uses(field, uses);
             }
         }
-        ExpressionKind::Field { base, .. } | ExpressionKind::Payload { base, .. } => {
+        ExpressionKind::Field { base, .. }
+        | ExpressionKind::Payload { base, .. }
+        | ExpressionKind::CollectionMeasure { base, .. } => {
             expression_slot_uses(base, uses);
         }
         ExpressionKind::IsCase { subject, .. } => expression_slot_uses(subject, uses),

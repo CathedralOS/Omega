@@ -232,6 +232,7 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
         | ExpressionKind::Requalify(operand)
         | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::Field { base: operand, .. }
+        | ExpressionKind::CollectionMeasure { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {
             subject: operand, ..
@@ -305,6 +306,7 @@ fn uses_storage(body: &Body, signature: &Signature) -> bool {
             | ExpressionKind::Index { .. }
             | ExpressionKind::Record { .. }
             | ExpressionKind::Field { .. }
+            | ExpressionKind::CollectionMeasure { .. }
             | ExpressionKind::Case { .. }
             | ExpressionKind::Payload { .. }
             | ExpressionKind::IsCase { .. }
