@@ -1,7 +1,7 @@
 # BTreeMap/HashMap/BTreeSet/HashSet (Fx, Index) keyed by a semantic_id! type or
 # an arena Handle, per non-test file. Counts may only fall: dense IDs index
 # flat tables (AGENTS.md conventions).
-# Written by `python tools/check_rules.py --update-dense-id-maps`.
+# Written by `cargo xtask check-rules --update-dense-id-maps`.
 3 omega-rust/omega/compilation/backend/artifacts/component-description/src/component_description.rs
 1 omega-rust/omega/compilation/backend/calling-conventions/src/terminal_layout.rs
 2 omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs

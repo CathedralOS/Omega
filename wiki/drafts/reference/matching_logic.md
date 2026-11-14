@@ -74,9 +74,10 @@ completeness theorem supplies no Omega authority merely by being cited.
 
 ### Measured record
 
-`tools/matching-logic-metrics/run_metrics.py` produces the versioned record the
-measurement list above requires (schema `omega-matching-logic-comparison/1`,
-committed under `tools/matching-logic-metrics/records/`). At revision
+The comparison recorder `run_metrics.py` produced the versioned record the
+measurement list above requires (schema `omega-matching-logic-comparison/1`).
+The recorder was removed with the repository's Python tooling; its cases and
+records remain at [`tools/matching-logic-metrics`](https://github.com/CathedralOS/Omega/tree/5ccde07d45af24d039931579f64a85bc1242501b/tools/matching-logic-metrics). At revision
 `649d7ca380` the current route measured: admission kernel 26,461 non-test
 source lines across 48 files; certificate translation 5,251 lines; the trusted
 derivation still deciding certificate-uncovered legs 5,566 lines; and an

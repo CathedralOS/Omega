@@ -6,12 +6,12 @@
 //! - `cargo xtask rust-producer-omission --manifest <path> [--steps <path>] [--root <dir>]`
 //! - `cargo xtask check-rules [--base <rev>] [--title <title>] [--body-file <path>]`
 //! - `cargo xtask sample-gate [--filter <fragments>] [--facts]`
+//! - `cargo xtask qualify --samples <paths> --output <new-directory> [--target <host>]`
 //! - `cargo xtask doctor [--json <path>]`
-//! - `cargo xtask focused-test [--validate | --prepare]`
-//! - `cargo xtask land <status|enqueue|wait|land> [pr] [--expected-head <sha>]`
 //! - `cargo xtask claims <status|claim|release|note> [options]`
 //! - `cargo xtask provenance [--agent <name>] [--model <model>] [--effort <effort>]`
-//! - `cargo xtask worktree <status|acquire|clean> [options]`
+//! - `cargo xtask worktree <status|acquire|release|clean> [options]`
+//! - `cargo xtask managed-cache-retention [--repository <dir>]`
 //! - `cargo xtask retire-attached-machines [--write] <path>...`
 //! - `cargo xtask alpha-forge LISTING OUTPUT` or `alpha-forge LISTING --check COMMITTED`
 //! - `cargo xtask gamma-invoke --evaluator PATH --source PATH --output PATH [--input PATH] [--timeout SECONDS]`
@@ -25,9 +25,7 @@ mod claims;
 mod doctor;
 mod execution;
 mod fmt;
-mod focused_test;
 mod gamma_invoke;
-mod landing;
 mod managed_cache_retention;
 mod producer;
 mod provenance;
@@ -62,11 +60,9 @@ commands:
   sample-gate      Run differential native + Terminal Psi sample verification
   qualify          Run exact sample selections with retained producer evidence
   doctor           Run host toolchain and repository preflight checks
-  focused-test     Validate, prepare, or run a focused CI Rust test selection
-  land             Inspect, enqueue, or land a pull request via the GitHub merge queue
   claims           Inspect or update the cross-session work-claim registry
   provenance       Emit the canonical model-audit footer from the active session transcript
-  worktree         List, acquire/recycle, or clean isolated `.agents/worktree/` checkouts
+  worktree         List, acquire/recycle, release, or clean isolated `.agents/worktree/` checkouts
   managed-cache-retention  Retain the managed session's shared worker pool in mbx
   retire-attached-machines  Rewrite retired `machine Data::member` declarations as free machines
   alpha-forge      Resolve an Alpha Windows .hex listing into the seed image
@@ -90,8 +86,6 @@ fn main() -> ExitCode {
         "sample-gate" => samples::run(&args),
         "qualify" => qualification::run(&args),
         "doctor" => doctor::run(&args),
-        "focused-test" => focused_test::run(&args),
-        "land" => landing::run(&args),
         "claims" => claims::run(&args),
         "provenance" => provenance::run(&args),
         "worktree" => worktree::run(&args),

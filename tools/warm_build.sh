@@ -37,7 +37,7 @@
 # language-core recompiles all of them: a build restored three commits away
 # from its sources took 673 s, as long as a cold one. So session-start creates
 # worker-1 at the published commit, `cargo xtask worktree acquire` hands it out
-# there, and the work keeps that commit as its base; the merge queue
+# there, and the work keeps that commit as its base; the squash merge
 # integrates it with main.
 set -euo pipefail
 

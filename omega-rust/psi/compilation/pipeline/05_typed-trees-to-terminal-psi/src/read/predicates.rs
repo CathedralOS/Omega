@@ -166,9 +166,8 @@ impl Program<'_> {
                 id: value,
                 scalar_type,
             };
-            // The result's own name is refused in an authored clause of a
-            // qualified result (`ResultTerm::Absent`); the domain's clause
-            // names the value through its `self`.
+            // A domain's clause names the value through its own `self`, not
+            // through the surrounding callable's reserved result.
             let exit = ClauseScope {
                 result: ResultTerm::Absent("result in a domain predicate"),
                 ..*exit
