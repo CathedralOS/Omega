@@ -57,6 +57,18 @@ fn a_scalar_match_is_judged_and_accepted() {
             "boolean_pair",
             "machine pick(flag: bool) -> u32 { match flag { true -> 1, false -> 2 } }",
         ),
+        (
+            "one_bit_pair",
+            "machine pick(flag: bool, value: u1) -> u1 { match flag { true -> value, false -> 0 } }",
+        ),
+        (
+            "boolean_result",
+            "machine pick(flag: bool) -> bool { match flag { true -> flag, false -> false } }",
+        ),
+        (
+            "explicit_widening",
+            "machine widen(value: u8) -> u32 { value as u32 }",
+        ),
         // The subject is any scalar expression, evaluated once.
         (
             "computed_subject",
@@ -93,6 +105,106 @@ fn a_scalar_match_is_judged_and_accepted() {
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// Receiving a value never converts its scalar carrier, even when `u1`
+/// and `bool` have the same storage width. The reader knows both types;
+/// these are source errors, not gaps in the lowered-form checker.
+#[test]
+fn a_known_scalar_result_mismatch_is_rejected_at_the_supplied_value() {
+    assert!(matches!(
+        verdict(
+            "matching_inferred_bool",
+            "machine keep(value: bool) -> bool { (match true { true -> false, false -> value }) == false }",
+        ),
+        RouteVerdict::Accepted(_)
+    ));
+    for (name, input, output, body, supplied) in [
+        ("u32_bool", "u32", "bool", "value", "value"),
+        ("u1_bool", "u1", "bool", "value", "value"),
+        ("bool_u1", "bool", "u1", "value", "value"),
+        ("u8_u32", "u8", "u32", "value", "value"),
+        (
+            "match_result",
+            "u32",
+            "bool",
+            "match true { true -> value, false -> false }",
+            "value",
+        ),
+        (
+            "match_inferred",
+            "u32",
+            "bool",
+            "(match true { true -> false, false -> value }) == false",
+            "value",
+        ),
+    ] {
+        let source = format!("machine wrong(value: {input}) -> {output} {{\n    {body}\n}}");
+        let found = verdict(name, &source);
+        let RouteVerdict::Rejected { violations, .. } = &found else {
+            panic!("{name}: a known mismatch must reject: {found:?}");
+        };
+        let [violation] = &violations[..] else {
+            panic!("{name}: one mismatch: {violations:?}");
+        };
+        assert!(
+            violation
+                .statement
+                .contains("no implicit scalar conversion"),
+            "{name}: {violation:?}"
+        );
+        let site = violation.site.expect("the supplied value is authored");
+        assert_eq!(
+            &source[site.span.start..site.span.end],
+            supplied,
+            "{name}: {violation:?}"
+        );
+    }
+}
+
+#[test]
+fn scalar_receiving_places_share_the_result_mismatch_rule() {
+    for (name, source, destination) in [
+        (
+            "local_carrier",
+            "machine wrong(value: u32) { let kept: bool = value; }",
+            "the local it initializes",
+        ),
+        (
+            "assigned_carrier",
+            "machine wrong(value: u32) { let mut kept: bool = false; kept = value; }",
+            "the place it is assigned to",
+        ),
+        (
+            "argument_carrier",
+            "machine take(value: bool) {} machine wrong(value: u32) { take(value) }",
+            "the parameter it is passed for",
+        ),
+    ] {
+        let found = verdict(name, source);
+        let RouteVerdict::Rejected { violations, .. } = &found else {
+            panic!("{name}: {found:?}");
+        };
+        let [violation] = &violations[..] else {
+            panic!("{name}: one mismatch: {violations:?}");
+        };
+        assert!(
+            violation.statement.contains(destination),
+            "{name}: {violation:?}"
+        );
+        assert!(
+            violation
+                .statement
+                .contains("no implicit scalar conversion"),
+            "{name}: {violation:?}"
+        );
+        let site = violation.site.expect("the supplied value is authored");
+        assert_eq!(
+            &source[site.span.start..site.span.end],
+            "value",
+            "{name}: {violation:?}"
+        );
+    }
 }
 
 /// The twins of the last two accepted programs differ only in the arm's
@@ -187,8 +299,38 @@ fn an_accepted_scalar_match_runs_the_arm_its_subject_selects() {
              }}\n"
         )
     };
-    for (name, expected, completes) in [("runs_selected", 20, true), ("runs_other", 30, false)] {
-        let found = judged(name, &program(expected));
+    let matching_carriers = std::fs::read_to_string(unbuilt_frontier::repository(
+        "tests/fixtures/run/calls/scalar_receiving_types/main.omg",
+    ))
+    .expect("the matching-carrier runtime witness is kept beside the test");
+    // One-bit calls are checked and interpreted here; native call lowering
+    // does not support that width yet, so its witness uses bool and u32.
+    let one_bit_carriers = "\
+// Expected exit: 0. Matching scalar carriers survive calls and match joins.
+// Every returned value is observed; a wrong value traps instead of exiting 0.
+machine keep_number(value: u32) -> u32 { value }
+machine keep_bool(value: bool) -> bool { value }
+machine keep_bit(value: u1) -> u1 { value }
+machine choose_bit(flag: bool, value: u1) -> u1 {
+    match flag { true -> value, false -> 0 }
+}
+machine main() crashes Trap {
+    transition keep_number(37) == 37 && keep_bool(true) && !keep_bool(false)
+        && keep_bit(1) == 1 && choose_bit(true, 1) == 1 && choose_bit(false, 1) == 0 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+";
+    for (name, source, completes) in [
+        ("runs_selected", program(20), true),
+        ("runs_other", program(30), false),
+        ("matching_carriers", matching_carriers, true),
+        ("one_bit_carriers", one_bit_carriers.to_owned(), true),
+    ] {
+        let found = judged(name, &source);
         let RouteVerdict::Accepted(closure) = found else {
             panic!("{name}: {found:?}");
         };

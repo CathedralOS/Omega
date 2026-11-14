@@ -283,23 +283,16 @@ framework or a list of features that remain unimplemented.
 - Cost: the host row's operation is decided twice from text, and the native binding cannot be closed at its locator type by the pass that closes every other application until typing records that application on the call
 - Reported: 2026-11-13, Claude Code, while closing boundary requirements at the types their calls apply
 
-### A call of a machine nothing declares is refused as "not supported yet", not as an error
-- Category: a verdict with nothing behind it
-- Where: `typed-trees/src/deferred_refusals.rs` (`DeferredRequest::UnresolvedCallTarget`); `05_typed-trees-to-terminal-psi/src/read.rs` (raises the row as `RefusalReason::Unsupported`); `compiler/tests/route_probe.rs` (`an_unknown_machine_after_a_call_that_never_returns_is_not_accepted`)
-- Saw: typing records a call whose name no declaration answers as a deferred row beside rows for constructs no pass serves yet, and the reader raises every row the same way. `undeclared_machine(x);` in a program's own machine therefore reaches the user as "not supported yet ... with no claim that it is wrong" and never as a rejection
-- Cost: a misspelled machine name reads as a compiler limitation; state_contracts.md ("an unknown machine name or malformed type is an error wherever it appears") is met only in that the program is not accepted, and the outcome word is `not-supported` where it should be `rejected`
-- Reported: 2026-11-13, Claude Code, while accepting statements after a call that never returns
-
-### No stage types a result value against the type its machine declares
-- Category: a verdict with nothing behind it
-- Where: `03_symbol-resolved-trees-to-typed-trees` (no expression has a type there; `typing_queries.rs` answers declared places only); `05_typed-trees-to-terminal-psi/src/read/transitions.rs` and `read/expressions.rs` (`Unserved::Typing("arm value type")`, `"match arm value type"`)
-- Saw: `machine f(value: u32) -> bool { value }`, `machine f(value: u1) -> bool { value }` and `machine f(value: bool) -> u1 { value }` all pass typing. Each is stopped only by the lowered-form reader, which calls it `not-supported` because it expects typing to have rejected it
-- Cost: an ordinary type error reaches the author as "not supported yet" with no source line, and the reader's 57 `Unserved::Typing` refusals are the only owner of value typing. Making any of them a rejection needs typing to compute expression types, which it does not do today
-- Reported: 2026-11-13, Claude Code, while making integer widths symbolic
-
 ### A value name in a type is read by its spelling before resolution, past the parameters that hide it
 - Category: one idea, several implementations
 - Where: `02_.../preparation_integer_widths.rs` (`width_of`) and `02_.../preparation_const_evaluation.rs` (`closed_fixed_array_length`) both close a name through `ConstantSelection::select` before resolution; after it, `symbols_type_references.rs` `resolve_type_symbol` and `assign_fixed_array_length_symbol` look at type parameters and then top-level declarations only
 - Saw: in `const count: u64 = 13; machine f(count: u64, v: u<count>)` (or `[u8; count]`) the runtime parameter `count` is read as the constant. modules.md "Resolution" puts local bindings and parameters before imported names. Not reachable as an accepted program today only because the checker refuses every top-level `const` declaration
 - Cost: an integer width and an array extent each decide what a value name in a type means, by spelling, in two places; the day `const` declarations are read, a runtime width or extent is silently fixed to a constant. One type-position value-name resolver that sees the enclosing value bindings would serve both
 - Reported: 2026-11-14, Claude Code, while landing symbolic integer widths
+
+### The scalar contract fixture's inferred call proof is refused by the kernel
+- Category: a proof producer and checker disagree
+- Where: `tests/fixtures/run/calls/scalar_contract_route_exit/main.omg:26` (the call `settle(product)`)
+- Saw: `omega run --both` on the unchanged fixture reports `cannot prove requires contract for call settle from main: inferred input condition`, with `kernel Certificate(IntegerOrderMiddleMismatch)`, before either engine runs. Observed on Windows x86-64 with the scalar receiving-type diagnostic repair, then reproduced at the same line after restoring all changed production files exactly to `44ed2132219fb20261abeab4ef3e61b4ab0f845a` and rebuilding `omega` through `mbx`. The fixture is unchanged, and its contracts and guards were not weakened.
+- Cost: a simple scalar contract program cannot provide native/Psi execution evidence, and an invalid proof certificate is surfaced as a caller fact it should establish instead of identifying the proof producer's disagreement with the kernel
+- Reported: 2026-11-14, Codex, while checking scalar receiving-type diagnostics
