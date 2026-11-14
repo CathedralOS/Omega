@@ -1086,10 +1086,21 @@ pub(crate) mod access_views {
         ) -> Option<&crate::expression::AccessBorrowOperationRequest> {
             let mut visited = Vec::new();
             loop {
-                if !selected.is_valid() || visited.contains(&selected) {
+                if !self.symbols.symbols().nodes().is_valid(selected) || visited.contains(&selected)
+                {
                     return None;
                 }
                 visited.push(selected);
+                // Calls enter the declaration's real first state. Its unique
+                // machine owns the factory; a matching name or parent alone
+                // cannot supply that correspondence.
+                if self.symbols.get(selected).kind == symbols::SymbolKind::State {
+                    selected = self
+                        .unique_machine_by_entry_state_symbol(selected)?
+                        .0
+                        .symbol;
+                    continue;
+                }
                 let mut factories = self
                     .access_borrow_factories
                     .iter()

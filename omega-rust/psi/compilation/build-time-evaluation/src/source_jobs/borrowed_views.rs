@@ -168,6 +168,14 @@ fn a_prepared_bodyless_contract_cannot_follow_changed_application_bindings() {
     };
     let (application, target) = call(relay);
     let (other_application, other_target) = call(other);
+    let factory = source.access_borrow_factory(target).unwrap();
+    let (entry_owner, _) = source.unique_machine_by_entry_state_symbol(target).unwrap();
+    assert_eq!(entry_owner.symbol, factory.factory);
+    let relay_entry = source
+        .machine_by_symbol(relay)
+        .map(|machine| source.machine_states(machine)[0].symbol)
+        .unwrap();
+    assert!(source.access_borrow_factory(relay_entry).is_none());
     let signature = source
         .bodyless_callable_signature(application, target)
         .unwrap()
