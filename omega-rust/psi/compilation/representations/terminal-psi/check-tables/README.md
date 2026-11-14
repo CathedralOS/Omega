@@ -16,12 +16,12 @@ lookup is one index.
 
 | Table | Indexed by | Holds |
 | --- | --- | --- |
-| `values` | `ValueId` | One evaluated scalar: its type, its single origin, and for a callable selector the machines it may select. A write never changes it. |
+| `values` | `ValueId` | One evaluated scalar: its type and its single origin. A write never changes it. |
 | `knowledge` | `KnowledgeId` | A proposition over value identities, the point it is available from, its one justification and its premises. It never becomes false. |
 | `propositions` | `PropositionId` | The proposition each knowledge row states. Machine-local, minted by `push`: Terminal Psi keeps contract propositions inline and has no proposition table. |
 | `places` | `ExactPlaceId` | A root place, or a parent place plus one typed segment (field, case, fixed index, runtime index named by its captured selector value), with its sorted children and the writes to it. |
 | `roots` | `PlaceId` | The `ExactPlaceId` of each root place. |
-| `writes` | `WriteId` | The forward write log: a value, an installed reference, unknown contents, or a hole. |
+| `writes` | `WriteId` | The forward write log: a value, unknown contents, or a hole. |
 | `obligations` | `ObligationId` | Claims, loans, windows and debts (conserved across edges) and proof questions (discharged at one site). |
 | `edges` | `EdgeId` | Source, destination, and the fate of every conserved obligation crossing the edge. |
 | `invocations` | `InvocationId` | The one entry operation of ordinary and terminal calls: callee, ordered actuals, one requirement obligation per callee clause. |
@@ -29,17 +29,10 @@ lookup is one index.
 `ValueId`, `EdgeId`, `ObligationId`, `MachineId`, `BlockId`, `OperationId` and
 root `PlaceId` are the lowered form's own identities, so the checker and the
 emitted product name the same things. `ExactPlaceId`, `KnowledgeId`,
-`WriteId`, `ReferentSetId`, `SelectionSetId` and `InvocationId` belong to this
-crate because the lowered form has no identity for those concepts (its
+`WriteId` and `InvocationId` belong to this crate because the lowered form has no identity for those concepts (its
 `PlaceId` names roots only). `PropositionId` is reused from the vocabulary, but
 here it is machine-local and indexes `MachineTables::propositions`, not the
 module's named proposition declarations.
-
-References and callables are keyed differently because the lowered form holds
-them differently. A reference is a structural place, so the places it may
-denote are installed by the write that stores it (`Content::Reference`). A
-callable selector is a scalar value, so what it may select is a column of its
-value row.
 
 ## Rules every lane relies on
 
@@ -57,9 +50,8 @@ value row.
   unequal identities as disjoint.
 - **Lookups are derived columns, not maps.** A root by `PlaceId`
   (`MachineTables::roots`), a child by segment (`PlaceRow::children`, sorted,
-  binary search), the writes to a place (`PlaceRow::writes`, in program
-  order), and a selector's selection set (`ValueRow::selects`). Elaboration
-  fills each as it pushes rows. A lane that needs another lookup stops and
+  binary search), and the writes to a place (`PlaceRow::writes`, in program
+  order). Elaboration fills each as it pushes rows. A lane that needs another lookup stops and
   reports it, as it would for a new table; it never adds a map.
 
 ## What a lane may add

@@ -69,14 +69,6 @@ check_id!(
     "One entry of the forward write log (`bindings::WriteRow`)."
 );
 check_id!(
-    ReferentSetId,
-    "Identity a reference write may name. The member places are not stored in these tables."
-);
-check_id!(
-    SelectionSetId,
-    "Identity a selector value may name. The member machines are not stored in these tables."
-);
-check_id!(
     InvocationId,
     "One invocation entry, ordinary or terminal (`edges::InvocationRow`). \
      `InvocationSite` is its coordinate in the lowered form, not a dense identity."

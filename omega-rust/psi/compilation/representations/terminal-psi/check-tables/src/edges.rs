@@ -90,10 +90,9 @@ pub enum Callee {
     /// Contract lookup follows this identity; a boundary never acquires a
     /// machine body merely because the invocation has been recorded.
     Declared(semantic_vocabulary::TargetMachineCallable),
-    /// A call through a callable selector value; its candidates are that
-    /// value's `ValueRow::selects`. calls_and_outcomes.md: "Indirect calls
-    /// through machine values retain these same argument, result, proof and
-    /// custody rules."
+    /// A call through a callable selector value. calls_and_outcomes.md:
+    /// "Indirect calls through machine values retain these same argument,
+    /// result, proof and custody rules."
     Selected { callable: ValueId },
 }
 

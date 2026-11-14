@@ -360,7 +360,6 @@ impl Lowering<'_> {
                         origin: ValueOrigin::MachineParameter {
                             position: self.position(position)?,
                         },
-                        selects: None,
                         rigid,
                     });
                     // Clause propositions name each value formal by the
@@ -686,7 +685,6 @@ impl<'a> Lowering<'a> {
         self.tables.values.push(ValueRow {
             scalar_type,
             origin,
-            selects: None,
             rigid: None,
         })
     }
@@ -697,7 +695,6 @@ impl<'a> Lowering<'a> {
         self.tables.values.push(ValueRow {
             scalar_type: RigidType::DECLARED_AS,
             origin,
-            selects: None,
             rigid: Some(rigid),
         })
     }
