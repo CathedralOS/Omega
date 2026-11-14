@@ -152,6 +152,13 @@ Write each item so any agent can start from it alone: current state, files and e
   - `scalar_lending_producer`: all 18 `component_scalar_lending` places, reached through the `producer` alias and produced and admitted as an independent component.
   Acceptance: every place resolves its package from a clean checkout; positive places reach native/Psi agreement; each twin rejects for its stated contract, access or visibility reason, not a missing dependency; each sample keeps its package boundaries and selected composition modes: no dependency is replaced by a same-package helper, and no component the sample selects as `CompositionMode::Independent` is fused.
 
+- **QUALIFIED-OPERATOR-HOME.** Implement `qualified-operator-home` under [operator families](wiki/spec/language/expressions.md#operator-families): resolve a qualified operator's home where it is declared, accept it in any module of the package owning that domain, and reject it in any other package where it is written.
+  - The home resolves by ordinary name resolution, visibility and domain exposure; an unknown, inaccessible or ambiguous home rejects at the declaration and never stays a root-level operator.
+  - Callers find the operator through the domain and its owning package, independent of which module they import and in what order.
+  - The body keeps its own file's names and gains no private names of the domain's module and no establishment, read or write authority.
+  - Duplicate participating shapes are checked across the owning package's whole declaration set.
+  Acceptance: one operator accepted in the domain's module and the same operator accepted in the package's root file, both resolving `a + b`; a declaration in another package that imports the domain rejects at its declaration; an ambiguous home rejects; one duplicate shape split across two modules of the owning package rejects; a body naming a private item of the domain's module rejects.
+
 - **TYPED-STATIC-PARAMETERS.** Implement and migrate to [typed static parameters](wiki/drafts/designs/typed_static_parameters.md).
 
 - **ACTIVATION-STORAGE-PLANS.** Implement [storage plans](wiki/drafts/designs/activation_storage_plans.md).

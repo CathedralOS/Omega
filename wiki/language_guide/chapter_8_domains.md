@@ -122,7 +122,14 @@ machine + Degrees::add(left: u32::Degrees, right: u32::Degrees) -> u32::Degrees 
 }
 ```
 
-Now `a + b` on two `u32::Degrees` wraps at 360. The arithmetic policies of
+Now `a + b` on two `u32::Degrees` wraps at 360. The operator may sit in any
+module of the package that owns `Degrees`, not only next to it, and callers
+find it through `Degrees` wherever it sits. Another package can't add operators
+to `Degrees`. The body resolves names where it is written, so it can't reach
+private names of the module that declares `Degrees`. See
+[operator families](../spec/language/expressions.md#operator-families).
+
+The arithmetic policies of
 [Chapter 5](chapter_5_expressions_evaluation.md#integer-arithmetic),
 `Wrapping`, `Saturating` and `Trapping`, are core domains of this kind.
 
