@@ -3307,6 +3307,14 @@ pub fn visit_type_reference(
                 visit_type_reference(program, retained, *argument);
             }
         }
+        // A checked integer argument is a value, not a declaration. Its
+        // constant origins were visited above; every present coordinate and
+        // unresolved ordinary name must still reach the receiving visitor.
+        TypeReferenceNode::Named { symbol, .. }
+            if *symbol == SymbolHandle::invalid()
+                && program
+                    .static_const_literal_from_type_reference(type_reference)
+                    .is_some() => {}
         TypeReferenceNode::Named { symbol, .. } => {
             visit_symbol(retained, *symbol);
         }
@@ -3498,7 +3506,11 @@ fn visit_described_argument(
     retained: &mut impl TypedReferences,
     argument: &StaticMachineArgument,
 ) {
-    retained.declaration_description_dependency(argument.symbol);
+    // Literal and type-only operands have no declaration of their own.
+    // Their type and application still carry the actual dependencies.
+    if argument.symbol != SymbolHandle::invalid() {
+        retained.declaration_description_dependency(argument.symbol);
+    }
     visit_type_reference(program, retained, argument.type_reference);
     if let Some(application) = &argument.application {
         for nested in &application.arguments {
@@ -4300,6 +4312,80 @@ mod declaration_description_tests {
     use crate::types::TypeReferenceNode;
     use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
 
+    #[derive(Default)]
+    struct ReferenceEvents {
+        declarations: Vec<SymbolHandle>,
+        descriptions: Vec<SymbolHandle>,
+        types: Vec<TypeReferenceHandle>,
+    }
+
+    impl Extend<SymbolHandle> for ReferenceEvents {
+        fn extend<T: IntoIterator<Item = SymbolHandle>>(&mut self, symbols: T) {
+            self.declarations.extend(symbols);
+        }
+    }
+
+    impl TypedReferences for ReferenceEvents {
+        fn declaration_description_dependency(&mut self, symbol: SymbolHandle) {
+            self.descriptions.push(symbol);
+        }
+
+        fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
+            self.types.push(reference);
+            true
+        }
+    }
+
+    #[test]
+    fn checked_integer_type_arguments_keep_origins_without_inventing_declarations() {
+        let mut symbols = SymbolTableBuilder::default();
+        let origin = symbols.insert_root(SymbolKind::Const, SymbolNameRef::Static("LIMIT"));
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        for spelling in ["0", "-7", "0xff"] {
+            let reference = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol: SymbolHandle::invalid(),
+                    name: Identifier::generated(spelling),
+                });
+            program
+                .type_reference_table
+                .attach_constant_origins(
+                    reference,
+                    [crate::types::TypeConstantOrigin {
+                        declaration: origin,
+                        reference: Default::default(),
+                    }],
+                )
+                .unwrap();
+            let mut events = ReferenceEvents::default();
+            visit_type_reference(&program, &mut events, reference);
+            assert_eq!(events.declarations, [origin], "{spelling}");
+            assert_eq!(events.types, [reference]);
+        }
+        let malformed = SymbolHandle::from_parts(0, 1);
+        let stale = SymbolHandle::from_parts(origin.arena_index(), origin.generation() + 1);
+        for (symbol, spelling) in [
+            (SymbolHandle::invalid(), "MissingType"),
+            (malformed, "7"),
+            (stale, "7"),
+            (origin, "7"),
+        ] {
+            let reference = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol,
+                    name: Identifier::generated(spelling),
+                });
+            let mut events = ReferenceEvents::default();
+            visit_type_reference(&program, &mut events, reference);
+            assert_eq!(events.declarations, [symbol]);
+        }
+    }
+
     #[test]
     fn reserved_results_retain_the_owner_without_inventing_a_name_binding() {
         let mut symbols = SymbolTableBuilder::default();
@@ -4508,6 +4594,26 @@ mod declaration_description_tests {
                     declaration,
                 )
             }));
+        let mut events = ReferenceEvents::default();
+        visit_expression(&program, &mut events, expression);
+        assert_eq!(events.descriptions, [declaration]);
+        assert!(events.declarations.contains(&word));
+        assert!(!events.declarations.contains(&SymbolHandle::invalid()));
+        assert!(events.types.contains(&word_type));
+        let malformed = SymbolHandle::from_parts(0, 1);
+        let mut malformed_events = ReferenceEvents::default();
+        visit_described_argument(
+            &program,
+            &mut malformed_events,
+            &StaticMachineArgument {
+                symbol: malformed,
+                type_reference: word_type,
+                ..Default::default()
+            },
+        );
+        assert_eq!(malformed_events.descriptions, [malformed]);
+        assert_eq!(malformed_events.declarations, [word]);
+
         let mut collector = ReferenceCollector::default();
         visit_expression(&program, &mut collector, expression);
         let references = finish_references(collector);
