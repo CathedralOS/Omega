@@ -1,4 +1,4 @@
-use omega::language::core::float_operations;
+use omega::language::core::F64::square_root;
 
 // Velocity Verlet keeps the central-force angular momentum. Each drift segment
 // is tested against the collision sphere, including a crossing between endpoints.

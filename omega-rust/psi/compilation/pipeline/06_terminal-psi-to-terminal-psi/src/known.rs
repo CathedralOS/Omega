@@ -110,14 +110,15 @@ impl Known {
                     match definition {
                         ScalarTerm::Boolean(_) => fact.axiom.is_some(),
                         ScalarTerm::Integer { .. } => true,
-                        // A read no store reaches: its result is what the
-                        // formal's storage held at entry, the one name a
-                        // predicate that crosses a join has for it.
+                        // A read with a checked initial-content equation:
+                        // the available axiom ties this exact immutable value
+                        // to its formal or producing call. Join scope is
+                        // checked separately against the owning root.
                         ScalarTerm::Value { id, .. }
                             if fact.axiom.is_some()
                                 && matches!(
                                     values.get(*id).map(|row| row.origin),
-                                    Some(ValueOrigin::EntryContent { .. })
+                                    Some(ValueOrigin::InitialContent { .. })
                                 ) =>
                         {
                             true

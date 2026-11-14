@@ -566,7 +566,14 @@ fn an_accepted_build_states_each_constant_its_declarations_name() {
 ",
     ] {
         let accepted = accepted(build).unwrap_or_else(|refused| panic!("{build}: {refused:?}"));
-        assert_eq!(accepted.constants_read(), ["LIMIT"], "{build}");
+        let read = accepted.constants_read();
+        let [limit] = read.as_slice() else {
+            panic!("{build}: {read:?}");
+        };
+        assert_eq!(limit.name, "LIMIT", "{build}");
+        // The declaration and the value are what a later frontier is held to.
+        assert!(limit.declaration.is_some(), "{build}");
+        assert!(limit.value.is_some(), "{build}");
     }
 }
 

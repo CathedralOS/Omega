@@ -1,8 +1,8 @@
 module spectrometer::regions;
-use omega::language::core::math;
+use omega::language::core::max_f64;
 use spectrometer::model::Spectrum;
 use spectrometer::model::Regions;
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i32;
 
 // Subtract the supplied linear baseline, clip negative residuals, and retain
 // only bins at or above threshold. Adjacent retained bins form one region:

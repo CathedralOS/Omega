@@ -1,7 +1,7 @@
 // Expected exit: 0
 // Closed nested Inert carrier transport preserves libc host numbers 66051 and 513 and replacement 1027 while retaining the disjoint sibling.
 
-use omega::language::core::representation;
+use omega::language::core::OpaqueRepresentation;
 public boundary data InternetAddress;
 public data AddressWord dropped by drop_address_word { address: u32; }
 machine drop_address_word(word: &mut AddressWord) {}

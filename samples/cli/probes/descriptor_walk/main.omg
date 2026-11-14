@@ -17,7 +17,8 @@
 //
 // Expected exit: 50
 use omega_language_std::console;
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_u32_to_i32_trapping;
+use omega::language::core::narrow_u64_to_u32_wrapping;
 data Desc { kind: u32; pages: u64; }
 data Main
 requires self.descriptor_size <= 16

@@ -10,7 +10,10 @@
 // Compile-checked only: declaration surface (proposition
 // contracts aren't callable), no standard-library dependency.
 
-use omega::language::core::relation;
+use omega::language::core::Antisymmetric;
+use omega::language::core::Reflexive;
+use omega::language::core::Symmetric;
+use omega::language::core::Transitive;
 
 data Carrier {
     code: u32;

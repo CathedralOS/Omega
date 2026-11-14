@@ -94,12 +94,9 @@ pub use artifacts::{
     FunctionFragmentEmissionIdentity, FunctionFragmentEmissionManifestIdentity,
     FunctionFragmentObjectContainerManifestIdentity, FunctionFragmentTextSectionManifestIdentity,
     OptimizedObjectArtifactIdentity, OptimizedObjectArtifactManifestIdentity,
-    OptimizedOrdinaryCallableEntryManifestIdentity,
-    OptimizedProgramStorageSemanticWrapperObjectContainerIdentity,
-    OptimizedProgramStorageSemanticWrapperObjectIdentity,
-    OptimizedProgramStorageSemanticWrapperObjectManifestIdentity,
-    OptimizedTerminalOrdinaryCallableEntryIdentity, RelocationFreeObjectContainerIdentity,
-    RelocationFreeObjectPlanIdentity, TerminalRelocationFreeTextSectionIdentity,
+    OptimizedOrdinaryCallableEntryManifestIdentity, OptimizedTerminalOrdinaryCallableEntryIdentity,
+    RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
+    TerminalRelocationFreeTextSectionIdentity,
 };
 pub use bundle::{OptimizationIdentityBundle, OptimizationIdentityBundleIdentity};
 pub use decisions::{

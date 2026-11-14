@@ -1,7 +1,7 @@
 // Expected exit: 0
 use omega::language::core::float;
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::F32::is_finite;
 use omega::language::core::complex::Complex;
 use omega::language::core::complex::ComplexF32;
 use omega::language::core::complex::ComplexMagnitude;

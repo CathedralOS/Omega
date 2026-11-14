@@ -14,7 +14,8 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-use omega::language::core::float_operations;
+use omega::language::core::I32::from_f64;
+use omega::language::core::U8::from_f64;
 
 data Main {
     value: f64;

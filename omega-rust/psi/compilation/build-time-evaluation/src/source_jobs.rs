@@ -567,52 +567,17 @@ pub(crate) mod tests {
     }
 
     fn with_reflection(source: &str) -> TypedTrees {
-        let core_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../../source/library/core");
-        let reflection = include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../source/library/core/reflect.omg"
-        ));
-        let mut sources = source::SourceMap::default();
-        let core = sources
-            .add_with_metadata(
-                core_root.join("reflect.omg"),
-                reflection.into(),
-                core_root,
-                None,
-                source::SourceOrigin::Toolchain,
-            )
-            .source_id;
-        let author = sources
-            .add_with_metadata(
-                "/job/policy.omg".into(),
-                source.into(),
-                "/job".into(),
-                semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]),
-                source::SourceOrigin::User,
-            )
-            .source_id;
-        let mut syntax = syntax_trees::SyntaxTrees::new(author);
-        for (id, text) in [(core, reflection), (author, source)] {
-            let tokens = source_files_to_tokens::Lexer::new(text)
-                .tokenize()
-                .expect("lex source");
-            tokens_to_syntax_trees::parse(&mut syntax, id, &tokens).expect("parse source");
-        }
-        let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
-        request.sources = Some(Arc::new(sources));
-        request.top_level_bindings.push(
-            symbols::SourceScopedTopLevelBinding::logical_module_import(
-                author,
-                core,
-                "omega::language::core::reflect",
-                3,
-            ),
-        );
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request)
-            .expect("resolve exact core and author");
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("type exact core and author")
+        // Reflection imports ordinary core declarations. Keep its complete
+        // real source closure and the same test author's package identity.
+        let library =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../source/library");
+        super::schema_customer_source::actual_library_source(
+            &library,
+            source,
+            semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32])
+                .expect("the existing reflection author package"),
+        )
+        .expect("resolve and type the actual core source and author")
     }
 
     fn returned_source_call(
@@ -1855,6 +1820,14 @@ pub(crate) mod tests {
         assert_eq!(receipt.admission().target(), target().name);
     }
 }
+
+#[cfg(test)]
+#[path = "source_jobs/schema_customer_source.rs"]
+mod schema_customer_source;
+
+#[cfg(test)]
+#[path = "source_jobs/access_plan_construction.rs"]
+mod access_plan_construction;
 
 #[cfg(test)]
 #[path = "source_jobs/sequence_values.rs"]

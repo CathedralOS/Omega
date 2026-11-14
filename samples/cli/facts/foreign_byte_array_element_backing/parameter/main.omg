@@ -1,6 +1,5 @@
 // A shared element loan into an owned byte array exports the whole original array through the thin foreign ABI, so the foreign reader sees every sibling byte and no byte changes.
 // Expected exit: 0
-use omega::language::core::external_binding;
 public boundary trait Text {
     machine length(text: &u8) -> u64 reaches;
 }

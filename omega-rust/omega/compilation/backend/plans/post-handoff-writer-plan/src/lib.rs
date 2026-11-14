@@ -17,8 +17,8 @@ consumer substitute fit constraints.
 /*
 We consume `SymbolicMaterializationPlan` records from `layout-plans` and expose
 validated `PostHandoffWriterPlan`, `GeneratedPostHandoffWriterFragmentPlan`,
-and `PostHandoffWriterInvocationPlan` carriers to executable-installation and
-program-entry realization.
+and `PostHandoffWriterInvocationPlan` carriers. ISA encoders consume the reusable
+fragment geometry; provider invocation retains its separate custody obligations.
 */
 
 #![forbid(unsafe_code)]
@@ -542,7 +542,7 @@ pub fn validate_step(
     Ok(())
 }
 
-#[cfg(feature = "test-support")]
+#[cfg(any(test, feature = "test-support"))]
 pub mod test_support {
     use crate::{PostHandoffWriterPlan, PostHandoffWriterSource, PostHandoffWriterStep};
     use layout_plans::{

@@ -1,7 +1,8 @@
 module io::report;
 use omega_language_std::console;
-use omega::language::core::float_operations;
-use omega::language::core::numeric_conversion;
+use omega::language::core::I32::from_f64;
+use omega::language::core::narrow_i32_to_u32_trapping;
+use omega::language::core::narrow_u32_to_i32_trapping;
 use io::input;
 use model::stages;
 

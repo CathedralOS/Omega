@@ -1,6 +1,5 @@
-use omega::language::core::math;
+use omega::language::core::abs_f64;
 
-use omega::language::core::float_operations;
 use model;
 use helper;
 machine observe(lab:&mut Measurements) {lab.events=1;lab.first=0;lab.second=1;lab.time=2.0;lab.impulse=1.5;lab.px=1.0;lab.energy=0.5;lab.initial_x=1.0;lab.initial_energy=0.5;}

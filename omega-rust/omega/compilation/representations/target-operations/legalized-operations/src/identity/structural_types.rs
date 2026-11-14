@@ -185,43 +185,12 @@ pub(super) fn encode_structural_path(bytes: &mut Vec<u8>, path: &[StructuralPath
 }
 
 fn encode_structural_projection(bytes: &mut Vec<u8>, segment: &StructuralPathSegment) {
-    match segment {
-        StructuralPathSegment::AllElements => bytes.push(10),
-        StructuralPathSegment::Case(case) => {
-            bytes.push(7);
-            crate::codec_bytes::push_encoded(bytes, case.get().to_le_bytes());
-        }
-        StructuralPathSegment::Referent => bytes.push(3),
-        StructuralPathSegment::FixedRange { start, end } => {
-            bytes.push(4);
-            crate::codec_bytes::push_encoded(bytes, start.to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, end.to_le_bytes());
-        }
-        StructuralPathSegment::Field(identity) => {
-            bytes.push(1);
-            bytes.extend_from_slice(&identity.0.to_le_bytes());
-        }
-        StructuralPathSegment::FixedIndex(index) => {
-            bytes.push(2);
-            crate::codec_bytes::push_encoded(bytes, index.to_le_bytes());
-        }
-        StructuralPathSegment::RuntimeIndex { index, obligation } => {
-            bytes.push(5);
-            crate::codec_bytes::push_encoded(bytes, index.get().to_le_bytes());
-            crate::codec_bytes::push_encoded(bytes, obligation.get().to_le_bytes());
-        }
-        StructuralPathSegment::RepresentationView {
-            structural_type,
-            stored_scalar,
-        } => {
-            bytes.push(8);
-            crate::codec_bytes::push_encoded(bytes, structural_type.get().to_le_bytes());
-            bytes.push(u8::from(stored_scalar.is_some()));
-            if let Some(scalar) = stored_scalar {
-                encode_scalar_type(bytes, *scalar);
-            }
-        }
-    }
+    terminal_psi::structural_path_encoding::encode_structural_path_segment(
+        bytes,
+        segment,
+        Vec::extend_from_slice,
+        encode_scalar_type,
+    );
 }
 
 pub fn encode_structural_place(bytes: &mut Vec<u8>, place: StructuralPlaceDeclaration) {
@@ -600,6 +569,23 @@ mod tests {
         IntegerSign, IntegerType, IntegerValue, Proposition, ScalarRefinement, ScalarTerm,
         ScalarType, StructuralFieldId,
     };
+
+    #[test]
+    fn runtime_path_uses_the_canonical_segment_tag() {
+        let mut bytes = Vec::new();
+        super::encode_structural_path(
+            &mut bytes,
+            &[terminal_psi::StructuralPathSegment::RuntimeIndex {
+                index: semantic_vocabulary::ValueId::new(2).unwrap(),
+                obligation: semantic_vocabulary::ObligationId::new(7).unwrap(),
+            }],
+        );
+        let mut expected = 1_u64.to_le_bytes().to_vec();
+        expected.push(6);
+        expected.extend_from_slice(&2_u64.to_le_bytes());
+        expected.extend_from_slice(&7_u64.to_le_bytes());
+        assert_eq!(bytes, expected);
+    }
 
     fn assert_distinct_encodings(
         declarations: impl IntoIterator<Item = StructuralTypeDeclaration>,

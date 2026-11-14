@@ -9,7 +9,8 @@
 // Expected exit: 200.
 
 use omega_language_std::console;
-use omega::language::core::math;
+use omega::language::core::max_i32;
+use omega::language::core::min_i32;
 
 // Wrapping DECLARED: the accumulator sums an unbounded number of clamped steps.
 machine clamp_sum(s: &[i32 in Wrapping], acc: i32 in Wrapping) -> i32 in Wrapping {

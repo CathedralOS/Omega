@@ -1,6 +1,5 @@
 // Expected exit: 0. An applied generic provider result retains its exact
 // payload types through a generic wrapper and ordinary case extraction.
-use omega::language::core::drop;
 
 data Token [linear] dropped by drop_token { value: u64; }
 machine drop_token(token: &mut Token) {}

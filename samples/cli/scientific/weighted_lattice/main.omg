@@ -3,7 +3,7 @@
 use omega_language_std::console;
 use model::enumeration;
 use io::numbers;
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_i32_to_u64_trapping;
 
 machine input_byte() -> i32 reaches Console {
     let observed: ByteRead = block Console::read_byte();

@@ -7,8 +7,11 @@
 //
 //   omega --check samples/cli/proofs/structural_proofs/main.omg
 //
-use omega::language::core::nat;
-use omega::language::core::seq;
+use omega::language::core::Nat;
+use omega::language::core::add;
+use omega::language::core::Seq;
+use omega::language::core::length;
+use omega::language::core::length_append;
 
 // --- The equality kernel over proof data --------------------------------
 

@@ -1,4 +1,4 @@
-use omega::language::core::program_image;
+use omega::language::core::ProgramImage;
 
 machine build(builder: &mut Build) suspends {
     Build::application(builder, "provider_readiness_replacement");

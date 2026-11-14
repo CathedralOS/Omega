@@ -1,4 +1,4 @@
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i32;
 use domain::input;
 public data Equilibrium { hydrogen: f64; hydroxide: f64; species: [f64; 3]; total: f64; counterion: f64; closure: f64; charge: f64; ph: f64; }
 // Positive H: charge is strictly increasing because protonation increases

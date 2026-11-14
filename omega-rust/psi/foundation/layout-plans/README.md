@@ -23,10 +23,10 @@ addresses or a byte-patching primitive.
 Everything above is portable description and semantic validity. The
 post-handoff writer consumers live on the Omega side:
 `backend/plans/post-handoff-writer-plan` derives writer programs and reusable
-fragments from these actions, `backend/plans/program-entry-plan` lowers and
-validates them against ISA encoders, and
-`backend/runtime/executable-installation` executes them against a concrete
-destination. The interpreter consumes the same portable actions through its
+fragments from these actions, and the ISA crates encode those fragments.
+Receiver-side installation and destination authority follow the separate
+[installation contract](../../../../wiki/spec/build/executable_installation.md).
+The interpreter consumes the same portable actions through its
 own materialization path, never through native fragment lowering.
 
-Run the crate's tests with `cargo nextest run -p layout-plans --no-fail-fast`.
+Run the crate's tests with `mbx test -p layout-plans --lib`.

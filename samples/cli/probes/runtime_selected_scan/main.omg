@@ -1,6 +1,6 @@
 // Expected exit: 0.
 // Runtime implementation selection must preserve the borrowed result's backing.
-use omega::language::core::option;
+use omega::language::core::Optional;
 
 trait Scan<T> {
     machine first(values: &[T], threshold: T) -> Optional<&T>;

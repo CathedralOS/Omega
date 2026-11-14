@@ -1,6 +1,5 @@
 // Fact: an issued linear claim can gain a route-free label without losing its issued qualification.
 // Expected exit: 0
-use omega::language::core::drop;
 
 data Claim [linear] dropped by drop_claim { value: u64; }
 domain Claim::Issued established by issue;

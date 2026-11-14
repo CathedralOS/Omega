@@ -49,8 +49,10 @@ mod provider_supplies;
 mod ranges;
 mod reach;
 mod references;
+mod result_fields;
 mod result_summaries;
 mod rule_violations;
+mod runtime_indexed_elements;
 mod sequence_regions;
 mod stored_views;
 mod type_parameters;
@@ -2015,7 +2017,7 @@ fn a_formal_leaf_reads_as_its_one_entry_content_value() {
     assert_eq!(read_equals(tables, *second), Some(held));
     assert!(matches!(
         tables.values.get(held).unwrap().origin,
-        ValueOrigin::EntryContent { .. }
+        ValueOrigin::InitialContent { .. }
     ));
     let (obligation, verdict) = verdicts(&elaboration, &result, 1, safety)[0];
     assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
@@ -2035,6 +2037,9 @@ fn a_copy_reads_as_what_its_source_held_and_an_unknown_content_reads_as_nothing(
     //     let t = make();            // a call's result: values unknown here
     //     bounded(t.y)
     // }
+    // The executable whole-result value is not a scalar leaf fact. A caller
+    // may name result leaves logically, but needs a checked guarantee to know
+    // their contents; this model's producer publishes none.
     let caller = Shaped {
         parameters: Vec::new(),
         locals: vec![point(), point(), point()],
@@ -4825,7 +4830,7 @@ fn an_entry_clause_over_a_formals_field_is_known_of_its_entry_content() {
     let entry = read_equals(tables, observed).unwrap();
     assert!(matches!(
         tables.values.get(entry).unwrap().origin,
-        ValueOrigin::EntryContent { .. }
+        ValueOrigin::InitialContent { .. }
     ));
     let stated: Vec<_> = tables
         .knowledge
@@ -6362,6 +6367,61 @@ mod generic_bodies {
         assert_ne!(after_call(double(), double()), after_call(shift(), shift()));
     }
 
+    #[test]
+    fn public_call_certificates_do_not_admit_a_crossed_implementation_witness() {
+        // These callers all advertise Step's <=20 postcondition. Conditional
+        // arithmetic proofs can use it, even when offered an unrelated or
+        // failed refinement. That evidence is not implementation admission.
+        for (routed, offered) in [
+            (member(10, 20, shift().statements), shift()),
+            (member(10, 20, wide().statements), shift()),
+            (member(10, 20, wide().statements), wide()),
+        ] {
+            let (consumer, verdicts, started) = carried(21, routed, offered);
+            assert_eq!(started, 0);
+            assert_eq!(verdicts.len(), 3);
+            for (obligation, verdict) in &verdicts {
+                assert_kernel_checked(&consumer, 1, *obligation, verdict.as_ref().unwrap());
+            }
+        }
+
+        // The actual Wide refinement remains a separate refused judgment:
+        // its <=25 body promise does not establish the public <=20 result.
+        let actual_verdict = judge(lower(vec![witness(), wide()])).unwrap();
+        let RouteVerdict::Rejected {
+            formations,
+            violations,
+            unproved,
+            unestablished,
+            conflicts,
+            exceeded,
+        } = actual_verdict
+        else {
+            panic!("the actual invalid refinement must be rejected: {actual_verdict:?}")
+        };
+        assert!(
+            formations.is_empty()
+                && violations.is_empty()
+                && unestablished.is_empty()
+                && conflicts.is_empty()
+                && exceeded.is_empty()
+        );
+        assert!(unproved.iter().any(|refusal| {
+            matches!(refusal.kind, ObligationKind::NormalGuarantee { .. })
+                && refusal.cause == UnprovedCause::NoDerivation
+        }));
+        assert!(unproved.iter().all(|refusal| matches!(
+            (refusal.kind, refusal.cause),
+            (
+                ObligationKind::NormalGuarantee { .. },
+                UnprovedCause::NoDerivation
+            ) | (
+                ObligationKind::PublishedGuarantee { .. },
+                UnprovedCause::ReturnDoesNotEstablish
+            )
+        )));
+    }
+
     /// Discharges `advance(bound)` specialized to `implementation` as one
     /// closed closure, with `carried` offering the generic form's proofs to
     /// machine 1 when it is `Some`. Returns the discharge and how many
@@ -6521,22 +6581,43 @@ mod generic_bodies {
     }
 
     #[test]
-    fn a_refinement_proof_for_another_implementation_is_refused_by_the_kernel() {
-        // Shows: nothing about a carried proof is trusted. `Shift`'s
-        // refinement proof, offered for a specialization that really calls
-        // `Wide`, cites `result <= 17` after the call; that specialization
-        // assumes `result <= 25` there, and the kernel refuses the proof.
-        // The call requirement is refused too: the offered proof concludes
-        // `start <= 12`, and this call owes `Wide`'s `start <= 10`.
-        let (_, carried, _) = carried(21, wide(), shift());
-        let reasons: Vec<_> = carried
-            .iter()
-            .filter_map(|(_, verdict)| verdict.as_ref().err())
-            .map(|refusal| refusal.reason)
-            .collect();
+    fn a_refinement_proof_cannot_supply_another_implementations_guarantee() {
+        // Shift's proof needs result <=17, while Wide's actual call offers
+        // only <=25. Matching the same clause ordinal cannot supply that
+        // premise, so the two dependent certificates remain unavailable.
+        // The generic <=10 input proof does match Wide's <=10 input goal;
+        // that arithmetic fact authenticates no selected implementation.
+        let (consumer, carried, started) = carried(21, wide(), shift());
+        assert_eq!(started, 0);
+        let tables = consumer.tables.machines.get(id(1)).unwrap();
+        let mut refused = Vec::new();
+        for (obligation, verdict) in &carried {
+            match tables.obligations.get(*obligation).unwrap().kind {
+                ObligationKind::CallRequirement { .. } => {
+                    assert_kernel_checked(&consumer, 1, *obligation, verdict.as_ref().unwrap());
+                }
+                kind => {
+                    let kind = match kind {
+                        ObligationKind::OperationSafety { .. } => "safety",
+                        ObligationKind::NormalGuarantee { .. } => "guarantee",
+                        _ => panic!("unexpected obligation {kind:?}"),
+                    };
+                    refused.push((kind, verdict.as_ref().unwrap_err().reason));
+                }
+            }
+        }
         assert_eq!(
-            reasons,
-            vec![RefusalReason::Unproved(UnprovedCause::KernelRefused); 3]
+            refused,
+            [
+                (
+                    "safety",
+                    RefusalReason::Unproved(UnprovedCause::NoDerivation)
+                ),
+                (
+                    "guarantee",
+                    RefusalReason::Unproved(UnprovedCause::NoDerivation)
+                ),
+            ]
         );
     }
 }

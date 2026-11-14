@@ -1,7 +1,7 @@
 // Expected exit: 0. Completion observes the original value 37 through the
 // retained shared backing; a live registration excludes overlapping writes.
-use omega::language::core::content;
-use omega::language::core::drop;
+use omega::language::core::Content;
+use omega::language::core::CountedQuantity;
 public data ByteUnit {}
 public data Buffer [linear] dropped by drop_buffer { value: u64; }
 machine drop_buffer(buffer: &mut Buffer) {}

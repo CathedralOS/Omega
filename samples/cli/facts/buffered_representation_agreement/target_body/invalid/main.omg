@@ -1,6 +1,8 @@
 // Fact: A completed buffered round trip preserves every semantic field and returns the caller's output storage.
 // Expected exit: 0
-use omega::language::core::conversion;
+use omega::language::core::Result;
+use omega::language::core::TryFrom;
+use omega::language::core::convert;
 
 data Pair [copy] { first: u8; last: u8; }
 data Request<'buffer> { value: Pair; output: &'buffer mut [u8]; }

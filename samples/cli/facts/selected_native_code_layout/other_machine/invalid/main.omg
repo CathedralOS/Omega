@@ -1,6 +1,6 @@
 // The exact selected executable application supplies a nonzero native entry and finite attributed code regions at runtime.
 // Reject: late native metadata cannot determine a same-product semantic constant.
-use omega::language::core::code_layout;
+use omega::language::core::CodeLayout;
 machine selected<T, const Salt: u64>(value: T) -> T { value }
 machine inspect(layout: &CodeLayout) -> bool
 terminates

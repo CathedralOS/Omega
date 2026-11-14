@@ -1,5 +1,4 @@
 // Expected exit: 0. Primitive writes preserve unrelated live claims.
-use omega::language::core::drop;
 data Receipt [linear] dropped by drop_receipt { code: i32; }
 machine drop_receipt(receipt: &mut Receipt) {}
 machine update(receipt: Receipt) crashes Trap {
