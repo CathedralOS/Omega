@@ -11,7 +11,6 @@ report can succeed.
 */
 
 use crate::PendingNativeProduct;
-use diagnostics::Diagnostic;
 
 // Exact identity of one scheduled test invocation, retained in roster order.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -107,5 +106,5 @@ impl std::fmt::Display for TestRosterEntry {
 // incomplete rather than disappearing from the roster.
 pub struct PendingTestProduct {
     pub identity: TestRootIdentity,
-    pub product: Result<Box<PendingNativeProduct>, Vec<Diagnostic>>,
+    pub product: Result<Box<PendingNativeProduct>, crate::CompileFailure>,
 }

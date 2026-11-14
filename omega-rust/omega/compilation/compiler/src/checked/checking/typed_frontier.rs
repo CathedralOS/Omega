@@ -23,6 +23,8 @@ pub enum TypedFrontierRequest {
 pub struct TypedFrontier {
     /// The actual frozen typed source returned by Psi 04 preparation.
     pub typed: typed_trees::FrozenTypedTrees,
+    /// Actual constant invocation custody retained with this source owner.
+    pub source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     /// The Build's bound program roots, in the order the checker received
     /// them. Empty when the Build binds no entry.
     pub entries: Vec<symbols::SymbolHandle>,

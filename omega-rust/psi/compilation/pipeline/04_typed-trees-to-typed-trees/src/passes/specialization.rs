@@ -750,7 +750,6 @@ fn selections(program: &TypedTrees, operands: &[Operand]) -> Served<Vec<Selectio
                     requirement: row.requirement,
                     realization_machine: row.realization_machine,
                     realization_state: row.realization_state,
-                    ..StaticRequirementDispatch::default()
                 },
             });
         }

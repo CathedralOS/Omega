@@ -53,7 +53,9 @@ pub(super) struct AcceptedCompilationRequest<'request> {
 fn failure(package: &PackageKey, message: impl Into<String>) -> Error {
     Error::Compilation {
         package: package.clone(),
-        diagnostics: vec![Diagnostic::error(message.into())],
+        failure: compilation_products::CompileFailure::Diagnostics(vec![Diagnostic::error(
+            message.into(),
+        )]),
     }
 }
 
@@ -340,7 +342,7 @@ impl CompilationReceipt {
             Some(Err(error)) => {
                 return Err(ProjectCompilationError::Review(Error::Compilation {
                     package: self.packages.get(error.occurrence).unwrap_or(root).clone(),
-                    diagnostics: error.failure.into_diagnostics(),
+                    failure: error.failure,
                 }));
             }
             Some(Ok(output)) => output,

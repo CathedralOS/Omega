@@ -620,13 +620,6 @@ impl<'t> Program<'t> {
             call.authored_machine_application,
             &call.machine_arguments,
         )?;
-        // Stage 04 records the requirement's signature at those arguments
-        // beside the dispatch. The route states that contract itself, from
-        // the requirement and the literals (`requirement_signature`), so the
-        // record is not read; without value arguments nothing explains one.
-        if dispatch.contract_signature.is_valid() && value_arguments.is_empty() {
-            return unserved("requirement dispatch through a separate contract signature");
-        }
         // Only a call through a parameter: a member named through the
         // implementation itself, `Double::apply(x)`, records no parameter
         // and stays refused.

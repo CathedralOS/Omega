@@ -8008,10 +8008,7 @@ pub(crate) mod structural_type_foundations {
     use crate::codec_error::{CodecError, malformed};
     use semantic_vocabulary::AuthoredFieldStorage;
     use semantic_vocabulary::StructuralTypeId;
-    use std::collections::{BTreeMap, BTreeSet};
-    use terminal_psi::{
-        StructuralFieldType, StructuralTypeShape, TerminalModule, structural_children,
-    };
+    use terminal_psi::{StructuralFieldType, StructuralTypeShape, TerminalModule};
     use terminal_psi::{StructuralRecordStorage, StructuralTypeDeclaration};
 
     macro_rules! extent {
@@ -8038,7 +8035,7 @@ pub(crate) mod structural_type_foundations {
     pub(crate) fn validate_type_shape(
         module: &TerminalModule,
         declaration: &StructuralTypeDeclaration,
-        attachment_storage: &BTreeSet<StructuralTypeId>,
+        attachment_storage: &[StructuralTypeId],
     ) -> Result<(), CodecError> {
         validate_catalog_type_shape(
             &StructuralCatalog::from(module),
@@ -8070,7 +8067,7 @@ pub(crate) mod structural_type_foundations {
     pub(crate) fn validate_catalog_type_shape(
         module: &StructuralCatalog<'_>,
         declaration: &StructuralTypeDeclaration,
-        attachment_storage: &BTreeSet<StructuralTypeId>,
+        attachment_storage: &[StructuralTypeId],
     ) -> Result<(), CodecError> {
         terminal_semantics::validate_inline_carriers(module.structural_types, declaration)
             .map_err(|error| CodecError::MalformedStructuralFoundation(error.reason))?;
@@ -8221,7 +8218,7 @@ pub(crate) mod structural_type_foundations {
                         }
                         StructuralFieldType::Erased { .. }
                             if !field.relevance.is_erased()
-                                && !attachment_storage.contains(&declaration.id) =>
+                                && attachment_storage.binary_search(&declaration.id).is_err() =>
                         {
                             return malformed(
                                 "provider-backed attachment specialization is incomplete",
@@ -8399,47 +8396,6 @@ pub(crate) mod structural_type_foundations {
             return malformed("field storage requires an authored record envelope");
         }
         Ok(())
-    }
-
-    pub(crate) fn attachment_storage_types(
-        types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-        attachments: impl Iterator<Item = StructuralTypeId>,
-    ) -> BTreeSet<StructuralTypeId> {
-        use terminal_psi::StructuralTypeShape;
-        let mut pending: Vec<_> = attachments.collect();
-        let mut storage = BTreeSet::new();
-        while let Some(identity) = pending.pop() {
-            if !storage.insert(identity) {
-                continue;
-            }
-            let Some(declaration) = types.get(&identity) else {
-                continue;
-            };
-            let mut retain_fields = |fields: &[terminal_psi::StructuralFieldDeclaration]| {
-                pending.extend(structural_children(fields));
-            };
-            match &declaration.shape {
-                StructuralTypeShape::Record { fields, .. } => retain_fields(fields),
-                StructuralTypeShape::Mixed { fields, cases } => {
-                    retain_fields(fields);
-                    for case in cases {
-                        retain_fields(&case.fields);
-                    }
-                }
-                StructuralTypeShape::Sum { cases } => {
-                    for case in cases {
-                        retain_fields(&case.fields);
-                    }
-                }
-                StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
-                StructuralTypeShape::PrimitiveScalar(_)
-                | StructuralTypeShape::AtomicCell(_)
-                | StructuralTypeShape::ByteSequence(_)
-                | StructuralTypeShape::Reference { .. }
-                | StructuralTypeShape::ElementView { .. } => {}
-            }
-        }
-        storage
     }
 
     #[cfg(test)]
@@ -8660,7 +8616,7 @@ pub(crate) mod target_layouts {
 
     pub(crate) fn validate(
         module: &TerminalModule,
-        attachments: &BTreeSet<StructuralTypeId>,
+        attachments: &[StructuralTypeId],
     ) -> Result<(), CodecError> {
         if !strictly_increasing(
             module
@@ -9060,7 +9016,7 @@ pub(crate) mod task_activation {
             }
         }
         for declaration in catalog.structural_types {
-            validate_catalog_type_shape(&catalog, declaration, &BTreeSet::new())?;
+            validate_catalog_type_shape(&catalog, declaration, &[])?;
         }
         validate_structural_type_graph(catalog.structural_types)?;
         let value = |value_type| match value_type {
@@ -10021,7 +9977,7 @@ use terminal_psi::{
     StructuralParameterDeclaration, StructuralPathQualification, StructuralPathSegment,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalMachine, TerminalModule,
     TerminalRootServiceReach, Terminator, ValueDeclaration, call_structural_pair_pattern,
-    field_by_identity, find_structural_case, find_structural_type, record_or_mixed_shape_pattern,
+    field_by_identity, find_structural_case, record_or_mixed_shape_pattern,
     structural_leaf_copy_pair_pattern,
 };
 use terminal_semantics::descriptor_results::terminal_payload_contract;
@@ -10433,24 +10389,25 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
         "boundary machine identity",
     )?;
 
-    let types = module
-        .structural_types
-        .iter()
-        .map(|declaration| (declaration.id, declaration))
-        .collect();
-    let attachment_storage = structural_type_foundations::attachment_storage_types(
-        &types,
-        module
-            .machines
-            .iter()
-            .filter_map(|machine| machine.attachment),
-    );
+    let storage_graph =
+        terminal_semantics::storage::type_graph::StorageTypeGraph::new(&module.structural_types)
+            .map_err(storage_graph_error)?;
+    let attachment_storage = storage_graph
+        .storage_reachable_from(
+            module
+                .machines
+                .iter()
+                .filter_map(|machine| machine.attachment),
+        )
+        .map_err(storage_graph_error)?;
     target_layouts::validate(module, &attachment_storage)?;
     native_layouts::validate(module)?;
     for declaration in &module.structural_types {
         structural_type_foundations::validate_type_shape(module, declaration, &attachment_storage)?;
     }
-    validate_structural_type_graph(&module.structural_types)?;
+    storage_graph
+        .validate_acyclic()
+        .map_err(storage_graph_error)?;
     for interface in &module.dynamic_dispatch.interfaces {
         for slot in &interface.slots {
             validate_dynamic_reference_regions(module.structural_types.iter(), slot)
@@ -11824,68 +11781,51 @@ fn has_structural_type(module: &TerminalModule, id: StructuralTypeId) -> bool {
     module.structural_type(id).is_some()
 }
 
+fn storage_graph_error(
+    error: terminal_semantics::storage::type_graph::StorageGraphError,
+) -> CodecError {
+    use terminal_semantics::storage::type_graph::StorageGraphError;
+    CodecError::MalformedStructuralFoundation(match error {
+        StorageGraphError::MissingType(_) => {
+            "structural type graph references a missing declaration"
+        }
+        StorageGraphError::DuplicateType(_) => "structural type graph repeats an identity",
+        StorageGraphError::Cycle(_) => "structural type graph contains a by-value cycle",
+    })
+}
+
 fn validate_structural_type_graph(
     declarations: &[StructuralTypeDeclaration],
 ) -> Result<(), CodecError> {
-    fn visit(
-        declarations: &[StructuralTypeDeclaration],
-        id: StructuralTypeId,
-        active: &mut BTreeSet<StructuralTypeId>,
-        complete: &mut BTreeSet<StructuralTypeId>,
-    ) -> Result<(), CodecError> {
-        if complete.contains(&id) {
-            return Ok(());
-        }
-        if !active.insert(id) {
-            return malformed("structural type graph contains a by-value cycle");
-        }
-        let declaration = find_structural_type(declarations, id)
-            .expect("structural field targets were validated before graph traversal");
-        match &declaration.shape {
-            StructuralTypeShape::Reference { .. }
-            | StructuralTypeShape::PrimitiveScalar(_)
-            | StructuralTypeShape::AtomicCell(_)
-            | StructuralTypeShape::ByteSequence(_)
-            | StructuralTypeShape::ElementView { .. } => {}
-            StructuralTypeShape::Record { fields, .. } => {
-                for field in fields {
-                    if let Some(target) = field.field_type.as_structural() {
-                        visit(declarations, target, active, complete)?;
-                    }
-                }
-            }
-            StructuralTypeShape::FixedArray { element, .. } => {
-                visit(declarations, *element, active, complete)?;
-            }
-            StructuralTypeShape::Sum { cases } => {
-                for field in cases.iter().flat_map(|case| &case.fields) {
-                    if let Some(target) = field.field_type.as_structural() {
-                        visit(declarations, target, active, complete)?;
-                    }
-                }
-            }
-            StructuralTypeShape::Mixed { fields, cases } => {
-                for field in fields
-                    .iter()
-                    .chain(cases.iter().flat_map(|case| &case.fields))
-                {
-                    if let Some(target) = field.field_type.as_structural() {
-                        visit(declarations, target, active, complete)?;
-                    }
-                }
-            }
-        }
-        active.remove(&id);
-        complete.insert(id);
-        Ok(())
-    }
+    terminal_semantics::storage::type_graph::StorageTypeGraph::new(declarations)
+        .and_then(|graph| graph.validate_acyclic())
+        .map_err(storage_graph_error)
+}
 
-    let mut active = BTreeSet::new();
-    let mut complete = BTreeSet::new();
-    for declaration in declarations {
-        visit(declarations, declaration.id, &mut active, &mut complete)?;
-    }
-    Ok(())
+#[test]
+fn shared_storage_graph_preserves_codec_cycle_rejection() {
+    let id = StructuralTypeId::new(29).unwrap();
+    let declaration = StructuralTypeDeclaration {
+        id,
+        identity: terminal_psi::TerminalIdentityIndex(1),
+        requires: Vec::new(),
+        quotient_carrier: None,
+        owns_linear_claim: false,
+        no_code_affine_cleanup: false,
+        copyable: false,
+        descriptor_cleanup: false,
+        scalar_restriction: None,
+        shape: StructuralTypeShape::FixedArray {
+            element: id,
+            length: terminal_psi::ArrayExtent::Literal(1),
+        },
+    };
+    assert_eq!(
+        validate_structural_type_graph(&[declaration]),
+        Err(CodecError::MalformedStructuralFoundation(
+            "structural type graph contains a by-value cycle"
+        ))
+    );
 }
 
 fn validate_service_parent_graph(module: &TerminalModule) -> Result<(), CodecError> {

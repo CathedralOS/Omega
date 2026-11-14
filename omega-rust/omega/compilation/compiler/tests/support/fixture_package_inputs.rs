@@ -252,7 +252,9 @@ pub fn produce_fixture_products(
             Ok(output) => reports.push((outcome.target, output)),
             Err(package_manager::operations::ProjectCompilationError::Review(
                 package_manager::review::CompileResolvedPackageReviewsError::Compilation {
-                    diagnostics,
+                    failure:
+                        compilation_products::CompileFailure::Diagnostics(diagnostics)
+                        | compilation_products::CompileFailure::SourceCompletion { diagnostics, .. },
                     ..
                 },
             )) => failures.extend(diagnostics),

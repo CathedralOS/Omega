@@ -12,6 +12,9 @@ use language_semantics::declaration_selection::{
 #[path = "product/provider_selections.rs"]
 mod provider_selection_requests;
 
+#[path = "product/retained_provider_selections.rs"]
+mod retained_provider_selections;
+
 #[cfg(test)]
 #[path = "product/provider_selection_tests.rs"]
 mod provider_selection_tests;
@@ -53,82 +56,8 @@ pub mod test_groups {
 pub mod assumed_bindings {
     pub use language_semantics::declaration_selection::AssumedBindingContract;
 }
-pub mod native_bindings {
-    use diagnostics::Diagnostic;
-    use language_semantics::declaration_selection::{
-        BuildOperation, ExecutedNativeBinding, ProductDeclarationRequest,
-    };
-    use symbols::SymbolHandle;
-    use typed_trees::TypedTrees;
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct NativeBindingSelection {
-        pub application:
-            Option<arena::Handle<typed_trees::product_operand::ProductOperandApplication>>,
-        pub subject: SymbolHandle,
-        pub requirement: SymbolHandle,
-        pub target: language_semantics::declaration_selection::ProductTarget,
-        pub locator: semantic_vocabulary::NativeBindingLocator,
-        pub producer: language_semantics::declaration_selection::NativeBindingProducer,
-        pub source_occurrence_digest: [u8; 32],
-        pub supplier_package: semantic_vocabulary::PackageKeyIdentity,
-        pub source_span: source::SourceSpan,
-    }
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct CapturedNativeDeclaration {
-        pub application: Option<crate::provider_declarations::RetainedProductApplication>,
-        pub source: language_semantics::declaration_selection::NativeBindingSource,
-        pub requirement: symbols::RetainedDeclaration,
-        pub requirement_identity: String,
-        pub dependency_alias: Option<String>,
-    }
-    pub fn collect(
-        _typed: &TypedTrees,
-        _activation: Option<SymbolHandle>,
-        declared: &[std::sync::Arc<ProductDeclarationRequest>],
-        executed: &[ExecutedNativeBinding],
-    ) -> Result<Vec<NativeBindingSelection>, Vec<Diagnostic>> {
-        // An executed native binding is its own row kind; every one counts.
-        if super::build_requests_any(declared, &[], &[BuildOperation::NativeBinding])
-            || !executed.is_empty()
-        {
-            return Err(vec![Diagnostic::error(
-                "no product route yet: native binding admission",
-            )]);
-        }
-        Ok(Vec::new())
-    }
-    pub fn capture_package_intents(
-        _typed: &typed_trees::TypedTrees,
-        _package: semantic_vocabulary::PackageKeyIdentity,
-        formations: &[language_semantics::declaration_selection::NativeBindingFormation],
-        executed: &[language_semantics::declaration_selection::ExecutedNativeBinding],
-    ) -> Result<
-        (
-            Vec<CapturedNativeDeclaration>,
-            Vec<language_semantics::declaration_selection::CapturedNativeIntent>,
-        ),
-        Vec<Diagnostic>,
-    > {
-        if !formations.is_empty() || !executed.is_empty() {
-            return Err(vec![Diagnostic::error(
-                "no product route yet: native binding intent capture",
-            )]);
-        }
-        Ok((Vec::new(), Vec::new()))
-    }
-    pub fn collect_captured(
-        _typed: &mut TypedTrees,
-        declarations: &[CapturedNativeDeclaration],
-        intents: &[language_semantics::declaration_selection::CapturedNativeIntent],
-    ) -> Result<Vec<NativeBindingSelection>, Vec<Diagnostic>> {
-        if !declarations.is_empty() || !intents.is_empty() {
-            return Err(vec![Diagnostic::error(
-                "no product route yet: captured native binding admission",
-            )]);
-        }
-        Ok(Vec::new())
-    }
-}
+#[path = "product/native_bindings.rs"]
+pub mod native_bindings;
 pub mod product_declarations {
     use crate::product::assumed_bindings::AssumedBindingContract;
     use crate::product::test_groups::TestGroupRegistration;
@@ -228,7 +157,6 @@ pub mod provider_declarations {
     use std::sync::Arc;
     use symbols::RetainedDeclaration;
     use symbols::SymbolHandle;
-    use typed_trees::TypedTrees;
     pub use typed_trees::provider_declarations::ProviderPlanningContext;
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct RetainedProductApplication {
@@ -395,19 +323,6 @@ pub mod provider_declarations {
                 }
                 _ => false,
             }
-        }
-    }
-    impl RetainedProviderSelection {
-        pub fn rejoin(
-            &self,
-            _program: &mut TypedTrees,
-            _scope: source::DependencyScope,
-            _previous: &[ProviderSelection],
-            _candidates: &mut symbols::SourceSpanCandidates,
-        ) -> Result<ProviderSelection, Diagnostic> {
-            Err(Diagnostic::error(
-                "no product route yet: retained source provider selection",
-            ))
         }
     }
     pub fn collect_product_provider_selections(
@@ -847,7 +762,6 @@ mod tests {
     #[test]
     fn each_request_is_refused_by_the_admission_that_owns_its_operation() {
         for (operation, owner) in [
-            (BuildOperation::NativeBinding, "native binding admission"),
             (
                 BuildOperation::ServiceAudit,
                 "Build product declaration admission",
@@ -884,15 +798,11 @@ mod tests {
                 expected,
                 "{operation:?}"
             );
-            // Native bindings execute as their own row kind, not as a
-            // product selection.
-            if operation != BuildOperation::NativeBinding {
-                assert_eq!(
-                    refusals(&[], &[executed(&asked)]),
-                    expected,
-                    "{operation:?}"
-                );
-            }
+            assert_eq!(
+                refusals(&[], &[executed(&asked)]),
+                expected,
+                "{operation:?}"
+            );
         }
     }
 
