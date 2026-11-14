@@ -2369,6 +2369,206 @@ pub(crate) mod installed_interrupts {
         Ok(())
     }
 }
+/// Empty-domain elimination gains no authority from a producer's marker.
+/// Reconstruct the declaration proof, actual value availability, and every
+/// enclosing selected case from the same shared mechanisms checking uses.
+mod empty_elimination_foundations {
+    use super::*;
+    use terminal_semantics::descriptor_results::{
+        DescriptorAnalysis, DescriptorCasePredicate, DescriptorLocation, DescriptorPathSegment,
+        terminal_graph_from,
+    };
+    use terminal_semantics::inhabitation::{Inhabitation, Status, TerminalContracts};
+
+    pub(super) fn validate(
+        module: &TerminalModule,
+        contracts: &TerminalContracts<'_>,
+        inhabitation: &Inhabitation,
+    ) -> Result<(), CodecError> {
+        let machines = module
+            .machines
+            .iter()
+            .filter(|machine| {
+                machine
+                    .blocks
+                    .iter()
+                    .any(|block| matches!(block.terminator, Terminator::EliminateEmpty { .. }))
+            })
+            .collect::<Vec<_>>();
+        if machines.is_empty() {
+            return Ok(());
+        }
+        let graph = terminal_graph_from(module, machines.iter().map(|machine| machine.id));
+        let mut analysis = DescriptorAnalysis::new(&module.structural_types, &graph);
+        for machine in machines {
+            let availability =
+                terminal_semantics::plain_affine::verify(machine, &module.structural_types)
+                    .map_err(|_| {
+                        CodecError::MalformedStructuralFoundation(
+                            "empty elimination has no complete value-availability judgment",
+                        )
+                    })?;
+            if !availability.unavailable.is_empty() {
+                return malformed("empty elimination observes unavailable storage");
+            }
+            for block in &machine.blocks {
+                let Terminator::EliminateEmpty { source, path, .. } = &block.terminator else {
+                    continue;
+                };
+                let root = structural_place_type(machine, *source).ok_or(
+                    CodecError::MalformedStructuralFoundation(
+                        "empty elimination has no actual source place",
+                    ),
+                )?;
+                if machine
+                    .structural_parameters
+                    .iter()
+                    .chain(machine.block_structural_parameters())
+                    .any(|parameter| {
+                        parameter.place == *source
+                            && parameter.access == StructuralAccess::WriteOnlyBorrow
+                    })
+                {
+                    return malformed("empty elimination cannot read write-only storage");
+                }
+                if inhabitation.declared_path_status(contracts, root, path) != Status::ProvedEmpty {
+                    return malformed("empty elimination path has no proved empty declared domain");
+                }
+                let position = (
+                    block.id,
+                    u32::try_from(block.operations.len()).map_err(|_| {
+                        CodecError::MalformedStructuralFoundation(
+                            "empty elimination operation ordinal exceeds u32",
+                        )
+                    })?,
+                );
+                let mut observed = DescriptorLocation::whole(*source);
+                for (ordinal, segment) in path.iter().enumerate() {
+                    observed.path.push(match segment {
+                        StructuralPathSegment::Case(case) => {
+                            if !analysis.case_is_established(machine.id, position, &DescriptorCasePredicate {
+                                subject: observed.clone(),
+                                case: *case,
+                            }) {
+                                return malformed("empty elimination has no current selected case at its source path");
+                            }
+                            DescriptorPathSegment::Case(*case)
+                        }
+                        StructuralPathSegment::Field(_) => {
+                            let field = terminal_semantics::runtime_structural_field(
+                                module.structural_types.iter(), root, &path[..=ordinal],
+                            ).ok_or(CodecError::MalformedStructuralFoundation("empty elimination has an unknown structural field"))?;
+                            DescriptorPathSegment::Field(field.id)
+                        }
+                        StructuralPathSegment::FixedIndex(index) => DescriptorPathSegment::FixedIndex(*index),
+                        StructuralPathSegment::Referent => DescriptorPathSegment::Referent,
+                        _ => return malformed("empty elimination observation path is outside the served vocabulary"),
+                    });
+                }
+            }
+        }
+        Ok(())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use semantic_vocabulary::{
+            EdgeId, MachineId, PlaceId, Proposition, StructuralPlaceKind, StructuralTypeId,
+        };
+        use terminal_psi::{
+            BoundaryParameterKind, StructuralMultiplicity, StructuralParameterDeclaration,
+            StructuralPlaceDeclaration, StructuralRecordStorage, StructuralTypeDeclaration,
+            TerminalIdentityIndex,
+        };
+
+        fn module() -> TerminalModule {
+            let mut module = TerminalModule::declarations();
+            let ty = StructuralTypeId::new(1).unwrap();
+            module.structural_types.push(StructuralTypeDeclaration {
+                id: ty,
+                identity: TerminalIdentityIndex::ABSENT,
+                quotient_carrier: None,
+                owns_linear_claim: false,
+                copyable: true,
+                no_code_affine_cleanup: true,
+                descriptor_cleanup: true,
+                shape: StructuralTypeShape::Record {
+                    fields: Vec::new(),
+                    storage: StructuralRecordStorage::Packed,
+                },
+                scalar_restriction: None,
+                requires: vec![Proposition::Falsehood],
+            });
+            let mut machine = crate::semantic_module::target_family_tests::unit_machine(
+                MachineId::new(1).unwrap(),
+            );
+            let place = PlaceId::new(1).unwrap();
+            machine.structural_places.push(StructuralPlaceDeclaration {
+                id: place,
+                kind: StructuralPlaceKind::Parameter { position: 0 },
+            });
+            machine
+                .structural_parameters
+                .push(StructuralParameterDeclaration {
+                    place,
+                    position: 0,
+                    structural_type: ty,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access: StructuralAccess::Owned,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                });
+            machine
+                .parameter_order
+                .push(BoundaryParameterKind::Structural);
+            machine.blocks[0].terminator = Terminator::EliminateEmpty {
+                edge: EdgeId::new(1).unwrap(),
+                source: place,
+                path: Vec::new(),
+            };
+            module.machines.push(machine);
+            module
+        }
+
+        fn admitted(module: &TerminalModule) -> Result<(), CodecError> {
+            let contracts = TerminalContracts::new(&module.structural_types);
+            let query = Inhabitation::prepare(&contracts).unwrap();
+            validate(module, &contracts, &query)
+        }
+
+        #[test]
+        fn actual_owned_or_borrowed_empty_parameter_is_observed_without_transfer() {
+            let mut module = module();
+            admitted(&module).unwrap();
+            module.machines[0].structural_parameters[0].access = StructuralAccess::SharedBorrow;
+            admitted(&module).unwrap();
+            module.machines[0].structural_parameters[0].access = StructuralAccess::WriteOnlyBorrow;
+            assert!(admitted(&module).is_err());
+        }
+
+        #[test]
+        fn unknown_domain_foreign_place_and_result_placeholder_do_not_eliminate() {
+            let mut module = module();
+            module.structural_types[0].requires.clear();
+            assert!(admitted(&module).is_err());
+            module.structural_types[0]
+                .requires
+                .push(Proposition::Falsehood);
+            let Terminator::EliminateEmpty { source, .. } =
+                &mut module.machines[0].blocks[0].terminator
+            else {
+                unreachable!()
+            };
+            *source = PlaceId::new(2).unwrap();
+            assert!(admitted(&module).is_err());
+            module.machines[0].structural_places[0].kind = StructuralPlaceKind::Result;
+            module.machines[0].structural_parameters.clear();
+            assert!(admitted(&module).is_err());
+        }
+    }
+}
 pub(crate) mod machine_foundations {
 
     use super::{
@@ -10675,6 +10875,7 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     for machine in &module.machines {
         machine_foundations::validate_machine(module, machine, &mut transfers, &inhabitation)?;
     }
+    empty_elimination_foundations::validate(module, &contracts, &inhabitation)?;
     terminal_semantics::activation_storage::validate_module(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
     storage_foundations::validate_reference_memberships(module)?;
