@@ -695,7 +695,11 @@ pub(crate) fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {
                 IntegerSign::Signed => 0,
                 IntegerSign::Unsigned => 1,
             });
-            push_encoded(bytes, integer.bits().to_le_bytes());
+            // Raw plan identity preserves a rigid parameter; it cannot grant
+            // the concrete carrier required by published native execution.
+            integer
+                .width()
+                .write_identity(|part| bytes.extend_from_slice(part));
         }
         ScalarType::IeeeFloat(format) => {
             bytes.push(2);
@@ -1186,6 +1190,33 @@ mod tests {
     };
     use optimization_core::AcceptedObligationFactIdentity;
     use register_model::RegisterConstraintKey;
+
+    #[test]
+    fn scalar_width_identity_keeps_fixed_bytes_and_scopes_parameters() {
+        use semantic_vocabulary::{
+            IntegerSign, IntegerType, MachineId, ScalarType, ValueId, WidthParameter,
+        };
+        let encode = |integer| {
+            let mut bytes = Vec::new();
+            super::encode_scalar_type(&mut bytes, ScalarType::Integer(integer));
+            bytes
+        };
+        let fixed = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        assert_eq!(encode(fixed), [1, 0, 1, 64, 0]);
+        assert_eq!(encode(IntegerType::address(64).unwrap()), [1, 1, 1, 64, 0]);
+        let parameter = |owner, value| {
+            IntegerType::parameterized(
+                IntegerSign::Unsigned,
+                WidthParameter {
+                    owner: MachineId::new(owner).unwrap(),
+                    value: ValueId::new(value).unwrap(),
+                },
+            )
+        };
+        for other in [fixed, parameter(2, 1), parameter(1, 2)] {
+            assert_ne!(encode(parameter(1, 1)), encode(other));
+        }
+    }
 
     #[test]
     fn float_result_policy_plan_identity_binds_format_rule_operands_and_operation() {
