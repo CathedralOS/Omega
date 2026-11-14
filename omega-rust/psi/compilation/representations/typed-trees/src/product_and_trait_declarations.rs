@@ -255,14 +255,37 @@ pub mod product_operand {
                             .scope(self)
                             .and_then(|scope| scope.portable_application_identity(self))
                     }
-                    Some(ProductOperandRole::Provider) => self
-                        .portable_conformance_application_identity(
-                            application
-                                .implementation
-                                .as_ref()
-                                .ok_or("Product implementation lost its exact closure")?,
+                    // A provider is identified by its declaration and the
+                    // complete argument tuple it is applied to, phantom
+                    // arguments included (conformances.md: an application
+                    // keeps "the exact package-owned trait application,
+                    // including phantom arguments"). A closed conformance
+                    // record states the same tuple when one was formed.
+                    Some(ProductOperandRole::Provider) => match &application.implementation {
+                        Some(implementation) => self.portable_conformance_application_identity(
+                            implementation,
                             application.supplying_application,
                         ),
+                        None => {
+                            let supplying = application.supplying_application;
+                            if !self
+                                .expression_table
+                                .static_machine_application_is_valid(supplying)
+                            {
+                                return Err(
+                                    "Product implementation lost its supplying application",
+                                );
+                            }
+                            crate::type_identity::portable_applied_index_identity(
+                                self,
+                                crate::type_identity::IndexIdentityArgument::StaticArgument(
+                                    &application.argument,
+                                ),
+                                self.static_machine_application(supplying).lexical_owner,
+                                &[],
+                            )
+                        }
+                    },
                     _ => unreachable!("nominal role checked above"),
                 }
                 .ok_or("Product application has no complete portable static identity")?;

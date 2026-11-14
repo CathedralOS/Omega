@@ -609,14 +609,22 @@ fn refuse(target: &str, demand: &str) -> Diagnostic {
 /// A selection names a requirement through the boundary trait that owns it,
 /// through the requirement itself, or through an operator family holding it.
 /// Declarations are compared by identity, never by spelling.
+///
+/// A selection of one application of a trait, `Reading<17>`, names the
+/// requirements of that application and of no other. A reached requirement
+/// carries no application here yet (the accepted module declares none for a
+/// trait with parameters), so such a selection names none of them rather
+/// than every requirement of `Reading`.
 fn names_requirement(
     subject: &ProviderSelectionSubject,
     requirement: &ReachedBoundaryRequirement,
 ) -> bool {
     match subject {
-        ProviderSelectionSubject::BoundaryTrait(identity) => identity.symbol == requirement.slot,
+        ProviderSelectionSubject::BoundaryTrait(identity) => {
+            identity.application_identity.is_none() && identity.symbol == requirement.slot
+        }
         ProviderSelectionSubject::BoundaryRequirement(identity) => {
-            identity.symbol == requirement.requirement
+            identity.application_identity.is_none() && identity.symbol == requirement.requirement
         }
         ProviderSelectionSubject::BoundaryOperatorFamily(family) => family
             .coordinates()
