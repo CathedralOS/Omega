@@ -1646,11 +1646,20 @@ pub(crate) mod construction_destinations {
         {
             carrier = *base_type;
         }
-        (!matches!(
-            program.type_reference_table.type_reference(carrier),
-            TypeReferenceNode::Reference { .. }
-        ))
-        .then_some(declared)
+        // Assigning to a binding of reference type writes through the
+        // reference, so the place's own type is not the type the literal is
+        // built at. A view is the exception: `&[u8]` is the value the place
+        // holds (data_and_literals.md, "Quoted bytes": a quoted literal "has
+        // ordinary shared byte-view type `&[u8]`"), so a literal assigned to
+        // a view field lands at the field's declared view type.
+        let receives_its_own_type = match program.type_reference_table.type_reference(carrier) {
+            TypeReferenceNode::Reference { referee, .. } => matches!(
+                program.type_reference_table.type_reference(*referee),
+                TypeReferenceNode::Slice { .. }
+            ),
+            _ => true,
+        };
+        receives_its_own_type.then_some(declared)
     }
 
     fn collect_call_destinations(
