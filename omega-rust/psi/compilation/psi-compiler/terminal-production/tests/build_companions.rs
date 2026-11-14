@@ -692,11 +692,14 @@ machine build(builder: &mut Build) {
             &mut UnmeasuredProduction,
         )
         .expect_err("a same-shaped edited source cannot supply the native vocabulary");
-    assert!(refused.iter().any(|diagnostic| {
-        diagnostic
-            .to_string()
-            .contains("bundled core ForeignBinding declaration")
-    }));
+    assert!(
+        refused.iter().any(|diagnostic| {
+            diagnostic.to_string().contains(
+                "native binding requires the exact compiler-owned `ForeignBinding` declaration",
+            )
+        }),
+        "{refused:?}"
+    );
 }
 
 #[test]
