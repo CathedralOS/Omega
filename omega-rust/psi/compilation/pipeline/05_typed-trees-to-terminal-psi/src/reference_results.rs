@@ -15,34 +15,11 @@ pub(crate) fn publish(
     elaboration: &mut crate::Elaboration,
     selections: &[crate::Selected],
 ) -> Checked<()> {
-    // A selected body can return a narrower permission than its public
-    // requirement promises. Until calls retain that public result contract,
-    // its body origins cannot authorize a reference escaping the call.
-    for selected in selections {
-        let unavailable =
-            |reason| refuse(selected.caller, Construct::Machine, Unserved::Call(reason));
-        let implementation = elaboration
-            .module
-            .machine(selected.implementation)
-            .ok_or_else(|| {
-                unavailable("selected reference result lost its actual implementation")
-            })?;
-        if implementation.result.structural().is_some_and(|result| {
-            terminal_psi::structural_type_contains_reference_by(
-                |id| elaboration.module.structural_type(id),
-                result.structural_type,
-            )
-        }) {
-            return Err(unavailable(
-                "selected reference result requires its public requirement contract",
-            ));
-        }
-    }
-    publish_results(&mut elaboration.module)?;
+    publish_results(&mut elaboration.module, selections)?;
     publish_parents(elaboration)
 }
 
-fn publish_results(module: &mut TerminalModule) -> Checked<()> {
+fn publish_results(module: &mut TerminalModule, selections: &[crate::Selected]) -> Checked<()> {
     let selected: Vec<_> = module
         .machines
         .iter()
@@ -64,6 +41,23 @@ fn publish_results(module: &mut TerminalModule) -> Checked<()> {
     };
     let unavailable =
         |machine: MachineId, reason| refuse(machine, Construct::Machine, Unserved::Call(reason));
+    // A selected body can return a narrower permission than its public
+    // requirement promises. Until calls retain that public result contract,
+    // its body origins cannot authorize a reference escaping the call. Join
+    // the frontier already prepared above without rescanning the machines
+    // or their result types for each selected call.
+    let mut selected_calls: Vec<_> = selections.iter().collect();
+    selected_calls.sort_unstable_by_key(|selection| selection.implementation);
+    for machine in &selected {
+        if let Ok(position) =
+            selected_calls.binary_search_by_key(machine, |selection| selection.implementation)
+        {
+            return Err(unavailable(
+                selected_calls[position].caller,
+                "selected reference result requires its public requirement contract",
+            ));
+        }
+    }
     let graph = terminal_borrowed_storage_graph_from(module, selected.iter().copied(), &[])
         .map_err(|reason| unavailable(first, reason))?;
     let mut analysis = DescriptorAnalysis::with_reference_slots(&module.structural_types, &graph);
