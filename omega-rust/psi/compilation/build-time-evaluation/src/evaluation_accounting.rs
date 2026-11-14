@@ -423,7 +423,7 @@ impl PureTerminalEvaluationReceipt {
             return Ok(None);
         };
         let module = self.program.view().module();
-        if module.entry != Some(caller) {
+        if module.entry != Some(semantic_vocabulary::TargetMachineCallable::Machine(caller)) {
             return Err("source invocation receipt names another canonical caller".into());
         }
         let invocation = module

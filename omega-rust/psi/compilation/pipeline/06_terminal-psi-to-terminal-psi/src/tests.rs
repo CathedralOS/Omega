@@ -3230,12 +3230,7 @@ fn matching(
             subject: Box::new(subject),
             arms: arms
                 .into_iter()
-                .map(|(case, value)| {
-                    (
-                        typed_trees_to_terminal_psi::body::Selector::Case(case),
-                        value,
-                    )
-                })
+                .map(|(case, value)| (typed_trees_to_terminal_psi::Selector::Case(case), value))
                 .collect(),
             default: default.map(Box::new),
         },
