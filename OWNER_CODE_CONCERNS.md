@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### The checker ends a stored reference at its last use; the interpreter keeps it until its record dies
+- Category: a verdict with nothing behind it
+- Where: checker loan closure in [06 places/loans.rs](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/loans.rs); interpreter transfer check `owned value cannot transfer while its storage is borrowed` in `omega-rust/psi/interpreter/terminal-interpreter`
+- Saw: `let mut holder: Holder = Holder { engine: &mut engine }; start(&mut holder); transition engine.mode { ... }` with a `Mode` that is not `[copy]` is accepted and published, then the dispatch's `MoveStructuralValue` traps in the Psi interpreter: the record is not used again, but its reference is still registered at run time. The same program with `Mode [copy]` runs (`06_terminal-psi-to-terminal-psi/src/tests/stored_references.rs`, `a_data_value_is_stored_through_a_stored_reference`)
+- Cost: an accepted program fails when run; either lowering must release a reference carrier where the checker closes its loan, or the checker must keep the loan to the carrier's end
+- Reported: 2026-11-14, Claude Code (worker-8), while storing a data value through a stored reference
+
 ### Derived-index freshness keys omit storage and roster identity
 - Category: a verdict with nothing behind it
 - Where: [call-target index key](omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs#L1880), [roster marker](omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs#L1377), [structural fingerprint](omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs#L1561), [index reuse](omega-rust/psi/foundation/arena/src/owned_index.rs#L60)
