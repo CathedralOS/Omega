@@ -130,6 +130,17 @@ pub enum CompileResolvedPackageReviewsError {
 }
 
 impl CompileResolvedPackageReviewsError {
+    pub fn source_completion_accounting(
+        &self,
+    ) -> Option<&compilation_products::SourceCompletionAccounting> {
+        match self {
+            Self::Compilation { failure, .. } => failure.source_completion_accounting(),
+            Self::BuildConsentRequired { accounting, .. } => Some(accounting),
+            Self::Encoding { accounting, .. } => accounting.as_ref(),
+            _ => None,
+        }
+    }
+
     pub(super) fn compilation_inputs(
         package: &PackageKey,
         errors: Vec<PackageCompilationInputError>,

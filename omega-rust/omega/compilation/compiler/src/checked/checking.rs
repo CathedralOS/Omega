@@ -288,6 +288,12 @@ impl PreparedPackageInvocation {
         self.source.execution()
     }
 
+    pub(super) fn source_completion_accounting(
+        &self,
+    ) -> &build_time_evaluation::SourceCompletionAccounting {
+        self.source.source_completion_accounting()
+    }
+
     pub(super) fn settle(
         self,
         returned: Option<build_settings::ReturnedBuild>,
@@ -366,6 +372,12 @@ pub struct SourceCompilation {
 }
 
 impl SourceCompilation {
+    pub fn source_completion_accounting(
+        &self,
+    ) -> &build_time_evaluation::SourceCompletionAccounting {
+        self.source.source_completion_accounting()
+    }
+
     pub(crate) fn package_inputs(&self) -> Option<&PackageCompilationInputs> {
         self.inputs.as_ref()
     }
@@ -397,7 +409,10 @@ impl SourceCompilation {
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
         frontier: Option<&mut Option<typed_frontier::TypedFrontier>>,
     ) -> Result<SelectedCompileOutcome, CompileFailure> {
-        let prepared = self.source.complete(returned?, None, None)?;
+        let spent = self.source.source_completion_accounting().clone();
+        let returned =
+            returned.map_err(|failure| failure.with_source_completion_accounting(spent))?;
+        let prepared = self.source.complete(returned, None, None)?;
         Ok(select_completed_build(
             prepared,
             self.target,
@@ -411,7 +426,10 @@ impl SourceCompilation {
         self,
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
     ) -> Result<compilation_products::CheckedProductSource, CompileFailure> {
-        let prepared = self.source.complete(returned?, None, None)?;
+        let spent = self.source.source_completion_accounting().clone();
+        let returned =
+            returned.map_err(|failure| failure.with_source_completion_accounting(spent))?;
+        let prepared = self.source.complete(returned, None, None)?;
         let source = complete_prepared_build(prepared, self.inputs.as_ref())?;
         check_product_source(source, self.inputs.as_ref(), &self.rollback, None)
     }

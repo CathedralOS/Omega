@@ -103,6 +103,12 @@ pub(super) fn prepare_build_invocation(
 }
 
 impl BuildSourceInvocation {
+    pub(super) fn source_completion_accounting(
+        &self,
+    ) -> &build_time_evaluation::SourceCompletionAccounting {
+        self.evaluation.source_completion_accounting()
+    }
+
     pub(super) fn product_queries(&self) -> super::ProductQueries {
         super::ProductQueries::new(
             &self.frontier,

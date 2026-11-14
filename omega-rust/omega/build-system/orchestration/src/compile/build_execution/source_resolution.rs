@@ -40,16 +40,88 @@ use target::TargetProfile;
 
 #[derive(Debug)]
 pub enum ProjectSourceResolutionError {
-    Preparation(PrepareLocalProjectError),
+    Preparation {
+        error: PrepareLocalProjectError,
+        accounting: compilation_products::SourceCompletionAccounting,
+    },
     Compilation(CompileFailure),
-    Source(String),
-    Resources(package_manager::review::CompileResolvedPackageReviewsError),
+    Source {
+        reason: String,
+        accounting: compilation_products::SourceCompletionAccounting,
+    },
+    Resources {
+        error: package_manager::review::CompileResolvedPackageReviewsError,
+        accounting: compilation_products::SourceCompletionAccounting,
+    },
+}
+
+fn preparation_error(error: PrepareLocalProjectError) -> ProjectSourceResolutionError {
+    ProjectSourceResolutionError::Preparation {
+        error,
+        accounting: Default::default(),
+    }
+}
+
+fn source_error(reason: String) -> ProjectSourceResolutionError {
+    ProjectSourceResolutionError::Source {
+        reason,
+        accounting: Default::default(),
+    }
+}
+
+fn resources_error(
+    error: package_manager::review::CompileResolvedPackageReviewsError,
+) -> ProjectSourceResolutionError {
+    let accounting = error
+        .source_completion_accounting()
+        .cloned()
+        .unwrap_or_default();
+    ProjectSourceResolutionError::Resources { error, accounting }
+}
+
+impl ProjectSourceResolutionError {
+    pub fn source_completion_accounting(
+        &self,
+    ) -> Option<&compilation_products::SourceCompletionAccounting> {
+        match self {
+            Self::Compilation(failure) => failure.source_completion_accounting(),
+            Self::Preparation { accounting, .. }
+            | Self::Source { accounting, .. }
+            | Self::Resources { accounting, .. } => Some(accounting),
+        }
+    }
+
+    fn with_source_completion_accounting(
+        mut self,
+        accounting: compilation_products::SourceCompletionAccounting,
+    ) -> Self {
+        match &mut self {
+            Self::Compilation(failure) => {
+                *failure = failure
+                    .clone()
+                    .with_source_completion_accounting(accounting);
+            }
+            Self::Preparation {
+                accounting: retained,
+                ..
+            }
+            | Self::Source {
+                accounting: retained,
+                ..
+            }
+            | Self::Resources {
+                accounting: retained,
+                ..
+            } => retained.append(accounting),
+        }
+        self
+    }
 }
 
 impl std::fmt::Display for ProjectSourceResolutionError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Preparation(error) => error.fmt(formatter),
+            Self::Preparation { error, .. } => error.fmt(formatter),
             Self::Compilation(
                 CompileFailure::Diagnostics(diagnostics)
                 | CompileFailure::SourceCompletion { diagnostics, .. },
@@ -58,8 +130,8 @@ impl std::fmt::Display for ProjectSourceResolutionError {
                 formatter,
                 "restricted Build execution requires explicit consent before effects; pending requests: {requests:?}"
             ),
-            Self::Source(reason) => formatter.write_str(reason),
-            Self::Resources(error) => error.fmt(formatter),
+            Self::Source { reason, .. } => formatter.write_str(reason),
+            Self::Resources { error, .. } => error.fmt(formatter),
         }
     }
 }
@@ -154,7 +226,7 @@ pub fn resolve_project_sources(
     session: &mut BuildSession,
     request: ProjectSourceRequest,
 ) -> Result<ResolvedProjectBuilds, ProjectSourceResolutionError> {
-    use ProjectSourceResolutionError::Preparation;
+    use self::preparation_error as Preparation;
     let ProjectSourceRequest {
         preparation,
         mut execution,
@@ -164,9 +236,7 @@ pub fn resolve_project_sources(
         .profile
         .or_else(TargetProfile::host_if_supported)
         .ok_or_else(|| {
-            ProjectSourceResolutionError::Source(
-                "Build execution requires an admitted host profile".to_owned(),
-            )
+            source_error("Build execution requires an admitted host profile".to_owned())
         })?;
     execution.profile = Some(execution_profile);
 
@@ -215,9 +285,7 @@ pub(crate) fn resolve_acquired_sources(
     execution: package_compilation::BuildExecutionInputs,
     collect_timings: bool,
 ) -> Result<(ResolvedBuildSources, Vec<ResolvedPackageBuild>), ProjectSourceResolutionError> {
-    let acquired = acquisitions
-        .retain_root(acquired)
-        .map_err(ProjectSourceResolutionError::Source)?;
+    let acquired = acquisitions.retain_root(acquired).map_err(source_error)?;
     let mut scheduler = readiness::ReadinessScheduler::new(
         session,
         acquisitions,

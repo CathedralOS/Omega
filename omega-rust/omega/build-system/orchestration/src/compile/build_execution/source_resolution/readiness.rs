@@ -41,7 +41,8 @@ use std::path::Path;
 use std::sync::Arc;
 use target::TargetProfile;
 
-use ProjectSourceResolutionError::{Compilation, Resources, Source};
+use super::{resources_error as Resources, source_error as Source};
+use ProjectSourceResolutionError::Compilation;
 
 struct SourceBuild {
     acquired: AcquiredBuildSource,
@@ -89,6 +90,7 @@ pub(super) struct ReadinessScheduler<'session, 'operation> {
     sources: Vec<SourceBuild>,
     products: Vec<(usize, DependencyPurpose, PackageBuild)>,
     catalog_builds: Vec<CatalogMemberBuild>,
+    source_completion_accounting: compilation_products::SourceCompletionAccounting,
 }
 
 impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
@@ -107,6 +109,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
             sources: Vec::new(),
             products: Vec::new(),
             catalog_builds: Vec::new(),
+            source_completion_accounting: Default::default(),
         }
     }
 
@@ -174,7 +177,9 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
         let active_depth = self.active.len();
         let result = self.drive_work(root);
         self.active.truncate(active_depth);
-        result
+        result.map_err(|failure| {
+            failure.with_source_completion_accounting(self.source_completion_accounting.clone())
+        })
     }
 
     fn drive_work(&mut self, root: Work) -> Result<CompletedWork, ProjectSourceResolutionError> {
@@ -239,6 +244,8 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                         .compiler
                         .begin_package_build(request)
                         .map_err(Compilation)?;
+                    self.source_completion_accounting
+                        .append(invocation.source_completion_accounting().clone());
                     pending.push(Work::Start {
                         acquired,
                         invocation,
