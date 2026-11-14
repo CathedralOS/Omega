@@ -2362,60 +2362,6 @@ impl<'t> Program<'t> {
         })
     }
 
-    /// Keep the resolved measure with this body. Reading its expressions uses
-    /// the same formal bindings as the body, so no later stage reparses names.
-    fn ranking(
-        &mut self,
-        id: MachineId,
-        machine: &Machine,
-        slots: &[Slot],
-    ) -> Checked<Option<Vec<Expression>>> {
-        let Some(witness) = &machine.termination_plan.implementation_witness else {
-            return Ok(None);
-        };
-        let unsupported = |detail| refuse(id, Construct::Machine, Unserved::Contract(detail));
-        if witness.rank_range.is_some() || !witness.view_arguments.is_empty() {
-            return Err(unsupported("ranking view arguments and bounded ranges"));
-        }
-        let subjects = typed_trees::ranking::resolve_machine_witness_subjects(self.typed, machine)
-            .filter(|subjects| !subjects.is_empty())
-            .ok_or_else(|| unsupported("ranking subjects have no resolved expressions"))?;
-        let mut ranks = Vec::with_capacity(subjects.len());
-        for subject in subjects {
-            let value = self.expression(id, slots, subject, None)?;
-            let rank = match witness.ranking_view {
-                language_semantics::RankingViewId::NAT_DESCENDING => value,
-                language_semantics::RankingViewId::SLICE_LENGTH => Expression {
-                    call_context: None,
-                    source: value.source,
-                    result: Some(ValueType::plain(semantic_vocabulary::ScalarType::Integer(
-                        semantic_vocabulary::IntegerType::new(
-                            semantic_vocabulary::IntegerSign::Unsigned,
-                            64,
-                        )
-                        .expect("u64 is a valid carrier"),
-                    ))),
-                    kind: ExpressionKind::CollectionMeasure {
-                        base: Box::new(value),
-                        measure: typed_trees::expression::CollectionMeasure::Length,
-                    },
-                },
-                _ => {
-                    return Err(unsupported(
-                        "ranking view has no normalized integer relation",
-                    ));
-                }
-            };
-            if !matches!(rank.result, Some(ValueType::Scalar(semantic_vocabulary::ScalarType::Integer(integer), _))
-                if !integer.is_address() && integer.bits().is_some())
-            {
-                return Err(unsupported("ranking needs a closed finite integer carrier"));
-            }
-            ranks.push(rank);
-        }
-        Ok(Some(ranks))
-    }
-
     /// Whether the type parameter `rigid` of `machine` is declared `[copy]`.
     fn copies(&self, machine: &Machine, rigid: terminal_check_tables::values::RigidType) -> bool {
         self.typed

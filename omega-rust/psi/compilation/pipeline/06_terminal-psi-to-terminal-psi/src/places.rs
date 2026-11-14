@@ -621,7 +621,20 @@ impl<'a> Storage<'a> {
         before: usize,
         concerns: Construct,
     ) -> Checked<Lineage> {
-        if !place.segments.contains(&Segment::Referent) {
+        use terminal_semantics::descriptor_lifetimes::DescriptorPathSegment;
+        let borrowed_arrival =
+            matches!(
+                self.root_kind(place.root, concerns)?,
+                StructuralPlaceKind::BlockParameter { .. }
+            ) && terminal_semantics::structural_argument_source(self.lowered, place.root, 0)
+                .is_some_and(|parameter| {
+                    parameter.access != terminal_psi::StructuralAccess::Owned
+                        && !terminal_semantics::descriptor_results::is_descriptor(
+                            self.types.iter(),
+                            parameter.structural_type,
+                        )
+                });
+        if !borrowed_arrival && !place.segments.contains(&Segment::Referent) {
             return Ok(place.clone());
         }
         let length = self

@@ -1331,6 +1331,20 @@ mod machine_termination {
         pub rank_range: Option<RankRange>,
     }
 
+    /// A ranking use retains what name resolution selected. A numeric view
+    /// tag alone is normalization metadata, never declaration authority.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
+    pub enum RankingViewSelection {
+        #[default]
+        Unresolved,
+        Declaration(symbols::SymbolHandle),
+        /// A closed view with no authored declaration, selected only after
+        /// ordinary declaration lookup found no shadowing declaration.
+        Builtin(RankingViewId),
+        /// The subject's typed carrier selected its stable default.
+        CanonicalDefault(RankingViewId),
+    }
+
     #[derive(Debug, Clone, PartialEq, Eq, Default, compiler_storage::Record)]
     pub struct RankRange {
         pub floor: String,
@@ -2514,8 +2528,8 @@ pub use language_core::{
 };
 pub use machine_termination::{
     MachineSupplyMode, MachineTerminationPlan, ProgressPremise, ProgressSubject,
-    RANKING_VIEW_CORE_SOURCE, RankRange, RankingViewDeclaration, RankingWitness,
-    TerminationGuarantee, TerminationInterface,
+    RANKING_VIEW_CORE_SOURCE, RankRange, RankingViewDeclaration, RankingViewSelection,
+    RankingWitness, TerminationGuarantee, TerminationInterface,
 };
 pub use permissions::{
     PermissionAccess, PermissionArrival, PermissionClaimIdentity as ScopedPermissionClaimIdentity,

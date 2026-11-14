@@ -19,6 +19,7 @@ use terminal_psi::{
 enum Input {
     Scalar(ValueId),
     Structural(StructuralArgument),
+    Unavailable,
 }
 
 impl Lowering<'_> {
@@ -41,16 +42,15 @@ impl Lowering<'_> {
             .iter()
             .enumerate()
             .map(|(slot, _)| match self.slots.get(slot).copied().flatten() {
-                Some(Bound::Scalar(value)) => Ok(Input::Scalar(value)),
-                Some(Bound::Record(place)) => Ok(Input::Structural(StructuralArgument::whole(
-                    place,
-                    StructuralAccess::SharedBorrow,
-                ))),
-                _ => {
-                    Err(self.unserved_rank("ranking subject is not a scalar or structural formal"))
-                }
+                Some(Bound::Scalar(value)) => Input::Scalar(value),
+                Some(Bound::Record(place) | Bound::Home(place)) => Input::Structural(
+                    StructuralArgument::whole(place, StructuralAccess::SharedBorrow),
+                ),
+                // Unused erased bindings need no runtime operand. Reading
+                // one as a measure still refuses in rank_expression.
+                _ => Input::Unavailable,
             })
-            .collect::<Checked<Vec<_>>>()?;
+            .collect::<Vec<_>>();
         let values = self.observe_ranks(expressions, &inputs)?;
         let block = self.current()?;
         let missing = self.internal("ranked block has no construction row");
@@ -300,7 +300,9 @@ impl Lowering<'_> {
             }
             cycles.push(cycle);
         }
-        machine.ranked_scc = Some(TerminalRankedScc::Natural(cycles));
+        if !cycles.is_empty() {
+            machine.ranked_scc = Some(TerminalRankedScc::Natural(cycles));
+        }
         Ok(())
     }
 }

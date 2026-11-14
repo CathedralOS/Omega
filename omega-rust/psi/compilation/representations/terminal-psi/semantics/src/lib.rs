@@ -105,9 +105,9 @@ pub use domain_preservation::{
     store_preserves_domain_content, store_preserves_qualifications,
 };
 pub use references::reference_completion::{
-    ReferenceCompletionError, ReferenceCompletionOccurrence, borrowed_entry_reference_referent,
-    cleanup_disposes_reference, reference_call_lifetimes, reference_loan_parent,
-    validate_reference_result_completion,
+    BorrowedLoanSource, ReferenceCompletionError, ReferenceCompletionOccurrence,
+    borrowed_entry_reference_referent, borrowed_loan_source, cleanup_disposes_reference,
+    reference_call_lifetimes, reference_loan_parent, validate_reference_result_completion,
 };
 pub use references::reference_origins::{
     BorrowedResultLeaf, BorrowedResultLeafKind, ReferenceCallContract, ReferenceCallOrigin,
@@ -602,8 +602,8 @@ pub use semantic_rows::{
 pub use storage::arrival_storage::{
     StorageNames, arrival_parameter, borrowed_storage_parameter,
     borrowed_storage_reference_ceiling, descriptor_parameter_access, projection_before_edge,
-    root_before_edge, storage_names, structural_argument_source, view_descriptor_parameter,
-    view_descriptor_projected_qualifications,
+    root_before_edge, storage_names, structural_argument_source, structural_projection_authority,
+    view_descriptor_parameter, view_descriptor_projected_qualifications,
 };
 pub use storage::collection_backing::{
     CollectionBacking, CollectionExtent, CollectionStorage, CollectionViewDescriptor,

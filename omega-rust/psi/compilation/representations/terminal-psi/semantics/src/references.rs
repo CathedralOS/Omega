@@ -138,11 +138,17 @@ pub(crate) mod reference_completion {
         Ok(())
     }
 
-    /// Identify the immediate loan carried by a descriptor at formation.
-    /// Current storage names alone do not identify that resource: transport
-    /// must preserve an authorized name from its actual formation, or the
-    /// exact original reference leaf of a declared input.
-    pub fn reference_loan_parent<'a>(
+    /// A borrow keeps the resource it arrived with. Literal storage can own
+    /// shared permission; an input or an earlier loan keeps its own identity.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum BorrowedLoanSource {
+        Owner,
+        Incoming,
+        Loan(semantic_vocabulary::ObligationId),
+    }
+
+    /// Read the source from the descriptor's actual value and arrival flow.
+    pub fn borrowed_loan_source<'a>(
         module: &terminal_psi::TerminalModule,
         machine: &terminal_psi::TerminalMachine,
         analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
@@ -154,7 +160,7 @@ pub(crate) mod reference_completion {
                 &'a crate::descriptor_lifetimes::DescriptorLifetime,
             ),
         >,
-    ) -> Result<Option<semantic_vocabulary::ObligationId>, &'static str> {
+    ) -> Result<BorrowedLoanSource, &'static str> {
         let mut parent = None;
         for (identity, lifetime) in candidates {
             if !lifetime
@@ -169,8 +175,84 @@ pub(crate) mod reference_completion {
             }
             parent = Some(identity);
         }
-        if parent.is_some() {
-            return Ok(parent);
+        if let Some(parent) = parent {
+            return Ok(BorrowedLoanSource::Loan(parent));
+        }
+        // A borrowed block header can continue a borrowed machine input
+        // without creating a new loan occurrence. Read its original storage
+        // from the same arrival replay used for ordinary reference paths.
+        let view_type = machine
+            .structural_place_type(descriptor.root)
+            .and_then(|ty| {
+                crate::descriptor_lifetimes::descriptor_location_type(
+                    &module.structural_types,
+                    ty,
+                    &descriptor.path,
+                )
+            });
+        let view = view_type.is_some_and(|ty| {
+            crate::descriptor_results::is_descriptor(module.structural_types.iter(), ty)
+        });
+        if view_type.is_some_and(|ty| {
+            crate::descriptor_results::is_shared_descriptor(module.structural_types.iter(), ty)
+        }) && analysis
+            .source_origins(machine.id, at, descriptor)
+            .is_some_and(|origins| {
+                matches!(
+                    origins.as_slice(),
+                    [crate::descriptor_results::DescriptorCallOrigin::Empty]
+                )
+            })
+        {
+            return Ok(BorrowedLoanSource::Owner);
+        }
+        if view && let Some(origins) = analysis.source_origins(machine.id, at, descriptor)
+            && let [crate::descriptor_results::DescriptorCallOrigin::Literal { machine: owner, place }] = origins.as_slice()
+            && module.machine(*owner).and_then(|machine| machine.structural_place(*place))
+                .is_some_and(|place| matches!(place.kind, semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral { structural_type, .. }
+                    if module.structural_type(structural_type).is_some_and(|ty| ty.shape.is_shared_readable_byte_view())))
+        {
+            return Ok(BorrowedLoanSource::Owner);
+        }
+        if crate::arrival_parameter(machine, descriptor.root)
+            .is_some_and(|parameter| parameter.access != StructuralAccess::Owned)
+            && let Some(original) = analysis.location(machine.id, at, descriptor)
+            && let Some(parameter) = machine.structural_parameters.iter().find(|parameter| {
+                parameter.place == original.root && parameter.access != StructuralAccess::Owned
+            })
+        {
+            let path = crate::descriptor_lifetimes::descriptor_path(
+                &module.structural_types,
+                parameter.structural_type,
+                &original.path,
+            )
+            .ok_or("borrowed successor has no exact original input path")?;
+            if crate::projection_stays_in_inline_storage(
+                module.structural_types.iter(),
+                parameter.structural_type,
+                &path,
+            ) {
+                return Ok(BorrowedLoanSource::Incoming);
+            }
+        }
+        if view
+            && let Some(origins) = analysis.source_origins(machine.id, at, descriptor)
+            && let [
+                crate::descriptor_results::DescriptorCallOrigin::Argument { source, projection },
+            ] = origins.as_slice()
+            && let Some(parameter) = machine
+                .structural_parameters
+                .iter()
+                .find(|parameter| parameter.place == *source)
+            && let Some(enclosing) = projection.enclosing_storage()
+            && let Some(selected) = crate::runtime_structural_path_tip(
+                module.structural_types.iter(),
+                parameter.structural_type,
+                &enclosing.path,
+            )
+            && crate::descriptor_results::is_descriptor(module.structural_types.iter(), selected.id)
+        {
+            return Ok(BorrowedLoanSource::Incoming);
         }
         let origins = analysis
             .symbolic_source_origins(machine.id, at, descriptor)
@@ -201,13 +283,41 @@ pub(crate) mod reference_completion {
             parameter.structural_type,
             &path,
         )
-        .is_some_and(|row| matches!(row.shape, StructuralTypeShape::Reference { .. }))
-        {
+        .is_some_and(|row| {
+            matches!(row.shape, StructuralTypeShape::Reference { .. })
+                || view
+                    && crate::descriptor_results::is_descriptor(
+                        module.structural_types.iter(),
+                        row.id,
+                    )
+        }) {
             return Err("incoming reference parent is not an original contained reference leaf");
         }
         // None denotes this verified caller-owned resource, not a failed
         // lookup. No local Loan identity is invented for an incoming leaf.
-        Ok(None)
+        Ok(BorrowedLoanSource::Incoming)
+    }
+
+    pub fn reference_loan_parent<'a>(
+        module: &terminal_psi::TerminalModule,
+        machine: &terminal_psi::TerminalMachine,
+        analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+        at: crate::descriptor_lifetimes::DescriptorPosition,
+        descriptor: &crate::descriptor_lifetimes::DescriptorLocation,
+        candidates: impl Iterator<
+            Item = (
+                semantic_vocabulary::ObligationId,
+                &'a crate::descriptor_lifetimes::DescriptorLifetime,
+            ),
+        >,
+    ) -> Result<Option<semantic_vocabulary::ObligationId>, &'static str> {
+        match borrowed_loan_source(module, machine, analysis, at, descriptor, candidates)? {
+            BorrowedLoanSource::Loan(parent) => Ok(Some(parent)),
+            BorrowedLoanSource::Incoming => Ok(None),
+            BorrowedLoanSource::Owner => {
+                Err("owned view backing is not an incoming reference occurrence")
+            }
+        }
     }
 
     /// A reference or view returned by a call keeps its input loan until

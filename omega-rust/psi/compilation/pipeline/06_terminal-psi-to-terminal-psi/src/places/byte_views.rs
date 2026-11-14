@@ -535,16 +535,41 @@ impl Storage<'_> {
         for origin in origins {
             let shared = match origin {
                 DescriptorCallOrigin::Argument { source, projection } => {
-                    matches!(
+                    let shared_ingress = matches!(
                         self.root_kind(source, concerns)?,
                         StructuralPlaceKind::Parameter { .. }
-                    ) && is_shared_bytes(&self.byte_shape(source, &projection.path, concerns)?)
-                        && self.descriptor_access(
-                            source,
-                            &projection.path,
-                            concerns,
-                            StructuralAccess::SharedBorrow,
-                        )?
+                    ) && is_shared_bytes(&self.byte_shape(
+                        source,
+                        &projection.path,
+                        concerns,
+                    )?) && self.descriptor_access(
+                        source,
+                        &projection.path,
+                        concerns,
+                        StructuralAccess::SharedBorrow,
+                    )?;
+                    if shared_ingress {
+                        true
+                    } else {
+                        let enclosing = projection.enclosing_storage().ok_or_else(|| {
+                            self.unsupported(
+                                concerns,
+                                "a shared subslice has no captured backing path",
+                            )
+                        })?;
+                        terminal_semantics::fixed_byte_storage_window(
+                            self.types.iter(),
+                            self.root_type(source, concerns)?,
+                            &enclosing.path,
+                        )
+                        .is_some()
+                            && self.descriptor_access(
+                                source,
+                                &enclosing.path,
+                                concerns,
+                                StructuralAccess::SharedBorrow,
+                            )?
+                    }
                 }
                 DescriptorCallOrigin::Literal { machine, place } => self
                     .module
@@ -556,10 +581,9 @@ impl Storage<'_> {
                 _ => false,
             };
             if !shared {
-                return Err(self.unsupported(
-                    concerns,
-                    "a subslice whose backing is not shared ingress or immutable literal bytes",
-                ));
+                return Err(
+                    self.unsupported(concerns, "a subslice without authenticated shared backing")
+                );
             }
         }
         // Storage::uses separately proves the selected descriptor is available

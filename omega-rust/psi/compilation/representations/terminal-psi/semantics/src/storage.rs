@@ -1749,6 +1749,82 @@ pub(crate) mod arrival_storage {
         }))
     }
 
+    /// The permission whose storage a projection actually reaches. Crossing
+    /// a reference uses that reference's permission, not ownership of its home.
+    pub fn structural_projection_authority(
+        machine: &TerminalMachine,
+        types: &[terminal_psi::StructuralTypeDeclaration],
+        argument: &terminal_psi::StructuralArgument,
+    ) -> Option<terminal_psi::StructuralAccess> {
+        let source = structural_argument_source(machine, argument.place, 0)?;
+        let mut access = source.access;
+        for (position, step) in argument.path.iter().enumerate() {
+            if *step == terminal_psi::StructuralPathSegment::Referent {
+                let terminal_psi::StructuralTypeShape::Reference { access: parent, .. } =
+                    &crate::runtime_structural_path_tip(
+                        types.iter(),
+                        source.structural_type,
+                        &argument.path[..position],
+                    )?
+                    .shape
+                else {
+                    return None;
+                };
+                access = *parent;
+            }
+        }
+        let selected = crate::runtime_structural_path_tip(
+            types.iter(),
+            source.structural_type,
+            &argument.path,
+        );
+        let Some(selected) = selected else {
+            let carrier = crate::runtime_structural_field(
+                types.iter(),
+                source.structural_type,
+                &argument.path,
+            )?
+            .field_type
+            .byte_sequence_carrier()?;
+            return match carrier {
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(retained),
+                }
+                | terminal_psi::ByteSequenceCarrier::BoundedView {
+                    access: Some(retained),
+                    ..
+                } => Some(retained),
+                terminal_psi::ByteSequenceCarrier::BorrowedView { access: None }
+                | terminal_psi::ByteSequenceCarrier::BoundedView { access: None, .. } => None,
+                _ => Some(access),
+            };
+        };
+        match &selected.shape {
+            terminal_psi::StructuralTypeShape::ByteSequence(
+                terminal_psi::ByteSequenceCarrier::BorrowedView {
+                    access: Some(retained),
+                }
+                | terminal_psi::ByteSequenceCarrier::BoundedView {
+                    access: Some(retained),
+                    ..
+                },
+            )
+            | terminal_psi::StructuralTypeShape::ElementView {
+                access: Some(retained),
+                ..
+            } => access = *retained,
+            _ if crate::descriptor_results::is_descriptor(types.iter(), selected.id) => {
+                access = crate::descriptor_results::descriptor_value_access(
+                    types.iter(),
+                    selected.id,
+                    source.multiplicity,
+                )?;
+            }
+            _ => {}
+        }
+        Some(access)
+    }
+
     pub fn root_before_edge(
         machine: &TerminalMachine,
         block: BlockId,
@@ -1806,6 +1882,10 @@ pub(crate) mod arrival_storage {
     impl StorageNames {
         pub fn in_block(&self, block: BlockId) -> impl Iterator<Item = PlaceId> + '_ {
             self.behind.get(&block).into_iter().flatten().copied()
+        }
+
+        pub fn captured_roots(&self) -> impl Iterator<Item = PlaceId> + '_ {
+            self.behind.values().flat_map(|roots| roots.iter().copied())
         }
     }
 

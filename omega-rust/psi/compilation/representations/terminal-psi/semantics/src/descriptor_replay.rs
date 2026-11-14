@@ -4394,10 +4394,21 @@ pub(crate) mod engine {
                 };
                 if let Some(query) = query {
                     let structural_type = *machine.place_types.get(&binding.parameter.root)?;
-                    let mut captured = Slots::from([(
-                        binding.parameter.clone(),
-                        self.read_contents_with_depth(machine, before, &query, reads),
-                    )]);
+                    // A borrowed header names the actual's storage, rather
+                    // than a copied descriptor value held in that storage.
+                    // Capture before installing any destination names.
+                    let value = if binding.access != StructuralAccess::Owned
+                        && !is_descriptor(self.types.iter(), structural_type)
+                    {
+                        binding.source.exact_location().and_then(|source| {
+                            self.canonical_storage(machine, before, source, None)
+                                .map(|storage| BTreeSet::from([Origin::Storage(storage)]))
+                        })
+                    } else {
+                        self.read_contents_with_depth(machine, before, &query, reads)
+                    };
+                    let mut captured = Slots::from([(binding.parameter.clone(), value)]);
+
                     for slot in self.slot_kind.owned_slots(
                         self.types,
                         binding.parameter.root,

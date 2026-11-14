@@ -162,6 +162,9 @@ pub(crate) fn machine(
         return lowering.finish(entry, formals, result, contract);
     }
     if component.is_empty() {
+        // Acyclic bodies still owe formation of an authored measure. In
+        // particular, its partial arithmetic cannot disappear unchecked.
+        lowering.begin_ranking(id)?;
         lowering.body(body)?;
     } else {
         lowering.component(id, bodies, component, &formals)?;

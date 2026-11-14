@@ -73,6 +73,7 @@ mod scalar_joins;
 mod sequence_regions;
 mod stored_references;
 mod stored_views;
+mod successor_loans;
 mod termination;
 mod type_parameters;
 mod uninhabited_results;
