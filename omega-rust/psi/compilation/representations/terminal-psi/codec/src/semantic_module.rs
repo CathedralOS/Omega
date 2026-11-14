@@ -3962,7 +3962,6 @@ mod routed_scalar_tests {
                     erased_proof_arguments: Vec::new(),
                     structural_arguments: Vec::new(),
                     claim_transfers: Vec::new(),
-                    completion_receipts: Vec::new(),
                     requirement_obligations: Vec::new(),
                     crash_continuations: Vec::new(),
                 },
