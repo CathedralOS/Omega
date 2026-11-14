@@ -83,3 +83,62 @@ error? (b) Or is it accepted as unreachable, with or without a warning?
 
 **Until answered.** The checker refuses it as not supported (`statement after a
 call that never returns`).
+
+### Q2 - Does checked-tree pruning remain nameable after the checker is gone?
+
+Decision name: `checked-tree-pruning-after-checker`.
+
+**Customer.** A build can still name `CheckedTreeProductPruning`. That
+selection is tag 22 in the `OMGOPT` version 15 codec, its phase is
+`CheckedTrees`, and a terminal-artifact rollback may still name that phase.
+The checked-tree representation and its checker are gone.
+
+**Gap.** [Phase and product boundaries](wiki/spec/build/optimizations.md#phase-and-product-boundaries)
+still say checked-tree pruning runs only after every declaration of the
+check's validation subjects and their required dependency closure has been
+parsed, resolved, typed, and checked.
+[Exact selection](wiki/spec/build/optimizations.md#exact-selection) still
+projects a closed phase-local set for checked trees.
+[Release rollback and promotion](wiki/spec/build/optimizations.md#release-rollback-and-promotion)
+still says terminal production admits checked-tree phase rollback. The rule
+inventory in `omega-rust/omega/foundation/optimization-core/rules.md` still
+lists the selection as required for that phase. No page says whether the
+phase remains nameable once that representation is gone.
+[Scoped execution](wiki/spec/build/scoped_execution.md) and
+[embedding](wiki/spec/build/embedding.md) do not name it.
+
+**Question.** (a) Does checked-tree pruning remain a nameable optimization,
+including tag 22 and terminal rollback of the `CheckedTrees` phase? (b) Or
+should the specification retire that phase now that the checker and the
+representation are gone?
+
+**Until answered.** Tag 22, `OMGOPT` version 15, and
+`validate_optimization_rollback` stay. The uncalled helper that returned
+program roots when the phase was selected is deleted, so naming the phase
+does not prune a product.
+
+### Q3 - Is evaluation measurement schema 7 still current?
+
+Decision name: `evaluation-measurement-schema-7`.
+
+**Customer.** Evaluation accounting still accepts
+`EvaluationMeasurementIdentity::CheckedTree`. `is_current` returns true for
+it, schema 7 with schedule 1 is a supported identity, and
+`BuildEvaluationSponsor::new` still stamps it. Callers of that constructor
+in this tree are tests. Ordinary build activation
+(`build-settings` `measurement`) and pure source evaluation stamp
+`TerminalPsi` (schema 8).
+
+**Gap.** [Scoped execution](wiki/spec/build/scoped_execution.md) and
+[embedding](wiki/spec/build/embedding.md), the pages that govern work budgets
+and host evaluation, do not name this enum or schema 7. No page says whether
+schema 7 remains a current measurement identity after the checked-tree
+representation was removed.
+
+**Question.** (a) Is schema 7 still a current measurement identity that new
+records may stamp? (b) Or is it a historical identity that decode may still
+read while `is_current` refuses it?
+
+**Until answered.** `is_current` stays true for `CheckedTree`. The schema 7
+decode arm and the `require_checked_tree` refusal of a `TerminalPsi` sponsor
+stay. This question does not change schema 7.

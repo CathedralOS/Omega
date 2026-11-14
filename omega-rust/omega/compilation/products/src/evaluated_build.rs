@@ -157,17 +157,6 @@ impl BuildConfig {
             .map(|grant| grant.selector.clone())
             .collect()
     }
-
-    pub fn checked_tree_product_roots(
-        &self,
-        rollback: &optimization_core::OptimizationRollback,
-    ) -> Option<Vec<symbols::SymbolHandle>> {
-        let effective = rollback.settle(&self.settings.optimizations);
-        effective
-            .effective()
-            .contains(optimization_core::Optimization::CheckedTreeProductPruning)
-            .then(|| self.program_roots())
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
