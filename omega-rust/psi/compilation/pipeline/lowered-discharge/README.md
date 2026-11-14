@@ -507,8 +507,8 @@ s.low = 12; s.high = 20; width(s)` is valid: the first store breaks
   "A call need not close an unrelated domain window when its complete
   access, effect and outcome contracts prove that it cannot observe or
   expose the broken coupling ... Unknown access/effects are treated
-  conservatively." The tables hold no callee summary to prove that from
-  (`CheckTables::summaries` stays empty), so no call is treated as
+  conservatively." The tables hold no callee summary to prove that from,
+  so no call is treated as
   unrelated: `s.low = 12; same(7); s.high = 20; width(s)` is rejected at
   `same(7)`, as the deleted checker rejected it. Using the exception needs a
   summary term for a callee's access and effects.
@@ -961,11 +961,10 @@ subset needs, so the prover emits them directly.
    certificate; the comparison harness counts it apart from `Judged`.
 2. **Knowledge propositions have a table.** `MachineTables::propositions`
    (machine-local, minted by `push`); `KnowledgeRow::proposition` indexes it.
-3. **Summaries name no proposition.** `Summary` no longer holds
-   `requires` and `result_relation`: the callee's clauses live once in its
-   `MachineContract`, identified by machine and position, which is what
-   `CallRequirement` and `CalleeGuarantee` use. `CheckTables::summaries`
-   stays empty; the discharge reads callee contracts from the module.
+3. **Callee clauses live on the machine contract.** A callee's `requires`
+   and `ensures` live once in its `MachineContract`, identified by machine
+   and position, which is what `CallRequirement` and `CalleeGuarantee` use.
+   Discharge reads those contracts from the module.
 4. **Shift-left representability uses the kernel's direct shift form.**
    The evidence is the value's bound and, for the count, the equation that
    fixes it to a literal or else its upper bound (with `0 <= count` when the
