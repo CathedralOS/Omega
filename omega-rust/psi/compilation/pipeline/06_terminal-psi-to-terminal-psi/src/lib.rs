@@ -1880,17 +1880,6 @@ pub(crate) fn operation_result(
         })
 }
 
-/// The value a `Return` terminator with this edge returns.
-fn returned(lowered: &TerminalMachine, exit: EdgeId) -> Option<ValueId> {
-    lowered
-        .blocks
-        .iter()
-        .find_map(|block| match &block.terminator {
-            Terminator::Return { edge, value, .. } if *edge == exit => Some(*value),
-            _ => None,
-        })
-}
-
 /// `clause` with the result pseudo-value `result` replaced by `value`, in
 /// the comparison and connective forms a clause over scalars or mathematical
 /// integers has. Any other form is left as it is: it then still names the pseudo-value, which no

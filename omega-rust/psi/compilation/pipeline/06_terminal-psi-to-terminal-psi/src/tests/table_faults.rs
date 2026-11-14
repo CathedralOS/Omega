@@ -953,6 +953,41 @@ fn an_entry_content_of_storage_that_is_no_formal_is_refused() {
 }
 
 #[test]
+fn an_initial_content_with_a_cyclic_owner_is_refused() {
+    let program = || {
+        elaborate_places(vec![
+            Shaped {
+                parameters: vec![point()],
+                locals: Vec::new(),
+                result: u32_type().into(),
+                requires: Vec::new(),
+                statements: vec![returns(call(2, vec![read(place(0, point()), 0)]))],
+            },
+            bounded(),
+        ])
+    };
+    let verdict = with_fault(program, |elaboration| {
+        let tables = entry_tables(elaboration);
+        let held = entry_values(tables)[0];
+        let ValueOrigin::InitialContent { place } = tables.values.get(held).unwrap().origin else {
+            panic!("initial field content");
+        };
+        let PlaceOrigin::Projection { segment, .. } = tables.places.get(place).unwrap().origin
+        else {
+            panic!("projected field");
+        };
+        tables.places.get_mut(place).unwrap().origin = PlaceOrigin::Projection {
+            parent: place,
+            segment,
+        };
+    });
+    assert_refused(
+        verdict,
+        "a structural place lineage does not reach an owning root",
+    );
+}
+
+#[test]
 fn entry_content_values_that_exchange_their_leaves_are_refused() {
     // f(p: Point) { bounded(p.x + p.y) }: the entry contents of `p.x` and
     // `p.y` are both `u32`, so exchanging the leaves their rows name keeps

@@ -569,8 +569,8 @@ pub(crate) mod tests {
     fn with_reflection(source: &str) -> TypedTrees {
         // Reflection imports ordinary core declarations. Keep its complete
         // real source closure and the same test author's package identity.
-        let library = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../../source/library");
+        let library =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../source/library");
         super::schema_customer_source::actual_library_source(
             &library,
             source,

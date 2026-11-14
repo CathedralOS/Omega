@@ -118,7 +118,11 @@ impl Program<'_> {
         if owner == scope.owner || (declared.is_valid() && owner == declared) {
             Ok(())
         } else {
-            Err(refuse(id, Construct::Machine, Unserved::Contract("result of another callable")))
+            Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("result of another callable"),
+            ))
         }
     }
 }
@@ -984,6 +988,15 @@ impl Program<'_> {
                         Unserved::Contract("applied name used as a plain storage subject"),
                     ));
                 }
+                if path.reserved_result_of.is_valid() {
+                    self.require_result_owner(id, scope, path.reserved_result_of)?;
+                    return Ok(match scope.result {
+                        ResultTerm::Structural(root, value_type) => {
+                            Some((root, Vec::new(), value_type))
+                        }
+                        _ => None,
+                    });
+                }
                 if !path.symbol.is_valid() {
                     return Err(spelling("clause name without a symbol"));
                 }
@@ -991,15 +1004,6 @@ impl Program<'_> {
                     // A record formal is its root place: lowering mints the
                     // record formals' places first, so the `k`-th record
                     // formal is place `k + 1` (`Signature::parameters`).
-                    if path.reserved_result_of.is_valid() {
-                        self.require_result_owner(id, scope, path.reserved_result_of)?;
-                        return Ok(match scope.result {
-                            ResultTerm::Structural(root, value_type) => {
-                                Some((root, Vec::new(), value_type))
-                            }
-                            _ => None,
-                        });
-                    }
                     if !scope.formal_fields {
                         return Err(refuse(
                             id,

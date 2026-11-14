@@ -18,8 +18,9 @@ one that reaches along it. Three things can supply a path:
 - a store into the leaf or a place above it that moves storage whole (a whole
   copy, a record operand of a literal, a record stored into a field) supplies
   what the matching leaf of its source held just before it, and the walk
-  continues from there. A call's record result supplies contents with no
-  value identity, and so does any other store that overlaps the leaf;
+  continues from there. The exact declared call producing a root supplies
+  that leaf's initial logical identity when retained; other overlapping
+  stores supply contents without one;
 - a path that meets no store before the machine's entry is supplied by the
   place's entry content when its root is a formal ("a valid initialized
   ordinary storage place at entry may supply its exact reaching value
@@ -119,7 +120,7 @@ pub(crate) fn lineage(
 ) -> Checked<Lineage> {
     let mut segments = Vec::new();
     let mut at = place;
-    loop {
+    for _ in 0..places.len() {
         let row = terminal_check_tables::row(places, at, machine, Construct::Place(at))?;
         match row.origin {
             PlaceOrigin::Root(root) => {
@@ -132,6 +133,12 @@ pub(crate) fn lineage(
             }
         }
     }
+    Err(refusal(
+        RefusalReason::ForeignIdentity,
+        machine,
+        Construct::Place(place),
+        "a structural place lineage does not reach an owning root",
+    ))
 }
 
 /// Whether two places may share storage: the one overlap relation.
@@ -224,11 +231,11 @@ fn asked_root(asked: Asked<'_>) -> PlaceId {
     asked.place().root
 }
 
-/// The entry content value of each place that has one, indexed by
+/// The initial content value of each place that has one, indexed by
 /// `ExactPlaceId - 1`. A derived column over the value table: elaboration
 /// mints at most one such value per place.
 ///
-/// The lowered form declares no entry content value, so nothing in it fixes
+/// The lowered form declares no initial content value, so nothing in it fixes
 /// which identity belongs to which leaf. They are minted in the order of
 /// the leaves they belong to, and any other order is refused: otherwise two
 /// rows of the same type could exchange their leaves and be read as each
@@ -265,6 +272,8 @@ fn initial_contents(machine: MachineId, tables: &MachineTables) -> Checked<Vec<O
 
 /// Only invocation formals have invocation-wide initial contents. A call
 /// result's fresh contents cannot become a block predicate's entry premise.
+/// An unavailable owner remains outside scope; storage validation independently
+/// refuses malformed owner tables.
 pub(crate) fn input_content(
     lowered: &TerminalMachine,
     tables: &MachineTables,
@@ -272,7 +281,12 @@ pub(crate) fn input_content(
 ) -> bool {
     lineage(lowered.id, &tables.places, place)
         .ok()
-        .and_then(|source| lowered.structural_place(source.root))
+        .and_then(|source| {
+            lowered
+                .structural_places
+                .get(index(source.root.get()))
+                .filter(|root| root.id == source.root)
+        })
         .is_some_and(|root| matches!(root.kind, StructuralPlaceKind::Parameter { .. }))
 }
 
@@ -896,16 +910,24 @@ impl<'a> Storage<'a> {
             (
                 TerminalMachineResult::Structural(declared),
                 Terminator::ReturnStructural { edge, source, .. },
-            ) if *edge == exit => (
-                Some((
-                    declared.place,
-                    Lineage {
-                        root: *source,
-                        segments: Vec::new(),
-                    },
-                )),
-                None,
-            ),
+            ) if *edge == exit => {
+                if self.root_type(*source, concerns)? != declared.structural_type {
+                    return Err(self.foreign(
+                        concerns,
+                        "returned storage differs from the declared result type",
+                    ));
+                }
+                (
+                    Some((
+                        declared.place,
+                        Lineage {
+                            root: *source,
+                            segments: Vec::new(),
+                        },
+                    )),
+                    None,
+                )
+            }
             (
                 TerminalMachineResult::Scalar(declared),
                 Terminator::Return {

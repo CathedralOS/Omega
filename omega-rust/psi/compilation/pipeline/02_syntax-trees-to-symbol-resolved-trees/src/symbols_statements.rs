@@ -625,6 +625,7 @@ fn assign_machine_references(
             inherited_data_members,
             owned_data: machine_owned_data.span_or_empty(*owned_data),
             prior_statements: &[],
+            contract_result_data: symbols::SymbolHandle::invalid(),
             data_definitions,
             type_aliases,
             conformances,

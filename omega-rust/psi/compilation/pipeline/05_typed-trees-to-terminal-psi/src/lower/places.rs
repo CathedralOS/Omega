@@ -40,8 +40,9 @@ nothing else: lowering never asks what a place holds.
   case the root was established as: `Content` has no such form, so the
   checker reads it from the establishing operation at the root's row, as it
   reads a copy's source.
-- A call's record result is one `Content::Overwritten` on its root: nothing
-  here knows the callee's values.
+- A call's record result is one `Content::Overwritten` on its root. Scalar
+  leaves receive initial logical identities, not computed values: only the
+  checked callee contract can state what those exact returned leaves hold.
 - A data local declared without an initializer writes one
   `Content::Overwritten` on its fresh root and a constant zero on each
   scalar leaf of the zero value. A scalar local declared that way writes
@@ -854,7 +855,11 @@ impl<'a> Lowering<'a> {
         }
     }
 
-    pub(super) fn initial_leaves(&mut self, place: ExactPlaceId, value_type: ValueType) -> Checked<()> {
+    pub(super) fn initial_leaves(
+        &mut self,
+        place: ExactPlaceId,
+        value_type: ValueType,
+    ) -> Checked<()> {
         match value_type {
             ValueType::Rigid(_) => Err(self.internal("a field of a rigid type")),
             ValueType::Scalar(scalar_type, _) => self.initial_content(place, scalar_type).map(drop),

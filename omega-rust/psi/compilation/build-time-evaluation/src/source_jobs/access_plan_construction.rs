@@ -120,10 +120,12 @@ fn actual_access_plan_constructor_keeps_schema_backing_and_complete_zero_tails()
     let library =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../source/library");
     let typed = customer_source::actual_library_source(
-        &library, SOURCE,
-        semantic_vocabulary::PackageKeyIdentity::from_digest([0xA1; 32]).expect("retained test package"),
+        &library,
+        SOURCE,
+        semantic_vocabulary::PackageKeyIdentity::from_digest([0xA1; 32])
+            .expect("retained test package"),
     )
-        .expect("type actual candidate core and alloc with matching compiler catalog");
+    .expect("type actual candidate core and alloc with matching compiler catalog");
     let requester = typed
         .realized_machine_named("describe_cell")
         .expect("actual source query author")

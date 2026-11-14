@@ -143,12 +143,19 @@ fn predicate_row(tables: &MachineTables, block: BlockId) -> Option<KnowledgeId> 
 /// scope of control_flow.md. fact_validity.md binds entry hypotheses to
 /// "exact invocation formals or structural entry paths", and an entry
 /// content is such a path's one value for the whole invocation.
-fn in_scope(lowered: &TerminalMachine, tables: &MachineTables, block: BlockId, proposition: &Proposition) -> bool {
+fn in_scope(
+    lowered: &TerminalMachine,
+    tables: &MachineTables,
+    block: BlockId,
+    proposition: &Proposition,
+) -> bool {
     let mut inside = true;
     proposition.visit_value_ids(|value| {
         inside &= match tables.values.get(value).map(|row| row.origin) {
             Some(ValueOrigin::MachineParameter { .. }) => true,
-            Some(ValueOrigin::InitialContent { place }) => crate::places::input_content(lowered, tables, place),
+            Some(ValueOrigin::InitialContent { place }) => {
+                crate::places::input_content(lowered, tables, place)
+            }
             Some(ValueOrigin::BlockParameter { block: owner, .. }) => owner == block,
             _ => false,
         };
@@ -430,7 +437,8 @@ fn describe(
     // A part outside the scope, or one this route does not state (a
     // contradiction, which would make the disjunct unprovable here), is left
     // out: that weakens the disjunct, never strengthens it.
-    parts.retain(|part| *part != Proposition::Falsehood && in_scope(lowered, tables, join.id, part));
+    parts
+        .retain(|part| *part != Proposition::Falsehood && in_scope(lowered, tables, join.id, part));
     Ok(connective(parts, true))
 }
 

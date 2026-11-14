@@ -76,8 +76,8 @@ pub(super) enum Stored {
     /// are stores of their own, after this one.
     Zeroed,
     /// What a call returned, or left in storage this machine lent it
-    /// exclusively: contents its callee established, with no value identity
-    /// in this machine.
+    /// exclusively. Only the exact producing call may supply a retained
+    /// initial leaf identity; other established contents remain unnamed.
     Established,
 }
 
