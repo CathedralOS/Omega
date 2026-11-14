@@ -46,7 +46,7 @@ fn check_no_normal(accepted: &crate::verdict::AcceptedClosure) -> MachineId {
         .filter_map(|block| match block.terminator {
             terminal_psi::Terminator::InvokeNoNormal { callee, .. }
                 if module.machine(callee).is_some_and(|machine| {
-                    machine.result.as_structural().is_some_and(|result| {
+                    machine.result.structural().is_some_and(|result| {
                         query.status(result.structural_type) == Status::ProvedEmpty
                     })
                 }) =>
@@ -63,7 +63,7 @@ fn check_no_normal(accepted: &crate::verdict::AcceptedClosure) -> MachineId {
         .machine(*callee)
         .unwrap()
         .result
-        .as_structural()
+        .structural()
         .unwrap();
     assert_eq!(query.status(result.structural_type), Status::ProvedEmpty);
     // The call keeps its genuine Empty result declaration. No operation
@@ -147,10 +147,21 @@ fn an_empty_input_can_be_syntactically_returned_without_creating_a_normal_value(
 
 fn type_refusal(text: &str) {
     let verdicts = program(text);
-    assert!(
-        matches!(&verdicts[0], Err(refusal) if format!("{refusal:?}").contains("type")),
-        "the declared types must remain incompatible: {verdicts:?}",
-    );
+    match &verdicts[0] {
+        Ok(RouteVerdict::FallBack(refusal)) => {
+            assert!(refusal.detail.contains("type"), "{refusal:?}");
+        }
+        Ok(RouteVerdict::Rejected { violations, .. }) => {
+            assert!(
+                violations.iter().any(|violation| {
+                    violation.statement.contains("scalar carrier `u32`")
+                        && violation.statement.contains("requires `bool`")
+                }),
+                "the scalar result must keep its declared carrier: {verdicts:?}",
+            );
+        }
+        _ => panic!("the declared types must remain incompatible: {verdicts:?}"),
+    }
 }
 
 #[test]
