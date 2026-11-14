@@ -619,6 +619,50 @@ mod tests {
     }
 
     #[test]
+    fn arithmetic_policy_is_part_of_the_complete_contract() {
+        let mut exact = Fixture::ordinary();
+        let expression = exact
+            .program
+            .expression_table
+            .insert(ExpressionNode::Binary(TableBinaryExpression {
+                left: exact.measure,
+                operator: BinaryOperator::Add,
+                right: exact.measure,
+                policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            }));
+        let equality = exact
+            .program
+            .expression_table
+            .insert(ExpressionNode::Binary(TableBinaryExpression {
+                left: expression,
+                operator: BinaryOperator::Equal,
+                right: exact.measure,
+                policy: numerics::arithmetic::ArithmeticDomain::Exact,
+            }));
+        let facts = exact
+            .program
+            .proof_facts
+            .insert_many([ProofFact::Expression(equality)]);
+        let contracts = exact
+            .program
+            .signature_contracts
+            .insert_many([SignatureContract {
+                kind: SignatureContractKind::Ensures,
+                facts,
+                ..Default::default()
+            }]);
+        exact.program.machines_mut()[0].contracts = contracts;
+        let original = exact.text().unwrap();
+        let ExpressionNode::Binary(binary) =
+            exact.program.expression_table.expression_mut(expression)
+        else {
+            panic!("arithmetic")
+        };
+        binary.policy = numerics::arithmetic::ArithmeticDomain::Wrapping;
+        assert_ne!(Some(&original), exact.text().as_ref());
+    }
+
+    #[test]
     fn unresolved_members_foreign_results_and_unserved_binders_are_unavailable() {
         let mut member = Fixture::ordinary();
         let ExpressionNode::Member(selected) = member

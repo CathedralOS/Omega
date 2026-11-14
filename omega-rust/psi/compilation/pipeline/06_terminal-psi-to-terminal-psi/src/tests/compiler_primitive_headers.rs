@@ -72,7 +72,30 @@ fn actual_generic_catalog_source_produces_complete_typed_schemas() {
         );
         let (actual, schema) = program
             .compiler_primitive_schema(machine.symbol)
-            .unwrap()
+            .unwrap_or_else(|error| {
+                panic!(
+                    "{name}: {error:?}; header={machine:#?}; inputs={:?}; output={:?}",
+                    program
+                        .state_parameters(entry)
+                        .iter()
+                        .map(|parameter| (
+                            parameter.symbol,
+                            program
+                                .type_reference_table
+                                .type_reference(parameter.type_reference),
+                            program
+                                .type_reference_table
+                                .operand_lifetime_owner(parameter.type_reference),
+                            program
+                                .type_reference_table
+                                .operand_lifetimes(parameter.type_reference)
+                        ))
+                        .collect::<Vec<_>>(),
+                    program
+                        .type_reference_table
+                        .type_reference(entry.return_type)
+                )
+            })
             .expect("exact source custody");
         assert_eq!(actual, CompilerPrimitive::Collection(operation));
         assert!(program.type_identity_text(schema).is_some());
@@ -100,4 +123,46 @@ fn a_copied_or_locally_edited_generic_catalog_cannot_supply_primitives() {
             "{errors:?}"
         );
     }
+}
+
+#[test]
+fn returned_fields_and_collection_measures_keep_their_exact_roles() {
+    use typed_trees::expression::{CollectionMeasure, ExpressionNode, MemberSelection};
+    let program = typed(
+        r#"
+data Counter { len: u64 }
+machine counter() -> Counter ensures result.len == 3 { Counter { len: 3 } }
+machine same<'backing>(items: &'backing [u8]) -> &'backing [u8]
+ensures result.len == items.len { items }
+"#,
+        source::SourceOrigin::User,
+    )
+    .unwrap();
+    let field = program
+        .data_definitions()
+        .iter()
+        .flat_map(|definition| program.data_member_fields(program.data_members(definition)))
+        .find(|field| field.name.as_str() == "len")
+        .unwrap()
+        .symbol;
+    let result_members = program
+        .expression_table
+        .expression_entries()
+        .filter_map(|(_, node)| {
+            let ExpressionNode::Member(member) = node else {
+                return None;
+            };
+            program
+                .expression_table
+                .names_reserved_result(member.receiver)
+                .then_some(member.selection)
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        result_members,
+        [
+            MemberSelection::Field(field),
+            MemberSelection::CollectionMeasure(CollectionMeasure::Length)
+        ]
+    );
 }

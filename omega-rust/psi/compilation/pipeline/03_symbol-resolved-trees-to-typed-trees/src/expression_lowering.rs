@@ -2631,7 +2631,15 @@ pub(crate) mod expression {
                 }
                 match expressions.expression(expression) {
                     ExpressionNode::Name(path) => {
-                        inferred_capture_type(program, expressions, path.symbol, depth)
+                        if path.reserved_result_of.is_valid() {
+                            // A result guarantee describes its exact owning
+                            // callable's return type, not a captured local. This
+                            // also keeps ordinary result fields ahead of builtin
+                            // collection measurements in member selection.
+                            declared_call_return(program, path.reserved_result_of)
+                        } else {
+                            inferred_capture_type(program, expressions, path.symbol, depth)
+                        }
                     }
                     ExpressionNode::Call(call) => declared_call_return(program, call.target_symbol),
                     ExpressionNode::ArrayLiteral(_) => {

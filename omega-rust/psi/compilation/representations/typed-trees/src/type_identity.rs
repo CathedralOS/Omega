@@ -2008,6 +2008,9 @@ pub(crate) mod identity_context {
             symbol: SymbolHandle,
             fallback: &str,
         ) -> String {
+            if self.signature_owners.is_some() && !symbol.is_valid() {
+                return substitution::rejected(self);
+            }
             if let Some((_, replacement)) = self
                 .binders
                 .iter()
@@ -2606,7 +2609,7 @@ pub(crate) mod identity_context {
                         .map(|argument| normalize_type_reference(program, *argument, context)),
                 ),
             ),
-            TypeReferenceNode::Named { symbol, name }
+            TypeReferenceNode::Named { symbol, name: _ }
                 if context.signature_owners.is_some() && !symbol.is_valid() =>
             {
                 substitution::rejected(context)
@@ -2692,7 +2695,14 @@ pub(crate) mod identity_context {
                 [
                     normalize_index_expression(program, binary.left, context),
                     normalize_index_expression(program, binary.right, context),
-                ],
+                ]
+                .into_iter()
+                .chain(
+                    context
+                        .signature_owners
+                        .is_some()
+                        .then(|| atom(Label::Domain, binary.policy.name())),
+                ),
             ),
             ExpressionNode::Integer(value) => substitution::index_integer(value, context),
             ExpressionNode::Unary(unary) => compound(
