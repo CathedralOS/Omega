@@ -48,6 +48,29 @@ fn count(rows: &[Vec<String>], label: &str, outcome: &str) -> usize {
         .count()
 }
 
+fn source_verdicts(fixture: &str) -> Vec<terminal_psi_to_terminal_psi::RouteVerdict> {
+    let _guard = FIXTURE_COMPILATIONS.lock().unwrap();
+    let frontier = unbuilt_frontier::fixture_frontier(fixture);
+    let subjects = [frontier.subject];
+    let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+        &frontier.typed,
+        typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
+            entries: &frontier.entries,
+            subjects: &subjects,
+            purpose: source::DependencyScope::Product,
+            selected: &frontier.selected,
+            bindings: &frontier.bindings,
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Portable,
+    );
+    terminal_psi_to_terminal_psi::judge_compilation(prepared.program)
+        .into_iter()
+        .map(|verdict| verdict.expect("source reaches judgment, not a formation defect"))
+        .collect()
+}
+
 /// An implementation parameter: `advance<Selected satisfies Step>` is
 /// proved once against `Step::apply`'s contract and carried into
 /// `advance<Hold>` and `advance<Shift>`.
@@ -300,12 +323,21 @@ fn a_value_parameter_body_is_checked_once_and_carried() {
     assert_eq!(count(&rows, "generic", "refused"), 0);
     assert_eq!(count(&rows, "carried", "accepted"), 3);
     assert_eq!(count(&rows, "carried", "refused"), 0);
+    let verdicts =
+        source_verdicts("tests/fixtures/pass/facts/lexical_generic_bound_through_local_exit");
+    assert!(
+        verdicts.iter().all(|verdict| matches!(
+            verdict,
+            terminal_psi_to_terminal_psi::RouteVerdict::Accepted(_)
+        )),
+        "{verdicts:#?}"
+    );
 }
 
 /// Its twin's requirement states `requires true` where the member requires
 /// `input <= Units`. The member does not refine the requirement, so the
-/// refinement witness for the call's requirement is refused and nothing is
-/// carried for it; the guarantees are carried as before.
+/// refinement witness for the member's input is refused. The caller owes only
+/// the public `true`, not a private input bound; both guarantees still carry.
 #[test]
 fn a_value_parameter_member_that_asks_more_than_its_requirement_is_refused() {
     let (outcome, rows) =
@@ -318,9 +350,48 @@ fn a_value_parameter_member_that_asks_more_than_its_requirement_is_refused() {
             .collect::<Vec<_>>()
     };
     assert_eq!(refused("witness"), ["requirement"]);
-    assert_eq!(refused("carried"), ["requirement"]);
+    let witnesses = rows
+        .iter()
+        .filter(|row| row[0] == "witness")
+        .map(|row| (row[3].as_str(), row[4].as_str(), row[5].as_str()))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        witnesses,
+        [
+            (
+                "requirement",
+                "refused",
+                "Unproved(NoDerivation): the bounds do not decide the comparison"
+            ),
+            ("guarantee", "proved", "-"),
+        ]
+    );
+    let carried = rows
+        .iter()
+        .filter(|row| row[0] == "carried")
+        .map(|row| (row[3].as_str(), row[4].as_str()))
+        .collect::<Vec<_>>();
+    assert_eq!(carried, [("guarantee", "accepted"); 2]);
     assert_eq!(count(&rows, "generic", "refused"), 0);
     assert_eq!(count(&rows, "carried", "accepted"), 2);
+    let verdicts =
+        source_verdicts("tests/fixtures/fail/facts/lexical_generic_bound_through_local_rejected");
+    assert!(
+        verdicts.iter().all(|verdict| matches!(
+            verdict,
+            terminal_psi_to_terminal_psi::RouteVerdict::Accepted(_)
+                | terminal_psi_to_terminal_psi::RouteVerdict::Rejected { .. }
+        )),
+        "{verdicts:#?}"
+    );
+    assert!(
+        verdicts.iter().any(|verdict| matches!(verdict,
+        terminal_psi_to_terminal_psi::RouteVerdict::Rejected { unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind,
+            terminal_check_tables::obligations::ObligationKind::CallRequirement { .. })
+            && row.cause == terminal_check_tables::UnprovedCause::NoDerivation))),
+        "{verdicts:#?}"
+    );
 }
 
 /// An opaque type parameter: `relay<T>` and `forward<T>` are each proved

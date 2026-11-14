@@ -26,6 +26,7 @@ use crate::canonical::{self, Repeated};
 use crate::{Binder, MachineNames, SourceOrigin, Unserved, refuse};
 use source::SourceSpan;
 
+#[derive(Clone, Copy)]
 enum RequirementValues<'a> {
     Bound(&'a [semantic_vocabulary::ScalarTerm]),
     Rigid,
@@ -672,21 +673,50 @@ impl<'t> Program<'t> {
         declared: &'t StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<MachineId> {
+        self.requirement_form(declared, RequirementValues::Bound(arguments))
+    }
+
+    pub(super) fn rigid_requirement(&mut self, declared: &'t StateSignature) -> Checked<MachineId> {
+        self.requirement_form(declared, RequirementValues::Rigid)
+    }
+
+    fn requirement_form(
+        &mut self,
+        declared: &'t StateSignature,
+        values: RequirementValues<'_>,
+    ) -> Checked<MachineId> {
         let symbol = declared.symbol;
+        let (arguments, parameters) = match values {
+            RequirementValues::Bound(arguments) => (arguments, 0),
+            RequirementValues::Rigid => (
+                &[][..],
+                self.requirement_binders(self.next_identity()?, declared)?
+                    .len(),
+            ),
+        };
         for position in 1..=self.symbols.len() as u64 {
             let id = MachineId::new(position).expect("positions start at 1");
             if self.symbols.get(id) == Some(&symbol)
                 && self.value_arguments.get(id).map(Vec::as_slice) == Some(arguments)
+                && self.value_parameters.get(id) == Some(&parameters)
             {
                 return Ok(id);
             }
         }
         let id = self.next_identity()?;
-        let (signature, names) = self.requirement_signature(id, declared, arguments)?;
+        let (signature, names) = self.applied_requirement_signature(id, declared, values)?;
+        if matches!(values, RequirementValues::Rigid) {
+            self.generic_binders.extend(
+                self.typed
+                    .state_signature_type_parameters(declared)
+                    .iter()
+                    .map(|parameter| parameter.symbol),
+            );
+        }
         self.symbols.push(symbol);
         self.signatures.push(signature);
         self.names.push(names);
-        self.value_parameters.push(0);
+        self.value_parameters.push(parameters);
         self.value_arguments.push(arguments.to_vec());
         self.scopes.push(Vec::new());
         self.width_scopes.push(Vec::new());
@@ -1390,24 +1420,11 @@ impl<'t> Program<'t> {
             && let Some((owner, requirement)) = self.conformer_requirement(id, machine)?
         {
             let arguments = self.conformer_value_arguments(id, machine, requirement)?;
-            let (routed, routed_names) = self.requirement_signature(id, requirement, &arguments)?;
+            let (routed, _) = self.requirement_signature(id, requirement, &arguments)?;
             self.same_conformer_shape(id, &signature, &routed, machine.symbol)?;
-            // There is one executable entry: its caller-facing contract is
-            // the requirement's. The member's own clauses remain owed by
-            // the independent root-scoped conformance witness.
-            signature.requires = routed.requires;
-            signature.ensures = routed.ensures;
-            names.requires = routed_names.requires;
-            names.ensures = routed_names.ensures;
-            if !matches!(routed.reaches, crate::Ceiling::Inferred) {
-                signature.reaches = routed.reaches;
-            }
-            signature.invokes = routed.invokes;
-            signature.operational = routed.operational;
-            signature.termination = routed.termination;
-            if !matches!(routed.crashes, CrashCeiling::Inferred) {
-                signature.crashes = routed.crashes;
-            }
+            // The body keeps its own contract for checking and generic proof
+            // correspondence. Calls expose the requirement through call_of;
+            // this independent witness still owes the complete refinement.
             let witness = crate::ConformanceWitness {
                 declaring_trait: owner,
                 requirement: requirement.symbol,
@@ -1419,6 +1436,36 @@ impl<'t> Program<'t> {
             }
         }
         Ok((signature, names, binders.len()))
+    }
+
+    pub(super) fn conformer_call_contract(
+        &mut self,
+        id: MachineId,
+        callee: MachineId,
+    ) -> Checked<Option<semantic_vocabulary::ContractId>> {
+        let Some(machine) = self
+            .symbols
+            .get(callee)
+            .and_then(|symbol| self.typed.machine_by_symbol(*symbol))
+        else {
+            return Ok(None);
+        };
+        let Some((_, requirement)) = self.conformer_requirement(id, machine)? else {
+            return Ok(None);
+        };
+        let arguments = self.conformer_value_arguments(id, machine, requirement)?;
+        let (required, _) = self.requirement_signature(id, requirement, &arguments)?;
+        let contract = self.declaration_signatures.push(required);
+        if self.declaration_sources.push(requirement) != contract
+            || self.declaration_selections.push(None) != contract
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Call("conformer call lost its public contract coordinate"),
+            ));
+        }
+        Ok(Some(contract))
     }
 
     /// The one requirement that owns this body. A reference row owns no
