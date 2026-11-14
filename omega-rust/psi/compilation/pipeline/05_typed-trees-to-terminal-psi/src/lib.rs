@@ -531,11 +531,29 @@ fn witness_call(
                 .parameters
                 .iter()
                 .enumerate()
-                .map(|(slot, value_type)| Expression {
-                    call_context: None,
-                    kind: ExpressionKind::Slot(slot),
-                    result: Some(*value_type),
-                    source,
+                .map(|(slot, value_type)| {
+                    let value = Expression {
+                        call_context: None,
+                        kind: ExpressionKind::Slot(slot),
+                        result: Some(*value_type),
+                        source,
+                    };
+                    if let Some(formal) = required.borrowed(slot) {
+                        // A borrowed formal lends its existing place onward.
+                        // It cannot supply an owned extraction of that storage.
+                        Expression {
+                            call_context: None,
+                            kind: ExpressionKind::Borrow {
+                                access: formal.access,
+                                place: Box::new(value),
+                                home: None,
+                            },
+                            result: Some(*value_type),
+                            source,
+                        }
+                    } else {
+                        value
+                    }
                 })
                 .collect(),
             designated: None,
