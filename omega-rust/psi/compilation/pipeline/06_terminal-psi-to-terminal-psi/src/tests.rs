@@ -49,6 +49,7 @@ mod provider_supplies;
 mod ranges;
 mod reach;
 mod references;
+mod result_fields;
 mod result_summaries;
 mod runtime_indexed_elements;
 mod sequence_regions;
@@ -2015,7 +2016,7 @@ fn a_formal_leaf_reads_as_its_one_entry_content_value() {
     assert_eq!(read_equals(tables, *second), Some(held));
     assert!(matches!(
         tables.values.get(held).unwrap().origin,
-        ValueOrigin::EntryContent { .. }
+        ValueOrigin::InitialContent { .. }
     ));
     let (obligation, verdict) = verdicts(&elaboration, &result, 1, safety)[0];
     assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
@@ -2035,6 +2036,9 @@ fn a_copy_reads_as_what_its_source_held_and_an_unknown_content_reads_as_nothing(
     //     let t = make();            // a call's result: values unknown here
     //     bounded(t.y)
     // }
+    // The executable whole-result value is not a scalar leaf fact. A caller
+    // may name result leaves logically, but needs a checked guarantee to know
+    // their contents; this model's producer publishes none.
     let caller = Shaped {
         parameters: Vec::new(),
         locals: vec![point(), point(), point()],
@@ -4825,7 +4829,7 @@ fn an_entry_clause_over_a_formals_field_is_known_of_its_entry_content() {
     let entry = read_equals(tables, observed).unwrap();
     assert!(matches!(
         tables.values.get(entry).unwrap().origin,
-        ValueOrigin::EntryContent { .. }
+        ValueOrigin::InitialContent { .. }
     ));
     let stated: Vec<_> = tables
         .knowledge

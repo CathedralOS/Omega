@@ -1313,7 +1313,7 @@ pub use commitments::{
     ClosedConformanceApplicationCommitment, ClosedConformanceApplicationSite,
     ClosedConformanceConstArgument, ClosedConformanceRowIdentity, DataImplementationApplication,
     MachineSpecialization, MachineSpecializationCommitment, MachineTemplateCommitment,
-    StaticRequirementDispatch, TraitImplementationApplication, closed_conformance_applications_of,
+    StaticRequirementDispatch, TraitImplementationApplication,
     machine_specialization_matches_template_identity,
 };
 
@@ -1886,6 +1886,8 @@ pub use type_system::{CaseMembershipTypeFacts, closed_numeric, types};
 pub use values::const_integer;
 pub use values::expression;
 pub use values::subtrees::{SubtreeEdges, SubtreeVisit};
+
+pub mod source_subjects;
 
 pub mod typed_trees {
     pub use crate::*;

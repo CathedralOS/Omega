@@ -3,6 +3,8 @@ Semantic judgments for activation storage, arrival storage, borrowed storage pro
 storage dependency tracking across `TerminalMachine` blocks.
 */
 
+pub mod type_graph;
+
 pub mod activation_storage {
 
     use semantic_vocabulary::{StructuralFieldId, StructuralTypeId};

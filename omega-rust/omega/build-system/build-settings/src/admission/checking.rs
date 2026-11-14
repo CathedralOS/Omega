@@ -138,48 +138,76 @@ pub(crate) fn prepare_admitted_build(
         super::provider_execution::BuildProviderPlans,
         compilation_products::BuildConstants,
     ),
-    Vec<Diagnostic>,
+    compilation_products::CompileFailure,
 > {
-    // A dependency's Build executed for its consumer checks what its entry
-    // reaches and never promotes the dependency to a subject
-    // (`wiki/spec/build/validation_subjects.md`, "Orchestration").
-    let subject = (!dependency_activation).then(|| packages.map(PackageCompilationInputs::root));
-    let accepted = timings.record_result(BUILD_SOURCE_JUDGMENT, || {
-        let source = psi_compiler::SourcePreparationRequest {
-            program: typed.clone(),
-            admission: psi_compiler::SourceAdmission::default(),
-        }
-        .prepare()?;
-        psi_compiler::AcceptedTerminalSource::judge(
-            source.program,
-            psi_compiler::TerminalSourceCompilation {
+    let mut accounting = build_time_evaluation::SourceCompletionAccounting::default();
+    let result = (|| -> Result<_, Vec<Diagnostic>> {
+        // A dependency's Build executed for its consumer checks what its entry
+        // reaches and never promotes the dependency to a subject
+        // (`wiki/spec/build/validation_subjects.md`, "Orchestration").
+        let subject =
+            (!dependency_activation).then(|| packages.map(PackageCompilationInputs::root));
+        let accepted = timings.record_result(BUILD_SOURCE_JUDGMENT, || {
+            let compilation = psi_compiler::TerminalSourceCompilation {
                 entries: &[entry],
                 subjects: subject.as_slice(),
                 purpose: source::DependencyScope::Build,
                 selected: &[],
                 bindings: &[],
                 supplies: &[],
-            },
-            terminal_codec::TerminalPublication::Invocation,
-        )
-    })?;
-    if packages.is_some() {
-        return Err(vec![Diagnostic::error(
-            "no product route yet: the accepted Build program has no declaration-selection admission for its package authority",
-        )]);
-    }
-    // Nothing is folded here (point 3 above), and the names come from the
-    // accepted module, so a later frontier can tell there is nothing to
-    // settle without assuming how this admission was reached.
-    let constants = compilation_products::BuildConstants {
-        folded_under_providers: false,
-        read: accepted.constants_read(),
-    };
-    Ok((
-        Arc::new(accepted),
-        super::provider_execution::BuildProviderPlans::default(),
-        constants,
-    ))
+            };
+            let source = psi_compiler::SourcePreparationRequest {
+                program: typed.clone(),
+                accounting: Default::default(),
+                admission: psi_compiler::SourceAdmission::default(),
+                compilation,
+            }
+            .prepare();
+            let source = match source {
+                Ok(source) => {
+                    accounting = source.accounting;
+                    source.program
+                }
+                Err(failure) => {
+                    accounting = failure.accounting;
+                    return Err(failure.diagnostics);
+                }
+            };
+            // This admission has no settlement owner for newly evaluated source
+            // constants yet. Preserve the explicit boundary rather than dropping
+            // invocation charges when a Build requests such work.
+            if !accounting.receipts().is_empty() {
+                return Err(vec![Diagnostic::error(
+                    "no product route yet: Build constant invocation accounting settlement",
+                )]);
+            }
+            psi_compiler::AcceptedTerminalSource::judge(
+                source,
+                compilation,
+                terminal_codec::TerminalPublication::Invocation,
+            )
+        })?;
+        if packages.is_some() {
+            return Err(vec![Diagnostic::error(
+                "no product route yet: the accepted Build program has no declaration-selection admission for its package authority",
+            )]);
+        }
+        // Nothing is folded here (point 3 above), and the names come from the
+        // accepted module, so a later frontier can tell there is nothing to
+        // settle without assuming how this admission was reached.
+        let constants = compilation_products::BuildConstants {
+            folded_under_providers: false,
+            read: accepted.constants_read(),
+        };
+        Ok((
+            Arc::new(accepted),
+            super::provider_execution::BuildProviderPlans::default(),
+            constants,
+        ))
+    })();
+    result.map_err(|diagnostics| {
+        compilation_products::CompileFailure::source_completion(diagnostics, accounting)
+    })
 }
 
 #[cfg(test)]

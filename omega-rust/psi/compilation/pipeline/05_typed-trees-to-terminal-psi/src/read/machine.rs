@@ -637,17 +637,19 @@ impl<'t> Program<'t> {
         if machine.spelling.is_some() {
             return unserved("operator spelling");
         }
-        if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
-            return unserved("supply mode other than a checked body");
-        }
-        if machine.purpose != MachinePurpose::Runtime {
-            return unserved("provider-default purpose");
-        }
+        // An unselected target family is also a boundary. Report the missing
+        // target decision before the generic boundary-body refusal.
         if machine.target.is_some()
             || machine.authored_target.is_some()
             || machine.target_family_interface
         {
             return unserved("target selection");
+        }
+        if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
+            return unserved("supply mode other than a checked body");
+        }
+        if machine.purpose != MachinePurpose::Runtime {
+            return unserved("provider-default purpose");
         }
         if !machine.body_is_present || machine.body_status != MachineBodyStatus::Complete {
             return unserved("no complete body");
@@ -1436,12 +1438,12 @@ impl<'t> Program<'t> {
                 Some(ValueType::Scalar(..)) => {
                     ResultTerm::Absent("result that carries a declared domain")
                 }
-                // A clause over a record result projects it
-                // (`result.field`), which a later slice serves from the
-                // result place.
-                Some(ValueType::Record(_, _, _)) => {
-                    ResultTerm::Absent("result of a record machine")
-                }
+                // A returned field belongs to the declared result root,
+                // allocated after the structural formals by lowering.
+                Some(value_type @ ValueType::Record(_, _, _)) => ResultTerm::Structural(
+                    super::contracts::formal_place(id, &slots, slots.len())?,
+                    value_type,
+                ),
                 Some(ValueType::Rigid(_)) => ResultTerm::Absent("result of a rigid type"),
                 None => ResultTerm::Absent("result of a Unit machine"),
             },

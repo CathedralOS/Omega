@@ -222,18 +222,22 @@ impl PackageBuildHandoff {
     #[doc(hidden)]
     pub fn with_checked_provider_selections(
         self,
-        _typed: &typed_trees::TypedTrees,
+        typed: &typed_trees::TypedTrees,
         selections: &[build_time_evaluation::provider_declarations::ProviderSelection],
         observation: Option<&crate::BuildObservationSummary>,
     ) -> Result<Self, String> {
-        if !selections.is_empty() {
-            return Err(
-                "no product route yet: source provider selections require route-owned application custody"
-                    .to_owned(),
-            );
-        }
+        // Each selection leaves this typing as source anchors a consumer
+        // can rejoin; what an anchor cannot carry is refused by the capture.
+        let retained = selections
+            .iter()
+            .map(|selection| {
+                build_time_evaluation::provider_declarations::RetainedProviderSelection::capture(
+                    typed, selection,
+                )
+            })
+            .collect::<Result<Vec<_>, String>>()?;
         self.with_retained_provider_selections(
-            Vec::new(),
+            retained,
             observation.map(|summary| summary.identity().digest()),
         )
         .map_err(str::to_owned)

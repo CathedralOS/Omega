@@ -346,7 +346,10 @@ impl CompilationSession {
     ) -> Result<
         Vec<(
             Owner,
-            Result<package_compilation::IndependentComponentDescription, Vec<Diagnostic>>,
+            Result<
+                package_compilation::IndependentComponentDescription,
+                crate::CompilationProductError,
+            >,
         )>,
         Vec<Diagnostic>,
     > {
@@ -373,10 +376,8 @@ impl CompilationSession {
                     Ok(selected) => selected
                         .into_checked_compilation()
                         .map(crate::product_execution::ProductRequest::Component)
-                        .map_err(crate::CompilationProductError::Production),
-                    Err(failure) => Err(crate::CompilationProductError::Production(
-                        failure.into_diagnostics(),
-                    )),
+                        .map_err(crate::CompilationProductError::from),
+                    Err(failure) => Err(crate::CompilationProductError::from(failure)),
                 };
                 requests.push((owner, request));
             }
@@ -392,7 +393,7 @@ impl CompilationSession {
                         self.retain_component_product(product);
                         Ok(description)
                     }
-                    Err(error) => Err(error.into_diagnostics()),
+                    Err(error) => Err(error),
                 };
                 completed.push((position, owner, description));
             }
@@ -465,11 +466,7 @@ impl CompilationSession {
                                         permissions: permissions.clone(),
                                     }
                                 })
-                                .map_err(|failure| {
-                                    crate::CompilationProductError::Production(
-                                        failure.into_diagnostics(),
-                                    )
-                                }),
+                                .map_err(crate::CompilationProductError::from),
                         ));
                         identities.push(identity);
                     }
@@ -484,9 +481,7 @@ impl CompilationSession {
                             permissions,
                         },
                     )
-                    .map_err(|failure| {
-                        crate::CompilationProductError::Production(failure.into_diagnostics())
-                    });
+                    .map_err(crate::CompilationProductError::from);
                 requests.push(((position, None), request));
                 applications.push((owner, identities, notes));
             }
@@ -523,10 +518,19 @@ impl CompilationSession {
                                             Ok(crate::CompilationOutput::Native(pending)) => {
                                                 Ok(pending)
                                             }
+                                            Ok(crate::CompilationOutput::Report(report)) => {
+                                                Err(CompileFailure::source_completion(
+                                                    vec![Diagnostic::error(
+                                                        "test root lost its native product",
+                                                    )],
+                                                    report.source_completion_accounting().clone(),
+                                                ))
+                                            }
                                             Ok(_) => Err(vec![Diagnostic::error(
                                                 "test root lost its native product",
-                                            )]),
-                                            Err(error) => Err(error.into_diagnostics()),
+                                            )]
+                                            .into()),
+                                            Err(error) => Err(CompileFailure::from(error)),
                                         },
                                     }
                                 })

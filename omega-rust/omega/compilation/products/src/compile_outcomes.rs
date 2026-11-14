@@ -9,16 +9,45 @@ use crate::CompileReport;
 use diagnostics::{Diagnostic, ExceededProvision};
 use target::TargetProfile;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CompileFailure {
     Diagnostics(Vec<Diagnostic>),
+    /// Actual source invocations ran before preparation, judgment or target
+    /// admission failed. Keep their records alongside the diagnostic cause.
+    SourceCompletion {
+        diagnostics: Vec<Diagnostic>,
+        accounting: build_time_evaluation::SourceCompletionAccounting,
+    },
     BuildConsentRequired(Vec<package_compilation::build_execution::RestrictedBuildRequest>),
 }
 
 impl CompileFailure {
+    pub fn source_completion(
+        diagnostics: Vec<Diagnostic>,
+        accounting: build_time_evaluation::SourceCompletionAccounting,
+    ) -> Self {
+        if accounting.receipts().is_empty() {
+            Self::Diagnostics(diagnostics)
+        } else {
+            Self::SourceCompletion {
+                diagnostics,
+                accounting,
+            }
+        }
+    }
+
+    pub fn source_completion_accounting(
+        &self,
+    ) -> Option<&build_time_evaluation::SourceCompletionAccounting> {
+        match self {
+            Self::SourceCompletion { accounting, .. } => Some(accounting),
+            _ => None,
+        }
+    }
+
     pub fn into_diagnostics(self) -> Vec<Diagnostic> {
         match self {
-            Self::Diagnostics(diagnostics) => diagnostics,
+            Self::Diagnostics(diagnostics) | Self::SourceCompletion { diagnostics, .. } => diagnostics,
             Self::BuildConsentRequired(requests) => requests
                 .into_iter()
                 .map(|request| {
@@ -28,6 +57,12 @@ impl CompileFailure {
                 })
                 .collect(),
         }
+    }
+}
+
+impl From<psi_compiler::SourcePreparationFailure> for CompileFailure {
+    fn from(failure: psi_compiler::SourcePreparationFailure) -> Self {
+        Self::source_completion(failure.diagnostics, failure.accounting)
     }
 }
 

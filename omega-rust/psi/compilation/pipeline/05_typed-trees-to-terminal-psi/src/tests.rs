@@ -1892,7 +1892,7 @@ fn a_nested_read_interns_one_place_per_projection_and_reuses_it() {
         .values
         .iter()
         .filter_map(|(value, row)| match row.origin {
-            ValueOrigin::EntryContent { place } => Some((value, place, row.scalar_type)),
+            ValueOrigin::InitialContent { place } => Some((value, place, row.scalar_type)),
             _ => None,
         })
         .collect();
@@ -2022,7 +2022,7 @@ fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
         let values = tables
             .values
             .iter()
-            .filter(|(_, row)| row.origin == ValueOrigin::EntryContent { place: leaf });
+            .filter(|(_, row)| row.origin == ValueOrigin::InitialContent { place: leaf });
         assert_eq!(values.count(), 1);
     }
     // A call's record result has no value identity: nothing is invented.
@@ -2147,7 +2147,7 @@ fn a_projected_record_is_copied_out_by_its_path() {
         let values = tables
             .values
             .iter()
-            .filter(|(_, row)| row.origin == ValueOrigin::EntryContent { place: from });
+            .filter(|(_, row)| row.origin == ValueOrigin::InitialContent { place: from });
         assert_eq!(values.count(), 1);
     }
 }

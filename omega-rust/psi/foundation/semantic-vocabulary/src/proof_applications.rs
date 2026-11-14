@@ -61,6 +61,16 @@ impl<Declaration: Copy + Eq + Default + 'static> ProofApplicationPlan<Declaratio
             .map(|row| row.machine)
     }
 
+    /// No target is selected. Only an untagged, non-family declaration may
+    /// supply code; this does not choose a host or a default family member.
+    pub fn callable_without_target(&self, symbol: Declaration) -> Option<Declaration> {
+        let machine = self.called_machine(symbol)?;
+        (machine.authored_target.is_none()
+            && machine.source_target.is_none()
+            && !machine.family_interface)
+            .then_some(machine.machine)
+    }
+
     pub fn declared_callable_for_target(
         &self,
         symbol: Declaration,
@@ -288,13 +298,17 @@ impl<'a, Declaration: Copy + Eq + Default + 'static, Calls: ProofApplicationCall
         machine: &'a ProofApplicationMachine<Declaration>,
         target: Option<&str>,
     ) -> Option<&'a ProofApplicationMachine<Declaration>> {
+        if target.is_none() && machine.source_target.is_some() {
+            return None;
+        }
         if machine.family_interface {
+            let target = target?;
             let member = self
                 .plan
                 .target_members
                 .span_or_empty(machine.family_members)
                 .iter()
-                .find(|member| Some(member.target.as_str()) == target)?;
+                .find(|member| member.target == target)?;
             return self.matching_machine(member.machine, |row| row.product_selected);
         }
         machine
@@ -983,6 +997,50 @@ impl<Declaration: Copy + Eq + Default + 'static> ProofCallGraph<Declaration> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_untargeted_invocation_retains_but_does_not_select_a_tagged_callee() {
+        let mut plan = ProofApplicationPlan::<u32>::default();
+        machine(&mut plan, 1, None);
+        machine(&mut plan, 2, Some("linux_x86_64"));
+        machine(&mut plan, 3, None);
+        let mut graph = ProofCallGraph::<u32>::default();
+        let calls = graph.calls.insert_many([
+            ProofApplicationCall {
+                callee: 2,
+                ..Default::default()
+            },
+            ProofApplicationCall {
+                callee: 3,
+                ..Default::default()
+            },
+        ]);
+        graph.insert_machine(ProofCallMachine {
+            machine: 1,
+            calls,
+            ..Default::default()
+        });
+        graph.insert_machine(ProofCallMachine {
+            machine: 2,
+            ..Default::default()
+        });
+        graph.insert_machine(ProofCallMachine {
+            machine: 3,
+            ..Default::default()
+        });
+        let applications = ProofApplications::new(&plan, &graph);
+        let absent = applications.invocation_reachability(None, &[], &[1]);
+        assert!(
+            absent.calls.contains(&2),
+            "admission must still see the demanded tagged call"
+        );
+        assert!(!absent.machines.contains(&2));
+        assert!(absent.machines.contains(&1) && absent.machines.contains(&3));
+        let named = applications.invocation_reachability("linux_x86_64", &[], &[1]);
+        assert!(named.machines.contains(&2));
+        assert_eq!(plan.callable_without_target(2), None);
+        assert_eq!(plan.callable_without_target(1), Some(1));
+    }
 
     #[test]
     fn declared_target_membership_is_not_product_membership() {

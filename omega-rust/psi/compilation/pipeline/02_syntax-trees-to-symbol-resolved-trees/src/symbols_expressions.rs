@@ -202,7 +202,7 @@ mod references {
     ) {
         let (head_symbol, symbol) = resolve_expression_table_receiver_path_symbols(
             symbols,
-            machine.symbol,
+            machine,
             state_symbol,
             expression_table,
             receiver,
@@ -256,7 +256,7 @@ mod references {
         }
         let mut member_symbol = resolve_expression_table_member_symbol(
             symbols,
-            machine.symbol,
+            machine,
             state_symbol,
             expression_table,
             receiver,

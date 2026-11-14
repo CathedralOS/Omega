@@ -141,8 +141,8 @@ pub mod calls {
             let (declaration, signature) = if let Some(dispatch) = &call.static_requirement_dispatch
             {
                 let declaration = program.trait_definition_by_symbol(dispatch.declaring_trait)?;
-                let signature = program
-                    .trait_machine_signature_by_symbol(declaration, dispatch.contract_symbol())?;
+                let signature =
+                    program.trait_machine_signature_by_symbol(declaration, dispatch.requirement)?;
                 (declaration, signature)
             } else {
                 program.trait_machine_signature(call.target_symbol)?
@@ -2618,17 +2618,12 @@ pub mod control_flow {
                                 let receiver = self.statement_table.name_path_members.insert_many(
                                     source.name_path_members(call.receiver).iter().cloned(),
                                 );
-                                let (
-                                    arguments,
-                                    captures,
-                                    authored_machine_application,
-                                    static_requirement_dispatch,
-                                ) = self.expression_table.copy_call_operands_from(
-                                    &source_tables.expression_table,
-                                    source.expression_handles(call.arguments),
-                                    call.authored_machine_application,
-                                    call.static_requirement_dispatch.clone(),
-                                );
+                                let (arguments, captures, authored_machine_application) =
+                                    self.expression_table.copy_call_operands_from(
+                                        &source_tables.expression_table,
+                                        source.expression_handles(call.arguments),
+                                        call.authored_machine_application,
+                                    );
                                 let arguments = self.statement_table.insert_expression_handles(
                                     self.expression_table.expression_handles(arguments).to_vec(),
                                 );
@@ -2672,7 +2667,9 @@ pub mod control_flow {
                                     target_symbol: call.target_symbol,
                                     receiver,
                                     target: call.target.clone(),
-                                    static_requirement_dispatch,
+                                    static_requirement_dispatch: call
+                                        .static_requirement_dispatch
+                                        .clone(),
                                     machine_arguments: call
                                         .machine_arguments
                                         .iter()
@@ -2855,9 +2852,8 @@ pub mod control_flow {
                                         );
                                         origin
                                     });
-                                self.expression_table.remap_call_static_applications(
+                                self.expression_table.remap_static_application(
                                     call.authored_machine_application,
-                                    call.static_requirement_dispatch.as_ref(),
                                     symbols,
                                 );
                                 for argument in self

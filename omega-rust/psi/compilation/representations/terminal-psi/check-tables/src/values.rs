@@ -64,11 +64,11 @@ pub enum ValueOrigin {
     BlockParameter { block: BlockId, position: u32 },
     /// The result of an operation, including reads and call results.
     Operation(OperationId),
-    /// The content an initialized place holds at entry. fact_validity.md: "a
-    /// valid initialized ordinary storage place at entry may supply its exact
-    /// reaching value version; it need not have a store inside the current
-    /// body."
-    EntryContent { place: ExactPlaceId },
+    /// The first content a scalar leaf holds: at invocation entry for a
+    /// formal, or immediately after the declared call producing its root.
+    /// Later writes supply different identities through the storage log.
+    /// This logical name is not an executable scalar operand.
+    InitialContent { place: ExactPlaceId },
 }
 
 /// One piece of knowledge: a proposition over value identities, where it is
