@@ -219,7 +219,7 @@ crashes Trap
 
 // A `terminates by` witness: each ranked subject, then its view, which
 // names the compiler's ranking vocabulary by spelling rather than a
-// declaration (resolution.omg, `RankingView`); `Nat::IncreasingTo`'s limit
+// declaration (representations/symbol_resolved_trees.omg, `RankingView`); `Nat::IncreasingTo`'s limit
 // binds as a subject does.
 machine bind_ranking(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, scope: NameScope, handle: u64 in Trapping, clause: Clause)
 crashes Trap

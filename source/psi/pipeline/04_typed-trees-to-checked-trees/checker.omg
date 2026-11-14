@@ -1,4 +1,4 @@
-// Checking over a typed source set (checks.omg). Every machine declaration
+// Checking over a typed source set (representations/checks.omg). Every machine declaration
 // owns its parameters, executable range, result and contract. Private invocation
 // arrivals gather exact argument facts to a fixed point; every reached body is
 // checked against the join of all its predecessors, widening recurrent edges.
