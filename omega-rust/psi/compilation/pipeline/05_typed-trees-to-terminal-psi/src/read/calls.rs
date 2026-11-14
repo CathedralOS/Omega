@@ -1837,17 +1837,42 @@ impl<'t> Program<'t> {
         // the permission to cross into its backing, whether it came from a
         // binding, a field or another helper call. An ordinary owned value
         // still needs an explicit borrow of its place.
-        let (mut place, access, explicit) = match node {
-            ExpressionNode::Borrow(borrow) => (
-                self.expression(id, slots, borrow.target, None)?,
-                borrow.access,
-                true,
-            ),
-            _ => (
-                self.expression(id, slots, argument, None)?,
-                formal.access,
-                false,
-            ),
+        let (operand, access, explicit) = match node {
+            ExpressionNode::Borrow(borrow) => (borrow.target, borrow.access, true),
+            _ => (argument, formal.access, false),
+        };
+        // A recast presents the same captured place under another type. The
+        // parser keeps it inside the loan; it never produces an owned value.
+        let (mut place, presentation) = match self.node(id, operand)? {
+            ExpressionNode::Cast(cast) if cast.form.is_recast() => {
+                if access != ReferenceAccess::Shared || cast.form.recast_access() != Some(access) {
+                    return unserved(
+                        "exclusive storage view without establishment and handback evidence",
+                    );
+                }
+                if cast.semantic_domain_symbol.is_valid()
+                    || !cast.semantic_domain.is_empty()
+                    || cast.domain != numerics::arithmetic::ArithmeticDomain::Exact
+                {
+                    return unserved("storage view that also changes a domain");
+                }
+                let presentation = self.value_type(id, cast.target_type)?;
+                if presentation.qualification() != Qualification::NONE
+                    || !self.agrees(Some(presentation), expected)
+                {
+                    return unserved("storage view target differs from its borrowed destination");
+                }
+                if cast.result_type.is_valid()
+                    && self.value_type(id, cast.result_type)? != presentation
+                {
+                    return unserved("storage view has another retained result type");
+                }
+                (
+                    self.expression(id, slots, cast.value, None)?,
+                    Some(presentation),
+                )
+            }
+            _ => (self.expression(id, slots, operand, None)?, None),
         };
         // ownership.md, "Borrows and aliases": `&T` grants "Shared
         // observation under its loan contract", and "A callee cannot grant
@@ -1882,6 +1907,9 @@ impl<'t> Program<'t> {
                 kind: ExpressionKind::Referent(Box::new(place)),
                 result: Some(referent),
             };
+        }
+        if presentation.is_some() {
+            self.representation_read_authorized(id, &place)?;
         }
         let crossed = self.reference_place_access(id, &place, access)?;
         let slot = root_slot(id, &place, &self.captures)?;
@@ -1979,7 +2007,7 @@ impl<'t> Program<'t> {
         Ok((
             Expression {
                 call_context: None,
-                result: place.result,
+                result: presentation.or(place.result),
                 kind: ExpressionKind::Borrow {
                     access,
                     place: Box::new(place),

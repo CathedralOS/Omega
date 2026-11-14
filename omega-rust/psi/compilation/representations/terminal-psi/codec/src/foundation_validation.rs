@@ -7208,12 +7208,16 @@ pub(crate) mod storage_foundations {
             *access,
         )?;
         if let Some(storage) = storage {
-            let offset_type = declared_scalar_type(machine, storage.byte_offset);
-            let offset_is_u64 = matches!(offset_type, Some(ScalarType::Integer(integer))
-                if !integer.is_address() && integer.bits() == 64
-                    && integer.sign() == IntegerSign::Unsigned);
-            if !offset_is_u64 {
-                return malformed("reference storage offset is not a u64 scalar");
+            let producer = machine.operations().find(|candidate| {
+                candidate
+                    .result
+                    .as_scalar()
+                    .is_some_and(|result| result.id == storage.byte_offset)
+            });
+            if !producer.is_some_and(|producer| {
+                terminal_semantics::reference_view_offset_is_zero(producer, storage.byte_offset)
+            }) {
+                return malformed("reference storage view requires its captured zero offset");
             }
         }
         let compatible = match storage {

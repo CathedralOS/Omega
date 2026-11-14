@@ -231,10 +231,10 @@ impl Program<'_> {
             home,
         };
         let (value, _) = self.lent(machine, slots, argument, &formal, referent)?;
-        let crate::ExpressionKind::Borrow { place, .. } = &value.kind else {
+        if !matches!(value.kind, crate::ExpressionKind::Borrow { .. }) {
             unreachable!()
-        };
-        if !self.agrees(place.result, referent) {
+        }
+        if !self.agrees(value.result, referent) {
             return Err(refuse(
                 machine,
                 Construct::Machine,

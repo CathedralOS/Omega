@@ -1115,6 +1115,51 @@ pub(crate) mod tests {
         let bytes = terminal_codec::encode_module(module).unwrap();
         assert_eq!(terminal_codec::decode_module(&bytes).unwrap(), *module);
 
+        // A byte view covers its captured region. Shifting that whole view
+        // cannot borrow another byte beyond the region's established extent.
+        let mut shifted = module.clone();
+        let (machine, offset) = shifted
+            .machines
+            .iter()
+            .find_map(|machine| {
+                machine.operations().find_map(|operation| {
+                    let terminal_psi::OperationKind::EstablishReference {
+                        storage: Some(storage),
+                        ..
+                    } = operation.kind
+                    else {
+                        return None;
+                    };
+                    Some((machine.id, storage.byte_offset))
+                })
+            })
+            .expect("the retained byte oracle forms an actual storage view");
+        let producer = shifted
+            .machines
+            .iter_mut()
+            .find(|candidate| candidate.id == machine)
+            .unwrap()
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.operations)
+            .find(|operation| {
+                operation
+                    .result
+                    .as_scalar()
+                    .is_some_and(|result| result.id == offset)
+            })
+            .unwrap();
+        producer.kind = terminal_psi::OperationKind::IntegerConstant {
+            value: semantic_vocabulary::IntegerValue::Unsigned(1),
+        };
+        let refusal =
+            terminal_codec::decode_module(&terminal_codec::encode_module(&shifted).unwrap())
+                .unwrap_err();
+        assert!(
+            refusal.to_string().contains("captured zero offset"),
+            "{refusal}"
+        );
+
         // Changing the issuer's target input cannot relabel the retained
         // realization as a result for different representation facts.
         let mut forged = module.clone();

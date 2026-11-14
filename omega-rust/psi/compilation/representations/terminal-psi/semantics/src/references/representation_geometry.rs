@@ -9,6 +9,27 @@ use terminal_psi::{
     TargetLayoutApplication, TargetLayoutInput, TargetLayoutRealization, TerminalModule,
 };
 
+/// Whole-region views retain the captured region's first byte. Another
+/// offset needs its own bounds/alignment evidence, which this operation lacks.
+pub fn reference_view_offset_is_zero(
+    operation: &terminal_psi::Operation,
+    value: semantic_vocabulary::ValueId,
+) -> bool {
+    let Some(result) = operation.result.as_scalar() else {
+        return false;
+    };
+    result.id == value
+        && matches!(result.scalar_type, ScalarType::Integer(integer)
+            if !integer.is_address() && integer.bits() == 64
+                && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)
+        && matches!(
+            operation.kind,
+            terminal_psi::OperationKind::IntegerConstant {
+                value: semantic_vocabulary::IntegerValue::Unsigned(0)
+            }
+        )
+}
+
 pub fn reference_view_compatible(
     module: &TerminalModule,
     source: StructuralTypeId,
@@ -16,25 +37,13 @@ pub fn reference_view_compatible(
     reference: StructuralTypeId,
     stored: Option<ScalarType>,
 ) -> Result<bool, &'static str> {
-    // A reference crossing changes the address base. Its earlier descriptor
-    // path still owns custody; geometry starts at the reached referent.
-    let (source, path) = if let Some(crossing) = path
-        .iter()
-        .rposition(|step| *step == StructuralPathSegment::Referent)
-    {
-        let carrier = crate::runtime_structural_path_tip(
-            module.structural_types.iter(),
-            source,
-            &path[..crossing],
-        )
-        .ok_or("reference view lost its source descriptor")?;
-        let StructuralTypeShape::Reference { referent, .. } = carrier.shape else {
-            return Err("reference view crosses a source that is not a reference");
-        };
-        (referent, &path[crossing + 1..])
-    } else {
-        (source, path)
-    };
+    // A descriptor may present a wider scalar than its physical codec. Its
+    // nominal referent cannot supply the backing extent for another view.
+    if path.contains(&StructuralPathSegment::Referent) {
+        return Err(
+            "reference view crossing requires its captured physical storage correspondence",
+        );
+    }
     let Some(StructuralTypeShape::Reference { referent, .. }) =
         module.structural_type(reference).map(|row| &row.shape)
     else {
@@ -318,6 +327,16 @@ mod tests {
         assert_eq!(
             reference_view_compatible(&module, ty(3), &[], ty(5), None),
             Ok(true)
+        );
+        assert_eq!(
+            reference_view_compatible(
+                &module,
+                ty(5),
+                &[StructuralPathSegment::Referent],
+                ty(5),
+                None
+            ),
+            Err("reference view crossing requires its captured physical storage correspondence"),
         );
         module.target_layout_applications[0].realizations[1]
             .storage

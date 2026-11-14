@@ -560,7 +560,9 @@ pub use references::reference_views::{
     representation_view_declaration, scalar_reference_view_admits, scalar_reference_view_is_total,
     scalar_reference_view_value, shared_descriptor_copy_matches, stored_reference_access,
 };
-pub use references::representation_geometry::reference_view_compatible;
+pub use references::representation_geometry::{
+    reference_view_compatible, reference_view_offset_is_zero,
+};
 pub use scalars::proof_bearing_scalar::{
     CanonicalScalarGoal, ProofBearingIntegerPolicyBinding, ProofBearingScalarLeafSchema,
     ProofBearingScalarLeafSemantics, ProofBearingScalarSemanticRow,

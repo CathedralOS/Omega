@@ -556,21 +556,15 @@ impl Storage<'_> {
                         .get(position)
                 })
                 .ok_or_else(|| self.foreign(concerns, "reference view offset has no producer"))?;
-            let u64_type = semantic_vocabulary::ScalarType::Integer(
-                semantic_vocabulary::IntegerType::new(
-                    semantic_vocabulary::IntegerSign::Unsigned,
-                    64,
-                )
-                .expect("u64 is valid"),
-            );
-            if offset.scalar_type != u64_type
-                || !matches!(
-                    producer.kind,
-                    OperationKind::IntegerConstant {
-                        value: semantic_vocabulary::IntegerValue::Unsigned(0)
-                    }
-                )
-                || producer.result.as_scalar().map(|row| row.id) != Some(storage.byte_offset)
+            if offset.scalar_type
+                != producer
+                    .result
+                    .as_scalar()
+                    .map(|row| row.scalar_type)
+                    .ok_or_else(|| {
+                        self.foreign(concerns, "reference view offset has no scalar producer")
+                    })?
+                || !terminal_semantics::reference_view_offset_is_zero(producer, storage.byte_offset)
             {
                 return Err(self.unsupported(
                     concerns,
