@@ -191,7 +191,9 @@ ensures result.first == 0
                 "an owned input still names its original value: {verdict:?}"
             );
         } else {
-            let refusal = verdict.unwrap_err();
+            let Ok(RouteVerdict::FallBack(refusal)) = verdict else {
+                panic!("unsupported borrowed completion must remain refused: {verdict:?}")
+            };
             assert_eq!(refusal.reason, RefusalReason::Unsupported, "{refusal:?}");
             assert_eq!(
                 refusal.detail,
