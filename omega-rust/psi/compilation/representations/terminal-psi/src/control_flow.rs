@@ -719,7 +719,7 @@ pub(crate) mod machines {
     use crate::{
         ContentIdentityReshuffle, ContentPartitionComposition, EntryClaim, ErasedProofFormal,
         MachineContract, Operation, StructuralParameterDeclaration, StructuralPlaceDeclaration,
-        TerminalMachineResult, TerminalRankedScc, Terminator, ValueDeclaration,
+        TerminalRankedScc, Terminator, ValueDeclaration,
     };
     use semantic_vocabulary::{BlockId, MachineId, OperationId, PlaceId, StructuralTypeId};
 
