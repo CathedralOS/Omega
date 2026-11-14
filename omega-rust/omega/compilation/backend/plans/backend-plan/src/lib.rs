@@ -33,19 +33,12 @@ pub use callback_artifacts::{
 };
 pub use direct_boundary_leaves::{DirectBoundaryExecution, DirectBoundaryLeaf};
 pub use target_providers::{
-    SelectedCheckedInvocationRow, SelectedProviderCandidateRow, TerminalTargetProviderPlan,
-    TerminalTargetProviderProposal, TerminalTargetProviderSelection,
-    admit_selected_checked_providers, close_checked_provider_specializations,
-    matching_folded_constant_dependencies, require_selected_provider_declarations,
+    SelectedCheckedInvocationRow, SelectedProviderCandidateRow, TerminalTargetProviderProposal,
+    TerminalTargetProviderSelection, admit_selected_checked_providers,
+    close_checked_provider_specializations, matching_folded_constant_dependencies,
     selected_checked_adapter_header, selected_checked_invocation_rows,
     selected_provider_candidate_rows,
 };
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct NativeProviderSources {
-    pub declarations: std::sync::Arc<[crate::TerminalTargetProviderPlan]>,
-    pub family_realizations: Vec<SelectedFamilyRealizationSource>,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedFamilyRealizationSource {

@@ -497,6 +497,8 @@ mod providers {
         name,
         provider_type,
         provider_type_package_identity,
+        provider_declaration,
+        row_numeric_realizations,
         target,
         schema,
         identities,
@@ -703,12 +705,6 @@ mod providers {
         11 => InterruptEntry,
         12 => RootMemoryAccess,
         13 => ProcessInput,
-    });
-
-    record_fields!(backend_plan::TerminalTargetProviderPlan {
-        plan,
-        provider_declaration,
-        row_numeric_realizations
     });
 
     record_fields!(backend_plan::TerminalTargetProviderProposal {

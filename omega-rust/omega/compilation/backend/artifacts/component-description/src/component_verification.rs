@@ -341,16 +341,13 @@ impl VerifiedComponent {
     pub fn realizes_selected_plan(
         &self,
         plan: &ProviderPlan,
-        selecting_declaration: &str,
     ) -> Result<(), IndependentRealizationMismatch> {
-        self.selected_plan_export_positions(plan, selecting_declaration)
-            .map(|_| ())
+        self.selected_plan_export_positions(plan).map(|_| ())
     }
 
     pub fn selected_plan_export_positions(
         &self,
         plan: &ProviderPlan,
-        selecting_declaration: &str,
     ) -> Result<Vec<usize>, IndependentRealizationMismatch> {
         if plan.provider_type.is_empty() {
             return Err(IndependentRealizationMismatch::EmptyProviderType {
@@ -371,15 +368,12 @@ impl VerifiedComponent {
                 });
             }
         }
-        let rows = backend_plan::selected_provider_candidate_rows(
-            plan,
-            selecting_declaration,
-            self.module(),
-        )
-        .map_err(|detail| IndependentRealizationMismatch::InvalidPlan {
-            plan: plan.name.clone(),
-            detail,
-        })?;
+        let rows = backend_plan::selected_provider_candidate_rows(plan, self.module()).map_err(
+            |detail| IndependentRealizationMismatch::InvalidPlan {
+                plan: plan.name.clone(),
+                detail,
+            },
+        )?;
         let mut exports = Vec::new();
         for projected in rows {
             if projected.candidate_positions.is_empty() {

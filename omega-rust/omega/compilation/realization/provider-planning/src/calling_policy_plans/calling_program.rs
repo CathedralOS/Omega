@@ -44,7 +44,7 @@ impl CallingProgram {
         policy: &terminal_psi::CallingPolicyInstance,
         target: target::TargetProfile,
         declaration: semantic_vocabulary::CallingSignatureId,
-        providers: &[backend_plan::TerminalTargetProviderPlan],
+        providers: &[effects::provider_plan::ProviderPlan],
         requester: semantic_vocabulary::compiler_evaluation::DeclarationCustody,
         authority: Option<
             &dyn semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority,
@@ -142,7 +142,7 @@ impl CallingProgram {
         declaration: &semantic_vocabulary::CallingAbiIdentity,
         target: target::TargetProfile,
         scope: CallingStorageScope<'_>,
-        providers: &[backend_plan::TerminalTargetProviderPlan],
+        providers: &[effects::provider_plan::ProviderPlan],
     ) -> Result<CanonicalCallingSignature, String> {
         let demand = terminal_installation::CallingAbiStorageDemand::new(
             self.artifact.view(),
@@ -190,7 +190,7 @@ impl CallingProgram {
         demand: &terminal_installation::CallingAbiStorageDemand,
         target: target::TargetProfile,
         scope: CallingStorageScope<'_>,
-        providers: &[backend_plan::TerminalTargetProviderPlan],
+        providers: &[effects::provider_plan::ProviderPlan],
         describe: impl FnOnce(
             &dyn Fn(
                 semantic_vocabulary::ScalarApplicationId,
