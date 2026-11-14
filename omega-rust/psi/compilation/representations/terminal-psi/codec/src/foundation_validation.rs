@@ -2374,9 +2374,9 @@ pub(crate) mod installed_interrupts {
 /// enclosing selected case from the same shared mechanisms checking uses.
 mod empty_elimination_foundations {
     use super::*;
+    use terminal_semantics::descriptor_lifetimes::{DescriptorLocation, DescriptorPathSegment};
     use terminal_semantics::descriptor_results::{
-        DescriptorAnalysis, DescriptorCasePredicate, DescriptorLocation, DescriptorPathSegment,
-        terminal_graph_from,
+        DescriptorAnalysis, DescriptorCasePredicate, terminal_graph_from,
     };
     use terminal_semantics::inhabitation::{Inhabitation, Status, TerminalContracts};
 
