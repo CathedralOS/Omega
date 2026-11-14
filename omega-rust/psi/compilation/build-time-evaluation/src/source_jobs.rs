@@ -596,6 +596,26 @@ pub(crate) mod tests {
         .expect("resolve and type the actual core source and author")
     }
 
+    /// The machine `name` that a `with_reflection` query declares. The real
+    /// core is typed beside the query and its nested machines take ordinary
+    /// names (`core/wire.omg` declares a `payload`), so a lookup by name
+    /// alone can select a library machine instead of the test's own.
+    fn query_machine(source: &TypedTrees, name: &str) -> SymbolHandle {
+        let mut declared = source.machines().iter().filter(|machine| {
+            machine.target.is_none()
+                && machine.name.as_str() == name
+                && source
+                    .symbols
+                    .symbol_source_span(machine.symbol)
+                    .and_then(|span| source.symbols.source_file(span))
+                    .is_some_and(|file| file.path.ends_with("query.omg"))
+        });
+        let (Some(machine), None) = (declared.next(), declared.next()) else {
+            panic!("the query declares exactly one machine named `{name}`")
+        };
+        machine.symbol
+    }
+
     fn returned_source_call(
         source: &TypedTrees,
         name: &str,
@@ -761,7 +781,7 @@ pub(crate) mod tests {
         let mut accounting = crate::SourceCompletionAccounting::default();
         let mut values = Vec::new();
         for name in ["first", "second", "payload"] {
-            let symbol = source.realized_machine_named(name).unwrap().symbol;
+            let symbol = query_machine(&source, name);
             values.push(
                 prepared
                     .entry(symbol, symbol, &[])
@@ -856,14 +876,14 @@ pub(crate) mod tests {
             ("wrong", Vec::new(), "exact resolved field declaration"),
             ("observed", Vec::new(), "uninvoked path"),
         ] {
-            let symbol = source.realized_machine_named(name).unwrap().symbol;
+            let symbol = query_machine(&source, name);
             let reason = prepared
                 .entry(symbol, symbol, &arguments)
                 .err()
                 .expect("a runtime value is not a field selector");
             assert!(reason.contains(expected), "{name}: {reason}");
         }
-        let symbol = source.realized_machine_named("ordinary").unwrap().symbol;
+        let symbol = query_machine(&source, "ordinary");
         assert_eq!(
             prepared
                 .entry(symbol, symbol, &[])
@@ -1224,10 +1244,7 @@ pub(crate) mod tests {
         );
         let program = PreparedBuildMachineProgram::prepare(&source, None).expect("retain source");
         let query = |name| {
-            let symbol = source
-                .realized_machine_named(name)
-                .expect("query declaration")
-                .symbol;
+            let symbol = query_machine(&source, name);
             program
                 .entry(symbol, symbol, &[])
                 .expect("query entry")
@@ -1274,10 +1291,7 @@ pub(crate) mod tests {
     fn source_callable_queries_refuse_a_value_holding_a_description() {
         let source = with_reflection("use omega::language::core::reflect;
             machine answer(value: reflect::CallableInfo) -> reflect::CallableInfo { reflect::callable(value) }");
-        let symbol = source
-            .realized_machine_named("answer")
-            .expect("query declaration")
-            .symbol;
+        let symbol = query_machine(&source, "answer");
         let value = BuildTimeValue::Case {
             variant: "Machine".into(),
             payload: [
