@@ -1126,7 +1126,7 @@ pub(crate) mod suspension {
                     IntegerSign::Signed => 1,
                     IntegerSign::Unsigned => 2,
                 });
-                hash.raw(&integer.bits().to_le_bytes());
+                integer.width().write_identity(|bytes| hash.raw(bytes));
             }
             ScalarType::IeeeFloat(format) => {
                 hash.byte(3);
