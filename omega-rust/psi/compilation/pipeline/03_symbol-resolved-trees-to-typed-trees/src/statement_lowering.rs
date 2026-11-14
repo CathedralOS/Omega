@@ -501,10 +501,12 @@ pub(crate) mod statement {
             let reference = program
                 .type_reference_table
                 .peeled_type_reference(reference);
-            let owner = program.closed_data_definition(reference).or_else(|| {
-                let symbol = program.type_reference_table.type_head_symbol(reference)?;
-                program.unique_data_definition_by_symbol(symbol)
-            })?;
+            let owner = program
+                .closed_data_field_definition(reference)
+                .or_else(|| {
+                    let symbol = program.type_reference_table.type_head_symbol(reference)?;
+                    program.unique_data_definition_by_symbol(symbol)
+                })?;
             if owner.generic_instance.is_some() {
                 return program
                     .closed_data_member_field(
