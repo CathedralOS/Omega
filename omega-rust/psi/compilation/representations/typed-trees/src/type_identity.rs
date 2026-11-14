@@ -4749,7 +4749,7 @@ pub(crate) mod package_policy_reading_tests {
             let receiver = fixture.name("LIMIT");
             let member = fixture.expression(ExpressionNode::Member(TableMemberExpression {
                 receiver,
-                member_symbol: SymbolHandle::invalid(),
+                selection: crate::expression::MemberSelection::Unresolved,
                 member: Identifier::generated("tag"),
                 case_variant: Some(Identifier::generated("On")),
             }));

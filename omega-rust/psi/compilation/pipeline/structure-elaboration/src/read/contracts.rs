@@ -1009,7 +1009,7 @@ impl Program<'_> {
                 (subject.root, subject.path.to_vec(), record, path.symbol)
             }
             ExpressionNode::Member(member) => {
-                if !member.member_symbol.is_valid() {
+                if !member.selection.field_symbol().is_valid() {
                     return Err(spelling("clause member without a field symbol"));
                 }
                 let not_data = || {
@@ -1026,7 +1026,7 @@ impl Program<'_> {
                 let Some(record) = self.opened(id, Some(receiver), Access::Read)? else {
                     return Err(not_data());
                 };
-                (root, base, record, member.member_symbol)
+                (root, base, record, member.selection.field_symbol())
             }
             ExpressionNode::Indexed(_)
             | ExpressionNode::TypeExpression(_)

@@ -1699,7 +1699,11 @@ pub mod expression {
                         let ExpressionNode::Member(member) = self.expression_mut(root) else {
                             unreachable!();
                         };
-                        member.member_symbol = remapped(member.member_symbol, symbols);
+                        if let crate::expression::MemberSelection::Field(symbol) =
+                            &mut member.selection
+                        {
+                            *symbol = remapped(*symbol, symbols);
+                        }
                     }
                     ExpressionNode::Borrow(inner) => {
                         self.remap_symbols_in_inner(inner.target, symbols, visited)
@@ -2118,7 +2122,7 @@ pub mod expression {
                         );
                         self.insert(ExpressionNode::Member(TableMemberExpression {
                             receiver,
-                            member_symbol: member.member_symbol,
+                            selection: member.selection,
                             member: member.member,
                             case_variant: member.case_variant,
                         }))
@@ -2946,7 +2950,7 @@ pub mod expression {
                         let receiver = self.insert_tree(&member.receiver);
                         self.insert(ExpressionNode::Member(TableMemberExpression {
                             receiver,
-                            member_symbol: member.member_symbol,
+                            selection: member.selection,
                             member: member.member.clone(),
                             case_variant: member.case_variant.clone(),
                         }))
@@ -4101,16 +4105,25 @@ pub mod expression {
             &self,
             expression: ExpressionHandle,
         ) -> Option<ExpressionHandle> {
-            use language_semantics::declaration_selection::CollectionMeasure;
             let member = self.member_node(expression)?;
-            if CollectionMeasure::from_authored_spelling(member.member.as_str())
-                != Some(CollectionMeasure::Length)
-                || member.member_symbol.is_valid()
-                || member.case_variant.is_some()
-            {
+            if member.case_variant.is_some() {
                 return None;
             }
-            Some(member.receiver)
+            // A selected operation has already acquired its meaning. An
+            // unresolved occurrence can still request source completion,
+            // but its spelling alone supplies no selected operation.
+            match member.selection {
+                MemberSelection::CollectionMeasure(CollectionMeasure::Length) => {
+                    Some(member.receiver)
+                }
+                MemberSelection::Unresolved
+                    if CollectionMeasure::from_authored_spelling(member.member.as_str())
+                        == Some(CollectionMeasure::Length) =>
+                {
+                    Some(member.receiver)
+                }
+                _ => None,
+            }
         }
 
         pub fn name_path_string(&self, span: HandleSpan<Identifier>) -> String {
@@ -4405,7 +4418,7 @@ pub mod expression {
                         )
                 }
                 (ExpressionNode::Member(x), ExpressionNode::Member(y)) => {
-                    x.member_symbol == y.member_symbol
+                    x.selection == y.selection
                         && x.member.as_str() == y.member.as_str()
                         && self.expressions_structurally_equal(x.receiver, y.receiver)
                 }
@@ -4641,10 +4654,88 @@ pub mod expression {
         pub end_inclusive: bool,
     }
 
+    pub use language_semantics::declaration_selection::CollectionMeasure;
+
+    /// A nominal field and a builtin collection observation are different
+    /// selections. Retaining the selected operation avoids asking a later
+    /// checker to recover its meaning from a diagnostic member spelling.
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+    pub enum MemberSelection {
+        #[default]
+        Unresolved,
+        Field(SymbolHandle),
+        CollectionMeasure(CollectionMeasure),
+    }
+
+    impl MemberSelection {
+        pub const fn field_symbol(self) -> SymbolHandle {
+            match self {
+                Self::Field(symbol) => symbol,
+                Self::Unresolved | Self::CollectionMeasure(_) => SymbolHandle::invalid(),
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod member_selection_tests {
+        use super::*;
+
+        #[test]
+        fn member_selection_keeps_its_role_through_copy_remap_and_records() {
+            let old = SymbolHandle::from_arena_index(7);
+            let new = SymbolHandle::from_arena_index(9);
+            for (selected, rebound) in [
+                (MemberSelection::Field(old), MemberSelection::Field(new)),
+                (
+                    MemberSelection::CollectionMeasure(CollectionMeasure::Length),
+                    MemberSelection::CollectionMeasure(CollectionMeasure::Length),
+                ),
+                (MemberSelection::Unresolved, MemberSelection::Unresolved),
+            ] {
+                let bytes = compiler_storage::encode(&selected, Default::default()).unwrap();
+                let decoded: MemberSelection =
+                    compiler_storage::decode(&bytes, Default::default()).unwrap();
+                assert_eq!(decoded, selected);
+                let mut source = ExpressionTable::default();
+                let receiver = source.insert(ExpressionNode::Boolean(false));
+                let member = source.insert(ExpressionNode::Member(TableMemberExpression {
+                    receiver,
+                    selection: decoded,
+                    member: Identifier::generated("len"),
+                    case_variant: None,
+                }));
+                let own_copy = source.insert_copy(member);
+                assert_eq!(source.member_node(own_copy).unwrap().selection, selected);
+                let mut target = ExpressionTable::default();
+                let copied = target.copy_from(&source, member);
+                target.remap_symbols_in(copied, &vec![(old, new)]);
+                assert_eq!(target.member_node(copied).unwrap().selection, rebound);
+            }
+        }
+
+        #[test]
+        fn a_selected_measure_does_not_depend_on_its_diagnostic_spelling() {
+            let mut table = ExpressionTable::default();
+            let receiver = table.insert(ExpressionNode::Boolean(false));
+            let member = table.insert(ExpressionNode::Member(TableMemberExpression {
+                receiver,
+                selection: MemberSelection::CollectionMeasure(CollectionMeasure::Length),
+                member: Identifier::generated("diagnostic-only"),
+                case_variant: None,
+            }));
+            assert_eq!(table.authored_length_receiver(member), Some(receiver));
+            let ExpressionNode::Member(selected) = table.expression_mut(member) else {
+                unreachable!();
+            };
+            selected.selection = MemberSelection::Field(SymbolHandle::invalid());
+            assert_eq!(table.authored_length_receiver(member), None);
+        }
+    }
+
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct MemberExpression {
         pub receiver: Expression,
-        pub member_symbol: SymbolHandle,
+        pub selection: MemberSelection,
         pub member: Identifier,
         pub case_variant: Option<Identifier>,
     }
@@ -4652,7 +4743,7 @@ pub mod expression {
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct TableMemberExpression {
         pub receiver: ExpressionHandle,
-        pub member_symbol: SymbolHandle,
+        pub selection: MemberSelection,
         pub member: Identifier,
         pub case_variant: Option<Identifier>,
     }

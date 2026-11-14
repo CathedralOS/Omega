@@ -790,7 +790,7 @@ mod tests {
         let member = |case_variant| {
             ExpressionNode::Member(TableMemberExpression {
                 receiver: ExpressionHandle::invalid(),
-                member_symbol: SymbolHandle::invalid(),
+                selection: typed_trees::expression::MemberSelection::Unresolved,
                 member: Default::default(),
                 case_variant,
             })
@@ -927,7 +927,7 @@ mod tests {
                 .expression_table
                 .insert(ExpressionNode::Member(TableMemberExpression {
                     receiver: whole,
-                    member_symbol: SymbolHandle::invalid(),
+                    selection: typed_trees::expression::MemberSelection::Unresolved,
                     member: Default::default(),
                     case_variant: None,
                 }));

@@ -403,8 +403,8 @@ pub(crate) mod call_results {
                             });
                         let field = fields.next()?;
                         if fields.next().is_some()
-                            || (member.member_symbol.is_valid()
-                                && member.member_symbol != field.symbol)
+                            || (member.selection.field_symbol().is_valid()
+                                && member.selection.field_symbol() != field.symbol)
                         {
                             return None;
                         }

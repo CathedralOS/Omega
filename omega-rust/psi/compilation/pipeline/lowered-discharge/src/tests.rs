@@ -29,6 +29,7 @@ mod boundary_calls;
 mod build_purpose;
 mod case_payloads;
 mod ceilings;
+mod collection_members;
 mod empty_records;
 mod entry_inputs;
 mod entryless;
