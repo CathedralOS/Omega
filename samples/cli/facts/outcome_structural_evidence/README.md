@@ -12,15 +12,15 @@ transport changes.
 | Place | Positive Program | Reject Twin (invalid) | Transport Mechanism |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) | — | canonical root probe passing `Gate { threshold: 5 }` to `probe` and `pick` |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | a local `Gate` copy |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | `Holder.gate` record field projection |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | an explicit machine `Gate` parameter |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `make_gate()` contracted helper call result |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both Boolean match arms construct `Gate { threshold: 5 }` and join |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `NAMED_GATE` constant definition |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `inspect` successor machine receives `Gate` parameter across transition |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `deliver()` forwarding machine passes `Gate` to consumer machine |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | target-scoped machine bodies on all four hosted platforms |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | a local `Gate` copy |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | `Holder.gate` record field projection |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | an explicit machine `Gate` parameter |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `make_gate()` contracted helper call result |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both Boolean match arms construct `Gate { threshold: 5 }` and join |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | `NAMED_GATE` constant definition |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | `inspect` successor machine receives `Gate` parameter across transition |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `deliver()` forwarding machine passes `Gate` to consumer machine |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | target-scoped machine bodies on all four hosted platforms |
 
 ## Execution
 
@@ -80,15 +80,15 @@ Selection is fact-sensitive: removing establishment invalidates the exact named 
 `Success` operation, even though the runtime comparison itself does not execute a proof.
 
 ```sh
-omega --check samples/cli/facts/outcome_structural_evidence/local/invalid/main.omg
-omega --check samples/cli/facts/outcome_structural_evidence/field/invalid/main.omg
-omega --check samples/cli/facts/outcome_structural_evidence/parameter/invalid/main.omg
-omega --check samples/cli/facts/outcome_structural_evidence/call_result/invalid/main.omg
-omega --check samples/cli/facts/outcome_structural_evidence/match_join/invalid/main.omg
-omega --check samples/cli/facts/outcome_structural_evidence/const_name/invalid/main.omg
-omega --check samples/cli/facts/outcome_structural_evidence/other_state/invalid/main.omg
-omega --check samples/cli/facts/outcome_structural_evidence/other_machine/invalid/main.omg
-omega --check samples/cli/facts/outcome_structural_evidence/target_body/invalid/main.omg
+omega --check samples/cli/facts/outcome_structural_evidence/invalid_local/main.omg
+omega --check samples/cli/facts/outcome_structural_evidence/invalid_field/main.omg
+omega --check samples/cli/facts/outcome_structural_evidence/invalid_parameter/main.omg
+omega --check samples/cli/facts/outcome_structural_evidence/invalid_call_result/main.omg
+omega --check samples/cli/facts/outcome_structural_evidence/invalid_match_join/main.omg
+omega --check samples/cli/facts/outcome_structural_evidence/invalid_const_name/main.omg
+omega --check samples/cli/facts/outcome_structural_evidence/invalid_other_state/main.omg
+omega --check samples/cli/facts/outcome_structural_evidence/invalid_other_machine/main.omg
+omega --check samples/cli/facts/outcome_structural_evidence/invalid_target_body/main.omg
 ```
 
 ## Requirements and Evidence

@@ -14,15 +14,15 @@ named implementation member, through the same record.
 
 | Place | Positive | Readonly control |
 | --- | --- | --- |
-| Local | [source](local/main.omg) | [control](local/invalid/main.omg) |
-| Field | [source](field/main.omg) | [control](field/invalid/main.omg) |
-| Parameter | [source](parameter/main.omg) | [control](parameter/invalid/main.omg) |
-| Call result | [source](call_result/main.omg) | [control](call_result/invalid/main.omg) |
-| Match join | [source](match_join/main.omg) | [control](match_join/invalid/main.omg) |
-| Const name | [source](const_name/main.omg) | [control](const_name/invalid/main.omg) |
-| Nested machine | [source](other_state/main.omg) | [control](other_state/invalid/main.omg) |
-| Other machine | [source](other_machine/main.omg) | [control](other_machine/invalid/main.omg) |
-| Selected implementation | [source](target_body/main.omg) | [control](target_body/invalid/main.omg) |
+| Local | [source](local/main.omg) | [control](invalid_local/main.omg) |
+| Field | [source](field/main.omg) | [control](invalid_field/main.omg) |
+| Parameter | [source](parameter/main.omg) | [control](invalid_parameter/main.omg) |
+| Call result | [source](call_result/main.omg) | [control](invalid_call_result/main.omg) |
+| Match join | [source](match_join/main.omg) | [control](invalid_match_join/main.omg) |
+| Const name | [source](const_name/main.omg) | [control](invalid_const_name/main.omg) |
+| Nested machine | [source](other_state/main.omg) | [control](invalid_other_state/main.omg) |
+| Other machine | [source](other_machine/main.omg) | [control](invalid_other_machine/main.omg) |
+| Selected implementation | [source](target_body/main.omg) | [control](invalid_target_body/main.omg) |
 
 Each folder's `build.omg` contains the Build transport. The constant place
 names scalar configuration and store operands; the activation itself is issued
@@ -151,7 +151,7 @@ and call-returned carriers, active and inactive case payloads, and write-only
 carriers. The composition changes the selected original Cell to 41 before
 return; host observations see that write and both neighbor canaries. Its native
 entry then changes the value to 73 and verifies both selections and untouched
-neighbors. The [shared-source twin](controls/entry_return/invalid/main.omg)
+neighbors. The [shared-source twin](controls/invalid_entry_return/main.omg)
 changes only the left input's access, so it cannot supply the required exclusive
 returned loan. Both sources are pinned in `tests/omega/{pass,fail}/facts`.
 

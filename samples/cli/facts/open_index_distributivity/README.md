@@ -27,15 +27,15 @@ and each place calls `rearrange<2, 3, 4, Canonical>` with `41` and reaches `done
 
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the value is a local binding |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the value is a field of a `[copy]` record, read as `held.raw` |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `observe` receives the value and performs the call |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the value is a call result |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | a `match` yields `41` or `58`; only the taken arm reaches `moved == 41` |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the three index operands are named constants (`FACTOR`, `LEFT`, `RIGHT`) |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine `check` receives the value and performs the call |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `relay<A, B, C, Algebra>` forwards its own binders to `rearrange`, so the specialization chain keeps the indices open one instance deeper |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Build selects `X86Observe` or `ArmObserve` per hosted target; each performs the call after checking its own tag |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the value is a local binding |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the value is a field of a `[copy]` record, read as `held.raw` |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `observe` receives the value and performs the call |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | the value is a call result |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | a `match` yields `41` or `58`; only the taken arm reaches `moved == 41` |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | the three index operands are named constants (`FACTOR`, `LEFT`, `RIGHT`) |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine `check` receives the value and performs the call |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `relay<A, B, C, Algebra>` forwards its own binders to `rearrange`, so the specialization chain keeps the indices open one instance deeper |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | Build selects `X86Observe` or `ArmObserve` per hosted target; each performs the call after checking its own tag |
 
 The row has no root `main.omg`; `local` is its canonical witness. One more production of the same layer, with the same sentence, composes the record with the other laws, and six controls bound what may license the rewrite:
 

@@ -23,15 +23,15 @@ end to end across all four hosted `ProgramEntry` contracts.
 | Place / Program | Witness (`main.omg`) | Reject twin (`invalid/main.omg`) | Distinct mechanism exercised |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) | - | Root package probe computing `SIZE = 1 + 0`, `SOURCE = [3 + 0]`, `ALIAS: [u64; 1] = SOURCE`, and observing `ALIAS[0] == 3`. |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | Computed-extent array copied into `let local_arr: [u64; SIZE] = ALIAS` before indexing `local_arr[0] == 3`. |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | Computed-extent array stored in nominal record field `Holder.items: [u64; SIZE]` and projected as `held.items[0] == 3`. |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Computed-extent array passed as `arr: &[u64; SIZE]` parameter to `check_param`. |
-| call_result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Helper machine `make() -> [u64; SIZE]` returns computed-extent array into `CALLED`. |
-| match_join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Computed-extent array unified across conditional `match` branches (`MATCHED: [u64; SIZE]`). |
-| const_name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Transitive computed constants (`BASE`, `SIZE`, `SOURCE`, `ALIAS`, `SELECTED`) establish extent and element value. |
-| other_state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | State transition passes `local_arr[0]` into successor `machine inspect(v: u64)`. |
-| other_machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Cross-machine call `Inspector::check(&local_arr)` verifies `arr[0] == 3` on `&[u64; SIZE]`. |
-| target_body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Target-scoped `select_val()` bodies across `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` index `ALIAS[0]`. |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | Computed-extent array copied into `let local_arr: [u64; SIZE] = ALIAS` before indexing `local_arr[0] == 3`. |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | Computed-extent array stored in nominal record field `Holder.items: [u64; SIZE]` and projected as `held.items[0] == 3`. |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | Computed-extent array passed as `arr: &[u64; SIZE]` parameter to `check_param`. |
+| call_result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | Helper machine `make() -> [u64; SIZE]` returns computed-extent array into `CALLED`. |
+| match_join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | Computed-extent array unified across conditional `match` branches (`MATCHED: [u64; SIZE]`). |
+| const_name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | Transitive computed constants (`BASE`, `SIZE`, `SOURCE`, `ALIAS`, `SELECTED`) establish extent and element value. |
+| other_state | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | State transition passes `local_arr[0]` into successor `machine inspect(v: u64)`. |
+| other_machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | Cross-machine call `Inspector::check(&local_arr)` verifies `arr[0] == 3` on `&[u64; SIZE]`. |
+| target_body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | Target-scoped `select_val()` bodies across `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` index `ALIAS[0]`. |
 | composition | [`composition/main.omg`](composition/main.omg) | - | Transitive extents, empty and nested arrays, record field geometry, closed array result and match join. |
 | module_owner | [`module_owner/main.omg`](module_owner/main.omg) | - | Selects imported producer's extent despite a consumer shadow `const SIZE: u64 = 2 + 0`. |
 | qualified_element | [`qualified_element/main.omg`](qualified_element/main.omg) | [`controls/qualified_element/main.omg`](controls/qualified_element/main.omg) | Qualified literal element behind pending array geometry. |

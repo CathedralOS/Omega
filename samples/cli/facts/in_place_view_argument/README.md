@@ -15,15 +15,15 @@ Rules: [structural access](../../../../wiki/spec/terminal-psi/structural_access.
 
 | Place | Positive | Reject twin (3-byte backing) |
 | --- | --- | --- |
-| Local | [source](local/main.omg) | [twin](local/invalid/main.omg) |
-| Field | [source](field/main.omg) | [twin](field/invalid/main.omg) |
-| Parameter | [source](parameter/main.omg) | [twin](parameter/invalid/main.omg) |
-| Call result | [source](call_result/main.omg) | [twin](call_result/invalid/main.omg) |
-| Match join | [source](match_join/main.omg) | [twin](match_join/invalid/main.omg) |
-| Const name | [source](const_name/main.omg) | [twin](const_name/invalid/main.omg) |
-| Nested machine | [source](other_state/main.omg) | [twin](other_state/invalid/main.omg) |
-| Other machine | [source](other_machine/main.omg) | [twin](other_machine/invalid/main.omg) |
-| Selected implementation | [source](target_body/main.omg) | [twin](target_body/invalid/main.omg) |
+| Local | [source](local/main.omg) | [twin](invalid_local/main.omg) |
+| Field | [source](field/main.omg) | [twin](invalid_field/main.omg) |
+| Parameter | [source](parameter/main.omg) | [twin](invalid_parameter/main.omg) |
+| Call result | [source](call_result/main.omg) | [twin](invalid_call_result/main.omg) |
+| Match join | [source](match_join/main.omg) | [twin](invalid_match_join/main.omg) |
+| Const name | [source](const_name/main.omg) | [twin](invalid_const_name/main.omg) |
+| Nested machine | [source](other_state/main.omg) | [twin](invalid_other_state/main.omg) |
+| Other machine | [source](other_machine/main.omg) | [twin](invalid_other_machine/main.omg) |
+| Selected implementation | [source](target_body/main.omg) | [twin](invalid_target_body/main.omg) |
 
 Every place passes `Input { tag, bytes: &packet, tail }` straight into the call.
 The backing array is a local, a field of the caller's borrowed record (between

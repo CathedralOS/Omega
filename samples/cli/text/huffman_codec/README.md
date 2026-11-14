@@ -18,7 +18,7 @@ Encodes the fixed 16-byte input `"ABRACADABRAABAAA"` over the 5-symbol alphabet
 6. Self-verifies frequencies, code lengths, total bit count, packed bytes, and the
    16-byte decoded round-trip against hand-computed constants, then prints `PASS`.
 
-`invalid/` is the companion intended-invalid control: attempting to look up and
+`../invalid_huffman_codec/` is the companion intended-invalid control: attempting to look up and
 emit `'Z'` (`90`), a symbol absent from `u8::HuffmanSymbol`, is rejected by
 `omega --check` with `cannot prove requires contract for call lookup_symbol from Main::main: 90 in u8::HuffmanSymbol`.
 

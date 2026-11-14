@@ -25,15 +25,15 @@ never a runtime trap.
 
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the premise is projected from a local `Mark` and the caller reads the call's recorded result |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the projection is `holder.mark.kept` through a record field |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `observe(mark)` requires `mark.kept` and returns `project(mark)`; the caller reads `direct` |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `produced()` ensures `result.kept`; the premise projects from the call result |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms of a match yield the same `Mark`; the projection survives the join |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the projected value is the named constant `NAMED` |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine `check(mark)` performs the call and reads the record |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine `relay` supplies the projection to `observe`, which forms it |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of the four target bodies performs the call and reads the record |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the premise is projected from a local `Mark` and the caller reads the call's recorded result |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the projection is `holder.mark.kept` through a record field |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `observe(mark)` requires `mark.kept` and returns `project(mark)`; the caller reads `direct` |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `produced()` ensures `result.kept`; the premise projects from the call result |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both arms of a match yield the same `Mark`; the projection survives the join |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | the projected value is the named constant `NAMED` |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine `check(mark)` performs the call and reads the record |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | a forwarding machine `relay` supplies the projection to `observe`, which forms it |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each of the four target bodies performs the call and reads the record |
 
 ## Execution
 
@@ -75,15 +75,15 @@ own transport). Proof checking fails closed during compile-time verification:
 
 | Place | Twin | Pinned Diagnostic Fragment |
 | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | `cannot prove requires contract for call project` / `mark.kept` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | `cannot prove requires contract for call project` / `mark.kept` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `structurally false` / `mark.kept` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `cannot prove ensures contract for exit from produced` / `result.kept` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `cannot prove requires contract for call project` / `mark.kept` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `structurally false` / `mark.kept` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove requires contract for call project` / `mark.kept` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `cannot prove requires contract for call relay` / `mark.kept` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `cannot prove requires contract for call project` / `mark.kept` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | `cannot prove requires contract for call project` / `mark.kept` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | `cannot prove requires contract for call project` / `mark.kept` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `structurally false` / `mark.kept` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `cannot prove ensures contract for exit from produced` / `result.kept` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | `cannot prove requires contract for call project` / `mark.kept` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | `structurally false` / `mark.kept` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | `cannot prove requires contract for call project` / `mark.kept` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `cannot prove requires contract for call relay` / `mark.kept` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `cannot prove requires contract for call project` / `mark.kept` |
 
 ## Pinned Fixtures
 

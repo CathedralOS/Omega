@@ -33,15 +33,15 @@ branch inside the consumer is only the runtime oracle, after arrival is proved.
 | --- | --- | --- | --- |
 | ordinary provider rung | [program](ordinary_provider/main.omg) | [wrong edge](ordinary_provider/invalid/main.omg) | frozen ordinary implementation migration |
 | root | [program](main.omg) | [wrong edge](invalid/main.omg) | canonical countdown |
-| local | [program](local/main.omg) | [wrong edge](local/invalid/main.omg) | local result |
-| field | [program](field/main.omg) | [wrong edge](field/invalid/main.omg) | record field |
-| parameter | [program](parameter/main.omg) | [wrong edge](parameter/invalid/main.omg) | parameter requiring 0 |
-| call result | [program](call_result/main.omg) | [wrong edge](call_result/invalid/main.omg) | published result contract |
-| match join | [program](match_join/main.omg) | [wrong edge](match_join/invalid/main.omg) | both arms execute |
-| const name | [program](const_name/main.omg) | [wrong edge](const_name/invalid/main.omg) | named seed 2 |
-| nested machine | [program](other_state/main.omg) | [wrong edge](other_state/invalid/main.omg) | explicit result argument |
-| another machine | [program](other_machine/main.omg) | [wrong edge](other_machine/invalid/main.omg) | explicit forwarding call |
-| another target body | [program](target_body/main.omg) | [wrong edge](target_body/invalid/main.omg) | selected forwarding body |
+| local | [program](local/main.omg) | [wrong edge](invalid_local/main.omg) | local result |
+| field | [program](field/main.omg) | [wrong edge](invalid_field/main.omg) | record field |
+| parameter | [program](parameter/main.omg) | [wrong edge](invalid_parameter/main.omg) | parameter requiring 0 |
+| call result | [program](call_result/main.omg) | [wrong edge](invalid_call_result/main.omg) | published result contract |
+| match join | [program](match_join/main.omg) | [wrong edge](invalid_match_join/main.omg) | both arms execute |
+| const name | [program](const_name/main.omg) | [wrong edge](invalid_const_name/main.omg) | named seed 2 |
+| nested machine | [program](other_state/main.omg) | [wrong edge](invalid_other_state/main.omg) | explicit result argument |
+| another machine | [program](other_machine/main.omg) | [wrong edge](invalid_other_machine/main.omg) | explicit forwarding call |
+| another target body | [program](target_body/main.omg) | [wrong edge](invalid_target_body/main.omg) | selected forwarding body |
 
 Each twin changes only the fallthrough label's own requirement from counter 0
 to counter 1, in both ordinary ISA implementations. The instruction sequence, bound, consuming

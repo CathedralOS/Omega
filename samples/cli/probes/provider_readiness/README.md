@@ -19,15 +19,15 @@ root. Both retain the same result and four hosted entry bindings.
 
 The intended-invalid projects retain exact refusal oracles:
 
-- `invalid_missing/` and `invalid_private/`: no public implementation at the
+- `../invalid_provider_readiness_missing/` and `../invalid_provider_readiness_private/`: no public implementation at the
   designated path in the acquired dependency.
-- `invalid_wrong_requirement/`: the selected implementation satisfies a
+- `../invalid_provider_readiness_wrong_requirement/`: the selected implementation satisfies a
   different exact boundary requirement.
-- `invalid_unadmitted/`: the implementation calls an unbound external slot;
+- `../invalid_provider_readiness_unadmitted/`: the implementation calls an unbound external slot;
   installation cannot manufacture a host provision.
-- `invalid_cycle/`: nested readiness returns to an already paused source.
-- `invalid_replacement/`: another backing cannot replace an installed static role.
-- `invalid_product_dependency/`: a Product dependency cannot supply a Build slot.
+- `../invalid_provider_readiness_cycle/`: nested readiness returns to an already paused source.
+- `../invalid_provider_readiness_replacement/`: another backing cannot replace an installed static role.
+- `../invalid_provider_readiness_product_dependency/`: a Product dependency cannot supply a Build slot.
 
 Run these projects through the ordinary CLI and existing sample gate:
 

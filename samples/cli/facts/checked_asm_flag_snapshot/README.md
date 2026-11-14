@@ -23,15 +23,15 @@ their `<place>/invalid/` reject twins accompany the mechanism variations below.
 | Witness | Obligation or runtime distinction |
 | --- | --- |
 | [Root](main.omg) | Subtraction establishes the snapshot bit used by a label requirement. |
-| [Local](local/main.omg) / [invalid](local/invalid/main.omg) | A local copy of the snapshot retains bit 64 into a subsequent label requirement; flipping bit 64 rejects. |
-| [Field](field/main.omg) / [invalid](field/invalid/main.omg) | A completed store establishes the bit on the exact mutable record field consumed by the label. |
-| [Parameter](parameter/main.omg) / [invalid](parameter/invalid/main.omg) | A completed snapshot supplies a callee precondition and its label requirement. |
-| [Call result](call_result/main.omg) / [invalid](call_result/invalid/main.omg) | A helper call returning the snapshot with `ensures (result & 64u64) == 64u64` carries that guarantee into the caller's label requirement. |
-| [Match join](match_join/main.omg) / [invalid](match_join/invalid/main.omg) | Exhaustive match arms producing distinct `pushfq` snapshots that both establish bit 64 discharge the post-join label requirement; breaking one arm rejects. |
-| [Const name](const_name/main.omg) / [invalid](const_name/invalid/main.omg) | Named `const` mask `ZF_MASK = 64u64` preserves the snapshot bit obligation; wrong mask rejects. |
-| [Nested machine](other_state/main.omg) / [invalid](other_state/invalid/main.omg) | State transition carries the snapshot obligation into a nested machine's label requirement. |
-| [Other machine](other_machine/main.omg) / [invalid](other_machine/invalid/main.omg) | Cross-machine forwarding preserves the snapshot precondition and label requirement. |
-| [Target body](target_body/main.omg) / [invalid](target_body/invalid/main.omg) | Target-qualified `target (windows_x86_64)` / `target (linux_x86_64)` helper bodies preserve the snapshot guarantee across host x86-64 targets. |
+| [Local](local/main.omg) / [invalid](invalid_local/main.omg) | A local copy of the snapshot retains bit 64 into a subsequent label requirement; flipping bit 64 rejects. |
+| [Field](field/main.omg) / [invalid](invalid_field/main.omg) | A completed store establishes the bit on the exact mutable record field consumed by the label. |
+| [Parameter](parameter/main.omg) / [invalid](invalid_parameter/main.omg) | A completed snapshot supplies a callee precondition and its label requirement. |
+| [Call result](call_result/main.omg) / [invalid](invalid_call_result/main.omg) | A helper call returning the snapshot with `ensures (result & 64u64) == 64u64` carries that guarantee into the caller's label requirement. |
+| [Match join](match_join/main.omg) / [invalid](invalid_match_join/main.omg) | Exhaustive match arms producing distinct `pushfq` snapshots that both establish bit 64 discharge the post-join label requirement; breaking one arm rejects. |
+| [Const name](const_name/main.omg) / [invalid](invalid_const_name/main.omg) | Named `const` mask `ZF_MASK = 64u64` preserves the snapshot bit obligation; wrong mask rejects. |
+| [Nested machine](other_state/main.omg) / [invalid](invalid_other_state/main.omg) | State transition carries the snapshot obligation into a nested machine's label requirement. |
+| [Other machine](other_machine/main.omg) / [invalid](invalid_other_machine/main.omg) | Cross-machine forwarding preserves the snapshot precondition and label requirement. |
+| [Target body](target_body/main.omg) / [invalid](invalid_target_body/main.omg) | Target-qualified `target (windows_x86_64)` / `target (linux_x86_64)` helper bodies preserve the snapshot guarantee across host x86-64 targets. |
 | [Retained snapshots](retained/main.omg) | An earlier snapshot retains ZF after a later subtraction establishes a different flag version. |
 | [Aliased operands](alias/main.omg) | `sub eax, eax` captures both operands before writing; the six-flag image is 68 under mask 2261. |
 | [Dynamic operand](dynamic_input/main.omg) | An opaque observed carry supplies a runtime operand; subtraction checks the complete flag mask against the independent 0-minus-1 or 1-minus-1 hardware result. |
@@ -48,8 +48,8 @@ host-runnable on ARM machines.
 
 Each positive is pinned under `tests/omega/pass/facts/checked_asm_flag_snapshot*`.
 The [root invalid twin](invalid/main.omg) changes only the required bit from
-64 to 0. The [parameter twin](parameter/invalid/main.omg) changes only the
-actual's bit; the [field twin](field/invalid/main.omg) changes only its label
+64 to 0. The [parameter twin](invalid_parameter/main.omg) changes only the
+actual's bit; the [field twin](invalid_field/main.omg) changes only its label
 requirement. Separate fail fixtures preserve rejection after a direct field
 overwrite, a scalar-leaf alias write and a whole-record reborrow write. An
 opaque environmental snapshot without arithmetic production cannot establish

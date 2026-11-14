@@ -9,15 +9,15 @@ The complete `Interval` default domain admits Empty or Point with `lo == hi`. Co
 | Place | Positive | Fact-only twin | Transport |
 | --- | --- | --- | --- |
 | root | [main.omg](main.omg) | [invalid/main.omg](invalid/main.omg) | original non-Copy Interval |
-| local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | copied local observation |
-| field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | borrowed aggregate field |
-| parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | original owned Interval parameter |
-| call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | ordinary identity result |
-| match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | both original fields and actual true/false routes |
-| const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | exact static header value |
-| nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | original nested-machine arrival |
-| other machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | original ordinary invocation |
-| target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | public requirement and explicit Build selection |
+| local | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | copied local observation |
+| field | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | borrowed aggregate field |
+| parameter | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | original owned Interval parameter |
+| call result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | ordinary identity result |
+| match join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | both original fields and actual true/false routes |
+| const name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | exact static header value |
+| nested machine | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | original nested-machine arrival |
+| other machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | original ordinary invocation |
+| target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | public requirement and explicit Build selection |
 
 Each new twin is byte-identical to its positive except removal of ` && (self.lo == self.hi)`. It keeps every setup assignment, payload, entry, wrapper, helper and runtime observation. The independently checked subtraction must refuse because the declared domain no longer carries the equality. The old twins also omitted setup and runtime code; their historical rejection is not the new fact-only enforcement evidence.
 

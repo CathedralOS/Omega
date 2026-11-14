@@ -15,15 +15,15 @@ The root retains the original once-only effectful producer reproduction. The nin
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
 | Root | [`main.omg`](main.omg) | — | Direct effectful producer `make_token(&mut count)` ensuring `result.ready == true` |
-| Local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | A local `Seed { ready: true }` variable passes into `make_token(&seed)` |
-| Field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | A struct field `holder.seed` carries the ready seed into `make_token(&holder.seed)` |
-| Parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | A machine parameter `seed` under `requires seed.ready` passes into `make_token(&seed)` |
-| Call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | A helper call `produced() -> Seed` ensuring `result.ready` yields the seed |
-| Match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Both match arms of `choose(flag)` return a seed ensuring `result.ready` |
-| Const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | A named constant `NAMED: Seed = Seed { ready: true }` passes into `make_token(&seed)` |
-| A nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | A successor machine `onward(seed: Seed)` receives the ready seed under `requires seed.ready` |
-| Another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | A forwarding machine `forward() -> Seed` returns the ready seed across machine boundaries |
-| Another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Target-scoped machine bodies across four hosted targets pass the ready seed |
+| Local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | A local `Seed { ready: true }` variable passes into `make_token(&seed)` |
+| Field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | A struct field `holder.seed` carries the ready seed into `make_token(&holder.seed)` |
+| Parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | A machine parameter `seed` under `requires seed.ready` passes into `make_token(&seed)` |
+| Call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | A helper call `produced() -> Seed` ensuring `result.ready` yields the seed |
+| Match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | Both match arms of `choose(flag)` return a seed ensuring `result.ready` |
+| Const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | A named constant `NAMED: Seed = Seed { ready: true }` passes into `make_token(&seed)` |
+| A nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | A successor machine `onward(seed: Seed)` receives the ready seed under `requires seed.ready` |
+| Another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | A forwarding machine `forward() -> Seed` returns the ready seed across machine boundaries |
+| Another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | Target-scoped machine bodies across four hosted targets pass the ready seed |
 
 ### Verification commands
 

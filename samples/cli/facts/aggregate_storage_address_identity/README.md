@@ -18,15 +18,15 @@ its constant value; the constant itself is never given storage by this query.
 
 | Place | Positive | Invalid twin |
 | --- | --- | --- |
-| local | `local/main.omg` | `local/invalid/main.omg` |
-| field | `field/main.omg` | `field/invalid/main.omg` |
-| parameter | `parameter/main.omg` | `parameter/invalid/main.omg` |
-| call result | `call_result/main.omg` | `call_result/invalid/main.omg` |
-| match join | `match_join/main.omg` | `match_join/invalid/main.omg` |
-| const name | `const_name/main.omg` | `const_name/invalid/main.omg` |
-| a nested machine | `other_state/main.omg` | `other_state/invalid/main.omg` |
-| another machine | `other_machine/main.omg` | `other_machine/invalid/main.omg` |
-| another target body | `target_body/main.omg` | `target_body/invalid/main.omg` |
+| local | `local/main.omg` | `invalid_local/main.omg` |
+| field | `field/main.omg` | `invalid_field/main.omg` |
+| parameter | `parameter/main.omg` | `invalid_parameter/main.omg` |
+| call result | `call_result/main.omg` | `invalid_call_result/main.omg` |
+| match join | `match_join/main.omg` | `invalid_match_join/main.omg` |
+| const name | `const_name/main.omg` | `invalid_const_name/main.omg` |
+| a nested machine | `other_state/main.omg` | `invalid_other_state/main.omg` |
+| another machine | `other_machine/main.omg` | `invalid_other_machine/main.omg` |
+| another target body | `target_body/main.omg` | `invalid_target_body/main.omg` |
 
 Both match arms execute. Each invalid twin changes only the query operand from
 a storage reference to the Pair value. It must reject with `storage address_of
@@ -41,7 +41,7 @@ Reproduce one positive and its control:
 
 ```sh
 omega run --both samples/cli/facts/aggregate_storage_address_identity/local/main.omg
-omega --check samples/cli/facts/aggregate_storage_address_identity/local/invalid/main.omg
+omega --check samples/cli/facts/aggregate_storage_address_identity/invalid_local/main.omg
 ```
 
 ## Requirements and evidence

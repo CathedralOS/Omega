@@ -12,15 +12,15 @@ The bit pattern is the one pinned by `tests/omega/pass/recast/i32_float_bits_vie
 
 | Place | Positive witness | Omit-proof twin | Zero-bit twin |
 | --- | --- | --- | --- |
-| Local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | [local/zero_bits/main.omg](local/zero_bits/main.omg) |
-| Field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | [field/zero_bits/main.omg](field/zero_bits/main.omg) |
-| Parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | [parameter/zero_bits/main.omg](parameter/zero_bits/main.omg) |
-| Call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | [call_result/zero_bits/main.omg](call_result/zero_bits/main.omg) |
-| Match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | [match_join/zero_bits/main.omg](match_join/zero_bits/main.omg) |
-| Const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | [const_name/zero_bits/main.omg](const_name/zero_bits/main.omg) |
-| Nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | [other_state/zero_bits/main.omg](other_state/zero_bits/main.omg) |
-| Other machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | [other_machine/zero_bits/main.omg](other_machine/zero_bits/main.omg) |
-| Target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | [target_body/zero_bits/main.omg](target_body/zero_bits/main.omg) |
+| Local | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | [local/zero_bits/main.omg](local/zero_bits/main.omg) |
+| Field | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | [field/zero_bits/main.omg](field/zero_bits/main.omg) |
+| Parameter | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | [parameter/zero_bits/main.omg](parameter/zero_bits/main.omg) |
+| Call result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | [call_result/zero_bits/main.omg](call_result/zero_bits/main.omg) |
+| Match join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | [match_join/zero_bits/main.omg](match_join/zero_bits/main.omg) |
+| Const name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | [const_name/zero_bits/main.omg](const_name/zero_bits/main.omg) |
+| Nested machine | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | [other_state/zero_bits/main.omg](other_state/zero_bits/main.omg) |
+| Other machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | [other_machine/zero_bits/main.omg](other_machine/zero_bits/main.omg) |
+| Target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | [target_body/zero_bits/main.omg](target_body/zero_bits/main.omg) |
 
 The call-result place returns the viewed `f32` from a machine whose body is that parameter. It does not use `ensures result == value`, because IEEE equality is not reflexive at NaN.
 

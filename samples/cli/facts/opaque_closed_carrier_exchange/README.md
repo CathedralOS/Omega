@@ -84,15 +84,15 @@ which exits 71 on a mismatch.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| Local | [local](local/main.omg) | [cleanup](local/invalid/main.omg) |
-| Field | [field](field/main.omg) | [cleanup](field/invalid/main.omg) |
-| Parameter | [parameter](parameter/main.omg) | [cleanup](parameter/invalid/main.omg) |
-| Call result | [call result](call_result/main.omg) | [cleanup](call_result/invalid/main.omg) |
-| Match join | [both incoming arms](match_join/main.omg) | [cleanup](match_join/invalid/main.omg) |
-| Const name | [named construction inputs](const_name/main.omg) | [cleanup](const_name/invalid/main.omg) |
-| A nested machine | [owned arrivals](other_state/main.omg) | [cleanup](other_state/invalid/main.omg) |
-| Another machine | [owned forwarding](other_machine/main.omg) | [cleanup](other_machine/invalid/main.omg) |
-| Target body | [four checked bodies](target_body/main.omg) | [cleanup](target_body/invalid/main.omg) |
+| Local | [local](local/main.omg) | [cleanup](invalid_local/main.omg) |
+| Field | [field](field/main.omg) | [cleanup](invalid_field/main.omg) |
+| Parameter | [parameter](parameter/main.omg) | [cleanup](invalid_parameter/main.omg) |
+| Call result | [call result](call_result/main.omg) | [cleanup](invalid_call_result/main.omg) |
+| Match join | [both incoming arms](match_join/main.omg) | [cleanup](invalid_match_join/main.omg) |
+| Const name | [named construction inputs](const_name/main.omg) | [cleanup](invalid_const_name/main.omg) |
+| A nested machine | [owned arrivals](other_state/main.omg) | [cleanup](invalid_other_state/main.omg) |
+| Another machine | [owned forwarding](other_machine/main.omg) | [cleanup](invalid_other_machine/main.omg) |
+| Target body | [four checked bodies](target_body/main.omg) | [cleanup](invalid_target_body/main.omg) |
 
 The const-name witness names the two construction inputs. [Constants](../../../../wiki/spec/language/constants.md)
 require recursively copyable pure values; [semantic evaluation](../../../../wiki/spec/language/evaluation.md#invocation-admission)
@@ -150,7 +150,7 @@ are established as follows:
 ```sh
 omega run --both samples/cli/facts/opaque_closed_carrier_exchange/main.omg
 omega run --both samples/cli/facts/opaque_closed_carrier_exchange/local/main.omg
-omega --check samples/cli/facts/opaque_closed_carrier_exchange/local/invalid/main.omg
+omega --check samples/cli/facts/opaque_closed_carrier_exchange/invalid_local/main.omg
 ```
 
 At base `591336bdc9e0b38268cbfa63b17aabb92a5d2389`, the frozen original root
@@ -186,7 +186,7 @@ content):
 
 ```sh
 omega run --both samples/cli/facts/opaque_closed_carrier_exchange/local/main.omg
-omega --check samples/cli/facts/opaque_closed_carrier_exchange/local/invalid/main.omg
+omega --check samples/cli/facts/opaque_closed_carrier_exchange/invalid_local/main.omg
 python3 tools/corpus_gate.py --native --record --filter pass/facts/opaque_closed_carrier_through,pass/facts/opaque_independent_closed_carrier_through
 python3 tools/corpus_gate.py --both --record --filter pass/facts/opaque_closed_carrier_through,pass/facts/opaque_independent_closed_carrier_through
 ```
@@ -238,18 +238,18 @@ contract or turning a description into execution authority.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| Local | [local](independent/local/main.omg) | [cleanup](independent/local/invalid/main.omg) |
-| Field | [field](independent/field/main.omg) | [cleanup](independent/field/invalid/main.omg) |
-| Parameter | [parameter](independent/parameter/main.omg) | [cleanup](independent/parameter/invalid/main.omg) |
-| Call result | [call result](independent/call_result/main.omg) | [cleanup](independent/call_result/invalid/main.omg) |
-| Match join | [both incoming arms](independent/match_join/main.omg) | [cleanup](independent/match_join/invalid/main.omg) |
-| Const name | [named construction inputs](independent/const_name/main.omg) | [cleanup](independent/const_name/invalid/main.omg) |
-| A nested machine | [owned arrivals](independent/other_state/main.omg) | [cleanup](independent/other_state/invalid/main.omg) |
-| Another machine | [owned forwarding](independent/other_machine/main.omg) | [cleanup](independent/other_machine/invalid/main.omg) |
-| Target body | [four checked bodies](independent/target_body/main.omg) | [cleanup](independent/target_body/invalid/main.omg) |
+| Local | [local](independent/local/main.omg) | [cleanup](independent/invalid_local/main.omg) |
+| Field | [field](independent/field/main.omg) | [cleanup](independent/invalid_field/main.omg) |
+| Parameter | [parameter](independent/parameter/main.omg) | [cleanup](independent/invalid_parameter/main.omg) |
+| Call result | [call result](independent/call_result/main.omg) | [cleanup](independent/invalid_call_result/main.omg) |
+| Match join | [both incoming arms](independent/match_join/main.omg) | [cleanup](independent/invalid_match_join/main.omg) |
+| Const name | [named construction inputs](independent/const_name/main.omg) | [cleanup](independent/invalid_const_name/main.omg) |
+| A nested machine | [owned arrivals](independent/other_state/main.omg) | [cleanup](independent/invalid_other_state/main.omg) |
+| Another machine | [owned forwarding](independent/other_machine/main.omg) | [cleanup](independent/invalid_other_machine/main.omg) |
+| Target body | [four checked bodies](independent/target_body/main.omg) | [cleanup](independent/invalid_target_body/main.omg) |
 
 Each twin changes only the producing carrier's nominal cleanup obligation in
-[the invalid producing package](independent/producer_invalid/main.omg). Its
+[the ../invalid_opaque_closed_carrier_exchange producing package](independent/producer_invalid/main.omg). Its
 consumer source is identical to the positive. The four hosted entries remain
 in every positive build. Execution observations for this exchange cover all four hosted targets,
 including Linux ARM64 in run `40220498665`. On windows_x86_64 the producer

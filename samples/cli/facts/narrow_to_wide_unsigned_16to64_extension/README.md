@@ -40,15 +40,15 @@ The nine positive places and nine reject twins are pinned in the compiler corpus
 | Place | Project | Transport | Positive Witness | Reject Twin |
 | --- | --- | --- | --- | --- |
 | root | `.` | canonical root witness zero-extending bounded u16 local into u64 and discharging exact 64-bit subtractions | [`main.omg`](main.omg) | - |
-| local | `local/` | the bounded u16 is zero-extended to a u64 local variable before discharging subtraction | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) |
-| field | `field/` | the bounded u16 is wrapped in a NarrowCarrier record field before extraction and extension to u64 | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) |
-| parameter | `parameter/` | a helper machine receives the zero-extended u64 scalar as an explicit parameter under contract | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) |
-| call result | `call_result/` | a producer machine returns the zero-extended u64 scalar under postcondition ensures result >= 300u64 && result <= 500u64 | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) |
-| match join | `match_join/` | both branches of a boolean match expression yield the zero-extended u64 scalar before subtraction | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) |
-| const name | `const_name/` | named constants BASE_NARROW and UPPER_NARROW define bounded u16 operands before zero-extension | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) |
-| a nested machine | `other_state/` | an terminal machine transfer transfers the zero-extended u64 scalar to a successor machine with entry contract | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
-| another machine | `other_machine/` | an associated Relay machine zero-extends and forwards the u64 scalar to the caller under postcondition | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) |
-| another target body | `target_body/` | each of the four hosted target bodies zero-extends the u16 scalar and discharges subtraction | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) |
+| local | `local/` | the bounded u16 is zero-extended to a u64 local variable before discharging subtraction | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) |
+| field | `field/` | the bounded u16 is wrapped in a NarrowCarrier record field before extraction and extension to u64 | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) |
+| parameter | `parameter/` | a helper machine receives the zero-extended u64 scalar as an explicit parameter under contract | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) |
+| call result | `call_result/` | a producer machine returns the zero-extended u64 scalar under postcondition ensures result >= 300u64 && result <= 500u64 | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) |
+| match join | `match_join/` | both branches of a boolean match expression yield the zero-extended u64 scalar before subtraction | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) |
+| const name | `const_name/` | named constants BASE_NARROW and UPPER_NARROW define bounded u16 operands before zero-extension | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) |
+| a nested machine | `other_state/` | an terminal machine transfer transfers the zero-extended u64 scalar to a successor machine with entry contract | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) |
+| another machine | `other_machine/` | an associated Relay machine zero-extends and forwards the u64 scalar to the caller under postcondition | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) |
+| another target body | `target_body/` | each of the four hosted target bodies zero-extends the u16 scalar and discharges subtraction | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) |
 
 ## Execution
 
@@ -78,28 +78,28 @@ The recorded 0 exit is discriminating:
 Check each twin with:
 
 ```sh
-omega --check samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/local/invalid/main.omg
-omega --check samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/field/invalid/main.omg
-omega --check samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/parameter/invalid/main.omg
-omega --check samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/call_result/invalid/main.omg
-omega --check samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/match_join/invalid/main.omg
-omega --check samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/const_name/invalid/main.omg
-omega --check samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/other_state/invalid/main.omg
-omega --check samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/other_machine/invalid/main.omg
-omega --check samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/target_body/invalid/main.omg
+omega --check samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/invalid_local/main.omg
+omega --check samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/invalid_field/main.omg
+omega --check samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/invalid_parameter/main.omg
+omega --check samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/invalid_call_result/main.omg
+omega --check samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/invalid_match_join/main.omg
+omega --check samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/invalid_const_name/main.omg
+omega --check samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/invalid_other_state/main.omg
+omega --check samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/invalid_other_machine/main.omg
+omega --check samples/cli/facts/narrow_to_wide_unsigned_16to64_extension/invalid_target_body/main.omg
 ```
 
 | Place | Reject Twin | Obligation Class | Authored Diagnostic Fragment |
 | --- | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | Exact arithmetic overflow/underflow | ``may overflow `u64` `` |
 
 Every reject twin fails closed with:
 `error: exact arithmetic in machine ... may overflow `u64``

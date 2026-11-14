@@ -10,15 +10,15 @@ Claim Ticket: `b5becca237e84675af8d8e357421e5a9`
 | Place | Positive Program | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | root (`main.omg`) | [`main.omg`](main.omg) with [`build.omg`](build.omg) | — | Canonical root witness forwarding a bounded `f32` reading into `verify_f32_window` |
-| `local` | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | The bounded `f32` reading is stored in a local variable before passing to `verify_f32_window` |
-| `field` | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | A record field (`Holder.reading.value`) carries the bounded `f32` reading into window verification |
-| `parameter` | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | The bounded `f32` reading is passed as an explicit machine parameter with a `requires` contract |
-| `call_result` | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | A machine call (`source(reading)`) returns the bounded `f32` reading via an `ensures` contract |
-| `match_join` | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Both match arms (`1.75f32` and `2.25f32`) join their bounded `f32` interval into window verification |
-| `const_name` | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Named `f32` constants (`LOWER`, `UPPER`) define the interval bounds proving the downstream contract |
-| `other_state` | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | A successor machine (`state deliver`) receives the bounded `f32` reading and verifies the downstream window |
-| `other_machine` | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | A forwarding machine (`deliver`) forwards the bounded `f32` reading to `verify_f32_window` |
-| `target_body` | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Each of four target-scoped machine bodies forwards the bounded `f32` reading to `verify_f32_window` |
+| `local` | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | The bounded `f32` reading is stored in a local variable before passing to `verify_f32_window` |
+| `field` | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | A record field (`Holder.reading.value`) carries the bounded `f32` reading into window verification |
+| `parameter` | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | The bounded `f32` reading is passed as an explicit machine parameter with a `requires` contract |
+| `call_result` | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | A machine call (`source(reading)`) returns the bounded `f32` reading via an `ensures` contract |
+| `match_join` | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | Both match arms (`1.75f32` and `2.25f32`) join their bounded `f32` interval into window verification |
+| `const_name` | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | Named `f32` constants (`LOWER`, `UPPER`) define the interval bounds proving the downstream contract |
+| `other_state` | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | A successor machine (`state deliver`) receives the bounded `f32` reading and verifies the downstream window |
+| `other_machine` | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | A forwarding machine (`deliver`) forwards the bounded `f32` reading to `verify_f32_window` |
+| `target_body` | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | Each of four target-scoped machine bodies forwards the bounded `f32` reading to `verify_f32_window` |
 
 ## Pinned Fixtures
 

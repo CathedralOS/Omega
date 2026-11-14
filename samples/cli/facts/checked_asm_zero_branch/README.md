@@ -11,15 +11,15 @@ store can satisfy the exit-0 oracle. No caller guard establishes the label fact.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [source](local/main.omg) | [false zero-edge fact](local/invalid/main.omg) |
-| field | [source](field/main.omg) | [false zero-edge fact](field/invalid/main.omg) |
-| parameter | [source](parameter/main.omg) | [false zero-edge fact](parameter/invalid/main.omg) |
-| call result | [source](call_result/main.omg) | [false zero-edge fact](call_result/invalid/main.omg) |
-| match join | [source](match_join/main.omg) | [false zero-edge fact](match_join/invalid/main.omg) |
-| const name | [source](const_name/main.omg) | [false zero-edge fact](const_name/invalid/main.omg) |
-| a nested machine | [source](other_state/main.omg) | [false zero-edge fact](other_state/invalid/main.omg) |
-| another machine | [source](other_machine/main.omg) | [false zero-edge fact](other_machine/invalid/main.omg) |
-| another target body | [source](target_body/main.omg) | [false zero-edge fact](target_body/invalid/main.omg) |
+| local | [source](local/main.omg) | [false zero-edge fact](invalid_local/main.omg) |
+| field | [source](field/main.omg) | [false zero-edge fact](invalid_field/main.omg) |
+| parameter | [source](parameter/main.omg) | [false zero-edge fact](invalid_parameter/main.omg) |
+| call result | [source](call_result/main.omg) | [false zero-edge fact](invalid_call_result/main.omg) |
+| match join | [source](match_join/main.omg) | [false zero-edge fact](invalid_match_join/main.omg) |
+| const name | [source](const_name/main.omg) | [false zero-edge fact](invalid_const_name/main.omg) |
+| a nested machine | [source](other_state/main.omg) | [false zero-edge fact](invalid_other_state/main.omg) |
+| another machine | [source](other_machine/main.omg) | [false zero-edge fact](invalid_other_machine/main.omg) |
+| another target body | [source](target_body/main.omg) | [false zero-edge fact](invalid_target_body/main.omg) |
 
 Each twin changes only `done requires eax == 0` to `eax == 1`.
 Additional controls pin [false fallthrough/backedge facts](controls/false_backedge/main.omg),

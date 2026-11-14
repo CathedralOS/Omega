@@ -41,7 +41,7 @@ directly. Every place transports the completed Result before that consumption;
 forwarding promises preserve the incoming Result without requiring an equality
 guard against the expected Pair.
 
-The [reject twin](local/invalid/main.omg) changes only the decoder's final load
+The [reject twin](invalid_local/main.omg) changes only the decoder's final load
 from slot 2 to slot 1. For input 17/42, this would return 17/17. Capacity, success
 paths and storage handling remain fixed. Each twin must reject that field law,
 without unrelated formation or ownership failures. All nine positives and twins
@@ -131,15 +131,15 @@ separate controls above, broader library support and other-host execution:
 
 | Place | Completed-result transport | Reject twin |
 | --- | --- | --- |
-| [Local](local/main.omg) | Local completed result | [Wrong last-byte load](local/invalid/main.omg) |
-| [Field](field/main.omg) | Result field between checked neighbors | [Wrong last-byte load](field/invalid/main.omg) |
-| [Parameter](parameter/main.omg) | Affine Result parameter | [Wrong last-byte load](parameter/invalid/main.omg) |
-| [Call result](call_result/main.omg) | Returned Result consumed directly | [Wrong last-byte load](call_result/invalid/main.omg) |
-| [Match join](match_join/main.omg) | Result through both arms, distinct markers | [Wrong last-byte load](match_join/invalid/main.omg) |
-| [Constant name](const_name/main.omg) | Owned observations of the completed operation | [Wrong last-byte load](const_name/invalid/main.omg) |
-| [Nested machine](other_state/main.omg) | Result returned by a nested machine | [Wrong last-byte load](other_state/invalid/main.omg) |
-| [Other machine](other_machine/main.omg) | Result forwarded by another named implementation | [Wrong last-byte load](other_machine/invalid/main.omg) |
-| [Selected implementation](target_body/main.omg) | Result through a Build-selected body, marker and neighbors | [Wrong last-byte load](target_body/invalid/main.omg) |
+| [Local](local/main.omg) | Local completed result | [Wrong last-byte load](invalid_local/main.omg) |
+| [Field](field/main.omg) | Result field between checked neighbors | [Wrong last-byte load](invalid_field/main.omg) |
+| [Parameter](parameter/main.omg) | Affine Result parameter | [Wrong last-byte load](invalid_parameter/main.omg) |
+| [Call result](call_result/main.omg) | Returned Result consumed directly | [Wrong last-byte load](invalid_call_result/main.omg) |
+| [Match join](match_join/main.omg) | Result through both arms, distinct markers | [Wrong last-byte load](invalid_match_join/main.omg) |
+| [Constant name](const_name/main.omg) | Owned observations of the completed operation | [Wrong last-byte load](invalid_const_name/main.omg) |
+| [Nested machine](other_state/main.omg) | Result returned by a nested machine | [Wrong last-byte load](invalid_other_state/main.omg) |
+| [Other machine](other_machine/main.omg) | Result forwarded by another named implementation | [Wrong last-byte load](invalid_other_machine/main.omg) |
+| [Selected implementation](target_body/main.omg) | Result through a Build-selected body, marker and neighbors | [Wrong last-byte load](invalid_target_body/main.omg) |
 
 
 Governing contracts: [codecs](../../../../wiki/spec/layouts/codecs.md),

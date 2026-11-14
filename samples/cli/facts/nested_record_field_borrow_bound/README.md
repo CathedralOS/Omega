@@ -12,15 +12,15 @@ Every place performs the same operation: define two-level nested records `Inner 
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | (root) | [`main.omg`](main.omg) | — | root nested record field borrow bound |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the shared borrow is held in a local binding, copied to a second local, and projected there |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the shared borrow is stored in a struct field and projected through member accesses |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the shared borrow is passed as a machine parameter and projected in the callee |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the shared borrow arrives as the return result of a helper machine and is projected by the caller |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms yield the shared borrow so the joined reference projects the nested field safely |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant `LIMIT: u64 = 72` provides the exact minuend for the nested field subtraction |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a transition forwards the shared borrow to a successor machine that projects the nested field |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine transports the shared borrow to an intermediate machine for projection |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body computes the nested shared borrow field projection and exact subtraction |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the shared borrow is held in a local binding, copied to a second local, and projected there |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the shared borrow is stored in a struct field and projected through member accesses |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the shared borrow is passed as a machine parameter and projected in the callee |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | the shared borrow arrives as the return result of a helper machine and is projected by the caller |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both arms yield the shared borrow so the joined reference projects the nested field safely |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | a named constant `LIMIT: u64 = 72` provides the exact minuend for the nested field subtraction |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a transition forwards the shared borrow to a successor machine that projects the nested field |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | a forwarding machine transports the shared borrow to an intermediate machine for projection |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each hosted target body computes the nested shared borrow field projection and exact subtraction |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, carries an
@@ -59,15 +59,15 @@ omega --check samples/cli/facts/nested_record_field_borrow_bound/<place>/invalid
 
 | Place | Reject Twin | Obligation Class | Authored Diagnostic Fragment |
 | --- | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | Exact arithmetic overflow/underflow (decision 17) | `may overflow \`u64\`` |
 
 The same nine twins are also mirrored under `invalid/<place>/` with an authored
 `expected.txt`, so the invalid controls are discoverable by both the per-place

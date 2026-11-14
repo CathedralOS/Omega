@@ -30,7 +30,7 @@ The same consumer is reached through [a local](local/main.omg),
 [another machine](other_machine/main.omg), and
 [another target body](target_body/main.omg). The constant names are the six
 immutable constructor arguments; this does not claim compile-time foreign
-execution or a constant C record. Each place has an `invalid/main.omg` twin
+execution or a constant C record. Each place has an `../invalid_foreign_indirect_float_record_result/main.omg` twin
 that removes only `[copy]` from the result type and must reject whole-value
 reuse. The root has the same control.
 

@@ -11,15 +11,15 @@ conversion travel through every place.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [program](local/main.omg) | [twin](local/invalid/main.omg) |
-| field | [program](field/main.omg) | [twin](field/invalid/main.omg) |
-| parameter | [program](parameter/main.omg) | [twin](parameter/invalid/main.omg) |
-| call result | [program](call_result/main.omg) | [twin](call_result/invalid/main.omg) |
-| match join | [program](match_join/main.omg) | [twin](match_join/invalid/main.omg) |
-| const name | [program](const_name/main.omg) | [twin](const_name/invalid/main.omg) |
-| nested machine | [program](other_state/main.omg) | [twin](other_state/invalid/main.omg) |
-| another machine | [program](other_machine/main.omg) | [twin](other_machine/invalid/main.omg) |
-| selected target body | [program](target_body/main.omg) | [twin](target_body/invalid/main.omg) |
+| local | [program](local/main.omg) | [twin](invalid_local/main.omg) |
+| field | [program](field/main.omg) | [twin](invalid_field/main.omg) |
+| parameter | [program](parameter/main.omg) | [twin](invalid_parameter/main.omg) |
+| call result | [program](call_result/main.omg) | [twin](invalid_call_result/main.omg) |
+| match join | [program](match_join/main.omg) | [twin](invalid_match_join/main.omg) |
+| const name | [program](const_name/main.omg) | [twin](invalid_const_name/main.omg) |
+| nested machine | [program](other_state/main.omg) | [twin](invalid_other_state/main.omg) |
+| another machine | [program](other_machine/main.omg) | [twin](invalid_other_machine/main.omg) |
+| selected target body | [program](target_body/main.omg) | [twin](invalid_target_body/main.omg) |
 
 The [root program](main.omg) is also qualified. Every positive binds all four
 hosted targets and declares Expected exit 0. Native observations here cover

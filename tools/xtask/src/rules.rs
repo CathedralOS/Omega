@@ -3,7 +3,7 @@
 //!   `dense_id_maps.txt`, `cache_state.txt`)
 //! - Dangling task ID citations (`dangling_task_ids.txt`)
 //! - Discrete `TASKS.md` board shape
-//! - Diff hygiene (`MAX_NEW_OMG_FILES = 6`, the `samples/cli/facts/` freeze, no new
+//! - Diff hygiene (`MAX_NEW_OMG_FILES = 6`, the `samples/cli/facts/` freeze on growth, no new
 //!   files under the retired `tests/omega/`, raw measurements limit)
 //! - Commit title lane (`AGENTS.md` table) and PR `Agent:` provenance
 //! - Compiler-lane PR `Gate:`, `Proof:` and `Spec:` lines
@@ -1252,9 +1252,17 @@ pub fn diff_hygiene_violations(changes: &[(char, String)]) -> Vec<String> {
     let mut violations = Vec::new();
     let mut added_omg = 0isize;
     let mut deleted_omg = 0isize;
+    // `samples/cli/facts/` is a frozen finite set: it may not grow, but a
+    // change may move its programs within it. A diff without rename
+    // detection shows each move as one deletion and one addition.
+    let mut added_facts = Vec::new();
+    let mut deleted_facts = 0usize;
     for (status, path) in changes {
         if *status == 'D' && path.ends_with(".omg") {
             deleted_omg += 1;
+            if path.starts_with(FACTS_ROOT) {
+                deleted_facts += 1;
+            }
             continue;
         }
         if *status != 'A' {
@@ -1267,9 +1275,7 @@ pub fn diff_hygiene_violations(changes: &[(char, String)]) -> Vec<String> {
         } else if path.ends_with(".omg") {
             added_omg += 1;
             if path.starts_with(FACTS_ROOT) {
-                violations.push(format!(
-                    "{path}: {FACTS_ROOT} is a frozen set; add no .omg files to it"
-                ));
+                added_facts.push(path.as_str());
             }
         } else if path.starts_with("tools/swarm/waves/") {
             violations.push(format!(
@@ -1283,6 +1289,14 @@ pub fn diff_hygiene_violations(changes: &[(char, String)]) -> Vec<String> {
                 "{path}: Python repository tooling is retired; implement developer and CI tooling in Rust under `tools/xtask/` (`cargo xtask`)"
             ));
         }
+    }
+    if added_facts.len() > deleted_facts {
+        let added = added_facts.len();
+        violations.extend(added_facts.iter().map(|path| {
+            format!(
+                "{path}: {FACTS_ROOT} is a frozen set; it may not grow (this change adds {added} .omg files to it and removes {deleted_facts})"
+            )
+        }));
     }
     let net_added = added_omg - deleted_omg;
     if net_added > MAX_NEW_OMG_FILES {
@@ -1953,6 +1967,30 @@ struct Ledger;
         assert!(diff_hygiene_violations(&moved).is_empty());
         moved.retain(|(status, _)| *status == 'A');
         assert_eq!(diff_hygiene_violations(&moved).len(), 1);
+    }
+
+    #[test]
+    fn frozen_facts_may_move_but_not_grow() {
+        // A twin moved out of the program that contains it: one deletion
+        // and one addition inside the set.
+        let moved = [
+            ('D', "samples/cli/facts/a/local/invalid/main.omg".to_owned()),
+            ('A', "samples/cli/facts/a/invalid_local/main.omg".to_owned()),
+        ];
+        assert!(diff_hygiene_violations(&moved).is_empty());
+        // An addition beside a move still grows the set.
+        let grown = [
+            moved[0].clone(),
+            moved[1].clone(),
+            ('A', "samples/cli/facts/a/extra/main.omg".to_owned()),
+        ];
+        assert_eq!(diff_hygiene_violations(&grown).len(), 2);
+        // A deletion outside the set makes no room inside it.
+        let elsewhere = [
+            ('D', "tests/fixtures/pass/a/main.omg".to_owned()),
+            ('A', "samples/cli/facts/a/extra/main.omg".to_owned()),
+        ];
+        assert_eq!(diff_hygiene_violations(&elsewhere).len(), 1);
     }
 
     #[test]

@@ -5,6 +5,6 @@ One nominal `Pending` is produced by the shared `Reader::register` and mutable `
 The two providers have separate capacity types and lifecycle state. Their existing C implementations are unchanged. Every positive entry binds all four hosted targets.
 
 The parent [retained mutable row](../../README.md) records the executable
-qualification. Its gate runs this positive and the invalid twin with both
-matching-host C providers. The invalid twin inserts only a read of the mutable
+qualification. Its gate runs this positive and the ../invalid_mixed_issuers twin with both
+matching-host C providers. The ../invalid_mixed_issuers twin inserts only a read of the mutable
 backing while its transported registration remains live.

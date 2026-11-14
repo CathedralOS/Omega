@@ -17,7 +17,7 @@ The program runs two graphs:
 
 On agreement it prints `PASS` and exits `0`.
 
-An intended-invalid control in `invalid/` marks node `8` (violating
+An intended-invalid control in `../invalid_topological_order/` marks node `8` (violating
 `node < 8`) as emitted and is rejected at compile time
 (`cannot prove requires contract for call mark_emitted from Main::main`).
 

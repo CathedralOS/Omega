@@ -32,15 +32,15 @@ same requirements and still replace a source while its selected loan is live.
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) with [`build.omg`](build.omg) | — | canonical root witness running the same join and consumer |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | both `Slot` payloads are locals and the join takes `&mut` subranges of them |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | both payloads live in a `Pair` record's fields (`pair.chosen`, `pair.other`) |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | both slots and the call counter arrive as parameters of `apply` |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | both slots are produced by `present(...)` call results |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both slots are produced by `match true` joins |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | both payloads are the named constants `CHOSEN` and `UNSELECTED` |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | the one evaluated flag and both payload loans reach the successor machine `pick`, which records the selected range there |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine (`forward`) supplies the loans to `apply` |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each Build-selected `apply` implementation selects and writes |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | both `Slot` payloads are locals and the join takes `&mut` subranges of them |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | both payloads live in a `Pair` record's fields (`pair.chosen`, `pair.other`) |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | both slots and the call counter arrive as parameters of `apply` |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | both slots are produced by `present(...)` call results |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both slots are produced by `match true` joins |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | both payloads are the named constants `CHOSEN` and `UNSELECTED` |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | the one evaluated flag and both payload loans reach the successor machine `pick`, which records the selected range there |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | a forwarding machine (`forward`) supplies the loans to `apply` |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each Build-selected `apply` implementation selects and writes |
 
 ## Execution
 
@@ -66,22 +66,22 @@ python tools/sample_native_gate.py --facts --filter cli/facts/descriptor_range_e
 ## Reject Twins
 
 Each place has an `invalid/` reject twin with an authored
-[`sample.json`](local/invalid/sample.json) intended-invalid identity
+[`sample.json`](invalid_local/sample.json) intended-invalid identity
 (`"role": "intended-invalid"`, `"rejection_contains": [...]`) and a pinned
 `tests/omega/fail/facts/descriptor_range_exclusive_loan_through_<place>_rejected` fixture. The twin changes only the
 construct's own input or selection, and checking fails closed during compile-time verification:
 
 | Place | Twin | What it changes | Pinned Diagnostic Fragment |
 | --- | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | `chosen` is reassigned while the range loan is live | `statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | `pair.chosen` is reassigned while the range loan is live | `statement 3 mutates `pair.chosen` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 5)` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `chosen` is reassigned in `apply` while the range loan is live | `statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `chosen` is reassigned while the range loan is live | `statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `chosen` is reassigned while the range loan is live | `statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `chosen` is reassigned while the range loan is live | `statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `chosen` is reassigned in `pick` while the range loan is live | `statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3)` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `chosen` is reassigned in `apply` while the range loan is live | `statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each target body reassigns `chosen` while the range loan is live | `statement 2 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | `chosen` is reassigned while the range loan is live | `statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | `pair.chosen` is reassigned while the range loan is live | `statement 3 mutates `pair.chosen` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 5)` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `chosen` is reassigned in `apply` while the range loan is live | `statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `chosen` is reassigned while the range loan is live | `statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | `chosen` is reassigned while the range loan is live | `statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | `chosen` is reassigned while the range loan is live | `statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | `chosen` is reassigned in `pick` while the range loan is live | `statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3)` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `chosen` is reassigned in `apply` while the range loan is live | `statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each target body reassigns `chosen` while the range loan is live | `statement 2 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)` |
 
 ## Pinned Fixtures
 

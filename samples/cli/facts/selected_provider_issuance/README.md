@@ -22,15 +22,15 @@ The [root](main.omg) and [existing customer](../../../../tests/omega/pass/core/c
 
 | Place | Positive | Fact-sensitive reject twin |
 | --- | --- | --- |
-| local | [main.omg](local/main.omg) | [ordinary supply](local/invalid/main.omg) |
-| field | [main.omg](field/main.omg) | [ordinary supply](field/invalid/main.omg) |
-| parameter | [main.omg](parameter/main.omg) | [ordinary supply](parameter/invalid/main.omg) |
-| call result | [main.omg](call_result/main.omg) | [ordinary supply](call_result/invalid/main.omg) |
-| match join | [main.omg](match_join/main.omg) | [ordinary supply](match_join/invalid/main.omg) |
-| const name | [main.omg](const_name/main.omg) | [ordinary supply](const_name/invalid/main.omg) |
-| nested machine | [main.omg](other_state/main.omg) | [ordinary supply](other_state/invalid/main.omg) |
-| another machine | [main.omg](other_machine/main.omg) | [ordinary supply](other_machine/invalid/main.omg) |
-| target body | [main.omg](target_body/main.omg) | [ordinary supply](target_body/invalid/main.omg) |
+| local | [main.omg](local/main.omg) | [ordinary supply](invalid_local/main.omg) |
+| field | [main.omg](field/main.omg) | [ordinary supply](invalid_field/main.omg) |
+| parameter | [main.omg](parameter/main.omg) | [ordinary supply](invalid_parameter/main.omg) |
+| call result | [main.omg](call_result/main.omg) | [ordinary supply](invalid_call_result/main.omg) |
+| match join | [main.omg](match_join/main.omg) | [ordinary supply](invalid_match_join/main.omg) |
+| const name | [main.omg](const_name/main.omg) | [ordinary supply](invalid_const_name/main.omg) |
+| nested machine | [main.omg](other_state/main.omg) | [ordinary supply](invalid_other_state/main.omg) |
+| another machine | [main.omg](other_machine/main.omg) | [ordinary supply](invalid_other_machine/main.omg) |
+| target body | [main.omg](target_body/main.omg) | [ordinary supply](invalid_target_body/main.omg) |
 
 Each twin changes only the selected supply call into `InitialSupplyProvider::acquire`, plus its diagnostic header. The match twin changes both supply alternatives. It retains the same provider bodies, quantity, backing contracts, and consumers. Existing positive mirrors under `tests/omega/pass/facts/selected_provider_issuance_through_<place>_exit/` copy their sample sources and Build declarations. No ordinary-call fail mirrors exist at this checkpoint; the nine sample twins remain required rejection controls.
 

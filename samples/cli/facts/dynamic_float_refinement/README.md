@@ -13,15 +13,15 @@ remains an actual `dyn Fraction` argument, and the result remains `f64`.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [program](local/main.omg) | [invalid](local/invalid/main.omg) |
-| field | [program](field/main.omg) | [invalid](field/invalid/main.omg) |
-| parameter | [program](parameter/main.omg) | [invalid](parameter/invalid/main.omg) |
-| call result | [program](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
-| match join | [program](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
-| named constant | [program](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| nested machine | [program](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
-| another machine | [program](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
-| selected implementation | [program](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+| local | [program](local/main.omg) | [invalid](invalid_local/main.omg) |
+| field | [program](field/main.omg) | [invalid](invalid_field/main.omg) |
+| parameter | [program](parameter/main.omg) | [invalid](invalid_parameter/main.omg) |
+| call result | [program](call_result/main.omg) | [invalid](invalid_call_result/main.omg) |
+| match join | [program](match_join/main.omg) | [invalid](invalid_match_join/main.omg) |
+| named constant | [program](const_name/main.omg) | [invalid](invalid_const_name/main.omg) |
+| nested machine | [program](other_state/main.omg) | [invalid](invalid_other_state/main.omg) |
+| another machine | [program](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
+| selected implementation | [program](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
 Each twin changes only Quarter's guarantee and return value from `0.25` to
 `0.75`. Its body still proves its own guarantee, but that guarantee violates the

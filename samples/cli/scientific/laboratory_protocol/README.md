@@ -5,7 +5,7 @@ vessel shared by actors 1 and 2. It performs console input/output only; it has
 no equipment, network, filesystem or real-clock boundary.
 
 Each line contains exactly an uppercase opcode and one ASCII digit. LF is the
-separator; CR is an ordinary invalid byte. EOF commits a final nonempty line.
+separator; CR is an ordinary ../invalid_laboratory_protocol byte. EOF commits a final nonempty line.
 Blank, overlong, non-digit and unknown commands are rejected without changing
 laboratory state. Overlong input is drained to LF with constant memory. The
 65th command produces `BUDGET_EXHAUSTED` and exit 65; other streams exit 0.
@@ -53,9 +53,9 @@ rather than the Omega state graph. It verifies its calculations against those
 files by default; `--freeze` is an explicit authoring action, never validation.
 The manifest was frozen before the first Omega execution. All arithmetic is
 integer and all comparisons are exact: tolerance **0**. Nine fixtures cover
-nominal, cancellation, repeated commands, timeout, conflict/interlocks, invalid
+nominal, cancellation, repeated commands, timeout, conflict/interlocks, ../invalid_laboratory_protocol
 runtime input, final unterminated input, hostile framing and budget exhaustion.
-The separate `invalid/` directory is a complete intended-invalid application
+The separate `../invalid_laboratory_protocol/` directory is a complete intended-invalid application
 that attempts actor 2's release of actor 1's lease without proving the declared
 precondition. Runtime input rejection is distinct from this source rejection.
 

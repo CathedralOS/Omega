@@ -4,7 +4,7 @@ Parent: **NORMALIZED-ABI-LOWERING**, extending the existing closed-carrier fact.
 The source explicitly marks the opaque and its complete inert carrier copyable.
 The unchanged consuming operation checks libc host numbers and replaces one
 field without disturbing its sibling. The caller then uses its retained copy;
-the invalid twin removes only the opaque copy permission in its producer.
+the ../invalid_independent_copy twin removes only the opaque copy permission in its producer.
 
 **A checked copy of a closed Inert opaque preserves libc host numbers 66051,
 513 and replacement 1027 across an independent consuming call while the
@@ -20,15 +20,15 @@ address. Constants name C constructor inputs, not constant foreign results.
 
 | Place | Positive | Copy-only reject |
 | --- | --- | --- |
-| Local | [local](local/main.omg) | [invalid](local/invalid/main.omg) |
-| Field | [field](field/main.omg) | [invalid](field/invalid/main.omg) |
-| Parameter | [parameter](parameter/main.omg) | [invalid](parameter/invalid/main.omg) |
-| Call result | [call result](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
-| Match join | [both arms](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
-| Const name | [constructor inputs](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| A nested machine | [arrival](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
-| Another machine | [forwarding](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
-| Target body | [four bodies](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+| Local | [local](local/main.omg) | [invalid](invalid_local/main.omg) |
+| Field | [field](field/main.omg) | [invalid](invalid_field/main.omg) |
+| Parameter | [parameter](parameter/main.omg) | [invalid](invalid_parameter/main.omg) |
+| Call result | [call result](call_result/main.omg) | [invalid](invalid_call_result/main.omg) |
+| Match join | [both arms](match_join/main.omg) | [invalid](invalid_match_join/main.omg) |
+| Const name | [constructor inputs](const_name/main.omg) | [invalid](invalid_const_name/main.omg) |
+| A nested machine | [arrival](other_state/main.omg) | [invalid](invalid_other_state/main.omg) |
+| Another machine | [forwarding](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
+| Target body | [four bodies](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
 Each reject changes only `InternetAddress [copy]` to `InternetAddress` in
 [its producer](producer_invalid/main.omg). Its consuming operation remains

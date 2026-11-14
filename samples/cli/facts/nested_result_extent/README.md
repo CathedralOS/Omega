@@ -17,15 +17,15 @@ and carries an authored `expected_native_exit.txt` containing `0` beside its ent
 | Place | Positive Program | Fact-sensitive Reject Twin | Carrier / Transport Mechanism |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) | [`invalid/main.omg`](invalid/main.omg) | canonical root witness computing contracted nested minima and taking mutable prefix `&mut buffer[0..capacity]` |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | local variable `capacity` holds the nested minimum result before slicing `buffer[0..capacity]` |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | nominal record field `bound.end` holds the nested minimum result before slicing `buffer[0..bound.end]` |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | nested minimum result passed as argument to machine parameter `consume(buffer, capacity)` with requires contract `end <= buffer.len` |
-| call_result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | nested minimum expression passed directly as subslice range upper bound `0..minimum(...)` without intermediate binding |
-| match_join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms of match expression compute the nested minimum and join into `capacity` before slicing |
-| const_name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | constant `native_cap: u64 = 2147483647` used as outer clamping limit in nested minimum before slicing |
-| other_state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | state transition arrival parameter `consume(buffer: &mut [u8], end: u64)` with requires contract `end <= buffer.len` consumes nested minimum |
-| other_machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | associated machine method `Bound::consume(bound, buffer)` with requires contract `bound.end <= buffer.len` receives record holding nested minimum |
-| target_body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | four target-scoped machine bodies (`linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`) perform nested minimum and subslice |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | local variable `capacity` holds the nested minimum result before slicing `buffer[0..capacity]` |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | nominal record field `bound.end` holds the nested minimum result before slicing `buffer[0..bound.end]` |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | nested minimum result passed as argument to machine parameter `consume(buffer, capacity)` with requires contract `end <= buffer.len` |
+| call_result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | nested minimum expression passed directly as subslice range upper bound `0..minimum(...)` without intermediate binding |
+| match_join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both arms of match expression compute the nested minimum and join into `capacity` before slicing |
+| const_name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | constant `native_cap: u64 = 2147483647` used as outer clamping limit in nested minimum before slicing |
+| other_state | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | state transition arrival parameter `consume(buffer: &mut [u8], end: u64)` with requires contract `end <= buffer.len` consumes nested minimum |
+| other_machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | associated machine method `Bound::consume(bound, buffer)` with requires contract `bound.end <= buffer.len` receives record holding nested minimum |
+| target_body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | four target-scoped machine bodies (`linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`) perform nested minimum and subslice |
 
 ## Execution
 

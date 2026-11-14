@@ -26,15 +26,15 @@ bind the actual optimized producer, host, sources, outputs and controls.
 | Place | Witness (main.omg) | Reject twin (invalid/main.omg) | Note |
 |---|---|---|---|
 | root | [main.omg](main.omg) | - | Root package probe exercising mutable slice view write and extent subtraction |
-| local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | mutable slice view is transported through an intermediate local binding |
-| field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | mutable slice view is stored within a nominal record field (`Holder`) |
-| parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | guarded mutable slice view is operated on directly through its parameter binding |
-| call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | helper call returns the guarded mutable slice view with preserved length contract |
-| match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | mutable slice view joins across conditional match branches |
-| const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | named constant `MIN_LEN: u64 = 2` defines the extent guard obligation |
-| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | successor machine `active(view: &mut [u64])` receives and mutates the view |
-| another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | forwarding machine passes the mutable view through an intermediate call |
-| another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | target-scoped implementations across all four platforms perform mutation and extent verification |
+| local | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | mutable slice view is transported through an intermediate local binding |
+| field | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | mutable slice view is stored within a nominal record field (`Holder`) |
+| parameter | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | guarded mutable slice view is operated on directly through its parameter binding |
+| call result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | helper call returns the guarded mutable slice view with preserved length contract |
+| match join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | mutable slice view joins across conditional match branches |
+| const name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | named constant `MIN_LEN: u64 = 2` defines the extent guard obligation |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | successor machine `active(view: &mut [u64])` receives and mutates the view |
+| another machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | forwarding machine passes the mutable view through an intermediate call |
+| another target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | target-scoped implementations across all four platforms perform mutation and extent verification |
 
 Every positive, including the root, declares `Expected exit: 0` and binds
 `ProgramEntry` for Windows x86-64, Linux x86-64, macOS ARM64 and Linux ARM64.

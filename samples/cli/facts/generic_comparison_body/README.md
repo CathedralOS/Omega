@@ -24,15 +24,15 @@ of the comparison's operands changes.
 
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the comparison operands are literals at a local site |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | both operands arrive as record fields |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | both operands arrive as explicit parameters |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a call result returns each operand |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield an operand |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants are the operands |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives both operands |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine supplies both operands |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | one body per hosted target uses the operands |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the comparison operands are literals at a local site |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | both operands arrive as record fields |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | both operands arrive as explicit parameters |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | a call result returns each operand |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both match arms yield an operand |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | named constants are the operands |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine receives both operands |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | a forwarding machine supplies both operands |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | one body per hosted target uses the operands |
 
 The row has no root `main.omg`; `local` is its canonical local witness. The
 landed local plus twin came from the item's pin commit `037fe3b9a8b`.
@@ -98,15 +98,15 @@ twin, only `same`'s body changes from `false` to `true` (one line; verified by
 
 | Place | Twin | Pinned diagnostic |
 | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | `cannot prove requires contract for call hold from main: direct == false … in state `entry`` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | same fragment, `from main`, state `entry` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | same fragment, `from main`, state `entry` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | same fragment, `from main`, state `entry` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | same fragment, `from main`, state `entry` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | same fragment, `from main`, state `entry` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | same fragment, `from main`, state `check` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | same fragment, `from main`, state `entry` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | same fragment per target body, `from observe` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | `cannot prove requires contract for call hold from main: direct == false … in state `entry`` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | same fragment, `from main`, state `entry` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | same fragment, `from main`, state `entry` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | same fragment, `from main`, state `entry` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | same fragment, `from main`, state `entry` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | same fragment, `from main`, state `entry` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | same fragment, `from main`, state `check` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | same fragment, `from main`, state `entry` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | same fragment per target body, `from observe` |
 
 ## Pinned Fixtures
 

@@ -11,15 +11,15 @@ All nine places verify at runtime (`Expected exit: 0` with `crashes Trap`) that
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) with [`build.omg`](build.omg) | — | canonical root witness indexing array through standing field bound |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the field is copied into a local variable |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the field itself, from the entry and again after a transition |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the field passed to a parameter whose `requires` is the bound |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a call that returns the field and `ensures` the bound |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | a match whose arms both evaluate to the field |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the ceiling is named by `const LIMIT: u64 = 3` |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a later state parameter carrying the bound |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | another machine producing and consuming the bound |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | the same field index in every target-scoped machine body |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the field is copied into a local variable |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the field itself, from the entry and again after a transition |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the field passed to a parameter whose `requires` is the bound |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | a call that returns the field and `ensures` the bound |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | a match whose arms both evaluate to the field |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | the ceiling is named by `const LIMIT: u64 = 3` |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a later state parameter carrying the bound |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | another machine producing and consuming the bound |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | the same field index in every target-scoped machine body |
 
 ## Execution
 
@@ -48,15 +48,15 @@ Each place has an `invalid/` reject twin with authored `sample.json` (`"role": "
 
 | Place | Twin | Pinned Diagnostic Fragment |
 | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | `cannot prove index `index + 1` is within length 5` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | `cannot prove index `main.k + 1` is within length 5` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `cannot prove index `index + 1` is within length 5` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `cannot prove index `current(main) + 1` is within length 5` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `cannot prove index `index + 1` is within length 5` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `cannot prove index `main.k + 1` is within length 5` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove index `index + 1` is within length 5` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `cannot prove index `index + 1` is within length 5` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `cannot prove index `main.k + 1` is within length 5` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | `cannot prove index `index + 1` is within length 5` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | `cannot prove index `main.k + 1` is within length 5` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `cannot prove index `index + 1` is within length 5` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `cannot prove index `current(main) + 1` is within length 5` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | `cannot prove index `index + 1` is within length 5` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | `cannot prove index `main.k + 1` is within length 5` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | `cannot prove index `index + 1` is within length 5` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `cannot prove index `index + 1` is within length 5` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `cannot prove index `main.k + 1` is within length 5` |
 
 ## Pinned Fixtures
 

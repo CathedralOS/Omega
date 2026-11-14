@@ -28,15 +28,15 @@ claim/qualification evidence, not a rewritten historical result.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [main](local/main.omg) | [invalid](local/invalid/main.omg) |
-| field | [main](field/main.omg) | [invalid](field/invalid/main.omg) |
-| parameter | [main](parameter/main.omg) | [invalid](parameter/invalid/main.omg) |
-| call result | [main](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
-| match join | [main](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
-| const name | [main](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| a nested machine | [main](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
-| another machine | [main](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
-| another target body | [main](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+| local | [main](local/main.omg) | [invalid](invalid_local/main.omg) |
+| field | [main](field/main.omg) | [invalid](invalid_field/main.omg) |
+| parameter | [main](parameter/main.omg) | [invalid](invalid_parameter/main.omg) |
+| call result | [main](call_result/main.omg) | [invalid](invalid_call_result/main.omg) |
+| match join | [main](match_join/main.omg) | [invalid](invalid_match_join/main.omg) |
+| const name | [main](const_name/main.omg) | [invalid](invalid_const_name/main.omg) |
+| a nested machine | [main](other_state/main.omg) | [invalid](invalid_other_state/main.omg) |
+| another machine | [main](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
+| another target body | [main](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
 Each twin changes only the constructed head from 1 to 2, keeping the exact sum
 index, entry conditions, child arguments, consuming operation and oracle. It must
