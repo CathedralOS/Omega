@@ -22,7 +22,7 @@ static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// The program line's outcome and every per-obligation line, tab-split
 /// after the fixture path: `[label, specialization, obligation, kind,
-/// outcome]`.
+/// outcome, detail]`.
 fn carried(fixture: &str) -> (String, Vec<Vec<String>>) {
     let _guard = FIXTURE_COMPILATIONS
         .lock()
@@ -35,7 +35,7 @@ fn carried(fixture: &str) -> (String, Vec<Vec<String>>) {
         .map(|line| {
             let mut fields: Vec<String> = line.split('\t').map(str::to_owned).collect();
             fields.remove(1);
-            fields.truncate(5);
+            fields.truncate(6);
             fields
         })
         .collect();
@@ -61,18 +61,35 @@ fn an_implementation_parameter_body_is_checked_once_and_carried() {
     assert_eq!(count(&rows, "carried", "refused"), 0);
 }
 
-/// Its twin promises `result <= 18`, which only the implementations in use
-/// give: a search over each specialization proves it, the generic check
-/// refuses it, and nothing is then carried for that guarantee.
+/// Its twin promises `result <= 18`, beyond the public requirement's bound.
+/// Selecting a stronger implementation exposes no private result facts, so
+/// both concrete callers and the generic check refuse that guarantee. No
+/// certificate can then be carried for it.
 #[test]
 fn a_bound_only_the_selected_implementations_give_is_refused_generically() {
     let (outcome, rows) = carried(
         "tests/fixtures/fail/generics/implementation_parameter_contract_only_holds_for_selection",
     );
     assert_eq!(outcome, "route=carried-refused");
-    assert_eq!(count(&rows, "concrete", "refused"), 0);
-    assert_eq!(count(&rows, "generic", "refused"), 1);
-    assert_eq!(count(&rows, "carried", "refused"), 2);
+    let refusals = |label: &str| {
+        rows.iter()
+            .filter(|row| row[0] == label && row[4] == "refused")
+            .map(|row| (row[3].as_str(), row[5].as_str()))
+            .collect::<Vec<_>>()
+    };
+    let no_bound = (
+        "guarantee",
+        "Unproved(NoDerivation): the bounds do not decide the comparison",
+    );
+    assert_eq!(refusals("concrete"), [no_bound, no_bound]);
+    assert_eq!(refusals("generic"), [no_bound]);
+    assert_eq!(
+        refusals("carried"),
+        [(
+            "guarantee",
+            "Unproved(NoDerivation): no proof of this was found to carry"
+        ); 2]
+    );
 }
 
 /// A value parameter, with an implementation parameter beside it:

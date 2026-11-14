@@ -6268,6 +6268,35 @@ mod generic_bodies {
         assert_ne!(after_call(double(), double()), after_call(shift(), shift()));
     }
 
+    #[test]
+    fn a_public_call_keeps_its_judgments_and_still_requires_refinement() {
+        // The ordinary routed entry advertises Step's <=20 result, while
+        // its body is checked independently under Shift's stronger <=17.
+        let routed = member(10, 20, shift().statements);
+        let (consumer, verdicts, started) = carried(21, routed, shift());
+        assert_eq!(started, 0);
+        assert_eq!(verdicts.len(), 3);
+        for (obligation, verdict) in &verdicts {
+            assert_kernel_checked(&consumer, 1, *obligation, verdict.as_ref().unwrap());
+        }
+
+        // A matching advertised fact does not make Wide refine Step.
+        // Its failed refinement must still prevent carrying both proofs
+        // that depend on the public postcondition.
+        let routed = member(10, 20, wide().statements);
+        let (_, verdicts, started) = carried(21, routed, wide());
+        assert_eq!(started, 0);
+        let refused = verdicts
+            .iter()
+            .filter_map(|(_, verdict)| verdict.as_ref().err())
+            .map(|refusal| refusal.reason)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            refused,
+            [RefusalReason::Unproved(UnprovedCause::NoDerivation); 2]
+        );
+    }
+
     /// Discharges `advance(bound)` specialized to `implementation` as one
     /// closed closure, with `carried` offering the generic form's proofs to
     /// machine 1 when it is `Some`. Returns the discharge and how many
@@ -6427,22 +6456,43 @@ mod generic_bodies {
     }
 
     #[test]
-    fn a_refinement_proof_for_another_implementation_is_refused_by_the_kernel() {
-        // Shows: nothing about a carried proof is trusted. `Shift`'s
-        // refinement proof, offered for a specialization that really calls
-        // `Wide`, cites `result <= 17` after the call; that specialization
-        // assumes `result <= 25` there, and the kernel refuses the proof.
-        // The call requirement is refused too: the offered proof concludes
-        // `start <= 12`, and this call owes `Wide`'s `start <= 10`.
-        let (_, carried, _) = carried(21, wide(), shift());
-        let reasons: Vec<_> = carried
-            .iter()
-            .filter_map(|(_, verdict)| verdict.as_ref().err())
-            .map(|refusal| refusal.reason)
-            .collect();
+    fn a_refinement_proof_cannot_supply_another_implementations_guarantee() {
+        // Shift's proof needs result <=17, while Wide's actual call offers
+        // only <=25. Matching the same clause ordinal cannot supply that
+        // premise, so the two dependent certificates remain unavailable.
+        // The generic <=10 input proof does match Wide's <=10 input goal;
+        // that arithmetic fact authenticates no selected implementation.
+        let (consumer, carried, started) = carried(21, wide(), shift());
+        assert_eq!(started, 0);
+        let tables = consumer.tables.machines.get(id(1)).unwrap();
+        let mut refused = Vec::new();
+        for (obligation, verdict) in &carried {
+            match tables.obligations.get(*obligation).unwrap().kind {
+                ObligationKind::CallRequirement { .. } => {
+                    assert_kernel_checked(&consumer, 1, *obligation, verdict.as_ref().unwrap());
+                }
+                kind => {
+                    let kind = match kind {
+                        ObligationKind::OperationSafety { .. } => "safety",
+                        ObligationKind::NormalGuarantee { .. } => "guarantee",
+                        _ => panic!("unexpected obligation {kind:?}"),
+                    };
+                    refused.push((kind, verdict.as_ref().unwrap_err().reason));
+                }
+            }
+        }
         assert_eq!(
-            reasons,
-            vec![RefusalReason::Unproved(UnprovedCause::KernelRefused); 3]
+            refused,
+            [
+                (
+                    "safety",
+                    RefusalReason::Unproved(UnprovedCause::NoDerivation)
+                ),
+                (
+                    "guarantee",
+                    RefusalReason::Unproved(UnprovedCause::NoDerivation)
+                ),
+            ]
         );
     }
 }
