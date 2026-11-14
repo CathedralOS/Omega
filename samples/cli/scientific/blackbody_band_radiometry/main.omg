@@ -2,7 +2,7 @@
 // Expected output contains: emitted_W,ambient_W,net_W,emission_fraction
 use io::protocol;
 use model::planck;
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::is_finite;
 
 // The scanner borrows the parsed fields through a shared descriptor.

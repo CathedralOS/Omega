@@ -30,7 +30,7 @@
 // Payload-free variants intentionally follow payload-bearing ones, also covered
 // by the no_payload_case_variant_after_payload_dispatch_exit corpus fixture.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data AlarmEvent {
     case Set(hour: i32 in Saturating, minute: i32 in Saturating);

@@ -1,5 +1,5 @@
 // Complete intended-invalid control: an unproved exact unsigned underflow.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Invalid { }
 machine Invalid::main(application: &mut Invalid) reaches Console {
     let impossible: u64 = 0 - 1;

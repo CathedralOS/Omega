@@ -1,6 +1,6 @@
 // Expected exit: 0.
 // Expected output contains: PASS: bounded components and terminating controller fan-out
-use omega_language_std::console;
+use omega_language_std::Console;
 use dungeon_core::actors::state::ActorSet;
 use dungeon_core::actors::state::Countdown;
 use dungeon_core::actors::state::Vitality;

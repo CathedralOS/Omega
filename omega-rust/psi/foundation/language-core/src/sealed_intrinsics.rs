@@ -82,6 +82,15 @@ pub enum CompilerPrimitive {
     FloatProjection,
     FloatSemantics,
     NaturalRanking,
+    Collection(CollectionPrimitive),
+}
+
+/// The operation supplied by one exact generic core collection declaration.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CollectionPrimitive {
+    Read,
+    Range,
+    ArrayView,
 }
 
 /// The free placed scalar primitives in core `layout.omg`.
@@ -278,6 +287,30 @@ const fn lifecycle(operation: PlacementOperation, content: PlacementContent) -> 
 }
 
 const ROWS: &[SealedIntrinsicRow] = &[
+    row(
+        "indexing.omg",
+        "read",
+        bundled!("core/indexing.omg"),
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::Collection(
+            CollectionPrimitive::Read,
+        )),
+    ),
+    row(
+        "indexing.omg",
+        "range",
+        bundled!("core/indexing.omg"),
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::Collection(
+            CollectionPrimitive::Range,
+        )),
+    ),
+    row(
+        "indexing.omg",
+        "view",
+        bundled!("core/indexing.omg"),
+        SealedIntrinsic::CompilerPrimitive(CompilerPrimitive::Collection(
+            CollectionPrimitive::ArrayView,
+        )),
+    ),
     row(
         "atomic.omg",
         "Atomic::fence",

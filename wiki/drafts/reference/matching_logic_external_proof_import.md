@@ -8,11 +8,13 @@ replayed by the local checker, and its axiom closure is part of the evidence.
 Delete this draft once the bounded comparison reaches a verdict on the
 matching-logic route, or when the importer is retired.
 
-Tool: `tools/matching-logic-external-proof-import/external_proof_import.py`
-(Python 3.9+, standard library only). It reads a foreign flat-step export
-(`external-arithmetic-proof/1`), translates it into the bounded slice
-checker's `omega-matching-logic-certificate/1`, and re-checks the result with
-`tools/matching-logic-slice/slice_checker.py`. Nothing about the imported
+Tool: `external_proof_import.py`, removed with the repository's Python
+tooling; its cases and record remain at
+[`tools/matching-logic-external-proof-import`](https://github.com/CathedralOS/Omega/tree/5ccde07d45af24d039931579f64a85bc1242501b/tools/matching-logic-external-proof-import). It read a foreign flat-step export
+(`external-arithmetic-proof/1`), translated it into the bounded slice
+checker's `omega-matching-logic-certificate/1`, and re-checked the result with
+the slice checker `slice_checker.py` (also removed; cases at
+[`tools/matching-logic-slice`](https://github.com/CathedralOS/Omega/tree/5ccde07d45af24d039931579f64a85bc1242501b/tools/matching-logic-slice)). Nothing about the imported
 statement is trusted; only the translated derivation, replayed against the
 case's declared theory, can produce an `accept`.
 

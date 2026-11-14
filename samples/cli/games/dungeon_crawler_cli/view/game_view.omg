@@ -1,5 +1,5 @@
 use text::buffer;
-use omega_language_std::console;
+use omega_language_std::Console;
 use player::player_state;
 use rooms::map;
 use rooms::rooms;

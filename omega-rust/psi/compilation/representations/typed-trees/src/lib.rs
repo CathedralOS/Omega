@@ -709,6 +709,7 @@ pub(crate) mod build_selections {
     }
 }
 pub mod callable_signature_shapes;
+pub mod compiler_intrinsics;
 pub mod declaration_projection;
 mod declared_bindings;
 pub mod deferred_refusals;

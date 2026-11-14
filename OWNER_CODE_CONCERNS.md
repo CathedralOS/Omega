@@ -87,6 +87,13 @@ framework or a list of features that remain unimplemented.
 - Cost: a second, looser reading of the Provider position stays served for no library; delete `DefaultClosure` and the `ProviderForm` parameter, turn the test into the refusal twin, and give the probe a named implementation
 - Reported: 2026-11-14, worker-15 (Claude Code), while moving std's ProcessExit defaults to a named implementation
 
+### A selected provider plan travels in two carriers, and only one knows its provider declaration
+- Category: 1. One idea, several implementations.
+- Where: `omega-rust/omega/compilation/realization/selected-dispatch/src/selected_execution.rs` (`SelectedExecution`), `backend-plan/src/target_providers.rs:30` (`TerminalTargetProviderPlan`), `effects/src/provider_evidence.rs:200` (`SelectedProviderPlanFacts`)
+- Saw: the checked-adapter join needs each plan's selecting declaration, which `ProviderPlan` does not hold; `TerminalTargetProviderPlan` wraps the plan with it, `SelectedProviderPlanFacts` sorts and validates bare plans, so `SelectedExecution` keeps both and `require_selected_provider_declarations` rejoins them by equality.
+- Cost: every consumer of selected plans must be handed both carriers and trust they agree; the declaration belongs in the plan.
+- Reported: 2026-11-14, Claude Code worker-10, while forming provider plans from settled supplies.
+
 ### Compiler operations are recognized by their bare spelling, and no declaration answers them
 - Category: one idea, several implementations
 - Where: `"code_layout"` in stage 02 `constant.rs:2063,2362`, `selection_authored.rs:392,1265` and stage 03 `statement_lowering.rs:1336`, `expression_lowering.rs:1445`; `"address_of"` in `expression_lowering.rs:1076`; `Quotient::lift`/`define` and `LayoutPlan::place_private` by namespace spelling in `expression_lowering.rs`
@@ -282,13 +289,6 @@ framework or a list of features that remain unimplemented.
 - Saw: typing records a call whose name no declaration answers as a deferred row beside rows for constructs no pass serves yet, and the reader raises every row the same way. `undeclared_machine(x);` in a program's own machine therefore reaches the user as "not supported yet ... with no claim that it is wrong" and never as a rejection
 - Cost: a misspelled machine name reads as a compiler limitation; state_contracts.md ("an unknown machine name or malformed type is an error wherever it appears") is met only in that the program is not accepted, and the outcome word is `not-supported` where it should be `rejected`
 - Reported: 2026-11-13, Claude Code, while accepting statements after a call that never returns
-
-### Lowering signals "this path ended" through the refusal channel
-- Category: a verdict with nothing behind it
-- Where: `05_typed-trees-to-terminal-psi/src/lower.rs` (`Lowering::end_path`, `Lowering::reached`); taken in `body`, `lower/control.rs` (`complete`, `short_circuit`, `match_value`)
-- Saw: a call that never returns, written inside an expression, ends the evaluation that holds it by returning a `Refusal` up through every `?`, and the construct whose path ended recognizes it by a side field and the refusal's text. Expression lowering returns `Checked<Value>` with no way to say "no value: control left", so the signal borrows the error type
-- Cost: any lowering step that swallows a refusal (`.ok()`, `if let Ok`) between the call and its taker would turn a divergence into an internal refusal later; the honest shape is a `Value::Ended(call)` result that every operand consumer handles, which touches each of the ~25 `scalar`/`record` call sites in `lower/`
-- Reported: 2026-11-14, Claude Code, while lowering calls that never return inside expressions
 
 ### No stage types a result value against the type its machine declares
 - Category: a verdict with nothing behind it

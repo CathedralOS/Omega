@@ -2,7 +2,6 @@
 members = [
     "tools/xtask",
     "tools/benchmark",
-    "tools/benchmark/allocation-observation",
     "samples/cli/scientific/sample-runner",
     "samples/cli/scientific/thin_film_reflectometry/validation",
     "samples/cli/scientific/laminate_stiffness_response/validation",

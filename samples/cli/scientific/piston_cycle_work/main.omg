@@ -1,4 +1,5 @@
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 use domain::model::Stage;
 use domain::model::evaluate;
 use domain::model::pressure_at;

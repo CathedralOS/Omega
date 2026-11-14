@@ -23,9 +23,11 @@ impl<'t> Program<'t> {
     /// a machine. Its distinct target identity prevents a source declaration
     /// from standing in for an executable provider body.
     ///
-    /// A selected native binding claims this declaration without calling it.
-    /// Actual calls check visibility before reading it, even when its schema
-    /// is already cached. `diagnostic` only anchors a failure in this check.
+    /// A selected native binding claims this declaration without calling it,
+    /// and a supplied slot declares each requirement it supplies
+    /// (`supplied_slots`). Actual calls check visibility before reading it,
+    /// even when its schema is already cached. `diagnostic` only anchors a
+    /// failure in this check.
     pub(super) fn boundary_declaration(
         &mut self,
         diagnostic: MachineId,

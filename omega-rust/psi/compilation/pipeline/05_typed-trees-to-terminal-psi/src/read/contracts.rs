@@ -100,9 +100,8 @@ pub(super) struct DataSubject<'s> {
 
 #[derive(Clone, Copy)]
 pub(super) enum ResultTerm {
-    /// The result pseudo-value's identity and stored type, and the
-    /// arithmetic policy the declared result type carries.
-    Named(ValueId, ScalarType, Option<Policy>),
+    /// The result's identity, scalar carrier and complete qualification.
+    Named(ValueId, ScalarType, Qualification),
     /// The declared result root, shared with structural result lowering.
     Structural(PlaceId, ValueType),
     /// Why this clause cannot name `result`.
@@ -321,12 +320,14 @@ impl Program<'_> {
         // A wholly anonymous operand lands in its partner's type.
         let ((left, left_type), (right, right_type)) = if self.wholly_anonymous(binary.left) {
             let right = self.term(id, scope, binary.right, None)?;
-            (self.term(id, scope, binary.left, Some(right.1))?, right)
+            (self.term(id, scope, binary.left, right.1.scalar())?, right)
         } else {
             let left = self.term(id, scope, binary.left, None)?;
-            let right = self.term(id, scope, binary.right, Some(left.1))?;
+            let right = self.term(id, scope, binary.right, left.1.scalar())?;
             (left, right)
         };
+        let left_type = self.clause_operand_type(id, left_type)?;
+        let right_type = self.clause_operand_type(id, right_type)?;
         if left_type != right_type {
             return Err(refuse(
                 id,
@@ -422,13 +423,35 @@ impl Program<'_> {
         }
     }
 
+    fn clause_operand_type(&self, id: MachineId, value_type: ValueType) -> Checked<ScalarType> {
+        match value_type {
+            ValueType::Scalar(scalar, qualification) if qualification.domains.is_empty() => {
+                Ok(scalar)
+            }
+            ValueType::Scalar(..) => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract(
+                    "builtin operator on a value with a declared domain in a clause",
+                ),
+            )),
+            _ => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("non-scalar clause operand"),
+            )),
+        }
+    }
+
+    /// Keep the qualification with the value until its consuming operation.
+    /// A cast can remove a named domain; merely naming the value cannot.
     pub(super) fn term(
         &self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
         expected: Option<ScalarType>,
-    ) -> Checked<(ScalarTerm, ScalarType)> {
+    ) -> Checked<(ScalarTerm, ValueType)> {
         let typed = self.typed;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
         if !expression.is_valid() {
@@ -445,9 +468,10 @@ impl Program<'_> {
             ExpressionNode::Name(path) if path.reserved_result_of.is_valid() => {
                 self.require_result_owner(id, scope, path.reserved_result_of)?;
                 match scope.result {
-                    ResultTerm::Named(id, scalar_type, _) => {
-                        Ok((ScalarTerm::Value { id, scalar_type }, scalar_type))
-                    }
+                    ResultTerm::Named(id, scalar_type, qualification) => Ok((
+                        ScalarTerm::Value { id, scalar_type },
+                        ValueType::Scalar(scalar_type, qualification),
+                    )),
                     ResultTerm::Structural(..) => {
                         unserved("whole structural result in a scalar clause")
                     }
@@ -477,7 +501,7 @@ impl Program<'_> {
                         )
                     })?;
                 let scalar_type = literal.scalar_type();
-                Ok((literal, scalar_type))
+                Ok((literal, ValueType::plain(scalar_type)))
             }
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, scope.slots, path)?;
@@ -489,7 +513,7 @@ impl Program<'_> {
                     if !scope.formal_fields {
                         return unserved("clause that names a borrowed formal outside requires");
                     }
-                    let ValueType::Scalar(scalar_type, Qualification::NONE) =
+                    let ValueType::Scalar(scalar_type, qualification) =
                         scope.slots[slot].value_type
                     else {
                         return unserved("record formal named whole in a clause");
@@ -502,14 +526,14 @@ impl Program<'_> {
                                 path: Vec::new(),
                                 scalar_type: integer,
                             },
-                            scalar_type,
+                            ValueType::Scalar(scalar_type, qualification),
                         )),
                         ScalarType::Boolean => Ok((
                             ScalarTerm::BooleanField {
                                 root,
                                 path: Vec::new(),
                             },
-                            scalar_type,
+                            ValueType::Scalar(scalar_type, qualification),
                         )),
                         ScalarType::IeeeFloat(_) => unserved("float field in a clause"),
                     };
@@ -522,12 +546,6 @@ impl Program<'_> {
                 else {
                     return unserved("record formal named whole in a clause");
                 };
-                // domains.md, "Operands": builtin operators and comparisons
-                // accept unqualified operands only, and "The rule is the
-                // same in executable code, `requires` and `ensures`".
-                if !qualification.domains.is_empty() {
-                    return unserved("formal that carries a declared domain named in a clause");
-                }
                 // Contracts name the supplied scalar value in every clause.
                 // Lowering initializes the body's working slot from this
                 // formal ValueId; assignments and writable loans can change
@@ -546,7 +564,7 @@ impl Program<'_> {
                         id: value,
                         scalar_type,
                     },
-                    scalar_type,
+                    ValueType::Scalar(scalar_type, qualification),
                 ))
             }
             ExpressionNode::Member(member)
@@ -591,7 +609,7 @@ impl Program<'_> {
                         path,
                         scalar_type,
                     },
-                    ScalarType::Integer(scalar_type),
+                    ValueType::plain(ScalarType::Integer(scalar_type)),
                 ))
             }
             // `self.value`, `self.from.x`: a field of the value a data
@@ -616,7 +634,7 @@ impl Program<'_> {
                         scalar_type: integer,
                         value,
                     },
-                    ScalarType::Integer(integer),
+                    ValueType::plain(ScalarType::Integer(integer)),
                 ))
             }
             ExpressionNode::Binary(_) if self.wholly_anonymous(expression) => {
@@ -626,12 +644,13 @@ impl Program<'_> {
                         scalar_type: integer,
                         value,
                     },
-                    ScalarType::Integer(integer),
+                    ValueType::plain(ScalarType::Integer(integer)),
                 ))
             }
-            ExpressionNode::Boolean(value) => {
-                Ok((ScalarTerm::Boolean(*value), ScalarType::Boolean))
-            }
+            ExpressionNode::Boolean(value) => Ok((
+                ScalarTerm::Boolean(*value),
+                ValueType::plain(ScalarType::Boolean),
+            )),
             ExpressionNode::Binary(binary) => match crate::policy::suffix(binary.policy) {
                 // Exact carrier arithmetic computes, so it owes its
                 // formation condition before the clause can use it
@@ -653,7 +672,7 @@ impl Program<'_> {
                     self.suffixed_term(id, scope, binary, policy, expected)
                 }
             },
-            ExpressionNode::Cast(_) => unserved("cast in a clause term"),
+            ExpressionNode::Cast(cast) => self.clause_cast(id, scope, cast, expected),
             ExpressionNode::Call(call)
                 if self.builtin_call(call, symbols::BuiltinFunction::ContentOld) =>
             {
@@ -670,9 +689,9 @@ impl Program<'_> {
     }
 
     /// A by-value scalar's entry observation is its existing logical input.
-    /// Read the operand normally, retaining identity and qualification checks,
-    /// then require membership in this signature's actual runtime inputs. A
-    /// result, erased value, bound constant, computed term or storage read
+    /// Keep its complete declared type for the consumer's qualification and
+    /// cast checks, and require this signature's actual runtime input identity.
+    /// A result, erased value, bound constant, computed term or storage read
     /// cannot acquire an entry identity by being wrapped in `old`.
     fn old_term(
         &self,
@@ -680,7 +699,7 @@ impl Program<'_> {
         scope: &ClauseScope<'_>,
         call: &typed_trees::expression::TableCallExpression,
         expected: Option<ScalarType>,
-    ) -> Checked<(ScalarTerm, ScalarType)> {
+    ) -> Checked<(ScalarTerm, ValueType)> {
         if scope.subject.is_some() {
             return Err(refuse(
                 id,
@@ -702,8 +721,9 @@ impl Program<'_> {
                 !slot.erased
                     && slot.borrowed.is_none()
                     && *input == Some(*value)
-                    && matches!(slot.value_type, ValueType::Scalar(declared, qualification)
-                            if declared == *scalar_type && qualification.domains.is_empty())
+                    && slot.value_type == term.1
+                    && matches!(slot.value_type, ValueType::Scalar(declared, _)
+                            if declared == *scalar_type)
             }),
             _ => false,
         };
@@ -736,6 +756,39 @@ impl Program<'_> {
         }
     }
 
+    fn clause_cast(
+        &self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        cast: &typed_trees::expression::TableCastExpression,
+        expected: Option<ScalarType>,
+    ) -> Checked<(ScalarTerm, ValueType)> {
+        use language_core::cast_form::CastEntryKind;
+        let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+        let Some(entry) = cast.form.entry() else {
+            return Err(unavailable("cast in a clause term"));
+        };
+        // Establishment has its own formation obligation. A clause cannot
+        // assume the predicate it is about to state to justify its operand.
+        if entry.kind == CastEntryKind::Add {
+            return Err(unavailable("domain establishment in a clause term"));
+        }
+        if !cast.result_type.is_valid() {
+            return Err(unavailable("domain cast typing did not account for"));
+        }
+        let (term, before) = self.term(id, scope, cast.value, expected)?;
+        let after = self.scalar_domain_cast_type(id, cast.result_type, before)?;
+        let domain = self.domain_entry_change(id, before, after, cast, entry)?;
+        if entry.kind == CastEntryKind::Remove
+            && let Some(domain) = domain
+        {
+            self.domain_removal(id, domain, before)?;
+        }
+        // Only qualification changed. Keeping the original term also keeps
+        // its immutable value identity and every fact already proved of it.
+        Ok((term, after))
+    }
+
     /// `left <op><suffix> right` in a clause: the value the operator computes
     /// under `policy`, as a term.
     ///
@@ -755,7 +808,7 @@ impl Program<'_> {
         binary: &typed_trees::expression::TableBinaryExpression,
         policy: Policy,
         expected: Option<ScalarType>,
-    ) -> Checked<(ScalarTerm, ScalarType)> {
+    ) -> Checked<(ScalarTerm, ValueType)> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
         let operation = crate::policy::suffixed(binary.operator).map_err(unserved)?;
         let anonymous = (
@@ -765,21 +818,22 @@ impl Program<'_> {
         if anonymous == (true, true) {
             return Err(unserved(crate::policy::WHOLLY_ANONYMOUS));
         }
-        for operand in [binary.left, binary.right] {
-            if self.named_policy(id, scope, operand)?.is_some() {
-                return Err(unserved(crate::policy::QUALIFIED_OPERAND));
-            }
-        }
         // The operand that has a type is read first; the anonymous one lands
         // in it, as the literal in `total +% 1` does.
         let ((left, left_type), (right, right_type)) = if anonymous.0 {
             let right = self.term(id, scope, binary.right, expected)?;
-            (self.term(id, scope, binary.left, Some(right.1))?, right)
+            (self.term(id, scope, binary.left, right.1.scalar())?, right)
         } else {
             let left = self.term(id, scope, binary.left, expected)?;
-            let right = self.term(id, scope, binary.right, Some(left.1))?;
+            let right = self.term(id, scope, binary.right, left.1.scalar())?;
             (left, right)
         };
+        if left_type.qualification().policy.is_some() || right_type.qualification().policy.is_some()
+        {
+            return Err(unserved(crate::policy::QUALIFIED_OPERAND));
+        }
+        let left_type = self.clause_operand_type(id, left_type)?;
+        let right_type = self.clause_operand_type(id, right_type)?;
         let (ScalarType::Integer(carrier), ScalarType::Integer(_)) = (left_type, right_type) else {
             return Err(unserved(crate::policy::QUALIFIED_OPERAND));
         };
@@ -791,55 +845,10 @@ impl Program<'_> {
             ));
         }
         match crate::policy::term(operation, policy, carrier, left, right) {
-            Some(term) => Ok((term, left_type)),
+            Some(term) => Ok((term, ValueType::plain(left_type))),
             None => Err(unserved(
                 "policy operator in a clause term that owes a condition before it is total",
             )),
-        }
-    }
-
-    /// The arithmetic policy carried by the declared type of what
-    /// `expression` names: a formal, the result, or a field. A term is the
-    /// stored value and forgets it, and a suffixed operator's operands must
-    /// carry none. An expression that names nothing has no declared type: a
-    /// literal is anonymous, and a suffixed operator's result is "the bare
-    /// carrier with no policy qualification".
-    fn named_policy(
-        &self,
-        id: MachineId,
-        scope: &ClauseScope<'_>,
-        expression: ExpressionHandle,
-    ) -> Checked<Option<Policy>> {
-        if !expression.is_valid() {
-            return Ok(None);
-        }
-        match self.typed.expression_table.expression(expression) {
-            ExpressionNode::Name(path) if path.reserved_result_of.is_valid() => {
-                Ok(match scope.result {
-                    ResultTerm::Named(_, _, policy) => policy,
-                    ResultTerm::Structural(..) | ResultTerm::Absent(_) => None,
-                })
-            }
-            ExpressionNode::Name(path)
-                if scope.subject.is_none()
-                    && path.symbol.is_valid()
-                    && !path.static_application.is_valid()
-                    && !scope.bound.iter().any(|(symbol, _)| *symbol == path.symbol) =>
-            {
-                let slot = self.slot_of(id, scope.slots, path)?;
-                Ok(scope.slots[slot].value_type.policy())
-            }
-            ExpressionNode::Name(_) | ExpressionNode::Member(_) => Ok(self
-                .projected(id, scope, expression)?
-                .and_then(|(_, _, value_type)| value_type.policy())),
-            ExpressionNode::Call(call)
-                if self.builtin_call(call, symbols::BuiltinFunction::ContentOld) =>
-            {
-                // `old` changes no carrier or declared policy. The term
-                // judgment separately admits its exact input subject.
-                self.named_policy(id, scope, self.old_argument(id, call)?)
-            }
-            _ => Ok(None),
         }
     }
 
@@ -969,7 +978,8 @@ impl Program<'_> {
                 let [argument] = typed.expression_table.expression_handles(call.arguments) else {
                     return unserved("embed of other than one value");
                 };
-                let (term, _) = self.term(id, scope, *argument, None)?;
+                let (term, value_type) = self.term(id, scope, *argument, None)?;
+                self.clause_operand_type(id, value_type)?;
                 match IntegerMathTerm::embed(term) {
                     Some(embedded) => Ok(embedded),
                     None => unserved("embed of a value that is not an integer"),
@@ -1067,34 +1077,29 @@ impl Program<'_> {
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
-    ) -> Checked<(ScalarTerm, ScalarType)> {
+    ) -> Checked<(ScalarTerm, ValueType)> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
         let Some((root, path, value_type)) = self.projected(id, scope, expression)? else {
             return unserved("term other than a field of the value or a literal");
         };
         match value_type {
             ValueType::Rigid(_) => unserved("field of a rigid type in a clause"),
-            ValueType::Scalar(ScalarType::Integer(scalar_type), qualification)
-                if qualification.domains.is_empty() =>
-            {
-                Ok((
-                    ScalarTerm::IntegerField {
-                        root,
-                        path,
-                        scalar_type,
-                    },
-                    ScalarType::Integer(scalar_type),
-                ))
-            }
-            ValueType::Scalar(ScalarType::Boolean, Qualification::NONE) => {
-                Ok((ScalarTerm::BooleanField { root, path }, ScalarType::Boolean))
-            }
+            ValueType::Scalar(ScalarType::Integer(scalar_type), qualification) => Ok((
+                ScalarTerm::IntegerField {
+                    root,
+                    path,
+                    scalar_type,
+                },
+                ValueType::Scalar(ScalarType::Integer(scalar_type), qualification),
+            )),
+            ValueType::Scalar(ScalarType::Boolean, qualification) => Ok((
+                ScalarTerm::BooleanField { root, path },
+                ValueType::Scalar(ScalarType::Boolean, qualification),
+            )),
             ValueType::Scalar(ScalarType::IeeeFloat(_), Qualification::NONE) => {
                 unserved("float field in a clause")
             }
-            // domains.md, "Operands": a builtin comparison takes
-            // unqualified operands, in `requires` and `ensures` too.
-            ValueType::Scalar(..) => unserved("field that carries a declared domain in a clause"),
+            ValueType::Scalar(..) => unserved("float field in a clause"),
             ValueType::Record(_, _, _) => unserved("data value compared whole in a clause"),
         }
     }

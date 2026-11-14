@@ -1,7 +1,8 @@
 // One-record chronology CLI; EOF without a record is an input error.
 // Expected exit: 2.
 // Expected output contains: invalid input
-use omega_language_std::console;
+use omega_language_std::Console;
+use omega_language_std::LineReadResult;
 use chronology::model;
 use chronology::solver;
 use chronology::input;

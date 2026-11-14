@@ -1,5 +1,5 @@
 // Complete source control: source=3 is outside the three-node array.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { outgoing: [i32; 3]; }
 machine Main::main(main: &mut Main) reaches Console {
     let source: u64 = 3;

@@ -262,53 +262,6 @@ fn publish(path: &Path, bytes: &[u8]) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(unix)]
-    use std::os::unix::fs::PermissionsExt;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    static NEXT: AtomicUsize = AtomicUsize::new(0);
-
-    struct Fixture(PathBuf);
-
-    impl Fixture {
-        fn new() -> Self {
-            let path = std::env::temp_dir().join(format!(
-                "omega-invoke-{}-{}",
-                std::process::id(),
-                NEXT.fetch_add(1, Ordering::Relaxed)
-            ));
-            fs::create_dir_all(&path).unwrap();
-            Self(path)
-        }
-
-        #[cfg(unix)]
-        fn script(&self, body: &str) -> PathBuf {
-            let path = self.0.join("evaluator.sh");
-            fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
-            let mut permissions = fs::metadata(&path).unwrap().permissions();
-            permissions.set_mode(0o755);
-            fs::set_permissions(&path, permissions).unwrap();
-            path
-        }
-    }
-
-    impl Drop for Fixture {
-        fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.0);
-        }
-    }
-
-    fn prepare(fixture: &Fixture, evaluator: PathBuf, timeout: Duration) -> Invocation {
-        let source = fixture.0.join("source.gamma");
-        fs::write(&source, b"(def main () Int 1)\n").unwrap();
-        Invocation {
-            evaluator,
-            source,
-            input: None,
-            output: fixture.0.join("out"),
-            timeout,
-        }
-    }
 
     #[test]
     fn request_prefixes_the_source_length() {
@@ -325,45 +278,95 @@ mod tests {
         assert_eq!(frame_request_len(u32::MAX as usize + 1, b"", b""), Err(3));
     }
 
+    /// The evaluator in these tests is a `/bin/sh` script, so they and the
+    /// fixture that writes it build only where a shell script is executable.
     #[cfg(unix)]
-    #[test]
-    fn success_publishes_stdout_and_empty_failure_does_not() {
-        let fixture = Fixture::new();
-        let evaluator = fixture.script("cat");
-        let invocation = prepare(&fixture, evaluator, Duration::from_secs(5));
-        assert_eq!(invoke(&invocation).unwrap(), 0);
-        let published = fs::read(&invocation.output).unwrap();
-        assert_eq!(&published[..4], invocation_source_len().as_slice());
-        assert!(published.ends_with(b"(def main () Int 1)\n"));
+    mod evaluator_process {
+        use super::super::*;
+        use std::os::unix::fs::PermissionsExt;
+        use std::sync::atomic::{AtomicUsize, Ordering};
 
-        let fixture = Fixture::new();
-        let evaluator = fixture.script("exit 7");
-        let invocation = prepare(&fixture, evaluator, Duration::from_secs(5));
-        fs::write(&invocation.output, b"keep").unwrap();
-        assert_eq!(invoke(&invocation).unwrap(), 7);
-        assert_eq!(fs::read(&invocation.output).unwrap(), b"keep");
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
 
-        let fixture = Fixture::new();
-        let evaluator = fixture.script("printf hi; exit 2");
-        let invocation = prepare(&fixture, evaluator, Duration::from_secs(5));
-        assert_eq!(invoke(&invocation).unwrap(), 2);
-        assert_eq!(fs::read(&invocation.output).unwrap(), b"hi");
-    }
+        struct Fixture(PathBuf);
 
-    fn invocation_source_len() -> [u8; 4] {
-        u32::try_from(b"(def main () Int 1)\n".len())
-            .unwrap()
-            .to_le_bytes()
-    }
+        impl Fixture {
+            fn new() -> Self {
+                let path = std::env::temp_dir().join(format!(
+                    "omega-invoke-{}-{}",
+                    std::process::id(),
+                    NEXT.fetch_add(1, Ordering::Relaxed)
+                ));
+                fs::create_dir_all(&path).unwrap();
+                Self(path)
+            }
 
-    #[cfg(unix)]
-    #[test]
-    fn timeout_exits_3_and_leaves_the_output_in_place() {
-        let fixture = Fixture::new();
-        let evaluator = fixture.script("sleep 30");
-        let invocation = prepare(&fixture, evaluator, Duration::from_millis(200));
-        fs::write(&invocation.output, b"keep").unwrap();
-        assert_eq!(invoke(&invocation).unwrap(), 3);
-        assert_eq!(fs::read(&invocation.output).unwrap(), b"keep");
+            fn script(&self, body: &str) -> PathBuf {
+                let path = self.0.join("evaluator.sh");
+                fs::write(&path, format!("#!/bin/sh\n{body}\n")).unwrap();
+                let mut permissions = fs::metadata(&path).unwrap().permissions();
+                permissions.set_mode(0o755);
+                fs::set_permissions(&path, permissions).unwrap();
+                path
+            }
+        }
+
+        impl Drop for Fixture {
+            fn drop(&mut self) {
+                let _ = fs::remove_dir_all(&self.0);
+            }
+        }
+
+        fn prepare(fixture: &Fixture, evaluator: PathBuf, timeout: Duration) -> Invocation {
+            let source = fixture.0.join("source.gamma");
+            fs::write(&source, b"(def main () Int 1)\n").unwrap();
+            Invocation {
+                evaluator,
+                source,
+                input: None,
+                output: fixture.0.join("out"),
+                timeout,
+            }
+        }
+
+        fn invocation_source_len() -> [u8; 4] {
+            u32::try_from(b"(def main () Int 1)\n".len())
+                .unwrap()
+                .to_le_bytes()
+        }
+
+        #[test]
+        fn success_publishes_stdout_and_empty_failure_does_not() {
+            let fixture = Fixture::new();
+            let evaluator = fixture.script("cat");
+            let invocation = prepare(&fixture, evaluator, Duration::from_secs(5));
+            assert_eq!(invoke(&invocation).unwrap(), 0);
+            let published = fs::read(&invocation.output).unwrap();
+            assert_eq!(&published[..4], invocation_source_len().as_slice());
+            assert!(published.ends_with(b"(def main () Int 1)\n"));
+
+            let fixture = Fixture::new();
+            let evaluator = fixture.script("exit 7");
+            let invocation = prepare(&fixture, evaluator, Duration::from_secs(5));
+            fs::write(&invocation.output, b"keep").unwrap();
+            assert_eq!(invoke(&invocation).unwrap(), 7);
+            assert_eq!(fs::read(&invocation.output).unwrap(), b"keep");
+
+            let fixture = Fixture::new();
+            let evaluator = fixture.script("printf hi; exit 2");
+            let invocation = prepare(&fixture, evaluator, Duration::from_secs(5));
+            assert_eq!(invoke(&invocation).unwrap(), 2);
+            assert_eq!(fs::read(&invocation.output).unwrap(), b"hi");
+        }
+
+        #[test]
+        fn timeout_exits_3_and_leaves_the_output_in_place() {
+            let fixture = Fixture::new();
+            let evaluator = fixture.script("sleep 30");
+            let invocation = prepare(&fixture, evaluator, Duration::from_millis(200));
+            fs::write(&invocation.output, b"keep").unwrap();
+            assert_eq!(invoke(&invocation).unwrap(), 3);
+            assert_eq!(fs::read(&invocation.output).unwrap(), b"keep");
+        }
     }
 }

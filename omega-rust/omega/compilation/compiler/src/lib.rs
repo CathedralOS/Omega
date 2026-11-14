@@ -61,6 +61,7 @@ pub use compilation_products::{
     OptimizationRollbackReceipt, RequestedCompileProduct, RetainedBuildOutputs,
     RetainedNativeArtifact,
 };
+pub use execution_settlement::settled_slot_schemas;
 pub use native_compiler::SourceEvaluatedImportSettlement;
 pub use package_compilation::BuildExecutionInputs;
 pub use package_evidence::permission_acceptance::TerminalPermissionAcceptance;

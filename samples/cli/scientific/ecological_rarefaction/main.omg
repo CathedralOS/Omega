@@ -1,7 +1,9 @@
 // Expected exit: 0
 // Expected output contains: ecological_rarefaction
 // Input: S, S nonnegative counts, Q, Q depths; one bounded line and EOF.
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
+use omega_language_std::LineReadResult;
 use domain::model;
 use io::report;
 data Main {

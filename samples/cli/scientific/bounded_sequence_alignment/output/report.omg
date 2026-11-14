@@ -1,5 +1,5 @@
 module output::report;
-use omega_language_std::console;
+use omega_language_std::Console;
 use alignment::local;
 
 // Scores and coordinates are nonnegative and at most 48. Emit decimal rather

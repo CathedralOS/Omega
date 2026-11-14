@@ -13,7 +13,7 @@
 // the next-board sum is 0.
 //
 // Expected exit: 50
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine cells_valid(cells: &[i32; 4]) -> bool {
     transition cells[0] == 0 || cells[0] == 1 {

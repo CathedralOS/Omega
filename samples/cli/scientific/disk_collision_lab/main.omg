@@ -2,7 +2,8 @@ use omega::language::core::abs_f64;
 
 // Expected exit: 2 (closed stdin).
 // Expected output contains: invalid input: one digit 0..9 and LF required
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 use physics::model;
 use physics::events;
 use reporting::ledger;

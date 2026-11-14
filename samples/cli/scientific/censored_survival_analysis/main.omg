@@ -5,7 +5,7 @@ use domain::input;
 use domain::model;
 use domain::solver;
 use domain::report;
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::F64::from_i32;
 use omega::language::core::I32::from_f64;
 

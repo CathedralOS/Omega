@@ -1,5 +1,6 @@
 // Complete streamed synthetic variant-normalization application.
-use omega_language_std::console;
+use omega_language_std::Console;
+use omega_language_std::LineReadResult;
 use domain::sequence;
 use domain::input;
 use domain::normalization;

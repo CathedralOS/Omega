@@ -26,7 +26,7 @@ use terminal_check_tables::{
 };
 use terminal_psi::{OperationKind, StructuralAccess, StructuralArgument, Terminator};
 
-use super::{Lowering, Value};
+use super::{Evaluation, Lowering, Reached, Value};
 use crate::body::{Expression, ExpressionKind, ValueType};
 use crate::canonical;
 use crate::outcome::Outcome;
@@ -75,7 +75,7 @@ impl Lowering<'_> {
         &mut self,
         callee: semantic_vocabulary::TargetMachineCallable,
         arguments: &[Expression],
-    ) -> Checked<Arguments> {
+    ) -> Evaluation<Arguments> {
         let signature = self.signatures.get(callee, self.id)?;
         let mut evaluated = Arguments {
             actuals: Vec::with_capacity(arguments.len()),
@@ -103,7 +103,7 @@ impl Lowering<'_> {
                 if signature.borrowed(position).map(|formal| formal.access) != Some(*access) {
                     return Err(self.internal("a loan for a formal that is not borrowed alike"));
                 }
-                let lent = self.lend(place, *access, home.as_deref())?;
+                let lent = continuing!(self.lend(place, *access, home.as_deref()));
                 evaluated.actuals.push(Actual::Place(lent.place));
                 evaluated.structural.push(lent.argument);
                 evaluated.loans.push((lent.place, *access, lent.lender));
@@ -114,7 +114,7 @@ impl Lowering<'_> {
             }
             match argument.result {
                 Some(ValueType::Record(_, _, _)) => {
-                    let root = self.record(argument)?;
+                    let root = continuing!(self.record(argument));
                     evaluated
                         .actuals
                         .push(Actual::Place(self.exact_root(root)?));
@@ -124,13 +124,13 @@ impl Lowering<'_> {
                     evaluated.homes.push(ArgumentHome::Transferred(root));
                 }
                 Some(ValueType::Scalar(..) | ValueType::Rigid(_)) | None => {
-                    let value = self.scalar(argument)?;
+                    let value = continuing!(self.scalar(argument));
                     evaluated.actuals.push(Actual::Value(value));
                     evaluated.scalars.push(value);
                 }
             }
         }
-        Ok(evaluated)
+        Ok(Reached::Value(evaluated))
     }
 
     fn structural_arguments(
@@ -234,9 +234,9 @@ impl Lowering<'_> {
         callee: semantic_vocabulary::TargetMachineCallable,
         arguments: &[Expression],
         source: SourceOrigin,
-    ) -> Checked<()> {
+    ) -> Evaluation<()> {
         let signature = self.signatures.get(callee, self.id)?;
-        let arguments = self.arguments(callee, arguments)?;
+        let arguments = continuing!(self.arguments(callee, arguments));
         let routes = match callee {
             semantic_vocabulary::TargetMachineCallable::Machine(callee) => {
                 &self.outcome(callee)?.crash_routes[..]
@@ -291,8 +291,8 @@ impl Lowering<'_> {
         let structural_arguments =
             self.structural_arguments(arguments.structural, ExecutionSite::Block(site), source)?;
         match callee {
-            semantic_vocabulary::TargetMachineCallable::Machine(callee) => {
-                self.terminate(Terminator::InvokeNoNormal {
+            semantic_vocabulary::TargetMachineCallable::Machine(callee) => self
+                .terminate(Terminator::InvokeNoNormal {
                     edge,
                     static_reach_binding: None,
                     callee,
@@ -304,7 +304,7 @@ impl Lowering<'_> {
                     requirement_obligations: requirements,
                     crash_continuations,
                 })
-            }
+                .map(Reached::Value),
             semantic_vocabulary::TargetMachineCallable::Boundary(boundary) => {
                 let semantic_vocabulary::BoundaryCompletion::External(kind) =
                     self.signatures.completion(boundary, self.id)?
@@ -341,6 +341,7 @@ impl Lowering<'_> {
                     // route mints no claim, so none is definitely live.
                     frontier_lower_bound: Vec::new(),
                 })
+                .map(Reached::Value)
             }
         }
     }
@@ -393,17 +394,17 @@ impl Lowering<'_> {
         designated: Option<crate::body::DesignatedOperands>,
         result: Option<ValueType>,
         source: SourceOrigin,
-    ) -> Checked<Value> {
+    ) -> Evaluation<Value> {
         // A call with no normal completion is a terminator
         // (`invoke_no_normal`) and has no value: the path it lies on ends at
         // it, and so does the evaluation of whatever holds it
-        // (`Lowering::end_path`).
+        // (the explicit Ended evaluation outcome).
         if !self.completes_normally(callable)? {
             if designated.is_some() {
                 return Err(self.internal("designated operands on a call that never returns"));
             }
-            self.invoke_no_normal(callable, arguments, source)?;
-            return Err(self.end_path(source));
+            continuing!(self.invoke_no_normal(callable, arguments, source));
+            return Ok(Reached::Ended(source));
         }
         if matches!(
             callable,
@@ -427,7 +428,7 @@ impl Lowering<'_> {
         {
             return Err(self.internal("designated operands on a call that is no boundary call"));
         }
-        let arguments = self.arguments(callable, arguments)?;
+        let arguments = continuing!(self.arguments(callable, arguments));
         let routes = match callable {
             semantic_vocabulary::TargetMachineCallable::Machine(callee) => {
                 &self.outcome(callee)?.crash_routes[..]
@@ -555,6 +556,6 @@ impl Lowering<'_> {
             let homes: Vec<_> = arguments.homes.iter().map(ArgumentHome::place).collect();
             self.retire_homes(&homes, source)?;
         }
-        Ok(value)
+        Ok(Reached::Value(value))
     }
 }

@@ -11,7 +11,7 @@ Fetched current main / isolated base:
 `9d4451128dd05885e7b9c591796b2760189851db`.
 Worktree: `/workspace/Omega/.codex/worktrees/nf03`, branch `nf03-complex`.
 Read `AGENTS.md`, `.agents/skills/advance/SKILL.md`, cloud coordination,
-`tools/claims.md`, `tools/testing.md`, current module and Build contracts.
+`tools/docs/claims.md`, `tools/docs/testing.md`, current module and Build contracts.
 
 Ownership checks: `python tools/claims.py status` returned exit 3 after its
 15-second coordination deadline. Ownership is unconfirmed. Claim attempt

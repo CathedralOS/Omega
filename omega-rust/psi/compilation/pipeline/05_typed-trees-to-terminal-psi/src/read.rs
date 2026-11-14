@@ -684,7 +684,7 @@ mod tests {
             values: &[],
             bound: &[],
             owner,
-            result: ResultTerm::Named(result, u32_type, None),
+            result: ResultTerm::Named(result, u32_type, crate::body::Qualification::NONE),
         };
         let entry = ClauseScope {
             result: ResultTerm::Absent("result in an entry clause"),
@@ -697,7 +697,7 @@ mod tests {
                     id: result,
                     scalar_type: u32_type
                 },
-                u32_type
+                ValueType::plain(u32_type)
             ))
         );
         let detail = |scope: &ClauseScope<'_>, handle| {
@@ -810,7 +810,7 @@ mod tests {
                 id: value,
                 scalar_type: u32_type,
             },
-            u32_type,
+            ValueType::plain(u32_type),
         ));
         let read = |scope: &ClauseScope<'_>| program.term(machine(), scope, named, None);
         assert_eq!(read(&scope(&mutable, true)), term);
@@ -954,13 +954,16 @@ mod tests {
             values: &values,
             bound: &[],
             owner,
-            result: ResultTerm::Named(ValueId::new(2).unwrap(), scalar_type, None),
+            result: ResultTerm::Named(ValueId::new(2).unwrap(), scalar_type, Qualification::NONE),
             subject: None,
             formal_fields: false,
             mathematical: MathematicalTerms::Served,
         };
         let mut program = Program::new(&typed, false);
-        let input = (ScalarTerm::value(value, scalar_type), scalar_type);
+        let input = (
+            ScalarTerm::value(value, scalar_type),
+            ValueType::plain(scalar_type),
+        );
         assert_eq!(
             program.term(machine(), &scope, old, None),
             Ok(input.clone())
@@ -1008,7 +1011,7 @@ mod tests {
             ),
             Ok((
                 ScalarTerm::value(value, ScalarType::Boolean),
-                ScalarType::Boolean
+                ValueType::plain(ScalarType::Boolean)
             ))
         );
         assert_eq!(
@@ -1056,6 +1059,17 @@ mod tests {
             detail(
                 &ClauseScope {
                     bound: &forged,
+                    ..scope
+                },
+                old_foreign
+            ),
+            no_input
+        );
+        let wrong_carrier = [(foreign, ScalarTerm::value(value, ScalarType::Boolean))];
+        assert_eq!(
+            detail(
+                &ClauseScope {
+                    bound: &wrong_carrier,
                     ..scope
                 },
                 old_foreign
@@ -1127,15 +1141,30 @@ mod tests {
             ),
             ..slot()
         }];
+        let domain_scope = ClauseScope {
+            slots: &domain,
+            ..scope
+        };
+        assert_eq!(
+            program.term(machine(), &domain_scope, old, None),
+            Ok((ScalarTerm::value(value, scalar_type), domain[0].value_type))
+        );
+        for expression in [using_old, computed] {
+            assert_eq!(
+                detail(&domain_scope, expression),
+                "contract builtin operator on a value with a declared domain in a clause"
+            );
+        }
+        let erased_qualification = [(foreign, ScalarTerm::value(value, scalar_type))];
         assert_eq!(
             detail(
                 &ClauseScope {
-                    slots: &domain,
-                    ..scope
+                    bound: &erased_qualification,
+                    ..domain_scope
                 },
-                old
+                old_foreign
             ),
-            "contract formal that carries a declared domain named in a clause"
+            no_input
         );
         let qualified = [Slot {
             value_type: ValueType::Scalar(scalar_type, Qualification::of_policy(Policy::Wrapping)),

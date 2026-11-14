@@ -19,8 +19,31 @@ use compilation_products::{
     CompileFailure,
 };
 use diagnostics::Diagnostic;
+use provider_planning::target_supply::{SettledTargetSupply, SlotSchema, SupplyPlanning};
 use selected_dispatch::SelectedExecution;
 use std::sync::Arc;
+
+/// The schema of each slot a settled supply chose a provider for, projected
+/// from the accepted source's declaration of that slot
+/// (`AcceptedTerminalSource::slot_schema`). A slot with no schema is left
+/// out, and the plan of its provider is refused by the slot's requirement
+/// (`SettledTargetSupply::plans`).
+pub fn settled_slot_schemas(
+    accepted: &psi_compiler::AcceptedTerminalSource,
+    settled: &SettledTargetSupply,
+) -> Vec<SlotSchema> {
+    let mut schemas = Vec::<SlotSchema>::new();
+    for requirement in settled.requirements() {
+        let slot = requirement.reached.slot;
+        if schemas.iter().any(|schema| schema.slot == slot) {
+            continue;
+        }
+        if let Some(surface) = accepted.slot_schema(slot) {
+            schemas.push(SlotSchema { slot, surface });
+        }
+    }
+    schemas
+}
 
 pub(crate) struct SelectedProviderCustody {
     pub(crate) terminal_publication: Arc<compilation_products::ProductTerminalPublication>,
@@ -49,7 +72,17 @@ impl SelectedProductTarget {
         // competing supplies, then forms the plans of the chosen ones. A
         // module that demands nothing settles to no plan.
         let PreparedProductTarget { profile, supply } = prepared;
-        let execution = SelectedExecution::settle(profile, &supply.settle()?)?;
+        let settled = supply.settle()?;
+        let accepted = source.terminal_publication.accepted()?;
+        let schemas = settled_slot_schemas(accepted, &settled);
+        let execution = SelectedExecution::settle(
+            profile,
+            &settled,
+            SupplyPlanning {
+                module: accepted.module(),
+                schemas: &schemas,
+            },
+        )?;
         Ok(Self {
             runtime_policy: Arc::new(
                 package_evidence::permission_acceptance::PreparedRuntimePolicy::capture(source),
