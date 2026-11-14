@@ -1272,6 +1272,8 @@ fn a_never_returning_record_base_stops_its_field_projection() {
             of_type(
                 ExpressionKind::Call {
                     callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
+                    required_contract: None,
+                    source_call: None,
                     arguments: Vec::new(),
                     designated: None,
                 },
