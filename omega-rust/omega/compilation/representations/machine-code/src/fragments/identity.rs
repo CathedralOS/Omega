@@ -227,6 +227,10 @@ fn encode_control(
     control: &FunctionFragmentControlProvenance,
 ) {
     match control {
+        FunctionFragmentControlProvenance::EliminateEmpty { psi_edge } => {
+            hasher.byte(10);
+            hasher.raw(&psi_edge.get().to_le_bytes());
+        }
         FunctionFragmentControlProvenance::OperationTrap { operation } => {
             hasher.byte(8);
             hasher.raw(&operation.get().to_le_bytes());

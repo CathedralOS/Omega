@@ -16,6 +16,14 @@ pub fn encode_terminator<E>(
     mut encode_successor: impl FnMut(&mut Vec<u8>, &SelectedSuccessor) -> Result<(), E>,
 ) -> Result<(), E> {
     match terminator {
+        SelectedTerminator::EliminateEmpty {
+            instruction,
+            psi_edge,
+        } => {
+            bytes.push(10);
+            encode_instruction(bytes, instruction);
+            crate::codec_bytes::push_encoded(bytes, psi_edge.get().to_le_bytes());
+        }
         SelectedTerminator::OperationInvokeNoNormal {
             instruction,
             operation,

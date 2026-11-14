@@ -68,6 +68,11 @@ pub struct TargetScalarBlockParameter {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TargetControlTerminator {
+    EliminateEmpty {
+        psi_edge: EdgeId,
+        source: semantic_vocabulary::PlaceId,
+        path: Vec<terminal_psi::StructuralPathSegment>,
+    },
     InvokeNoNormal {
         psi_edge: EdgeId,
         callee: MachineId,

@@ -655,6 +655,13 @@ pub enum AbstractOperation {
         source: PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
     },
+    /// No valid execution can reach this terminal: checking established that
+    /// the actual observed storage namespace has no admitted value.
+    EliminateEmpty {
+        psi_edge: EdgeId,
+        source: PlaceId,
+        path: Vec<StructuralPathSegment>,
+    },
     InvokeNoNormal {
         psi_edge: EdgeId,
         callee: MachineId,
@@ -981,7 +988,8 @@ impl AbstractOperation {
             }
             Self::ReadTaskRegister { .. } | Self::ReadSegmentSelector { .. } => vec![],
             Self::GlobalDescriptorTable { source, .. } => vec![source.path.as_slice()],
-            Self::StorageAddress { path, .. }
+            Self::EliminateEmpty { path, .. }
+            | Self::StorageAddress { path, .. }
             | Self::PrimitiveScalarRead { path, .. }
             | Self::ElementViewRead { path, .. }
             | Self::ReleaseReference { path, .. }
@@ -1176,6 +1184,7 @@ impl AbstractOperation {
             | Self::ReturnStructural { .. }
             | Self::ExternalCompletion { .. }
             | Self::InvokeNoNormal { .. }
+            | Self::EliminateEmpty { .. }
             | Self::Crash { .. } => None,
         }
     }
@@ -1311,7 +1320,9 @@ macro_rules! establish_case_or_record_result_pattern {
 #[macro_export]
 macro_rules! return_structural_or_crash_pattern {
     () => {
-        $crate::AbstractOperation::ReturnStructural { .. } | $crate::AbstractOperation::Crash { .. }
+        $crate::AbstractOperation::ReturnStructural { .. }
+            | $crate::AbstractOperation::EliminateEmpty { .. }
+            | $crate::AbstractOperation::Crash { .. }
     };
 }
 

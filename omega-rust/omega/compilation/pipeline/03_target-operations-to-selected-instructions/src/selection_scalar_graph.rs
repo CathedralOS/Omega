@@ -2605,6 +2605,25 @@ pub(crate) mod control {
                 normal.terminator = LegalizedScalarTerminator::Return(returned.clone());
                 build(function, source, &normal, order, builder, environment)
             }
+            LegalizedScalarTerminator::EliminateEmpty { psi_edge, work, .. } => {
+                // Valid inputs cannot take this edge. Keep a physical trap as
+                // a defensive invariant check, without source crash authority.
+                let (kind, key) = builder.crash_form()?;
+                Ok(SelectedTerminator::EliminateEmpty {
+                    instruction: terminal(
+                        builder,
+                        kind,
+                        key,
+                        &[],
+                        SelectedInstructionProvenance {
+                            edges: vec![*psi_edge],
+                            work: work.clone(),
+                            ..Default::default()
+                        },
+                    )?,
+                    psi_edge: *psi_edge,
+                })
+            }
             LegalizedScalarTerminator::Crash {
                 psi_edge,
                 cause,

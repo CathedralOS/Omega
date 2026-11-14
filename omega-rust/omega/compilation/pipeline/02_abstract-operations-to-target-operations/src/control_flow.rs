@@ -1556,6 +1556,15 @@ mod terminator {
                     frontier_lower_bound: frontier_lower_bound.clone(),
                 })
             }
+            AbstractOperation::EliminateEmpty {
+                psi_edge,
+                source,
+                path,
+            } => Ok(TargetControlTerminator::EliminateEmpty {
+                psi_edge: *psi_edge,
+                source: *source,
+                path: path.clone(),
+            }),
             AbstractOperation::Crash {
                 psi_edge,
                 cause,
@@ -2465,6 +2474,7 @@ mod transfers {
             AbstractOperation::Return { .. }
             | AbstractOperation::InvokeNoNormal { .. }
             | AbstractOperation::ExternalCompletion { .. }
+            | AbstractOperation::EliminateEmpty { .. }
             | AbstractOperation::Crash { .. }
             | AbstractOperation::ReturnStructural { .. }
             | AbstractOperation::ReturnUnit { .. }
@@ -2782,6 +2792,7 @@ pub(crate) fn lower(
             AbstractOperation::ReturnStructural { .. }
             | AbstractOperation::InvokeNoNormal { .. }
             | AbstractOperation::ExternalCompletion { .. }
+            | AbstractOperation::EliminateEmpty { .. }
             | AbstractOperation::Crash { .. } => Vec::new(),
             abstract_operations::return_or_return_unit_pattern!(cleanup_actions, ..)
                 if cleanup_actions.iter().all(|action| {

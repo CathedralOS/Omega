@@ -77,6 +77,9 @@ pub mod control_flow {
 
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub enum FunctionFragmentControlProvenance {
+        EliminateEmpty {
+            psi_edge: EdgeId,
+        },
         OperationTrap {
             operation: semantic_vocabulary::OperationId,
         },

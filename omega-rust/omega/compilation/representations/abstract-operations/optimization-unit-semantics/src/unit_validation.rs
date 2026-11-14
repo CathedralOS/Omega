@@ -470,6 +470,15 @@ mod activation_storage {
                 returned_claims: returned_claims.clone(),
                 cleanup_actions: cleanup_actions.clone(),
             },
+            A::EliminateEmpty {
+                psi_edge,
+                source,
+                path,
+            } => Terminator::EliminateEmpty {
+                edge: *psi_edge,
+                source: *source,
+                path: path.clone(),
+            },
             A::Crash {
                 psi_edge,
                 cause,
@@ -2885,7 +2894,9 @@ pub(crate) mod derived_metadata {
                 | O::ElementViewLength { source, .. }
                 | O::ByteSequenceSubslice { source, .. }
                 | O::ElementViewSubslice { source, .. } => require(source.place, known)?,
-                O::ReturnStructural { source, .. } => require(*source, known)?,
+                O::ReturnStructural { source, .. } | O::EliminateEmpty { source, .. } => {
+                    require(*source, known)?
+                }
                 _ => {}
             }
             Ok(())
@@ -2903,6 +2914,7 @@ pub(crate) mod derived_metadata {
                 abstract_operations::return_or_return_unit_pattern!(psi_edge, ..)
                 | O::InvokeNoNormal { psi_edge, .. }
                 | O::ExternalCompletion { psi_edge, .. }
+                | O::EliminateEmpty { psi_edge, .. }
                 | O::Crash { psi_edge, .. } => {
                     vec![PsiProvenance::Edge(*psi_edge)]
                 }
@@ -7169,6 +7181,7 @@ pub(crate) mod function_structure {
                     | O::TrappingInteger { .. }
                     | O::Return { .. }
                     | O::ReturnUnit { .. }
+                    | O::EliminateEmpty { .. }
                     | O::Crash { .. } => Vec::new(),
                 }
             }
@@ -10023,7 +10036,9 @@ mod no_normal_calls {
                 O::Return { .. } | O::ReturnUnit { .. } | O::ReturnStructural { .. } => {
                     NormalCompletionDisposition::Return
                 }
-                O::Crash { .. } | O::ExternalCompletion { .. } => NormalCompletionDisposition::Stop,
+                O::EliminateEmpty { .. } | O::Crash { .. } | O::ExternalCompletion { .. } => {
+                    NormalCompletionDisposition::Stop
+                }
                 O::InvokeNoNormal { callee, .. } => NormalCompletionDisposition::Invoke(*callee),
                 O::Jump { .. } | O::Conditional { .. } | O::StructuralCase { .. } => {
                     NormalCompletionDisposition::Successors(

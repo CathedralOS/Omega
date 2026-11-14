@@ -717,6 +717,7 @@ pub(crate) mod graph {
                 | terminal_psi::Terminator::ReturnStructural { .. }
                 | terminal_psi::Terminator::ExternalCompletion { .. }
                 | terminal_psi::Terminator::InvokeNoNormal { .. }
+                | terminal_psi::Terminator::EliminateEmpty { .. }
                 | terminal_psi::Terminator::Crash { .. } => {}
             }
         }
