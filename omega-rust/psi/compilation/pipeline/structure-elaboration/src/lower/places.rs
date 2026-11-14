@@ -1410,19 +1410,29 @@ impl<'a> Lowering<'a> {
         let value_type = place
             .result
             .ok_or_else(|| self.internal("a loan of a Unit value"))?;
-        let (root, steps, exact, actual) = if matches!(place.kind, ExpressionKind::ByteLiteral(_))
-            && access == language_core::ReferenceAccess::Shared
-        {
-            let at = self.located(place)?;
-            (
-                at.root,
-                at.path,
-                at.place,
-                ValueType::Record(at.record, Qualification::NONE),
-            )
-        } else {
-            self.capture_place(place, home_identity)?
+        let shared_view = match value_type {
+            ValueType::Record(record, _) => match &self.record_type(record)?.shape {
+                StorageShape::ByteSequence(carrier) => carrier.is_shared_readable_view(),
+                StorageShape::ElementView {
+                    access: Some(StructuralAccess::SharedBorrow),
+                    ..
+                } => true,
+                _ => false,
+            },
+            _ => false,
         };
+        let (root, steps, exact, actual) =
+            if shared_view && access == language_core::ReferenceAccess::Shared {
+                let at = self.located(place)?;
+                (
+                    at.root,
+                    at.path,
+                    at.place,
+                    ValueType::Record(at.record, Qualification::NONE),
+                )
+            } else {
+                self.capture_place(place, home_identity)?
+            };
         if actual != value_type {
             return Err(self.internal("a loan has another type than its captured place"));
         }

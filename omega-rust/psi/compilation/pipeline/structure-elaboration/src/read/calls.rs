@@ -1173,7 +1173,7 @@ impl<'t> Program<'t> {
     /// Holds a call's arguments to its callee's formal types and gives the
     /// call's result type.
     ///
-    /// Every type but a byte view's is the formal's exactly. A view's type
+    /// Every type but a borrowed view's is the formal's exactly. A view's type
     /// names a region, and a region a callee's signature names is the
     /// callee's own: a lifetime parameter it declares, or a lifetime it
     /// left out. lifetimes.md: "Lifetime arguments are erased regions", so
@@ -1292,10 +1292,18 @@ impl<'t> Program<'t> {
     ) -> Checked<(Expression, String)> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let source = SourceOrigin::of(self.typed.expression_table.source_span(argument));
-        if matches!(self.node(id, argument)?, ExpressionNode::String(_)) {
-            if formal.access != ReferenceAccess::Shared {
-                return unserved("byte literal cannot lend mutable storage");
-            }
+        let node = self.node(id, argument)?;
+        if matches!(node, ExpressionNode::String(_)) && formal.access != ReferenceAccess::Shared {
+            return unserved("byte literal cannot lend mutable storage");
+        }
+        // A shared view already carries its immutable backing. Read every
+        // expression of that type through the same descriptor operation,
+        // including constructors and returned views; the call's region check
+        // still authenticates the actual type and its result relation.
+        if formal.access == ReferenceAccess::Shared
+            && self.view_region(expected).is_some()
+            && !matches!(node, ExpressionNode::Borrow(_))
+        {
             let place = self.expression(id, slots, argument, Some(expected))?;
             return Ok((
                 Expression {
@@ -1310,22 +1318,17 @@ impl<'t> Program<'t> {
                 self.typed.expression_table.display_name(argument),
             ));
         }
-        // A byte view is itself the borrow: a place that holds one, a
-        // binding or a field, is passed as it stands, shared.
-        let view = formal.access == ReferenceAccess::Shared && self.view_region(expected).is_some();
+        // Ordinary references still name existing storage or explicitly
+        // borrow it; a descriptor expression cannot grant writable custody.
         let (target, access) = match self.node(id, argument)? {
             ExpressionNode::Borrow(borrow) => (borrow.target, borrow.access),
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, slots, path)?;
                 match slots[slot].borrowed {
                     Some(_) => (argument, formal.access),
-                    None if view && self.view_region(slots[slot].value_type).is_some() => {
-                        (argument, formal.access)
-                    }
                     None => return unserved("argument for a borrowed formal that is not a borrow"),
                 }
             }
-            ExpressionNode::Member(_) if view => (argument, formal.access),
             _ => return unserved("argument for a borrowed formal that is not a borrow"),
         };
         if access != formal.access {
