@@ -279,7 +279,7 @@ impl Program<'_> {
                 Unserved::Typing("reference formation without its captured source"),
             ));
         };
-        let outer = self.storage_loan_regions(machine, slots, place)?;
+        let outer = self.formed_loan_regions(machine, slots, place)?;
         let mut tuple = self.region_tuple(outer).to_vec();
         tuple.extend_from_slice(self.region_tuple(referent.regions()));
         value.result = Some(ValueType::Record(
@@ -309,7 +309,29 @@ impl Program<'_> {
             })?;
             return Ok(self.intern_regions(vec![outer]));
         }
-        self.storage_loan_regions(machine, slots, place)
+        self.formed_loan_regions(machine, slots, place)
+    }
+
+    /// The region of a loan formed here of the storage `place` names: some
+    /// region within that storage's, which the places the loan is given to
+    /// decide (`regions::RegionVariable`). A view passed on is no new loan
+    /// and keeps its own region (`loan_regions`).
+    fn formed_loan_regions(
+        &mut self,
+        machine: MachineId,
+        slots: &[super::Slot],
+        place: &crate::Expression,
+    ) -> Checked<crate::body::Regions> {
+        let storage = self.storage_loan_regions(machine, slots, place)?;
+        let within = *self.region_tuple(storage).first().ok_or_else(|| {
+            refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Type("loan of storage without its lifetime"),
+            )
+        })?;
+        let loan = self.loan_region(within);
+        Ok(self.intern_regions(vec![loan]))
     }
 
     /// Borrowing a descriptor's home is distinct from borrowing the storage

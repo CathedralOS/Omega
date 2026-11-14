@@ -254,6 +254,24 @@ pub(crate) mod build_provider {
     }
 
     impl ProducedBuildProvider {
+        pub(crate) fn new(
+            code: Option<std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>>,
+            path: String,
+            package: semantic_vocabulary::PackageKeyIdentity,
+            declaration: String,
+            requirement: String,
+            application: String,
+        ) -> Self {
+            Self {
+                code,
+                path,
+                package,
+                declaration,
+                requirement,
+                application,
+            }
+        }
+
         pub fn artifact(
             &self,
         ) -> Option<&std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>> {

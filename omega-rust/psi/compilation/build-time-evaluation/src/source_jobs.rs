@@ -1463,18 +1463,17 @@ pub(crate) mod tests {
                 .unwrap();
             assert_eq!(trait_arguments.len(), 1);
             assert_eq!(
-                materialized
-                    .type_reference_table
-                    .primitive_type(trait_arguments[0]),
-                typed_trees::types::PrimitiveType::from_name(semantic_type),
+                materialized.primitive_type_reference(trait_arguments[0]),
+                Some(typed_trees::types::PrimitiveType::Integer(
+                    numerics::integer_carrier::FixedInteger::from_decimal_spelling(semantic_type)
+                        .unwrap()
+                )),
                 "the selected trait's semantic T is resolved through its own map environment"
             );
             if name != "wide" {
                 assert_ne!(
-                    materialized
-                        .type_reference_table
-                        .primitive_type(trait_arguments[0]),
-                    typed_trees::types::PrimitiveType::from_name("u64"),
+                    materialized.primitive_type_reference(trait_arguments[0]),
+                    Some(typed_trees::types::PrimitiveType::U64),
                     "a genuine closed selection does not establish a different semantic subject"
                 );
             }

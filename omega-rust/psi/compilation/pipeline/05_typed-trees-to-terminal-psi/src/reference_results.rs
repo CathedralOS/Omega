@@ -5,11 +5,24 @@
 
 use crate::{Unserved, refuse};
 use semantic_vocabulary::MachineId;
-use terminal_check_tables::{Checked, Construct};
+use terminal_check_tables::{Checked, Construct, Refusal};
 use terminal_psi::TerminalModule;
 use terminal_semantics::descriptor_results::{
-    DescriptorAnalysis, terminal_borrowed_storage_graph_from,
+    DescriptorAnalysis, DescriptorGraphError, terminal_borrowed_storage_graph_from,
 };
+
+fn graph_unavailable(module: &TerminalModule, error: DescriptorGraphError) -> Refusal {
+    let mut refusal = refuse(
+        error.machine(),
+        error
+            .operation(module)
+            .map(Construct::Operation)
+            .unwrap_or(Construct::Machine),
+        Unserved::Call("executable borrowed-storage closure cannot be reconstructed"),
+    );
+    refusal.detail = format!("{}: {}", refusal.detail, error.in_module(module));
+    refusal
+}
 
 pub(crate) fn publish(
     elaboration: &mut crate::Elaboration,
@@ -36,9 +49,9 @@ fn publish_results(module: &mut TerminalModule, selections: &[crate::Selected]) 
                 .map(|_| machine.id)
         })
         .collect();
-    let Some(first) = selected.first().copied() else {
+    if selected.is_empty() {
         return Ok(());
-    };
+    }
     let unavailable =
         |machine: MachineId, reason| refuse(machine, Construct::Machine, Unserved::Call(reason));
     // A selected body can return a narrower permission than its public
@@ -59,7 +72,7 @@ fn publish_results(module: &mut TerminalModule, selections: &[crate::Selected]) 
         }
     }
     let graph = terminal_borrowed_storage_graph_from(module, selected.iter().copied(), &[])
-        .map_err(|reason| unavailable(first, reason))?;
+        .map_err(|error| graph_unavailable(module, error))?;
     let mut analysis = DescriptorAnalysis::with_reference_slots(&module.structural_types, &graph);
     let mut published = Vec::with_capacity(selected.len());
     for id in selected {
@@ -154,7 +167,7 @@ fn publish_parents(elaboration: &mut crate::Elaboration) -> Checked<()> {
             continue;
         }
         let graph = terminal_borrowed_storage_graph_from(module, [machine.id], &[])
-            .map_err(|reason| unavailable(machine.id, reason))?;
+            .map_err(|error| graph_unavailable(module, error))?;
         let mut analysis =
             DescriptorAnalysis::with_reference_slots(&module.structural_types, &graph);
         let flow = analysis.flow(machine.id).ok_or_else(|| {

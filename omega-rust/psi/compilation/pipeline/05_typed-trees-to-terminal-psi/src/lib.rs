@@ -574,7 +574,17 @@ fn elaborate_witness_call(
         source,
     };
     let mut bodies: IdTable<MachineId, Body> = IdTable::default();
-    bodies.push(Body {
+    bodies.push(callable_refinement_body(&required, call));
+    finish_reading(program, Some(entry), bodies).map(|prepared| prepared.program)
+}
+
+/// A callable refines its requirement by making this call under the
+/// requirement's inputs and proving its normal completion afterward. Both
+/// ordinary and projected witnesses use the canonical call/return operations;
+/// the callee's guarantees become available only after that call completes.
+pub(crate) fn callable_refinement_body(required: &body::Signature, call: Expression) -> Body {
+    let source = call.source;
+    Body {
         slots: required.parameters.clone(),
         statements: vec![match required.result {
             Some(_) => Statement::Arm {
@@ -584,8 +594,7 @@ fn elaborate_witness_call(
             },
             None => Statement::Evaluate(call),
         }],
-    });
-    finish_reading(program, Some(entry), bodies).map(|prepared| prepared.program)
+    }
 }
 
 fn elaborate_form(
