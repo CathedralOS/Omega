@@ -34,8 +34,8 @@ pub use scalar_applications::{
 };
 pub use source_frontier::{
     AuthorizedSelection, BuildTimeEvaluationRequest, BuildTimeInvocationCustody,
-    BuildTimeSelectionAuthority, BuildTimeSources, PreCheckEvaluation, PreResolutionEvaluation,
-    evaluate_pre_resolution,
+    BuildTimeSelectionAuthority, BuildTimeSources, InvocationSourceConsent, PreCheckEvaluation,
+    PreResolutionEvaluation, evaluate_pre_resolution,
 };
 pub use source_jobs::*;
 

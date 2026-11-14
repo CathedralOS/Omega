@@ -69,6 +69,7 @@ pub(crate) fn check_product_source(
                 .flat_map(|selection| [selection.opaque(), selection.application().declaration]),
         );
         let source_admission = psi_compiler::SourceAdmission {
+        invocation_sources: None,
         // Roots belong to structural judgment below, rather than to a deleted
         // source-checking admission or projection.
         external_roots: &[],
