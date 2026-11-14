@@ -64,7 +64,10 @@ it does not change optimization selection or required admission checks.
 
 An empty selection is the same phase's identity execution: output equals input,
 with no pass manifests or transformation records, and the validators accept it
-as the identity. Empty selection is not a separate compiler or
+as the identity. For Psi that identity is literal: no passes run, the
+lowered-form check does not run a second time, and the default path is
+unchanged ([optimization ordering](../terminal-psi/product.md#optimization-ordering)).
+Empty selection is not a separate compiler or
 publication route. Disabling every selected rule yields the same identity-phase
 acceptance, diagnostics, and output as an initially empty selection, apart from
 the separately retained rollback provenance.
@@ -77,12 +80,39 @@ own explicit identity, not one inferred from the remaining declarations.
 Shared frontend work precedes target fan-out under the
 [target-selection contract](configuration.md).
 
-Terminal Psi is the immutable output of Psi optimization. Publication retains
-the exact Psi selection and input/output semantic identities; decoding checks
-the recorded output against the published semantics. Proof identities remain
-internal validation provenance. Empty execution may claim only equal input and
-output identities. A receiving interpreter or native lowerer does not rerun Psi
-passes. A target-constrained build companion may carry pending post-Terminal
+Terminal publication follows the Psi phase and seals the checked module as
+immutable Terminal Psi
+([optimization ordering](../terminal-psi/product.md#optimization-ordering)).
+The order is structural elaboration, the lowered-form check of the
+unoptimized program, the selected Psi passes in one canonical order, the same
+check of the optimized program, then publication. The unoptimized check
+decides source validity; a pass cannot make an invalid program valid. The
+published module carries the verdict and evidence of the check that judged
+it. Passes do not transport that evidence. An empty selection publishes the
+unoptimized check's module unchanged.
+
+Publication retains the exact Psi selection and the input and output semantic
+identities in the
+[optimization execution](../terminal-psi/encoding.md#optimization-execution)
+record. Decoding checks the recorded output identity against the published
+semantics. Those identities are not the lowered-form verdict. Proof identities
+remain internal validation provenance. Empty execution may claim only equal
+input and output identities. A receiving interpreter or native lowerer does
+not rerun Psi passes or the lowered-form check.
+
+Every Psi pass consumes and produces well-formed lowered Psi in the same
+representation. The checker has no knowledge of which passes ran and has no
+pass-specific or combination-specific branches or adapters. A pass whose
+output the second check rejects is a compiler defect, not a source diagnostic.
+The check does not establish behavior preservation. Per-pass validators and
+Psi-versus-native agreement do that work, in the corpus runner and the tests,
+not on the default compile path
+([verification placement](../../../omega-rust/pipeline.md#verification-placement)).
+
+A nonempty Psi selection still fails closed. Publication refuses with
+`no product route yet: selected Psi optimizations have no second lowered-form check`.
+
+A target-constrained build companion may carry pending post-Terminal
 selections, excluding earlier phases and bound to the complete build selection.
 It is a proposal a receiving lowerer may refuse, not authority to execute a
 transformation. A raw portable product leaves subsequent realization choices to

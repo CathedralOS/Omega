@@ -14,9 +14,10 @@ own references. [Mathematical proof values](mathematical_values.md) and
 
 ## Semantic boundary
 
-Psi owns source parsing, resolution, typing, checking, proof construction,
-expression lowering, selected target-neutral optimization, and publication of
-Psi. Omega consumes that product and owns provider selection and
+Psi owns source parsing, resolution, typing, proof construction, expression
+lowering, lowered-form checking, selected target-neutral optimization, and
+publication of Psi. [Optimization ordering](#optimization-ordering) is the
+stage order. Omega consumes that product and owns provider selection and
 installation, target realization, its own optimization phases, ABI lowering,
 native emission, and execution machinery. Parsing is not an Omega backend step.
 
@@ -295,12 +296,38 @@ artifact; they cannot supply executable choices absent from Psi.
 
 ## Optimization ordering
 
-The stage order is lowering, selected Psi optimization, then Terminal
-publication. An empty selection is the identity transformation of the same
-phase: it constructs no rule candidates, transformations, or pass manifests.
-Input and output validators run in the corpus runner and the tests, not on the
-default compile path ([verification placement](../../../omega-rust/pipeline.md#verification-placement), owner commit `b1423f5385d`). Selection does not choose an alternate
-pipeline.
+The stage order is structural elaboration, the lowered-form check of the
+unoptimized program, selected Psi passes in one canonical order, the same
+lowered-form check of the optimized program, then Terminal publication. The
+unoptimized check decides source validity. An optimization can never make an
+invalid program valid. The published Terminal Psi carries the verdict and
+evidence of its own check, never evidence borrowed from its input. There is
+no evidence transport through passes. Those passes are the Psi phase, and
+they run before publication, in the one canonical order of
+[phase and product boundaries](../build/optimizations.md#phase-and-product-boundaries).
+A later consumer reuses the published verdict under
+[publication and separate consumption](#publication-and-separate-consumption).
+
+An empty selection is the literal identity. It runs no passes and no second
+check. Output equals input, and the default path is unchanged. It constructs
+no rule candidates, transformations, or pass manifests. Selection does not
+choose an alternate pipeline.
+
+Every Psi pass consumes and produces well-formed lowered Psi in the same
+representation, the unsealed Terminal module structural elaboration built.
+The checker has no knowledge of which passes ran and has no pass-specific or
+combination-specific branches or adapters. A pass whose output the second
+check rejects is a compiler defect, reported as such and not as a source
+diagnostic.
+
+The lowered-form check does not establish behavior preservation. Per-pass
+input and output validators, and Psi-versus-native agreement, do that work.
+Those validators run in the corpus runner and the tests, not on the default
+compile path ([verification placement](../../../omega-rust/pipeline.md#verification-placement), owner commit `b1423f5385d`).
+
+A nonempty Psi selection has no product route yet.
+`ProductTerminalPublication::accepted` refuses it with
+`no product route yet: selected Psi optimizations have no second lowered-form check`.
 
 Later Omega phases optimize their own representations while retaining the
 canonical Psi identity. They cannot mutate the published module or
