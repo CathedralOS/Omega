@@ -709,6 +709,23 @@ pub(crate) mod tests {
                 .0
                 .is_boundary
         );
+        let program = PreparedBuildMachineProgram::prepare(&source, None).unwrap();
+        let entry = program
+            .entry_for_supply(machine.symbol, binding, &[BuildTimeValue::Int(7)])
+            .unwrap();
+        assert!(entry.accepted.module().boundary_machines.is_empty());
+        assert!(
+            entry
+                .accepted
+                .boundary_requirements_reached()
+                .unwrap()
+                .is_empty()
+        );
+        let value = entry
+            .invoke(target(), &mut psi_work::WorkMeter::unbounded())
+            .unwrap();
+        assert_eq!(value, BuildTimeValue::Int(7));
+
         assert!(
             psi_terminal_production::TerminalSourceSupply {
                 provider: implementation("Q").symbol,

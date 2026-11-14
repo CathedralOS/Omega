@@ -63,11 +63,8 @@ pub struct SuppliedTarget {
 /// What a product of one target reads from its checked source to prepare
 /// that target's supply.
 pub struct TargetSupplySource<'a> {
-    /// The frozen source the first judgment accepted.
-    pub program: &'a std::sync::Arc<typed_trees::FrozenTypedTrees>,
-    /// The roster of that judgment and its accepted module.
-    pub roster: &'a compilation_products::ProductRoster,
-    pub accepted: &'a psi_compiler::AcceptedTerminalSource,
+    /// The roster and source are bound by this publication's own judgment.
+    pub publication: &'a compilation_products::ProductTerminalPublication,
     /// The evaluated Build's provider selections and the target packages'
     /// defaults.
     pub build: &'a [build_time_evaluation::provider_declarations::ProviderSelection],
@@ -96,10 +93,11 @@ pub struct TargetSupplySource<'a> {
 pub fn prepare_supplied_target(
     source: TargetSupplySource<'_>,
 ) -> Result<SuppliedTarget, Vec<Diagnostic>> {
-    let mut roster = source.roster.clone();
+    let original = source.publication.accepted()?;
+    let mut roster = source.publication.roster()?.clone();
     let mut supplied: Option<std::sync::Arc<psi_compiler::AcceptedTerminalSource>> = None;
     loop {
-        let accepted = supplied.as_deref().unwrap_or(source.accepted);
+        let accepted = supplied.as_deref().unwrap_or(original);
         let reached = accepted
             .boundary_requirements_reached()
             .map_err(|error| vec![error])?
@@ -133,7 +131,7 @@ pub fn prepare_supplied_target(
                 accepted: supplied,
             });
         }
-        supplied = Some(roster.judge(std::sync::Arc::clone(source.program))?);
+        supplied = Some(roster.judge(std::sync::Arc::clone(original.source()))?);
     }
 }
 
@@ -149,9 +147,7 @@ impl PreparedProductTarget {
             .map_err(|error| vec![error])?;
         let target = profile.unwrap_or_else(target::TargetProfile::host);
         let supplied = prepare_supplied_target(TargetSupplySource {
-            program: &source.program,
-            roster: source.terminal_publication.roster()?,
-            accepted: source.terminal_publication.accepted()?,
+            publication: &source.terminal_publication,
             build: &source.computed_build_config.config.provider_selections,
             defaults: &source.provider_defaults,
             target: target.target_name(),

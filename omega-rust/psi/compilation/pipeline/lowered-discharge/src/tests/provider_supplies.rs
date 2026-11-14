@@ -124,6 +124,22 @@ fn supplied(text: &str, slot: &str) -> Result<Vec<String>, String> {
 
 const CONTRACT: &str = "requires value <= 10 ensures result <= 11 reaches none crashes none";
 
+/// An inherited-only schema must not become an empty accepted supply merely
+/// because its own declaration lists no machine signatures.
+#[test]
+fn an_unserved_inherited_whole_trait_supply_is_not_vacuously_accepted() {
+    let text = "boundary trait Parent { machine go() reaches none crashes none; }
+        boundary trait Service: Parent {}
+        data Native {}
+        machine Native::go() satisfies Parent::go reaches none crashes none {}
+        machine entry() {}";
+    let error = supplied(text, "Service").unwrap_err();
+    assert!(
+        error.contains("whole-trait supply with parameters, parents or refinements"),
+        "{error}"
+    );
+}
+
 /// The provider's machine is a root of the compilation beside the entry's
 /// closure, and the compilation is accepted with its refinement proved,
 /// whether the supply names the requirement or the whole trait.

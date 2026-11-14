@@ -88,6 +88,7 @@ impl<'t> Program<'t> {
             )?;
             if !machine.is_public
                 && self.typed.owned_conformance_realization(*symbol).is_none()
+                && machine.satisfies.is_empty()
                 && !contracts.iter().any(|clause| {
                     clause.kind == SignatureContractKind::Requires
                         && clause.keyword_source_span.is_some()
@@ -179,7 +180,11 @@ impl<'t> Program<'t> {
             let Some(machine) = self.typed.machine_by_symbol(symbol) else {
                 continue;
             };
-            if !machine.is_public && crate::template_of(self.typed, symbol).is_none() {
+            if !machine.is_public
+                && machine.satisfies.is_empty()
+                && self.typed.owned_conformance_realization(symbol).is_none()
+                && crate::template_of(self.typed, symbol).is_none()
+            {
                 local.push(id);
             }
         }
@@ -205,11 +210,27 @@ impl<'t> Program<'t> {
                 Unserved::Declaration("machine admission after storage metadata"),
             ));
         }
+        let diagnostic = self.next_identity()?;
+        let (declared, _) = self.declaration(diagnostic, symbol)?;
+        if let Some((owner, _)) = self.conformer_requirement(diagnostic, declared)?
+            && self
+                .typed
+                .trait_definition_by_symbol(owner)
+                .is_some_and(|owner| owner.is_boundary)
+        {
+            return Err(refuse(
+                diagnostic,
+                Construct::Machine,
+                Unserved::Machine(
+                    "a boundary conformer is callable only through its provider slot",
+                ),
+            ));
+        }
         // ponytail: linear scan over the discovered machines; a dense table
         // indexed by machine position if closures grow past a few hundred.
         for position in 1..=self.symbols.len() as u64 {
             let id = MachineId::new(position).expect("positions start at 1");
-            if self.symbols.get(id) == Some(&symbol) {
+            if self.implementation_body != Some(id) && self.symbols.get(id) == Some(&symbol) {
                 return Ok(id);
             }
         }
@@ -223,6 +244,82 @@ impl<'t> Program<'t> {
         Ok(id)
     }
 
+    /// The member's body contract is an independent obligation of the
+    /// refinement witness. Its identity is excluded from named-call lookup,
+    /// so a recursive call cannot discover an unadvertised direct entry.
+    pub fn implementation(
+        &mut self,
+        symbol: SymbolHandle,
+        declaring_trait: SymbolHandle,
+        requirement: SymbolHandle,
+    ) -> Checked<MachineId> {
+        self.requirement_body(
+            symbol,
+            declaring_trait,
+            requirement,
+            Reading::Implementation,
+        )
+    }
+
+    /// A supplied realization has the same advertised contract as its
+    /// ordinary routed entry. The exact slot additionally admits a boundary
+    /// implementation as a root, without making its name callable.
+    pub fn provider(
+        &mut self,
+        symbol: SymbolHandle,
+        declaring_trait: SymbolHandle,
+        requirement: SymbolHandle,
+    ) -> Checked<MachineId> {
+        self.requirement_body(symbol, declaring_trait, requirement, Reading::Provider)
+    }
+
+    fn requirement_body(
+        &mut self,
+        symbol: SymbolHandle,
+        declaring_trait: SymbolHandle,
+        requirement: SymbolHandle,
+        reading: Reading,
+    ) -> Checked<MachineId> {
+        let id = self.next_identity()?;
+        let (machine, _) = self.declaration(id, symbol)?;
+        let bound = self
+            .conformer_requirement(id, machine)?
+            .map(|(owner, required)| (owner, required.symbol));
+        if matches!(reading, Reading::Provider) && bound.is_none() {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("provider body needs its exact supplied requirement"),
+            ));
+        }
+        if let Some(bound) = bound
+            && bound != (declaring_trait, requirement)
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("conformance witness cannot rebind a declared requirement"),
+            ));
+        }
+        if bound.is_some() {
+            if matches!(reading, Reading::Provider)
+                && let Some((known, _)) = self.symbols.iter().find(|(known, source)| {
+                    Some(*known) != self.implementation_body && **source == symbol
+                })
+            {
+                return Ok(known);
+            }
+            let own_witness = matches!(reading, Reading::Implementation);
+            self.read_machine(id, symbol, reading)?;
+            if own_witness {
+                self.implementation_body = Some(id);
+            }
+            Ok(id)
+        } else {
+            self.machine(symbol)
+        }
+    }
+
     /// Reads the signature of `symbol` as machine `id` and records it. The
     /// scope of whichever machine was being read is put back afterwards: a
     /// callee is discovered in the middle of its caller's body.
@@ -232,6 +329,13 @@ impl<'t> Program<'t> {
         symbol: SymbolHandle,
         reading: Reading,
     ) -> Checked<()> {
+        if self.descriptor_storage {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Declaration("machine admission after storage metadata"),
+            ));
+        }
         let outer = std::mem::take(&mut self.scope);
         // The machine owns the lifetimes its signature names, as a data
         // declaration owns those of its fields (`lifetime_owner`).
@@ -619,8 +723,9 @@ impl<'t> Program<'t> {
         // behind them, and one shared text sent a reader to the wrong one.
         let unserved_parameters = |what| Err(refuse_parameters(id, what, machine.name.as_str()));
         match reading {
-            Reading::Closed if parameters.is_empty() => {}
-            Reading::Closed => {
+            Reading::Closed | Reading::Implementation | Reading::Provider
+                if parameters.is_empty() => {}
+            Reading::Closed | Reading::Implementation | Reading::Provider => {
                 return unserved_parameters("generic machine read without arguments");
             }
             // A type parameter is opaque here: a value of it can be named,
@@ -668,8 +773,28 @@ impl<'t> Program<'t> {
         }
         // A `satisfies` clause is an obligation of the machine that states
         // it (`satisfied_requirements`); only a closed machine's is read.
-        if !machine.satisfies.is_empty() && !matches!(reading, Reading::Closed) {
+        if !machine.satisfies.is_empty()
+            && !matches!(
+                reading,
+                Reading::Closed | Reading::Implementation | Reading::Provider
+            )
+        {
             return unserved("`satisfies` clause on a generic machine");
+        }
+        if matches!(reading, Reading::Closed)
+            && let Some((owner, _)) = self.conformer_requirement(id, machine)?
+            && self
+                .typed
+                .trait_definition_by_symbol(owner)
+                .is_some_and(|owner| owner.is_boundary)
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine(
+                    "a boundary conformer is callable only through its provider slot",
+                ),
+            ));
         }
         Ok(())
     }
@@ -771,17 +896,16 @@ impl<'t> Program<'t> {
         // formals; `machine_shape` refuses them on every other machine.
         let binders = match reading {
             Reading::GenericEntry => self.value_binders(id, machine)?,
-            Reading::Closed | Reading::Applied(_) | Reading::Alternative(_) => Vec::new(),
+            Reading::Closed
+            | Reading::Implementation
+            | Reading::Provider
+            | Reading::Applied(_)
+            | Reading::Alternative(_) => Vec::new(),
         };
         self.machine_shape(id, machine, reading)?;
-        for witness in self.satisfied_requirements(id, machine)? {
-            if !self.conformance_witnesses.contains(&witness) {
-                self.conformance_witnesses.push(witness);
-            }
-        }
         // What each type parameter stands for while this machine is read.
         self.scope = match reading {
-            Reading::Closed => Vec::new(),
+            Reading::Closed | Reading::Implementation | Reading::Provider => Vec::new(),
             Reading::GenericEntry => self
                 .typed
                 .machine_type_parameters(machine)
@@ -843,7 +967,155 @@ impl<'t> Program<'t> {
             .unwrap_or(machine);
         names.machine = authored.name.as_str().to_owned();
         names.state = state.name.as_str().to_owned();
+        if matches!(reading, Reading::Closed | Reading::Provider)
+            && let Some((owner, requirement)) = self.conformer_requirement(id, machine)?
+        {
+            let (routed, routed_names) = self.requirement_signature(id, requirement, &[])?;
+            self.same_conformer_shape(id, &signature, &routed)?;
+            // There is one executable entry: its caller-facing contract is
+            // the requirement's. The member's own clauses remain owed by
+            // the independent root-scoped conformance witness.
+            signature.requires = routed.requires;
+            signature.ensures = routed.ensures;
+            names.requires = routed_names.requires;
+            names.ensures = routed_names.ensures;
+            if !matches!(routed.reaches, crate::Ceiling::Inferred) {
+                signature.reaches = routed.reaches;
+            }
+            signature.invokes = routed.invokes;
+            signature.termination = routed.termination;
+            if !matches!(routed.crashes, CrashCeiling::Inferred) {
+                signature.crashes = routed.crashes;
+            }
+            let witness = crate::ConformanceWitness {
+                declaring_trait: owner,
+                requirement: requirement.symbol,
+                implementation: machine.symbol,
+            };
+            if !self.conformance_witnesses.contains(&witness) {
+                self.conformance_witnesses.push(witness);
+            }
+        }
         Ok((signature, names, binders.len()))
+    }
+
+    /// The one requirement that owns this body. A reference row owns no
+    /// body and supplies no context here. Both source spellings therefore
+    /// share the same advertised entry and the same root-only body check.
+    fn conformer_requirement(
+        &self,
+        id: MachineId,
+        machine: &'t Machine,
+    ) -> Checked<Option<(SymbolHandle, &'t StateSignature)>> {
+        let context = match self.declared_requirement_origin(id, machine)? {
+            Some(context) => context,
+            None => {
+                let Some((_, row)) = self.typed.owned_conformance_realization(machine.symbol)
+                else {
+                    return Ok(None);
+                };
+                (
+                    row.declaring_trait,
+                    self.declared_requirement(id, row.declaring_trait, row.requirement)?,
+                )
+            }
+        };
+        let (owner, requirement) = context;
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let definition = self
+            .typed
+            .trait_definition_by_symbol(owner)
+            .ok_or_else(|| unserved("conformer lost its originating trait declaration"))?;
+        if requirement.termination_guarantee != TerminationGuarantee::NoGuarantee {
+            return Err(unserved(
+                "declared requirement needs its progress-refinement proof",
+            ));
+        }
+        if !definition.type_parameters.is_empty()
+            || !definition.lifetime_parameters.is_empty()
+            || !definition.conformance_bounds.is_empty()
+            || !definition.requires.is_empty()
+            || definition.refines.is_some()
+            || !definition.refinement_clauses.is_empty()
+        {
+            return Err(unserved(
+                "declared requirement needs its complete trait application",
+            ));
+        }
+        if machine.is_public && !definition.is_public {
+            return Err(unserved("conformer is more visible than its requirement"));
+        }
+        Ok(Some(context))
+    }
+
+    fn declared_requirement_origin(
+        &self,
+        id: MachineId,
+        machine: &'t Machine,
+    ) -> Checked<Option<(SymbolHandle, &'t StateSignature)>> {
+        if machine.satisfies.is_empty() {
+            return Ok(None);
+        }
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let [edge] = self.typed.machine_trait_conformances(machine) else {
+            return Err(unserved(
+                "conformer without exactly one declared requirement",
+            ));
+        };
+        if !edge.arguments.is_empty()
+            || !edge.trait_lifetime_arguments.is_empty()
+            || edge.external_binding.is_some()
+            || edge.via_expression.is_valid()
+        {
+            return Err(unserved(
+                "declared requirement with arguments or external supply",
+            ));
+        }
+        let witnesses = self.satisfied_requirements(id, machine)?;
+        let [binding] = witnesses.as_slice() else {
+            return Err(unserved(
+                "declared edge without one exact trait requirement",
+            ));
+        };
+        let definition = self
+            .typed
+            .trait_definition_by_symbol(binding.declaring_trait)
+            .ok_or_else(|| unserved("declared edge lost its trait declaration"))?;
+        let requirement =
+            self.declared_requirement(id, binding.declaring_trait, binding.requirement)?;
+        if edge.requirement_symbol != requirement.symbol || edge.symbol != definition.symbol {
+            return Err(unserved(
+                "declared requirement identity differs from its resolved edge",
+            ));
+        }
+        if let Some((_, row)) = self.typed.owned_conformance_realization(machine.symbol)
+            && (row.declaring_trait != definition.symbol || row.requirement != requirement.symbol)
+        {
+            return Err(unserved(
+                "inline and declared edges name different requirements",
+            ));
+        }
+        Ok(Some((definition.symbol, requirement)))
+    }
+
+    fn same_conformer_shape(
+        &self,
+        id: MachineId,
+        body: &Signature,
+        required: &Signature,
+    ) -> Checked<()> {
+        if body.parameters != required.parameters
+            || body.result != required.result
+            || body.erased != required.erased
+            || body.borrowed != required.borrowed
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("member signature differs from its requirement's"),
+            ));
+        }
+        Ok(())
     }
 
     /// An inline conformer's body is checked under its requirement, unlike
@@ -859,7 +1131,7 @@ impl<'t> Program<'t> {
         signature: &mut Signature,
         names: &mut MachineNames,
     ) -> Checked<()> {
-        let Some((_, row)) = self.typed.owned_conformance_realization(machine.symbol) else {
+        let Some((_, requirement)) = self.conformer_requirement(id, machine)? else {
             return Ok(());
         };
         let clauses = span(
@@ -878,19 +1150,8 @@ impl<'t> Program<'t> {
         if !requires && !ensures {
             return Ok(());
         }
-        let requirement = self.declared_requirement(id, row.declaring_trait, row.requirement)?;
         let (inherited, inherited_names) = self.requirement_signature(id, requirement, &[])?;
-        if signature.parameters != inherited.parameters
-            || signature.result != inherited.result
-            || signature.erased != inherited.erased
-            || signature.borrowed != inherited.borrowed
-        {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Typing("inline member signature differs from its requirement's"),
-            ));
-        }
+        self.same_conformer_shape(id, signature, &inherited)?;
         if requires {
             // Implicit formal-domain obligations remain alongside inherited
             // inputs. Canonicalization may merge an obligation both declare.
@@ -2171,6 +2432,12 @@ struct ValueBinder {
 enum Reading {
     /// No generic parameter: every machine of a concrete module.
     Closed,
+    /// Only the root implementation body of a conformance witness, under
+    /// its own authored contract. Its callees still use `Closed` routes.
+    Implementation,
+    /// A body rooted by its exact supplied requirement. It has the same
+    /// advertised runtime contract; boundary bodies remain uncallable by name.
+    Provider,
     /// The entry of a generic check form, its parameters rigid.
     GenericEntry,
     /// A generic machine at the type arguments of one call in a generic

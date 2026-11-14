@@ -89,14 +89,18 @@ impl ProductTerminalPublication {
         }
     }
 
-    /// Retains the judgment of `roster` and the roster it judged.
-    pub fn with_accepted(
-        mut self,
-        source: Arc<psi_compiler::AcceptedTerminalSource>,
+    /// Judge and retain one exact roster. A caller cannot attach unjudged
+    /// supplies to an independently obtained accepted source. Construction is
+    /// fresh, so a previously published artifact cannot survive a new judgment.
+    pub fn judge(
+        source: Arc<typed_trees::FrozenTypedTrees>,
         roster: ProductRoster,
-    ) -> Self {
-        self.accepted = Some((source, roster));
-        self
+        optimizations: OptimizationSelections,
+    ) -> Result<Self, Vec<Diagnostic>> {
+        let accepted = roster.judge(source)?;
+        let mut publication = Self::new(optimizations);
+        publication.accepted = Some((accepted, roster));
+        Ok(publication)
     }
 
     /// Judge an executable child's descriptors before publication, preserving
@@ -116,8 +120,11 @@ impl ProductTerminalPublication {
                 roster.declaration_metadata.push(*declaration);
             }
         }
-        let accepted = roster.judge(Arc::clone(self.accepted()?.source()))?;
-        Ok(Self::new(self.optimizations.clone()).with_accepted(accepted, roster))
+        Self::judge(
+            Arc::clone(self.accepted()?.source()),
+            roster,
+            self.optimizations.clone(),
+        )
     }
 
     /// The roster the retained judgment accepted.

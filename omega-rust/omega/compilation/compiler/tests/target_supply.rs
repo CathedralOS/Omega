@@ -13,7 +13,7 @@ use provider_planning::target_supply::{
     PreparedTargetSupply, ReachedBoundaryRequirement, SettledTargetSupply, SupplyAuthority,
     TargetSupplyRequest,
 };
-use psi_compiler::{AcceptedTerminalSource, TerminalSourceCompilation};
+use psi_compiler::AcceptedTerminalSource;
 use std::sync::Arc;
 
 const TARGET: &str = "linux_x86_64";
@@ -38,9 +38,12 @@ fn package() -> semantic_vocabulary::PackageKeyIdentity {
 fn accepted(
     supplied: &str,
     program: &str,
-) -> (AcceptedTerminalSource, Vec<TargetProviderDefaults>) {
-    let (accepted, defaults, _) = judged(supplied, program);
-    (accepted, defaults)
+) -> (Arc<AcceptedTerminalSource>, Vec<TargetProviderDefaults>) {
+    let (source, defaults, roster) = judged(supplied, program);
+    (
+        roster.judge(source).expect("the exact roster accepts"),
+        defaults,
+    )
 }
 
 /// The same, with the roster the judgment accepted.
@@ -48,7 +51,7 @@ fn judged(
     supplied: &str,
     program: &str,
 ) -> (
-    AcceptedTerminalSource,
+    Arc<typed_trees::FrozenTypedTrees>,
     Vec<TargetProviderDefaults>,
     compilation_products::ProductRoster,
 ) {
@@ -112,42 +115,66 @@ fn judged(
         .expect("the program declares main")
         .symbol;
     let frozen: typed_trees::FrozenTypedTrees = typed.into();
-    let accepted = AcceptedTerminalSource::judge(
-        Arc::new(frozen),
-        TerminalSourceCompilation {
-            declaration_metadata: &[],
-            entries: &[entry],
-            subjects: &[Some(package())],
-            purpose: source::DependencyScope::Product,
-            selected: &[],
-            bindings: &[],
-            supplies: &[],
-        },
-        terminal_codec::TerminalPublication::Portable,
-    )
-    .unwrap_or_else(|refused| panic!("the route must accept the program: {refused:?}"));
     let roster = compilation_products::ProductRoster {
         entries: vec![entry],
         subject: Some(package()),
         ..Default::default()
     };
-    (accepted, defaults, roster)
+    (Arc::new(frozen), defaults, roster)
 }
 
 /// Target preparation for `program` as a product runs it: the demand of the
 /// accepted module, the chosen supplies, and the judgment of each chosen
 /// provider as a root of the same compilation.
 fn supplied_target(supplied: &str, program: &str) -> Result<compiler::SuppliedTarget, String> {
-    let (accepted, defaults, roster) = judged(supplied, program);
+    let (source, defaults, roster) = judged(supplied, program);
+    let publication = compilation_products::ProductTerminalPublication::judge(
+        source,
+        roster,
+        optimization_core::OptimizationSelections::default(),
+    )
+    .map_err(first)?;
     compiler::prepare_supplied_target(compiler::TargetSupplySource {
-        program: accepted.source(),
-        roster: &roster,
-        accepted: &accepted,
+        publication: &publication,
         build: &[],
         defaults: &defaults,
         target: TARGET,
     })
     .map_err(first)
+}
+
+/// Extending a roster with a supply obtains a new actual judgment. A's
+/// accepted module cannot establish B's previously unclaimed refinement.
+#[test]
+fn a_publication_judges_its_exact_roster_including_predeclared_supplies() {
+    let declarations =
+        format!("{SLOT}machine Native::go() satisfies Service::go reaches none crashes Trap {{ }}");
+    let (source, _, mut roster) = judged(&declarations, REACHES_NOTHING);
+    let original = roster.judge(Arc::clone(&source)).unwrap();
+    assert!(original.module().boundary_machines.is_empty());
+    assert_eq!(original.module().machines.len(), 1);
+    let (_, requirement) = source
+        .trait_machine_signatures
+        .iter()
+        .find(|(_, row)| row.name.as_str() == "go")
+        .unwrap();
+    let native = source
+        .data_definitions()
+        .iter()
+        .find(|row| row.name.as_str() == "Native")
+        .unwrap();
+    roster.supplies.push(psi_compiler::TerminalSourceSupply {
+        slot: requirement.symbol,
+        provider: native.symbol,
+    });
+    let error = compilation_products::ProductTerminalPublication::judge(
+        source,
+        roster,
+        optimization_core::OptimizationSelections::default(),
+    )
+    .unwrap_err();
+    let message = diagnostics::join_messages(&error);
+    assert!(message.contains("crash"), "{message}");
 }
 
 /// A provider machine for `Service::go` under each data type, and a second
@@ -201,7 +228,7 @@ fn a_provider_that_reaches_a_requirement_has_its_supply_judged_too() {
 fn a_chosen_provider_that_does_not_refine_its_requirement_stops_the_program() {
     assert_eq!(
         supplied_target(&format!("{SLOT}{NATIVE_DEFAULT}"), REACHES).unwrap_err(),
-        "not supported yet: declaration provider that does not give a supplied requirement exactly one machine; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong"
+        "not supported yet: declaration provider does not give the supplied requirement exactly one machine; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong"
     );
     let crashing = format!(
         "{SLOT}{NATIVE_DEFAULT}machine Native::go() satisfies Service::go reaches none crashes Trap {{\n}}\n"
@@ -321,7 +348,7 @@ fn a_module_that_reaches_nothing_checks_against_its_settled_execution() {
 }
 
 /// A second program with a different accepted module.
-fn accepted_other() -> (AcceptedTerminalSource, Vec<TargetProviderDefaults>) {
+fn accepted_other() -> (Arc<AcceptedTerminalSource>, Vec<TargetProviderDefaults>) {
     accepted(
         &format!("{SLOT}{NATIVE_DEFAULT}"),
         "machine helper() {\n}\nmachine main() {\n    helper();\n}\n",

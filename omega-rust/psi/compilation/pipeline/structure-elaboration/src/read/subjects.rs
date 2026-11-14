@@ -169,14 +169,30 @@ impl Program<'_> {
             // The slot is a nominal trait, supplied whole, or one
             // exact requirement. Ordinary traits grant no boundary capability.
             let (owner, requirements) = match typed.trait_definition_by_symbol(supply.slot) {
-                Some(owner) => (
-                    owner,
-                    typed
-                        .trait_machine_signatures(owner)
-                        .iter()
-                        .map(|requirement| requirement.symbol)
-                        .collect::<Vec<_>>(),
-                ),
+                Some(owner) => {
+                    // No applied parent environment is carried by this bare
+                    // whole-trait nomination. Refuse rather than omit inherited
+                    // requirements or pretend the application was empty.
+                    if !owner.lifetime_parameters.is_empty()
+                        || !owner.type_parameters.is_empty()
+                        || !owner.conformance_bounds.is_empty()
+                        || !owner.requires.is_empty()
+                        || owner.refines.is_some()
+                        || !owner.refinement_clauses.is_empty()
+                    {
+                        return unserved(
+                            "whole-trait supply with parameters, parents or refinements",
+                        );
+                    }
+                    (
+                        owner,
+                        typed
+                            .trait_machine_signatures(owner)
+                            .iter()
+                            .map(|requirement| requirement.symbol)
+                            .collect::<Vec<_>>(),
+                    )
+                }
                 None => match typed.trait_machine_signature(supply.slot) {
                     Some((owner, requirement)) if requirement.symbol == supply.slot => {
                         (owner, vec![supply.slot])
@@ -198,7 +214,7 @@ impl Program<'_> {
                     requirement,
                     implementation: machine.symbol,
                 };
-                let root = self.machine(machine.symbol)?;
+                let root = self.provider(machine.symbol, owner.symbol, requirement)?;
                 if !self.fixed_inputs.contains(&root) {
                     self.fixed_inputs.push(root);
                 }
@@ -413,11 +429,29 @@ impl<'t> Program<'t> {
             if row.declaring_trait != implemented.symbol {
                 return unserved("implementation row of an inherited requirement");
             }
-            self.conformance_witnesses.push(crate::ConformanceWitness {
+            if row.source == typed_trees::trait_definition::ConformanceRowSource::Reference {
+                let Some(realization) = typed.machine_by_symbol(row.realization_machine) else {
+                    return unserved("selection row without an existing machine declaration");
+                };
+                // A reference attaches a route only to an independently
+                // valid plain machine. An owning body already has its
+                // requirement, so another row cannot rebind that entry.
+                if !realization.satisfies.is_empty()
+                    || typed
+                        .owned_conformance_realization(realization.symbol)
+                        .is_some()
+                {
+                    return unserved("selection row cannot rebind a declared conformer");
+                }
+            }
+            let witness = crate::ConformanceWitness {
                 declaring_trait: row.declaring_trait,
                 requirement: row.requirement,
                 implementation: row.realization_machine,
-            });
+            };
+            if !self.conformance_witnesses.contains(&witness) {
+                self.conformance_witnesses.push(witness);
+            }
         }
         Ok(())
     }

@@ -127,7 +127,6 @@ pub(crate) fn check_product_source(
         bindings,
         supplies,
     };
-    let judged = roster.judge(Arc::clone(&program));
     if let Some(frontier) = frontier {
         *frontier = Some(super::typed_frontier::TypedFrontier {
             typed: program.as_ref().clone(),
@@ -137,12 +136,20 @@ pub(crate) fn check_product_source(
             bindings: roster.bindings.clone(),
         });
     }
-    let accepted_source = judged.map_err(|mut diagnostics| {
+    let judged = compilation_products::ProductTerminalPublication::judge(
+        Arc::clone(&program),
+        roster,
+        rollback
+            .settle(&computed_build_config.config.settings.optimizations)
+            .effective()
+            .clone(),
+    );
+    let terminal_publication = Arc::new(judged.map_err(|mut diagnostics| {
         if let Some(sources) = symbol_sources.as_deref() {
             super::attribute_diagnostics(&mut diagnostics, sources, package_inputs);
         }
         diagnostics
-    })?;
+    })?);
     let mut provider_defaults =
         build_time_evaluation::provider_declarations::retain_provider_defaults(
             build_time_evaluation::provider_declarations::ProviderPlanningContext::new(
@@ -167,15 +174,6 @@ pub(crate) fn check_product_source(
             Arc::clone(&program),
             sources.exact_toolchain_sources(),
         ),
-    );
-    let terminal_publication = Arc::new(
-        compilation_products::ProductTerminalPublication::new(
-            rollback
-                .settle(&computed_build_config.config.settings.optimizations)
-                .effective()
-                .clone(),
-        )
-        .with_accepted(accepted_source, roster),
     );
     Ok(CheckedProductSource {
         source_completion_accounting,
