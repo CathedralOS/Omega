@@ -1,6 +1,6 @@
 module io::report;
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::I32::from_f64;
 use io::input;
 use model::flash;
 // Fifteen fractional digits; computation and displayed reconstruction are

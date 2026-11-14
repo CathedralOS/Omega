@@ -2,7 +2,7 @@
 // The byte budget includes separators and trailing whitespace. EOF is accepted
 // only after a complete token; malformed, truncated and over-budget input reject.
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i32;
 
 public data Reader { consumed: i32; fractional: bool; }
 public data Number [copy] { valid: bool; value: f64; integer: bool; }

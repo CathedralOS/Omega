@@ -15,7 +15,6 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-use omega::language::core::float_operations;
 
 data Observations {
     widened: bool;

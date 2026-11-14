@@ -1,7 +1,7 @@
 // Fact: A mutable foreign registration retains the exact original nested Buffer backing until completion consumes Pending; completion writes its nested cell to 73 while marker 91 and an earlier copy 37 remain unchanged.
 // Expected exit: 0. Completion updates the nested cell; marker and copied scalar retain their original values.
-use omega::language::core::content;
-use omega::language::core::drop;
+use omega::language::core::Content;
+use omega::language::core::CountedQuantity;
 public data ByteUnit {}
 public data Cell { value: u64; }
 public data Buffer [linear] dropped by drop_buffer { marker: Cell; cell: Cell; }

@@ -1,5 +1,10 @@
 // Fact: Commit three bytes under bound eight, write/read the committed region, release it, and observe checked rejection of a request for nine bytes.
-use omega::language::core::activation;
+use omega::language::core::Activation;
+use omega::language::core::Activation::try_claim;
+use omega::language::core::ActivationClaim;
+use omega::language::core::ActivationClaim::bytes;
+use omega::language::core::ActivationClaim::release;
+use omega::language::core::ActivationClaimAttempt;
 data Holder { claim: ActivationClaim; }
 
 machine write_read(bytes: &mut [u8]) -> u8 {

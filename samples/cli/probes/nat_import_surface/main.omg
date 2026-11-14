@@ -14,7 +14,7 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-use omega::language::core::nat;
+use omega::language::core::Nat;
 
 machine relay(total: Nat, used: Nat) -> Nat {
     transition { _ -> (total) }

@@ -3,7 +3,7 @@ module io::input;
 // after the coefficient and decimal exponent are complete; boundary decisions
 // never depend on repeated floating-point digit addition or exponent scaling.
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_u64;
 use model::scale;
 public data Input {
  values:[f64;69]; mantissas:[f64;69]; powers:[i32 in Wrapping;69];

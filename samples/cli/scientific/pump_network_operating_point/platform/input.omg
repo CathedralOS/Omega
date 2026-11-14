@@ -1,5 +1,4 @@
 use omega_language_std::console;
-use omega::language::core::numeric_conversion;
 
 public data Input {
     values: [i64 in Wrapping; 9];

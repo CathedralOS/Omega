@@ -1,7 +1,7 @@
 // Expected exit: 0
 // Fact: A checked copy of a closed Inert opaque preserves libc host numbers 66051, 513 and replacement 1027 across an independent consuming call while the original remains usable.
 
-use omega::language::core::representation;
+use omega::language::core::OpaqueRepresentation;
 public boundary data InternetAddress [copy];
 public data AddressWord [copy] { address: u32; }
 public data AddressCarrier<T [copy]> [copy] { payload: T; }

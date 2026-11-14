@@ -1,8 +1,7 @@
 // Expected exit: 2. Empty stdin is invalid; valid input returns 0.
 // Expected output contains: INVALID reaction input
 use omega_language_std::console;
-use omega::language::core::numeric_conversion;
-use omega::language::core::float_operations;
+use omega::language::core::narrow_u64_to_i64_saturating;
 use domain::input;
 use domain::model;
 use domain::rates;

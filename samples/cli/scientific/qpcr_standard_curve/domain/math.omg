@@ -2,7 +2,6 @@
 // [1,2), then uses 40 terms of 2*atanh((x-1)/(x+1)); |z| <= 1/3.
 // Exponential reduces by 128, takes 32 Taylor terms, then squares seven times.
 // Callers establish finite arguments; representability is checked separately.
-use omega::language::core::float_operations;
 public machine logarithm(value: f64) -> f64 {
     transition { _ -> reduce(value, 0.0) }
     machine reduce(value: f64, offset: f64) -> f64 {

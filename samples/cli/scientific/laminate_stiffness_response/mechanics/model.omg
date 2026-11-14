@@ -1,6 +1,5 @@
 // Private classical laminate model: engineering shear, centered thickness,
 // synthetic plane-stress Q=(12,4,1,2). No external numerical package.
-use omega::language::core::float_operations;
 public data Laminate {
     count: u64;
     thickness: [f64; 4];

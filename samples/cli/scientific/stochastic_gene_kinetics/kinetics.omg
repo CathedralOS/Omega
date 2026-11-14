@@ -1,7 +1,7 @@
 // Direct-method continuous-time Markov chain. Both independent uniforms are
 // generated from the same explicit Park–Miller stream. The 64-bit product is
 // at most 36,089,477,735,730, well below u64 overflow.
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_u64;
 public data Model {
     seed: u64; time: f64; x: u64; y: u64; events: u64; budget: u64;
     birth: f64; translation: f64; decay_x: f64; decay_y: f64;

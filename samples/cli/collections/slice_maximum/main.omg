@@ -1,4 +1,4 @@
-use omega::language::core::math;
+use omega::language::core::max_i32;
 
 // Maximum of a slice by tail recursion over a shrinking window. find_max walks
 // the slice, carrying the largest value seen so far; for [3, 7, 2, 9, 4] the answer

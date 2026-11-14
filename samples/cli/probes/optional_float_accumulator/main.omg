@@ -13,8 +13,7 @@
 //   terms 1..8 consumed via Optional::Some in order
 //   sum lands in (2.71, 2.72)
 //   an Optional::None term contributes 0.0
-use omega::language::core::float_operations;
-use omega::language::core::option;
+use omega::language::core::Optional;
 
 machine term(n: i32) -> Optional<f64> {
     transition n {

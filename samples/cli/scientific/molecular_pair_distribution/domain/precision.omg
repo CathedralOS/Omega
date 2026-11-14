@@ -1,8 +1,6 @@
-use omega::language::core::float_operations;
 // Double-double arithmetic retains low rounding residues. Integer distances
 // and cubic shell differences are exact in f64 throughout the wire envelope;
 // normalization uses a split reciprocal of pi and compensated division.
-use omega::language::core::numeric_conversion;
 public data Precise { high: f64; low: f64; }
 public machine precise_sum(high: f64, low: f64) -> Precise {
     let sum: f64 = high + low;

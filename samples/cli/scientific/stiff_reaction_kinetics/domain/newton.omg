@@ -1,7 +1,6 @@
 // Backward Euler solves y-y0-h*f(y)=0 with analytic mass-action Jacobian.
 // Cofactor elimination is the fixed 3x3 linear solve; singular/nonfinite
 // determinants fail the trial. Positivity damping never clips a concentration.
-use omega::language::core::float_operations;
 use domain::model;
 use domain::rates;
 public data Newton [copy] { value: Vector; residual: Vector; delta: Vector; field: Field; success: bool; iteration: u64; damping: f64; backtracks: u64; candidate: Vector; }

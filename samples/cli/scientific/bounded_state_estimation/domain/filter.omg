@@ -2,7 +2,6 @@
 // keeps roundoff from subtracting nearly equal covariance matrices. No library
 // numerics or external worker implementation participates in these operations.
 use domain::matrix;
-use omega::language::core::float_operations;
 data Filter {
     estimate: Vector;
     covariance: Matrix;

@@ -1,6 +1,7 @@
 module control::routing;
 
-use omega::language::core::iteration;
+use omega::language::core::ElementStep;
+use omega::language::core::for_each;
 
 use control::state::Command;
 use control::state::ControlSource;

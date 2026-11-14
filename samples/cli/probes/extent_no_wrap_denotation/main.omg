@@ -19,7 +19,7 @@
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.
 
-use omega::language::core::extent;
+use omega::language::core::no_wrap;
 
 machine geometry(base: addr, length: u64)
 requires no_wrap(base, length)

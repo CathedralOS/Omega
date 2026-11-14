@@ -1,8 +1,10 @@
 // Expected exit: 0 (valid input); numerical oracle: validate.py.
 use domain::input;
 use domain::report;
-use omega::language::core::float_operations;
-use omega::language::core::math;
+use omega::language::core::F64::from_i32;
+use omega::language::core::I32::from_f64;
+use omega::language::core::cos;
+use omega::language::core::sin;
 use omega_language_std::console;
 
 data Application {

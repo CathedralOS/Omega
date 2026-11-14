@@ -1,6 +1,5 @@
 // A whole-array shared view of four noncopy Entries has length 4; reading its extent satisfies require_four(view.len).
 // Intended invalid: the three-entry view cannot satisfy require_four.
-use omega::language::core::slice;
 data Entry { value: i32; }
 machine require_four(length: u64) -> u64
 requires length == 4

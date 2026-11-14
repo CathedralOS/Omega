@@ -11,7 +11,6 @@
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
 
-use omega::language::core::float_operations;
 
 data Narrow { left: f32; right: f32; }
 data Wide { left: f64; right: f64; }

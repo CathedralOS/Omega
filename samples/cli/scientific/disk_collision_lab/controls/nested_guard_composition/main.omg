@@ -1,6 +1,5 @@
-use omega::language::core::math;
+use omega::language::core::abs_f64;
 
-use omega::language::core::float_operations;
 data Measurements { reading:f64; initial:f64; }
 data Probe { lab:Measurements; choice:i32; observed:i32; }
 machine observe(lab:&mut Measurements) {lab.reading=lab.reading+0.0;}

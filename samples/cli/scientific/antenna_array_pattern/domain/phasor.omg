@@ -1,7 +1,6 @@
 // Private bounded cosine: reduce into [-pi, pi], then degree-20 Taylor.
 // Geometry validation bounds phase to 8*pi; the sine shift adds pi/2, requiring <=5 turns.
 // Taylor remainder <= pi^22/22! < 8e-11. No shared numerics imports.
-use omega::language::core::float_operations;
 public data Phasor { }
 public machine Phasor::cosine(angle: f64) -> f64 {
     transition { _ -> reduce(angle) }

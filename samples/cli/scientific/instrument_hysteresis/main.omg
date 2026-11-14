@@ -1,4 +1,4 @@
-use omega::language::core::math;
+use omega::language::core::max_i32;
 
 // Expected exit: 0.
 // Expected output contains: trace rows ambiguous plateaus reversals max_width 0 0 0 0 0

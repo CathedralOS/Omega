@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 // Explicit complex arithmetic owned by this consumer; no external complex dependency.
 public data Complex [copy] { real: f64; imaginary: f64; }
 public machine add(left: Complex, right: Complex) -> Complex { Complex { real: left.real + right.real, imaginary: left.imaginary + right.imaginary } }

@@ -17,7 +17,8 @@
 // ProcessExit provider; core external_binding is
 // depend-free.
 
-use omega::language::core::external_binding;
+use omega::language::core::DllImport;
+use omega::language::core::ForeignBinding;
 
 boundary trait Mixed {
     machine via_syscall() reaches Mixed;

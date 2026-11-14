@@ -22,7 +22,6 @@
 //
 // A wrong result crashes with `Trap`; no standard-library dependency.
 
-use omega::language::core::drop;
 
 data Ticket { value: i32 in Wrapping; }
 data Wrap { inner: Ticket; }

@@ -1,9 +1,8 @@
 module spectrometer::output;
-use omega::language::core::math;
+use omega::language::core::abs_f64;
 use spectrometer::model::Spectrometer;
 use omega_language_std::console;
-use omega::language::core::numeric_conversion;
-use omega::language::core::float_operations;
+use omega::language::core::I32::from_f64;
 
 // Fixed-width decimal fields are emitted from computed values, with no string
 // carrier or UTF-8 assertion. Accepted coordinates times 1000 fit signed i32.

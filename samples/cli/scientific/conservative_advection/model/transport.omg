@@ -5,7 +5,7 @@ module model::transport;
 use io::input;
 use model::scale;
 use model::courant;
-use omega::language::core::float_operations;
+use omega::language::core::U32::from_f64;
 public data Field {
  count:u32 in Saturating; steps:u32 in Saturating; local_weight:f64; spacing_mantissa:f64; spacing_power:i32 in Wrapping; cfl:f64; exact:bool;
  current:[f64;64]; powers:[i32 in Wrapping;64]; next:[f64;64]; next_powers:[i32 in Wrapping;64];

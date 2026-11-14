@@ -1,5 +1,4 @@
 use domain::model;
-use omega::language::core::float_operations;
 public machine qualify(a: &mut Analysis) {
  a.residual = 0.0; a.orthogonality = 0.0; a.error = 0.0;
  transition { _ -> matrix(a, 0, 0, 0.0, 0.0) }

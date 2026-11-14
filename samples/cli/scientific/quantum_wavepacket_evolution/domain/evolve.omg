@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 // Crank-Nicolson: (I+i dt H/2) psi_next = (I-i dt H/2) psi.
 // The centred periodic H is real symmetric. Every principal I+i dt H/2
 // has eigenvalues 1+i dt lambda/2, hence LU pivots never vanish.

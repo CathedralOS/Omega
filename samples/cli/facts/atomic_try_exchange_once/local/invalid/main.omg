@@ -1,6 +1,6 @@
 // Expected exit: 0.
 // A non-observing single attempt returns the proposed u32 on failure and the displaced u32 on commit.
-use omega::language::core::layout;
+use omega::language::core::AtomicTryExchangeOnceOutcome;
 
 data Cells { selected: AtomicU32; untouched: AtomicU32; }
 

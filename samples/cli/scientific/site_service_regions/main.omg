@@ -1,6 +1,6 @@
 // Complete bounded planar partition application. No external numeric package.
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::U64::from_f64;
 use domain::model;
 use domain::geometry;
 use domain::clip;

@@ -2,7 +2,6 @@ use domain::solver;
 use domain::shockley;
 use io::protocol;
 use omega_language_std::console;
-use omega::language::core::float_operations;
 
 data Main {
     protocol: Protocol;
