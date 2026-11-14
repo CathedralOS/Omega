@@ -73,11 +73,11 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
-### A stored shared `&Build` reaches the reference verifier, and `Build::bind` accepts a shared one
+### `Build::bind` accepts a shared `&Build`, where `Build::application` needs `&mut Build`
 - Category: a verdict with nothing behind it
 - Where: `samples/cli/facts/build_activation_borrow/invalid_*`; Build protocol `BuildBindingOperations::prepare(builder: &Build)` in [omega-rust/omega/packages/build-declarations/src/prelude.rs:116](omega-rust/omega/packages/build-declarations/src/prelude.rs#L116)
-- Saw: in a Build, `wrap<'a, 's>(builder: &'a mut Build<'s>) -> Configuration<'a, 's>` storing it in a shared field `&'a Build<'s>` and called as `wrap(builder)` stops with `VerifiedOperationMalformed ... (EstablishReference)`, an internal defect, not a judgment; the same shape over ordinary data (`&'a mut Inner<'s>` into `&'a Inner<'s>`) is accepted. Separately, `machine poke(builder: &Build) { Build::bind(builder, linux_x86_64::ProgramEntry, main); }` is accepted, while `Build::application` through `&Build` is rejected for its mutable receiver; the sample README expects binding to need `&mut Build`, and no spec page states which
-- Cost: the nine shared-reference controls of that sample cannot show their intended rejection; the reader's attenuation of the Build referent needs a look, and `Build::bind`'s receiver access needs a spec sentence
+- Saw: `machine poke(builder: &Build) { Build::bind(builder, linux_x86_64::ProgramEntry, main); }` is accepted, while `Build::application` through `&Build` is rejected for its mutable receiver. The shared-reference controls of `build_activation_borrow` (`invalid_field`, `invalid_parameter`, `invalid_call_result`, `invalid_other_state`, `invalid_other_machine`, `invalid_target_body`) therefore run their Builds, binding through a stored `&Build`, and stop only in their products. The sample README expects binding to need `&mut Build`; no spec page states which access `Build::bind` needs
+- Cost: those six controls cannot show their intended rejection; `Build::bind`'s receiver access needs a spec sentence and then the matching protocol signature
 - Reported: 2026-11-14, Claude Code (worker-14), while making the Build hold its lent reference in a record
 
 ### The standard library declares two public things named `DarwinClock`

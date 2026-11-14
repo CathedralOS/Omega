@@ -251,7 +251,7 @@ machine wrong(viewed: &mut Viewed) {
     Build::application(viewed.builder, \"renamed\");
 }
 ",
-        "the caller lends only immutable access to this argument",
+        "the reference it is reached through grants shared access only",
     );
 }
 
