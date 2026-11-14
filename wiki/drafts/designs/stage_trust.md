@@ -143,8 +143,8 @@ Three supporting rules:
    obligation as discharged only when the kernel accepted that certificate.
    Within one compile the evidence travels in memory beside `TerminalModule`,
    so Omega 00 can fill `AcceptedObligationFact::proof_bundle_fingerprint` and
-   the census can count it. An artifact re-read from bytes (including a
-   compiler-storage cache read) has no in-memory evidence, which is explicit:
+   the census can count it. An artifact re-read from bytes has no in-memory
+   evidence, which is explicit:
    never an error and never filled from an earlier build. The fingerprint is a
    record for measurement and audit; the back half does not gate on it.
 3. **A failed proof is a compile error.** When the checker on the lowered form
