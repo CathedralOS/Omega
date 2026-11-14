@@ -106,6 +106,8 @@ fn relay(item_type: ValueType, bound: u128) -> Shape {
             Expression {
                 call_context: None,
                 kind: ExpressionKind::Call {
+                    required_contract: None,
+                    source_call: None,
                     callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
                     arguments: vec![item(item_type), slot(1, u32_type())],
                     designated: None,
@@ -301,8 +303,11 @@ fn rigid_result_transport(
     let result_type = ValueType::Rigid(result);
     let mut bodies = IdTable::default();
     let call = Expression {
+        call_context: None,
         kind: ExpressionKind::Call {
             callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
+            required_contract: None,
+            source_call: None,
             arguments: vec![item(input_type)],
             designated: None,
         },
@@ -318,6 +323,7 @@ fn rigid_result_transport(
     let mut signatures = IdTable::default();
     for (position, output) in [result_type, input_type].into_iter().enumerate() {
         signatures.push(Signature {
+            operational: Default::default(),
             parameters: vec![input_type],
             erased: Vec::new(),
             borrowed: Vec::new(),

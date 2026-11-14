@@ -3408,6 +3408,26 @@ pub(crate) mod namespaces {
             if rows.next().is_some() {
                 return Err("named public view has ambiguous requirement rows");
             }
+            let machine = self
+                .machine_by_symbol(row.realization_machine)
+                .ok_or("named public view lost its selected machine")?;
+            let [entry] = self.machine_states(machine) else {
+                return Err("named public view needs one exact selected entry");
+            };
+            if entry.symbol != row.realization_state {
+                return Err("named public view changed its selected entry");
+            }
+            // An inline member belongs to this exact row. A reference row
+            // instead retains an already declared machine and its own contract;
+            // identifying either choice does not prove its refinement.
+            if row.source.owns_realization() {
+                let (owner, actual) = self
+                    .owned_conformance_realization(row.realization_machine)
+                    .ok_or("named public view lost its owned realization")?;
+                if owner.symbol != selected.symbol || actual != row {
+                    return Err("named public view changed its owned realization");
+                }
+            }
             let scope = application
                 .or_else(|| AppliedTraitScope::from_conformance(self, selected))
                 .ok_or("named public view lost its complete trait application")?
@@ -5769,7 +5789,13 @@ pub(crate) mod selected_operands {
                     let arguments = self
                         .type_reference_handles(*arguments)
                         .iter()
-                        .map(|argument| self.static_operand_from_type_reference(*argument))
+                        .map(|argument| -> Result<StaticMachineArgument, &'static str> {
+                            let mut operand = self.static_operand_from_type_reference(*argument)?;
+                            // The application still owns this exact payload;
+                            // conversion must not discard a child reference.
+                            operand.type_reference = *argument;
+                            Ok(operand)
+                        })
                         .collect::<Result<Vec<_>, _>>()?;
                     Ok(StaticMachineArgument {
                         symbol: *base_symbol,

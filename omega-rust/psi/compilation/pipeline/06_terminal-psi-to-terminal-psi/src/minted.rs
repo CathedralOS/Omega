@@ -211,7 +211,9 @@ impl Minted<'_> {
             return Err(self.foreign(concerns, "a call does not have exactly one invocation row"));
         };
         let concerns = Construct::Invocation(invocation);
-        if row.callee != Callee::Declared(inputs.callee) {
+        if row.callee != Callee::Declared(inputs.callee)
+            || row.required_contract != inputs.required_contract
+        {
             return Err(self.foreign(concerns, "an invocation row names another callee"));
         }
         // The scalar lane and the record lane, each in argument order.
@@ -256,7 +258,7 @@ impl Minted<'_> {
         }
         let clauses = self
             .module
-            .callable_requires(callee)
+            .invocation_requires(callee, row.required_contract)
             .ok_or_else(|| self.foreign(concerns, "callee has no canonical requires contract"))?
             .len();
         if inputs.requirement_obligations.len() != clauses
@@ -378,7 +380,8 @@ pub(crate) fn follow_the_lowered_form(
             }
             // A byte read owes its index bound, as an indexed projection
             // does (byte_views.md, `ByteSequenceRead`).
-            if let terminal_psi::OperationKind::ByteSequenceRead { obligation, .. } =
+            if let terminal_psi::OperationKind::ByteSequenceRead { obligation, .. }
+            | terminal_psi::OperationKind::ByteSequenceSubslice { obligation, .. } =
                 &operation.kind
             {
                 minted.claim(
@@ -391,7 +394,7 @@ pub(crate) fn follow_the_lowered_form(
                     before,
                 )?;
             }
-            if let Some(inputs) = operation.kind.declared_invocation() {
+            if let Some(inputs) = operation.declared_invocation() {
                 minted.call(
                     InvocationSite::Operation(operation.id),
                     inputs,
@@ -401,7 +404,7 @@ pub(crate) fn follow_the_lowered_form(
             }
             // A call that may return and crash is a crash site of its own,
             // owing coverage per cause among its continuations.
-            if let Some(inputs) = operation.kind.declared_invocation() {
+            if let Some(inputs) = operation.declared_invocation() {
                 let routes = match inputs.callee {
                     terminal_psi::TargetMachineCallable::Machine(_) => inputs.crash_continuations,
                     terminal_psi::TargetMachineCallable::Boundary(boundary) => {

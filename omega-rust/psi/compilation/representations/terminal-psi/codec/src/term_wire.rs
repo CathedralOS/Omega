@@ -292,6 +292,7 @@ pub(crate) mod contract_wire {
         Contract: MachineContract {
             id: Id,
             declaration: Optional<MachineDeclaration>,
+            selected_application: Optional<super::module_wire::proof_output_wire::Dispatch>,
             parameters: List<Declaration>,
             parameter_order: List<ParameterKind>,
             structural_parameters: List<super::structural_signature_wire::StructuralParameter>,

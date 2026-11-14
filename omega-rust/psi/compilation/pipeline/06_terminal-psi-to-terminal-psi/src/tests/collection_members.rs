@@ -518,7 +518,7 @@ machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {{
         assert_eq!(
             staged_call
                 .iter()
-                .filter(|operation| operation.kind.declared_invocation().is_some())
+                .filter(|operation| operation.declared_invocation().is_some())
                 .count(),
             1
         );
