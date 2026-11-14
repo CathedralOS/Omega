@@ -196,6 +196,24 @@ impl PackageBuildInvocation {
     pub fn execution(&mut self) -> Option<&mut build_settings::PreparedBuildExecution> {
         self.source.execution()
     }
+
+    /// Whether the stage of this Build that just ran ended at a dependency
+    /// preparation with statements of the entry still to check and run
+    /// (`wiki/spec/build/scoped_execution.md`, "Checked Build stages").
+    pub fn has_later_stage(&self) -> bool {
+        self.source.has_later_stage()
+    }
+
+    /// Checks the next stage of this Build with the build dependencies its
+    /// earlier stages prepared, each under the alias it was registered by.
+    /// Afterwards `execution` is that stage's, to be resumed from the
+    /// activation that returned, and `product_queries` answers its queries.
+    pub fn prepare_next_stage(
+        &mut self,
+        prepared: Vec<package_compilation::source_imports::ProductQueryDependency>,
+    ) -> Result<(), CompileFailure> {
+        super::run_on_compile_thread(|| self.source.prepare_next_stage(prepared))
+    }
 }
 
 impl PackageBuild {

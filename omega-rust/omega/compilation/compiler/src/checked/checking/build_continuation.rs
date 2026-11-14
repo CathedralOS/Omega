@@ -21,6 +21,9 @@ use std::path::Path;
 use std::sync::Arc;
 
 pub(super) struct BuildSourceInvocation {
+    /// The build dependencies the stages of this Build have prepared, as its
+    /// current stage has them mounted.
+    prepared: Vec<package_compilation::source_imports::ProductQueryDependency>,
     execution_contract: package_compilation::build_execution::BuildExecutionContract,
     parsed: compilation_products::PreparedCheckedSource,
     frontier: TypedCompilationFrontier,
@@ -53,6 +56,7 @@ pub(super) fn prepare_build_invocation(
     let execution_contract = build.contract();
     let TypedCompilationFrontier {
         preparation,
+        build_stage,
         mut source,
         anonymous_source,
         product_sources,
@@ -80,10 +84,12 @@ pub(super) fn prepare_build_invocation(
         &mut timings,
     )?;
     Ok(BuildSourceInvocation {
+        prepared: Vec::new(),
         execution_contract,
         parsed,
         frontier: TypedCompilationFrontier {
             preparation,
+            build_stage,
             source,
             anonymous_source,
             product_sources,
@@ -114,6 +120,7 @@ impl BuildSourceInvocation {
             &self.frontier,
             self.package_inputs.clone(),
             self.build_execution_profile,
+            self.prepared.clone(),
         )
     }
     pub(super) fn source_result<'result>(
@@ -124,6 +131,115 @@ impl BuildSourceInvocation {
     }
     pub(super) fn execution(&mut self) -> Option<&mut build_settings::PreparedBuildExecution> {
         self.evaluation.execution()
+    }
+
+    /// Whether the stage this invocation holds ends at a dependency
+    /// preparation with statements of the Build entry still to check.
+    pub(super) fn has_later_stage(&self) -> bool {
+        !self.frontier.build_stage.is_last()
+    }
+
+    /// Resolves, types, judges and admits the next stage of this Build
+    /// (`wiki/spec/build/scoped_execution.md`, "Checked Build stages"), with
+    /// the build dependencies its earlier stages prepared selectable under
+    /// their aliases. Nothing of the stage runs here, and nothing of an
+    /// earlier stage is checked or run again: "Preparation extends the
+    /// authorized environment of the subsequent continuation, not the
+    /// meaning of earlier code."
+    ///
+    /// The stage takes the ordinary route: the Build sources are assembled
+    /// again with the prepared packages mounted, the entry is cut to the
+    /// stage's statements, and the result is typed and handed to the same
+    /// Build admission the first stage went through. This invocation then
+    /// holds that stage: its frontier, its deferred Product continuation and
+    /// the execution that runs next.
+    pub(super) fn prepare_next_stage(
+        &mut self,
+        prepared: Vec<package_compilation::source_imports::ProductQueryDependency>,
+    ) -> Result<(), CompileFailure> {
+        let spent = self.evaluation.source_completion_accounting().clone();
+        self.prepare_stage(prepared)
+            .map_err(|failure| failure.with_source_completion_accounting(spent))
+    }
+
+    fn prepare_stage(
+        &mut self,
+        prepared: Vec<package_compilation::source_imports::ProductQueryDependency>,
+    ) -> Result<(), CompileFailure> {
+        let stage = self.frontier.build_stage;
+        if stage.is_last() {
+            return Err(vec![Diagnostic::error(
+                "Build entry has no stage after the one that returned",
+            )]
+            .into());
+        }
+        let pending = self.frontier.product_sources.as_ref().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "a staged Build requires its deferred Product context",
+            )]
+        })?;
+        let inputs = package_compilation::source_imports::ProductQueryInputs::for_build_stage(
+            self.package_inputs.clone(),
+            prepared.clone(),
+        )
+        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let preparation = self.frontier.preparation.clone();
+        let (count, syntax) = pending.sources().assemble_build_stage(
+            &inputs,
+            &mut self.timings,
+            &mut *preparation.catalogue()?,
+        )?;
+        let diagnostic_sources = syntax.sources.clone();
+        let package_inputs = self.package_inputs.as_ref();
+        let frontier = lower_typed_frontier(
+            preparation,
+            count,
+            syntax,
+            self.build_execution_profile,
+            package_inputs,
+            &mut self.timings,
+            Some(stage.index + 1),
+        )
+        .map_err(|mut diagnostics| {
+            super::attribute_diagnostics(&mut diagnostics, &diagnostic_sources, package_inputs);
+            diagnostics
+        })?;
+        let TypedCompilationFrontier {
+            preparation,
+            build_stage,
+            mut source,
+            anonymous_source,
+            product_sources,
+            build_source,
+            source_file_count,
+            generated_source_custody,
+            base_sources,
+        } = frontier;
+        let build_input = source.build_input();
+        self.evaluation
+            .continue_stage(
+                build_settings::BuildStageRequest {
+                    typed: build_input.typed,
+                    build_source,
+                    package_inputs,
+                    anonymous_source: anonymous_source.as_ref(),
+                },
+                &mut self.timings,
+            )
+            .map_err(|failure| super::attribute_failure(failure, &base_sources, package_inputs))?;
+        self.prepared = prepared;
+        self.frontier = TypedCompilationFrontier {
+            preparation,
+            build_stage,
+            source,
+            anonymous_source,
+            product_sources,
+            build_source,
+            source_file_count,
+            generated_source_custody,
+            base_sources,
+        };
+        Ok(())
     }
 
     pub(super) fn complete(
@@ -155,6 +271,7 @@ impl BuildSourceInvocation {
         product_target: Option<target::TargetProfile>,
     ) -> Result<compilation_products::SettledBuildSource, CompileFailure> {
         let Self {
+            prepared: _,
             execution_contract,
             parsed,
             frontier,
@@ -314,6 +431,7 @@ pub(super) fn complete_build_source(
     let result = (|| {
         let TypedCompilationFrontier {
             preparation,
+            build_stage: _,
             mut source,
             mut anonymous_source,
             product_sources,
@@ -350,6 +468,7 @@ pub(super) fn complete_build_source(
                         build_execution_profile,
                         package_inputs,
                         timings,
+                        None,
                     )
                     .map_err(|mut diagnostics| {
                         super::attribute_diagnostics(
@@ -457,6 +576,7 @@ pub(super) fn lower_typed_frontier(
     execution_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
     timings: &mut CompileTimings,
+    build_stage: Option<usize>,
 ) -> Result<TypedCompilationFrontier, Vec<Diagnostic>> {
     let generated_source_custody = std::mem::take(&mut syntax.generated_source_custody);
     let base_sources = syntax.sources.clone();
@@ -474,6 +594,18 @@ pub(super) fn lower_typed_frontier(
     }
     build_settings::select_build_helpers(&mut syntax.syntax_trees, execution, &build_scope_sources);
     let build_source = syntax.build_source;
+    // A frontier a Build stage is checked and run on holds that stage's
+    // statements only (`build_settings::select_build_stage`). A frontier
+    // nothing executes the Build entry of keeps the entry whole: the Product
+    // frontier, and the one a paused Build's Product query is answered on.
+    // There a name of a later stage is recorded on the entry and raised by
+    // nobody, because nothing demands the entry.
+    let build_stage = match (build_stage, build_source) {
+        (Some(stage), Some(build)) => {
+            build_settings::select_build_stage(&mut syntax.syntax_trees, build.source_id(), stage)?
+        }
+        _ => build_settings::BuildStage::WHOLE,
+    };
     let request = psi_compiler::SourceCompilationRequest {
         source_items: syntax.source_items,
         root_sources: syntax.root_sources,
@@ -489,6 +621,7 @@ pub(super) fn lower_typed_frontier(
     let source = request.prepare(&mut crate::observations::PsiStageTimings::new(timings))?;
     Ok(TypedCompilationFrontier {
         preparation,
+        build_stage,
         source,
         anonymous_source: syntax.anonymous_owner,
         product_sources: syntax

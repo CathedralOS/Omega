@@ -13,6 +13,10 @@ pub struct ProductQueries {
     initial: psi_compiler::SourceContinuation,
     inputs: Option<package_compilation::PackageCompilationInputs>,
     execution_profile: Option<target::TargetProfile>,
+    /// The build dependencies the Build has prepared when it asks: a later
+    /// stage of a staged Build calls their code, and a query that code makes
+    /// is answered at its own occurrence.
+    prepared: Vec<ProductQueryDependency>,
     retained: Option<(ProductQueryInputs, psi_compiler::SourceContinuation)>,
 }
 
@@ -21,6 +25,7 @@ impl ProductQueries {
         frontier: &compilation_products::TypedCompilationFrontier,
         inputs: Option<package_compilation::PackageCompilationInputs>,
         execution_profile: Option<target::TargetProfile>,
+        prepared: Vec<ProductQueryDependency>,
     ) -> Self {
         Self {
             preparation: frontier.preparation.clone(),
@@ -31,6 +36,7 @@ impl ProductQueries {
             initial: frontier.source.clone(),
             inputs,
             execution_profile,
+            prepared,
             retained: None,
         }
     }
@@ -48,7 +54,9 @@ impl ProductQueries {
         query: &BuildProductQuery,
         dependencies: Vec<ProductQueryDependency>,
     ) -> Result<BuildProductDescription, Vec<Diagnostic>> {
-        let inputs = ProductQueryInputs::new(self.inputs.clone(), dependencies).map_err(refuse)?;
+        let inputs = ProductQueryInputs::new(self.inputs.clone(), dependencies)
+            .and_then(|inputs| inputs.with_prepared_build_dependencies(self.prepared.clone()))
+            .map_err(refuse)?;
         if self
             .retained
             .as_ref()
@@ -69,6 +77,7 @@ impl ProductQueries {
                         self.execution_profile,
                         self.inputs.as_ref(),
                         &mut timings,
+                        None,
                     )?
                     .source
                 }
