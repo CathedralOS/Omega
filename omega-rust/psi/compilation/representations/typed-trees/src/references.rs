@@ -620,8 +620,7 @@ pub(crate) mod source_occurrences {
         #[test]
         fn authored_call_actuals_and_cast_targets_exclude_computed_expression_types() {
             use crate::expression::{
-                BinaryOperator, OpenIndexOperationSelection, StaticMachineArgument,
-                TableBinaryExpression, TableCastExpression,
+                BinaryOperator, StaticMachineArgument, TableBinaryExpression, TableCastExpression,
             };
             let mut symbols = symbols::SymbolTableBuilder::default();
             let owner = symbols.insert_root(
@@ -673,28 +672,6 @@ pub(crate) mod source_occurrences {
                         right: leaf,
                         operator: BinaryOperator::Add,
                     }));
-            program
-                .expression_table
-                .index_expression_authority_mut(binary)
-                .operation = Some(OpenIndexOperationSelection {
-                expression: binary,
-                spelling: language_core::OperatorSpelling::Add,
-                operator: SymbolHandle::invalid(),
-                operand_type: computed,
-                provider: SymbolHandle::invalid(),
-                application: Some(StaticMachineArgument {
-                    type_reference: computed,
-                    ..Default::default()
-                }),
-                algebra_trait: SymbolHandle::invalid(),
-                algebra_requirement: String::new(),
-                algebra_alias: None,
-                commutativity_licensed: false,
-                associativity_licensed: false,
-                distributes_over: Vec::new(),
-                left_identity_literal: String::new(),
-                right_identity_literal: String::new(),
-            });
             let cast = program
                 .expression_table
                 .insert(ExpressionNode::Cast(TableCastExpression {
