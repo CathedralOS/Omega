@@ -921,8 +921,8 @@ impl<'t> Program<'t> {
             &binders,
             &[],
         )?;
-        self.inherit_logical_contract(id, machine, &mut signature, &mut names)?;
         signature.termination = self.termination(id, machine)?;
+        self.inherit_requirement_contract(id, machine, &mut signature, &mut names)?;
         // A machine's header clauses belong to the machine declaration; its
         // formals belong to its one state, which `contract` was given.
         signature.reaches = self.reach_ceiling(id, machine.symbol)?;
@@ -993,11 +993,7 @@ impl<'t> Program<'t> {
             .typed
             .trait_definition_by_symbol(owner)
             .ok_or_else(|| unserved("conformer lost its originating trait declaration"))?;
-        if requirement.termination_guarantee != TerminationGuarantee::NoGuarantee {
-            return Err(unserved(
-                "declared requirement needs its progress-refinement proof",
-            ));
-        }
+        self.requirement_termination(id, requirement)?;
         if !definition.type_parameters.is_empty()
             || !definition.lifetime_parameters.is_empty()
             || !definition.conformance_bounds.is_empty()
@@ -1088,13 +1084,13 @@ impl<'t> Program<'t> {
         Ok(())
     }
 
-    /// An inline conformer's body is checked under its requirement, unlike
-    /// a selection row that attaches a route to an independently valid body
-    /// (conformances.md, "Binding a machine to a requirement"). Read the
-    /// requirement with its own symbols, then retain the logical clauses by
-    /// formal position. Written member clauses still owe refinement; omitted
-    /// operational ceilings keep their separate inference rules.
-    fn inherit_logical_contract(
+    /// An owning body inherits missing logical clauses and progress from
+    /// its requirement. A selection row supplies no body context
+    /// (conformances.md, "Binding a machine to a requirement"). Logical
+    /// clauses retain formal positions; progress is owed by the actual body.
+    /// Written clauses still owe refinement, and omitted operational
+    /// ceilings retain their separate inference rules.
+    fn inherit_requirement_contract(
         &mut self,
         id: MachineId,
         machine: &'t Machine,
@@ -1104,6 +1100,9 @@ impl<'t> Program<'t> {
         let Some((_, requirement)) = self.conformer_requirement(id, machine)? else {
             return Ok(());
         };
+        if matches!(signature.termination, Termination::Silent) {
+            signature.termination = self.requirement_termination(id, requirement)?;
+        }
         let clauses = span(
             &self.typed.signature_contracts,
             machine.contracts,
@@ -1223,7 +1222,9 @@ impl<'t> Program<'t> {
         );
         let read = self.read_requirement_signature(id, requirement, arguments);
         self.elision = elision;
-        read
+        let (mut signature, names) = read?;
+        signature.termination = self.requirement_termination(id, requirement)?;
+        Ok((signature, names))
     }
 
     fn read_requirement_signature(
@@ -1234,6 +1235,22 @@ impl<'t> Program<'t> {
     ) -> Checked<(Signature, MachineNames)> {
         self.served(id, requirement.symbol)?;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
+        // Closing a signature substitutes its types; it does not prove the
+        // original binders' storage or copying requirements.
+        if self
+            .typed
+            .closed_requirement_application(requirement.symbol)
+            .is_some_and(|closed| {
+                closed
+                    .invocation_contract_parameters
+                    .iter()
+                    .any(|parameter| {
+                        parameter.bounds != typed_trees::data::DataProperties::default()
+                    })
+            })
+        {
+            return unserved("closed requirement parameter eligibility");
+        }
         if requirement.spelling.is_some() {
             return unserved("operator spelling");
         }
@@ -1291,8 +1308,6 @@ impl<'t> Program<'t> {
             &[],
             &bound,
         )?;
-        signature.termination =
-            self.published_termination(id, &requirement.termination_guarantee)?;
         signature.invokes =
             self.entry_ceiling(id, self.typed.state_signature_invokes(requirement), true)?;
         names.machine = requirement.name.as_str().to_owned();
@@ -1612,12 +1627,33 @@ impl<'t> Program<'t> {
                 // tables and read omission differently.
                 invokes: crate::Ceiling::Inferred,
                 crashes,
-                // The owning header's reader fills its termination promise
-                // after these shared parameter and clause rules are read.
+                // A requirement's termination is its selected member's to
+                // keep; a machine's is read from its plan by its caller.
                 termination: Termination::Silent,
             },
             names,
         ))
+    }
+
+    /// A requirement publishes its authored promise even when the selected
+    /// body omits the clause (termination.md). Conditional promises need
+    /// their actual premise evidence; existing body checks prove a bare promise.
+    fn requirement_termination(
+        &self,
+        id: MachineId,
+        requirement: &StateSignature,
+    ) -> Checked<Termination> {
+        match &requirement.termination_guarantee {
+            TerminationGuarantee::NoGuarantee => Ok(Termination::Silent),
+            TerminationGuarantee::Terminates { premises } if premises.is_empty() => {
+                Ok(Termination::Promised)
+            }
+            TerminationGuarantee::Terminates { .. } => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("requirement termination needs its actual progress premises"),
+            )),
+        }
     }
 
     /// What the header says about ending, from the plan stage 02 fills once
@@ -1626,35 +1662,27 @@ impl<'t> Program<'t> {
     /// as rendered text, which this reader never resolves.
     fn termination(&self, id: MachineId, machine: &Machine) -> Checked<Termination> {
         let plan = &machine.termination_plan;
-        let promise = match &plan.interface {
-            TerminationInterface::InternalDerived => Termination::Silent,
-            TerminationInterface::Published(guarantee) => {
-                self.published_termination(id, guarantee)?
+        let promised = match &plan.interface {
+            TerminationInterface::InternalDerived
+            | TerminationInterface::Published(TerminationGuarantee::NoGuarantee) => false,
+            TerminationInterface::Published(TerminationGuarantee::Terminates { premises }) => {
+                // termination.md, "Opaque progress profiles": a premise
+                // attaches a provider's progress profile to a subject.
+                if !premises.is_empty() {
+                    return Err(refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Contract("termination under a progress premise"),
+                    ));
+                }
+                true
             }
         };
-        Ok(if plan.implementation_witness.is_some() {
-            Termination::Witnessed
-        } else {
-            promise
+        Ok(match (&plan.implementation_witness, promised) {
+            (Some(_), _) => Termination::Witnessed,
+            (None, true) => Termination::Promised,
+            (None, false) => Termination::Silent,
         })
-    }
-
-    fn published_termination(
-        &self,
-        id: MachineId,
-        guarantee: &TerminationGuarantee,
-    ) -> Checked<Termination> {
-        match guarantee {
-            TerminationGuarantee::NoGuarantee => Ok(Termination::Silent),
-            TerminationGuarantee::Terminates { premises } if premises.is_empty() => {
-                Ok(Termination::Promised)
-            }
-            TerminationGuarantee::Terminates { .. } => Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Contract("termination under a progress premise"),
-            )),
-        }
     }
 
     /// Whether the type parameter `rigid` of `machine` is declared `[copy]`.
@@ -2394,7 +2422,9 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
                 spans(field, binder, out);
             }
         }
-        ExpressionKind::Field { base, .. } | ExpressionKind::Payload { base, .. } => {
+        ExpressionKind::Field { base, .. }
+        | ExpressionKind::Payload { base, .. }
+        | ExpressionKind::CollectionMeasure { base, .. } => {
             spans(base, binder, out);
         }
         ExpressionKind::IsCase { subject, .. } => spans(subject, binder, out),
@@ -2543,7 +2573,9 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
                 expression_slot_uses(field, uses);
             }
         }
-        ExpressionKind::Field { base, .. } | ExpressionKind::Payload { base, .. } => {
+        ExpressionKind::Field { base, .. }
+        | ExpressionKind::Payload { base, .. }
+        | ExpressionKind::CollectionMeasure { base, .. } => {
             expression_slot_uses(base, uses);
         }
         ExpressionKind::IsCase { subject, .. } => expression_slot_uses(subject, uses),

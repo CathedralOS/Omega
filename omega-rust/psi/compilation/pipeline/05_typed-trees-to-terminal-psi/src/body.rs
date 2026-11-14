@@ -782,6 +782,13 @@ pub enum ExpressionKind {
     Boolean(bool),
     /// Actual immutable octets established at this expression's operation.
     ByteLiteral(Vec<u8>),
+    /// The selected builtin observation, after evaluating its actual base.
+    /// Even a statically known extent cannot erase that evaluation or its
+    /// storage use. The observation itself neither moves nor lends backing.
+    CollectionMeasure {
+        base: Box<Expression>,
+        measure: typed_trees::expression::CollectionMeasure,
+    },
     Array {
         elements: Vec<Expression>,
     },

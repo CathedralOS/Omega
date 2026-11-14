@@ -528,6 +528,51 @@ impl Program<'_> {
                     scalar_type,
                 ))
             }
+            ExpressionNode::Member(member)
+                if matches!(
+                    member.selection,
+                    typed_trees::expression::MemberSelection::CollectionMeasure(
+                        typed_trees::expression::CollectionMeasure::Length
+                    )
+                ) =>
+            {
+                if !scope.formal_fields || scope.subject.is_some() {
+                    return unserved("extent outside an input requirement");
+                }
+                let Some((root, path, receiver)) = self.projected(id, scope, member.receiver)?
+                else {
+                    return unserved("extent without an exact formal descriptor");
+                };
+                let Some(record) = self.opened(id, Some(receiver), Access::Read)? else {
+                    return unserved("extent of non-collection storage");
+                };
+                if !matches!(
+                    self.data_type(id, record)?.shape,
+                    crate::StorageShape::ByteSequence(
+                        terminal_psi::ByteSequenceCarrier::BorrowedView {
+                            access: Some(
+                                terminal_psi::StructuralAccess::SharedBorrow
+                                    | terminal_psi::StructuralAccess::MutableBorrow
+                            ),
+                        }
+                    )
+                ) {
+                    return unserved("extent without its descriptor operation");
+                }
+                let scalar_type = semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    64,
+                )
+                .expect("u64 is valid");
+                Ok((
+                    ScalarTerm::ViewExtent {
+                        root,
+                        path,
+                        scalar_type,
+                    },
+                    ScalarType::Integer(scalar_type),
+                ))
+            }
             // `self.value`, `self.from.x`: a field of the value a data
             // clause is about.
             ExpressionNode::Member(_) if scope.subject.is_some() => {

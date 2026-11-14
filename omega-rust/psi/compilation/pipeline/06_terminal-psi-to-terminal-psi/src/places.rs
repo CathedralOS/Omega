@@ -168,7 +168,8 @@ pub(crate) fn overlap(left: &Lineage, right: &Lineage) -> bool {
             Segment::Field(_)
             | Segment::Case(_)
             | Segment::FixedIndex(_)
-            | Segment::RuntimeIndex { .. },
+            | Segment::RuntimeIndex { .. }
+            | Segment::Extent,
             _,
         )) => true,
     }
@@ -1024,8 +1025,34 @@ impl<'a> Storage<'a> {
                 (Shape::Scalar(_), _) => {
                     return Err(self.foreign(concerns, "a place lies beneath a scalar field"));
                 }
+                (Shape::View, Segment::Extent) => Shape::Scalar(ScalarType::Integer(
+                    semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Unsigned,
+                        64,
+                    )
+                    .expect("u64 is valid"),
+                )),
                 (Shape::View, _) => {
                     return Err(self.foreign(concerns, "a place lies beneath a stored view"));
+                }
+                (Shape::Typed(owner), Segment::Extent) => {
+                    if !self
+                        .declaration(owner, concerns)?
+                        .shape
+                        .is_borrowed_byte_view()
+                    {
+                        return Err(self.foreign(concerns, "an extent is not of a byte descriptor"));
+                    }
+                    Shape::Scalar(ScalarType::Integer(
+                        semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned,
+                            64,
+                        )
+                        .expect("u64 is valid"),
+                    ))
+                }
+                (Shape::Payload(_), Segment::Extent) => {
+                    return Err(self.foreign(concerns, "an extent is applied to a case namespace"));
                 }
                 (Shape::Typed(owner), Segment::Field(field)) => {
                     let StructuralTypeShape::Record { fields, .. } =
@@ -1237,6 +1264,24 @@ impl<'a> Storage<'a> {
     fn read_leaf(&self, operation: &Operation) -> Checked<Option<Lineage>> {
         let concerns = Construct::Operation(operation.id);
         match &operation.kind {
+            OperationKind::ByteSequenceLength { source } => {
+                let mut leaf = self.argument(source, concerns)?;
+                leaf.segments.push(Segment::Extent);
+                let Shape::Scalar(scalar_type) = self.shape(&leaf, concerns)? else {
+                    return Err(self.foreign(concerns, "an extent has no scalar carrier"));
+                };
+                if operation
+                    .result
+                    .scalar_ref()
+                    .is_none_or(|result| result.scalar_type != scalar_type)
+                {
+                    return Err(self.foreign(
+                        concerns,
+                        "a length result has another scalar carrier than its descriptor extent",
+                    ));
+                }
+                Ok(Some(leaf))
+            }
             OperationKind::ScalarStructuralField {
                 source,
                 path,
@@ -2967,39 +3012,22 @@ pub(crate) struct AtEntry<'s, 'a> {
     tables: &'s MachineTables,
 }
 
-impl crate::Bindings for AtEntry<'_, '_> {
-    type Error = crate::Unbound;
-    fn value(
-        &mut self,
-        id: ValueId,
-        scalar_type: ScalarType,
-    ) -> Result<ScalarTerm, crate::Unbound> {
-        Ok(ScalarTerm::value(id, scalar_type))
-    }
-
-    fn field(
-        &mut self,
-        root: PlaceId,
-        path: &[CanonicalStructuralPathSegment],
+impl AtEntry<'_, '_> {
+    fn observation(
+        &self,
+        leaf: Lineage,
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, crate::Unbound> {
         let storage = self.storage;
         let concerns = Construct::Machine;
         let kind = storage
-            .root_kind(root, concerns)
+            .root_kind(leaf.root, concerns)
             .map_err(crate::Unbound::Refused)?;
         if !matches!(kind, StructuralPlaceKind::Parameter { .. }) {
             return Err(crate::Unbound::Unsupported(
                 "an entry clause names storage that is no formal",
             ));
         }
-        let leaf = extended(
-            Lineage {
-                root,
-                segments: Vec::new(),
-            },
-            path,
-        )?;
         if !matches!(
             storage
                 .shape(&leaf, concerns)
@@ -3028,6 +3056,52 @@ impl crate::Bindings for AtEntry<'_, '_> {
             ));
         }
         Ok(ScalarTerm::value(held, scalar_type))
+    }
+}
+
+impl crate::Bindings for AtEntry<'_, '_> {
+    type Error = crate::Unbound;
+    fn value(
+        &mut self,
+        id: ValueId,
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        Ok(ScalarTerm::value(id, scalar_type))
+    }
+
+    fn field(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        self.observation(
+            extended(
+                Lineage {
+                    root,
+                    segments: Vec::new(),
+                },
+                path,
+            )?,
+            scalar_type,
+        )
+    }
+
+    fn extent(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: semantic_vocabulary::IntegerType,
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        let mut leaf = extended(
+            Lineage {
+                root,
+                segments: Vec::new(),
+            },
+            path,
+        )?;
+        leaf.segments.push(Segment::Extent);
+        self.observation(leaf, ScalarType::Integer(scalar_type))
     }
 
     fn case(

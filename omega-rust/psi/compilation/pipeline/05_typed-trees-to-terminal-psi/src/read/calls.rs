@@ -62,20 +62,7 @@ impl<'t> Program<'t> {
         let completion =
             typed_trees::boundary_completions::boundary_requirement_completion(self.typed, target);
         self.visible_to(caller, target)?;
-        let (mut signature, _) = self.requirement_signature(caller, requirement, &[])?;
-        signature.termination = match &requirement.termination_guarantee {
-            language_semantics::TerminationGuarantee::NoGuarantee => crate::Termination::Silent,
-            language_semantics::TerminationGuarantee::Terminates { premises }
-                if premises.is_empty() =>
-            {
-                crate::Termination::Promised
-            }
-            language_semantics::TerminationGuarantee::Terminates { .. } => {
-                return Err(unserved(
-                    "boundary termination needs its actual progress premises",
-                ));
-            }
-        };
+        let (signature, _) = self.requirement_signature(caller, requirement, &[])?;
         // effects.md: "Every boundary-trait machine requirement must declare
         // that ceiling, using `reaches none` when it permits no services".
         if signature.reaches == crate::Ceiling::Inferred {
@@ -520,16 +507,15 @@ impl<'t> Program<'t> {
     /// it names rides beside it to the operation lowering emits.
     ///
     /// Only an operation of the toolchain's own selection protocol receives
-    /// one: the Build host hands the reference to no other callee. The two
-    /// selections whose host row needs more than the reference are refused
-    /// by name rather than published without it.
+    /// one: the Build host hands the reference to no other callee. Publication
+    /// joins native bindings to their checked structural locator carrier.
     fn designate(
         &self,
         id: MachineId,
         selection: arena::Handle<typed_trees::expression::BuildSelectionRequest>,
         read: &mut Expression,
     ) -> Checked<()> {
-        use language_semantics::declaration_selection::{BuildOperation, BuildSelectionRequest};
+        use language_semantics::declaration_selection::BuildSelectionRequest;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let Some(request) = self
             .typed
@@ -565,12 +551,6 @@ impl<'t> Program<'t> {
             // boundaries that application covers.
             BuildSelectionRequest::ProviderReadiness(_) => {
                 return unserved("Build provider readiness needs its requirement application");
-            }
-            // Its host row carries the locator value's shape.
-            BuildSelectionRequest::Declaration(declaration)
-                if declaration.operation == BuildOperation::NativeBinding =>
-            {
-                return unserved("native Build binding needs its locator shape");
             }
             BuildSelectionRequest::Entry(_)
             | BuildSelectionRequest::Declaration(_)
@@ -1568,6 +1548,7 @@ fn mentions<'a>(
         | ExpressionKind::Requalify(operand)
         | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::Field { base: operand, .. }
+        | ExpressionKind::CollectionMeasure { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {
             subject: operand, ..

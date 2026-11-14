@@ -440,7 +440,45 @@ impl<'t> Program<'t> {
             }
             let case = match &arm.pattern {
                 MatchPattern::Wildcard => None,
-                MatchPattern::Value(_) => return Err(unserved("match arm on a value pattern")),
+                MatchPattern::Value(head) => {
+                    if !self.typed.expression_table.expression_is_valid(*head) {
+                        return Err(unserved("match value pattern has no retained head"));
+                    }
+                    // A payload-free case value tests exactly that case.
+                    // The shared pattern reader verifies its nominal owner
+                    // and refuses a case whose payload would be omitted.
+                    let application_type = match self.typed.expression_table.expression(*head) {
+                        ExpressionNode::StructLiteral(literal)
+                            if literal.application_type.is_valid() =>
+                        {
+                            let plain = matches!(self.typed.type_reference_table.type_reference(literal.application_type),
+                                typed_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == literal.type_symbol)
+                                && self
+                                    .typed
+                                    .unique_data_definition_by_symbol(literal.type_symbol)
+                                    .is_some_and(|data| {
+                                        data.type_parameters.is_empty()
+                                            && data.lifetime_parameters.is_empty()
+                                            && data.generic_instance.is_none()
+                                    });
+                            if plain {
+                                Default::default()
+                            } else {
+                                literal.application_type
+                            }
+                        }
+                        _ => Default::default(),
+                    };
+                    Some(self.case_pattern(
+                        id,
+                        record,
+                        &typed_trees::expression::TableDestructurePattern {
+                            application_type,
+                            head: *head,
+                            ..Default::default()
+                        },
+                    )?)
+                }
                 MatchPattern::Destructure(pattern) => {
                     let case = self.case_pattern(id, record, pattern)?;
                     // Stage 03 keeps the arm's test as the pattern's
@@ -455,12 +493,12 @@ impl<'t> Program<'t> {
                     if !same_computation(&condition, &case_condition(subject, case)) {
                         return Err(unserved("match arm whose condition is not its case test"));
                     }
-                    if arms.iter().any(|(earlier, _)| *earlier == case) {
-                        return Err(unserved("match arm for a case an earlier arm selects"));
-                    }
                     Some(case)
                 }
             };
+            if case.is_some_and(|case| arms.iter().any(|(earlier, _)| *earlier == case)) {
+                return Err(unserved("match arm for a case an earlier arm selects"));
+            }
             let value = self.expression(id, slots, arm.value, result.map(ValueType::plain))?;
             let value_type = match value.result {
                 Some(ValueType::Scalar(scalar_type, Qualification::NONE)) => scalar_type,
@@ -505,6 +543,7 @@ pub(super) fn names_storage(expression: &Expression) -> bool {
         ExpressionKind::Borrow { .. }
         | ExpressionKind::Integer(_)
         | ExpressionKind::ByteLiteral(_)
+        | ExpressionKind::CollectionMeasure { .. }
         | ExpressionKind::Boolean(_)
         | ExpressionKind::Array { .. }
         | ExpressionKind::Record { .. }
@@ -815,6 +854,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
             (ExpressionKind::Integer(a), ExpressionKind::Integer(b)) => a == b,
             (ExpressionKind::Boolean(a), ExpressionKind::Boolean(b)) => a == b,
             (ExpressionKind::ByteLiteral(a), ExpressionKind::ByteLiteral(b)) => a == b,
+            (ExpressionKind::CollectionMeasure { base: a, measure: am }, ExpressionKind::CollectionMeasure { base: b, measure: bm }) => am == bm && both(a, b),
             (ExpressionKind::Slot(a), ExpressionKind::Slot(b)) => a == b,
             (ExpressionKind::SavedSubject(a), ExpressionKind::SavedSubject(b)) => a == b,
             (
@@ -953,6 +993,7 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 ExpressionKind::SavedSubject(_)
                 | ExpressionKind::Integer(_)
             | ExpressionKind::ByteLiteral(_)
+        | ExpressionKind::CollectionMeasure { .. }
                 | ExpressionKind::Boolean(_)
                 | ExpressionKind::Slot(_)
                 | ExpressionKind::Array { .. }

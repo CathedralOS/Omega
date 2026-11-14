@@ -572,7 +572,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         eprintln!("usage: cargo xtask check-boundary");
         return Err(2);
     }
-    let root = crate::repo_root();
+    let root = crate::repo_root()?;
     let output = Command::new("cargo")
         .args(["metadata", "--no-deps", "--format-version", "1"])
         .current_dir(&root)

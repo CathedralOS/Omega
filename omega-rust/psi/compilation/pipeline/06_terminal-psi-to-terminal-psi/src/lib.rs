@@ -1417,6 +1417,15 @@ impl Bindings for ErasedTerms<'_> {
         self.runtime.field(root, path, scalar_type)
     }
 
+    fn extent(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: semantic_vocabulary::IntegerType,
+    ) -> Result<ScalarTerm, Unbound> {
+        self.runtime.extent(root, path, scalar_type)
+    }
+
     fn case(
         &mut self,
         root: PlaceId,

@@ -2535,18 +2535,30 @@ pub mod types {
                         element_type,
                         length,
                     } => {
-                        if let FixedArrayLength::ConstParameter { symbol, .. } = &length
-                            && substitutions.iter().any(|(binder, _)| binder == symbol)
-                        {
-                            return Err(
-                                "a trait parameter as an array length has no instantiation",
-                            );
-                        }
+                        let instantiated_length = match &length {
+                            FixedArrayLength::ConstParameter { symbol, .. } => {
+                                match substitutions.iter().find(|(binder, _)| binder == symbol) {
+                                    Some((_, argument)) => match self.type_reference(*argument) {
+                                        TypeReferenceNode::Named { symbol, name } if symbol.is_valid() =>
+                                            FixedArrayLength::ConstParameter { symbol: *symbol, name: name.clone() },
+                                        _ => FixedArrayLength::Literal(
+                                            self.anonymous_numeric_literal_value(*argument).ok_or(
+                                                "an applied array length is not a closed nonnegative integer",
+                                            )?,
+                                        ),
+                                    },
+                                    None => length.clone(),
+                                }
+                            }
+                            _ => length.clone(),
+                        };
                         let instantiated = self.instantiate(element_type, substitutions)?;
-                        (instantiated != element_type).then_some(TypeReferenceNode::FixedArray {
-                            element_type: instantiated,
-                            length,
-                        })
+                        (instantiated != element_type || instantiated_length != length).then_some(
+                            TypeReferenceNode::FixedArray {
+                                element_type: instantiated,
+                                length: instantiated_length,
+                            },
+                        )
                     }
                     TypeReferenceNode::Slice { element_type } => {
                         let instantiated = self.instantiate(element_type, substitutions)?;
