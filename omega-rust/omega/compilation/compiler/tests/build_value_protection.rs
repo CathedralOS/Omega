@@ -25,6 +25,10 @@ machine build(builder: &mut Build) {
 /// The messages `omega --check` would print for a project whose Build script
 /// is `BUILD` followed by `machines`; empty when the project compiles.
 fn refusals(name: &str, machines: &str) -> Vec<String> {
+    refusals_with_build(name, &format!("{BUILD}{machines}"))
+}
+
+fn refusals_with_build(name: &str, build: &str) -> Vec<String> {
     let _compilation = COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -34,7 +38,7 @@ fn refusals(name: &str, machines: &str) -> Vec<String> {
     std::fs::create_dir_all(&root).expect("staging directory");
     let main = root.join("main.omg");
     std::fs::write(&main, "machine main() { }\n").expect("staged program");
-    std::fs::write(root.join("build.omg"), format!("{BUILD}{machines}")).expect("staged Build");
+    std::fs::write(root.join("build.omg"), build).expect("staged Build");
     let mut session =
         orchestration::BuildSession::create(&root.join("out")).expect("build session");
     let preparation = package_manager::operations::begin_local_project_preparation(
@@ -67,6 +71,30 @@ fn refusals(name: &str, machines: &str) -> Vec<String> {
     let _ = std::fs::remove_dir_all(&root);
     refusals
 }
+
+#[test]
+fn the_host_does_not_supply_a_build_to_a_shared_borrow_or_another_type() {
+    for (name, build, expected) in [
+        (
+            "shared_receiver",
+            "machine build(builder: &Build) { }",
+            "executable mutable borrow of Build",
+        ),
+        (
+            "other_receiver",
+            "data Other { }\nmachine build(builder: &mut Other) { }",
+            "exact toolchain Build type",
+        ),
+    ] {
+        let diagnostics = refusals_with_build(name, build);
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.contains(expected)),
+            "{name}: {diagnostics:#?}"
+        );
+    }
+}
 /// The twin is stopped, for `expected`, before its Build script runs.
 fn refused_with(name: &str, machines: &str, expected: &str) {
     let refusals = refusals(name, machines);
@@ -80,13 +108,10 @@ fn refused_with(name: &str, machines: &str, expected: &str) {
 /// refusal below belongs to the machine its twin adds.
 #[test]
 fn a_build_script_that_only_uses_the_build_it_was_lent_is_not_refused_for_it() {
-    // Until the refusal that stood in for this protection is removed, a
-    // Build program the checker accepts stops at it and nowhere earlier.
-    assert_eq!(
-        refusals("control", ""),
-        [
-            "no product route yet: Build activation: the compiler-owned `Build` value is not yet protected from forging by its declaration"
-        ]
+    let diagnostics = refusals("control", "");
+    assert!(
+        diagnostics.is_empty(),
+        "the checked Build should run with the value the compiler lent it: {diagnostics:#?}"
     );
 }
 

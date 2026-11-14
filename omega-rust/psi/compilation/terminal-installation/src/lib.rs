@@ -21,9 +21,11 @@ the Psi interpreter, compile-time evaluation, and Omega native realization.
 
 #![forbid(unsafe_code)]
 
+pub mod declaration_selection;
 mod evaluation_and_synchronous_calls;
 mod provider_and_target_installation;
 mod scalar_applications;
+pub mod selection_questions;
 
 pub(crate) use evaluation_and_synchronous_calls::{compiler_evaluation, synchronous_calls};
 pub(crate) use provider_and_target_installation::{

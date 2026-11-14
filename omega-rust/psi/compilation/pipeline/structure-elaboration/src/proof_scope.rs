@@ -4,7 +4,7 @@
 
 use semantic_vocabulary::MachineId;
 use semantic_vocabulary::compiler_evaluation::{
-    CompilerEvaluationDeclaration, CompilerEvaluationEffects, DeclarationCustody,
+    CompilerEvaluationDeclaration, CompilerEvaluationEffects,
 };
 use semantic_vocabulary::proof_applications::{
     ProofApplicationCall, ProofApplicationMachine, ProofCallMachine,
@@ -152,15 +152,15 @@ pub(crate) fn declare(typed: &TypedTrees, elaboration: &mut Elaboration) -> Chec
             );
         }
         let package = typed.symbols.symbol_package_identity(symbol);
-        let custody = match (package, typed.symbols.symbol_source_origin(symbol)) {
-            (Some(package), _) => DeclarationCustody::Package(package),
-            (_, Some(source::SourceOrigin::Toolchain)) => DeclarationCustody::Toolchain,
-            (_, Some(source::SourceOrigin::ToolchainContract)) => {
-                DeclarationCustody::ToolchainContract
-            }
-            (_, Some(source::SourceOrigin::User)) => DeclarationCustody::UnownedUser,
-            _ => DeclarationCustody::Missing,
-        };
+        let custody =
+            crate::selection_questions::declaration_custody(typed, symbol).map_err(|reason| {
+                terminal_check_tables::Refusal {
+                    reason: terminal_check_tables::RefusalReason::Unsupported,
+                    machine: machine.id,
+                    concerns: Construct::Machine,
+                    detail: reason.to_string(),
+                }
+            })?;
         let evaluation = (|| {
             if let Some(reason) = unavailable {
                 return Err(reason);

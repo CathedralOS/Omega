@@ -73,6 +73,18 @@ mod type_system_and_names;
 pub use type_system_and_names::{names, type_system};
 pub mod values;
 
+struct PreparedOccurrenceRebase {
+    expressions: expression::PreparedExpressionSelectionRebase,
+    tree_arguments: Vec<(
+        arena::Handle<statement::Statement>,
+        expression::PreparedStaticArgumentRebase,
+    )>,
+    folded_arguments: Vec<(
+        arena::Handle<statement::StatementNode>,
+        expression::PreparedStaticArgumentRebase,
+    )>,
+}
+
 use crate::constant::ConstDeclaration;
 use crate::data::{DataDefinition, TypeParameter};
 use crate::domain::{DomainDefinition, ProofFact};
@@ -314,9 +326,31 @@ impl SymbolResolvedTrees {
             Err(error) => return Err((self, error)),
         };
         let mut trees = self;
+        let PreparedOccurrenceRebase {
+            expressions,
+            tree_arguments,
+            folded_arguments,
+        } = expressions;
         trees
             .expression_table_mut()
             .apply_authored_selection_rebase(expressions);
+        for (handle, prepared) in tree_arguments {
+            let arguments = trees
+                .expression_table_mut()
+                .apply_static_argument_rebase(prepared);
+            let statement::Statement::Call(call) =
+                trees.declarations_mut().state_statements.get_mut(handle)
+            else {
+                unreachable!("prepared source call remains current")
+            };
+            call.machine_arguments = arguments;
+        }
+        {
+            let bodies = &mut trees.tables.bodies;
+            bodies
+                .statements
+                .apply_static_argument_rebases(&mut bodies.expressions, folded_arguments);
+        }
         trees.apply_tree_statement_rebase(frontier.tree_statements, rebase);
         trees.statement_table_mut().apply_authored_selection_rebase(
             frontier.statements,
@@ -332,8 +366,7 @@ impl SymbolResolvedTrees {
         &self,
         frontier: AuthoredSelectionExtensionFrontier,
         rebase: AuthoredDeclarationSelectionSuffixRebase,
-    ) -> Result<expression::PreparedExpressionSelectionRebase, AuthoredSelectionExtensionRebaseError>
-    {
+    ) -> Result<PreparedOccurrenceRebase, AuthoredSelectionExtensionRebaseError> {
         if frontier.expressions > self.expression_table().expression_count() {
             return Err(
                 AuthoredSelectionExtensionRebaseError::StoreFrontierOutOfRange(
@@ -386,7 +419,43 @@ impl SymbolResolvedTrees {
             })?;
 
         self.validate_proof_fact_rebase(frontier.proof_facts, rebase)?;
-        Ok(expressions)
+        let mut tree_arguments = Vec::new();
+        for (index, (handle, statement)) in self.declarations().state_statements.iter().enumerate()
+        {
+            let statement::Statement::Call(call) = statement else {
+                continue;
+            };
+            let prepared = self
+                .expression_table()
+                .prepare_static_argument_rebase(&call.machine_arguments, |occurrence| {
+                    if index < frontier.tree_statements {
+                        rebase.retain_base(occurrence)
+                    } else {
+                        rebase.rebase_appended(occurrence)
+                    }
+                })
+                .map_err(|()| {
+                    AuthoredSelectionExtensionRebaseError::OccurrenceOutsideOwnerFrontier(
+                        AuthoredSelectionOccurrenceStore::TreeStatements,
+                    )
+                })?;
+            if index >= frontier.tree_statements {
+                tree_arguments.push((handle, prepared));
+            }
+        }
+        let folded_arguments = self
+            .statement_table()
+            .prepare_static_argument_rebases(self.expression_table(), frontier.statements, rebase)
+            .map_err(|()| {
+                AuthoredSelectionExtensionRebaseError::OccurrenceOutsideOwnerFrontier(
+                    AuthoredSelectionOccurrenceStore::Statements,
+                )
+            })?;
+        Ok(PreparedOccurrenceRebase {
+            expressions,
+            tree_arguments,
+            folded_arguments,
+        })
     }
 
     fn validate_tree_statement_rebase(

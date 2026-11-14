@@ -82,6 +82,7 @@ pub struct ProducedTerminalProgram {
     pub(crate) applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
     pub(crate) provenance: terminal_psi::TerminalMachineProvenance,
     pub(crate) source_records: Vec<typed_trees::SourceRecordCorrespondence>,
+    pub(crate) source_selections: Option<Arc<crate::TerminalSourceSelections>>,
 }
 
 impl compiler_storage::Record for ProducedTerminalProgram {
@@ -198,6 +199,8 @@ impl compiler_storage::Record for ProducedTerminalProgram {
                 applications,
                 provenance,
                 source_records,
+                // Persisted code is not a new source-issued permission packet.
+                source_selections: None,
             })
         })
     }
@@ -212,6 +215,9 @@ impl ProducedTerminalProgram {
     pub fn source_records(&self) -> &[typed_trees::SourceRecordCorrespondence] {
         &self.source_records
     }
+    pub fn source_selections(&self) -> Option<&Arc<crate::TerminalSourceSelections>> {
+        self.source_selections.as_ref()
+    }
     pub fn into_shared_portable(
         self,
     ) -> Result<PortableTerminalProgram, CanonicalTerminalArtifactError> {
@@ -224,6 +230,7 @@ impl ProducedTerminalProgram {
             applications: self.applications,
             provenance: self.provenance,
             source_records: self.source_records,
+            source_selections: self.source_selections,
         })
     }
     pub const fn build_filesystem(&self) -> &TerminalBuildFilesystem {
@@ -276,6 +283,7 @@ pub struct PortableTerminalProgram {
     applications: Vec<Result<ProducedTerminalApplication, Vec<Diagnostic>>>,
     provenance: terminal_psi::TerminalMachineProvenance,
     source_records: Vec<typed_trees::SourceRecordCorrespondence>,
+    source_selections: Option<Arc<crate::TerminalSourceSelections>>,
 }
 
 impl PortableTerminalProgram {
@@ -284,6 +292,9 @@ impl PortableTerminalProgram {
     }
     pub fn source_records(&self) -> &[typed_trees::SourceRecordCorrespondence] {
         &self.source_records
+    }
+    pub fn source_selections(&self) -> Option<&Arc<crate::TerminalSourceSelections>> {
+        self.source_selections.as_ref()
     }
     pub fn attach_application(
         &self,

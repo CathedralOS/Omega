@@ -833,7 +833,14 @@ impl<'a> CurrentSites<'a> {
 
     fn describe_route(&self, site: Option<SourceOrigin>) -> String {
         match site {
-            Some(SourceOrigin::Authored(span)) => self.describe_span(span),
+            Some(SourceOrigin::Authored(span))
+            | Some(SourceOrigin::AuthoredNode {
+                span: Some(span), ..
+            }) => self.describe_span(span),
+            Some(SourceOrigin::AuthoredNode { span: None, .. }) => format!(
+                "Unpositioned({:?})",
+                structure_elaboration::Unpositioned::SpanAbsent
+            ),
             Some(SourceOrigin::Unpositioned(why)) => format!("Unpositioned({why:?})"),
             None => "no-correspondence".to_owned(),
         }
@@ -842,7 +849,15 @@ impl<'a> CurrentSites<'a> {
     /// The best match between one route site and any current diagnostic.
     fn class(&self, site: Option<SourceOrigin>) -> SiteClass {
         let span = match site {
-            Some(SourceOrigin::Authored(span)) => span,
+            Some(SourceOrigin::Authored(span))
+            | Some(SourceOrigin::AuthoredNode {
+                span: Some(span), ..
+            }) => span,
+            Some(SourceOrigin::AuthoredNode { span: None, .. }) => {
+                return SiteClass::Unpositioned(Some(
+                    structure_elaboration::Unpositioned::SpanAbsent,
+                ));
+            }
             Some(SourceOrigin::Unpositioned(why)) => return SiteClass::Unpositioned(Some(why)),
             None => return SiteClass::Unpositioned(None),
         };

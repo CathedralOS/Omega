@@ -9,46 +9,44 @@ pub(crate) mod build_selections {
         BuildOperation, BuildSelectionRequest, RootBindingOperand,
     };
     use typed_trees::expression::{
-        ExpressionHandle, ExpressionNode, TableCallExpression, TableNamePath,
+        BuildSelectionInput, BuildSelectionInputs, BuildSelectionPhase, ExpressionHandle,
+        ExpressionNode, TableCallExpression, TableNamePath,
     };
 
     pub(crate) fn lower(
         source: &symbol_resolved_trees::SymbolResolvedTrees,
         target: &mut typed_trees::TypedTrees,
         request: typed_trees::expression::BuildSelectionRequest,
+        inputs: Vec<BuildSelectionInput>,
+        lexical_owner: symbols::SymbolHandle,
         mut arguments: Vec<ExpressionHandle>,
         acknowledgement: language_semantics::CallOperationalAcknowledgement,
     ) -> Result<ExpressionHandle, Diagnostic> {
         let source_span = request.source_span();
-        let mut operand_selections = Vec::new();
-        for operand in request.designated_operands() {
-            for (_, selection) in operand
-                .application
-                .as_ref()
-                .into_iter()
-                .flat_map(|graph| graph.selections.iter())
-            {
-                let kind = selection.kind.ok_or_else(|| {
-                    Diagnostic::error("designated operand lost its authored selection kind")
-                })?;
-                operand_selections.push(
-                    target
-                        .authored_declaration_selections()
-                        .source_coordinate_occurrence(
-                            selection.source_span,
-                            selection.exposure,
-                            kind,
-                        )
-                        .map_err(|reason| {
-                            Diagnostic::error(format!(
-                            "Build operand cannot rejoin its {kind:?} selection ({:?}): {reason}",
-                            selection.exposure
-                        ))
-                        .with_source_span(selection.source_span)
-                        })?,
+        if !source.symbols.symbols().nodes().is_valid(lexical_owner)
+            || source.symbols.get(lexical_owner).kind != symbols::SymbolKind::Machine
+        {
+            return Err(
+                Diagnostic::error("Build selection has no exact lexical machine owner")
+                    .with_source_span(source_span),
+            );
+        }
+        for input in &inputs {
+            let selection = target
+                .authored_declaration_selections()
+                .get(input.occurrence)
+                .ok_or_else(|| Diagnostic::error("Build input lost its exact ledger occurrence"))?;
+            if selection.target() != input.target {
+                return Err(
+                    Diagnostic::error("Build input changes its captured ledger target")
+                        .with_source_span(selection.source_span()),
                 );
             }
         }
+        let operand_selections = inputs
+            .iter()
+            .map(|input| input.occurrence)
+            .collect::<Vec<_>>();
         let operation = match (&request, arguments.len()) {
             (BuildSelectionRequest::ProviderReadiness(_), 1) => "await_provider",
             (BuildSelectionRequest::Exclusion(_), 2) => "exclude",
@@ -208,7 +206,7 @@ pub(crate) mod build_selections {
                 Default::default(),
             );
         }
-        arguments[0] = emit(
+        let prepared = emit(
             preparation.symbol,
             crate::lowerer::name::lower_name(&preparation.name),
             receiver,
@@ -216,6 +214,7 @@ pub(crate) mod build_selections {
             build_selection,
             Default::default(),
         );
+        arguments[0] = prepared;
         let committed = emit(
             commit.symbol,
             crate::lowerer::name::lower_name(&commit.name),
@@ -224,6 +223,28 @@ pub(crate) mod build_selections {
             build_selection,
             acknowledgement,
         );
+        table
+            .retain_build_selection_inputs(
+                prepared,
+                BuildSelectionInputs {
+                    request: build_selection,
+                    lexical_owner,
+                    phase: BuildSelectionPhase::Preparation,
+                    inputs: Vec::new(),
+                },
+            )
+            .map_err(|reason| Diagnostic::error(reason).with_source_span(source_span))?;
+        table
+            .retain_build_selection_inputs(
+                committed,
+                BuildSelectionInputs {
+                    request: build_selection,
+                    lexical_owner,
+                    phase: BuildSelectionPhase::Commit,
+                    inputs,
+                },
+            )
+            .map_err(|reason| Diagnostic::error(reason).with_source_span(source_span))?;
         table.attach_authored_selection_occurrences(committed, operand_selections);
         Ok(committed)
     }
@@ -480,30 +501,43 @@ pub(crate) mod capture_product_operands {
     };
     use symbols::SymbolHandle;
 
+    pub(crate) struct Captured {
+        pub graph: ProductStaticOperandGraph,
+        pub inputs: Vec<typed_trees::expression::BuildSelectionInput>,
+    }
+
     pub(crate) fn capture(
         source: &SymbolResolvedTrees,
         typed: &mut typed_trees::TypedTrees,
         exposure: Option<SelectionExposure>,
         occurrences: &[language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId],
         argument: &source_expression::StaticMachineArgument,
-    ) -> Result<ProductStaticOperandGraph, Diagnostic> {
+        argument_ordinal: u32,
+    ) -> Result<Captured, Diagnostic> {
         let mut capture = Capture {
             source,
             typed,
             exposure,
             graph: ProductStaticOperandGraph::default(),
+            inputs: Vec::new(),
+            argument_ordinal,
             expressions: Vec::new(),
             captures: Vec::new(),
             active: Vec::new(),
         };
         capture.graph.root = capture.operand(argument, occurrences, true)?;
-        Ok(capture.graph)
+        Ok(Captured {
+            graph: capture.graph,
+            inputs: capture.inputs,
+        })
     }
     struct Capture<'a> {
         source: &'a SymbolResolvedTrees,
         typed: &'a mut typed_trees::TypedTrees,
         exposure: Option<SelectionExposure>,
         graph: ProductStaticOperandGraph,
+        inputs: Vec<typed_trees::expression::BuildSelectionInput>,
+        argument_ordinal: u32,
         expressions: Vec<(
             source_expression::ExpressionHandle,
             Handle<ProductOperandExpression>,
@@ -528,25 +562,23 @@ pub(crate) mod capture_product_operands {
             let selection = ledger.get(occurrence).ok_or_else(|| {
                 Diagnostic::error("original static input retains an unknown selection")
             })?;
-            let rejoined = ledger
-                .source_coordinate_occurrence(
-                    selection.source_span(),
-                    selection.exposure(),
-                    selection.kind(),
-                )
-                .map_err(|reason| {
-                    Diagnostic::error(format!(
-                        "captured static operand cannot rejoin its {:?} selection ({:?}): {reason}",
-                        selection.kind(),
-                        selection.exposure()
-                    ))
-                    .with_source_span(selection.source_span())
+            let retained = self
+                .typed
+                .authored_declaration_selections()
+                .get(occurrence)
+                .ok_or_else(|| {
+                    Diagnostic::error("captured static operand lost its typed selection occurrence")
                 })?;
-            if rejoined != occurrence {
-                return Err(Diagnostic::error(
-                    "original static input changed its exact selection attachment",
-                ));
-            }
+            self.inputs
+                .push(typed_trees::expression::BuildSelectionInput {
+                    occurrence,
+                    argument_ordinal: self.argument_ordinal,
+                    resolved_target: retained
+                        .target()
+                        .as_resolved()
+                        .map(|target| target.selected_symbol()),
+                    target: retained.target(),
+                });
             Ok(self.graph.selections.insert(ProductOperandSelection {
                 source_span: selection.source_span(),
                 exposure: selection.exposure(),
@@ -606,39 +638,34 @@ pub(crate) mod capture_product_operands {
             {
                 return Ok(Handle::invalid());
             }
-            let first = argument.path.first().expect("nonempty path").source_span();
-            let last = argument.path.last().expect("nonempty path").source_span();
-            if first.source_id != last.source_id {
+            let occurrence = argument.authored_selection.ok_or_else(|| {
+                Diagnostic::error(
+                    "original static input has no exact argument selection attachment",
+                )
+            })?;
+            if !occurrences.contains(&occurrence) {
                 return Err(Diagnostic::error(
-                    "original static input path crosses source owners",
+                    "static input attachment belongs to another original call",
                 ));
             }
-            let span = source::SourceSpan::new(
-                first.source_id,
-                source::Span::new(first.span.start, last.span.end),
-            );
-            let mut matching = occurrences.iter().copied().filter(|occurrence| {
-                self.source
-                    .authored_declaration_selections()
-                    .get(*occurrence)
-                    .is_some_and(|selection| {
-                        selection.source_span() == span
-                            && matches!(selection.kind(), Kind::StaticArgument | Kind::Conformance)
-                    })
-            });
-            let occurrence = matching.next().ok_or_else(|| {
-                Diagnostic::error(
-                    "original static input has no exact original-call selection attachment",
-                )
-                .with_source_span(span)
-            })?;
-            if matching.next().is_some() {
+            let selection = self
+                .source
+                .authored_declaration_selections()
+                .get(occurrence)
+                .ok_or_else(|| {
+                    Diagnostic::error("static input attachment has no current ledger row")
+                })?;
+            if !matches!(selection.kind(), Kind::StaticArgument | Kind::Conformance) {
                 return Err(Diagnostic::error(
-                    "original static input has ambiguous original-call selection attachments",
-                )
-                .with_source_span(span));
+                    "static input attachment has another selection kind",
+                ));
             }
-            self.retain_coordinate(occurrence, false)
+            let selection = self.retain_coordinate(occurrence, false)?;
+            self.inputs
+                .last_mut()
+                .expect("retained static input row")
+                .resolved_target = argument.authored_selection_target;
+            Ok(selection)
         }
         fn declaration(&self, symbol: SymbolHandle) -> Option<source::SourceSpan> {
             symbol
@@ -909,26 +936,23 @@ pub(crate) mod capture_product_operands {
                     )
                     .with_source_span(source.tables.bodies.expressions.source_span(expression))
                 })?;
-                let rejoined = ledger
-                    .source_coordinate_occurrence(
-                        selection.source_span(),
-                        selection.exposure(),
-                        selection.kind(),
-                    )
-                    .map_err(|reason| {
-                        Diagnostic::error(format!(
-                        "captured static operand cannot rejoin its {:?} selection ({:?}): {reason}",
-                        selection.kind(),
-                        selection.exposure()
-                    ))
-                    .with_source_span(selection.source_span())
+                let retained = self
+                    .typed
+                    .authored_declaration_selections()
+                    .get(occurrence)
+                    .ok_or_else(|| {
+                        Diagnostic::error("captured expression lost its typed selection occurrence")
                     })?;
-                if rejoined != occurrence {
-                    return Err(Diagnostic::error(
-                    "designated source expression selection changed its exact ledger association",
-                )
-                .with_source_span(selection.source_span()));
-                }
+                self.inputs
+                    .push(typed_trees::expression::BuildSelectionInput {
+                        occurrence,
+                        argument_ordinal: self.argument_ordinal,
+                        resolved_target: retained
+                            .target()
+                            .as_resolved()
+                            .map(|target| target.selected_symbol()),
+                        target: retained.target(),
+                    });
                 selections.push(ProductOperandSelection {
                     source_span: selection.source_span(),
                     exposure: selection.exposure(),
@@ -2720,6 +2744,11 @@ pub(crate) mod product_selections {
     };
     use symbols::JoinedPath;
 
+    pub(crate) struct Request {
+        pub request: typed_trees::expression::BuildSelectionRequest,
+        pub inputs: Vec<typed_trees::expression::BuildSelectionInput>,
+    }
+
     /*
         `builder.tests.group<Requirement>()` is the testing facet's spelling of
         a designated Build registration (wiki/spec/build/testing.md). It shares
@@ -2785,7 +2814,7 @@ pub(crate) mod product_selections {
         ordinary_count: usize,
         evidence_count: usize,
         span: source::SourceSpan,
-    ) -> Result<Option<typed_trees::expression::BuildSelectionRequest>, Diagnostic> {
+    ) -> Result<Option<Request>, Diagnostic> {
         if target.is_valid() && source.symbols.is_build_prelude_symbol(target) {
             use language_semantics::declaration_selection::{
                 EnumExclusionRequest, ExclusionVocabulary,
@@ -2802,12 +2831,13 @@ pub(crate) mod product_selections {
                 )
                 .with_source_span(span));
                 }
-                return Ok(Some(BuildSelectionRequest::Exclusion(
-                    EnumExclusionRequest {
+                return Ok(Some(Request {
+                    request: BuildSelectionRequest::Exclusion(EnumExclusionRequest {
                         source_span: span,
                         vocabulary,
-                    },
-                )));
+                    }),
+                    inputs: Vec::new(),
+                }));
             }
         }
         let Some(operation) = BuildOperation::from_call_target(name)
@@ -2884,7 +2914,58 @@ pub(crate) mod product_selections {
         } else {
             None
         };
-        let operands = operands.iter().skip(usize::from(requirement.is_some())).enumerate().map(|(position, operand)| {
+        let mut inputs = Vec::new();
+        for (position, operand) in operands.iter().enumerate() {
+            if let Some(occurrence) = operand.authored_selection {
+                if !occurrences.contains(&occurrence) {
+                    return Err(Diagnostic::error(
+                        "Build static input belongs to another original call",
+                    )
+                    .with_source_span(span));
+                }
+                let selection = typed
+                    .authored_declaration_selections()
+                    .get(occurrence)
+                    .ok_or_else(|| {
+                        Diagnostic::error("Build input retains an unknown authored selection")
+                            .with_source_span(span)
+                    })?;
+                if selection.top_level_static_argument_position() != Some(position) {
+                    return Err(Diagnostic::error(
+                        "Build input selection has another original argument position",
+                    )
+                    .with_source_span(span));
+                }
+                inputs.push(typed_trees::expression::BuildSelectionInput {
+                    occurrence,
+                    argument_ordinal: u32::try_from(position).map_err(|_| {
+                        Diagnostic::error("Build static argument position exceeds u32")
+                    })?,
+                    resolved_target: operand.authored_selection_target,
+                    target: selection.target(),
+                });
+            } else if operand.symbol.is_valid()
+                && !matches!(
+                    source.symbols.get(operand.symbol).kind,
+                    symbols::SymbolKind::Local
+                        | symbols::SymbolKind::Parameter
+                        | symbols::SymbolKind::TypeParameter
+                        | symbols::SymbolKind::ConformanceParameter
+                        | symbols::SymbolKind::MachineParameter
+                        | symbols::SymbolKind::PropositionParameter
+                        | symbols::SymbolKind::PropositionMachineParameter
+                )
+                && operand.path.iter().any(|name| name.is_source_backed())
+            {
+                return Err(Diagnostic::error(
+                    "Build declaration input has no exact authored argument attachment",
+                )
+                .with_source_span(span));
+            }
+        }
+        let first_designated = usize::from(requirement.is_some());
+        let operands = operands.iter().enumerate().skip(first_designated).map(|(original_position, operand)| {
+        let position = original_position - first_designated;
         let nominal_application = operand.application.is_some() && (matches!(operation.product_operand_role(position), Some(ProductOperandRole::BoundarySubject | ProductOperandRole::Provider)) || operation == BuildOperation::NativeBinding);
         if operand.type_reference.is_valid() || (operand.application.is_some() && !nominal_application)
             || operand.const_literal.is_some() || operand.evidence_projection.is_some()
@@ -2898,7 +2979,16 @@ pub(crate) mod product_selections {
             return Err(Diagnostic::error("Product operand has no single authored source coordinate")
                 .with_source_span(span));
         }
-        let application = nominal_application.then(|| crate::expressions::capture_product_operands::capture(source, typed, exposure, occurrences, operand).map(std::sync::Arc::new)).transpose()?;
+        let application = if nominal_application {
+            let captured = crate::expressions::capture_product_operands::capture(
+                source, typed, exposure, occurrences, operand,
+                u32::try_from(original_position).map_err(|_| Diagnostic::error("Build static argument position exceeds u32"))?,
+            )?;
+            inputs.extend(captured.inputs);
+            Some(std::sync::Arc::new(captured.graph))
+        } else {
+            None
+        };
         let leading = source::SourceSpan::new(first.source_id, source::Span::new(first.span.start, last.span.end));
         let source_span = application.as_ref().map_or(leading, |graph| graph.authored_operand_span(leading));
         Ok(ProductDeclarationOperand {
@@ -2907,22 +2997,35 @@ pub(crate) mod product_selections {
             source_span,
         })
     }).collect::<Result<Vec<_>, Diagnostic>>()?.into_boxed_slice();
-        if let Some(requirement) = requirement {
-            return Ok(Some(BuildSelectionRequest::ProviderReadiness(
+        inputs.sort_by_key(|input| (input.argument_ordinal, input.occurrence.ordinal()));
+        for pair in inputs.windows(2) {
+            if pair[0].argument_ordinal == pair[1].argument_ordinal
+                && pair[0].occurrence == pair[1].occurrence
+                && pair[0].target != pair[1].target
+            {
+                return Err(Diagnostic::error(
+                    "Build input occurrence changes its exact ledger target",
+                )
+                .with_source_span(span));
+            }
+        }
+        inputs.dedup();
+        let request = if let Some(requirement) = requirement {
+            BuildSelectionRequest::ProviderReadiness(
                 declaration_selection::ProviderReadinessRequest {
                     source_span: span,
                     requirement,
                     backing: operands[0].clone(),
                 },
-            )));
-        }
-        Ok(Some(BuildSelectionRequest::Declaration(
-            std::sync::Arc::new(ProductDeclarationRequest {
+            )
+        } else {
+            BuildSelectionRequest::Declaration(std::sync::Arc::new(ProductDeclarationRequest {
                 source_span: span,
                 operation,
                 operands,
-            }),
-        )))
+            }))
+        };
+        Ok(Some(Request { request, inputs }))
     }
 }
 

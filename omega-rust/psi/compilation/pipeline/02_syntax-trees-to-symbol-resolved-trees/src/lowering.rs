@@ -1713,6 +1713,8 @@ pub(crate) mod expression {
             arena::Handle::invalid()
         };
         Ok(StaticMachineArgument {
+            authored_selection: None,
+            authored_selection_target: None,
             type_reference,
             path: argument
                 .path

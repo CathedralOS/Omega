@@ -132,14 +132,7 @@ impl TerminalBuildHost {
         default_sources: Option<Arc<package_compilation::PackageCompilationSourceInputs>>,
     ) -> Result<Arc<Self>, String> {
         let artifact = produced.view();
-        let program = TerminalProgram::borrow(artifact);
-        let entry = program.entry().map_err(describe)?;
-        let [parameter] = entry.structural_parameters else {
-            return Err("Build activation requires its one original structural receiver".into());
-        };
-        if !entry.scalar_parameters.is_empty() {
-            return Err("Build activation has unexpected scalar parameters".into());
-        }
+        let parameter = machine.receiver_for(artifact.module())?;
         let original = TerminalStructuralValue::minted(1, parameter.structural_type, Vec::new());
         let requests = TerminalBuildRequestHost::new(
             artifact,

@@ -298,6 +298,7 @@ impl Program<'_> {
             .get_mut(record)
             .ok_or_else(|| unserved("record identity"))?
             .requires = requires;
+        self.admitted_declarations.include(symbol);
         Ok(ValueType::Record(record, Qualification::NONE))
     }
 

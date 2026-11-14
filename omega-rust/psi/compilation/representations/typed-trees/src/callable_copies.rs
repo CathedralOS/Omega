@@ -18,6 +18,7 @@ pub(crate) struct TypeCopy<'source, 'target, 'records> {
     pub(crate) records: &'records mut Vec<TypeExpressionCopy>,
     pub(crate) types: Vec<(TypeReferenceHandle, TypeReferenceHandle)>,
     contracts: Vec<(RuntimeCallableContractHandle, RuntimeCallableContractHandle)>,
+    build_requests: Vec<Handle<crate::expression::BuildSelectionRequest>>,
 }
 
 pub(crate) struct TypeRemap<'target, 'scope> {
@@ -27,6 +28,7 @@ pub(crate) struct TypeRemap<'target, 'scope> {
     contracts: Vec<RuntimeCallableContractHandle>,
     expressions: Vec<ExpressionHandle>,
     facts: Vec<Handle<ProofFact>>,
+    build_requests: Vec<Handle<crate::expression::BuildSelectionRequest>>,
 }
 
 impl TypedTreeTables {
@@ -91,6 +93,7 @@ impl<'source, 'target, 'records> TypeCopy<'source, 'target, 'records> {
             records,
             types: Vec::new(),
             contracts: Vec::new(),
+            build_requests: Vec::new(),
         }
     }
 
@@ -307,6 +310,7 @@ impl<'target, 'scope> TypeRemap<'target, 'scope> {
             contracts: Vec::new(),
             expressions: Vec::new(),
             facts: Vec::new(),
+            build_requests: Vec::new(),
         }
     }
 
@@ -483,6 +487,10 @@ impl<'target, 'scope> TypeRemap<'target, 'scope> {
 }
 
 trait TypePayloadTransform {
+    fn visit_build_request(
+        &mut self,
+        request: Handle<crate::expression::BuildSelectionRequest>,
+    ) -> bool;
     fn tables(&mut self) -> &mut TypedTreeTables;
     fn reference(&mut self, reference: TypeReferenceHandle) -> TypeReferenceHandle;
     fn reference_span(
@@ -496,6 +504,16 @@ trait TypePayloadTransform {
 }
 
 impl TypePayloadTransform for TypeCopy<'_, '_, '_> {
+    fn visit_build_request(
+        &mut self,
+        request: Handle<crate::expression::BuildSelectionRequest>,
+    ) -> bool {
+        if self.build_requests.contains(&request) {
+            return false;
+        }
+        self.build_requests.push(request);
+        true
+    }
     fn tables(&mut self) -> &mut TypedTreeTables {
         self.target
     }
@@ -517,6 +535,16 @@ impl TypePayloadTransform for TypeCopy<'_, '_, '_> {
 }
 
 impl TypePayloadTransform for TypeRemap<'_, '_> {
+    fn visit_build_request(
+        &mut self,
+        request: Handle<crate::expression::BuildSelectionRequest>,
+    ) -> bool {
+        if self.build_requests.contains(&request) {
+            return false;
+        }
+        self.build_requests.push(request);
+        true
+    }
     fn tables(&mut self) -> &mut TypedTreeTables {
         self.target
     }
@@ -646,6 +674,24 @@ fn expression_type_payloads(owner: &mut impl TypePayloadTransform, expression: E
             application_types(owner, value.application);
         }
         ExpressionNode::Call(call) => {
+            if call.build_selection.is_valid() && owner.visit_build_request(call.build_selection) {
+                let request = owner
+                    .tables()
+                    .expression_table
+                    .build_selection_request(call.build_selection)
+                    .expect("Build type payload keeps its current request")
+                    .clone();
+                let request = match request.map_requirement(|reference| {
+                    Ok::<_, std::convert::Infallible>(owner.reference(reference))
+                }) {
+                    Ok(request) => request,
+                    Err(never) => match never {},
+                };
+                owner
+                    .tables()
+                    .expression_table
+                    .replace_build_selection_request(call.build_selection, request);
+            }
             call.requirement_application = owner.reference(call.requirement_application);
             call.exact_coercion_target = owner.reference(call.exact_coercion_target);
             if let Some(binding) = &mut call.runtime_call {
@@ -750,5 +796,120 @@ fn expression_type_payloads(owner: &mut impl TypePayloadTransform, expression: E
             .tables()
             .expression_table
             .index_expression_authority_mut(expression) = authority;
+    }
+}
+
+#[cfg(test)]
+mod build_request_copy_tests {
+    use super::*;
+    use crate::expression::{
+        BuildSelectionInputs, BuildSelectionPhase, BuildSelectionRequest, TableCallExpression,
+    };
+    use crate::types::TypeReferenceNode;
+    use language_semantics::declaration_selection::{
+        ProductDeclarationOperand, ProviderReadinessRequest,
+    };
+    use symbols::SymbolHandle;
+
+    #[test]
+    fn provider_readiness_copies_and_rebinds_its_exact_requirement_type_once() {
+        let owner = SymbolHandle::from_parts(3, 1);
+        let binder = SymbolHandle::from_parts(4, 1);
+        let mut source = TypedTreeTables::default();
+        let requirement = source
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
+                symbol: binder,
+                name: crate::name::Identifier::generated("T"),
+            });
+        let request = source.expression_table.insert_build_selection_request(
+            BuildSelectionRequest::ProviderReadiness(ProviderReadinessRequest {
+                source_span: Default::default(),
+                requirement,
+                backing: ProductDeclarationOperand::default(),
+            }),
+        );
+        let prepared = source
+            .expression_table
+            .insert(ExpressionNode::Call(TableCallExpression {
+                build_selection: request,
+                ..Default::default()
+            }));
+        source
+            .expression_table
+            .retain_build_selection_inputs(
+                prepared,
+                BuildSelectionInputs {
+                    request,
+                    lexical_owner: owner,
+                    phase: BuildSelectionPhase::Preparation,
+                    inputs: Vec::new(),
+                },
+            )
+            .unwrap();
+        let arguments = source
+            .expression_table
+            .insert_expression_handles([prepared]);
+        let commit = source
+            .expression_table
+            .insert(ExpressionNode::Call(TableCallExpression {
+                build_selection: request,
+                arguments,
+                ..Default::default()
+            }));
+        source
+            .expression_table
+            .retain_build_selection_inputs(
+                commit,
+                BuildSelectionInputs {
+                    request,
+                    lexical_owner: owner,
+                    phase: BuildSelectionPhase::Commit,
+                    inputs: Vec::new(),
+                },
+            )
+            .unwrap();
+        let mut target = TypedTreeTables::default();
+        target.type_reference_table.insert(TypeReferenceNode::Unit);
+        let copied = TypeCopy::new(&source, &mut target, &mut Vec::new())
+            .expression_graph(commit)
+            .root;
+        let inputs = target
+            .expression_table
+            .build_selection_inputs(copied)
+            .unwrap()
+            .unwrap();
+        let request = inputs.request;
+        let BuildSelectionRequest::ProviderReadiness(applied) = target
+            .expression_table
+            .build_selection_request(request)
+            .unwrap()
+        else {
+            panic!("readiness request")
+        };
+        let copied_requirement = applied.requirement;
+        assert_ne!(copied_requirement, requirement);
+        assert!(
+            matches!(target.type_reference_table.type_reference(copied_requirement), TypeReferenceNode::Named { symbol, .. } if *symbol == binder)
+        );
+        let next_binder = SymbolHandle::from_parts(5, 1);
+        let next_owner = SymbolHandle::from_parts(6, 1);
+        let substitutions = [(binder, next_binder), (owner, next_owner)];
+        TypeRemap::new(&mut target, SymbolRebinding::new(&substitutions, &[])).expression(copied);
+        assert!(
+            matches!(target.type_reference_table.type_reference(copied_requirement), TypeReferenceNode::Named { symbol, .. } if *symbol == next_binder)
+        );
+        assert_eq!(
+            target
+                .expression_table
+                .build_selection_inputs(copied)
+                .unwrap()
+                .unwrap()
+                .lexical_owner,
+            next_owner
+        );
+        assert!(
+            matches!(source.type_reference_table.type_reference(requirement), TypeReferenceNode::Named { symbol, .. } if *symbol == binder)
+        );
     }
 }

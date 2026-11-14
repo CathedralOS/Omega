@@ -56,6 +56,21 @@ impl InvocationSite {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum CallableInvocationSite {
+    Invocation(InvocationSite),
+    CleanupAction { edge: EdgeId, action_ordinal: u32 },
+}
+
+impl CallableInvocationSite {
+    pub fn operation(self) -> Option<OperationId> {
+        match self {
+            Self::Invocation(InvocationSite::Operation(operation)) => Some(operation),
+            _ => None,
+        }
+    }
+}
+
 impl From<OperationId> for InvocationSite {
     fn from(operation: OperationId) -> Self {
         Self::Operation(operation)
@@ -151,6 +166,14 @@ macro_rules! semantic_id {
     };
 }
 
+semantic_id!(
+    SelectionDeclarationId,
+    "One declaration in a source selection companion."
+);
+semantic_id!(
+    SelectionQuestionId,
+    "One exact source declaration-selection occurrence."
+);
 semantic_id!(ValueId, "Stable identity of one terminal-Psi value.");
 semantic_id!(
     ScalarApplicationId,

@@ -181,6 +181,8 @@ impl Program<'_> {
         let completion =
             typed_trees::boundary_completions::boundary_requirement_completion(self.typed, target);
         let (signature, _) = self.boundary_signature(context, declared)?;
+        self.admitted_declarations.include(owner.symbol);
+        self.admitted_declarations.include(target);
         let id = self.boundaries.rows.push(BoundarySource {
             source: target,
             kind: semantic_vocabulary::BoundaryRequirementKind::Trait,

@@ -18,6 +18,31 @@ use crate::body::{Expression, ExpressionKind, Policy, Strict, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
 
 impl<'t> Program<'t> {
+    pub(super) fn authored_node(
+        &self,
+        id: MachineId,
+        node: typed_trees::SourceNode,
+        span: source::SourceSpan,
+    ) -> Checked<SourceOrigin> {
+        let owner = self
+            .symbols
+            .get(id)
+            .copied()
+            .filter(|owner| self.typed.symbols.symbols().nodes().is_valid(*owner))
+            .ok_or_else(|| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Declaration("authored occurrence without its source machine"),
+                )
+            })?;
+        Ok(SourceOrigin::AuthoredNode {
+            owner,
+            node,
+            span: SourceOrigin::of(span).span(),
+        })
+    }
+
     pub(super) fn slot_of(
         &self,
         id: MachineId,
@@ -146,7 +171,13 @@ impl<'t> Program<'t> {
     ) -> Checked<Expression> {
         let typed = self.typed;
         let node = self.node(id, handle)?;
-        let source = SourceOrigin::of(typed.expression_table.source_span(handle));
+        let span = typed.expression_table.source_span(handle);
+        let source = match node {
+            ExpressionNode::Call(_) | ExpressionNode::MachineValue(_) => {
+                self.authored_node(id, typed_trees::SourceNode::Expression(handle), span)?
+            }
+            _ => SourceOrigin::of(span),
+        };
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
         let expected_scalar = expected.and_then(ValueType::scalar);
         let (kind, result) = match node {

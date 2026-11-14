@@ -198,6 +198,54 @@ pub mod expression {
         language_semantics::declaration_selection::BuildSelectionRequest<
             crate::types::TypeReferenceHandle,
         >;
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+    pub enum BuildSelectionPhase {
+        Preparation,
+        Commit,
+    }
+
+    /// An authored input keeps the ledger occurrence captured for its original
+    /// static argument. Generated runtime arguments do not change that position.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+    pub struct BuildSelectionInput {
+        pub occurrence: AuthoredDeclarationSelectionOccurrenceId,
+        pub argument_ordinal: u32,
+        pub resolved_target: Option<SymbolHandle>,
+        pub target: language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget,
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub struct BuildSelectionInputs {
+        pub request: Handle<BuildSelectionRequest>,
+        pub lexical_owner: SymbolHandle,
+        pub phase: BuildSelectionPhase,
+        pub inputs: Vec<BuildSelectionInput>,
+    }
+
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    struct BuildSelectionInputStorage(Vec<Option<BuildSelectionInputs>>);
+
+    impl compiler_storage::Record for BuildSelectionInputStorage {
+        fn write(
+            &self,
+            output: &mut compiler_storage::RecordWriter,
+        ) -> Result<(), compiler_storage::RecordError> {
+            // Older expression tables have no exact input association. They
+            // must be rebuilt rather than decoded as permission-bearing rows.
+            b"BLDINPUT1".write(output)?;
+            self.0.write(output)
+        }
+
+        fn read<Context>(
+            input: &mut compiler_storage::RecordReader<'_, Context>,
+        ) -> Result<Self, compiler_storage::RecordError> {
+            if <[u8; 9]>::read(input)? != *b"BLDINPUT1" {
+                return Err(input.error("Build input association storage has another version"));
+            }
+            Ok(Self(Vec::read(input)?))
+        }
+    }
     use numerics::literals::IntegerLiteral;
     use source::SourceSpan;
     use std::ops::Deref;
@@ -1322,6 +1370,10 @@ pub mod expression {
         struct CopyGraph {
             expressions: Vec<(ExpressionHandle, ExpressionHandle)>,
             subjects: Vec<(Handle<CompletedValueCapture>, Handle<CompletedValueCapture>)>,
+            build_requests: Vec<(
+                Handle<super::BuildSelectionRequest>,
+                Handle<super::BuildSelectionRequest>,
+            )>,
         }
         use symbols::SymbolHandle;
 
@@ -1450,6 +1502,32 @@ pub mod expression {
         }
 
         impl ExpressionTable {
+            fn copy_build_selection_request(
+                &mut self,
+                source: CopySource<'_>,
+                request: Handle<super::BuildSelectionRequest>,
+                copies: &mut CopyGraph,
+            ) -> Handle<super::BuildSelectionRequest> {
+                if !request.is_valid() {
+                    return request;
+                }
+                if let Some((_, copied)) = copies
+                    .build_requests
+                    .iter()
+                    .find(|(original, _)| *original == request)
+                {
+                    return *copied;
+                }
+                let original = source
+                    .table(self)
+                    .build_selection_request(request)
+                    .expect("copied Build call keeps its exact request generation")
+                    .clone();
+                let copied = self.insert_build_selection_request(original);
+                copies.build_requests.push((request, copied));
+                copied
+            }
+
             pub fn copy_graph(
                 &mut self,
                 source: Option<&ExpressionTable>,
@@ -1653,6 +1731,10 @@ pub mod expression {
                 let source_index = super::source_span_index(source);
                 let destination_index = super::source_span_index(destination);
                 let occurrences = self.authored_selection_occurrences[source_index];
+                let build_inputs = self
+                    .build_selection_inputs(source)
+                    .expect("replaced expression keeps its Build input association")
+                    .cloned();
                 let source_span = self.source_span(source);
                 let materialization_source = self.materialization_source(source);
                 let materialization_source = if materialization_source == destination {
@@ -1665,6 +1747,7 @@ pub mod expression {
                 self.set_pattern_component(destination, component);
                 self.set_source_span(destination, source_span);
                 self.authored_selection_occurrences[destination_index] = occurrences;
+                self.build_selection_inputs.0[destination_index] = build_inputs;
                 self.materialization_sources[destination_index] = materialization_source;
                 if carrier.is_valid() {
                     self.set_constructed_value_type_reference(destination, carrier);
@@ -1735,6 +1818,19 @@ pub mod expression {
                 }
                 visited.push(root);
                 self.remap_symbols_in_inner(self.materialization_source(root), symbols, visited);
+                if let Some(inputs) = self
+                    .build_selection_inputs
+                    .0
+                    .get_mut(super::source_span_index(root))
+                    .and_then(Option::as_mut)
+                {
+                    inputs.lexical_owner = remapped(inputs.lexical_owner, symbols);
+                    for input in &mut inputs.inputs {
+                        input.resolved_target = input
+                            .resolved_target
+                            .map(|target| remapped(target, symbols));
+                    }
+                }
 
                 let mut tests = self.executable_domain_tests(root).to_vec();
                 for test in &mut tests {
@@ -2055,6 +2151,10 @@ pub mod expression {
                 let occurrences = origin
                     .authored_selection_occurrences(expression)
                     .collect::<Vec<_>>();
+                let build_inputs = origin
+                    .build_selection_inputs(expression)
+                    .expect("copied expression keeps its exact Build input association")
+                    .cloned();
                 let copied = match origin.expression(expression).clone() {
                     ExpressionNode::Match(dispatch) => {
                         let subject = self.copy_subtree_with_occurrences(
@@ -2220,12 +2320,8 @@ pub mod expression {
                                 }
                             };
                         });
-                        let build_selection = source
-                            .table(self)
-                            .build_selection_request(call.build_selection)
-                            .cloned()
-                            .map(|request| self.insert_build_selection_request(request))
-                            .unwrap_or_default();
+                        let build_selection =
+                            self.copy_build_selection_request(source, call.build_selection, copies);
                         let (authored_machine_application, static_requirement_dispatch) = self
                             .copy_call_static_applications(
                                 source,
@@ -2378,6 +2474,14 @@ pub mod expression {
                     self.set_constructed_value_type_reference(copied, carrier);
                 }
                 self.attach_authored_selection_occurrences(copied, occurrences);
+                if let Some(mut inputs) = build_inputs {
+                    let ExpressionNode::Call(call) = self.expression(copied) else {
+                        unreachable!("Build inputs were copied with their call");
+                    };
+                    inputs.request = call.build_selection;
+                    self.retain_build_selection_inputs(copied, inputs)
+                        .expect("copied Build input association follows its exact call");
+                }
                 if let Some(mut authority) = authority {
                     if let Some(operation) = &mut authority.operation {
                         operation.expression = copied;
@@ -3269,6 +3373,7 @@ pub mod expression {
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct ExpressionTable {
+        build_selection_inputs: BuildSelectionInputStorage,
         expressions: Arena<ExpressionNode>,
         build_selection_requests: Arena<BuildSelectionRequest>,
         expression_roots: Arena<ExpressionHandle>,
@@ -3602,6 +3707,7 @@ pub mod expression {
 
         pub fn with_capacities(capacity: ExpressionTableCapacity) -> Self {
             Self {
+                build_selection_inputs: BuildSelectionInputStorage::default(),
                 expressions: Arena::with_capacity(capacity.expressions),
                 build_selection_requests: Arena::default(),
                 expression_roots: Arena::with_capacity(capacity.expressions),
@@ -3636,6 +3742,7 @@ pub mod expression {
         }
 
         pub fn clear(&mut self) {
+            self.build_selection_inputs.0.clear();
             self.expressions.reset_retain_capacity();
             self.build_selection_requests.reset_retain_capacity();
             self.expression_roots.reset_retain_capacity();
@@ -3944,6 +4051,7 @@ pub mod expression {
                 .push(ExpressionHandle::invalid());
             self.authored_selection_occurrences
                 .push(HandleSpan::empty());
+            self.build_selection_inputs.0.push(None);
             self.executable_domain_tests.push(HandleSpan::empty());
             debug_assert_eq!(source_span_index(handle), self.source_spans.len() - 1);
             debug_assert_eq!(
@@ -3995,6 +4103,94 @@ pub mod expression {
             self.build_selection_requests
                 .is_valid(request)
                 .then(|| self.build_selection_requests.get(request))
+        }
+
+        pub(crate) fn replace_build_selection_request(
+            &mut self,
+            request: Handle<BuildSelectionRequest>,
+            replacement: BuildSelectionRequest,
+        ) {
+            *self.build_selection_requests.get_mut(request) = replacement;
+        }
+
+        pub fn retain_build_selection_inputs(
+            &mut self,
+            expression: ExpressionHandle,
+            inputs: BuildSelectionInputs,
+        ) -> Result<(), &'static str> {
+            self.build_selection_call_request(expression, inputs.request)?;
+            if !inputs.lexical_owner.is_valid() {
+                return Err("Build input association has no lexical source owner");
+            }
+            if inputs.phase == BuildSelectionPhase::Preparation && !inputs.inputs.is_empty() {
+                return Err("Build preparation carries designation inputs");
+            }
+            let slot = self
+                .build_selection_inputs
+                .0
+                .get_mut(source_span_index(expression))
+                .ok_or("Build call lost its input association slot")?;
+            if slot.as_ref().is_some_and(|previous| previous != &inputs) {
+                return Err("Build call changes its exact input association");
+            }
+            *slot = Some(inputs);
+            let _ = self.expressions.get_mut(expression);
+            Ok(())
+        }
+
+        fn build_selection_call_request(
+            &self,
+            expression: ExpressionHandle,
+            request: Handle<BuildSelectionRequest>,
+        ) -> Result<(), &'static str> {
+            if !self.expressions.is_valid(expression) {
+                return Err("Build input association names a stale expression");
+            }
+            let ExpressionNode::Call(call) = self.expression(expression) else {
+                return Err("Build input association names no call");
+            };
+            if !self.build_selection_requests.is_valid(request) || call.build_selection != request {
+                return Err("Build input association names another request or generation");
+            }
+            Ok(())
+        }
+
+        pub fn build_selection_inputs(
+            &self,
+            expression: ExpressionHandle,
+        ) -> Result<Option<&BuildSelectionInputs>, &'static str> {
+            if !self.expressions.is_valid(expression) {
+                return Err("Build input lookup names a stale expression");
+            }
+            let inputs = self
+                .build_selection_inputs
+                .0
+                .get(source_span_index(expression))
+                .ok_or("expression has no Build input association slot")?;
+            let ExpressionNode::Call(call) = self.expression(expression) else {
+                return if inputs.is_some() {
+                    Err("Build input association is attached to a non-call")
+                } else {
+                    Ok(None)
+                };
+            };
+            if !call.build_selection.is_valid() {
+                return if inputs.is_some() {
+                    Err("ordinary call retains a Build input association")
+                } else {
+                    Ok(None)
+                };
+            }
+            let inputs = inputs
+                .as_ref()
+                .ok_or("Build call has no exact input association")?;
+            self.build_selection_call_request(expression, inputs.request)?;
+            if !inputs.lexical_owner.is_valid()
+                || (inputs.phase == BuildSelectionPhase::Preparation && !inputs.inputs.is_empty())
+            {
+                return Err("Build call has an invalid source input association");
+            }
+            Ok(Some(inputs))
         }
 
         pub fn set_source_span(&mut self, handle: ExpressionHandle, source_span: SourceSpan) {
@@ -5940,5 +6136,169 @@ pub mod subtrees {
                 | crate::literal_expression_pattern!() => {}
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod build_selection_input_tests {
+    use crate::expression::{
+        BuildSelectionInputs, BuildSelectionPhase, BuildSelectionRequest, ExpressionNode,
+        ExpressionTable, TableCallExpression,
+    };
+    use compiler_storage::{RecordLimits, decode, encode};
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
+        AuthoredDeclarationSelections, EnumExclusionRequest, ExclusionVocabulary,
+    };
+    use symbols::SymbolHandle;
+
+    #[test]
+    fn build_inputs_follow_the_exact_commit_and_shared_request_when_copied() {
+        let owner = SymbolHandle::from_parts(3, 7);
+        let selected = SymbolHandle::from_parts(4, 7);
+        let mut ledger = AuthoredDeclarationSelections::default();
+        let occurrence = ledger
+            .record_resolved(
+                source::SourceSpan::new(source::SourceId(0), source::Span::new(1, 2)),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::StaticArgument,
+                selected,
+            )
+            .unwrap();
+        let input = super::expression::BuildSelectionInput {
+            occurrence,
+            argument_ordinal: 2,
+            resolved_target: Some(selected),
+            target: ledger.get(occurrence).unwrap().target(),
+        };
+        let mut source = ExpressionTable::default();
+        let request = source.insert_build_selection_request(BuildSelectionRequest::Exclusion(
+            EnumExclusionRequest {
+                source_span: Default::default(),
+                vocabulary: ExclusionVocabulary::CrashCause,
+            },
+        ));
+        let prepared = source.insert(ExpressionNode::Call(TableCallExpression {
+            build_selection: request,
+            ..Default::default()
+        }));
+        source
+            .retain_build_selection_inputs(
+                prepared,
+                BuildSelectionInputs {
+                    request,
+                    lexical_owner: owner,
+                    phase: BuildSelectionPhase::Preparation,
+                    inputs: Vec::new(),
+                },
+            )
+            .unwrap();
+        let arguments = source.insert_expression_handles([prepared]);
+        let commit = source.insert(ExpressionNode::Call(TableCallExpression {
+            build_selection: request,
+            arguments,
+            ..Default::default()
+        }));
+        source
+            .retain_build_selection_inputs(
+                commit,
+                BuildSelectionInputs {
+                    request,
+                    lexical_owner: owner,
+                    phase: BuildSelectionPhase::Commit,
+                    inputs: vec![input],
+                },
+            )
+            .unwrap();
+        let mut destination = ExpressionTable::default();
+        destination.insert_build_selection_request(BuildSelectionRequest::default());
+        destination.insert(ExpressionNode::Boolean(false));
+        let copied = destination.copy_graph(Some(&source), commit).root;
+        let captured = destination.build_selection_inputs(copied).unwrap().unwrap();
+        assert_ne!(captured.request, request);
+        assert_eq!(captured.inputs, [input]);
+        let copied_request = captured.request;
+        let ExpressionNode::Call(call) = destination.expression(copied) else {
+            panic!("copied commit")
+        };
+        let preparation = destination.expression_handles(call.arguments)[0];
+        let prepared_inputs = destination
+            .build_selection_inputs(preparation)
+            .unwrap()
+            .unwrap();
+        assert_eq!(prepared_inputs.request, copied_request);
+        assert_eq!(prepared_inputs.phase, BuildSelectionPhase::Preparation);
+        assert!(prepared_inputs.inputs.is_empty());
+        let replacement = SymbolHandle::from_parts(5, 7);
+        destination.remap_symbols_in(copied, &[(owner, replacement)][..]);
+        assert_eq!(
+            destination
+                .build_selection_inputs(copied)
+                .unwrap()
+                .unwrap()
+                .lexical_owner,
+            replacement
+        );
+        assert_eq!(
+            destination
+                .build_selection_inputs(copied)
+                .unwrap()
+                .unwrap()
+                .inputs,
+            [input]
+        );
+        assert_eq!(
+            source
+                .build_selection_inputs(commit)
+                .unwrap()
+                .unwrap()
+                .lexical_owner,
+            owner
+        );
+        let encoded = encode(&destination, RecordLimits::default()).unwrap();
+        let restored: ExpressionTable = decode(&encoded, RecordLimits::default()).unwrap();
+        assert_eq!(
+            restored.build_selection_inputs(copied).unwrap(),
+            destination.build_selection_inputs(copied).unwrap()
+        );
+        let mut old_marker = encoded;
+        old_marker[8] ^= 1;
+        assert!(decode::<ExpressionTable>(&old_marker, RecordLimits::default()).is_err());
+    }
+
+    #[test]
+    fn build_inputs_refuse_missing_rows_wrong_requests_and_stale_occurrences() {
+        let mut table = ExpressionTable::default();
+        let request = table.insert_build_selection_request(BuildSelectionRequest::default());
+        let call = table.insert(ExpressionNode::Call(TableCallExpression {
+            build_selection: request,
+            ..Default::default()
+        }));
+        assert!(table.build_selection_inputs(call).is_err());
+        table
+            .retain_build_selection_inputs(
+                call,
+                BuildSelectionInputs {
+                    request,
+                    lexical_owner: SymbolHandle::from_parts(3, 1),
+                    phase: BuildSelectionPhase::Commit,
+                    inputs: Vec::new(),
+                },
+            )
+            .unwrap();
+        let stale = super::expression::ExpressionHandle::from_parts(
+            call.arena_index(),
+            call.generation().wrapping_add(1),
+        );
+        assert!(table.build_selection_inputs(stale).is_err());
+        let other = table.insert_build_selection_request(BuildSelectionRequest::default());
+        let ExpressionNode::Call(current) = table.expression_mut(call) else {
+            unreachable!()
+        };
+        current.build_selection = other;
+        assert!(table.build_selection_inputs(call).is_err());
+        table.clear();
+        table.insert(ExpressionNode::Boolean(true));
+        assert!(table.build_selection_inputs(call).is_err());
     }
 }

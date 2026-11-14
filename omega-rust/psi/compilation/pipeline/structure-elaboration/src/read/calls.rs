@@ -290,12 +290,9 @@ impl<'t> Program<'t> {
             return self.runtime_call(id, slots, runtime, arguments, source);
         }
         self.bound_target(id, call.target_symbol)?;
-        if let Some(read) = self.rigid_call(
-            id,
-            slots,
-            StaticArgumentCall::Statement(call),
-            SourceOrigin::of(call.source_span),
-        )? {
+        if let Some(read) =
+            self.rigid_call(id, slots, StaticArgumentCall::Statement(call), source)?
+        {
             return Ok(read);
         }
         if call.installed_interrupt_operation.is_some()
@@ -1163,7 +1160,7 @@ impl<'t> Program<'t> {
             });
         }
         lent_storage_is_untouched(id, &read, &self.captures)?;
-        if let SourceOrigin::Authored(span) = source
+        if let Some(span) = source.span()
             && let Some(names) = self.names.get_mut(id)
         {
             for (position, lender) in lenders {

@@ -11,7 +11,14 @@ use typed_trees::FrozenTypedTrees;
 pub struct AcceptedTerminalSource {
     source: Arc<FrozenTypedTrees>,
     closure: Box<AcceptedClosure>,
+    selection_forms: Vec<Option<structure_elaboration::selection_questions::RawSelectionQuestions>>,
     publication: terminal_codec::TerminalPublication,
+}
+
+#[derive(Debug)]
+struct AcceptedCompilation {
+    primary: Box<AcceptedClosure>,
+    selection_forms: Vec<Option<structure_elaboration::selection_questions::RawSelectionQuestions>>,
 }
 
 /// One boundary requirement a machine of an accepted module calls.
@@ -35,10 +42,14 @@ impl AcceptedTerminalSource {
         publication: terminal_codec::TerminalPublication,
     ) -> Result<Self, Vec<Diagnostic>> {
         let verdicts = lowered_discharge::judge_compilation_for(&source, compilation, publication);
-        let closure = accept_compilation(verdicts)?;
+        let AcceptedCompilation {
+            primary: closure,
+            selection_forms,
+        } = accept_compilation(verdicts)?;
         Ok(Self {
             source,
             closure,
+            selection_forms,
             publication,
         })
     }
@@ -81,6 +92,11 @@ impl AcceptedTerminalSource {
                 })
             })?;
         let elaboration = &self.closure.elaboration;
+        let selection_questions =
+            crate::source_selection_publication::prepare(self, program.view().module())
+                .map_err(|diagnostic| vec![diagnostic])?;
+        let source_selections =
+            crate::TerminalSourceSelections::new(program.view(), selection_questions);
         let mut provenance = terminal_psi::TerminalMachineProvenance::default();
         for (machine, symbol) in elaboration.machines.iter() {
             let name = elaboration.names.get(machine).ok_or_else(|| {
@@ -138,6 +154,7 @@ impl AcceptedTerminalSource {
             applications,
             provenance,
             source_records: elaboration.source_records.clone(),
+            source_selections: Some(Arc::new(source_selections)),
         })
     }
 
@@ -254,6 +271,12 @@ impl AcceptedTerminalSource {
         &self.closure
     }
 
+    pub(crate) fn selection_forms(
+        &self,
+    ) -> &[Option<structure_elaboration::selection_questions::RawSelectionQuestions>] {
+        &self.selection_forms
+    }
+
     pub const fn publication(&self) -> terminal_codec::TerminalPublication {
         self.publication
     }
@@ -272,12 +295,14 @@ impl AcceptedTerminalSource {
 
 fn accept_compilation(
     verdicts: Vec<Result<RouteVerdict, CompilationRefusal>>,
-) -> Result<Box<AcceptedClosure>, Vec<Diagnostic>> {
+) -> Result<AcceptedCompilation, Vec<Diagnostic>> {
     let mut first = None;
+    let mut selection_forms = Vec::new();
     let mut diagnostics = Vec::new();
     for (position, verdict) in verdicts.into_iter().enumerate() {
         match verdict {
-            Ok(RouteVerdict::Accepted(accepted)) => {
+            Ok(RouteVerdict::Accepted(mut accepted)) => {
+                selection_forms.push(accepted.elaboration.source_selection_questions.take());
                 if position == 0 {
                     first = Some(accepted);
                 }
@@ -327,7 +352,12 @@ fn accept_compilation(
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    first.ok_or_else(|| vec![route_defect("no accepted compilation root")])
+    first
+        .map(|primary| AcceptedCompilation {
+            primary,
+            selection_forms,
+        })
+        .ok_or_else(|| vec![route_defect("no accepted compilation root")])
 }
 
 fn route_defect(detail: &str) -> Diagnostic {
@@ -384,7 +414,8 @@ mod tests {
         let closure = accept_compilation(vec![
             lowered_discharge::judge(Ok(stated)).map_err(CompilationRefusal::Elaboration),
         ])
-        .unwrap();
+        .unwrap()
+        .primary;
         let published = closure.publish_invocation().unwrap();
         assert_eq!(
             published.artifact.view().module(),
@@ -393,7 +424,7 @@ mod tests {
         assert_eq!(published.seals.module, published.artifact.view().identity());
         assert_eq!(published.seals.seals, closure.seals);
         assert!(closure.publish().is_err());
-        let portable = accept_compilation(vec![Ok(accepted())]).unwrap();
+        let portable = accept_compilation(vec![Ok(accepted())]).unwrap().primary;
         assert!(portable.publish_invocation().is_err());
     }
 

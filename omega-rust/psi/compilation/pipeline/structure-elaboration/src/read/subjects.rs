@@ -134,6 +134,7 @@ impl Program<'_> {
             if self.trait_declaration(entry, *symbol)?
                 || self.conformance_declaration(entry, *symbol)?
             {
+                self.admitted_declarations.include(*symbol);
                 continue;
             }
             if self.select_native_provider(entry, *symbol)? {
@@ -143,7 +144,9 @@ impl Program<'_> {
                 let machine = self.machine(*symbol)?;
                 self.fixed_inputs.push(machine);
             } else if let Some(data) = self.data_declaration(*symbol) {
-                if !names_only(data) {
+                let names_only = names_only(data);
+                self.admitted_declarations.include(*symbol);
+                if !names_only {
                     self.record(entry, *symbol)?;
                 }
             } else {
@@ -186,37 +189,42 @@ impl Program<'_> {
                 let id = self.machine(machine.symbol)?;
                 self.subject_machines.push(id);
             } else {
+                self.admitted_declarations.include(machine.symbol);
                 self.generic_templates.push(machine.symbol);
             }
         }
         for data in typed.data_definitions() {
-            if self.owner(entry, data.symbol, subjects, purpose)? == Owner::Subject
-                && !names_only(data)
-            {
-                self.record(entry, data.symbol)?;
+            if self.owner(entry, data.symbol, subjects, purpose)? == Owner::Subject {
+                if !names_only(data) {
+                    self.record(entry, data.symbol)?;
+                }
+                self.admitted_declarations.include(data.symbol);
             }
         }
         for domain in typed.domain_definitions() {
-            if self.owner(entry, domain.symbol, subjects, purpose)? == Owner::Subject
-                && !judged_where_used(typed, domain)
-            {
-                return Err(refuse(
-                    entry,
-                    Construct::Machine,
-                    Unserved::Declaration(
-                        "domain with predicates, a cleanup machine, operators or parameters",
-                    ),
-                ));
+            if self.owner(entry, domain.symbol, subjects, purpose)? == Owner::Subject {
+                if !judged_where_used(typed, domain) {
+                    return Err(refuse(
+                        entry,
+                        Construct::Machine,
+                        Unserved::Declaration(
+                            "domain with predicates, a cleanup machine, operators or parameters",
+                        ),
+                    ));
+                }
+                self.admitted_declarations.include(domain.symbol);
             }
         }
         for declaration in typed.traits() {
             if self.owner(entry, declaration.symbol, subjects, purpose)? == Owner::Subject {
                 self.trait_declaration(entry, declaration.symbol)?;
+                self.admitted_declarations.include(declaration.symbol);
             }
         }
         for declaration in typed.conformances() {
             if self.owner(entry, declaration.symbol, subjects, purpose)? == Owner::Subject {
                 self.conformance_declaration(entry, declaration.symbol)?;
+                self.admitted_declarations.include(declaration.symbol);
             }
         }
         // One row per remaining declaration table of the typed trees' roots.

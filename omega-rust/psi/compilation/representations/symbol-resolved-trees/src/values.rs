@@ -377,6 +377,13 @@ pub mod expression {
                 argument: &mut StaticMachineArgument,
                 symbols: &[(SymbolHandle, SymbolHandle)],
             ) {
+                argument.authored_selection_target =
+                    argument.authored_selection_target.map(|target| {
+                        symbols
+                            .iter()
+                            .find(|(source, _)| *source == target)
+                            .map_or(target, |(_, replacement)| *replacement)
+                    });
                 if let Some((_, replacement)) = symbols
                     .iter()
                     .find(|(source, _)| *source == argument.symbol)
@@ -956,6 +963,9 @@ pub mod expression {
             fn static_argument(&mut self, argument: &mut StaticMachineArgument) {
                 argument.type_reference = self.type_reference(argument.type_reference);
                 argument.symbol = self.symbol(argument.symbol);
+                argument.authored_selection_target = argument
+                    .authored_selection_target
+                    .map(|target| self.symbol(target));
                 if let Some(application) = &mut argument.application {
                     for child in application.arguments.iter_mut() {
                         self.static_argument(child);
@@ -1459,6 +1469,8 @@ pub mod expression {
                 let original = SymbolHandle::from_arena_index(3);
                 let replacement = SymbolHandle::from_arena_index(4);
                 let argument = StaticMachineArgument {
+                    authored_selection: None,
+                    authored_selection_target: None,
                     type_reference: Handle::invalid(),
                     path: Box::new([]),
                     application: None,
@@ -2865,8 +2877,18 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
         authored_selection_occurrence_ids: Arena<StoredAuthoredSelectionOccurrenceId>,
     }
 
+    pub(crate) struct PreparedStaticArgumentRebase {
+        arguments: Box<[StaticMachineArgument]>,
+        members: Vec<(Handle<StaticMachineArgument>, StaticMachineArgument)>,
+    }
+
     pub(crate) struct PreparedExpressionSelectionRebase {
         remapped: Vec<Option<Vec<AuthoredDeclarationSelectionOccurrenceId>>>,
+        arguments: Vec<(
+            ExpressionHandle,
+            Option<Handle<StaticMachineArgument>>,
+            PreparedStaticArgumentRebase,
+        )>,
     }
 
     macro_rules! expression_node_accessors {
@@ -3203,6 +3225,76 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
                 .map(StoredAuthoredSelectionOccurrenceId::occurrence)
         }
 
+        pub(crate) fn prepare_static_argument_rebase(
+            &self,
+            arguments: &[StaticMachineArgument],
+            remap: impl Fn(
+                AuthoredDeclarationSelectionOccurrenceId,
+            ) -> Option<AuthoredDeclarationSelectionOccurrenceId>,
+        ) -> Result<PreparedStaticArgumentRebase, ()> {
+            fn argument(
+                table: &ExpressionTable,
+                value: &mut StaticMachineArgument,
+                remap: &impl Fn(
+                    AuthoredDeclarationSelectionOccurrenceId,
+                ) -> Option<AuthoredDeclarationSelectionOccurrenceId>,
+                members: &mut Vec<(Handle<StaticMachineArgument>, StaticMachineArgument)>,
+                active: &mut Vec<Handle<StaticMachineArgument>>,
+            ) -> Result<(), ()> {
+                if let Some(occurrence) = value.authored_selection {
+                    value.authored_selection = Some(remap(occurrence).ok_or(())?);
+                }
+                if let Some(application) = &mut value.application {
+                    for child in &mut application.arguments {
+                        argument(table, child, remap, members, active)?;
+                    }
+                    let handle = application.member;
+                    if handle.is_valid() {
+                        let key = |handle: Handle<StaticMachineArgument>| {
+                            (handle.arena_index(), handle.generation())
+                        };
+                        if members
+                            .binary_search_by_key(&key(handle), |(handle, _)| key(*handle))
+                            .is_err()
+                        {
+                            if active.contains(&handle) {
+                                return Err(());
+                            }
+                            active.push(handle);
+                            let mut child = table.static_member(handle).ok_or(())?.clone();
+                            argument(table, &mut child, remap, members, active)?;
+                            active.pop();
+                            let at =
+                                members.partition_point(|(current, _)| key(*current) < key(handle));
+                            members.insert(at, (handle, child));
+                        }
+                    }
+                }
+                Ok(())
+            }
+            let mut values = arguments.to_vec().into_boxed_slice();
+            let mut members = Vec::new();
+            for value in &mut values {
+                argument(self, value, &remap, &mut members, &mut Vec::new())?;
+            }
+            Ok(PreparedStaticArgumentRebase {
+                arguments: values,
+                members,
+            })
+        }
+
+        pub(crate) fn apply_static_argument_rebase(
+            &mut self,
+            prepared: PreparedStaticArgumentRebase,
+        ) -> Box<[StaticMachineArgument]> {
+            for (handle, member) in prepared.members {
+                *self
+                    .static_member_mut(handle)
+                    .expect("prepared static member remains current") = member;
+            }
+            prepared.arguments
+        }
+
         pub(crate) fn prepare_authored_selection_rebase(
             &self,
             expression_frontier: usize,
@@ -3230,14 +3322,56 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
                 })
                 .collect::<Result<Vec<_>, _>>()?;
 
-            Ok(PreparedExpressionSelectionRebase { remapped })
+            let mut arguments = Vec::new();
+            for (index, (handle, node)) in self.iter_expressions().enumerate() {
+                let (members, values) = match node {
+                    ExpressionNode::Call(call) => (None, call.machine_arguments.as_ref()),
+                    ExpressionNode::Name(name) if name.static_application.is_valid() => (
+                        Some(name.static_application),
+                        std::slice::from_ref(
+                            self.static_member(name.static_application).ok_or(())?,
+                        ),
+                    ),
+                    _ => continue,
+                };
+                let prepared = self.prepare_static_argument_rebase(values, |occurrence| {
+                    if index < expression_frontier {
+                        rebase.retain_base(occurrence)
+                    } else {
+                        rebase.rebase_appended(occurrence)
+                    }
+                })?;
+                if index >= expression_frontier {
+                    arguments.push((handle, members, prepared));
+                }
+            }
+            Ok(PreparedExpressionSelectionRebase {
+                remapped,
+                arguments,
+            })
         }
 
         pub(crate) fn apply_authored_selection_rebase(
             &mut self,
             prepared: PreparedExpressionSelectionRebase,
         ) {
-            let PreparedExpressionSelectionRebase { remapped } = prepared;
+            let PreparedExpressionSelectionRebase {
+                remapped,
+                arguments,
+            } = prepared;
+            for (handle, member, prepared) in arguments {
+                let mut arguments = self.apply_static_argument_rebase(prepared);
+                if let Some(member) = member {
+                    *self
+                        .static_member_mut(member)
+                        .expect("prepared applied name remains current") = arguments[0].clone();
+                } else {
+                    let ExpressionNode::Call(call) = self.expression_mut(handle) else {
+                        unreachable!("prepared call remains current")
+                    };
+                    call.machine_arguments = std::mem::take(&mut arguments);
+                }
+            }
             for (index, occurrences) in remapped.into_iter().enumerate() {
                 let Some(occurrences) = occurrences else {
                     continue;
@@ -3577,14 +3711,54 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
         pub operational_acknowledgement: language_semantics::CallOperationalAcknowledgement,
     }
 
-    #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
     pub struct StaticMachineArgument {
+        /// Exact ledger occurrence attached when resolution mints this input.
+        pub authored_selection: Option<
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+        >,
+        pub authored_selection_target: Option<SymbolHandle>,
         pub type_reference: arena::Handle<crate::types::TypeReference>,
         pub path: Box<[DiagnosticName]>,
         pub application: Option<Box<StaticSymbolApplication>>,
         pub const_literal: Option<numerics::literals::IntegerLiteral>,
         pub evidence_projection: Option<EvidenceProjection>,
         pub symbol: SymbolHandle,
+    }
+
+    impl compiler_storage::Record for StaticMachineArgument {
+        fn write(
+            &self,
+            output: &mut compiler_storage::RecordWriter,
+        ) -> Result<(), compiler_storage::RecordError> {
+            b"ARGSEL1".write(output)?;
+            self.authored_selection.write(output)?;
+            self.authored_selection_target.write(output)?;
+            self.type_reference.write(output)?;
+            self.path.write(output)?;
+            self.application.write(output)?;
+            self.const_literal.write(output)?;
+            self.evidence_projection.write(output)?;
+            self.symbol.write(output)
+        }
+
+        fn read<Context>(
+            input: &mut compiler_storage::RecordReader<'_, Context>,
+        ) -> Result<Self, compiler_storage::RecordError> {
+            if <[u8; 7]>::read(input)? != *b"ARGSEL1" {
+                return Err(input.error("static input selection storage has another version"));
+            }
+            Ok(Self {
+                authored_selection: Option::read(input)?,
+                authored_selection_target: Option::read(input)?,
+                type_reference: Handle::read(input)?,
+                path: Box::read(input)?,
+                application: Option::read(input)?,
+                const_literal: Option::read(input)?,
+                evidence_projection: Option::read(input)?,
+                symbol: SymbolHandle::read(input)?,
+            })
+        }
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
@@ -3766,5 +3940,43 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
         Equal(ExpressionHandle),
         #[default]
         Waive,
+    }
+}
+
+#[cfg(test)]
+mod static_input_record_tests {
+    use crate::expression::StaticMachineArgument;
+    use compiler_storage::{RecordLimits, decode, encode};
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
+        AuthoredDeclarationSelections,
+    };
+    use symbols::SymbolHandle;
+
+    #[test]
+    fn exact_static_input_attachment_round_trips_and_refuses_the_old_marker() {
+        let selected = SymbolHandle::from_parts(3, 5);
+        let mut ledger = AuthoredDeclarationSelections::default();
+        let occurrence = ledger
+            .record_resolved(
+                source::SourceSpan::new(source::SourceId(0), source::Span::new(1, 2)),
+                AuthoredDeclarationSelectionExposure::PrivateImplementation,
+                AuthoredDeclarationSelectionKind::StaticArgument,
+                selected,
+            )
+            .unwrap();
+        let argument = StaticMachineArgument {
+            authored_selection: Some(occurrence),
+            authored_selection_target: Some(selected),
+            symbol: selected,
+            ..Default::default()
+        };
+        let mut bytes = encode(&argument, RecordLimits::default()).unwrap();
+        assert_eq!(
+            decode::<StaticMachineArgument>(&bytes, RecordLimits::default()).unwrap(),
+            argument
+        );
+        bytes[8] ^= 1;
+        assert!(decode::<StaticMachineArgument>(&bytes, RecordLimits::default()).is_err());
     }
 }

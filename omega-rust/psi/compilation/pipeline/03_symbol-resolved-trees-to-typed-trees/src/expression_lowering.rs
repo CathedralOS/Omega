@@ -845,6 +845,7 @@ pub(crate) mod expression {
                 symbol_substitution:
                     Option<(symbols::SymbolHandle, typed::expression::ExpressionHandle)>,
                 pub(crate) equality_scope: Option<&'scope EqualityScope>,
+                source_owner: symbols::SymbolHandle,
                 /// Tracks proposition-only placement diagnostics. Calls and value
                 /// children leave this context explicitly; comparison meaning is unchanged.
                 pub(crate) fact_position: bool,
@@ -883,11 +884,17 @@ pub(crate) mod expression {
                         target_trees,
                         symbol_substitution,
                         equality_scope,
+                        source_owner: symbols::SymbolHandle::invalid(),
                         fact_position: false,
                         admits_policy_operators: false,
                         lowered_expressions: Vec::new(),
                         match_captures: Vec::new(),
                     }
+                }
+
+                pub(crate) fn with_source_owner(mut self, owner: symbols::SymbolHandle) -> Self {
+                    self.source_owner = owner;
+                    self
                 }
 
                 pub(crate) fn target(&mut self) -> &mut typed::expression::ExpressionTable {
@@ -1422,7 +1429,9 @@ pub(crate) mod expression {
                                     return crate::expressions::build_selections::lower(
                                         program,
                                         self.target_trees,
-                                        request,
+                                        request.request,
+                                        request.inputs,
+                                        self.source_owner,
                                         arguments,
                                         call.operational_acknowledgement,
                                     );
@@ -3915,8 +3924,10 @@ pub(crate) mod expression {
             target: &mut typed::TypedTrees,
             expression: resolved::expression::ExpressionHandle,
             scope: Option<&EqualityScope>,
+            source_owner: symbols::SymbolHandle,
         ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
             lowerer::ExpressionTableLowerer::new(Some(program), source, target, None, scope)
+                .with_source_owner(source_owner)
                 .lower(expression)
         }
 
@@ -3926,8 +3937,10 @@ pub(crate) mod expression {
             target: &mut typed::TypedTrees,
             expression: resolved::expression::ExpressionHandle,
             scope: Option<&EqualityScope>,
+            source_owner: symbols::SymbolHandle,
         ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
             lowerer::ExpressionTableLowerer::new(Some(program), source, target, None, scope)
+                .with_source_owner(source_owner)
                 .admitting_policy_operators(true)
                 .lower(expression)
         }
@@ -3979,6 +3992,7 @@ pub(crate) mod expression {
             typed_trees,
             source_trees,
             equality_scope,
+            source_owner,
             ..
         } = lowerer;
         let source = &source_trees.tables.bodies.expressions;
@@ -3988,6 +4002,7 @@ pub(crate) mod expression {
             typed_trees,
             expression,
             equality_scope.as_ref(),
+            *source_owner,
         )
     }
 
@@ -3999,6 +4014,7 @@ pub(crate) mod expression {
             typed_trees,
             source_trees,
             equality_scope,
+            source_owner,
             ..
         } = lowerer;
         let source = &source_trees.tables.bodies.expressions;
@@ -4008,6 +4024,7 @@ pub(crate) mod expression {
             typed_trees,
             expression,
             equality_scope.as_ref(),
+            *source_owner,
         )
     }
 

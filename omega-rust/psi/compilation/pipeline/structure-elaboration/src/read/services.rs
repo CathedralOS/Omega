@@ -847,6 +847,7 @@ impl<'t> Program<'t> {
         let mut parents = parents?;
         parents.sort_unstable();
         parents.dedup();
+        self.admitted_declarations.include(scope.declaration.symbol);
         Ok(self.services.push((scope, parents)))
     }
 

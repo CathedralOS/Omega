@@ -1684,6 +1684,12 @@ impl DeclarationSelection {
         self.excluded && self.symbols.is_empty()
     }
 
+    /// The exact finite roster, when this filter names declarations instead
+    /// of excluding them. Consumers must not turn an exclusion into roots.
+    pub fn explicit_symbols(&self) -> Option<&[SymbolHandle]> {
+        (!self.excluded).then_some(self.symbols.as_slice())
+    }
+
     pub fn from_program(program: &TypedTrees) -> Self {
         Self::from_symbols(collect_program_declarations(program))
     }

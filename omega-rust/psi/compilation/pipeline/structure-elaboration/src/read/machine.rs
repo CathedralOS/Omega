@@ -210,6 +210,7 @@ impl<'t> Program<'t> {
         let read = self.signature(id, symbol, &reading);
         let scope = std::mem::replace(&mut self.scope, outer);
         let (signature, names, value_parameters) = read?;
+        self.admitted_declarations.include(symbol);
         self.symbols.push(symbol);
         self.signatures.push(signature);
         self.names.push(names);
@@ -291,6 +292,7 @@ impl<'t> Program<'t> {
     ) -> Checked<MachineId> {
         let id = self.next_identity()?;
         let (signature, names) = self.requirement_signature(id, declared, arguments)?;
+        self.admitted_declarations.include(declared.symbol);
         self.symbols.push(declared.symbol);
         self.signatures.push(signature);
         self.names.push(names);
@@ -342,6 +344,7 @@ impl<'t> Program<'t> {
         }
         let id = self.next_identity()?;
         let (signature, names) = self.requirement_signature(id, declared, arguments)?;
+        self.admitted_declarations.include(symbol);
         self.symbols.push(symbol);
         self.signatures.push(signature);
         self.names.push(names);
@@ -811,6 +814,7 @@ impl<'t> Program<'t> {
         id: MachineId,
         signature: &'t StateSignature,
     ) -> Checked<(Signature, MachineNames)> {
+        self.admitted_declarations.include(signature.symbol);
         self.callable_signature(
             id,
             signature,
@@ -1705,8 +1709,19 @@ impl<'t> Program<'t> {
                 }
                 StatementNode::Assignment(assignment) => self.assignment(id, &slots, assignment)?,
                 StatementNode::Call(call) => {
-                    let source = SourceOrigin::of(call.source_span);
-                    let called = self.call_statement(id, &slots, call, source)?;
+                    let handle =
+                        state
+                            .statement_nodes
+                            .handles()
+                            .nth(position)
+                            .ok_or_else(|| {
+                                refuse(
+                                    id,
+                                    Construct::Machine,
+                                    Unserved::Statement("call has no exact statement occurrence"),
+                                )
+                            })?;
+                    let called = self.call_statement_at(id, &slots, handle)?;
                     if !call.discards_result {
                         undiscarded(id, &called)?;
                     }

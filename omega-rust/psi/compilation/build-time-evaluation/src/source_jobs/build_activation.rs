@@ -20,10 +20,10 @@
 //! `Build` a script holds is the one it was lent. That the declaration has
 //! this shape is checked here; the checker judges the program against it.
 //!
-//! Every program that has a Build activation is still refused here until the
-//! protection is shown on the real `Build`
-//! (`compiler/tests/build_value_protection.rs`); removing the refusal is the
-//! next change.
+//! The source checker establishes the script's obligations before the host
+//! calls this guard. Recognition of the exact protected declaration admits the
+//! host's original value; it does not permit source to construct another one.
+//! Real-prelude controls live in `compiler/tests/build_value_protection.rs`.
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
@@ -35,19 +35,11 @@ use typed_trees::types::{
 
 use super::is_exact_toolchain_build_prelude_data;
 
-/// What stops every Build activation today. One text, so the refusal a user
-/// reads and the tests name the same reason.
-pub const BUILD_VALUE_UNPROTECTED: &str = "no product route yet: Build activation: the compiler-owned `Build` value is not yet protected from forging by its declaration";
-
-/// `Ok(false)`: the program declares no toolchain `Build`, so it has no
-/// activation and no compiler-owned value to protect. A program that does is
-/// refused: for its vocabulary when that is not the toolchain's, and
-/// otherwise for `BUILD_VALUE_UNPROTECTED`.
+/// Whether the checked program declares the compiler-owned Build activation.
+/// The host supplies a value only after its exact vocabulary and seal pass.
+/// A user declaration with the same name receives no compiler-owned value.
 pub fn admit_toolchain_build_activation(typed: &TypedTrees) -> Result<bool, Vec<Diagnostic>> {
-    if build_activation_symbol(typed)?.is_none() {
-        return Ok(false);
-    }
-    Err(vec![Diagnostic::error(BUILD_VALUE_UNPROTECTED)])
+    build_activation_symbol(typed).map(|build| build.is_some())
 }
 
 /// The toolchain's `Build` declaration, when the program has one, after
@@ -208,9 +200,9 @@ public data Build<'storage> {
     }
 
     #[test]
-    fn a_program_with_the_toolchain_build_is_refused_for_the_unprotected_value() {
+    fn a_program_with_the_protected_toolchain_build_has_an_activation() {
         let typed = typed("machine build_entry() { }", Some(PRELUDE));
-        assert_eq!(refusal(&typed), BUILD_VALUE_UNPROTECTED);
+        assert_eq!(admit_toolchain_build_activation(&typed), Ok(true));
     }
 
     /// A `Build` the program declares itself is no compiler-owned value: the

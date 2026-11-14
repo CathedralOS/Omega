@@ -44,6 +44,7 @@ impl Program<'_> {
         if !self.external_providers.selected.contains(&symbol) {
             self.external_providers.selected.push(symbol);
         }
+        self.admitted_declarations.include(symbol);
         Ok(true)
     }
 
@@ -308,6 +309,9 @@ impl Program<'_> {
             callable,
         )
         .map_err(|reason| services::unavailable(context, reason))?;
+        self.admitted_declarations.include(machine.symbol);
+        self.admitted_declarations.include(owner.symbol);
+        self.admitted_declarations.include(required.symbol);
         Ok(ExternalProviderSource {
             source: machine.symbol,
             satisfaction: typed

@@ -38,8 +38,15 @@ enum CandidateTarget {
     LateBound(LateBinding),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum StaticArgumentStep {
+    Argument(usize),
+    Member,
+}
+
+#[derive(Debug, Clone)]
 struct Candidate {
+    argument_path: Option<Vec<StaticArgumentStep>>,
     expression: ExpressionHandle,
     source_span: SourceSpan,
     kind: Kind,
@@ -55,6 +62,7 @@ struct CandidateGroup {
         Option<language_semantics::declaration_selection::CompilerDerivedSelectionPartition>,
     target: CandidateTarget,
     expressions: Vec<ExpressionHandle>,
+    arguments: Vec<(ExpressionHandle, Vec<StaticArgumentStep>)>,
     top_level_static_argument_position: Option<usize>,
 }
 
@@ -925,7 +933,8 @@ fn finalize_statement_static_argument_selections(
     }
     for (statements, offset, partition, candidates) in sites {
         let mut occurrences = Vec::with_capacity(candidates.len());
-        for candidate in candidates {
+        let mut attachments = Vec::with_capacity(candidates.len());
+        for (candidate, path) in candidates {
             let existing = program
                 .authored_declaration_selections()
                 .iter()
@@ -983,9 +992,40 @@ fn finalize_statement_static_argument_selections(
                     .with_source_span(candidate.source_span));
                 }
             };
+            if let [StaticArgumentStep::Argument(position)] = path.as_slice() {
+                program
+                    .retain_top_level_static_argument_position(occurrence, *position)
+                    .map_err(|error| {
+                        Diagnostic::error(format!("static input position changed: {error:?}"))
+                    })?;
+            }
+            attachments.push((path, occurrence));
             if !occurrences.contains(&occurrence) {
                 occurrences.push(occurrence);
             }
+        }
+        let Some(Statement::Call(source_call)) = program.state_statements(statements).get(offset)
+        else {
+            return Err(Diagnostic::error(
+                "static input attachments lost their statement call",
+            ));
+        };
+        let mut arguments = source_call.machine_arguments.clone();
+        for (path, occurrence) in attachments {
+            let Some((StaticArgumentStep::Argument(position), tail)) = path.split_first() else {
+                return Err(Diagnostic::error(
+                    "statement input has no exact argument address",
+                ));
+            };
+            let argument = arguments
+                .get_mut(*position)
+                .ok_or_else(|| Diagnostic::error("statement input lost its exact argument"))?;
+            attach_static_argument(
+                &mut program.tables.bodies.expressions,
+                argument,
+                tail,
+                occurrence,
+            )?;
         }
         let Some(Statement::Call(call)) = program
             .tables
@@ -998,6 +1038,7 @@ fn finalize_statement_static_argument_selections(
                 "original static-input site no longer identifies a statement call",
             ));
         };
+        call.machine_arguments = arguments;
         call.authored_static_argument_selections = occurrences.into_boxed_slice();
     }
     Ok(())
@@ -1007,7 +1048,7 @@ type StatementStaticSite = (
     arena::HandleSpan<symbol_resolved_trees::statement::Statement>,
     usize,
     Option<CompilerDerivedSelectionPartition>,
-    Vec<UnattachedCandidate>,
+    Vec<(UnattachedCandidate, Vec<StaticArgumentStep>)>,
 );
 fn collect_statement_static_sites(
     program: &SymbolResolvedTrees,
@@ -1023,6 +1064,7 @@ fn collect_statement_static_sites(
                 collect_statement_static_argument_candidates(
                     program,
                     &call.machine_arguments,
+                    &[],
                     call.target.source_span(),
                     BuildOperation::from_call_target(call.target.as_str())
                         .is_some_and(BuildOperation::selects_product_declarations)
@@ -1048,18 +1090,22 @@ fn collect_statement_static_sites(
 fn collect_statement_static_argument_candidates(
     program: &SymbolResolvedTrees,
     arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
+    parent_path: &[StaticArgumentStep],
     fallback_span: SourceSpan,
     defer: bool,
-    candidates: &mut Vec<UnattachedCandidate>,
+    candidates: &mut Vec<(UnattachedCandidate, Vec<StaticArgumentStep>)>,
 ) {
-    for argument in arguments {
+    for (position, argument) in arguments.iter().enumerate() {
+        let mut path = parent_path.to_vec();
+        path.push(StaticArgumentStep::Argument(position));
         if has_authored_static_declaration(program, argument) {
-            candidates.push(UnattachedCandidate { source_span: path_span(&argument.path, fallback_span), exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation, kind: static_argument_kind(program, argument.symbol), target: if defer { CandidateTarget::LateBound(LateBinding::CheckedStaticArgument) } else { resolved_or_late(argument.symbol, LateBinding::CheckedStaticArgument) } });
+            candidates.push((UnattachedCandidate { source_span: path_span(&argument.path, fallback_span), exposure: language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation, kind: static_argument_kind(program, argument.symbol), target: if defer { CandidateTarget::LateBound(LateBinding::CheckedStaticArgument) } else { resolved_or_late(argument.symbol, LateBinding::CheckedStaticArgument) } }, path.clone()));
         }
         if let Some(application) = &argument.application {
             collect_statement_static_argument_candidates(
                 program,
                 &application.arguments,
+                &path,
                 fallback_span,
                 defer,
                 candidates,
@@ -1067,13 +1113,21 @@ fn collect_statement_static_argument_candidates(
             if application.member.is_valid()
                 && let Some(member) = body_expressions(program).static_member(application.member)
             {
+                let mut member_path = path.clone();
+                member_path.push(StaticArgumentStep::Member);
+                let mut nested = Vec::new();
                 collect_statement_static_argument_candidates(
                     program,
                     std::slice::from_ref(member),
+                    &member_path,
                     fallback_span,
                     defer,
-                    candidates,
+                    &mut nested,
                 );
+                for (_, address) in &mut nested {
+                    address.remove(member_path.len());
+                }
+                candidates.extend(nested);
             }
         }
     }
@@ -1231,6 +1285,7 @@ fn expression_candidates(
         ExpressionNode::Indexed(_) if type_operands.contains(&expression) => {}
         ExpressionNode::Binary(_) | ExpressionNode::Indexed(_) | ExpressionNode::Unary(_) => {
             candidates.push(Candidate {
+                argument_path: None,
                 expression,
                 source_span: expression_span,
                 kind: Kind::Operator,
@@ -1267,6 +1322,7 @@ fn expression_candidates(
                     && !call.receiver.is_valid())
             {
                 candidates.push(Candidate {
+                    argument_path: None,
                     expression,
                     source_span: call.target.source_span(),
                     kind: Kind::Call,
@@ -1277,6 +1333,7 @@ fn expression_candidates(
                 program,
                 expression,
                 &call.machine_arguments,
+                &[],
                 BuildOperation::from_call_target(call.target.as_str())
                     .is_some_and(BuildOperation::selects_product_declarations)
                     && !call.target_symbol.is_valid(),
@@ -1286,6 +1343,7 @@ fn expression_candidates(
         ExpressionNode::Cast(cast) if !cast.semantic_domain.is_empty() => {
             let members = expressions.name_path_members(cast.semantic_domain);
             candidates.push(Candidate {
+                argument_path: None,
                 expression,
                 source_span: path_span(members, expression_span),
                 kind: Kind::DomainMembership,
@@ -1296,6 +1354,7 @@ fn expression_candidates(
             });
         }
         ExpressionNode::Member(member) => candidates.push(Candidate {
+            argument_path: None,
             expression,
             source_span: member.member.source_span(),
             kind: Kind::MemberAccess,
@@ -1311,6 +1370,7 @@ fn expression_candidates(
             }
             if membership.domain_symbol.is_valid() {
                 candidates.push(Candidate {
+                    argument_path: None,
                     expression,
                     source_span: path_span(members, expression_span),
                     kind: Kind::DomainMembership,
@@ -1319,6 +1379,7 @@ fn expression_candidates(
             } else {
                 if membership.case_type_symbol.is_valid() {
                     candidates.push(Candidate {
+                        argument_path: None,
                         expression,
                         source_span: path_span(
                             &members[..members.len().saturating_sub(1)],
@@ -1329,6 +1390,7 @@ fn expression_candidates(
                     });
                 }
                 candidates.push(Candidate {
+                    argument_path: None,
                     expression,
                     source_span: members
                         .last()
@@ -1352,6 +1414,7 @@ fn expression_candidates(
                 program,
                 expression,
                 std::slice::from_ref(selected),
+                &[],
                 false,
                 &mut candidates,
             );
@@ -1385,6 +1448,7 @@ fn expression_candidates(
                     continue;
                 }
                 candidates.push(Candidate {
+                    argument_path: None,
                     expression,
                     source_span: member.source_span(),
                     kind: Kind::StaticPathSegment,
@@ -1404,6 +1468,7 @@ fn expression_candidates(
                 })?;
             }
             candidates.push(Candidate {
+                argument_path: None,
                 expression,
                 source_span: literal.type_name.source_span(),
                 kind: Kind::StructLiteralType,
@@ -1414,6 +1479,7 @@ fn expression_candidates(
             });
             if let Some(case_name) = &literal.case_name {
                 candidates.push(Candidate {
+                    argument_path: None,
                     expression,
                     source_span: case_name.source_span(),
                     kind: Kind::StructLiteralCase,
@@ -1428,6 +1494,7 @@ fn expression_candidates(
                     .struct_fields(literal.fields)
                     .iter()
                     .map(|field| Candidate {
+                        argument_path: None,
                         expression,
                         source_span: field.name.source_span(),
                         kind: Kind::StructLiteralField,
@@ -1465,12 +1532,16 @@ fn collect_static_argument_candidates(
     program: &SymbolResolvedTrees,
     expression: ExpressionHandle,
     arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
+    parent_path: &[StaticArgumentStep],
     defer_call_arguments: bool,
     candidates: &mut Vec<Candidate>,
 ) {
-    for argument in arguments {
+    for (position, argument) in arguments.iter().enumerate() {
+        let mut path = parent_path.to_vec();
+        path.push(StaticArgumentStep::Argument(position));
         if has_authored_static_declaration(program, argument) {
             candidates.push(Candidate {
+                argument_path: Some(path.clone()),
                 expression,
                 source_span: path_span(
                     &argument.path,
@@ -1489,19 +1560,31 @@ fn collect_static_argument_candidates(
                 program,
                 expression,
                 &application.arguments,
+                &path,
                 defer_call_arguments,
                 candidates,
             );
             if application.member.is_valid()
                 && let Some(member) = body_expressions(program).static_member(application.member)
             {
+                let mut member_path = path.clone();
+                member_path.push(StaticArgumentStep::Member);
+                // A member is one operand, rather than another argument list.
+                let mut nested = Vec::new();
                 collect_static_argument_candidates(
                     program,
                     expression,
                     std::slice::from_ref(member),
+                    &member_path,
                     defer_call_arguments,
-                    candidates,
+                    &mut nested,
                 );
+                for candidate in &mut nested {
+                    if let Some(address) = &mut candidate.argument_path {
+                        address.remove(member_path.len());
+                    }
+                }
+                candidates.extend(nested);
             }
         }
     }
@@ -1617,18 +1700,17 @@ fn finalize_expression_groups(
             &type_operands,
             &contract_clause_expressions,
         )? {
-            let top_level_static_argument_position =
-                if matches!(candidate.kind, Kind::StaticArgument | Kind::Conformance) {
-                    match program.tables.bodies.expressions.expression(expression) {
-                        ExpressionNode::Call(call) => top_level_static_argument_position(
-                            &call.machine_arguments,
-                            candidate.source_span,
-                        ),
-                        _ => None,
-                    }
-                } else {
-                    None
-                };
+            let top_level_static_argument_position = match candidate.argument_path.as_deref() {
+                Some([StaticArgumentStep::Argument(position)])
+                    if matches!(
+                        program.tables.bodies.expressions.expression(expression),
+                        ExpressionNode::Call(_)
+                    ) =>
+                {
+                    Some(*position)
+                }
+                _ => None,
+            };
             let key = (
                 candidate.source_span,
                 exposure,
@@ -1650,6 +1732,13 @@ fn finalize_expression_groups(
                 if !group.expressions.contains(&candidate.expression) {
                     group.expressions.push(candidate.expression);
                 }
+                if let Some(path) = &candidate.argument_path
+                    && !group
+                        .arguments
+                        .contains(&(candidate.expression, path.clone()))
+                {
+                    group.arguments.push((candidate.expression, path.clone()));
+                }
             } else {
                 group_index.insert(key, groups.len());
                 groups.push(CandidateGroup {
@@ -1659,6 +1748,10 @@ fn finalize_expression_groups(
                     compiler_partition,
                     target: candidate.target,
                     expressions: vec![candidate.expression],
+                    arguments: candidate
+                        .argument_path
+                        .map(|path| vec![(candidate.expression, path)])
+                        .unwrap_or_default(),
                     top_level_static_argument_position,
                 });
             }
@@ -1725,6 +1818,9 @@ fn finalize_expression_groups(
         } else {
             None
         };
+        for (expression, path) in group.arguments {
+            attach_expression_static_argument(program, expression, &path, occurrence)?;
+        }
         for expression in group.expressions {
             program
                 .tables
@@ -1756,20 +1852,83 @@ fn finalize_expression_groups(
     Ok(())
 }
 
-/*
-    Match the authored operand token before typed lowering discards its source
-    coordinates. Nested applications retain their own occurrences, not slots in
-    the enclosing call; resolved declarations and omitted literal occurrences
-    never change the positions of the call's remaining operands.
-*/
-fn top_level_static_argument_position(
-    arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
-    occurrence_span: SourceSpan,
-) -> Option<usize> {
-    arguments.iter().position(|argument| {
-        !argument.path.is_empty()
-            && path_span(&argument.path, SourceSpan::default()) == occurrence_span
-    })
+fn attach_static_argument(
+    table: &mut symbol_resolved_trees::expression::ExpressionTable,
+    argument: &mut symbol_resolved_trees::expression::StaticMachineArgument,
+    path: &[StaticArgumentStep],
+    occurrence: AuthoredDeclarationSelectionOccurrenceId,
+) -> Result<(), Diagnostic> {
+    let Some((step, tail)) = path.split_first() else {
+        argument.authored_selection = Some(occurrence);
+        argument.authored_selection_target = argument.symbol.is_valid().then_some(argument.symbol);
+        return Ok(());
+    };
+    let application = argument
+        .application
+        .as_mut()
+        .ok_or_else(|| Diagnostic::error("static input address lost its application"))?;
+    match step {
+        StaticArgumentStep::Argument(position) => {
+            let child = application
+                .arguments
+                .get_mut(*position)
+                .ok_or_else(|| Diagnostic::error("static input address lost its argument"))?;
+            attach_static_argument(table, child, tail, occurrence)
+        }
+        StaticArgumentStep::Member => {
+            let mut child = table
+                .static_member(application.member)
+                .ok_or_else(|| Diagnostic::error("static input address lost its member"))?
+                .clone();
+            attach_static_argument(table, &mut child, tail, occurrence)?;
+            *table.static_member_mut(application.member).ok_or_else(|| {
+                Diagnostic::error("static input member changed during attachment")
+            })? = child;
+            Ok(())
+        }
+    }
+}
+
+fn attach_expression_static_argument(
+    program: &mut SymbolResolvedTrees,
+    expression: ExpressionHandle,
+    path: &[StaticArgumentStep],
+    occurrence: AuthoredDeclarationSelectionOccurrenceId,
+) -> Result<(), Diagnostic> {
+    let Some((StaticArgumentStep::Argument(position), tail)) = path.split_first() else {
+        return Err(Diagnostic::error(
+            "static input has no original argument address",
+        ));
+    };
+    let table = &mut program.tables.bodies.expressions;
+    match table.expression(expression).clone() {
+        ExpressionNode::Call(mut call) => {
+            let argument = call
+                .machine_arguments
+                .get_mut(*position)
+                .ok_or_else(|| Diagnostic::error("static call lost its addressed argument"))?;
+            attach_static_argument(table, argument, tail, occurrence)?;
+            *table.expression_mut(expression) = ExpressionNode::Call(call);
+        }
+        ExpressionNode::Name(name) if *position == 0 => {
+            let mut argument = table
+                .static_member(name.static_application)
+                .ok_or_else(|| Diagnostic::error("static name lost its exact application"))?
+                .clone();
+            attach_static_argument(table, &mut argument, tail, occurrence)?;
+            *table
+                .static_member_mut(name.static_application)
+                .ok_or_else(|| {
+                    Diagnostic::error("static name application changed during attachment")
+                })? = argument;
+        }
+        _ => {
+            return Err(Diagnostic::error(
+                "static input address has no call or applied name owner",
+            ));
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -2260,6 +2419,16 @@ mod copied_call_tests {
                 relay.symbol
             );
             assert_eq!(argument.symbol, current);
+            let input = argument
+                .authored_selection
+                .expect("copied argument retains its exact ledger attachment");
+            let selection = resumed
+                .authored_declaration_selections()
+                .get(input)
+                .expect("rejoined argument occurrence remains current");
+            assert_eq!(selection.kind(), Kind::StaticArgument);
+            assert_eq!(selection.top_level_static_argument_position(), Some(1));
+            assert_eq!(argument.authored_selection_target, Some(current));
         }
         assert_eq!(
             super::super::call_identity::selected_declaration_source(&resumed, current).unwrap(),

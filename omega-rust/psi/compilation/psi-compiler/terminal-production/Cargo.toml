@@ -12,10 +12,12 @@ language-semantics = { path = "../../../foundation/language-semantics" }
 typed-trees = { path = "../../representations/typed-trees" }
 terminal-psi = { path = "../../representations/terminal-psi" }
 terminal-codec = { path = "../../representations/terminal-psi/codec" }
+terminal-installation = { path = "../../terminal-installation" }
 diagnostics = { path = "../../../foundation/diagnostics" }
 source = { path = "../../../foundation/source" }
 symbols = { path = "../../../foundation/symbols" }
 semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }
+optimization = { path = "../../../foundation/optimization" }
 
 [dev-dependencies]
 source-files-to-tokens = { path = "../../pipeline/00_source-files-to-tokens" }

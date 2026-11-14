@@ -149,14 +149,15 @@ pub(crate) fn source_import_scope(
     instance_scope: DependencyScope,
     source_path: &Path,
 ) -> DependencyPurpose {
-    if packages.package_for_source(source_path) == Some(packages.root()) {
-        match instance_scope {
-            DependencyScope::Product => DependencyPurpose::Product,
-            DependencyScope::Build => DependencyPurpose::Build,
-        }
-    } else {
-        DependencyPurpose::Product
-    }
+    let requested = match instance_scope {
+        DependencyScope::Product => DependencyPurpose::Product,
+        DependencyScope::Build => DependencyPurpose::Build,
+    };
+    packages
+        .package_for_source(source_path)
+        .map_or(DependencyPurpose::Product, |requester| {
+            packages.declaration_selection_purpose(requester, requested)
+        })
 }
 
 pub(crate) fn reconciled_package_import(

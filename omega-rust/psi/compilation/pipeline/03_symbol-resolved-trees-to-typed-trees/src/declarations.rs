@@ -657,8 +657,10 @@ pub(crate) mod machine {
         } else {
             lowerer.type_reference_exposure
         };
-        lowerer.with_type_reference_exposure(exposure, |lowerer| {
-            lower_machine_contents(lowerer, machine)
+        lowerer.with_source_owner(machine.symbol, |lowerer| {
+            lowerer.with_type_reference_exposure(exposure, |lowerer| {
+                lower_machine_contents(lowerer, machine)
+            })
         })
     }
 
@@ -1078,8 +1080,10 @@ pub(crate) mod machine {
         let exposure = lowerer
             .type_reference_exposure
             .map(|_| AuthoredDeclarationSelectionExposure::PrivateImplementation);
-        lowerer.with_type_reference_exposure(exposure, |lowerer| {
-            lower_machine_implementation(lowerer, machine, typed_machine)
+        lowerer.with_source_owner(machine.symbol, |lowerer| {
+            lowerer.with_type_reference_exposure(exposure, |lowerer| {
+                lower_machine_implementation(lowerer, machine, typed_machine)
+            })
         })
     }
 

@@ -135,7 +135,9 @@ pub(crate) mod statement {
                 let expression = crate::expressions::build_selections::lower(
                     lowerer.source_trees,
                     &mut lowerer.typed_trees,
-                    request,
+                    request.request,
+                    request.inputs,
+                    lowerer.source_owner,
                     arguments,
                     call.operational_acknowledgement,
                 )?;
@@ -165,6 +167,7 @@ pub(crate) mod statement {
                     &call.machine_arguments,
                 )?;
                 return Ok(typed::statement::TableCall {
+                    authored_call_selection: call.authored_call_selection,
                     runtime_call: Some(typed::callable_values::RuntimeCallBinding {
                         callee,
                         contract: Default::default(),
@@ -962,6 +965,8 @@ pub(crate) mod statement {
                     slot: product_path(&binding.slot),
                     implementation,
                 }),
+                Vec::new(),
+                lowerer.source_owner,
                 arguments,
                 Default::default(),
             )?;

@@ -72,6 +72,7 @@ fn call(
         .static_machine_application_mut(application)
         .lexical_owner = holder;
     TableCallExpression {
+        runtime_call: None,
         authored_call_selection: None,
         authored_call_binding: None,
         build_selection: arena::Handle::invalid(),

@@ -18,11 +18,10 @@ things it did now has one owner, and this file only sequences them:
    typed frontier taken here, prepared by the same owner that prepares
    Product source (`SourcePreparationRequest`), and it stays with the
    accepted module. Build and Product use the same preparation path.
-2. Which packages' declarations the Build may select. That is decided on the
-   accepted module, whose declarations carry their package custody, by
-   Terminal installation. It has no admission for a Build activation yet, so
-   a request that carries package authority is refused after judgment; the
-   authority is never dropped.
+2. Which packages' declarations the Build may select. `admit_build_program`
+   produces this accepted source once and admits its source-selection companion
+   against that exact invocation, using separate Build and Product package
+   views. Structural validity and package permission remain separate judgments.
 3. Constants and provider plans. This admission evaluates no constant, so it
    discharges none: the Product's pending work stays whole, and a Build
    program that reads an unevaluated constant is refused by the checker. It
@@ -124,11 +123,6 @@ pub(crate) fn prepare_admitted_build(
             terminal_codec::TerminalPublication::Invocation,
         )
     })?;
-    if packages.is_some() {
-        return Err(vec![Diagnostic::error(
-            "no product route yet: the accepted Build program has no declaration-selection admission for its package authority",
-        )]);
-    }
     // Nothing is folded here (point 3 above), and the names come from the
     // accepted module, so a later frontier can tell there is nothing to
     // settle without assuming how this admission was reached.

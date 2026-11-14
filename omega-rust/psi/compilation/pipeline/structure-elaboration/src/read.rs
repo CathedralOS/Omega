@@ -56,6 +56,8 @@ use crate::{Unserved, refuse};
 pub(crate) struct Program<'t> {
     pub publication: terminal_codec::TerminalPublication,
     pub(super) typed: &'t TypedTrees,
+    /// Exact declarations admitted by this reader form, before source questions are captured.
+    pub(crate) admitted_declarations: typed_trees::references::DeclarationSelection,
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
     pub signatures: IdTable<MachineId, Signature>,
@@ -189,6 +191,7 @@ impl<'t> Program<'t> {
         Self {
             publication: terminal_codec::TerminalPublication::Portable,
             typed,
+            admitted_declarations: typed_trees::references::DeclarationSelection::from_symbols([]),
             symbols: IdTable::default(),
             signatures: IdTable::default(),
             callables: crate::callables::CallableNamespace::default(),

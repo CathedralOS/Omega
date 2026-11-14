@@ -4,6 +4,7 @@ call-graph closure (`synchronous_calls`).
 */
 
 pub(crate) mod compiler_evaluation {
+    use crate::declaration_selection::require_declaration_selection as require_selection;
     use semantic_vocabulary::compiler_evaluation::{
         CompilerEvaluationDeclaration, CompilerEvaluationEffects, DeclarationCustody,
         DeclarationSelectionAuthority, require_compiler_evaluation_floor,
@@ -1065,96 +1066,6 @@ pub(crate) mod compiler_evaluation {
             .compiler_evaluation
             .as_ref()
             .map_err(Clone::clone)
-    }
-
-    fn require_selection(
-        requester: DeclarationCustody,
-        owner: DeclarationCustody,
-        authority: Option<&dyn DeclarationSelectionAuthority>,
-    ) -> Result<(), String> {
-        match (requester, owner) {
-            (DeclarationCustody::Missing, _) | (_, DeclarationCustody::Missing) => {
-                Err("build-time invocation lacks compiler-owned source/package provenance".into())
-            }
-            // Exact checked selections bind the contract closure before lowering.
-            // Its retained role never grants a package caller a default std edge.
-            (DeclarationCustody::ToolchainContract, DeclarationCustody::Package(_))
-            | (DeclarationCustody::Package(_), DeclarationCustody::ToolchainContract) => {
-                Err("build-time invocation crosses closed-contract/package custody".into())
-            }
-            (DeclarationCustody::ToolchainContract, DeclarationCustody::ToolchainContract) => {
-                Ok(())
-            }
-            (DeclarationCustody::Toolchain, _) | (_, DeclarationCustody::Toolchain) => Ok(()),
-            (DeclarationCustody::Package(requester), DeclarationCustody::Package(owner))
-                if requester == owner =>
-            {
-                Ok(())
-            }
-            (DeclarationCustody::Package(requester), DeclarationCustody::Package(owner))
-                if authority.is_some_and(|authority| {
-                    authority.allows_declaration_selection(requester, owner)
-                }) =>
-            {
-                Ok(())
-            }
-            (DeclarationCustody::Package(requester), DeclarationCustody::Package(owner)) => {
-                let authority = authority
-                    .ok_or("build-time invocation has no direct dependency selection authority")?;
-                Err(format!(
-                    "build-time invocation selects package {} from package {} without direct dependency authority",
-                    authority.package_label(owner),
-                    authority.package_label(requester)
-                ))
-            }
-            (DeclarationCustody::UnownedUser, _) | (_, DeclarationCustody::UnownedUser) => Err(
-                "build-time invocation has user source without reconciled package custody".into(),
-            ),
-        }
-    }
-
-    #[test]
-    fn closed_contract_custody_never_substitutes_for_a_package_edge() {
-        struct AllowPackages;
-        impl DeclarationSelectionAuthority for AllowPackages {
-            fn allows_declaration_selection(
-                &self,
-                _: semantic_vocabulary::PackageKeyIdentity,
-                _: semantic_vocabulary::PackageKeyIdentity,
-            ) -> bool {
-                true
-            }
-            fn package_label(&self, _: semantic_vocabulary::PackageKeyIdentity) -> String {
-                "package".into()
-            }
-        }
-        let package = DeclarationCustody::Package(
-            semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]).unwrap(),
-        );
-        let contract = DeclarationCustody::ToolchainContract;
-        let core = DeclarationCustody::Toolchain;
-        for (requester, owner) in [
-            (package, contract),
-            (contract, package),
-            (DeclarationCustody::Missing, contract),
-        ] {
-            assert!(require_selection(requester, owner, Some(&AllowPackages)).is_err());
-        }
-        for (requester, owner) in [
-            (contract, contract),
-            (contract, core),
-            (core, contract),
-            (package, package),
-        ] {
-            assert!(require_selection(requester, owner, Some(&AllowPackages)).is_ok());
-        }
-        let other = DeclarationCustody::Package(
-            semantic_vocabulary::PackageKeyIdentity::from_digest([2; 32]).unwrap(),
-        );
-        assert!(require_selection(package, package, None).is_ok());
-        assert!(require_selection(package, other, None).is_err());
-        assert!(require_selection(package, other, Some(&AllowPackages)).is_ok());
-        assert!(require_selection(DeclarationCustody::Missing, core, None).is_err());
     }
 
     fn covered_recursive_edge(

@@ -411,7 +411,7 @@ mod transferred_on_one_path {
     fn invoke(callee: u64, arguments: Vec<Expression>, result: ValueType) -> Expression {
         expression(
             ExpressionKind::Call {
-                callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
+                callee: id::<semantic_vocabulary::MachineId>(callee).into(),
                 arguments,
                 designated: None,
             },

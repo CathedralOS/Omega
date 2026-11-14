@@ -138,20 +138,7 @@ pub enum CallableInvocationTarget {
     Opaque,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum CallableInvocationSite {
-    Invocation(InvocationSite),
-    CleanupAction { edge: EdgeId, action_ordinal: u32 },
-}
-
-impl CallableInvocationSite {
-    pub fn operation(self) -> Option<OperationId> {
-        match self {
-            Self::Invocation(InvocationSite::Operation(operation)) => Some(operation),
-            _ => None,
-        }
-    }
-}
+pub use semantic_vocabulary::CallableInvocationSite;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CallableInvocation {

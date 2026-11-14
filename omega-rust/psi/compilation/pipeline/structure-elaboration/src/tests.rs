@@ -202,7 +202,6 @@ fn lower_records(
     let signatures = crate::body::Signatures {
         machines: signatures,
         boundaries: &boundary_signatures,
-        completions: &IdTable::default(),
     };
     let declared = crate::lower::places::declare(
         id(1),

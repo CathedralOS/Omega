@@ -21,7 +21,6 @@ use language_semantics::declaration_selection::{
 use semantic_vocabulary::{BoundaryMachineId, InvocationSite, StructuralTypeId};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
-use structure_elaboration::SourceOrigin;
 use symbols::SymbolHandle;
 use terminal_psi::{StructuralFieldType, StructuralTypeShape, TerminalModule};
 use typed_trees::TypedTrees;
@@ -141,15 +140,14 @@ pub(crate) fn produce(
                 };
                 companions.filesystem.push(row);
             } else if protocol("BuildProductOperations") {
-                let SourceOrigin::Authored(occurrence) = elaboration
+                let occurrence = elaboration
                     .sources
                     .get(call.site.machine)
                     .and_then(|sources| sources.operations.get(call.site.operation))
                     .copied()
                     .ok_or_else(|| refused("a Build product query lost its source row"))?
-                else {
-                    return Err(refused("a Build product query has no authored occurrence"));
-                };
+                    .span()
+                    .ok_or_else(|| refused("a Build product query has no authored occurrence"))?;
                 let row = TerminalBuildQueryCall {
                     site: call.site,
                     action: query_operation(call.name)?,

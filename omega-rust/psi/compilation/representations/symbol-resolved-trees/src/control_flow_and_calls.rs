@@ -755,6 +755,57 @@ pub mod control_flow {
                 self.nodes.transition_targets.len()
             }
 
+            pub(crate) fn prepare_static_argument_rebases(
+                &self,
+                expressions: &crate::expression::ExpressionTable,
+                frontier: usize,
+                rebase: language_semantics::declaration_selection::AuthoredDeclarationSelectionSuffixRebase,
+            ) -> Result<
+                Vec<(
+                    Handle<StatementNode>,
+                    crate::expression::PreparedStaticArgumentRebase,
+                )>,
+                (),
+            > {
+                let mut prepared = Vec::new();
+                for (index, (handle, statement)) in self.nodes.statements.iter().enumerate() {
+                    let StatementNode::Call(call) = statement else {
+                        continue;
+                    };
+                    let arguments = expressions.prepare_static_argument_rebase(
+                        &call.machine_arguments,
+                        |occurrence| {
+                            if index < frontier {
+                                rebase.retain_base(occurrence)
+                            } else {
+                                rebase.rebase_appended(occurrence)
+                            }
+                        },
+                    )?;
+                    if index >= frontier {
+                        prepared.push((handle, arguments));
+                    }
+                }
+                Ok(prepared)
+            }
+
+            pub(crate) fn apply_static_argument_rebases(
+                &mut self,
+                expressions: &mut crate::expression::ExpressionTable,
+                prepared: Vec<(
+                    Handle<StatementNode>,
+                    crate::expression::PreparedStaticArgumentRebase,
+                )>,
+            ) {
+                for (handle, arguments) in prepared {
+                    let arguments = expressions.apply_static_argument_rebase(arguments);
+                    let StatementNode::Call(call) = self.nodes.statements.get_mut(handle) else {
+                        unreachable!("prepared folded call remains current")
+                    };
+                    call.machine_arguments = arguments;
+                }
+            }
+
             pub(crate) fn validate_authored_selection_rebase(
                 &self,
                 statement_frontier: usize,

@@ -798,6 +798,7 @@ pub(crate) mod seeded_continuation {
             typed_trees: candidate,
             source_trees: &source,
             equality_scope: None,
+            source_owner: SymbolHandle::invalid(),
             type_reference_exposure: Some(
                 AuthoredDeclarationSelectionExposure::PrivateImplementation,
             ),
@@ -872,6 +873,7 @@ pub(crate) mod seeded_continuation {
             typed_trees: candidate,
             source_trees: &source,
             equality_scope: None,
+            source_owner: SymbolHandle::invalid(),
             type_reference_exposure: Some(
                 AuthoredDeclarationSelectionExposure::PrivateImplementation,
             ),
@@ -1515,6 +1517,7 @@ pub fn lower_symbol_resolved_trees(
         },
         source_trees: symbol_resolved_trees,
         equality_scope: None,
+        source_owner: SymbolHandle::invalid(),
         type_reference_exposure:
             Some(language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation),
         admits_contract_policy_operators: false,
@@ -1922,6 +1925,7 @@ pub(crate) struct Lowerer<'source> {
     pub(crate) typed_trees: TypedTrees,
     pub(crate) source_trees: &'source SymbolResolvedTrees,
     pub(crate) equality_scope: Option<crate::expressions::equatable::EqualityScope>,
+    pub(crate) source_owner: SymbolHandle,
     pub(crate) type_reference_exposure:
         Option<language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure>,
     /// Set while the contracts of a machine or one of its states are lowered.
@@ -2043,6 +2047,17 @@ impl Lowerer<'_> {
             declaration.authored_initializer = authored_initializer;
         }
         Ok(())
+    }
+
+    pub(crate) fn with_source_owner<T>(
+        &mut self,
+        owner: SymbolHandle,
+        operation: impl FnOnce(&mut Self) -> Result<T, Diagnostic>,
+    ) -> Result<T, Diagnostic> {
+        let previous = std::mem::replace(&mut self.source_owner, owner);
+        let result = operation(self);
+        self.source_owner = previous;
+        result
     }
 
     pub(crate) fn with_type_reference_exposure<T>(

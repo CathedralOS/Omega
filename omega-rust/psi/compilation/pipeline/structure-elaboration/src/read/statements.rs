@@ -14,7 +14,7 @@ local.
 use semantic_vocabulary::MachineId;
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::expression::ExpressionNode;
-use typed_trees::statement::{TableAssignment, TableLocalData};
+use typed_trees::statement::{StatementHandle, StatementNode, TableAssignment, TableLocalData};
 
 use super::authority::Access;
 use super::{Program, Slot};
@@ -22,6 +22,27 @@ use crate::body::{ExpressionKind, Statement, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
 
 impl Program<'_> {
+    pub(super) fn call_statement_at(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        handle: StatementHandle,
+    ) -> Checked<crate::body::Expression> {
+        let StatementNode::Call(call) = self.typed.statement_table.statement(handle) else {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Statement("call occurrence does not name a call statement"),
+            ));
+        };
+        let source = self.authored_node(
+            id,
+            typed_trees::SourceNode::Statement(handle),
+            call.source_span,
+        )?;
+        self.call_statement(id, slots, call, source)
+    }
+
     pub(super) fn assignment(
         &mut self,
         id: MachineId,

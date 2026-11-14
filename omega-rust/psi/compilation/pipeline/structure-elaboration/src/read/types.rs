@@ -547,6 +547,7 @@ impl Program<'_> {
         if self.value_type(id, definition.target_type)? != plain {
             return unserved("constrained by a domain declared on another carrier");
         }
+        self.admitted_declarations.include(domain);
         Ok(())
     }
 

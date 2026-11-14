@@ -60,6 +60,7 @@ mod outcome;
 mod proof_scope;
 mod reach;
 mod read;
+pub mod selection_questions;
 mod static_contracts;
 
 pub use body::{
@@ -93,6 +94,13 @@ use typed_trees::TypedTrees;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SourceOrigin {
     Authored(source::SourceSpan),
+    /// A call or code selection keeps its exact typed occurrence and lexical
+    /// machine even when lowering folds its body into another machine.
+    AuthoredNode {
+        owner: SymbolHandle,
+        node: typed_trees::SourceNode,
+        span: Option<source::SourceSpan>,
+    },
     Unpositioned(Unpositioned),
 }
 
@@ -126,7 +134,15 @@ impl SourceOrigin {
     pub fn span(self) -> Option<source::SourceSpan> {
         match self {
             Self::Authored(span) => Some(span),
+            Self::AuthoredNode { span, .. } => span,
             Self::Unpositioned(_) => None,
+        }
+    }
+
+    pub fn node(self) -> Option<(SymbolHandle, typed_trees::SourceNode)> {
+        match self {
+            Self::AuthoredNode { owner, node, .. } => Some((owner, node)),
+            Self::Authored(_) | Self::Unpositioned(_) => None,
         }
     }
 
@@ -219,6 +235,10 @@ pub struct Elaboration {
     /// Nominal storage and field identities from this same typed-tree owner.
     /// Empty for raw bodies, which have no source declaration/application.
     pub source_records: Vec<typed_trees::SourceRecordCorrespondence>,
+    /// Exact source selections of this judged form. Raw body models have no
+    /// source roster. Package permission is admitted separately against the
+    /// aggregate of every accepted form, before any source program executes.
+    pub source_selection_questions: Option<selection_questions::RawSelectionQuestions>,
     /// What diagnostics call each machine's constructs, read from the typed
     /// trees (`names`). Empty for bodies lowered without typed trees
     /// (`lower_bodies`): a message then names identities only.
@@ -682,6 +702,7 @@ fn finish_logical_witness(
             program.requirements.push(id);
         }
     }
+    let source_selection_questions = capture_source_questions(&program, entry)?;
     let services = program.service_map(entry)?;
     let mut witness = lower_program(
         entry,
@@ -706,7 +727,22 @@ fn finish_logical_witness(
     witness.value_arguments = program.value_arguments;
     witness.applications = program.applications;
     witness.selections = program.selections;
+    witness.source_selection_questions = Some(source_selection_questions);
     Ok(witness)
+}
+
+fn capture_source_questions(
+    program: &read::Program<'_>,
+    entry: MachineId,
+) -> Checked<selection_questions::RawSelectionQuestions> {
+    selection_questions::capture(program.typed, &program.admitted_declarations).map_err(|error| {
+        Refusal {
+            machine: entry,
+            concerns: Construct::Machine,
+            reason: RefusalReason::Unsupported,
+            detail: error.to_string(),
+        }
+    })
 }
 
 fn elaborate_form(typed: &TypedTrees, entry: SymbolHandle, rigid: bool) -> Checked<Elaboration> {
@@ -742,6 +778,7 @@ fn finish_reading(
     let local_results = program.local_result_bodies(entry)?;
     program.finish_operational_envelopes(&bodies)?;
     program.prepare_external_providers(entry)?;
+    let source_selection_questions = capture_source_questions(&program, entry)?;
     let services = program.service_map(entry)?;
     let mut elaboration = lower_program(
         entry,
@@ -761,6 +798,7 @@ fn finish_reading(
         Some(program.typed),
     )?;
     elaboration.machines = program.symbols.clone();
+    elaboration.source_selection_questions = Some(source_selection_questions);
     crate::reach::publish(program.typed, entry, &services, &mut elaboration)?;
     if let Some(typed) = declared {
         declare::declare(
@@ -1117,6 +1155,7 @@ fn lower_program(
         module,
         tables,
         sources,
+        source_selection_questions: None,
         boundaries: IdTable::default(),
         source_records: Vec::new(),
         names: IdTable::default(),

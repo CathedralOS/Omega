@@ -78,6 +78,7 @@ impl Program<'_> {
         let Some(declaration) = typed.trait_definition_by_symbol(symbol) else {
             return Ok(false);
         };
+        self.admitted_declarations.include(symbol);
         let position = match self
             .static_contracts
             .schemas
@@ -200,6 +201,7 @@ impl Program<'_> {
         let Some(declaration) = typed.conformance_by_symbol(symbol) else {
             return Ok(false);
         };
+        self.admitted_declarations.include(symbol);
         let position = match self
             .static_contracts
             .formed

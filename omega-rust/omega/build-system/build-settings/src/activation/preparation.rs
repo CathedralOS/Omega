@@ -2,9 +2,9 @@
 Prepare an `AdmittedBuildProgram` for Terminal execution and settle its
 normal-return `ComputedBuildConfig` (`PreparedBuildExecution`).
 
-`PreparedBuildExecution::prepare` lowers the checked `Build` program into an
-invocation-scoped Terminal Psi artifact (`TerminalPublication::Invocation`),
-admits its `BuildProviderPlans` against the produced artifact view, and opens a
+`PreparedBuildExecution::prepare` takes the one invocation-scoped program whose
+source selections were admitted by `admit_build_program`, admits its
+`BuildProviderPlans` against that same produced artifact view, and opens a
 `100,000`-work `EvaluationInvocationAccount` under the caller's
 `BuildEvaluationSponsor` (or a standalone per-invocation sponsor with Terminal
 measurement identity if none was supplied).
@@ -41,7 +41,7 @@ impl PreparedBuildExecution {
         execution_purpose: artifacts::compile_timings::counters::BuildExecutionPurpose,
     ) -> Result<Self, Vec<Diagnostic>> {
         let AdmittedBuildProgram {
-            prepared,
+            produced,
             providers,
             machine,
             filesystem_scope,
@@ -52,8 +52,6 @@ impl PreparedBuildExecution {
             default_sources,
         } = admitted;
         let refuse = |reason: String| failed(&machine.name, &reason);
-        let produced =
-            prepared.produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)?;
         let providers = providers.admit(produced.view())?;
 
         let measurement = crate::activation::measurement();
@@ -81,7 +79,7 @@ impl PreparedBuildExecution {
             .map_err(|error| refuse(error.to_string()))?;
         Ok(Self {
             execution_purpose,
-            produced: Arc::new(produced),
+            produced,
             providers: Arc::new(providers),
             account,
             machine: Arc::new(machine),
