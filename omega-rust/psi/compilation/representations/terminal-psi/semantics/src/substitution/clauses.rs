@@ -331,6 +331,25 @@ mod tests {
                 conclusion: Box::new(Proposition::Falsehood),
             })
         );
+        let both = Proposition::Implication {
+            premise: Box::new(predicate(1)),
+            conclusion: Box::new(predicate(2)),
+        };
+        assert_eq!(
+            substitute_clause(&both, &mut Inputs),
+            Ok(Proposition::Implication {
+                premise: Box::new(predicate(2)),
+                conclusion: Box::new(predicate(1)),
+            })
+        );
+        let unknown_conclusion = Proposition::Implication {
+            premise: Box::new(Proposition::Falsehood),
+            conclusion: Box::new(predicate(3)),
+        };
+        assert_eq!(
+            substitute_clause(&unknown_conclusion, &mut Inputs),
+            Err("unbound value")
+        );
         let unbound = Proposition::Implication {
             premise: Box::new(predicate(3)),
             conclusion: Box::new(Proposition::Truth),
