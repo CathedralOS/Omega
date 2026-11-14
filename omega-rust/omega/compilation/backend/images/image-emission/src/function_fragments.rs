@@ -179,7 +179,7 @@ mod attribution {
                         ));
                     }
                 }
-                Control::Crash { psi_edge, .. } => {
+                Control::EliminateEmpty { psi_edge } | Control::Crash { psi_edge, .. } => {
                     push(SemanticCodeSite::Edge(*psi_edge), offset, length)?
                 }
                 Control::HostedExitProcess { completion_edge } => {
@@ -361,7 +361,9 @@ mod attribution {
                     }
                     Vec::new()
                 }
-                Control::Crash { psi_edge, .. } => vec![*psi_edge],
+                Control::EliminateEmpty { psi_edge } | Control::Crash { psi_edge, .. } => {
+                    vec![*psi_edge]
+                }
                 Control::HostedExitProcess { completion_edge } => vec![*completion_edge],
                 Control::Return { psi_return_edge } => vec![*psi_return_edge],
                 Control::Jump { successor } => {
@@ -511,7 +513,9 @@ mod attribution {
                     record(SemanticCodeSite::Edge(*edge));
                 }
                 match &instruction.control {
-                    Control::Crash { psi_edge, .. } => record(SemanticCodeSite::Edge(*psi_edge)),
+                    Control::EliminateEmpty { psi_edge } | Control::Crash { psi_edge, .. } => {
+                        record(SemanticCodeSite::Edge(*psi_edge))
+                    }
                     Control::HostedExitProcess { completion_edge } => {
                         record(SemanticCodeSite::Edge(*completion_edge));
                     }
@@ -636,7 +640,9 @@ mod attribution {
             }
             SemanticCodeSite::Edge(edge) => match &instruction.control {
                 Control::OperationTrap { .. } => false,
-                Control::Crash { psi_edge, .. } => ordinary && edge == *psi_edge,
+                Control::EliminateEmpty { psi_edge } | Control::Crash { psi_edge, .. } => {
+                    ordinary && edge == *psi_edge
+                }
                 Control::HostedExitProcess { completion_edge } => {
                     edge == *completion_edge && ordinary
                 }
