@@ -111,7 +111,7 @@ pub(crate) fn emit_target(
                 target: target_input.target_operations(),
                 source: optimized.plan(),
                 unit: optimized.unit(),
-                closed_types: target_input.lowering_facts().closed_module().closed_types(),
+                closed_module: target_input.lowering_facts().closed_module(),
                 origins: target_input.boundary_origins(),
                 installed_interrupts: target_input.lowering_facts().installed_interrupts(),
                 installed_entry_execution: target_input.installed_entry_execution(),

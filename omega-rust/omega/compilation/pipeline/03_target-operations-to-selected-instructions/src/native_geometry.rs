@@ -47,6 +47,17 @@ impl<'a> NativeGeometries<'a> {
     }
 }
 
+/// The published catalog must belong to the exact module used by origin
+/// admission. Clones of the retained owner share this immutable module.
+pub(crate) fn retained_types<'a>(
+    closed: &'a terminal_codec::ClosedTerminalModule,
+    psi: terminal_psi::TerminalPsiIdentity,
+    module: &terminal_psi::TerminalModule,
+) -> Option<&'a terminal_codec::ClosedTypeCatalog> {
+    (closed.identity() == psi && std::ptr::eq(closed.module(), module))
+        .then(|| closed.closed_types())
+}
+
 pub(crate) struct NativeInput<'a, T> {
     source: &'a T,
     geometry: &'a NativeGeometry<'a>,
@@ -153,6 +164,18 @@ mod tests {
         row.identity = identity;
         module.structural_types.push(row);
         let published = terminal_codec::ClosedTerminalModule::new(module).unwrap();
+        assert!(
+            super::retained_types(&published, published.identity(), published.module()).is_some()
+        );
+        let cloned = published.clone();
+        assert!(super::retained_types(&cloned, published.identity(), published.module()).is_some());
+        let foreign_owner =
+            terminal_codec::ClosedTerminalModule::new(published.module().clone()).unwrap();
+        assert_eq!(foreign_owner.identity(), published.identity());
+        assert!(
+            super::retained_types(&foreign_owner, published.identity(), published.module())
+                .is_none()
+        );
         let verified =
             super::NativeInput::with_types(&source, &geometry, Some(published.closed_types()));
         assert_eq!(verified.closed_integer(integer).unwrap().bits(), 13);

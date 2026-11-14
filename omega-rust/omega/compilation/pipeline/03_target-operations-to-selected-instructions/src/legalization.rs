@@ -503,14 +503,17 @@ pub fn verify_target_operation_plan(
     )
 }
 
-pub fn verify_target_operation_plan_with_types(
+pub fn verify_target_operation_plan_with_closed_module(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
     origins: target_operations::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
-    closed_types: &terminal_codec::ClosedTypeCatalog,
+    closed_module: &terminal_codec::ClosedTerminalModule,
 ) -> Result<(), LegalizationError> {
+    let closed_types =
+        crate::native_geometry::retained_types(closed_module, target.psi, origins.module)
+            .ok_or_else(LegalizationError::custody)?;
     verify_target_operation_plan_input(
         target,
         abstract_plan,
