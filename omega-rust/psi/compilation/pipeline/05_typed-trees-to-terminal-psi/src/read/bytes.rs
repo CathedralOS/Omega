@@ -76,7 +76,7 @@ pub(super) fn source_byte_view(
     };
     let element = super::types::atom_type(atom, machine)?;
     if !matches!(element, semantic_vocabulary::ScalarType::Integer(integer)
-        if integer.bits() == 8 && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && !integer.is_address())
+        if integer.bits() == Some(8) && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && !integer.is_address())
     {
         return Ok(None);
     }
@@ -132,7 +132,7 @@ pub(super) fn primitive_byte_domain(
                         if typed.symbols.builtin_type_atom(*symbol).is_some_and(|atom| {
                             matches!(super::types::atom_type(atom, machine),
                                 Ok(semantic_vocabulary::ScalarType::Integer(integer))
-                                    if integer.bits() == 8
+                                    if integer.bits() == Some(8)
                                         && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
                                         && !integer.is_address())
                         })))
