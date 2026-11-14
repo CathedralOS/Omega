@@ -653,9 +653,7 @@ mod type_structure {
                     .selected_constructor_constant(name, parameter_type)?
                     .decode_encoding()
                 {
-                    Some(DecodedCanonicalConstValue::Integer { value, .. }) => {
-                        Ok(Some(BigInt::from_i128(value)))
-                    }
+                    Some(DecodedCanonicalConstValue::Integer { value, .. }) => Ok(Some(value)),
                     _ => {
                         Err(self
                             .type_structure_error("requires an integer constructor constant", span))
@@ -1675,7 +1673,7 @@ mod type_structure {
                                 name.source_span(),
                             ));
                         };
-                        BigInt::from_i128(value)
+                        value
                     } else {
                         return Err(
                             self.type_structure_error("requires a closed array length", span)

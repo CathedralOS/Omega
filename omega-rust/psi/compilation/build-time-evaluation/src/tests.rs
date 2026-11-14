@@ -768,7 +768,7 @@ fn constant_dependencies_are_evaluated_before_their_callers() {
     let value = typed_trees::canonical_const_declaration_value(&program, last.symbol).unwrap();
     assert!(matches!(
         value.decode_encoding(),
-        Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer { value: 5, .. })
+        Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer { value, .. }) if value == numerics::bignum::BigInt::from(5)
     ));
     let extra = program
         .const_declarations()
@@ -778,7 +778,7 @@ fn constant_dependencies_are_evaluated_before_their_callers() {
     let value = typed_trees::canonical_const_declaration_value(&program, extra.symbol).unwrap();
     assert!(matches!(
         value.decode_encoding(),
-        Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer { value: 6, .. })
+        Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer { value, .. }) if value == numerics::bignum::BigInt::from(6)
     ));
 }
 
@@ -827,9 +827,12 @@ fn a_constant_receipt_cannot_be_swapped_rewritten_or_reused_after_source_changes
         .const_declarations
         .get_mut(handles[0])
         .evaluated_value = Some(
-        language_semantics::const_value::CanonicalConstIdentity::integer("u64", 99)
-            .encoding
-            .into(),
+        language_semantics::const_value::CanonicalConstIdentity::integer(
+            numerics::literals::LandedIntegerType::U64,
+            99,
+        )
+        .encoding
+        .into(),
     );
     assert!(
         crate::validate_constant_evaluations(&changed, &recorded.accounting)
@@ -991,7 +994,7 @@ fn constant_snapshots_preserve_boolean_and_unsigned_high_bits() {
             ),
             "HIGH" => assert!(
                 matches!(value, language_semantics::const_value::DecodedCanonicalConstValue::Integer { value, .. }
-                if value == i128::from(u64::MAX))
+                if value == numerics::bignum::BigInt::from(u64::MAX))
             ),
             _ => panic!("only authored constants are inspected"),
         }
