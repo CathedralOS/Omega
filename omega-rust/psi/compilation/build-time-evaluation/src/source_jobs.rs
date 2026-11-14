@@ -1282,6 +1282,114 @@ pub(crate) mod tests {
         );
     }
 
+    #[test]
+    fn actual_float_bit_views_keep_their_declared_scalar_homes() {
+        // Exposing a float's integer bits must borrow its original float storage.
+        // Check the actual core helpers with their declared inputs; the
+        // application's overloaded from_bits calls are a separate unresolved path.
+        let source = with_reflection(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../../../samples/cli/facts/core_float_representation/local/main.omg"
+        )));
+        let requester = query_machine(&source, "main");
+        let span = source.symbols.symbol_source_span(requester).unwrap();
+        let candidates = source.symbols.top_level_candidates_from_source(
+            "float::to_bits",
+            &[symbols::SymbolKind::Machine],
+            span,
+        );
+        assert_eq!(candidates.len(), 2, "both actual public float declarations");
+        let declarations = candidates
+            .into_iter()
+            .map(|symbol| {
+                let machine = source.machine_by_symbol(symbol).unwrap();
+                let declaration_span = source.symbols.symbol_source_span(symbol).unwrap();
+                assert!(
+                    source
+                        .symbols
+                        .source_file(declaration_span)
+                        .unwrap()
+                        .path
+                        .ends_with("core/float.omg")
+                );
+                let [state] = source.machine_states(machine) else {
+                    panic!("one original helper entry")
+                };
+                let [formal] = source.state_parameters(state) else {
+                    panic!("one declared float input")
+                };
+                let typed_trees::types::TypeReferenceNode::Named { symbol: scalar, .. } = source
+                    .type_reference_table
+                    .type_reference(formal.type_reference)
+                else {
+                    panic!("the declared builtin float")
+                };
+                let format = match source.symbols.builtin_type_atom(*scalar) {
+                    Some(symbols::BuiltinTypeAtom::F32) => {
+                        semantic_vocabulary::IeeeFloatFormat::Binary32
+                    }
+                    Some(symbols::BuiltinTypeAtom::F64) => {
+                        semantic_vocabulary::IeeeFloatFormat::Binary64
+                    }
+                    other => panic!("unexpected public input {other:?}"),
+                };
+                (
+                    symbols::RetainedDeclaration::capture(&source.symbols, symbol).unwrap(),
+                    format,
+                )
+            })
+            .collect::<Vec<_>>();
+        for format in [
+            semantic_vocabulary::IeeeFloatFormat::Binary32,
+            semantic_vocabulary::IeeeFloatFormat::Binary64,
+        ] {
+            assert!(declarations.iter().any(|(_, actual)| *actual == format));
+        }
+        let (prepared, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            source,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .unwrap();
+        let prepared = Arc::new(prepared);
+        for (declaration, format) in declarations {
+            let symbol = declaration
+                .rejoin(
+                    &prepared.symbols,
+                    prepared.machines().iter().map(|machine| machine.symbol),
+                )
+                .unwrap();
+            let accepted = psi_terminal_production::AcceptedTerminalSource::judge(
+                Arc::clone(&prepared),
+                psi_terminal_production::TerminalSourceCompilation {
+                    declaration_metadata: &[],
+                    entries: &[symbol],
+                    subjects: &[],
+                    purpose: source::DependencyScope::Product,
+                    selected: &[],
+                    bindings: &[],
+                    supplies: &[],
+                },
+                terminal_codec::TerminalPublication::Portable,
+            )
+            .unwrap();
+            let module = accepted.module();
+            let scalar = semantic_vocabulary::ScalarType::IeeeFloat(format);
+            assert!(
+                module.structural_types.iter().any(|declaration| {
+                    declaration.shape == terminal_psi::StructuralTypeShape::PrimitiveScalar(scalar)
+                }),
+                "the helper retains its original IEEE storage identity"
+            );
+            assert!(module.machines.iter().flat_map(|machine| machine.operations()).any(|operation| {
+                matches!(operation.kind, terminal_psi::OperationKind::EstablishReference {
+                    storage: Some(terminal_psi::ReferenceStorageView { stored_scalar: Some(stored), .. }), ..
+                } if stored == scalar)
+            }), "the actual helper presents its IEEE storage as integer bits");
+            let bytes = terminal_codec::encode_module(module).unwrap();
+            assert_eq!(terminal_codec::decode_module(&bytes).unwrap(), *module);
+        }
+    }
+
     /// The machine `name` that a `with_reflection` query declares. The real
     /// core is typed beside the query and its nested machines take ordinary
     /// names (`core/wire.omg` declares a `payload`), so a lookup by name
