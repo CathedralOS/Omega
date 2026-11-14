@@ -56,9 +56,13 @@ impl Axis {
     const ALL: [Axis; 2] = [Axis::Reach, Axis::Entries];
 
     fn of_machine(self, machine: &TerminalMachine) -> &[ServiceId] {
+        self.of_contract(&machine.contract)
+    }
+
+    fn of_contract(self, contract: &terminal_psi::MachineContract) -> &[ServiceId] {
         match self {
-            Axis::Reach => &machine.published_service_ceiling,
-            Axis::Entries => &machine.published_synchronous_entries,
+            Axis::Reach => &contract.published_service_ceiling,
+            Axis::Entries => &contract.published_synchronous_entries,
         }
     }
 
@@ -194,9 +198,9 @@ pub(crate) fn judge(module: &TerminalModule, tables: &CheckTables) -> Checked<Ve
             };
             for axis in Axis::ALL {
                 let contributes = match callee {
-                    TargetMachineCallable::Machine(callee) => {
-                        module.machine(callee).map(|callee| axis.of_machine(callee))
-                    }
+                    TargetMachineCallable::Machine(callee) => module
+                        .invocation_machine_contract(callee, call.required_contract)
+                        .map(|contract| axis.of_contract(contract)),
                     TargetMachineCallable::Boundary(callee) => module
                         .boundary_machine(callee)
                         .map(|callee| axis.of_boundary(callee)),

@@ -724,6 +724,61 @@ machine entry() -> u32 reaches none crashes none { chosen() }
 }
 
 #[test]
+fn named_selected_calls_keep_their_public_reach_ceiling() {
+    // A literal-returning implementation still contributes the public service
+    // ceiling at its selected call. Only the caller's written ceiling changes.
+    for (ceiling, accepts) in [("Service", true), ("none", false)] {
+        let typed = typed(&format!(
+            "boundary trait Service {{}}
+             trait Read {{ machine value() -> u32 reaches Service crashes none; }}
+             Named satisfies Read {{
+                 machine value() -> u32 reaches none crashes none {{ 7 }}
+             }}
+             machine entry() -> u32 reaches {ceiling} crashes none {{ Named::value() }}"
+        ));
+        let entry = entry(&typed);
+        let verdicts = crate::judge_compilation(
+            typed_trees_to_terminal_psi::prepare_compilation(
+                &typed,
+                typed_trees_to_terminal_psi::Compilation {
+                    declaration_metadata: &[],
+                    entries: &[entry],
+                    subjects: &[],
+                    purpose: source::DependencyScope::Product,
+                    selected: &[],
+                    bindings: &[],
+                    supplies: &[],
+                },
+                terminal_codec::TerminalPublication::Invocation,
+            )
+            .program,
+        );
+        if accepts {
+            let Ok(RouteVerdict::Accepted(accepted)) = &verdicts[0] else {
+                panic!("the written public ceiling covers the selected call: {verdicts:?}")
+            };
+            let module = &accepted.elaboration.module;
+            let call = module.machines[0].module_invocations().next().unwrap();
+            let contract = module
+                .invocation_machine_contract(call.inputs.callee, call.inputs.required_contract)
+                .unwrap();
+            assert!(call.inputs.required_contract.is_some());
+            assert_eq!(contract.published_service_ceiling.len(), 1);
+            assert_eq!(
+                module.machines[0].published_service_ceiling,
+                contract.published_service_ceiling
+            );
+        } else {
+            assert!(
+                matches!(&verdicts[0], Ok(RouteVerdict::Rejected { exceeded, .. })
+                    if !exceeded.is_empty()),
+                "{verdicts:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn a_declared_conformer_cannot_be_rebound_by_a_selection_row() {
     let text = declared_source("", "input - 1", "7", "")
         + r#"

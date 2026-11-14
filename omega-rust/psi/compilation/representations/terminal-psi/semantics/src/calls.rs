@@ -1418,6 +1418,15 @@ pub mod closed_conformances {
             .iter()
             .collect::<Vec<_>>();
         applications.sort_unstable_by_key(|application| application_key(application));
+        let mut proof_calls = module
+            .proof_output_calls
+            .iter()
+            .filter_map(|call| {
+                call.runtime_call
+                    .map(|runtime| ((call.caller, runtime.site), call, runtime.callee))
+            })
+            .collect::<Vec<_>>();
+        proof_calls.sort_unstable_by_key(|(site, _, _)| *site);
         for invocation in &module.proof_output_calls {
             let Some(dispatch) = &invocation.static_requirement_dispatch else {
                 continue;
@@ -1460,6 +1469,24 @@ pub mod closed_conformances {
                     dispatch,
                     invocation.inputs.callee,
                 )?;
+                // A proof sidecar on this ordinary call keeps the same public
+                // selection. It cannot describe the physical body as a direct
+                // proof call while the operation names a public requirement.
+                let site = (machine.id, invocation.site);
+                let start = proof_calls.partition_point(|(key, _, _)| *key < site);
+                let end = proof_calls.partition_point(|(key, _, _)| *key <= site);
+                if end - start > 1 {
+                    return Err("selected public call has ambiguous proof-call correspondence");
+                }
+                for (_, proof, callee) in &proof_calls[start..end] {
+                    if *callee != invocation.inputs.callee
+                        || proof.static_requirement_dispatch.as_ref() != Some(dispatch)
+                    {
+                        return Err(
+                            "selected proof call differs from its operation's public contract",
+                        );
+                    }
+                }
                 let declaration = contract
                     .declaration
                     .as_ref()

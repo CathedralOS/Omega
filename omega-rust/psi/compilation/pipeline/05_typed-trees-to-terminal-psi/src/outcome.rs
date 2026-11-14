@@ -389,7 +389,10 @@ impl Walk<'_> {
                 Ok(true)
             }
             ExpressionKind::Call {
-                callee, arguments, ..
+                callee,
+                required_contract,
+                arguments,
+                ..
             } => {
                 for argument in arguments {
                     if !self.expression(machine, argument)? {
@@ -458,22 +461,30 @@ impl Walk<'_> {
                 })?;
                 let completes = reached.completes_normally;
                 let causes = reached.causes.clone();
-                let signature = self.signatures.get((*callee).into(), machine)?;
+                let signature =
+                    self.signatures
+                        .invocation((*callee).into(), *required_contract, machine)?;
                 let mut joins = Vec::with_capacity(Axis::ALL.len());
                 for axis in Axis::ALL {
-                    let row = self.published_row(*callee, axis, reached, false)?;
-                    // An open requirement is itself the open call; a machine
-                    // with a written ceiling closes whatever its body calls.
-                    let open = match signature.ceiling(axis) {
-                        Ceiling::Authored(_) => false,
+                    let (row, open) = match signature.ceiling(axis) {
+                        Ceiling::Authored(row) => (row.clone(), false),
                         Ceiling::Inferred => {
-                            reached.contributed[axis as usize].open
-                                || self.requirements.contains(callee)
+                            let physical = self.signatures.get((*callee).into(), machine)?;
+                            let open = matches!(physical.ceiling(axis), Ceiling::Inferred)
+                                && (reached.contributed[axis as usize].open
+                                    || self.requirements.contains(callee));
+                            (self.published_row(*callee, axis, reached, false)?, open)
                         }
                     };
                     joins.push((axis, row, open));
                 }
-                let published = self.published(*callee, &causes)?;
+                // A written public ceiling governs this call even if its
+                // selected implementation promises less. Only an omitted
+                // ceiling is closed from that exact body's outcome.
+                let published = match signature.declared_crash_routes() {
+                    Some(routes) => routes.to_vec(),
+                    None => self.published(*callee, &causes)?,
+                };
                 self.causes
                     .extend(published.iter().map(|bucket| bucket.cause));
                 for (axis, row, open) in joins {

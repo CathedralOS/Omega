@@ -149,7 +149,15 @@ pub fn reverify_at_call(
             ));
         }
     }
-    let contract = &crate::terminal_machine(&elaboration.module.machines, callee, caller)?.contract;
+    let contract = elaboration
+        .module
+        .invocation_machine_contract(callee, row.required_contract)
+        .ok_or_else(|| {
+            refuse(
+                RefusalReason::ForeignIdentity,
+                "call has no exact published contract",
+            )
+        })?;
     let ensures = usize::try_from(clause)
         .ok()
         .and_then(|clause| contract.ensures.get(clause))

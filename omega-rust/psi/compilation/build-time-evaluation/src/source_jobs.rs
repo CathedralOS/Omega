@@ -1190,6 +1190,42 @@ pub(crate) mod tests {
         }
         let bytes = terminal_codec::encode_module(module).unwrap();
         assert_eq!(terminal_codec::decode_module(&bytes).unwrap(), *module);
+        let (caller, call) = module
+            .machines
+            .iter()
+            .find_map(|machine| {
+                machine
+                    .module_invocations()
+                    .find(|call| call.inputs.required_contract == Some(calls[0].0))
+                    .map(|call| (machine.id, call))
+            })
+            .unwrap();
+        let header = module.declaration_contract(calls[0].0).unwrap();
+        let mut forged = module.clone();
+        forged
+            .proof_output_calls
+            .push(terminal_psi::ProofOutputCall {
+                caller,
+                ordinal: 0,
+                target_machine_identity: header.declaration.as_ref().unwrap().callable,
+                static_requirement_dispatch: None,
+                runtime_result: Some(terminal_psi::ProofOutputRuntimeResult::Scalar(
+                    header.result.scalar_ref().unwrap().scalar_type,
+                )),
+                runtime_call: Some(terminal_psi::ProofOutputRuntimeCall {
+                    site: call.site,
+                    callee: call.inputs.callee,
+                }),
+                evidence_arguments: Vec::new(),
+                outputs: Vec::new(),
+            });
+        assert_eq!(
+            terminal_codec::decode_module(&terminal_codec::encode_module(&forged).unwrap())
+                .unwrap_err(),
+            terminal_codec::CodecError::MalformedStructuralFoundation(
+                "selected proof call differs from its operation's public contract"
+            )
+        );
         let mut previous_format = bytes.clone();
         previous_format[8..10].copy_from_slice(&262u16.to_le_bytes());
         assert_eq!(

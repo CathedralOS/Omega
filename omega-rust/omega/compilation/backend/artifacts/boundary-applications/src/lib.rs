@@ -469,7 +469,7 @@ mod comparison_tests {
                     structural_parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
-            required_contract: None,
+                        required_contract: None,
                         suspension_crossing: None,
                         id: OperationId::new(1).unwrap(),
                         result: OperationResult::Scalar(value(3, ScalarType::Boolean)),

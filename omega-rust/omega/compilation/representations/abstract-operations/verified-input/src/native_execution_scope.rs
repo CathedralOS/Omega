@@ -300,7 +300,7 @@ impl NativeExecutionScope {
                                 .map(|callback| callback.callback_thunk_artifact().entry()),
                         );
                     }
-                    if let Some(invocation) = operation.module_invocation() {
+                    if let Some(invocation) = operation.kind.module_invocation() {
                         pending.push(invocation.callee);
                     }
                     match &operation.kind {
