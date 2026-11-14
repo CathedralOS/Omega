@@ -890,9 +890,12 @@ mod bound_mapping {
         let [sign_evidence, bound_evidence] = parts.as_slice() else {
             return Err(IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch);
         };
-        let one = ScalarTerm::integer(form.integer_type(), form.integer_type().one())
-            .map_err(|_| IntegerAffineBoundConversionError::DirectMultiplyEvidenceMismatch)?;
-        let positive = sign_evidence == &Proposition::LessOrEqual(one, right.as_ref().clone());
+        // `i1` holds neither 1 nor -2, so no sign premise names its operand and the rule
+        // declines below.
+        let one = ScalarTerm::integer(form.integer_type(), form.integer_type().one()).ok();
+        let positive = one.is_some_and(|one| {
+            sign_evidence == &Proposition::LessOrEqual(one, right.as_ref().clone())
+        });
         let negative_two = ScalarTerm::integer(form.integer_type(), IntegerValue::Signed(-2)).ok();
         let negative = negative_two.is_some_and(|negative_two| {
             sign_evidence == &Proposition::LessOrEqual(right.as_ref().clone(), negative_two)
