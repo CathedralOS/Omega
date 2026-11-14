@@ -699,6 +699,15 @@ pub(super) struct Chosen {
     parameters: Vec<Option<ValueId>>,
 }
 
+/// A captured call loan and the staging home, if evaluating the argument
+/// created a descriptor value that its normal continuation must retire.
+pub(super) struct Lent {
+    pub argument: (PlaceId, Vec<Step>, StructuralAccess),
+    pub place: ExactPlaceId,
+    pub lender: Lender,
+    pub temporary: Option<PlaceId>,
+}
+
 /// The storage a record-typed expression names, before anything is copied.
 #[derive(Debug, Clone)]
 struct Located {
@@ -1430,7 +1439,7 @@ impl<'a> Lowering<'a> {
         place: &Expression,
         access: language_core::ReferenceAccess,
         home_identity: Option<&str>,
-    ) -> Checked<((PlaceId, Vec<Step>, StructuralAccess), ExactPlaceId, Lender)> {
+    ) -> Checked<Lent> {
         let lent_access =
             borrowed_access(access).ok_or_else(|| self.internal("a write-only loan"))?;
         let value_type = place
@@ -1438,22 +1447,43 @@ impl<'a> Lowering<'a> {
             .ok_or_else(|| self.internal("a loan of a Unit value"))?;
         let shared_view = match value_type {
             ValueType::Record(record, _, _) => match &self.record_type(record)?.shape {
-                StorageShape::ByteSequence(carrier) => carrier.is_shared_readable_view(),
+                StorageShape::ByteSequence(carrier) if carrier.is_shared_readable_view() => {
+                    Some(record)
+                }
                 StorageShape::ElementView {
                     access: Some(StructuralAccess::SharedBorrow),
                     ..
-                } => true,
-                _ => false,
+                } => Some(record),
+                _ => None,
             },
-            _ => false,
+            _ => None,
         };
-        let (root, steps, exact, actual) =
-            if shared_view && access == language_core::ReferenceAccess::Shared {
-                let at = self.located(place)?;
-                (at.root, at.path, at.place, ValueType::record(at.record))
-            } else {
-                self.capture_place(place, home_identity)?
-            };
+        let (root, steps, exact, actual, temporary) = if let Some(record) = shared_view
+            && access == language_core::ReferenceAccess::Shared
+        {
+            // A view argument captures its descriptor now, before later
+            // arguments can replace the source slot. The ordinary copy
+            // retains the original backing and its exact source version;
+            // the call borrows this value, not the carrier's old home.
+            if !self.record_type(record)?.copyable {
+                return Err(refuse(
+                    self.id,
+                    Construct::Machine,
+                    Unserved::Call("shared-view descriptor without copy permission"),
+                ));
+            }
+            let root = self.record(place)?;
+            (
+                root,
+                Vec::new(),
+                self.exact_root(root)?,
+                ValueType::record(record),
+                Some(root),
+            )
+        } else {
+            let (root, steps, exact, actual) = self.capture_place(place, home_identity)?;
+            (root, steps, exact, actual, None)
+        };
         if actual.erased() != value_type.erased() {
             return Err(self.internal("a loan has another type than its captured place"));
         }
@@ -1463,7 +1493,12 @@ impl<'a> Lowering<'a> {
         } else {
             Lender::Owner
         };
-        Ok(((root, steps, lent_access), exact, lender))
+        Ok(Lent {
+            argument: (root, steps, lent_access),
+            place: exact,
+            lender,
+            temporary,
+        })
     }
 
     /// Capture an existing place using the same expression and declared

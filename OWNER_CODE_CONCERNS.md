@@ -80,13 +80,6 @@ framework or a list of features that remain unimplemented.
 - Cost: the earlier source stages cannot enforce the same adjacent-stage dependency ban as the numbered Terminal stages; one stage still reconstructs input meaning through its predecessor
 - Reported: 2026-11-13, Codex, while separating Psi 05/06 preparation and checking
 
-### A view passed from a place is lent as that place, so it conflicts with a loan of its holder
-- Category: one idea, several implementations
-- Where: `05_typed-trees-to-terminal-psi/src/read/calls.rs:1453` (`lent_storage_is_untouched` with `holds_view`), `lower/calls.rs:65` (`arguments`, the `Borrow` arm), `lower/places.rs:1428` (`lend`), `06_terminal-psi-to-terminal-psi/src/places/loans.rs`
-- Saw: the reader says a place that holds a byte view "lends none of its binding's storage: the callee is given the view", and so allows `both(&mut session, session.name)`. Lowering then passes the view as a shared loan of the place `session.name`, and the checker rejects the call: "state `both` receives `session` as both mutable and read-only". The same holds for a view in a case payload. A source audit at `f9bbfeac3f5` also finds that `lend` retains the descriptor slot's root/path without materializing its value before later arguments. [Evaluation order](wiki/spec/language/expressions.md#evaluation-schedule) and [descriptor loans](wiki/spec/terminal-psi/structural_access.md#store-vocabulary) require the captured backing, rather than a loan of the carrier slot. No runtime misbehavior from later-argument replacement has been demonstrated.
-- Cost: a correct program is rejected, not refused as unsupported, and the message blames the author. The shared argument producer must capture the descriptor at its evaluation point; weakening overlap checks or reading its source slot only at the eventual call would not preserve that value.
-- Reported: 2026-11-13, Claude Code, while lending case payloads; extended 2026-11-14, Codex, while binding view-length call requirements
-
 ### Whether a type is a scalar is decided twice, once by its spelling and once by its symbol
 - Category: one idea, several implementations
 - Where: `typed-trees/src/type_system.rs` (`TypeReferenceNode::primitive_type` calls `PrimitiveType::from_name(name)`; `type_symbol` returns no symbol when the name spells a primitive); `05_typed-trees-to-terminal-psi/src/read/types.rs` (`atom_type` through `SymbolTable::builtin_type_atom`); `symbol-resolved-trees/src/type_system_and_names.rs` (a second `PrimitiveType` with its own `from_name`)

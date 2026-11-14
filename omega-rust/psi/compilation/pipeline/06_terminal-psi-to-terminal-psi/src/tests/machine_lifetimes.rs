@@ -236,6 +236,7 @@ machine request(explicit_alias: bool, alias: &[u8], source: Source) {{
 }}
 machine path(explicit_alias: bool, alias: &[u8], location: &[u8]) {{ }}
 machine whole(alias: &[u8], description: Description) {{ }}
+machine whole_source(source: &Source, description: Description) {{ }}
 "#
         )
     };
@@ -245,13 +246,19 @@ machine whole(alias: &[u8], description: Description) {{ }}
         )),
         "accepted"
     );
-    // A stored view lends none of its record's storage, so the reader lets
-    // the record be named beside it; the twin hands the whole record over
-    // while the view's field is still passed in place, and the checker
-    // rejects that use of storage already given away.
+    // The first argument captures the shared descriptor before the second
+    // transfers its carrier. Its backing remains the original literal;
+    // moving the carrier does not consume those bytes.
     assert_eq!(
         verdict(&program("whole(description.alias, description);")),
-        "rejected"
+        "accepted"
+    );
+    // A reference to an inline record still refers to its carrier's
+    // storage. Snapshotting shared views must not remove the source guard
+    // against transferring that same storage in another argument.
+    assert_eq!(
+        verdict(&program("whole_source(&description.source, description);")),
+        "call argument that names storage another argument lends"
     );
 }
 
