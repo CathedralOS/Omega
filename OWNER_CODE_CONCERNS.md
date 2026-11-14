@@ -219,13 +219,6 @@ framework or a list of features that remain unimplemented.
 - Cost: the type-graph rules live once on each side of the Psi/Omega boundary, so a fix on one side leaves the other accepting or rejecting something different, with no test found tying them together
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### "Is this domain exposed to this reference" has a shared predicate and two private rewrites
-- Category: one idea, several implementations
-- Where: `omega-rust/psi/foundation/symbols/src/table.rs:963` (comment at `:937-942` calls it "this shared predicate"), `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection.rs:2598`, `omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/type_reference.rs:482`
-- Saw: the shared one checks visibility, same package and module, ambient toolchain symbols and what each import binding exposes; the stage 02 copy compares module names and import paths as strings with no visibility or package test; the stage 03 copy compares module symbols, matches import paths as strings and answers false when there is no reference span
-- Cost: a change to import or visibility rules made in the symbol table does not reach operator-home selection in stage 02 or domain lookup in stage 03, so the stages can disagree on which domain a name selects
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### The default ranking view is derived differently in resolution and typing
 - Category: re-deriving
 - Where: `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering_machine.rs` (`elaborate_single_subject_default`); `03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs` (`pending_ranking_default`)
