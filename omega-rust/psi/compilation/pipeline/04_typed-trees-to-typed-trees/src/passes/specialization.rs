@@ -324,10 +324,9 @@ fn serve(
         return Ok(());
     };
     if program
-        .symbols
-        .get(applied.target)
-        .generated_from
-        .is_valid()
+        .executable_application_template(callee)
+        .map_err(Stop::Defect)?
+        .is_some()
     {
         return enter_generated(program, site, &applied, callee, &arguments, instances);
     }
@@ -366,6 +365,10 @@ fn serve(
     for ((parameter, kind), argument) in parameters.iter().zip(&arguments) {
         operands.push(Operand::read(program, *parameter, kind, argument)?);
     }
+    program
+        .expression_table
+        .static_machine_application_mut(applied.application)
+        .binding_declaration = callee;
     bind(program, applied.application, &operands);
     // An argument that names a parameter of the enclosing generic machine
     // leaves the application open: it is closed in each machine generated
@@ -1142,8 +1145,10 @@ fn copied_parts(
         .chain([state.return_type])
         .collect::<Vec<_>>();
     for root in roots.into_iter().filter(|root| root.is_valid()) {
+        types.extend(
+            typed_trees::references::collect_expression_references(program, root).type_references,
+        );
         program.subtree_for_each(root, SubtreeEdges::default(), |_handle, node| {
-            types.extend(held_types(node));
             copied &= match node {
                 ExpressionNode::Call(call) => {
                     call.layout_query.is_none()
@@ -1186,44 +1191,6 @@ fn copy_expression(
     copied
 }
 
-/// Copies a type into fresh rows and renames the declarations it mentions.
-/// `template` admitted no type that holds an expression of its own.
-fn copy_type(
-    program: &mut TypedTrees,
-    reference: TypeReferenceHandle,
-    symbols: SymbolRebinding<'_>,
-) -> Served<TypeReferenceHandle> {
-    if !reference.is_valid() {
-        return Ok(reference);
-    }
-    let mut staging = TypedTreeTables::default();
-    let mut embedded = Vec::new();
-    let staged = staging.type_reference_table.copy_with_expressions(
-        &program.type_reference_table,
-        &program.expression_table,
-        &mut staging.expression_table,
-        reference,
-        &mut embedded,
-    );
-    if !embedded.is_empty() {
-        return Err(Stop::Defect(
-            "a type copied for a generated machine holds an expression",
-        ));
-    }
-    let tables = &mut program.tables;
-    let copied = tables.type_reference_table.copy_with_expressions(
-        &staging.type_reference_table,
-        &staging.expression_table,
-        &mut tables.expression_table,
-        staged,
-        &mut embedded,
-    );
-    tables
-        .type_reference_table
-        .remap_symbols_in(copied, &mut tables.expression_table, symbols);
-    Ok(copied)
-}
-
 fn copy_contract(
     program: &mut TypedTrees,
     contract: &SignatureContract,
@@ -1249,7 +1216,7 @@ fn copy_contract(
 }
 
 /// Whether any type among `references` holds an expression, which
-/// `copy_type` does not carry.
+/// specialization does not evaluate.
 fn holds_expression(program: &TypedTrees, references: &[TypeReferenceHandle]) -> bool {
     let mut staging = TypedTreeTables::default();
     let mut embedded = Vec::new();
@@ -1453,7 +1420,6 @@ fn copy_declarations(
         state.symbol = copied_symbol(&renamed, source_state.symbol)?;
         state.parameters = HandleSpan::empty();
         state.contracts = HandleSpan::empty();
-        state.return_type = copy_type(program, source_state.return_type, symbols)?;
         state.statement_nodes = program.tables.copy_statement_nodes_with_type_expressions(
             &staging,
             staged,
@@ -1464,7 +1430,6 @@ fn copy_declarations(
             .remap_statement_symbols(state.statement_nodes, symbols);
         for mut parameter in program.state_parameters(source_state).to_vec() {
             parameter.symbol = copied_symbol(&renamed, parameter.symbol)?;
-            parameter.type_reference = copy_type(program, parameter.type_reference, symbols)?;
             program.push_state_parameter(&mut state, parameter);
         }
         for contract in program.state_contracts(source_state).to_vec() {
@@ -1474,8 +1439,20 @@ fn copy_declarations(
         let expression_count = program.expression_table.expression_count() + 1 - first_expression;
         copied.push((machine, state, first_expression, expression_count));
     }
-    copy_expression_types(program, expression_start, symbols)?;
-    substitute_types(program, type_start, operands)?;
+    let substitutions = operands
+        .iter()
+        .filter_map(|operand| match operand.value {
+            StaticMachineBindingValue::Type(actual) => Some((operand.parameter, actual)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let entries = copied
+        .iter_mut()
+        .zip(&parts)
+        .map(|((_, state, first, count), (source, _))| (source.symbol, state, *first, *count));
+    program
+        .apply_copied_callable_types(entries, symbols, &substitutions)
+        .map_err(Stop::Defect)?;
     substitute_widths(program, type_start, operands)?;
     substitute_values(program, expression_start, operands);
     for (mut machine, state, first_expression, expression_count) in copied {
@@ -1517,30 +1494,24 @@ fn generate(
     let copied = copy_declarations(program, template_symbol, operands)?;
     // Each nested declaration is specialized by the actual enclosing
     // application's bindings, not by an invented call or runtime capture.
-    for (source, _) in &copied.originals {
+    for (source, state) in &copied.originals {
         let of_kind = |implementation: bool| {
             operands.iter().filter(move |operand| {
                 matches!(operand.value, StaticMachineBindingValue::Conformance(_)) == implementation
             })
         };
-        let spellings = of_kind(false)
-            .map(|operand| match &operand.identity {
-                Identity::Declaration(symbol) => program.symbols.display_path(*symbol, "::"),
-                Identity::Scalar(value) => value.clone(),
-                Identity::Type(identity) => {
-                    program.type_identity_text(*identity).unwrap_or_default()
-                }
-            })
-            .collect::<Vec<_>>();
         program.machine_specializations.push(MachineSpecialization {
             template: source.symbol,
             instance: copied_symbol(&copied.symbols, source.symbol)?,
             template_parameters: copied.originals[0].0.type_parameters,
             binding_application: application,
-            type_arguments: spellings.clone(),
-            type_argument_identities: spellings,
+            states: program.captured_machine_states.insert_many([
+                typed_trees::CapturedMachineState {
+                    template: state.symbol,
+                    instance: copied_symbol(&copied.symbols, state.symbol)?,
+                },
+            ]),
             conformance_arguments: of_kind(true).filter_map(Operand::declaration).collect(),
-            normalized_template_identity: program.symbols.display_path(source.symbol, "::"),
             ..MachineSpecialization::default()
         });
     }
@@ -1575,95 +1546,6 @@ fn copied_symbol(symbols: &PreparedSymbolRebinding, source: SymbolHandle) -> Ser
     symbols
         .execution_symbol(source)
         .ok_or(Stop::Defect("a copied declaration lost its fresh symbol"))
-}
-
-/// The types an expression node holds beside its operands.
-fn held_types(node: &ExpressionNode) -> [TypeReferenceHandle; 2] {
-    let none = TypeReferenceHandle::invalid();
-    match node {
-        ExpressionNode::Call(call) => [call.requirement_application, call.exact_coercion_target],
-        ExpressionNode::Cast(cast) => [cast.target_type, cast.result_type],
-        ExpressionNode::StructLiteral(literal) => [literal.application_type, none],
-        ExpressionNode::ZeroValue(reference) | ExpressionNode::TypeExpression(reference) => {
-            [*reference, none]
-        }
-        _ => [none, none],
-    }
-}
-
-/// An expression copy shares the types its nodes hold with the expression
-/// it was copied from. Each copied node receives types of its own, so that
-/// replacing a parameter in the generated machine leaves the generic
-/// machine's types as they were.
-fn copy_expression_types(
-    program: &mut TypedTrees,
-    expression_start: usize,
-    symbols: SymbolRebinding<'_>,
-) -> Served<()> {
-    let copied = program
-        .expression_table
-        .iter_expressions_from(expression_start)
-        .filter_map(|(handle, node)| {
-            let types = held_types(node);
-            types
-                .iter()
-                .any(|reference| reference.is_valid())
-                .then_some((handle, types))
-        })
-        .collect::<Vec<_>>();
-    for (handle, [first, second]) in copied {
-        let first = copy_type(program, first, symbols)?;
-        let second = copy_type(program, second, symbols)?;
-        match program.expression_table.expression_mut(handle) {
-            ExpressionNode::Call(call) => {
-                call.requirement_application = first;
-                call.exact_coercion_target = second;
-            }
-            ExpressionNode::Cast(cast) => {
-                cast.target_type = first;
-                cast.result_type = second;
-            }
-            ExpressionNode::StructLiteral(literal) => literal.application_type = first,
-            ExpressionNode::ZeroValue(reference) | ExpressionNode::TypeExpression(reference) => {
-                *reference = first;
-            }
-            _ => {}
-        }
-    }
-    Ok(())
-}
-
-/// Replaces each type parameter by its operand in every type written since
-/// `type_start`: the generated machine's own types.
-fn substitute_types(
-    program: &mut TypedTrees,
-    type_start: usize,
-    operands: &[Operand],
-) -> Served<()> {
-    for operand in operands {
-        let StaticMachineBindingValue::Type(actual) = &operand.value else {
-            continue;
-        };
-        let occurrences = program
-            .type_reference_table
-            .named_references_from(type_start)
-            .filter(|(_, symbol, _)| *symbol == operand.parameter)
-            .map(|(handle, _, _)| handle)
-            .collect::<Vec<_>>();
-        let replacement = copy_type(program, *actual, SymbolRebinding::new(&[], &[]))?;
-        for occurrence in occurrences {
-            program
-                .type_reference_table
-                .substitute_from(occurrence, replacement)
-                .map_err(Stop::Defect)?;
-        }
-        program.type_reference_table.substitute_shared_children(
-            type_start,
-            operand.parameter,
-            replacement,
-        );
-    }
-    Ok(())
 }
 
 /// Closes each integer whose width is a value parameter, `u<N>` or `i<N>`,

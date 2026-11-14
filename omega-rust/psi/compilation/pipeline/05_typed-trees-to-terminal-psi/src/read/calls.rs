@@ -121,11 +121,14 @@ impl<'t> Program<'t> {
             .static_machine_application(application);
         // Stage 04 closes a static application by generating the machine it
         // selects: the call then targets that generated machine, whose
-        // symbol records the declaration the application registered. Such a
+        // retained application records the declaration registered. Such a
         // callee has no parameter left to apply (`machine_shape` refuses one
         // that has), so the application's arguments are already spent.
-        let generated = self.typed.symbols.get(target).generated_from;
-        if generated.is_valid()
+        let generated = self
+            .typed
+            .executable_callable_template(target)
+            .map_err(|what| refuse(id, Construct::Machine, Unserved::Call(what)))?;
+        if let Some(generated) = generated
             && generated == application.registration_operation
             && self.closes_rigid_parameters_only(generated)
         {
@@ -404,10 +407,11 @@ impl<'t> Program<'t> {
         // The author named a declaration; where stage 04 generated the
         // machine a static application of it selects, the call targets that
         // generated machine and the selection still names the declaration.
-        let generated = self.typed.symbols.get(target).generated_from;
-        let names_target = |symbol: SymbolHandle| {
-            symbol == target || (generated.is_valid() && symbol == generated)
-        };
+        let generated = self
+            .typed
+            .executable_callable_template(target)
+            .map_err(|what| refuse(id, Construct::Machine, Unserved::Call(what)))?;
+        let names_target = |symbol: SymbolHandle| symbol == target || generated == Some(symbol);
         if let Some(occurrence) = selection {
             let Some(selected) = self.typed.authored_declaration_selections().get(occurrence)
             else {
@@ -1102,7 +1106,11 @@ impl<'t> Program<'t> {
         let target = if dispatch.realization_state == target {
             dispatch.realization_machine
         } else if !value_arguments.is_empty()
-            && self.typed.symbols.get(target).generated_from == dispatch.realization_state
+            && self
+                .typed
+                .executable_callable_template(target)
+                .map_err(|what| refuse(id, Construct::Machine, Unserved::Call(what)))?
+                == Some(dispatch.realization_state)
         {
             target
         } else {

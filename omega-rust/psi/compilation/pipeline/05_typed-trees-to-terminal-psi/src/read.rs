@@ -837,10 +837,15 @@ mod tests {
     /// a result in an entry clause are refused, and a body cannot name it.
     #[test]
     fn result_is_taken_by_its_owner_identity_never_by_its_spelling() {
+        use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
         use typed_trees::name::Identifier;
-        let mut typed = TypedTrees::default();
-        let owner = SymbolHandle::from_arena_index(3);
-        let other = SymbolHandle::from_arena_index(4);
+        let mut symbols = SymbolTableBuilder::default();
+        let owner = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("owner"));
+        let other = symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("other"));
+        let mut typed = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
         let mut members = arena::HandleSpan::empty();
         typed
             .expression_table

@@ -2419,22 +2419,29 @@ pub(crate) mod declaration_tables {
             &self,
             instance: symbols::SymbolHandle,
         ) -> Result<Option<symbols::SymbolHandle>, &'static str> {
-            let mut templates = self
-                .machine_specializations
-                .iter()
-                .filter(|row| row.instance == instance)
-                .map(|row| row.template)
-                .chain(
-                    self.captured_machine_applications
-                        .iter()
-                        .filter(|(_, row)| row.instance == instance)
-                        .map(|(_, row)| row.template),
-                );
-            let template = templates.next();
-            if templates.next().is_some() {
-                return Err("executable application has ambiguous template ownership");
+            Ok(self
+                .machine_instantiation(instance)?
+                .map(|application| application.template()))
+        }
+
+        /// Reads a generated callable's exact declaration from its retained
+        /// application, not from symbol provenance. Entry correspondence belongs
+        /// to the application just as the machine and its arguments do.
+        pub fn executable_callable_template(
+            &self,
+            callable: symbols::SymbolHandle,
+        ) -> Result<Option<symbols::SymbolHandle>, &'static str> {
+            if !callable.is_valid() || !self.symbols.symbols().nodes().is_valid(callable) {
+                return Err("executable callable has no retained symbol");
             }
-            Ok(template)
+            let symbol = self.symbols.get(callable);
+            if symbol.kind != symbols::SymbolKind::State {
+                return self.executable_application_template(callable);
+            }
+            let Some(application) = self.machine_instantiation(symbol.parent)? else {
+                return Ok(None);
+            };
+            application.entry_template(self, callable).map(Some)
         }
 
         pub fn machine_invokes_declaration(

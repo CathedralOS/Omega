@@ -3973,17 +3973,8 @@ pub mod inspection {
             pub template: u32,
             pub instance: u32,
             pub template_parameter_count: usize,
-            pub type_arguments: Vec<String>,
-            pub const_arguments: Vec<String>,
-            pub type_argument_identities: Vec<String>,
-            pub const_argument_identities: Vec<String>,
-            pub machine_arguments: Vec<u32>,
             pub conformance_arguments: Vec<u32>,
             pub conformance_application_count: usize,
-            pub operator_realization_count: usize,
-            pub normalized_template_identity: String,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            pub accepted_template_commitment: Option<String>,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -4257,19 +4248,6 @@ pub mod inspection {
                     template: specialization.template.arena_index(),
                     instance: specialization.instance.arena_index(),
                     template_parameter_count: specialization.template_parameters.len(),
-                    type_arguments: specialization.type_arguments.clone(),
-                    const_arguments: specialization.const_arguments.clone(),
-                    type_argument_identities: specialization
-                        .type_argument_identities
-                        .clone(),
-                    const_argument_identities: specialization
-                        .const_argument_identities
-                        .clone(),
-                    machine_arguments: specialization
-                        .machine_arguments
-                        .iter()
-                        .map(|symbol| symbol.arena_index())
-                        .collect(),
                     conformance_arguments: specialization
                         .conformance_arguments
                         .iter()
@@ -4278,13 +4256,6 @@ pub mod inspection {
                     conformance_application_count: specialization
                         .conformance_applications
                         .len(),
-                    operator_realization_count: specialization.operator_realizations.len(),
-                    normalized_template_identity: specialization
-                        .normalized_template_identity
-                        .clone(),
-                    accepted_template_commitment: specialization
-                        .accepted_template_commitment
-                        .clone(),
                 })
                 .collect(),
             ranking_expression_custody: program

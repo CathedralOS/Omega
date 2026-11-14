@@ -248,19 +248,26 @@ framework or a list of features that remain unimplemented.
 - Cost: each remaining gate must be served for the entire library before any program compiles, or be moved onto the same carrier one by one as a program meets it
 - Reported: 2026-11-13, Claude Code, while getting the route probe through typing
 
-### A generated machine is identified three ways and copied by a hand-kept list
-- Category: one idea, several implementations
-- Where: `typed-trees` (`MachineSpecialization` rows, `Symbol::generated_from`, `executable_application_template`); `05_typed-trees-to-terminal-psi/src/lib.rs` (`template_of`), `read/calls.rs` (`applies_nothing`), `declare.rs`; `04_typed-trees-to-typed-trees/src/passes/specialization.rs` (`template`, `held_types`)
-- Saw: "this machine was generated from that generic machine" is read from the state symbol's `generated_from` in three places and from the `machine_specializations` row in a fourth, and nothing ties the two; the row also keeps eight string and commitment fields that only the deleted checker filled. Separately, an expression copy shares the types its nodes hold, so the pass lists by hand which node kinds hold a type (`held_types`) and which body constructs it cannot copy
-- Cost: a pass that sets one marker and not the other produces a machine the reader accepts and the declaration step refuses, or the reverse; a new expression node that holds a type is silently left pointing at the generic machine's type until someone adds it to the list
-- Reported: 2026-11-13, Claude Code, while rebuilding specialization as a typed preparation pass
-
 ### A typing unit test is red on `main` and nothing runs it before merge
 - Category: a test that pins nothing while it is red
 - Where: `03_symbol-resolved-trees-to-typed-trees/src/call_and_product_selections.rs`, `construction_destinations::tests::an_assigned_literal_lands_on_its_binding_or_refuses_its_own_machine`
 - Saw: at `6f829063b3ed7` the test fails with no local change: `owned = Record {}` is asserted to be built at the type handle written on `owned` and gets a different handle (index 3, not 1), so either landing now inserts an equal copy of the type or the assertion compares identity where it means equality
 - Cost: `mbx test -p symbol-resolved-trees-to-typed-trees --lib` cannot be clean for anyone changing typing, so a second regression in the same crate hides behind the first
 - Reported: 2026-11-13, Claude Code, while accounting for domain casts in typing
+
+### Two type-table tests expect an array-index refusal the table no longer makes
+- Category: a test that pins nothing while it is red
+- Where: `typed-trees/src/type_system.rs`, `instantiation_refuses_a_binder_spelling_an_array_length` and `instantiation_applies_the_substitution_to_domain_arguments`
+- Saw: at fixed base `44ed2132219fb20261abeab4ef3e61b4ab0f845a`, `mbx test -p typed-trees --lib type_system::types::tests::instantiation_` passes the unchanged-row case and fails these two tests. They expect a bound array extent to refuse; `TypeReferenceTable::instantiate` explicitly forwards a valid named argument as an extent binder instead. The table has no symbol table with which to distinguish that forwarded value binder from the tests' named data type
+- Cost: the crate's unit suite is red independently of generated-machine ownership changes; the tests and the substitution owner's contract need to agree without weakening source-level value-index eligibility
+- Reported: 2026-11-14, Codex, while attributing the focused generated-application validation failures against its unchanged base
+
+### Provenance can audit another active Codex session
+- Category: an association discarded before its consumer
+- Where: `tools/xtask/src/provenance.rs`, Codex harness selection in `run`
+- Saw: `CODEX_THREAD_ID` selects the Codex harness, but the next step calls `find_latest_codex_transcript` instead of retaining that thread's transcript. In this concurrent run the default command reported `gpt-daybreak-blue-latest`; `provenance --transcript` with the file matching the actual `CODEX_THREAD_ID` reported `gpt-6.1-sol`
+- Cost: another worker's activity can change the model, token and time audit written on this worker's commit; an explicit matching `--transcript` is the current workaround
+- Reported: 2026-11-14, Codex, while generating the generated-application PR's final audit line
 
 ### The parser still accepts a boundary requirement with no `crashes` clause
 - Category: a verdict with nothing behind it
