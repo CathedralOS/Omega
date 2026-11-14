@@ -1,13 +1,14 @@
-// Summary rendering of typed compiler policy findings for `omega packages`, leaving canonical policy syntax to `package-evidence`.
+// Summary rendering of typed compiler policy findings for `omega packages`, leaving canonical policy syntax to `review-evidence`.
 
 use super::{CanonicalSourceClosureSubject, Name, Output};
-use package_evidence::record::{
+use review_evidence::record::{
     PackagePolicyBaseline, PackagePolicyCallable, PackagePolicyRepresentation,
     PackagePolicySelectedProviders, PackagePolicyServiceMethod, PackageReviewCallableContract,
     PackageReviewNominalIdentity, PackageReviewSynchronousInvocation,
 };
 use std::fmt::{self, Write};
 
+#[path = "policy_callables.rs"]
 mod callables;
 
 pub(super) fn render(

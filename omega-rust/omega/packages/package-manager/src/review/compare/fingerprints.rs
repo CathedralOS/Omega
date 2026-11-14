@@ -13,7 +13,7 @@ use crate::lock::PackageLockTarget;
 use crate::lock::{PackageAcceptanceRow, PackageCheckedContext};
 use crate::resolution::graph::CanonicalSourceClosureSubject;
 use crate::review::{CompilerIssuedPackageReview, candidate::build_observation_commitment};
-use package_evidence::record::PACKAGE_POLICY_ROW_VERSION;
+use review_evidence::record::PACKAGE_POLICY_ROW_VERSION;
 use sha2::{Digest, Sha256};
 
 pub(super) fn context(

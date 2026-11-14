@@ -4,7 +4,7 @@
 use crate::declarations::DependencyPurpose;
 use crate::declarations::PackageKey;
 use crate::resolution::graph::ResolvedPackageSourceClosure;
-use package_source::ImmutableSourceResolution;
+use source_acquisition::ImmutableSourceResolution;
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
@@ -60,7 +60,7 @@ mod tests {
     use super::package_build_root;
     use crate::declarations::DependencyPurpose;
     use crate::declarations::{PackageKey, PackageName};
-    use package_source::{ImmutableSourceResolution, SourceContentDigest, SourceLineage};
+    use source_acquisition::{ImmutableSourceResolution, SourceContentDigest, SourceLineage};
     use std::path::Path;
 
     #[test]

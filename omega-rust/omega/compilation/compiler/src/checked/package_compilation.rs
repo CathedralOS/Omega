@@ -13,7 +13,7 @@ pub struct PackageCompilationRequest {
     pub occurrences: Vec<PackageSourceRequest>,
     pub product: crate::CompilationProduct,
     pub terminal_permissions:
-        Option<package_evidence::permission_acceptance::TerminalPermissionAcceptance>,
+        Option<review_evidence::permission_acceptance::TerminalPermissionAcceptance>,
 }
 
 pub enum PackageSourceRequest {
@@ -261,7 +261,7 @@ impl PackageBuild {
 pub struct PreparedPackageProduct {
     pub build: PackageBuild,
     pub product: crate::CompilationProduct,
-    pub permissions: Option<package_evidence::permission_acceptance::TerminalPermissionAcceptance>,
+    pub permissions: Option<review_evidence::permission_acceptance::TerminalPermissionAcceptance>,
 }
 
 impl CompilationSession {

@@ -6,11 +6,11 @@
 use super::{CompilationSession, PackageBuild};
 use diagnostics::Diagnostic;
 use package_compilation::IndependentComponentDescription;
-use package_evidence::record::{
+use products::{CheckedCompilation, CompileFailure};
+use review_evidence::record::{
     PackageReviewEvidence, PackageReviewSourceFacts, SemanticBindingReviewCandidate,
 };
-use package_evidence::{PackageReviewProjectionError, SemanticBindingProjectionError};
-use products::{CheckedCompilation, CompileFailure};
+use review_evidence::{PackageReviewProjectionError, SemanticBindingProjectionError};
 use std::sync::Arc;
 
 pub struct PackageReviewProduct {
@@ -90,7 +90,7 @@ impl CompilationSession {
             let checked = self
                 .check_package_build(build)
                 .map_err(PackageReviewFailure::Compilation)?;
-            let evidence = package_evidence::project_package_review(
+            let evidence = review_evidence::project_package_review(
                 &checked,
                 package,
                 target,
@@ -107,7 +107,7 @@ impl CompilationSession {
                     .map(|subject| subject.consumed_units().to_vec()),
             };
             let target_entry =
-                package_evidence::candidate_target_entry_binding(&checked, package, target);
+                review_evidence::candidate_target_entry_binding(&checked, package, target);
             Ok(PackageReviewProduct {
                 evidence,
                 source: PackageReviewSource {

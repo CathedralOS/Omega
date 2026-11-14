@@ -19,8 +19,8 @@ compiler = { path = "../../compilation/compiler" }
 products = { path = "../../compilation/products" }
 effects = { path = "../../compilation/backend/plans/effects" }
 native-artifact = { path = "../../compilation/backend/artifacts/native-artifact" }
-package-evidence = { path = "../review-evidence" }
-package-source = { path = "../source-acquisition" }
+review-evidence = { path = "../review-evidence" }
+source-acquisition = { path = "../source-acquisition" }
 package-compilation = { path = "../package-compilation" }
 optimization-core = { path = "../../foundation/optimization-core" }
 platform-custody = { path = "../../foundation/platform-custody" }

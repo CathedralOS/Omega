@@ -234,9 +234,9 @@ impl SourceStorage {
                     })?;
                 storage.sources = catalogue.begin_selection();
                 storage.anonymous_capture = Some(captured.tree().clone());
-                let core = package_source::local::operations::capture_local_source_input(
+                let core = source_acquisition::local::operations::capture_local_source_input(
                     super::bundled_core_root()?,
-                    package_source::LocalSourceLimits::default(),
+                    source_acquisition::LocalSourceLimits::default(),
                 )
                 .map_err(|error| {
                     vec![Diagnostic::error(format!(
@@ -516,9 +516,9 @@ impl SourceStorage {
             }
             return Ok(root);
         }
-        let capture = package_source::local::operations::capture_local_source_input(
+        let capture = source_acquisition::local::operations::capture_local_source_input(
             root,
-            package_source::LocalSourceLimits::default(),
+            source_acquisition::LocalSourceLimits::default(),
         )
         .map_err(|error| refuse(error.to_string()))?;
         let root = capture.canonical_live_root().to_path_buf();

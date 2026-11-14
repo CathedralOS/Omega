@@ -58,10 +58,10 @@ fn windows_canonicalize_receiver() {
     let trusted_std = package_manager::declarations::PackageKey::new(
         package_manager::declarations::PackageName::parse("omega_language_std")
             .expect("receiver's expected std package name"),
-        package_source::SourceLineage::ExternalLocal(
-            package_source::ExternalLocalLineage::canonicalize(
+        source_acquisition::SourceLineage::ExternalLocal(
+            source_acquisition::ExternalLocalLineage::canonicalize(
                 workspace.path().join("source/library/std"),
-                package_source::ExternalSourceContext::derive(b"omega-local-project-v1"),
+                source_acquisition::ExternalSourceContext::derive(b"omega-local-project-v1"),
             )
             .expect("receiver's exact canonical trusted std source"),
         ),
