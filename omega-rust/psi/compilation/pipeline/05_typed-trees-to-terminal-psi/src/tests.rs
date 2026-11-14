@@ -213,6 +213,8 @@ fn lower_records(
         records,
         &bodies,
         signatures.machines.values(),
+        &[],
+        None,
         terminal_psi::TerminalIdentityTableBuilder::default(),
     )?;
     crate::lower::machine(

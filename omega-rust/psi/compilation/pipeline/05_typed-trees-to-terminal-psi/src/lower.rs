@@ -509,7 +509,7 @@ impl Lowering<'_> {
                     multiplicity: StructuralMultiplicity::Unrestricted,
                     access: places::borrowed_access(borrowed.access)
                         .ok_or_else(|| self.internal("a write-only borrowed formal"))?,
-                    qualifications: Vec::new(),
+                    qualifications: self.records.qualifications(self.id, *value_type)?,
                     projected_qualifications: Vec::new(),
                     additional_input_qualifications: Vec::new(),
                 });
@@ -562,7 +562,7 @@ impl Lowering<'_> {
                         structural_type: record,
                         multiplicity: self.records.multiplicity(record, self.id)?,
                         access: StructuralAccess::Owned,
-                        qualifications: Vec::new(),
+                        qualifications: self.records.qualifications(self.id, *value_type)?,
                         projected_qualifications: Vec::new(),
                         additional_input_qualifications: Vec::new(),
                     });
@@ -589,13 +589,13 @@ impl Lowering<'_> {
                 }
                 TerminalMachineResult::Scalar(declaration(value, scalar_type))
             }
-            Some(ValueType::Record(record, _, _)) => {
+            Some(value_type @ ValueType::Record(record, _, _)) => {
                 let (place, _) = self.root(StructuralPlaceKind::Result, record)?;
                 TerminalMachineResult::Structural(StructuralResultDeclaration {
                     place,
                     structural_type: record,
                     multiplicity: self.records.multiplicity(record, self.id)?,
-                    qualifications: Vec::new(),
+                    qualifications: self.records.qualifications(self.id, value_type)?,
                     projected_qualifications: Vec::new(),
                     reference_sources: Vec::new(),
                 })

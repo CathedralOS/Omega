@@ -118,6 +118,16 @@ pub struct DomainSet {
     members: [(u32, u32); Self::CAPACITY],
 }
 
+/// A primitive byte domain actually used on this descriptor carrier. The
+/// reader has checked the complete declaration; lowering retains its identity
+/// and predicate beside every place and callable header that carries it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct SourceByteDomain {
+    pub source: symbols::SymbolHandle,
+    pub carrier: StructuralTypeId,
+    pub predicate: semantic_vocabulary::ByteSequencePredicate,
+}
+
 impl DomainSet {
     pub const CAPACITY: usize = 4;
     pub const EMPTY: Self = Self {

@@ -574,7 +574,7 @@ impl Program<'_> {
                 Unserved::Typing("data field that elides a lifetime argument"),
             ));
         }
-        let value_type = self.qualified_view_type(id, field.type_reference)?;
+        let value_type = self.value_type(id, field.type_reference)?;
         // Stored byte and typed views keep the region of their actual source
         // type (lifetimes.md: "storage that remains valid for its use"). The
         // shared view owner keys the type by that region in this declaration;

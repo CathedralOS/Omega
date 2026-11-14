@@ -84,6 +84,59 @@ fn ascii_text_is_stored_and_other_text_is_rejected() {
     assert_eq!(verdict(&rejection("no_nul", r"pla\x00in")), NOT_IN_DOMAIN);
 }
 
+#[test]
+fn byte_domain_membership_survives_locals_formals_and_call_results() {
+    let source = r#"
+domain [u8]::Text requires no_nul(self);
+machine same<'a>(text: &'a [u8] in Text) -> &'a [u8] in Text { text }
+machine take(text: &[u8] in Text) { }
+machine build_entry() {
+    let local: &[u8] in Text = "plain" as +Text;
+    let returned: &[u8] in Text = same(local);
+    take(returned);
+}
+"#;
+    let accepted = match judge_build(source) {
+        Ok(RouteVerdict::Accepted(accepted)) => accepted,
+        other => panic!("the declared membership must cross the actual call: {other:?}"),
+    };
+    let module = &accepted.elaboration.module;
+    assert!(module.structural_domains.iter().any(|domain| {
+        domain.byte_predicate == Some(terminal_psi::ByteSequencePredicate::NoNul)
+    }));
+    assert!(module.machines.iter().any(|machine| {
+        machine
+            .contract
+            .structural_parameters
+            .iter()
+            .any(|parameter| !parameter.qualifications.is_empty())
+    }));
+    assert!(module.machines.iter().any(|machine| matches!(
+        &machine.contract.result,
+        terminal_psi::TerminalMachineResult::Structural(result)
+            if !result.qualifications.is_empty()
+    )));
+    accepted.publish_invocation().unwrap();
+
+    let invalid = source.replace("\"plain\"", r#""pla\x00in""#);
+    match judge_build(&invalid) {
+        Ok(RouteVerdict::Rejected {
+            violations,
+            unestablished,
+            ..
+        }) => {
+            let reasons = format!("{violations:?} {unestablished:?}");
+            assert!(
+                reasons.contains("byte")
+                    || reasons.contains("predicate")
+                    || reasons.contains("qualification"),
+                "the exact missing NoNul fact must explain rejection: {reasons}",
+            );
+        }
+        other => panic!("only the declared byte predicate was broken: {other:?}"),
+    }
+}
+
 /// The field is the view's own byte field with the domain's predicate on
 /// it, and the view row is the one a plain `&[u8]` has.
 #[test]
@@ -114,10 +167,9 @@ fn the_field_carries_its_predicates_on_its_type() {
 }
 
 /// What this slice does not judge is refused by name, never accepted: the
-/// literal without the cast that would give it the domain, a view in a
-/// domain anywhere but a field, a domain that is no primitive byte
-/// predicate, one the empty view is not in, and a store whose bytes come
-/// from another field rather than a literal.
+/// literal without the cast that would give it the domain, a domain that
+/// is no primitive byte predicate, or one the empty view is not in. A
+/// previously given qualification must also be justified before it is erased.
 #[test]
 fn what_no_bytes_decide_is_refused() {
     let declarations = r#"
@@ -141,14 +193,14 @@ data Rejection { reason: &[u8] in Text; }
     let formal = format!(
         "{declarations}machine keep(text: &[u8] in Text) {{ }}\nmachine build_entry() {{ keep(\"x\" as +Text); }}"
     );
-    assert_ne!(verdict(&formal), "accepted");
+    assert_eq!(verdict(&formal), "accepted");
     let copied = format!(
         "{declarations}machine copy(from: &Rejection, into: &mut Rejection) {{ into.reason = from.reason; }}\n\
          machine build_entry() {{ let a: Rejection = Rejection {{ reason: \"x\" as +Text }}; let mut b: Rejection; copy(&a, &mut b); }}"
     );
     assert_ne!(verdict(&copied), "accepted");
-    // Given the domain and at once relieved of it, the literal would reach a
-    // plain field with its predicate judged nowhere.
+    // Removing a qualification does not erase the earlier establishment's
+    // obligation to justify that qualification for these exact bytes.
     let laundered = r#"
 domain [u8]::Text
 requires
@@ -156,9 +208,10 @@ requires
 data Plain { reason: &[u8]; }
 machine build_entry() { let p: Plain = Plain { reason: ("\xff" as +Text) as -Text }; }
 "#;
-    assert_eq!(
-        verdict(laundered),
-        "expression removal of a byte predicate a quoted literal was just given"
+    assert!(
+        matches!(judge_build(laundered), Ok(RouteVerdict::Rejected { .. })),
+        "{:?}",
+        judge_build(laundered)
     );
     let non_empty = r#"
 domain [u8]::Filled

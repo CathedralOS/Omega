@@ -1106,10 +1106,13 @@ fn lower_program<'source>(
                     .iter()
                     .map(|question| &question.signature),
             ),
+        declarations.map_or(&[][..], |source| source.byte_domains.as_slice()),
+        typed_source,
         identities,
     )?;
     module.identities = declared.identities;
     module.structural_types = declared.structural_types;
+    module.structural_domains = declared.structural_domains;
     module.native_layouts = declared.native_layouts;
     let mut tables = CheckTables::default();
     let mut sources = IdTable::default();

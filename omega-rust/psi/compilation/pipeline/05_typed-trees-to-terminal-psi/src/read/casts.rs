@@ -177,7 +177,7 @@ impl Program<'_> {
         if !cast.result_type.is_valid() {
             return unserved("domain cast typing did not account for");
         }
-        let result = self.qualified_view_type(id, cast.result_type)?;
+        let result = self.value_type(id, cast.result_type)?;
         // A literal lands in the carrier of the type the cast gives it
         // (domains.md, "Literals and expected types": "An expected type
         // selects the carrier in which an anonymous literal lands"). A
@@ -217,17 +217,10 @@ impl Program<'_> {
                             },
                             carrier,
                         )?,
-                        // `"text" as +Utf8`: a primitive byte predicate is
-                        // decided by the bytes the view shows, and a view in
-                        // a domain is served only as a data field's type
-                        // (`view_type`), so this value is stored into
-                        // such a field or dropped. The checker judges each
-                        // store into a predicate field from the octets of
-                        // the literal it supplies (byte_views.md: "Checking
-                        // rejoins the source's declared predicates or
-                        // literal contents"), so the cast states no clause.
-                        // Its operand is a quoted literal, the one source
-                        // whose bytes that judgment reads.
+                        // Primitive byte qualifications remain structural
+                        // memberships. Lowering states them on the produced
+                        // descriptor and the receiver checks the actual
+                        // literal bytes; no scalar proof substitutes for it.
                         (ValueType::Record(row, _, _), Some(_))
                             if self.is_view(id, row)?
                                 && typed_trees::byte_predicates::domain_byte_predicate(
@@ -270,21 +263,6 @@ impl Program<'_> {
                     }
                 }
                 _ => {
-                    // `("text" as +Utf8) as -Utf8`: the predicate a literal
-                    // was given is judged only where a field stores it
-                    // (`domain_entry`, the `Add` arm), so removing it again
-                    // before any store would leave it judged nowhere.
-                    let mut beneath: &Expression = &operand;
-                    while let ExpressionKind::Requalify(inner) = &beneath.kind {
-                        beneath = inner.as_ref();
-                    }
-                    if !std::ptr::eq(beneath, &operand)
-                        && matches!(beneath.kind, ExpressionKind::ByteLiteral(_))
-                    {
-                        return unserved(
-                            "removal of a byte predicate a quoted literal was just given",
-                        );
-                    }
                     self.domain_removal(id, domain, operand_type)?;
                 }
             }

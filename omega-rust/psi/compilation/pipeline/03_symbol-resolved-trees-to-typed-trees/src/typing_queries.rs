@@ -888,28 +888,31 @@ pub(crate) fn defer_unbound_calls(
     // found to name nothing at all (`undeclared_call_names`).
     let mut in_declarations = Vec::new();
     let mut closed_selections = Vec::new();
+    let mut byte_domain_clauses;
     let rows: Vec<(SymbolHandle, DeferredRequest, source::SourceSpan)>;
     {
         let program = &*program;
         let targets = DeclaredCallTargets::new(program);
         // These clauses already have the compiler's primitive byte meaning.
         // Keep every other unbound call for its ordinary declaration reader.
-        let mut byte_domain_clauses = program
+        byte_domain_clauses = program
             .domain_definitions()
             .iter()
-            .filter(|domain| {
-                typed_trees::byte_predicates::primitive_byte_slice_domain(program, domain.symbol)
-                    .is_some()
-            })
-            .filter_map(
-                |domain| match program.proof_facts.span_or_empty(domain.facts) {
-                    [typed_trees::domain::ProofFact::Expression(expression)] => Some(*expression),
+            .filter_map(|domain| {
+                let predicate = typed_trees::byte_predicates::primitive_byte_slice_domain(
+                    program,
+                    domain.symbol,
+                )?;
+                match program.proof_facts.span_or_empty(domain.facts) {
+                    [typed_trees::domain::ProofFact::Expression(expression)] => {
+                        Some((*expression, predicate))
+                    }
                     _ => None,
-                },
-            )
+                }
+            })
             .collect::<Vec<_>>();
         byte_domain_clauses
-            .sort_unstable_by_key(|handle| (handle.arena_index(), handle.generation()));
+            .sort_unstable_by_key(|(handle, _)| (handle.arena_index(), handle.generation()));
         byte_domain_clauses.dedup();
         // Value names resolution left unbound, with their one written member,
         // until `names_nothing_has` says which of them name nothing.
@@ -925,9 +928,10 @@ pub(crate) fn defer_unbound_calls(
                 continue;
             };
             if byte_domain_clauses
-                .binary_search_by_key(&(handle.arena_index(), handle.generation()), |handle| {
-                    (handle.arena_index(), handle.generation())
-                })
+                .binary_search_by_key(
+                    &(handle.arena_index(), handle.generation()),
+                    |(handle, _)| (handle.arena_index(), handle.generation()),
+                )
                 .is_ok()
             {
                 continue;
@@ -1109,6 +1113,9 @@ pub(crate) fn defer_unbound_calls(
             })
             .collect();
     }
+    for (expression, predicate) in byte_domain_clauses {
+        complete_byte_domain_selection(program, expression, predicate)?;
+    }
     if !closed_selections.is_empty() {
         use typed_trees::{
             AuthoredDeclarationSelectionKind as Kind,
@@ -1157,6 +1164,75 @@ pub(crate) fn defer_unbound_calls(
         program.record_deferred_refusal(declaration, request, source_span);
     }
     Ok(())
+}
+
+/// Complete the source occurrence only after its exact domain clause has
+/// acquired a primitive byte meaning. The ledger is output of that formation,
+/// never the reason an unresolved call is treated as a primitive.
+fn complete_byte_domain_selection(
+    program: &mut TypedTrees,
+    expression: ExpressionHandle,
+    predicate: typed_trees::byte_predicates::ByteSequencePredicate,
+) -> Result<(), Diagnostic> {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic as Intrinsic;
+    use typed_trees::{
+        AuthoredDeclarationSelectionKind as Kind,
+        AuthoredDeclarationSelectionLateBinding as Binding,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+    let span = program.expression_table.source_span(expression);
+    let fail = |reason: &str| {
+        Diagnostic::error(format!(
+            "primitive byte-domain call {expression:?}: {reason}"
+        ))
+        .with_source_span(span)
+    };
+    let call = program
+        .expression_table
+        .call_node(expression)
+        .ok_or_else(|| fail("lost its formed call"))?;
+    let mut occurrence = None;
+    for attached in program
+        .expression_table
+        .authored_selection_occurrences(expression)
+    {
+        let row = program
+            .authored_declaration_selections()
+            .get(attached)
+            .ok_or_else(|| fail("lost its attached authored occurrence"))?;
+        if row.kind() != Kind::Call {
+            continue;
+        }
+        if occurrence
+            .replace(attached)
+            .is_some_and(|previous| previous != attached)
+        {
+            return Err(fail("retains multiple authored Call occurrences"));
+        }
+    }
+    if call.authored_call_selection != occurrence {
+        return Err(fail("does not retain its own attached Call occurrence"));
+    }
+    // A generated clause without an authored call has no occurrence to mint.
+    let Some(occurrence) = occurrence else {
+        return Ok(());
+    };
+    let row = program
+        .authored_declaration_selections()
+        .get(occurrence)
+        .ok_or_else(|| fail("lost its own authored occurrence"))?;
+    let expected = Intrinsic::ByteSequencePredicate(predicate);
+    match row.target() {
+        Target::Intrinsic(actual) if actual == expected => Ok(()),
+        Target::LateBound(Binding::CheckedCall) => program
+            .finalize_authored_intrinsic_selection(occurrence, Binding::CheckedCall, expected)
+            .map_err(|error| {
+                fail(&format!(
+                    "could not complete its primitive selection: {error:?}"
+                ))
+            }),
+        _ => Err(fail("changes its selected primitive or declaration")),
+    }
 }
 
 /// The value spellings the compiler gives a meaning without a symbol: the
@@ -1587,6 +1663,62 @@ mod tests {
         assert!(deferred(&program).unwrap().is_empty());
 
         let original = program.expression_table.call_node(expression).unwrap();
+        let occurrence = original
+            .authored_call_selection
+            .expect("the source call keeps its own occurrence");
+        assert!(
+            program
+                .expression_table
+                .authored_selection_occurrences(expression)
+                .any(|attached| attached == occurrence)
+        );
+        assert_eq!(
+            program
+                .authored_declaration_selections()
+                .get(occurrence)
+                .unwrap()
+                .target(),
+            typed_trees::AuthoredDeclarationSelectionTarget::Intrinsic(
+                language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::ByteSequencePredicate(
+                    ByteSequencePredicate::NoNul
+                )
+            )
+        );
+
+        let mut missing = program.clone();
+        call_mut(&mut missing, expression).authored_call_selection = None;
+        assert!(
+            deferred(&missing)
+                .unwrap_err()
+                .message
+                .contains("own attached Call occurrence")
+        );
+
+        let other = program
+            .authored_declaration_selections()
+            .iter()
+            .find(|row| row.occurrence_id() != occurrence)
+            .expect("the source also retains its type selection")
+            .occurrence_id();
+        let mut wrong_occurrence = program.clone();
+        call_mut(&mut wrong_occurrence, expression).authored_call_selection = Some(other);
+        assert!(
+            deferred(&wrong_occurrence)
+                .unwrap_err()
+                .message
+                .contains("own attached Call occurrence")
+        );
+
+        let mut changed_primitive = program.clone();
+        call_mut(&mut changed_primitive, expression).target =
+            typed_trees::name::Identifier::generated("ascii_only");
+        assert!(
+            deferred(&changed_primitive)
+                .unwrap_err()
+                .message
+                .contains("changes its selected primitive or declaration")
+        );
+
         for (index, generation) in [(0, 1), (1, 0)] {
             for malformed_call in [
                 TableCallExpression {

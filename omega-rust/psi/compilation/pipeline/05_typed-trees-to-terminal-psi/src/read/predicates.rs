@@ -23,7 +23,7 @@ kept by the owner's invariant windows, with nothing added here.
 the domain being defined" (domains.md, "Operands"), so it is read at the
 plain carrier.
 
-On a data carrier (`domain Player::Alive requires self.health > 0`) the
+On a nominal data carrier (`domain Player::Alive requires self.health > 0`) the
 clauses name fields beneath `self`, so a field `player: Player in Alive`
 owes `self.player.health > 0` as a clause of its owner, kept by the owner's
 windows like any other. A data value in such a domain that is itself a
@@ -31,7 +31,9 @@ formal or a result has no owner whose clauses it joins, and its predicates
 would need a window of their own, so each is refused by name
 (`signature_predicates`), as are a cast that adds such a domain
 (`read::casts`), a case payload, an array element and a partial write
-inside such a value (`read::authority`).
+inside such a value (`read::authority`). Primitive byte views instead retain
+their exact domain on the structural descriptor and callable header; the
+receiver checks its bytes and every call's carried memberships.
 */
 
 use semantic_vocabulary::{
@@ -144,11 +146,38 @@ impl Program<'_> {
         let mut added = SignaturePredicates::default();
         for (position, slot) in entry.slots.iter().enumerate() {
             let qualification = slot.value_type.qualification();
+            if let ValueType::Record(record, _, _) = slot.value_type
+                && self.is_readable_byte_view(id, record)?
+            {
+                // Descriptor predicates remain exact structural qualifications,
+                // checked at calls and establishments. They are not scalar
+                // clauses over an invented value-formal identity.
+                self.view_predicates(id, slot.value_type)?;
+                continue;
+            }
             if self.predicates(id, qualification)?.is_empty() {
                 continue;
             }
             let ValueType::Scalar(scalar_type, _) = slot.value_type else {
-                return unserved("formal of a data type in a domain with predicates");
+                let mut refusal = refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Contract("formal of a data type in a domain with predicates"),
+                );
+                let name = |symbol| {
+                    if self.typed.symbols.symbols().nodes().is_valid(symbol) {
+                        self.typed.symbols.display_path(symbol, "::")
+                    } else {
+                        format!("{symbol:?}")
+                    }
+                };
+                refusal.detail.push_str(&format!(
+                    "; callable `{}`, formal {position} `{}`, type {:?}",
+                    name(entry.owner),
+                    name(slot.symbol),
+                    slot.value_type,
+                ));
+                return Err(refusal);
             };
             // A borrowed formal's clause is about what its referent holds,
             // at entry and again at every handback; only the first has a
@@ -172,6 +201,12 @@ impl Program<'_> {
         // A record result's predicates would be guarantees over the fields
         // of the returned value; nothing states them yet, so such a result
         // is refused rather than promised nothing.
+        if let Some((value_type @ ValueType::Record(record, _, _), _)) = result
+            && self.is_readable_byte_view(id, record)?
+        {
+            self.view_predicates(id, value_type)?;
+            return Ok(added);
+        }
         if let Some((value_type, _)) = result
             && !matches!(value_type, ValueType::Scalar(..))
             && !self.predicates(id, value_type.qualification())?.is_empty()

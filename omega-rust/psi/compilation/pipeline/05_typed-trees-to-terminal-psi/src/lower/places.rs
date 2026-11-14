@@ -60,8 +60,8 @@ mod contents;
 
 use crate::body::Qualification;
 use semantic_vocabulary::{
-    BlockId, IdTable, IntegerValue, MachineId, OperationId, PlaceId, ScalarType,
-    StructuralPlaceKind, StructuralTypeId, ValueId,
+    BlockId, DomainSemanticId, IdTable, IntegerValue, MachineId, OperationId, PlaceId, ScalarType,
+    StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use terminal_check_tables::bindings::{Content, PlaceOrigin, PlaceRow, Segment, WriteRow};
 use terminal_check_tables::edges::Destination;
@@ -73,8 +73,9 @@ use terminal_check_tables::{
 use terminal_psi::{
     NativeLayoutCatalog, NativeLayoutFieldIdentity, Operation, OperationKind, OperationResult,
     RecordFieldInitializer, RecordFieldValue, StructuralAccess, StructuralArgument,
-    StructuralCaseDeclaration, StructuralCaseSuccessorEdge, StructuralFieldDeclaration,
-    StructuralFieldType, StructuralMultiplicity, StructuralOperationResult, StructuralPathSegment,
+    StructuralCaseDeclaration, StructuralCaseSuccessorEdge, StructuralDomainDeclaration,
+    StructuralDomainPredicate, StructuralFieldDeclaration, StructuralFieldType,
+    StructuralMultiplicity, StructuralOperationResult, StructuralPathSegment,
     StructuralRecordStorage, StructuralStoreDisposition, StructuralTypeDeclaration,
     StructuralTypeShape, TerminalAffineCleanupAction, TerminalIdentityIndex, TerminalIdentityTable,
     TerminalIdentityTableBuilder, Terminator,
@@ -103,6 +104,56 @@ pub(crate) struct Records<'a> {
     /// `payload_identities[sum][case][position]`: the same for a payload
     /// field.
     payload_identities: IdTable<StructuralTypeId, Vec<Vec<TerminalIdentityIndex>>>,
+    /// A qualification keeps both its source declaration and the exact view
+    /// carrier. Equal byte geometry cannot substitute another view's region.
+    byte_domains: Vec<(symbols::SymbolHandle, StructuralTypeId, StructuralDomainId)>,
+}
+
+impl Records<'_> {
+    pub(crate) fn qualifications(
+        &self,
+        machine: MachineId,
+        value_type: ValueType,
+    ) -> Checked<Vec<StructuralDomainId>> {
+        let qualification = value_type.qualification();
+        if qualification.domains.is_empty() {
+            return Ok(Vec::new());
+        }
+        let unavailable = |reason| refuse(machine, Construct::Machine, Unserved::Type(reason));
+        let ValueType::Record(carrier, _, _) = value_type else {
+            return Err(unavailable(
+                "qualified structural home has no exact carrier",
+            ));
+        };
+        if qualification.policy.is_some() {
+            return Err(unavailable("byte domain has an arithmetic policy"));
+        }
+        let mut qualifications = Vec::new();
+        for source in qualification.domains.members() {
+            let mut matches = self
+                .byte_domains
+                .iter()
+                .filter(|(owner, row, _)| *owner == source && *row == carrier);
+            let Some((_, _, domain)) = matches.next() else {
+                return Err(unavailable(
+                    "byte domain has no exact source and carrier declaration",
+                ));
+            };
+            if matches.next().is_some() {
+                return Err(unavailable(
+                    "byte domain repeats its source and carrier declaration",
+                ));
+            }
+            qualifications.push(*domain);
+        }
+        qualifications.sort_unstable();
+        if qualifications.windows(2).any(|pair| pair[0] == pair[1]) {
+            return Err(unavailable(
+                "byte qualifications repeat a domain declaration",
+            ));
+        }
+        Ok(qualifications)
+    }
 }
 
 /// What a module with these record types must declare: Terminal Psi's
@@ -112,6 +163,7 @@ pub(crate) struct Declared<'a> {
     pub records: Records<'a>,
     pub identities: TerminalIdentityTable,
     pub structural_types: Vec<StructuralTypeDeclaration>,
+    pub structural_domains: Vec<StructuralDomainDeclaration>,
     pub native_layouts: NativeLayoutCatalog,
 }
 
@@ -135,6 +187,8 @@ pub(crate) fn declare<'a, 'b>(
     types: &'a IdTable<StructuralTypeId, RecordType>,
     bodies: &'b IdTable<MachineId, Body>,
     signatures: impl Iterator<Item = &'b Signature>,
+    byte_domains: &[crate::body::SourceByteDomain],
+    typed_source: Option<&typed_trees::TypedTrees>,
     mut identities: TerminalIdentityTableBuilder,
 ) -> Checked<Declared<'a>> {
     let mut field_identities = IdTable::default();
@@ -398,17 +452,157 @@ pub(crate) fn declare<'a, 'b>(
             .map_err(|reason| refuse(entry, Construct::Machine, Unserved::Type(reason)))?;
         primitives.push((value_type, home.clone(), id));
     }
+    let mut structural_domains = Vec::<StructuralDomainDeclaration>::new();
+    let mut domain_bindings = Vec::new();
+    let mut semantic_domains = Vec::<(TerminalIdentityIndex, DomainSemanticId)>::new();
+    for source in byte_domains {
+        let unavailable = |reason| refuse(entry, Construct::Machine, Unserved::Type(reason));
+        let typed =
+            typed_source.ok_or_else(|| unavailable("byte domain has no retained source owner"))?;
+        if typed_trees::byte_predicates::primitive_byte_slice_domain(typed, source.source)
+            != Some(source.predicate)
+            || !terminal_semantics::byte_predicate_carrier(structural_types.iter(), source.carrier)
+        {
+            return Err(unavailable(
+                "byte domain does not match its source predicate and carrier",
+            ));
+        }
+        if domain_bindings
+            .iter()
+            .any(|(owner, carrier, _)| *owner == source.source && *carrier == source.carrier)
+        {
+            return Err(unavailable(
+                "byte domain repeats its source and carrier declaration",
+            ));
+        }
+        let declaration = crate::declare::semantic_identity(typed, source.source, &mut identities)
+            .map_err(unavailable)?;
+        let semantic_domain = match semantic_domains
+            .iter()
+            .find(|(known, _)| *known == declaration)
+        {
+            Some((_, id)) => *id,
+            None => {
+                let id = u64::try_from(semantic_domains.len())
+                    .ok()
+                    .and_then(|count| count.checked_add(1))
+                    .and_then(DomainSemanticId::new)
+                    .ok_or_else(|| unavailable("semantic byte domain identity overflow"))?;
+                semantic_domains.push((declaration, id));
+                id
+            }
+        };
+        let carrier = structural_types
+            .iter()
+            .find(|row| row.id == source.carrier)
+            .ok_or_else(|| unavailable("byte domain lost its carrier declaration"))?;
+        let identity = byte_domain_identity(&mut identities, declaration, carrier.identity)
+            .map_err(unavailable)?;
+        if structural_domains
+            .iter()
+            .any(|row| row.identity == identity)
+        {
+            return Err(unavailable(
+                "byte domains have competing qualified identities",
+            ));
+        }
+        let id = u64::try_from(structural_domains.len())
+            .ok()
+            .and_then(|count| count.checked_add(1))
+            .and_then(StructuralDomainId::new)
+            .ok_or_else(|| unavailable("structural byte domain identity overflow"))?;
+        let subject = PlaceId::new(1).expect("1 is nonzero");
+        structural_domains.push(StructuralDomainDeclaration {
+            required_memberships: Some(Vec::new()),
+            complete_predicate_theory: true,
+            predicate: Some(StructuralDomainPredicate {
+                subject,
+                proposition: semantic_vocabulary::Proposition::Equal(
+                    semantic_vocabulary::ScalarTerm::ByteSequencePredicate {
+                        predicate: source.predicate,
+                        root: subject,
+                        path: Vec::new(),
+                    },
+                    semantic_vocabulary::ScalarTerm::Boolean(true),
+                ),
+            }),
+            id,
+            semantic_domain,
+            identity,
+            carrier: source.carrier,
+            content_projection: None,
+            byte_predicate: Some(source.predicate),
+            establishment_routes: None,
+        });
+        domain_bindings.push((source.source, source.carrier, id));
+    }
     Ok(Declared {
         records: Records {
             types,
             primitives,
             field_identities,
             payload_identities,
+            byte_domains: domain_bindings,
         },
         identities: identities.build(),
         structural_types,
+        structural_domains,
         native_layouts,
     })
+}
+
+fn byte_domain_identity(
+    identities: &mut TerminalIdentityTableBuilder,
+    declaration: TerminalIdentityIndex,
+    carrier: TerminalIdentityIndex,
+) -> Result<TerminalIdentityIndex, &'static str> {
+    let family = identities
+        .text(declaration)
+        .filter(|text| !text.is_empty())
+        .ok_or("byte domain has no declaration identity")?;
+    let carrier_text = identities
+        .text(carrier)
+        .filter(|text| !text.is_empty())
+        .ok_or("byte domain has no carrier identity")?;
+    // Lengths keep embedded separators in source or region names unambiguous.
+    let text = StructuralDomainDeclaration::carrier_qualified_identity(
+        &format!("{}:{family}", family.len()),
+        &format!("{}:{carrier_text}", carrier_text.len()),
+    );
+    if identities.as_table().is_invocation_local(declaration)
+        || identities.as_table().is_invocation_local(carrier)
+    {
+        identities.intern_invocation_local(&text)
+    } else {
+        Ok(identities.intern(&text))
+    }
+}
+
+#[cfg(test)]
+mod byte_domain_identity_tests {
+    use super::*;
+
+    #[test]
+    fn qualified_domains_keep_constituent_boundaries_and_invocation_custody() {
+        let mut identities = TerminalIdentityTableBuilder::default();
+        let first_source = identities.intern("a@b");
+        let first_carrier = identities.intern("c");
+        let second_source = identities.intern("a");
+        let second_carrier = identities.intern("b@c");
+        let first = byte_domain_identity(&mut identities, first_source, first_carrier).unwrap();
+        let second = byte_domain_identity(&mut identities, second_source, second_carrier).unwrap();
+        assert_ne!(first, second, "a source name cannot absorb a carrier name");
+
+        let mut invocation = TerminalIdentityTableBuilder::for_invocation();
+        let local = invocation.intern_invocation_local("local domain").unwrap();
+        let carrier = invocation.intern("view carrier");
+        let qualified = byte_domain_identity(&mut invocation, local, carrier).unwrap();
+        assert!(invocation.as_table().is_invocation_local(qualified));
+        assert_eq!(
+            byte_domain_identity(&mut invocation, local, carrier).unwrap(),
+            qualified
+        );
+    }
 }
 
 /// The one view a record field stores: a shared borrowed byte view.
@@ -765,12 +959,13 @@ fn owned_result(
     place: PlaceId,
     record: StructuralTypeId,
     multiplicity: StructuralMultiplicity,
+    qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
 ) -> StructuralOperationResult {
     StructuralOperationResult {
         place,
         structural_type: record,
         multiplicity,
-        qualifications: Vec::new(),
+        qualifications,
         projected_qualifications: Vec::new(),
         additional_input_qualifications: Vec::new(),
         qualification_establishments: Vec::new(),
@@ -1102,9 +1297,13 @@ impl<'a> Lowering<'a> {
     pub(super) fn produce(
         &mut self,
         operation: OperationId,
-        record: StructuralTypeId,
+        value_type: ValueType,
         kind: OperationKind,
     ) -> Checked<(PlaceId, ExactPlaceId)> {
+        let ValueType::Record(record, _, _) = value_type else {
+            return Err(self.internal("a structural result has no complete record type"));
+        };
+        let qualifications = self.records.qualifications(self.id, value_type)?;
         let (place, exact) = self.root(
             StructuralPlaceKind::OperationResult {
                 producer: operation,
@@ -1115,7 +1314,7 @@ impl<'a> Lowering<'a> {
         let multiplicity = self.records.multiplicity(record, self.id)?;
         self.draft()?.operations.push(Operation::unsuspended(
             operation,
-            OperationResult::Structural(owned_result(place, record, multiplicity)),
+            OperationResult::Structural(owned_result(place, record, multiplicity, qualifications)),
             kind,
         ));
         self.point = Some(ProgramPoint::AfterOperation(operation));
@@ -1136,7 +1335,7 @@ impl<'a> Lowering<'a> {
     }
 
     fn located(&mut self, expression: &Expression) -> Evaluation<Located> {
-        let Some(ValueType::Record(record, _, _)) = expression.result else {
+        let Some(value_type @ ValueType::Record(record, _, _)) = expression.result else {
             return Err(self.internal("a scalar expression is used as a record"));
         };
         match &expression.kind {
@@ -1237,7 +1436,7 @@ impl<'a> Lowering<'a> {
                     OperationKind::EstablishByteSequenceLiteral {
                         destination: root,
                         bytes: bytes.clone(),
-                        qualifications: Vec::new(),
+                        qualifications: self.records.qualifications(self.id, value_type)?,
                     },
                 )?;
                 self.write(
@@ -1315,7 +1514,7 @@ impl<'a> Lowering<'a> {
                 );
                 let (root, place) = self.produce(
                     operation,
-                    record,
+                    value_type,
                     OperationKind::ByteSequenceSubslice {
                         source,
                         start,
@@ -1427,10 +1626,20 @@ impl<'a> Lowering<'a> {
             | ExpressionKind::ShortCircuit { .. } => {
                 Err(self.internal("a scalar operation has a record type"))
             }
-            // The operand's value under another set of domains: the same
-            // storage, and nothing is computed (domains.md: "removing `D`
-            // with a cast changes no bits or geometry").
-            ExpressionKind::Requalify(operand) => self.located(operand),
+            ExpressionKind::Requalify(operand) => {
+                // Requalification uses the same copy or affine transfer as
+                // other structural transport. Its new roster is checked
+                // against the source; its bytes and backing do not change.
+                let at = continuing!(self.located(operand));
+                let root = continuing!(self.copy_or_move_record(at, value_type, expression.source));
+                Ok(Reached::Value(Located {
+                    root,
+                    place: self.exact_root(root)?,
+                    path: Vec::new(),
+                    record,
+                    fresh: true,
+                }))
+            }
             ExpressionKind::Establish { .. } => {
                 Err(self.internal("a cast that proves predicates of a data value"))
             }
@@ -1481,7 +1690,7 @@ impl<'a> Lowering<'a> {
                 };
                 let (root, place) = self.produce(
                     operation,
-                    record,
+                    value_type,
                     OperationKind::EstablishReference {
                         source,
                         storage: None,
@@ -1519,10 +1728,22 @@ impl<'a> Lowering<'a> {
     /// Otherwise `MoveStructuralValue` vacates exactly that region; its
     /// continuation owns any remaining cleanup and home retirement.
     pub(super) fn record(&mut self, expression: &Expression) -> Evaluation<PlaceId> {
+        let value_type = expression
+            .result
+            .ok_or_else(|| self.internal("a structural operand has no complete value type"))?;
         let at = continuing!(self.located(expression));
         if at.fresh && at.path.is_empty() {
             return Ok(Reached::Value(at.root));
         }
+        self.copy_or_move_record(at, value_type, expression.source)
+    }
+
+    fn copy_or_move_record(
+        &mut self,
+        at: Located,
+        value_type: ValueType,
+        source: SourceOrigin,
+    ) -> Evaluation<PlaceId> {
         let moving = !self.record_type(at.record)?.copyable;
         if moving && self.borrowed_roots.contains(&at.root) {
             return Err(refuse(
@@ -1531,16 +1752,12 @@ impl<'a> Lowering<'a> {
                 Unserved::Expression("owned extraction from borrowed storage"),
             ));
         }
-        self.name_contents(at.place, ValueType::record(at.record))?;
-        let operation = self.operation_identity(expression.source);
-        let path = self.storage_path(
-            &at.path,
-            ExecutionSite::Operation(operation),
-            expression.source,
-        )?;
+        self.name_contents(at.place, value_type)?;
+        let operation = self.operation_identity(source);
+        let path = self.storage_path(&at.path, ExecutionSite::Operation(operation), source)?;
         let (root, exact) = self.produce(
             operation,
-            at.record,
+            value_type,
             if moving {
                 OperationKind::MoveStructuralValue {
                     source: StructuralArgument {
@@ -1570,7 +1787,7 @@ impl<'a> Lowering<'a> {
                 Content::Vacated,
             )?;
             if at.path.is_empty() {
-                self.retire_homes(&[], expression.source)?;
+                self.retire_homes(&[], source)?;
             }
         }
         Ok(Reached::Value(root))
@@ -1582,7 +1799,7 @@ impl<'a> Lowering<'a> {
     /// binding. The admitted plain slice stores no persistent reference
     /// descriptors, so rebinding has no retained loan of the previous home.
     pub(super) fn bind_record(&mut self, expression: &Expression) -> Evaluation<PlaceId> {
-        let Some(ValueType::Record(record, _, _)) = expression.result else {
+        let Some(value_type @ ValueType::Record(record, _, _)) = expression.result else {
             return Err(self.internal("a scalar initializer is used as a record"));
         };
         let value = continuing!(self.record(expression));
@@ -1591,8 +1808,11 @@ impl<'a> Lowering<'a> {
         }
         self.retire_homes(&[], expression.source)?;
         let reserve = self.operation_identity(expression.source);
-        let (home, exact) =
-            self.produce(reserve, record, OperationKind::EstablishStructuralLocal {})?;
+        let (home, exact) = self.produce(
+            reserve,
+            value_type,
+            OperationKind::EstablishStructuralLocal {},
+        )?;
         self.write(
             exact,
             ProgramPoint::AfterOperation(reserve),
@@ -1841,7 +2061,7 @@ impl<'a> Lowering<'a> {
         let operation = self.operation_identity(source);
         let (root, exact) = self.produce(
             operation,
-            home,
+            ValueType::record(home),
             OperationKind::EstablishPrimitiveLocal {
                 value,
                 range_obligation: None,
@@ -1905,7 +2125,7 @@ impl<'a> Lowering<'a> {
         self.owe_domains(operation, self.record_type(record)?.requires.len(), source)?;
         let (root, exact) = self.produce(
             operation,
-            record,
+            ValueType::record(record),
             OperationKind::EstablishRecord {
                 fields: initializers,
             },
@@ -1999,7 +2219,7 @@ impl<'a> Lowering<'a> {
                 ValueType::Rigid(_) => return Err(self.internal("a rigid array element")),
             };
         let operation = self.operation_identity(source);
-        let (root, exact) = self.produce(operation, array, kind)?;
+        let (root, exact) = self.produce(operation, ValueType::record(array), kind)?;
         self.write(
             exact,
             ProgramPoint::AfterOperation(operation),
@@ -2091,7 +2311,7 @@ impl<'a> Lowering<'a> {
         };
         let operation = self.operation_identity(source);
         self.owe_domains(operation, self.record_type(record)?.requires.len(), source)?;
-        let (root, exact) = self.produce(operation, record, kind)?;
+        let (root, exact) = self.produce(operation, ValueType::record(record), kind)?;
         let at = ProgramPoint::AfterOperation(operation);
         self.write(exact, at, Content::Overwritten)?;
         if !roster.is_empty() {
@@ -2546,7 +2766,7 @@ impl<'a> Lowering<'a> {
                 self.owe_domains(operation, owed, source)?;
                 let (root, exact) = self.produce(
                     operation,
-                    record,
+                    self.slot_type(slot)?,
                     OperationKind::EstablishZeroedStructural {},
                 )?;
                 let at = ProgramPoint::AfterOperation(operation);
@@ -2568,7 +2788,7 @@ impl<'a> Lowering<'a> {
                 let operation = self.operation_identity(source);
                 let (root, exact) = self.produce(
                     operation,
-                    home,
+                    ValueType::record(home),
                     OperationKind::EstablishPrimitiveLocal {
                         value,
                         range_obligation: None,
@@ -3051,6 +3271,8 @@ mod tests {
             &types,
             &bodies,
             signatures.values(),
+            &[],
+            None,
             TerminalIdentityTableBuilder::default(),
         )
         .unwrap();

@@ -904,8 +904,8 @@ impl Lowering<'_> {
             Some(ValueType::Scalar(scalar_type, _)) => {
                 self.emit(operation, Some(scalar_type), kind)?
             }
-            Some(value_type @ ValueType::Record(record, _, _)) => {
-                let (root, exact) = self.produce(operation, record, kind)?;
+            Some(value_type @ ValueType::Record(..)) => {
+                let (root, exact) = self.produce(operation, value_type, kind)?;
                 self.unknown_contents(exact, operation)?;
                 self.name_contents(exact, value_type)?;
                 Value::Record(root)

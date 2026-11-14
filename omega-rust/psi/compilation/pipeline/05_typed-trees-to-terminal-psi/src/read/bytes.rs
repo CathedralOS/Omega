@@ -465,29 +465,15 @@ impl Program<'_> {
                 None => Ok(None),
             };
         };
-        // A view in a domain is served where the checker judges what it
-        // holds: a data field, whose every store it judges from the bytes
-        // supplied, and the cast that makes a value for one
-        // (`QualifiedViews`). A local, formal or result of such a type would
-        // owe its predicates at moves and calls that nothing judges yet.
         let mut qualification = Qualification::NONE;
-        if !domains.is_empty() {
-            if !self.qualified_views {
-                return Err(refuse(
+        for domain in domains {
+            qualification.domains = qualification.domains.with(domain).ok_or_else(|| {
+                refuse(
                     machine,
                     Construct::Machine,
-                    Unserved::Type("byte view in a domain outside a data field"),
-                ));
-            }
-            for domain in domains {
-                qualification.domains = qualification.domains.with(domain).ok_or_else(|| {
-                    refuse(
-                        machine,
-                        Construct::Machine,
-                        Unserved::Type("byte view in more than four domains"),
-                    )
-                })?;
-            }
+                    Unserved::Type("byte view in more than four domains"),
+                )
+            })?;
         }
 
         let region = self.borrowed_view_region(machine, reference, lexical_owner, &identity)?;
@@ -504,6 +490,7 @@ impl Program<'_> {
             (view && row.shape == StorageShape::ByteSequence(carrier)).then_some(id)
         });
         if let Some(row) = row {
+            self.retain_byte_domains(machine, row, qualification)?;
             return Ok(typed_view(row));
         }
         let row = self.records.push(RecordType {
@@ -523,7 +510,51 @@ impl Program<'_> {
             fields: Vec::new(),
             cases: Vec::new(),
         });
+        self.retain_byte_domains(machine, row, qualification)?;
         Ok(typed_view(row))
+    }
+
+    fn retain_byte_domains(
+        &mut self,
+        machine: MachineId,
+        carrier: StructuralTypeId,
+        qualification: Qualification,
+    ) -> Checked<()> {
+        for source in qualification.domains.members() {
+            let predicate =
+                typed_trees::byte_predicates::primitive_byte_slice_domain(self.typed, source)
+                    .ok_or_else(|| {
+                        refuse(
+                            machine,
+                            Construct::Machine,
+                            Unserved::Type(
+                                "byte qualification lost its complete primitive declaration",
+                            ),
+                        )
+                    })?;
+            let row = crate::body::SourceByteDomain {
+                source,
+                carrier,
+                predicate,
+            };
+            if let Some(known) = self
+                .byte_domains
+                .iter()
+                .find(|known| known.source == source && known.carrier == carrier)
+            {
+                if *known != row {
+                    return Err(refuse(
+                        machine,
+                        Construct::Machine,
+                        Unserved::Type("one byte domain has conflicting primitive meanings"),
+                    ));
+                }
+            } else {
+                self.byte_domains.push(row);
+            }
+            self.admitted_declarations.include(source);
+        }
+        Ok(())
     }
 
     pub(super) fn byte_literal(
@@ -590,7 +621,7 @@ impl Program<'_> {
         row
     }
 
-    /// The primitive byte predicates of a field's type: one for each domain
+    /// The primitive byte predicates of a value's type: one for each domain
     /// a byte view in a domain carries (`byte_view_domains` admitted only
     /// those), none for every other type.
     pub(super) fn view_predicates(

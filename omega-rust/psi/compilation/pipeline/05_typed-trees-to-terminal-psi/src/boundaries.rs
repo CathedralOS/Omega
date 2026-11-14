@@ -8,7 +8,8 @@ use terminal_check_tables::{Checked, Construct, Refusal, RefusalReason};
 use terminal_psi::{
     BoundaryDeclarationRole, BoundaryMachineDeclaration, BoundaryMachineResult,
     BoundaryStructuralResultDeclaration, CheckedBoundaryCallable, CheckedBoundaryExecution,
-    TerminalCallableTermination, TerminalMachineResult, TerminalModule,
+    StructuralDomainRequirement, TerminalCallableTermination, TerminalMachineResult,
+    TerminalModule,
 };
 
 use crate::{Outcome, Signature};
@@ -126,6 +127,20 @@ impl BoundaryNamespace {
                 &mut identities,
             )
             .map_err(refusal)?;
+            let requires = header
+                .structural_parameters
+                .iter()
+                .flat_map(|parameter| {
+                    parameter
+                        .qualifications
+                        .iter()
+                        .map(move |domain| StructuralDomainRequirement {
+                            argument_index: parameter.position,
+                            path: Vec::new(),
+                            domain: *domain,
+                        })
+                })
+                .collect();
             module.boundary_machines.push(BoundaryMachineDeclaration {
                 id,
                 declaration: Some(CheckedBoundaryCallable { source: declaration, execution: CheckedBoundaryExecution::Provider, method_arguments: source.declaration.method_arguments(&mut identities) }),
@@ -143,7 +158,7 @@ impl BoundaryNamespace {
                 structural_parameters: header.structural_parameters,
                 result,
                 result_reference_regions: Vec::new(),
-                requires: Vec::new(),
+                requires,
                 normal_qualifications: Vec::new(),
                 scalar_domain_requirements: Vec::new(),
                 scalar_requires: header.proof.requires,

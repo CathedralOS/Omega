@@ -919,7 +919,7 @@ pub(crate) struct Published<'a> {
 
 /// Reuse the declaration owner's existing scoped identity for application
 /// constituents too; portable publication still requires a hermetic owner.
-fn semantic_identity(
+pub(crate) fn semantic_identity(
     typed: &TypedTrees,
     symbol: SymbolHandle,
     identities: &mut TerminalIdentityTableBuilder,

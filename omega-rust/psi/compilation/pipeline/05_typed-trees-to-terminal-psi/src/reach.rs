@@ -482,7 +482,7 @@ mod tests {
                 .unwrap_err();
         assert_eq!(
             refusal.detail,
-            "ordinary trait cannot enter the service namespace"
+            "machine ordinary trait cannot enter the service namespace"
         );
     }
 }

@@ -191,6 +191,7 @@ pub(crate) struct Program<'t> {
     /// Every record type a formal, local, result, field or literal named, in
     /// discovery order; a nested record is discovered before its owner.
     pub records: IdTable<StructuralTypeId, RecordType>,
+    pub byte_domains: Vec<crate::body::SourceByteDomain>,
     /// The symbols each record type was resolved from, by the same identity.
     record_sources: IdTable<StructuralTypeId, places::RecordSource>,
     /// The data declarations being resolved, outermost first: a declaration
@@ -218,10 +219,6 @@ pub(crate) struct Program<'t> {
     /// before reading anything nested (`regions`: a call instantiates its
     /// callee's lifetimes from it first).
     expected: Option<ValueType>,
-    /// Whether the type being read may be a byte view in a domain: true
-    /// while a data field's type or a cast's result type is read, the two
-    /// places such a view is served (`view_type`).
-    qualified_views: bool,
     /// How many `StructuralFieldId`s the records above hold.
     fields_minted: u64,
     /// How many `StructuralCaseId`s the sums above hold.
@@ -354,6 +351,7 @@ impl<'t> Program<'t> {
             generic_binders: Vec::new(),
             value_arguments: IdTable::default(),
             records: IdTable::default(),
+            byte_domains: Vec::new(),
             record_sources: IdTable::default(),
             resolving: Vec::new(),
             lifetime_owner: SymbolHandle::invalid(),
@@ -363,7 +361,6 @@ impl<'t> Program<'t> {
             elision: regions::Elision::Declaration,
             elided_lifetimes: Vec::new(),
             expected: None,
-            qualified_views: false,
             fields_minted: 0,
             cases_minted: 0,
             captures: Vec::new(),

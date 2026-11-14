@@ -20,9 +20,7 @@ use terminal_psi::{
 
 use super::places::Bound;
 use super::{Draft, Evaluation, Lowering, Reached, Value, declaration, successor};
-use crate::body::{
-    Expression, ExpressionKind, Qualification, Selector, Statement, Strict, Target, ValueType,
-};
+use crate::body::{Expression, ExpressionKind, Selector, Statement, Strict, Target, ValueType};
 use crate::canonical;
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
 
@@ -706,7 +704,7 @@ impl Lowering<'_> {
                 self.parameter(join, result, scalar_type)?;
                 Value::Scalar(result)
             }
-            ValueType::Record(record, Qualification::NONE, _) => {
+            ValueType::Record(record, ..) => {
                 let (place, _) = self.root(
                     semantic_vocabulary::StructuralPlaceKind::BlockParameter {
                         block: join,
@@ -720,7 +718,7 @@ impl Lowering<'_> {
                     structural_type: record,
                     multiplicity: self.records.multiplicity(record, self.id)?,
                     access: StructuralAccess::Owned,
-                    qualifications: Vec::new(),
+                    qualifications: self.records.qualifications(self.id, result_type)?,
                     projected_qualifications: Vec::new(),
                     additional_input_qualifications: Vec::new(),
                 };
@@ -736,9 +734,6 @@ impl Lowering<'_> {
                     .structural_parameters
                     .push(parameter);
                 Value::Record(place)
-            }
-            ValueType::Record(..) => {
-                return Err(self.internal("a qualified data match result has no established join"));
             }
             ValueType::Rigid(_) => {
                 return Err(self.internal("a rigid match result has no established join"));

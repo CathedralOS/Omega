@@ -594,6 +594,8 @@ mod descriptor_storage_tests {
             &program.records,
             &bodies,
             std::iter::empty::<&crate::Signature>(),
+            &program.byte_domains,
+            Some(program.typed),
             TerminalIdentityTableBuilder::default(),
         )
         .unwrap();
