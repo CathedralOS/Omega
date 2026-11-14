@@ -73,11 +73,9 @@ pub(crate) mod identity_bytes {
     }
 }
 mod operator_applications;
-#[expect(
-    dead_code,
-    reason = "unwired, not superseded: native-artifact physical/mod.rs and TASKS_OPTIMIZER.md PIPELINE-OWNER-CONSOLIDATION"
-)]
 mod projection;
+mod replay;
+pub(crate) use replay::PhysicalEvidencePass;
 
 use crate::NativeSelectedProviderPlanDigest;
 use boundary_applications::OperatorApplicationCoverageRef;
@@ -249,12 +247,6 @@ impl ValidatedOptimizedNativePhysicalEvidenceScope {
         &self,
     ) -> Option<&self::fragment_publication::FragmentPublicationBinding> {
         self.publication.as_ref()
-    }
-
-    pub(crate) fn foreign_call_custody(&self) -> &[image_emission::ObjectForeignCall] {
-        self.publication
-            .as_ref()
-            .map_or(&[], |publication| publication.foreign_call_custody())
     }
 }
 
@@ -731,6 +723,9 @@ pub struct NativePhysicalEvidenceParts {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NativePhysicalEvidenceGapSubject {
+    UncoveredPrivateFunction {
+        function: function_identity::MachineFunctionIdentity,
+    },
     ForeignCallSiteOwner {
         machine: MachineId,
         owner: CallSiteOwner,
@@ -772,6 +767,7 @@ impl NativePhysicalEvidenceGap {
 
     pub const fn occurrence(&self) -> Option<NativePhysicalOccurrence> {
         match self.subject {
+            NativePhysicalEvidenceGapSubject::UncoveredPrivateFunction { .. } => None,
             NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner { .. }
             | NativePhysicalEvidenceGapSubject::UnownedPortEffect { .. } => None,
             NativePhysicalEvidenceGapSubject::UnsupportedSettlementRealization { occurrence }
@@ -793,6 +789,12 @@ impl NativePhysicalEvidenceGap {
 impl std::fmt::Display for NativePhysicalEvidenceGap {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.subject {
+            NativePhysicalEvidenceGapSubject::UncoveredPrivateFunction { function } => {
+                write!(
+                    formatter,
+                    "private function {function:?} requires its own physical occurrence projection"
+                )
+            }
             NativePhysicalEvidenceGapSubject::ForeignCallSiteOwner { machine, owner } => {
                 match owner {
                     CallSiteOwner::Operation(operation) => write!(
@@ -1027,13 +1029,6 @@ fn native_optimization_projection(
     }
 }
 
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "unwired, not superseded: native-artifact physical/mod.rs and TASKS_OPTIMIZER.md PIPELINE-OWNER-CONSOLIDATION"
-    )
-)]
 fn validated_optimized_native_physical_evidence_scope(
     validation: OptimizedAbstractPlanProjectionIdentity,
     final_unit: OptimizationUnitIdentity,
@@ -1051,10 +1046,6 @@ fn validated_optimized_native_physical_evidence_scope(
     }
 }
 
-#[expect(
-    dead_code,
-    reason = "unwired, not superseded: native-artifact physical/mod.rs and TASKS_OPTIMIZER.md PIPELINE-OWNER-CONSOLIDATION"
-)]
 fn validated_fragment_native_physical_evidence_scope(
     mut scope: ValidatedOptimizedNativePhysicalEvidenceScope,
     publication: self::fragment_publication::FragmentPublicationBinding,

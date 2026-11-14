@@ -30,6 +30,8 @@ mod request;
 mod scalar_completion;
 
 #[cfg(test)]
+mod physical_publication_tests;
+#[cfg(test)]
 mod pipeline_boundary;
 
 pub use application::{TerminalApplication, admit_package_permissions};
