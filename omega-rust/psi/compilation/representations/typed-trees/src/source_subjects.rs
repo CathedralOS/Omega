@@ -21,8 +21,14 @@ pub fn contains(
         .symbol_provenance_source_span(symbol)
         .and_then(|span| program.symbols.source_file(span))
         .ok_or("declaration without a source file")?;
+    // A standalone source is given a package identity derived from its own
+    // files once its Build has run, so the request for standalone source
+    // (`None`) names its user files by origin, not by identity. No package
+    // graph is admitted beside a standalone source, so those are its files.
+    let requested = subjects.contains(&file.package_identity)
+        || (subjects.contains(&None) && file.origin == source::SourceOrigin::User);
     Ok(program.symbols.symbol_source_is_selected(symbol)
         && !file.origin.is_toolchain()
         && file.dependency_scope == purpose
-        && subjects.contains(&file.package_identity))
+        && requested)
 }
