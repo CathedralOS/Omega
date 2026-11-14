@@ -68,7 +68,7 @@ use terminal_psi::{
 };
 
 use self::places::{Bound, Records, Witness};
-use crate::body::{Body, Signature, Signatures, ValueType};
+use crate::body::{Body, Signature, Signatures, Statement, ValueType};
 use crate::canonical;
 use crate::outcome::Outcome;
 use crate::{MachineSources, SourceOrigin, Unpositioned, Unserved, refuse};
@@ -549,9 +549,48 @@ fn successor(edge: EdgeId, target: BlockId, arguments: Vec<ValueId>) -> Successo
 impl<'a> Lowering<'a> {
     /// Lowers one body's statements into the open block, and the implicit
     /// Unit completion when they fall off the end.
+    ///
+    /// `wiki/spec/language/state_contracts.md`, "Statements after a call
+    /// that never returns": "When checked call information excludes normal
+    /// return, the call has no normal successor." The statements after such
+    /// a call are not lowered: "Unreachable statements contribute no
+    /// executed continuation, no synthetic Unit result, no cleanup edge
+    /// after the call, no ownership frontier, and no `ensures` fact handed
+    /// to a surviving continuation", and they owe "no fresh proofs,
+    /// resources or ownership dispositions". They are source all the same,
+    /// and the stages before this one checked their names and types and the
+    /// reader read them. The evidence is the callee's outcome (`no_normal`):
+    /// a callee some path of which returns keeps its continuation.
     fn body(&mut self, body: &Body) -> Checked<()> {
-        for statement in &body.statements {
+        let mut statements = body.statements.iter();
+        while let Some(statement) = statements.next() {
             self.statement(statement)?;
+            let Statement::Evaluate(call) = statement else {
+                continue;
+            };
+            if self.no_normal(call)?.is_none() {
+                continue;
+            }
+            // An erased binding evaluates nothing, so it is no executable
+            // statement and none is reported for it.
+            let first = statements.find_map(|statement| match statement {
+                Statement::Witness { .. } => None,
+                Statement::Bind { value, .. } | Statement::Evaluate(value) => Some(value.source),
+                Statement::Declare { source, .. }
+                | Statement::Store { source, .. }
+                | Statement::Dispatch { source, .. }
+                | Statement::Arm { source, .. } => Some(*source),
+                Statement::CaptureReference { .. } => {
+                    Some(SourceOrigin::Unpositioned(Unpositioned::SpanAbsent))
+                }
+            });
+            if let Some(statement) = first {
+                self.sources.unreachable.push(crate::Unreachable {
+                    statement,
+                    call: call.source,
+                });
+            }
+            break;
         }
         if self.open() {
             match self.signature.result {

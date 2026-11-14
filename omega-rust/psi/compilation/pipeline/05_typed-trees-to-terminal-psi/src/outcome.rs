@@ -237,7 +237,8 @@ impl Walk<'_> {
 
     /// Whether the statements can fall through to a normal completion or
     /// complete normally in an arm. Statements after a no-successor exit are
-    /// not reached; lowering refuses them.
+    /// not reached, so they contribute nothing; lowering leaves them out
+    /// (`lower`, `body`).
     fn statements(&mut self, machine: MachineId, statements: &[Statement]) -> Checked<bool> {
         let mut normal = false;
         for statement in statements {

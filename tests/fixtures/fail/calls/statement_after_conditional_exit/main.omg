@@ -1,0 +1,24 @@
+use omega::language::core::ProcessExit;
+
+// Rejected. Twin of `run/calls/statement_after_process_exit`: the call before
+// the `let` is of a helper that exits on one arm and returns on the other.
+// A call that can return has a continuation, which is checked on the paths
+// that return, and there `root.count + 1` can overflow.
+data Main { status: i32; count: i32; }
+
+machine leave_unless_zero(status: i32) reaches ProcessExit {
+    transition status == 0 {
+        true -> {}
+        false -> ProcessExit::exit_process(status)
+    }
+}
+
+machine main(root: &mut Main) reaches ProcessExit {
+    leave_unless_zero(root.status);
+    let next: i32 = root.count + 1;
+}
+
+machine entry_start() reaches ProcessExit {
+    let mut entry_storage: Main;
+    main(&mut entry_storage);
+}

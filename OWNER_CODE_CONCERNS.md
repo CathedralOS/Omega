@@ -387,3 +387,10 @@ framework or a list of features that remain unimplemented.
 - Saw: typing picks the protocol operation of a Build selection by comparing strings, and publication recovers which operation a boundary call is by comparing the requirement's name a second time. The typed call also carries no static application, so `bind_native<Locator>` reaches the checker as an open requirement although typing knows the locator argument it was written with
 - Cost: the host row's operation is decided twice from text, and the native binding cannot be closed at its locator type by the pass that closes every other application until typing records that application on the call
 - Reported: 2026-11-13, Claude Code, while closing boundary requirements at the types their calls apply
+
+### A call of a machine nothing declares is refused as "not supported yet", not as an error
+- Category: a verdict with nothing behind it
+- Where: `typed-trees/src/deferred_refusals.rs` (`DeferredRequest::UnresolvedCallTarget`); `05_typed-trees-to-terminal-psi/src/read.rs` (raises the row as `RefusalReason::Unsupported`); `compiler/tests/route_probe.rs` (`an_unknown_machine_after_a_call_that_never_returns_is_not_accepted`)
+- Saw: typing records a call whose name no declaration answers as a deferred row beside rows for constructs no pass serves yet, and the reader raises every row the same way. `undeclared_machine(x);` in a program's own machine therefore reaches the user as "not supported yet ... with no claim that it is wrong" and never as a rejection
+- Cost: a misspelled machine name reads as a compiler limitation; state_contracts.md ("an unknown machine name or malformed type is an error wherever it appears") is met only in that the program is not accepted, and the outcome word is `not-supported` where it should be `rejected`
+- Reported: 2026-11-13, Claude Code, while accepting statements after a call that never returns

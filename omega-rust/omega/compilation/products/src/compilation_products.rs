@@ -186,6 +186,7 @@ pub struct CompileReport {
     wrote_output: bool,
     timings: Vec<PhaseTiming>,
     test_roster: Vec<crate::TestRosterEntry>, // Registered tests run before this report succeeded.
+    advisories: Vec<diagnostics::Diagnostic>, // Warnings and their notes about the accepted source; none is an error.
 }
 
 impl CompileReport {
@@ -199,6 +200,18 @@ impl CompileReport {
         &self.test_roster
     }
 
+    /// Attaches what the checker says about the accepted source without
+    /// refusing it. The compilation succeeded whatever is listed here.
+    #[must_use]
+    pub fn with_advisories(mut self, advisories: Vec<diagnostics::Diagnostic>) -> Self {
+        self.advisories = advisories;
+        self
+    }
+
+    pub fn advisories(&self) -> &[diagnostics::Diagnostic] {
+        &self.advisories
+    }
+
     fn shell(root_path: PathBuf, source_file_count: usize, product: CompileProduct) -> Self {
         Self {
             source_completion_accounting: Default::default(),
@@ -209,6 +222,7 @@ impl CompileReport {
             source_file_count,
             wrote_output: false,
             test_roster: Vec::new(),
+            advisories: Vec::new(),
             timings: Vec::new(),
         }
     }
