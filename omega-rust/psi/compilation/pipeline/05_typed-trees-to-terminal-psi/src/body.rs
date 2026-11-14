@@ -567,15 +567,6 @@ pub fn formal_values(
     )
 }
 
-/// What a header says on one ceiling axis: service reach (`reaches`) or
-/// synchronous entry (`invokes`). Both are a set of service identities that
-/// bounds what the machine's calls contribute, published to callers, so one
-/// type, one derivation (`outcome`) and one judgment serve both.
-/// `wiki/spec/language/effects.md`: "A present clause is an upper bound, not
-/// an assertion of exact equality and not an additive contribution", and
-/// "Omission requests inference and is distinct from an explicit empty
-/// clause."
-
 /// The two ceiling axes a header may bound.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Axis {
@@ -625,11 +616,6 @@ impl Signature {
         }
     }
 }
-
-/// What the machine's header says about crashing.
-/// `wiki/spec/language/effects.md`: "On a public checked body omitted
-/// `crashes` means no crash route, exactly as `crashes none`. Private checked
-/// bodies may omit any of the three to request inference."
 
 /// A machine body: slot types (formals first, then locals in binding order)
 /// and its statements in authored order.

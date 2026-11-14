@@ -127,23 +127,29 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
         "unchanged Shift body"
     );
     let frontier = unbuilt_frontier::staged_frontier("failed_actual_refinement", &source);
-    let typed = std::sync::Arc::new(frontier.typed);
-    let subjects = [frontier.subject];
+    let compiler::TypedFrontier {
+        typed,
+        entries,
+        subject,
+        selected,
+        bindings,
+        supplies,
+        normalization,
+        ..
+    } = *frontier;
+    let typed = std::sync::Arc::new(typed);
+    let subjects = [subject];
+    let calling = normalization.calling.borrow(&typed);
     let compilation = || typed_trees_to_terminal_psi::Compilation {
-        calling: frontier
-            .normalization
-            .calling
-            .borrow(&frontier.typed)
-            .selection(),
-        providers: frontier.provider_selections(),
-
+        calling: calling.selection(),
+        providers: normalization.providers(&typed),
         declaration_metadata: &[],
-        entries: &frontier.entries,
+        entries: &entries,
         subjects: &subjects,
         purpose: source::DependencyScope::Product,
-        selected: &frontier.selected,
-        bindings: &frontier.bindings,
-        supplies: &[],
+        selected: &selected,
+        bindings: &bindings,
+        supplies: &supplies,
     };
     let prepared = match typed_trees_to_terminal_psi::prepare_compilation(
         &typed,
@@ -245,7 +251,7 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
     // Publication must refuse the same source even if its first closure
     // passed: an actual selected member's failed witness remains decisive.
     let refused = psi_compiler::AcceptedTerminalSource::judge(
-        typed,
+        std::sync::Arc::clone(&typed),
         compilation(),
         terminal_codec::TerminalPublication::Portable,
     )

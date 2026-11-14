@@ -146,8 +146,9 @@ fn record_rows(build: &str) -> Vec<(String, bool)> {
     let RouteVerdict::Accepted(accepted) = verdict else {
         panic!("{verdict:?}")
     };
-    let rows = prepared
-        .source
+    let rows = prepared.source.forms[0]
+        .as_ref()
+        .expect("accepted primary form retains its source correspondence")
         .records
         .iter()
         .map(|row| {

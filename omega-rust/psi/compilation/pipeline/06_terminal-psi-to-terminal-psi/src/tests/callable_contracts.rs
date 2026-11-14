@@ -150,7 +150,14 @@ fn declared_refinement_module() -> TerminalModule {
             (SymbolKind::CallableContract, name(22, 30)),
         ]),
     );
-    let u32_symbol = declarations.handle_at(BuiltinTypeAtom::U32.ordinal() as u32);
+    let u32_atom = BuiltinTypeAtom::ALL
+        .into_iter()
+        .find(|atom| {
+            atom.fixed_integer()
+                .is_some_and(|carrier| !carrier.is_signed() && carrier.width() == 32)
+        })
+        .expect("the builtin roster contains unsigned 32-bit integers");
+    let u32_symbol = declarations.handle_at(u32_atom.ordinal() as u32);
     let selected = declarations.handle_at(symbols::BUILTIN_TYPE_COUNT as u32);
     let callback = declarations.handle_at(symbols::BUILTIN_TYPE_COUNT as u32 + 1);
     let entry = builder

@@ -253,27 +253,24 @@ impl PreparedProductTarget {
             .map_err(|error| vec![error])?;
         let accepted = source.terminal_publication.accepted()?;
         let module = accepted.module();
-        let entry = if profile.is_none()
-            || (source.terminal_publication.roster()?.entries.is_empty()
-                && module.program_entry_contracts.is_empty())
-        {
+        let entry = match profile {
+            Some(profile)
+                if !(source.terminal_publication.roster()?.entries.is_empty()
+                    && module.program_entry_contracts.is_empty()) =>
+            {
+                let contract = module
+                    .program_entry_contract(profile.target_name())
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                module.machine(contract.entry).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "selected target entry has no exact executable machine",
+                    )]
+                })?;
+                Some(contract.entry)
+            }
             // A reusable source artifact has no executable nomination. It
             // acquires provider demand only when a consumer supplies one.
-            None
-        } else {
-            let contract = module
-                .program_entry_contract(
-                    profile
-                        .expect("a deployment was established above")
-                        .target_name(),
-                )
-                .map_err(|reason| vec![Diagnostic::error(reason)])?;
-            module.machine(contract.entry).ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "selected target entry has no exact executable machine",
-                )]
-            })?;
-            Some(contract.entry)
+            _ => None,
         };
         Ok(Self { profile, entry })
     }

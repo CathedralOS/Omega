@@ -104,6 +104,7 @@ fn case_plan() -> AbstractOperationPlan {
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
         dynamic_dispatch: Default::default(),
+        callables: Default::default(),
         identities: identities.build(),
         functions: vec![AbstractFunction {
             machine: MachineId::new(1).unwrap(),

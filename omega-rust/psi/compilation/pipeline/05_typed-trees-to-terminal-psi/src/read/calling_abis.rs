@@ -588,18 +588,12 @@ mod descriptor_storage_tests {
             ))
         );
         let bodies = IdTable::default();
-        let signatures = IdTable::default();
-        let boundaries = IdTable::default();
-        let completions = IdTable::default();
+
         let declared = crate::lower::places::declare(
             entry,
             &program.records,
             &bodies,
-            crate::body::Signatures {
-                machines: &signatures,
-                boundaries: &boundaries,
-                completions: &completions,
-            },
+            std::iter::empty::<&crate::Signature>(),
             TerminalIdentityTableBuilder::default(),
         )
         .unwrap();

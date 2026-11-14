@@ -5149,10 +5149,10 @@ fn a_value_consumed_while_its_window_is_open_rejects_naming_the_write_and_the_us
                 clause: 0
             }
         );
-        assert_eq!(entry.site, nowhere());
+        assert_eq!(entry.site, nowhere().into());
         let consumption = entry.consumed.unwrap();
         assert_eq!(consumption.at, Construct::Operation(copy));
-        assert_eq!(consumption.site, nowhere());
+        assert_eq!(consumption.site, nowhere().into());
         assert!(
             entry.message().starts_with(
                 "cannot prove requires clause 1 of a data type in this machine inside an open \
@@ -5608,7 +5608,7 @@ fn a_gated_local_established_field_by_field_is_a_value_once_its_requires_holds()
         panic!("exactly the copy is unestablished: {unestablished:?}");
     };
     assert_eq!(used.at, Construct::Operation(copy));
-    assert_eq!(used.declared, Some(nowhere()));
+    assert_eq!(used.declared, Some(nowhere().into()));
     // The same two statements read `g.a` instead: the leaf observed is the
     // stored one, not zeroed storage.
     let (_, result, _) = program(BOTH, &[(0, 3)], false);
@@ -6412,8 +6412,9 @@ mod generic_bodies {
         let check = |selections| {
             let prepared =
                 prepared_refinement(selections, double(), lower(vec![witness(), double()]));
-            let before = searches();
-            let verdicts = crate::judge_compilation(prepared);
+            let mut activity = crate::ProofSearchActivity::default();
+            let before = activity.started();
+            let verdicts = crate::verdict::judge_compilation_with_activity(prepared, &mut activity);
             assert_eq!(verdicts.len(), 3);
             assert!(
                 verdicts
@@ -6421,7 +6422,7 @@ mod generic_bodies {
                     .all(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_)))),
                 "{verdicts:?}"
             );
-            searches() - before
+            activity.started() - before
         };
         let one_selection = check(1);
         assert!(one_selection > 0);

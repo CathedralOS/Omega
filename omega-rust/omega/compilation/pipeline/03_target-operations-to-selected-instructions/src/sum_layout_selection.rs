@@ -487,6 +487,17 @@ fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan)
     }
     let module = TerminalModule::for_entry(plan.entry);
     let interrupts = provider_admission::AdmittedInstalledInterruptCohort::empty(plan.psi);
+    let callable_program =
+        optimization_unit_semantics::callable_values::optimized_callable_values(&unit)
+            .unwrap_or_else(|reason| panic!("{name}: callable projection {reason}"));
+    assert!(
+        callable_program
+            .bodies
+            .values()
+            .all(|body| body.invocations.is_empty() && body.invalid_invocations.is_empty()),
+        "{name}: the sum-layout fixture has no call occurrences"
+    );
+    let callable_roots = terminal_semantics::callable_values::CallableInvocationRoots::new();
     let legalized = crate::legalize_target_operations(
         &target,
         plan,
@@ -497,6 +508,7 @@ fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan)
             target_machine_selections: None,
             module: &module,
         },
+        &callable_roots,
         &interrupts,
         None,
         &[],
@@ -655,6 +667,7 @@ fn plan(
         structural_types: types.into(),
         boundary_machines: Vec::new(),
         provider_candidates: Vec::new(),
+        callables: Default::default(),
         dynamic_dispatch: Default::default(),
         identities: names.build(),
         functions: vec![function],

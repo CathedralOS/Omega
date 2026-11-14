@@ -202,8 +202,9 @@ fn source_applications_prepare_substituted_cases_before_checked_construction() {
     let RouteVerdict::Accepted(_) = verdict else {
         panic!("{verdict:?}")
     };
-    let records: Vec<_> = prepared
-        .source
+    let records: Vec<_> = prepared.source.forms[0]
+        .as_ref()
+        .expect("accepted primary form retains its source correspondence")
         .records
         .iter()
         .filter(|record| record.declaration == optional.symbol)

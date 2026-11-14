@@ -245,6 +245,7 @@ fn check_preserved_rejection() {
         terminal_psi_to_terminal_psi::judge(Ok(elaboration)).expect("one ordinary source judgment");
     let RouteVerdict::Rejected {
         formations,
+        violations,
         unproved,
         unestablished,
         conflicts,
@@ -257,10 +258,11 @@ fn check_preserved_rejection() {
     };
     assert!(
         formations.is_empty()
+            && violations.is_empty()
             && unestablished.is_empty()
             && conflicts.is_empty()
             && exceeded.is_empty(),
-        "an unrelated formation, custody or effect failure cannot satisfy this rejection"
+        "an unrelated formation, rule violation, custody or effect failure cannot satisfy this rejection"
     );
     assert!(
         unproved.iter().any(|failure| {

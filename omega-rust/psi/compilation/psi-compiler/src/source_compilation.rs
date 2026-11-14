@@ -1460,6 +1460,8 @@ mod resolution_handoff_tests {
         let refused = crate::AcceptedTerminalSource::judge(
             Arc::new(program),
             crate::TerminalSourceCompilation {
+                calling: None,
+                providers: None,
                 declaration_metadata: &[],
                 entries: &[helper],
                 subjects: &[],

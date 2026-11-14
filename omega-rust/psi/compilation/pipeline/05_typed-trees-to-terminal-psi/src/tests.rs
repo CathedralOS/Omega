@@ -1144,8 +1144,8 @@ fn a_binding_of_a_call_that_never_returns_ends_the_body() {
     assert_eq!(
         lowered.sources.unreachable,
         vec![crate::Unreachable {
-            statement: authored(20),
-            call: authored(10),
+            statement: authored(20).into(),
+            call: authored(10).into(),
         }]
     );
 }
@@ -1256,8 +1256,8 @@ fn a_never_returning_argument_stops_later_arguments_and_the_outer_call() {
     assert_eq!(
         lowered.sources.unreachable,
         vec![crate::Unreachable {
-            statement: authored(20),
-            call: authored(10),
+            statement: authored(20).into(),
+            call: authored(10).into(),
         }]
     );
 }
@@ -1269,7 +1269,8 @@ fn a_never_returning_record_base_stops_its_field_projection() {
         statements: vec![returns(member(
             of_type(
                 ExpressionKind::Call {
-                    callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
+                    operational_acknowledgement: Default::default(),
+                    callee: id::<semantic_vocabulary::MachineId>(2).into(),
                     arguments: Vec::new(),
                     designated: None,
                 },
@@ -1448,8 +1449,8 @@ fn statements_after_a_call_that_never_returns_are_not_lowered() {
     assert_eq!(
         lowered.sources.unreachable,
         vec![crate::Unreachable {
-            statement: authored(20),
-            call: authored(10),
+            statement: authored(20).into(),
+            call: authored(10).into(),
         }]
     );
 }

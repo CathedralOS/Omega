@@ -848,7 +848,19 @@ pub(crate) fn judge_owing(
     elaborated: Checked<Elaboration>,
     applied: AppliedContracts,
 ) -> Checked<RouteVerdict> {
-    match examine(elaborated, &[]) {
+    judge_owing_with_activity(
+        elaborated,
+        applied,
+        &mut crate::ProofSearchActivity::default(),
+    )
+}
+
+fn judge_owing_with_activity(
+    elaborated: Checked<Elaboration>,
+    applied: AppliedContracts,
+    activity: &mut crate::ProofSearchActivity,
+) -> Checked<RouteVerdict> {
+    match examine(elaborated, &[], activity) {
         Ok(examined) => conclude(examined, applied),
         Err(decided) => decided,
     }
@@ -872,6 +884,7 @@ struct Examined {
 fn examine(
     elaborated: Checked<Elaboration>,
     carried: &[crate::Carried<'_>],
+    activity: &mut crate::ProofSearchActivity,
 ) -> Result<Examined, Checked<RouteVerdict>> {
     let mut elaboration = match elaborated {
         Ok(elaboration) => elaboration,
@@ -953,7 +966,7 @@ fn examine(
             });
         }
     }
-    match crate::discharge_carrying(&mut elaboration, carried, &mut Default::default()) {
+    match crate::discharge_carrying(&mut elaboration, carried, activity) {
         Ok(discharged) => Ok(Examined {
             elaboration,
             discharged,
@@ -1202,6 +1215,13 @@ pub enum CompilationRefusal {
 pub fn judge_compilation(
     input: terminal_check_tables::compilation::TerminalCompilation,
 ) -> Vec<Result<RouteVerdict, CompilationRefusal>> {
+    judge_compilation_with_activity(input, &mut crate::ProofSearchActivity::default())
+}
+
+pub(crate) fn judge_compilation_with_activity(
+    input: terminal_check_tables::compilation::TerminalCompilation,
+    activity: &mut crate::ProofSearchActivity,
+) -> Vec<Result<RouteVerdict, CompilationRefusal>> {
     use terminal_check_tables::compilation::TerminalCompilation;
     let prepared = match input {
         TerminalCompilation::FormationFailures(formations) => {
@@ -1219,14 +1239,14 @@ pub fn judge_compilation(
         }
         TerminalCompilation::Prepared(prepared) => prepared,
     };
-    let forms = examine_generic_forms(prepared.forms);
+    let forms = examine_generic_forms(prepared.forms, activity);
     // A selection borrows the same discharge that later decides its witness's
     // verdict. Several selections may name one witness; none owns a second
     // copy to prove independently.
     let examined_witnesses: Vec<_> = prepared
         .witnesses
         .into_iter()
-        .map(|witness| examine(witness, &[]))
+        .map(|witness| examine(witness, &[], activity))
         .collect();
     let closure_verdict = match prepared.closure {
         Ok(closure) => {
@@ -1238,12 +1258,14 @@ pub fn judge_compilation(
                 &examined_witnesses,
             );
             let carried = carried(&closure, &forms, &witnesses, &prepared.specializations);
-            match examine(Ok(closure), &carried) {
+            match examine(Ok(closure), &carried, activity) {
                 Ok(examined) => conclude(examined, AppliedContracts::Undecided),
                 Err(decided) => decided,
             }
         }
-        Err(refused) => judge(Err(refused)),
+        Err(refused) => {
+            judge_owing_with_activity(Err(refused), AppliedContracts::Undecided, activity)
+        }
     };
     let mut verdicts = vec![closure_verdict.map_err(CompilationRefusal::Elaboration)];
     verdicts.extend(forms.into_iter().map(|form| {
@@ -1420,6 +1442,7 @@ fn carried<'a>(
 /// left undecided, and would otherwise be accepted unjudged.
 fn examine_generic_forms(
     forms: Vec<terminal_check_tables::compilation::GenericForms>,
+    activity: &mut crate::ProofSearchActivity,
 ) -> Vec<GenericForm> {
     let cyclic: Vec<_> = (0..forms.len())
         .map(|position| reaches_itself(&forms, position))
@@ -1438,13 +1461,17 @@ fn examine_generic_forms(
             continue;
         }
         match form.forms {
-            Ok(forms) => {
-                examined.extend(forms.into_iter().map(|form| match examine(Ok(form), &[]) {
+            Ok(forms) => examined.extend(forms.into_iter().map(|form| {
+                match examine(Ok(form), &[], activity) {
                     Ok(examined) => GenericForm::Examined { template, examined },
                     Err(decided) => GenericForm::Decided(decided),
-                }))
-            }
-            Err(refused) => examined.push(GenericForm::Decided(judge(Err(refused)))),
+                }
+            })),
+            Err(refused) => examined.push(GenericForm::Decided(judge_owing_with_activity(
+                Err(refused),
+                AppliedContracts::Undecided,
+                activity,
+            ))),
         }
     }
     examined
