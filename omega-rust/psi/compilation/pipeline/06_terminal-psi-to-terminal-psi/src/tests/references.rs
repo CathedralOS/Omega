@@ -682,9 +682,10 @@ fn a_home_a_loan_gives_a_local_in_an_arm_is_not_the_continuations() {
 fn an_original_returned_reference_keeps_its_backing_and_excludes_its_parent() {
     use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram};
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../../../samples/cli/facts/reference_arrival_handoff/call_result");
+        .join("../../../../../samples/cli/facts/reference_arrival_handoff");
     let prepared = |path: &std::path::Path| {
-        let text = std::fs::read_to_string(path).unwrap();
+        let text = std::fs::read_to_string(path)
+            .unwrap_or_else(|error| panic!("reading reference source {}: {error}", path.display()));
         let typed = super::boundary_calls::typed(&text);
         let entry = typed
             .machines()
@@ -708,7 +709,7 @@ fn an_original_returned_reference_keeps_its_backing_and_excludes_its_parent() {
     };
     // These are the retained source programs, including the original 17/41
     // values and the invalid write to the parent. No test rewrites the body.
-    let positive = prepared(&root.join("main.omg")).unwrap();
+    let positive = prepared(&root.join("call_result/main.omg")).unwrap();
     // A foreign result header cannot substitute for the body's actual
     // borrowed source, even at the same caller/callee operation coordinates.
     let mut changed = positive.module.clone();
@@ -783,7 +784,7 @@ fn an_original_returned_reference_keeps_its_backing_and_excludes_its_parent() {
             .unwrap(),
         TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
     );
-    let negative = crate::judge(prepared(&root.join("invalid/main.omg"))).unwrap();
+    let negative = crate::judge(prepared(&root.join("invalid_call_result/main.omg"))).unwrap();
     let RouteVerdict::Rejected {
         formations,
         violations,
