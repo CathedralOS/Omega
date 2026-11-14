@@ -243,11 +243,9 @@ fn fetch_record(repo: &Path, version: &str) -> Result<ClaimsRecord, u8> {
     // Only the newest record matters: each commit's message is the whole
     // registry, and the ref's history is tens of thousands of such commits,
     // so a full fetch can exhaust a session's memory.
-    let fetch = crate::repository::with_git_fetch_lock(repo, || {
-        Command::new("git")
-            .args(["fetch", "-q", "--depth=1", "origin", version])
-            .current_dir(repo)
-            .stdin(Stdio::null())
+    let fetch = crate::repository::with_git_fetch(repo, |command| {
+        command
+            .args(["-q", "--depth=1", "origin", version])
             .status()
     })
     .map_err(|error| {
@@ -343,67 +341,146 @@ fn generate_ticket_id() -> String {
     )
 }
 
+enum Request {
+    Status,
+    Claim {
+        board: Option<String>,
+        item: String,
+        owner: String,
+        paths: Vec<String>,
+        note: Option<String>,
+    },
+    Release {
+        ticket: String,
+    },
+    Note {
+        ticket: String,
+        text: String,
+    },
+}
+
+fn option_value<'a>(
+    args: &mut impl Iterator<Item = &'a str>,
+    option: &str,
+) -> Result<String, String> {
+    args.next()
+        .map(str::to_owned)
+        .ok_or_else(|| format!("{option} requires a value"))
+}
+
+/// Help and malformed requests never need a workspace or registry connection.
+/// A value such as `--text --help` remains text, not a help option.
+fn parse(args: &[String]) -> Result<Option<Request>, String> {
+    let mut args = args.iter().map(String::as_str);
+    let Some(command) = args.next() else {
+        return Ok(None);
+    };
+    match command {
+        "-h" | "--help" => Ok(None),
+        "status" => {
+            if let Some(option) = args.next() {
+                return match option {
+                    "-h" | "--help" => Ok(None),
+                    _ => Err(format!("unknown option `{option}` for `status`")),
+                };
+            }
+            Ok(Some(Request::Status))
+        }
+        "claim" => {
+            let mut board = None;
+            let mut item = String::new();
+            let mut owner = String::from("agent");
+            let mut paths = Vec::new();
+            let mut note = None;
+            while let Some(option) = args.next() {
+                match option {
+                    "-h" | "--help" => return Ok(None),
+                    "--board" => board = Some(option_value(&mut args, option)?),
+                    "--item" => item = option_value(&mut args, option)?,
+                    "--owner" => owner = option_value(&mut args, option)?,
+                    "--path" => paths.extend(
+                        option_value(&mut args, option)?
+                            .split(',')
+                            .flat_map(str::split_whitespace)
+                            .filter(|path| !path.is_empty())
+                            .map(str::to_owned),
+                    ),
+                    "--note" => note = Some(option_value(&mut args, option)?),
+                    _ => return Err(format!("unknown option `{option}` for `claim`")),
+                }
+            }
+            if item.is_empty() {
+                return Err("--item is required for `claim`".to_owned());
+            }
+            Ok(Some(Request::Claim {
+                board,
+                item,
+                owner,
+                paths,
+                note,
+            }))
+        }
+        "release" => {
+            let mut ticket = String::new();
+            while let Some(option) = args.next() {
+                match option {
+                    "-h" | "--help" => return Ok(None),
+                    "--ticket" => ticket = option_value(&mut args, option)?,
+                    _ => return Err(format!("unknown option `{option}` for `release`")),
+                }
+            }
+            if ticket.is_empty() {
+                return Err("--ticket is required for `release`".to_owned());
+            }
+            Ok(Some(Request::Release { ticket }))
+        }
+        "note" => {
+            let mut ticket = String::new();
+            let mut text = String::new();
+            while let Some(option) = args.next() {
+                match option {
+                    "-h" | "--help" => return Ok(None),
+                    "--ticket" => ticket = option_value(&mut args, option)?,
+                    "--text" => text = option_value(&mut args, option)?,
+                    _ => return Err(format!("unknown option `{option}` for `note`")),
+                }
+            }
+            if ticket.is_empty() || text.is_empty() {
+                return Err("--ticket and --text are required for `note`".to_owned());
+            }
+            Ok(Some(Request::Note { ticket, text }))
+        }
+        other => Err(format!("unknown subcommand `{other}`")),
+    }
+}
+
 pub fn run(args: &[String]) -> Result<(), u8> {
-    if args.is_empty() || matches!(args[0].as_str(), "-h" | "--help") {
+    let request = parse(args).map_err(|error| {
+        eprintln!("claims: {error}");
+        2u8
+    })?;
+    let Some(request) = request else {
         println!(
             "usage: cargo xtask claims <status|claim|release|note> [--board <file>] [--item <id>] [--owner <name>] [--path <paths>] [--ticket <id>] [--text <note>]"
         );
         return Ok(());
-    }
+    };
     let repo = repo_root()?;
-    let cmd = args[0].as_str();
     let (version, mut record) = fetch_snapshot(&repo)?;
 
-    match cmd {
-        "status" => {
+    match request {
+        Request::Status => {
             let out = status_snapshot(&version, &record, SystemTime::now());
             println!("{}", serde_json::to_string_pretty(&out).unwrap());
             Ok(())
         }
-        "claim" => {
-            let mut board: Option<String> = None;
-            let mut item = String::new();
-            let mut owner = String::from("agent");
-            let mut paths: Vec<String> = Vec::new();
-            let mut note: Option<String> = None;
-            let mut i = 1;
-            while i < args.len() {
-                match args[i].as_str() {
-                    "--board" => {
-                        i += 1;
-                        board = args.get(i).cloned();
-                    }
-                    "--item" => {
-                        i += 1;
-                        item = args.get(i).cloned().unwrap_or_default();
-                    }
-                    "--owner" => {
-                        i += 1;
-                        owner = args.get(i).cloned().unwrap_or_default();
-                    }
-                    "--path" => {
-                        i += 1;
-                        if let Some(p) = args.get(i) {
-                            paths.extend(
-                                p.split(',')
-                                    .flat_map(str::split_whitespace)
-                                    .filter(|s| !s.is_empty())
-                                    .map(str::to_owned),
-                            );
-                        }
-                    }
-                    "--note" => {
-                        i += 1;
-                        note = args.get(i).cloned();
-                    }
-                    _ => {}
-                }
-                i += 1;
-            }
-            if item.is_empty() {
-                eprintln!("claims: --item is required for `claim`");
-                return Err(2);
-            }
+        Request::Claim {
+            board,
+            item,
+            owner,
+            paths,
+            note,
+        } => {
             let ticket = generate_ticket_id();
             let (claimed_utc, expires_utc) =
                 lease_timestamps(SystemTime::now()).map_err(clock_error)?;
@@ -431,23 +508,10 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             );
             Ok(())
         }
-        "release" => {
-            let mut ticket = String::new();
-            let mut i = 1;
-            while i < args.len() {
-                if args[i] == "--ticket" {
-                    i += 1;
-                    ticket = args.get(i).cloned().unwrap_or_default();
-                }
-                i += 1;
-            }
-            if ticket.is_empty() {
-                eprintln!("claims: --ticket is required for `release`");
-                return Err(2);
-            }
-            record
-                .claims
-                .retain(|c| c.get("ticket").and_then(|v| v.as_str()) != Some(ticket.as_str()));
+        Request::Release { ticket } => {
+            record.claims.retain(|claim| {
+                claim.get("ticket").and_then(|value| value.as_str()) != Some(ticket.as_str())
+            });
             commit_and_push(&repo, &version, &record)?;
             println!(
                 "{}",
@@ -459,28 +523,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             );
             Ok(())
         }
-        "note" => {
-            let mut ticket = String::new();
-            let mut text = String::new();
-            let mut i = 1;
-            while i < args.len() {
-                match args[i].as_str() {
-                    "--ticket" => {
-                        i += 1;
-                        ticket = args.get(i).cloned().unwrap_or_default();
-                    }
-                    "--text" => {
-                        i += 1;
-                        text = args.get(i).cloned().unwrap_or_default();
-                    }
-                    _ => {}
-                }
-                i += 1;
-            }
-            if ticket.is_empty() || text.is_empty() {
-                eprintln!("claims: --ticket and --text are required for `note`");
-                return Err(2);
-            }
+        Request::Note { ticket, text } => {
             let created_utc = format_utc(SystemTime::now()).map_err(clock_error)?;
             record.notes.push(serde_json::json!({
                 "ticket": ticket,
@@ -500,10 +543,6 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 .unwrap()
             );
             Ok(())
-        }
-        other => {
-            eprintln!("claims: unknown subcommand `{other}`");
-            Err(2)
         }
     }
 }

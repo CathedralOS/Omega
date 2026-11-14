@@ -59,9 +59,9 @@ fn open_fetch_lock(repository: &Path) -> Result<File, String> {
 /// two depth-one readers can otherwise race Git's common shallow file. Keep
 /// the native lock across the Git child only, outside the worktree pool lock.
 /// The file stays in place; the OS releases ownership on drop or process exit.
-pub(crate) fn with_git_fetch_lock<T>(
+pub(crate) fn with_git_fetch<T>(
     repository: &Path,
-    fetch: impl FnOnce() -> io::Result<T>,
+    fetch: impl FnOnce(&mut Command) -> io::Result<T>,
 ) -> Result<T, String> {
     let lock = open_fetch_lock(repository)?;
     lock.lock().map_err(|error| {
@@ -70,7 +70,26 @@ pub(crate) fn with_git_fetch_lock<T>(
             repository.display()
         )
     })?;
-    fetch().map_err(|error| format!("git fetch failed: {error}"))
+    // A metadata read must not launch detached work over the shared object
+    // store. Command-local controls also bound index/pack children without
+    // changing the user's repository or global Git configuration.
+    let mut command = Command::new("git");
+    command
+        .args([
+            "-c",
+            "gc.auto=0",
+            "-c",
+            "maintenance.auto=false",
+            "-c",
+            "pack.threads=1",
+            "-c",
+            "index.threads=1",
+            "fetch",
+            "--no-auto-maintenance",
+        ])
+        .current_dir(repository)
+        .stdin(Stdio::null());
+    fetch(&mut command).map_err(|error| format!("git fetch failed: {error}"))
 }
 
 fn enclosing(directory: &Path) -> Result<PathBuf, String> {
@@ -339,7 +358,7 @@ mod fetch_tests {
             common_git_dir(&main).unwrap(),
             common_git_dir(&linked).unwrap()
         );
-        let error = with_git_fetch_lock(&main, || {
+        let error = with_git_fetch(&main, |_| {
             probe_lock(&linked, true);
             probe_lock(&independent, false);
             Err::<(), _>(io::Error::other("planned fetch failure"))
@@ -356,11 +375,9 @@ mod fetch_tests {
     }
 
     fn fetch_exact(repository: &Path, version: &str) {
-        let output = with_git_fetch_lock(repository, || {
-            Command::new("git")
-                .args(["fetch", "-q", "--depth=1", "origin", version])
-                .current_dir(repository)
-                .stdin(Stdio::null())
+        let output = with_git_fetch(repository, |command| {
+            command
+                .args(["-q", "--depth=1", "origin", version])
                 .output()
         })
         .unwrap();
@@ -369,6 +386,82 @@ mod fetch_tests {
             "snapshot {version}: {}",
             String::from_utf8_lossy(&output.stderr)
         );
+    }
+
+    #[test]
+    fn metadata_fetch_bounds_work_without_changing_repository_policy() {
+        let repos = Repositories::new();
+        let seed = repos.repository("origin");
+        let reader = repos.repository("reader");
+        git(
+            &reader,
+            &["remote", "add", "origin", seed.to_str().unwrap()],
+        );
+        let version = git(&seed, &["rev-parse", "HEAD"]);
+        for (key, value) in [
+            ("gc.auto", "1"),
+            ("maintenance.auto", "true"),
+            ("pack.threads", "37"),
+            ("index.threads", "37"),
+        ] {
+            git(&reader, &["config", key, value]);
+        }
+        let trace = repos.0.join("metadata-fetch.jsonl");
+        let output = with_git_fetch(&reader, |command| {
+            command
+                // Isolate the actual operation from an agent's outer guards.
+                .env_remove("GIT_CONFIG_COUNT")
+                .env_remove("GIT_CONFIG_PARAMETERS")
+                .env("GIT_TRACE2_EVENT", &trace)
+                .env(
+                    "GIT_TRACE2_CONFIG_PARAMS",
+                    "gc.auto,maintenance.auto,pack.threads,index.threads",
+                )
+                .args(["-q", "origin", &version])
+                .output()
+        })
+        .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(git(&reader, &["rev-parse", "FETCH_HEAD"]), version);
+        let events: Vec<serde_json::Value> = fs::read_to_string(trace)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        for (key, expected) in [
+            ("gc.auto", "0"),
+            ("maintenance.auto", "false"),
+            ("pack.threads", "1"),
+            ("index.threads", "1"),
+        ] {
+            assert!(
+                events.iter().any(|event| event["event"] == "def_param"
+                    && event["scope"] == "command"
+                    && event["param"] == key
+                    && event["value"] == expected),
+                "missing effective {key}={expected}: {events:?}"
+            );
+        }
+        assert!(
+            !events.iter().any(|event| event["event"] == "child_start"
+                && event["argv"]
+                    .as_array()
+                    .is_some_and(|args| args.iter().any(|arg| arg == "maintenance"))),
+            "detached maintenance started: {events:?}"
+        );
+        // All controls were local to this Git operation.
+        for (key, expected) in [
+            ("gc.auto", "1"),
+            ("maintenance.auto", "true"),
+            ("pack.threads", "37"),
+            ("index.threads", "37"),
+        ] {
+            assert_eq!(git(&reader, &["config", "--local", "--get", key]), expected);
+        }
     }
 
     fn next_commit(repository: &Path, tree: &str, parent: &str, label: &str) -> String {
