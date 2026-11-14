@@ -375,6 +375,43 @@ impl Program<'_> {
                 // neither that type nor a source view mints a nominal schema.
                 continue;
             }
+            if let crate::StorageShape::ElementView { element, access } = declaration.shape {
+                let application = source.application.as_ref().ok_or_else(|| {
+                    malformed(machine, "sequence storage has no retained source type")
+                })?;
+                let Some((element_type, source_access, identity)) =
+                    super::arrays::source_sequence_view(
+                        self.typed,
+                        application.reference,
+                        source.region_owner,
+                        machine,
+                    )?
+                else {
+                    return Err(malformed(
+                        machine,
+                        "sequence storage has no exact source view declaration",
+                    ));
+                };
+                if source_access != access
+                    || identity != declaration.identity
+                    || source.declaration.is_valid()
+                    || !source.fields.is_empty()
+                    || !source.cases.is_empty()
+                    || !application.substitutions.is_empty()
+                    || !self.records.get(element).is_some_and(|row| {
+                        self.typed
+                            .type_identity_text(self.typed.normalized_type_identity(element_type))
+                            .as_ref()
+                            == Some(&row.identity)
+                    })
+                {
+                    return Err(malformed(
+                        machine,
+                        "sequence storage lost its exact source/element correspondence",
+                    ));
+                }
+                continue;
+            }
             if matches!(
                 declaration.shape,
                 crate::StorageShape::FixedArray { .. }

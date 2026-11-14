@@ -206,6 +206,20 @@ fn is_stored_view(field_type: &StructuralFieldType) -> bool {
     }
 }
 
+// A shared view is one established descriptor. Its backing is supplied by
+// construction or borrowing; checking a whole value does not project elements
+// or invent a fixed extent. Mutable views still need their separate custody.
+fn is_shared_view(shape: &StructuralTypeShape) -> bool {
+    shape.is_shared_readable_byte_view()
+        || matches!(
+            shape,
+            StructuralTypeShape::ElementView {
+                access: None | Some(terminal_psi::StructuralAccess::SharedBorrow),
+                ..
+            }
+        )
+}
+
 fn asked_root(asked: Asked<'_>) -> PlaceId {
     asked.place().root
 }
@@ -567,6 +581,7 @@ impl<'a> Storage<'a> {
     ) -> Checked<()> {
         let fields = match &self.declaration(structural_type, concerns)?.shape {
             StructuralTypeShape::PrimitiveScalar(_) => return Ok(()),
+            shape if is_shared_view(shape) => return Ok(()),
             StructuralTypeShape::FixedArray {
                 element,
                 length: terminal_psi::ArrayExtent::Literal(length),
@@ -1118,9 +1133,7 @@ impl<'a> Storage<'a> {
     ) -> Checked<()> {
         match &self.declaration(structural_type, concerns)?.shape {
             StructuralTypeShape::PrimitiveScalar(_) => found.push(at.clone()),
-            shape if shape.is_shared_readable_byte_view() => {
-                // The shared view is one established descriptor. Its backing
-                // and byte predicates are checked by the byte operations.
+            shape if is_shared_view(shape) => {
                 found.push(at.clone());
             }
             StructuralTypeShape::FixedArray {
@@ -2079,10 +2092,8 @@ impl<'a> Storage<'a> {
             OperationKind::StructuralCaseMembership { source, path, .. } => {
                 Ok(vec![self.stored_at(*source, path, concerns)?])
             }
-            OperationKind::EstablishRecord { fields }
-            | OperationKind::EstablishStructuralCase { fields, .. } => fields
-                .iter()
-                .filter_map(|operand| operand.value.as_structural())
+            kind if kind.constructor_arguments().next().is_some() => kind
+                .constructor_arguments()
                 .map(|argument| self.argument(argument, concerns))
                 .collect(),
             OperationKind::StoreStructuralField { value, .. } => {

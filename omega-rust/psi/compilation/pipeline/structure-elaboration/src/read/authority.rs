@@ -187,6 +187,15 @@ impl Program<'_> {
                 StorageShape::FixedArray { element, .. } => {
                     pending.push((ValueType::record(*element), false));
                 }
+                // The canonical zero producer establishes an actual empty
+                // immutable sequence; no element is constructed or borrowed.
+                StorageShape::ElementView {
+                    access: None | Some(terminal_psi::StructuralAccess::SharedBorrow),
+                    ..
+                } => {}
+                StorageShape::ElementView { .. } => {
+                    return unserved("zero-established mutable sequence");
+                }
                 StorageShape::ByteSequence(_) | StorageShape::PrimitiveScalar { .. } => {}
             }
         }

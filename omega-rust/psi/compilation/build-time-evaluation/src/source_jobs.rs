@@ -1737,3 +1737,7 @@ pub(crate) mod tests {
         assert_eq!(receipt.admission().target(), target().name);
     }
 }
+
+#[cfg(test)]
+#[path = "source_jobs/sequence_values.rs"]
+mod sequence_values;

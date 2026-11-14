@@ -494,13 +494,10 @@ impl Program<'_> {
             ));
         }
         let value_type = self.qualified_view_type(id, field.type_reference)?;
-        // lifetimes.md: "A lifetime relates a borrowed result or stored view
-        // to storage that remains valid for its use." The one view a field
-        // may store is a byte view, a `Record` here, and its type is keyed
-        // by the region it names under this declaration (`byte_view_type`):
-        // a view of any other region is another type and is not a value of
-        // the field. A slice that adds a field type storing a view some
-        // other way adds its lifetime accounting with the arm it adds here.
+        // Stored byte and typed views keep the region of their actual source
+        // type (lifetimes.md: "storage that remains valid for its use"). The
+        // shared view owner keys the type by that region in this declaration;
+        // another region is another type, not an interchangeable descriptor.
         match value_type {
             ValueType::Scalar(..) | ValueType::Record(_, _, _) | ValueType::Rigid(_) => {}
         }

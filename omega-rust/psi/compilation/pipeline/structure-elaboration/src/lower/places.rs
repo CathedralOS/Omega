@@ -75,6 +75,7 @@ use terminal_psi::{
     StructuralTypeShape, TerminalAffineCleanupAction, TerminalIdentityIndex, TerminalIdentityTable,
     TerminalIdentityTableBuilder, Terminator,
 };
+use terminal_semantics::CollectionExtent;
 
 use super::{Lowering, Value};
 use crate::body::{
@@ -276,6 +277,19 @@ pub(crate) fn declare<'a>(
             }
             crate::StorageShape::ByteSequence(carrier) => {
                 StructuralTypeShape::ByteSequence(*carrier)
+            }
+            crate::StorageShape::ElementView { element, access } => {
+                if element.get() >= id.get() {
+                    return Err(refuse(
+                        entry,
+                        Construct::Machine,
+                        Unserved::Type("sequence with an unresolved element"),
+                    ));
+                }
+                StructuralTypeShape::ElementView {
+                    element: *element,
+                    access: *access,
+                }
             }
         };
         structural_types.push(StructuralTypeDeclaration {
@@ -937,7 +951,11 @@ impl<'a> Lowering<'a> {
                     selector,
                     fixed,
                 } => {
-                    let (_, length) = self.array_element(owner)?;
+                    let (_, CollectionExtent::Fixed(length)) = self.array_element(owner)? else {
+                        return Err(
+                            self.internal("sequence projection needs its actual current length")
+                        );
+                    };
                     if fixed.is_some_and(|index| index >= length) {
                         return Err(
                             self.internal("a captured fixed index exceeds its array extent")
@@ -987,13 +1005,19 @@ impl<'a> Lowering<'a> {
         Ok(path)
     }
 
-    fn array_element(&self, array: StructuralTypeId) -> Checked<(StructuralTypeId, u64)> {
+    fn array_element(
+        &self,
+        array: StructuralTypeId,
+    ) -> Checked<(StructuralTypeId, CollectionExtent)> {
         match self.record_type(array)?.shape {
             StorageShape::FixedArray {
                 element,
                 length: terminal_psi::ArrayExtent::Literal(length),
-            } => Ok((element, length)),
-            _ => Err(self.internal("an indexed place is not a closed fixed array")),
+            } => Ok((element, CollectionExtent::Fixed(length))),
+            StorageShape::ElementView { element, .. } => {
+                Ok((element, CollectionExtent::StoredLength))
+            }
+            _ => Err(self.internal("a collection has no element/extent declaration")),
         }
     }
 
@@ -1012,7 +1036,9 @@ impl<'a> Lowering<'a> {
     }
 
     fn index_step(&mut self, owner: StructuralTypeId, expression: &Expression) -> Checked<Step> {
-        let (_, length) = self.array_element(owner)?;
+        let (_, CollectionExtent::Fixed(length)) = self.array_element(owner)? else {
+            return Err(self.internal("sequence index needs its actual current length"));
+        };
         let fixed = match expression.kind {
             ExpressionKind::Integer(IntegerValue::Unsigned(value)) => Some(u64::try_from(value)),
             ExpressionKind::Integer(IntegerValue::Signed(value)) => Some(u64::try_from(value)),
@@ -1390,14 +1416,24 @@ impl<'a> Lowering<'a> {
         let value_type = place
             .result
             .ok_or_else(|| self.internal("a loan of a Unit value"))?;
-        let (root, steps, exact, actual) = if matches!(place.kind, ExpressionKind::ByteLiteral(_))
-            && access == language_core::ReferenceAccess::Shared
-        {
-            let at = self.located(place)?;
-            (at.root, at.path, at.place, ValueType::record(at.record))
-        } else {
-            self.capture_place(place, home_identity)?
+        let shared_view = match value_type {
+            ValueType::Record(record, _, _) => match &self.record_type(record)?.shape {
+                StorageShape::ByteSequence(carrier) => carrier.is_shared_readable_view(),
+                StorageShape::ElementView {
+                    access: Some(StructuralAccess::SharedBorrow),
+                    ..
+                } => true,
+                _ => false,
+            },
+            _ => false,
         };
+        let (root, steps, exact, actual) =
+            if shared_view && access == language_core::ReferenceAccess::Shared {
+                let at = self.located(place)?;
+                (at.root, at.path, at.place, ValueType::record(at.record))
+            } else {
+                self.capture_place(place, home_identity)?
+            };
         if actual.erased() != value_type.erased() {
             return Err(self.internal("a loan has another type than its captured place"));
         }
@@ -1608,45 +1644,75 @@ impl<'a> Lowering<'a> {
         elements: &[Expression],
         source: SourceOrigin,
     ) -> Checked<(PlaceId, ExactPlaceId)> {
-        let (element, length) = self.array_element(array)?;
-        if u64::try_from(elements.len()).ok() != Some(length) {
+        let (element_type, length) = self.array_element(array)?;
+        if let CollectionExtent::Fixed(length) = length
+            && u64::try_from(elements.len()).ok() != Some(length)
+        {
             return Err(self.internal("an array literal has another extent than its type"));
         }
-        let value_type = self.storage_value_type(element)?;
+        let value_type = self.storage_value_type(element_type)?;
         let mut operands = Vec::with_capacity(elements.len());
         for element in elements {
             if element.result.map(ValueType::erased) != Some(value_type.erased()) {
                 return Err(self.internal("an array literal element has another type"));
             }
             operands.push(match value_type {
-                ValueType::Scalar(..) => Operand::Scalar(self.scalar(element)?),
+                ValueType::Scalar(..) => {
+                    let value = self.scalar(element)?;
+                    if length == CollectionExtent::StoredLength {
+                        let identity = self.record_type(element_type)?.identity.as_str();
+                        Operand::Record(self.establish_home(
+                            value,
+                            value_type,
+                            Some(identity),
+                            source,
+                        )?)
+                    } else {
+                        Operand::Scalar(value)
+                    }
+                }
                 ValueType::Record(_, _, _) => Operand::Record(self.record(element)?),
                 ValueType::Rigid(_) => return Err(self.internal("a rigid array element")),
             });
         }
-        let kind = match value_type {
-            ValueType::Scalar(..) => OperationKind::EstablishScalarArray {
-                elements: operands
-                    .iter()
-                    .map(|operand| match operand {
-                        Operand::Scalar(value) => Ok(*value),
-                        _ => Err(self.internal("a non-scalar array element")),
-                    })
-                    .collect::<Checked<_>>()?,
-            },
-            ValueType::Record(_, _, _) => OperationKind::EstablishStructuralArray {
-                elements: operands
-                    .iter()
-                    .map(|operand| match operand {
-                        Operand::Record(root) => {
-                            Ok(StructuralArgument::whole(*root, StructuralAccess::Owned))
-                        }
-                        _ => Err(self.internal("a non-structural array element")),
-                    })
-                    .collect::<Checked<_>>()?,
-            },
-            ValueType::Rigid(_) => return Err(self.internal("a rigid array element")),
-        };
+        let kind =
+            match value_type {
+                _ if length == CollectionExtent::StoredLength => {
+                    OperationKind::EstablishStructuralArray {
+                        elements: operands
+                            .iter()
+                            .map(|operand| match operand {
+                                Operand::Record(root) => {
+                                    Ok(StructuralArgument::whole(*root, StructuralAccess::Owned))
+                                }
+                                _ => Err(self
+                                    .internal("a sequence element lost its exact structural home")),
+                            })
+                            .collect::<Checked<_>>()?,
+                    }
+                }
+                ValueType::Scalar(..) => OperationKind::EstablishScalarArray {
+                    elements: operands
+                        .iter()
+                        .map(|operand| match operand {
+                            Operand::Scalar(value) => Ok(*value),
+                            _ => Err(self.internal("a non-scalar array element")),
+                        })
+                        .collect::<Checked<_>>()?,
+                },
+                ValueType::Record(_, _, _) => OperationKind::EstablishStructuralArray {
+                    elements: operands
+                        .iter()
+                        .map(|operand| match operand {
+                            Operand::Record(root) => {
+                                Ok(StructuralArgument::whole(*root, StructuralAccess::Owned))
+                            }
+                            _ => Err(self.internal("a non-structural array element")),
+                        })
+                        .collect::<Checked<_>>()?,
+                },
+                ValueType::Rigid(_) => return Err(self.internal("a rigid array element")),
+            };
         let operation = self.operation_identity(source);
         let (root, exact) = self.produce(operation, array, kind)?;
         self.write(
@@ -1654,6 +1720,12 @@ impl<'a> Lowering<'a> {
             ProgramPoint::AfterOperation(operation),
             Content::Overwritten,
         )?;
+        // A stored-length collection establishes its descriptor. The actual
+        // element operands remain on the constructor operation; they are not
+        // fixed-index source places beneath that descriptor.
+        if length == CollectionExtent::StoredLength {
+            return Ok((root, exact));
+        }
         for (index, operand) in operands.into_iter().enumerate() {
             let index = u64::try_from(index)
                 .map_err(|_| self.internal("an array element index exceeds u64"))?;
@@ -2317,6 +2389,17 @@ impl<'a> Lowering<'a> {
                 return Err(
                     self.internal("byte view initialization requires actual readable backing")
                 );
+            }
+            StorageShape::ElementView {
+                access: None | Some(StructuralAccess::SharedBorrow),
+                ..
+            } => {
+                // EstablishZeroedStructural retains an actual empty immutable
+                // descriptor through the canonical zero-view owner.
+                return Ok(());
+            }
+            StorageShape::ElementView { .. } => {
+                return Err(self.internal("zero mutable sequence requires actual backing"));
             }
             StorageShape::Record(_) | StorageShape::Sum(_) => {}
         }

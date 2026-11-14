@@ -69,17 +69,16 @@ pub(super) fn source_byte_view(
     let TypeReferenceNode::Named { symbol, .. } =
         typed.type_reference_table.type_reference(*element_type)
     else {
-        return Err(fail("non-byte slice"));
+        return Ok(None);
     };
-    let atom = typed
-        .symbols
-        .builtin_type_atom(*symbol)
-        .ok_or_else(|| fail("non-byte slice"))?;
+    let Some(atom) = typed.symbols.builtin_type_atom(*symbol) else {
+        return Ok(None);
+    };
     let element = super::types::atom_type(atom, machine)?;
     if !matches!(element, semantic_vocabulary::ScalarType::Integer(integer)
         if integer.bits() == 8 && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && !integer.is_address())
     {
-        return Err(fail("non-byte slice"));
+        return Ok(None);
     }
     let access = match access {
         ReferenceAccess::Shared => StructuralAccess::SharedBorrow,
@@ -99,7 +98,7 @@ pub(super) fn source_byte_view(
     };
     // The carrier's identity: a view with domains stores the same
     // descriptor as the view without them, so both are one row and the
-    // domains are the value's qualification (`byte_view_type`).
+    // domains are the value's qualification (`view_type`).
     let identity = typed_trees::type_identity::applied_carrier_identity_in_region_scope(
         typed, reference, owner, owner,
     )
@@ -220,18 +219,25 @@ fn byte_view_domains(
 }
 
 impl Program<'_> {
-    /// Whether `value_type` is a byte view. The region it is a view of is
-    /// in its type (`regions`), not in its row.
-    pub(super) fn is_byte_view(&self, value_type: ValueType) -> bool {
+    /// Whether the type is a borrowed byte or typed view. Its complete
+    /// region tuple belongs to the value type, never to its storage row.
+    pub(super) fn is_borrowed_view(&self, value_type: ValueType) -> bool {
         let ValueType::Record(row, _, _) = value_type else {
             return false;
         };
-        self.records
-            .get(row)
-            .is_some_and(|row| matches!(row.shape, StorageShape::ByteSequence(_)))
+        self.records.get(row).is_some_and(|row| {
+            matches!(
+                row.shape,
+                StorageShape::ByteSequence(_)
+                    | StorageShape::ElementView {
+                        access: Some(StructuralAccess::SharedBorrow),
+                        ..
+                    }
+            )
+        })
     }
 
-    pub(super) fn byte_view_type(
+    pub(super) fn view_type(
         &mut self,
         machine: MachineId,
         reference: TypeReferenceHandle,
@@ -243,7 +249,15 @@ impl Program<'_> {
             domains,
         }) = source_byte_view(self.typed, reference, lexical_owner, machine)?
         else {
-            return Ok(None);
+            return match super::arrays::source_sequence_view(
+                self.typed,
+                reference,
+                lexical_owner,
+                machine,
+            )? {
+                Some((element, _, _)) => self.sequence_type(machine, reference, element).map(Some),
+                None => Ok(None),
+            };
         };
         // A view in a domain is served where the checker judges what it
         // holds: a data field, whose every store it judges from the bytes
@@ -269,49 +283,8 @@ impl Program<'_> {
                 })?;
             }
         }
-        // The region a view is valid for is part of its type, not of its
-        // row (`regions`): a named lifetime is the parameter it resolves to,
-        // which a call or a field read may substitute; an elided one keeps
-        // the identity the typed trees render for it, which nothing names.
-        let region = match self.typed.type_reference_table.type_reference(reference) {
-            TypeReferenceNode::Reference {
-                lifetime: Some(tag),
-                ..
-            } => {
-                let owner = match self
-                    .typed
-                    .type_reference_table
-                    .operand_lifetime_owner(reference)
-                {
-                    retained if retained.is_valid() => retained,
-                    _ => lexical_owner,
-                };
-                let parameter = owner
-                    .is_valid()
-                    .then(|| {
-                        typed_trees::type_identity::lifetime_parameter_identity(
-                            self.typed,
-                            owner,
-                            tag.as_str(),
-                        )
-                    })
-                    .flatten()
-                    .ok_or_else(|| {
-                        refuse(
-                            machine,
-                            Construct::Machine,
-                            Unserved::Type("byte view has no complete owned region identity"),
-                        )
-                    })?;
-                super::regions::Region::Parameter(parameter)
-            }
-            // Elided: a fresh lifetime of the signature, a region variable
-            // of a local, or the one identity it has anywhere else.
-            _ => match self.elided_region(machine)? {
-                Some(region) => region,
-                None => self.fixed_region(identity.clone()),
-            },
-        };
+
+        let region = self.borrowed_view_region(machine, reference, lexical_owner, &identity)?;
         let regions = self.intern_regions(vec![region]);
         let typed_view = |row| Some(ValueType::Record(row, qualification, regions));
         // One row per carrier, whatever region: the lowered form erases
@@ -518,11 +491,11 @@ mod tests {
         let missing = view(first, "missing");
         let mut program = Program::new(&typed, false);
         let machine = MachineId::new(1).unwrap();
-        let a = program.byte_view_type(machine, a).unwrap().unwrap();
-        assert_eq!(program.byte_view_type(machine, same).unwrap(), Some(a));
-        assert_ne!(program.byte_view_type(machine, b).unwrap(), Some(a));
-        assert_ne!(program.byte_view_type(machine, c).unwrap(), Some(a));
-        assert!(program.byte_view_type(machine, missing).is_err());
+        let a = program.view_type(machine, a).unwrap().unwrap();
+        assert_eq!(program.view_type(machine, same).unwrap(), Some(a));
+        assert_ne!(program.view_type(machine, b).unwrap(), Some(a));
+        assert_ne!(program.view_type(machine, c).unwrap(), Some(a));
+        assert!(program.view_type(machine, missing).is_err());
         assert!(
             program
                 .source_record_correspondence(machine)

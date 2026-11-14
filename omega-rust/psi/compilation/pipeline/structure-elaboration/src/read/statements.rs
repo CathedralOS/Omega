@@ -219,7 +219,7 @@ impl Program<'_> {
                 .typed
                 .type_reference_table
                 .type_reference(local.type_reference)
-            && self.byte_view_type(id, local.type_reference)?.is_none()
+            && self.view_type(id, local.type_reference)?.is_none()
         {
             if local.is_mutable || local.relevance != language_core::BindingRelevance::Relevant {
                 return unserved("reference capture without an immutable relevant binding");

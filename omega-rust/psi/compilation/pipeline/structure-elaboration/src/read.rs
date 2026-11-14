@@ -150,7 +150,7 @@ pub(crate) struct Program<'t> {
     expected: Option<ValueType>,
     /// Whether the type being read may be a byte view in a domain: true
     /// while a data field's type or a cast's result type is read, the two
-    /// places such a view is served (`byte_view_type`).
+    /// places such a view is served (`view_type`).
     qualified_views: bool,
     /// How many `StructuralFieldId`s the records above hold.
     fields_minted: u64,

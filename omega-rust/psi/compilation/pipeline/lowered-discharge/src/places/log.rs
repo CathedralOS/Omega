@@ -308,6 +308,18 @@ impl Storage<'_> {
             OperationKind::EstablishStructuralArray { elements } => {
                 let root = fresh()?;
                 rows.push((root.clone(), Stored::Established));
+                let shape = &self
+                    .declaration(self.root_type(root.root, concerns)?, concerns)?
+                    .shape;
+                if matches!(shape, StructuralTypeShape::ElementView { .. }) {
+                    if !super::is_shared_view(shape) {
+                        return Err(self.unsupported(concerns, "mutable sequence construction"));
+                    }
+                    // The operation's actual element arguments are required
+                    // established by operation_uses. Its result is a descriptor,
+                    // not inline storage with fixed-index child places.
+                    return Ok(rows);
+                }
                 for (index, value) in elements.iter().enumerate() {
                     let index = u64::try_from(index)
                         .map_err(|_| self.foreign(concerns, "array element index exceeds u64"))?;
@@ -517,6 +529,7 @@ impl Storage<'_> {
                 found.push((at.clone(), *scalar_type));
                 return Ok(());
             }
+            shape if super::is_shared_view(shape) => return Ok(()),
             StructuralTypeShape::FixedArray {
                 element,
                 length: terminal_psi::ArrayExtent::Literal(length),

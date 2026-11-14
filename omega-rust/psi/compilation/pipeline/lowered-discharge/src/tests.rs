@@ -49,6 +49,7 @@ mod ranges;
 mod reach;
 mod references;
 mod result_summaries;
+mod sequence_regions;
 mod stored_views;
 mod type_parameters;
 mod value_parameters;

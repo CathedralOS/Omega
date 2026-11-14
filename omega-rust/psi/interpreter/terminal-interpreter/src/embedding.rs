@@ -779,7 +779,7 @@ pub(crate) mod instance {
         };
         use crate::engine::execution::TerminalExecution;
         use crate::storage::byte_sequences::binding::ByteSequenceBinding;
-        use crate::storage::structural_storage::contents::{self, StorageLeafKind};
+        use crate::storage::structural_storage::contents::{self, StorageLeaf, StorageLeafKind};
         use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, PlaceId};
         use terminal_psi::{StructuralAccess, StructuralTypeShape};
 
@@ -830,6 +830,49 @@ pub(crate) mod instance {
                 observe_leaf(execution, *place, value, path)
             }
 
+            /// Read the live length of a typed sequence in this completed
+            /// result. Element observations still use observe_result with
+            /// exact indices into that same authenticated backing.
+            pub fn observe_result_sequence_length(
+                &self,
+                path: &[Path],
+            ) -> Result<u64, TerminalStorageObservationError> {
+                let execution = self
+                    .execution
+                    .as_ref()
+                    .ok_or(TerminalStorageObservationError::Closed)?;
+                let result = execution
+                    .result
+                    .as_ref()
+                    .ok_or(TerminalStorageObservationError::NormalReturnRequired)?;
+                let crate::TerminalExecutionResult::Structural(returned) = result else {
+                    return Err(TerminalStorageObservationError::NotStructuralResult);
+                };
+                let (_, leaf) = selected_leaf(execution, &returned.value, path)?;
+                let StorageLeafKind::Opaque {
+                    destination,
+                    declaration,
+                } = leaf.kind
+                else {
+                    return Err(TerminalStorageObservationError::UnknownPath);
+                };
+                if !matches!(
+                    execution.structural_declaration(declaration)?.shape,
+                    StructuralTypeShape::ElementView { .. }
+                ) {
+                    return Err(TerminalStorageObservationError::UnknownPath);
+                }
+                let descriptor = TerminalStructuralValue {
+                    opaque_identity: destination.opaque_identity,
+                    structural_type: declaration,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    path: destination.path,
+                };
+                let view = execution.element_view_at_resolved_home(&descriptor)?;
+                u64::try_from(view.len()).map_err(|_| malformed().into())
+            }
+
             pub fn observe_result(
                 &self,
                 path: &[Path],
@@ -868,6 +911,17 @@ pub(crate) mod instance {
             }
         }
 
+        fn selected_leaf(
+            execution: &TerminalExecution<'_>,
+            value: &TerminalStructuralValue,
+            path: &[Path],
+        ) -> Result<(TerminalStructuralValue, StorageLeaf), TerminalStorageObservationError>
+        {
+            contents::select(execution, value, path)
+                .map_err(|error| error.in_argument_preparation("select observed storage"))?
+                .ok_or(TerminalStorageObservationError::UnknownPath)
+        }
+
         fn observe_leaf<'storage>(
             execution: &'storage TerminalExecution<'_>,
             source: PlaceId,
@@ -875,19 +929,25 @@ pub(crate) mod instance {
             path: &[Path],
         ) -> Result<TerminalStorageObservationValue<'storage>, TerminalStorageObservationError>
         {
-            let leaf = contents::select(execution, value, path)?
-                .ok_or(TerminalStorageObservationError::UnknownPath)?;
+            let (selected, leaf) = selected_leaf(execution, value, path)?;
             match &leaf.kind {
                 StorageLeafKind::Scalar { .. } | StorageLeafKind::Case { .. } => {
+                    // Only a backing crossing supplies a retained original
+                    // owner. Inline/presented values keep ordinary owner lookup.
+                    let source_owner = (selected.opaque_identity != value.opaque_identity
+                        || selected.path != value.path
+                        || selected.structural_type != value.structural_type)
+                        .then_some(&selected);
                     let (mut values, _) = contents::capture(
                         execution,
                         source,
-                        value,
+                        &selected,
                         None,
                         None,
                         StructuralAccess::SharedBorrow,
                         std::slice::from_ref(&leaf),
                         &[],
+                        source_owner,
                     )?;
                     let observed = values
                         .pop()
@@ -900,11 +960,15 @@ pub(crate) mod instance {
                     } else {
                         StructuralFieldNamespace::Member
                     };
-                    let bytes = execution.byte_field_read(&StructuralByteSequenceRuntimeField {
-                        parent: parent.clone(),
-                        namespace,
-                        field: *field,
-                    })?;
+                    let bytes = execution
+                        .byte_field_read(&StructuralByteSequenceRuntimeField {
+                            parent: parent.clone(),
+                            namespace,
+                            field: *field,
+                        })
+                        .map_err(|error| {
+                            error.in_argument_preparation("read observed byte field")
+                        })?;
                     Ok(TerminalStorageObservationValue::Bytes(bytes))
                 }
                 StorageLeafKind::EmptyScalarArray {

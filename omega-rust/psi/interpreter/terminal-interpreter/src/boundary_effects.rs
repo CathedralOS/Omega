@@ -3205,7 +3205,7 @@ pub(crate) mod scalar_loans {
                 scalar_type,
                 shared_view,
             )?;
-            let restriction = execution.captured_scalar_restriction(&storage, access)?;
+            let restriction = execution.captured_scalar_restriction(&storage, access, None)?;
             if let (Some(field), Some(encoding)) = (&restriction, storage.encoding) {
                 let source_type = field.scalar_type().ok_or_else(malformed)?;
                 let source_value = encoding.source_value(original, source_type)?;
@@ -3457,11 +3457,12 @@ pub(crate) mod scalar_loans {
             &self,
             storage: &PrimitiveStorage,
             access: StructuralAccess,
+            source_owner: Option<&TerminalStructuralValue>,
         ) -> Result<Option<StructuralFieldType>, TerminalInterpretError> {
             if let PrimitiveStorageEndpoint::Projection { fragments, .. } = &storage.endpoint {
                 for fragment in fragments {
                     if let Some(restriction) =
-                        self.captured_scalar_restriction(&fragment.storage, access)?
+                        self.captured_scalar_restriction(&fragment.storage, access, source_owner)?
                     {
                         let unrestricted = matches!(restriction,
                         StructuralFieldType::Scalar(scalar) if scalar != semantic_vocabulary::ScalarType::Boolean)
@@ -3478,7 +3479,13 @@ pub(crate) mod scalar_loans {
             let PrimitiveStorageEndpoint::ScalarField(cell) = &storage.endpoint else {
                 return Ok(None);
             };
-            let parent_type = self.actual_storage_type_from_owner(&cell.parent)?;
+            // Read-only selection can carry its authenticated retained backing
+            // root, which is no longer a flat local. A different or malformed
+            // supplied owner is an error, never a reason to try another owner.
+            let parent_type = match source_owner {
+                Some(owner) => self.actual_storage_type(owner, &cell.parent)?,
+                None => self.actual_storage_type_from_owner(&cell.parent)?,
+            };
             let declaration = self.structural_declaration(parent_type)?;
             let fields = if cell.namespace == StructuralFieldNamespace::CasePayload {
                 let case = self.structural_cases.require(&cell.parent)?;

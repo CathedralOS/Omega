@@ -242,7 +242,7 @@ impl Program<'_> {
                         // `"text" as +Utf8`: a primitive byte predicate is
                         // decided by the bytes the view shows, and a view in
                         // a domain is served only as a data field's type
-                        // (`byte_view_type`), so this value is stored into
+                        // (`view_type`), so this value is stored into
                         // such a field or dropped. The checker judges each
                         // store into a predicate field from the octets of
                         // the literal it supplies (byte_views.md: "Checking
