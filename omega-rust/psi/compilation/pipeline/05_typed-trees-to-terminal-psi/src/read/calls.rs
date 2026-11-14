@@ -1955,7 +1955,7 @@ fn mentions<'a>(
             }
             Ok(false)
         }
-        ExpressionKind::Index { base, index } => {
+        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
             Ok(mentions(id, base, slots, captures)? || mentions(id, index, slots, captures)?)
         }
         ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {

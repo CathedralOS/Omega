@@ -19,12 +19,12 @@ pub(crate) mod timings;
 pub(crate) use candidate::{compiled_review_key_with_identity, verify_transitive_source_custody};
 
 pub(crate) use audit::{PackageSourcePatchError, render_package_source_patch};
-pub use candidate::CompileResolvedPackageReviewsError;
 pub use candidate::PackageReviewCacheWrite;
 pub(crate) use candidate::{
     CandidateReview, CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet,
     PackageSourceBindings, review_resolved_packages,
 };
+pub use candidate::{CompileResolvedPackageReviewCause, CompileResolvedPackageReviewsError};
 pub use candidate::{
     PackageReviewCompletion, PackageReviewComponent, PackageReviewExecutor,
     PackageReviewOccurrence, PackageReviewPass, PackageReviewRound, PackageReviewWork,

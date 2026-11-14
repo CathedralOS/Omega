@@ -104,6 +104,9 @@ pub struct SourcePreparationRequest<'request> {
 pub struct FrozenSource {
     pub program: Arc<typed_trees::FrozenTypedTrees>,
     pub accounting: build_time_evaluation::SourceCompletionAccounting,
+    /// Actual demand before named uses became literals. This is result
+    /// correspondence data, not declaration-selection or execution authority.
+    pub constants: Vec<crate::ConstantRead>,
 }
 
 /// A failed preparation keeps actual invocation usage, including successful
@@ -117,7 +120,7 @@ pub struct SourcePreparationFailure {
 impl SourcePreparationRequest<'_> {
     pub fn prepare(self) -> Result<FrozenSource, SourcePreparationFailure> {
         let mut accounting = self.accounting;
-        let result = (|| -> Result<Arc<typed_trees::FrozenTypedTrees>, Vec<Diagnostic>> {
+        let result = (|| -> Result<_, Vec<Diagnostic>> {
             // Opaque property receipts came from the deleted checker. Supplying one
             // cannot stand in for evidence from the new route.
             if !self.admission.external_roots.is_empty() || self.admission.declarations.is_some() {
@@ -137,13 +140,14 @@ impl SourcePreparationRequest<'_> {
                 self.admission.layout_selection_authority.clone(),
             )?;
             constant_entries::retain_evaluation_entries(&mut program)?;
-            build_time_evaluation::evaluate_constant_initializers_with_source_consent(
-                &mut program,
-                self.compilation,
-                self.admission.layout_selection_authority,
-                self.admission.invocation_sources,
-                &mut accounting,
-            )?;
+            let constants =
+                build_time_evaluation::evaluate_constant_initializers_with_source_consent(
+                    &mut program,
+                    self.compilation,
+                    self.admission.layout_selection_authority,
+                    self.admission.invocation_sources,
+                    &mut accounting,
+                )?;
             build_time_evaluation::validate_constant_evaluations(&program, &accounting).map_err(
                 |reason| {
                     vec![Diagnostic::error(format!(
@@ -158,12 +162,38 @@ impl SourcePreparationRequest<'_> {
             }
             let (program, _) =
                 typed_trees_to_typed_trees::prepare_typed_trees(program, &preparation)?;
-            Ok(Arc::new(program))
+            let key = |symbol: symbols::SymbolHandle| (symbol.arena_index(), symbol.generation());
+            let mut declarations = program.const_declarations().iter().collect::<Vec<_>>();
+            declarations.sort_unstable_by_key(|declaration| key(declaration.symbol));
+            let constants = constants
+                .into_iter()
+                .map(|symbol| {
+                    let index = declarations
+                        .binary_search_by_key(&key(symbol), |declaration| key(declaration.symbol))
+                        .map_err(|_| {
+                            vec![Diagnostic::error(
+                                "source preparation lost a demanded constant declaration",
+                            )]
+                        })?;
+                    let declaration = declarations[index];
+                    Ok(crate::ConstantRead {
+                        name: program.symbols.name(symbol).to_owned(),
+                        declaration: symbols::RetainedDeclaration::capture(
+                            &program.symbols,
+                            symbol,
+                        )
+                        .ok(),
+                        value: declaration.evaluated_value.clone(),
+                    })
+                })
+                .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+            Ok((Arc::new(program), constants))
         })();
         match result {
-            Ok(program) => Ok(FrozenSource {
+            Ok((program, constants)) => Ok(FrozenSource {
                 program,
                 accounting,
+                constants,
             }),
             Err(diagnostics) => Err(SourcePreparationFailure {
                 diagnostics,

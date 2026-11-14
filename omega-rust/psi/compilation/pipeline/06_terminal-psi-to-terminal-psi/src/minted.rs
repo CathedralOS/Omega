@@ -378,6 +378,21 @@ pub(crate) fn follow_the_lowered_form(
                     }
                 }
             }
+            // A byte read owes its index bound, as an indexed projection
+            // does (byte_views.md, `ByteSequenceRead`).
+            if let terminal_psi::OperationKind::ByteSequenceRead { obligation, .. } =
+                &operation.kind
+            {
+                minted.claim(
+                    *obligation,
+                    ObligationKind::OperationSafety {
+                        site: terminal_check_tables::obligations::ExecutionSite::Operation(
+                            operation.id,
+                        ),
+                    },
+                    before,
+                )?;
+            }
             if let Some(inputs) = operation.declared_invocation() {
                 minted.call(
                     InvocationSite::Operation(operation.id),

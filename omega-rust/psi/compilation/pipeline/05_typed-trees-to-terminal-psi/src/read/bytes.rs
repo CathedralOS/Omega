@@ -231,6 +231,56 @@ fn byte_view_domains(
 }
 
 impl Program<'_> {
+    /// Whether `record` is a borrowed byte view whose bytes can be read:
+    /// shared, or exclusive (byte_views.md: "An available shared or exact
+    /// mutable view").
+    pub(super) fn is_readable_byte_view(
+        &self,
+        machine: MachineId,
+        record: semantic_vocabulary::StructuralTypeId,
+    ) -> Checked<bool> {
+        Ok(matches!(
+            self.data_type(machine, record)?.shape,
+            StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+            })
+        ))
+    }
+
+    /// `view[index]`: one byte of a borrowed byte view. The index is a
+    /// `u64` (byte_views.md, `ByteSequenceRead`: "`u64` index and length"),
+    /// and whether it lies inside the view is the checker's judgment, not
+    /// this reading's.
+    pub(super) fn byte_element(
+        &mut self,
+        machine: MachineId,
+        slots: &[super::Slot],
+        base: Expression,
+        index: typed_trees::expression::ExpressionHandle,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
+        let scalar = |bits| {
+            ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).expect("valid width"))
+        };
+        let index = self.expression(machine, slots, index, Some(ValueType::plain(scalar(64))))?;
+        if index.result.and_then(ValueType::scalar) != Some(scalar(64)) {
+            return Err(refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Typing("byte view index that is not a u64"),
+            ));
+        }
+        Ok(Expression {
+            kind: ExpressionKind::ByteElement {
+                base: Box::new(base),
+                index: Box::new(index),
+            },
+            result: Some(ValueType::plain(scalar(8))),
+            source,
+        })
+    }
+
     pub(super) fn collection_measure(
         &mut self,
         machine: MachineId,

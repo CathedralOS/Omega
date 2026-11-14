@@ -66,26 +66,44 @@ pub struct PreparedBuildEvaluation {
     restricted_build_requests: Vec<RestrictedBuildRequest>,
     base_source_consumption_commitment: Option<PackageSourceConsumptionCommitment>,
     constants: compilation_products::BuildConstants,
+    source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     restricted_build_grants: Option<Box<dyn RestrictedBuildGrants>>,
 }
 
 impl PreparedBuildEvaluation {
+    pub fn source_completion_accounting(
+        &self,
+    ) -> &build_time_evaluation::SourceCompletionAccounting {
+        &self.source_completion_accounting
+    }
+
     pub fn validate_return(&self, returned: &crate::ReturnedBuild) -> Result<(), CompileFailure> {
         self.execution
             .validate_return(returned)
-            .map_err(CompileFailure::from)
+            .map_err(|diagnostics| {
+                CompileFailure::source_completion(
+                    diagnostics,
+                    self.source_completion_accounting.clone(),
+                )
+            })
     }
 
     pub fn source_result<'result>(
         &'result mut self,
         returned: Option<&'result mut crate::ReturnedBuild>,
     ) -> Result<crate::BuildSourceResult<'result>, CompileFailure> {
+        let failure = |diagnostics| {
+            CompileFailure::source_completion(
+                diagnostics,
+                self.source_completion_accounting.clone(),
+            )
+        };
         let returned = returned.ok_or_else(|| {
-            vec![Diagnostic::error(
+            failure(vec![Diagnostic::error(
                 "Build source result requires its executed activation",
-            )]
+            )])
         })?;
-        self.execution.validate_return(returned)?;
+        self.execution.validate_return(returned).map_err(failure)?;
         Ok(crate::BuildSourceResult::executed(returned))
     }
 
@@ -95,15 +113,21 @@ impl PreparedBuildEvaluation {
         inputs: Option<&PackageCompilationInputs>,
         initially_unbound: bool,
     ) -> Result<(), CompileFailure> {
+        let failure = |diagnostics| {
+            CompileFailure::source_completion(
+                diagnostics,
+                self.source_completion_accounting.clone(),
+            )
+        };
         let returned = returned.ok_or_else(|| {
-            vec![Diagnostic::error(
+            failure(vec![Diagnostic::error(
                 "Build source join requires its executed activation",
-            )]
+            )])
         })?;
-        self.execution.validate_return(returned)?;
+        self.execution.validate_return(returned).map_err(failure)?;
         returned
             .validate_source_join(inputs, initially_unbound)
-            .map_err(|reason| vec![Diagnostic::error(reason)].into())
+            .map_err(|reason| failure(vec![Diagnostic::error(reason)]))
     }
 
     pub fn execution(&mut self) -> Option<&mut PreparedBuildExecution> {
@@ -119,20 +143,25 @@ impl PreparedBuildEvaluation {
             restricted_build_requests,
             base_source_consumption_commitment,
             constants,
+            source_completion_accounting,
             restricted_build_grants,
         } = self;
+        let failure = |diagnostics| {
+            CompileFailure::source_completion(diagnostics, source_completion_accounting.clone())
+        };
         let returned = returned.ok_or_else(|| {
-            vec![Diagnostic::error(
+            failure(vec![Diagnostic::error(
                 "Build completion requires its returned activation",
-            )]
+            )])
         })?;
-        let configuration = Arc::new(execution.complete(returned)?);
+        let configuration = Arc::new(execution.complete(returned).map_err(failure)?);
         drop(restricted_build_grants);
         Ok(EvaluatedBuild {
             configuration,
             restricted_build_requests,
             base_source_consumption_commitment,
             constants,
+            source_completion_accounting,
         })
     }
 }
@@ -204,51 +233,59 @@ pub fn prepare_build_evaluation(
             "Build execution requires its source-owned selection",
         )]
     })?;
-    let (prepared, providers, constants) = crate::admission::checking::prepare_admitted_build(
-        typed,
-        selected_machine,
-        package_inputs,
-        anonymous_source,
-        dependency_activation,
-        timings,
-    )?;
-    let filesystem_scope = crate::prepare_filesystem_scope(
-        root_path,
-        package_inputs,
-        anonymous_source,
-        sources,
-        execution_profile,
-        build_directory,
-        filesystem_sponsor,
-        snapshot,
-    )?;
-    let admitted = crate::admit_build_program(
-        prepared,
-        providers,
-        selected_machine,
-        &filesystem_scope,
-        evaluation_sponsor.as_ref(),
-        execution_profile,
-        artifact_only,
-        build_source,
-        package_inputs,
-    )?;
-    let restricted_build_requests = admitted.restricted_build_requests();
-    if let Some(grants) = restricted_build_grants.as_mut() {
-        for request in &restricted_build_requests {
-            grants.admit(request)?;
+    let (prepared, providers, constants, source_completion_accounting) =
+        crate::admission::checking::prepare_admitted_build(
+            typed,
+            selected_machine,
+            package_inputs,
+            anonymous_source,
+            dependency_activation,
+            timings,
+        )?;
+    let result = (|| {
+        let filesystem_scope = crate::prepare_filesystem_scope(
+            root_path,
+            package_inputs,
+            anonymous_source,
+            sources,
+            execution_profile,
+            build_directory,
+            filesystem_sponsor,
+            snapshot,
+        )?;
+        let admitted = crate::admit_build_program(
+            prepared,
+            providers,
+            selected_machine,
+            &filesystem_scope,
+            evaluation_sponsor.as_ref(),
+            execution_profile,
+            artifact_only,
+            build_source,
+            package_inputs,
+        )?;
+        let restricted_build_requests = admitted.restricted_build_requests();
+        if let Some(grants) = restricted_build_grants.as_mut() {
+            for request in &restricted_build_requests {
+                grants.admit(request)?;
+            }
+        } else if !restricted_build_requests.is_empty() {
+            return Err(CompileFailure::BuildConsentRequired {
+                requests: restricted_build_requests,
+                accounting: source_completion_accounting.clone(),
+            });
         }
-    } else if !restricted_build_requests.is_empty() {
-        return Err(CompileFailure::BuildConsentRequired(
+        let execution = PreparedBuildExecution::prepare(admitted, execution_purpose)?;
+        Ok(PreparedBuildEvaluation {
+            execution,
             restricted_build_requests,
-        ));
-    }
-    let execution = PreparedBuildExecution::prepare(admitted, execution_purpose)?;
-    Ok(PreparedBuildEvaluation {
-        execution,
-        restricted_build_requests,
-        base_source_consumption_commitment,
-        constants,
-        restricted_build_grants,
+            base_source_consumption_commitment,
+            constants,
+            source_completion_accounting: source_completion_accounting.clone(),
+            restricted_build_grants,
+        })
+    })();
+    result.map_err(|failure: CompileFailure| {
+        failure.with_source_completion_accounting(source_completion_accounting)
     })
 }

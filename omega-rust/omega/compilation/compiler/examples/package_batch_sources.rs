@@ -143,7 +143,7 @@ fn measure() {
         first.remove(0),
     ];
     let prepared = work_counts();
-    let mut outputs = orchestration::compile_packages(session.compiler(), requests, &mut completed);
+    let mut outputs = orchestration::compile_packages(&mut session, requests, &mut completed);
     assert_eq!(outputs.len(), 4, "every request keeps its outcome");
     let rejected = match outputs.remove(1) {
         Err(error) => error,
@@ -514,7 +514,7 @@ fn measure_inspection_scalars(
             CompilationProduct::Inspection(machine.to_owned()),
         );
         let before = work_counts();
-        let outputs = orchestration::compile_packages(session.compiler(), requests, completed);
+        let outputs = orchestration::compile_packages(session, requests, completed);
         let counts = work_since(before);
         assert_eq!(outputs.len(), 2);
         let mut inspected_programs = Vec::new();
@@ -600,7 +600,7 @@ fn measure_inspection_roots(
     );
     requests.insert(1, missing_requests.remove(0));
     let before = work_counts();
-    let mut outputs = orchestration::compile_packages(session.compiler(), requests, completed);
+    let mut outputs = orchestration::compile_packages(session, requests, completed);
     let counts = work_since(before);
     assert_eq!(outputs.len(), 4);
     let error = match outputs.remove(1) {
