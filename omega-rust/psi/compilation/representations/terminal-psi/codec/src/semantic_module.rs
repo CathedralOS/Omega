@@ -5326,6 +5326,9 @@ mod global_descriptor_table_tests {
                 source: StructuralArgument::whole(place, StructuralAccess::MutableBorrow),
             },
         ));
+        // The fixture authors this service ceiling above; its published
+        // contract must retain that same ceiling before operand checks run.
+        machine.published_service_ceiling.push(service);
         module.machines.push(machine);
         module
     }
@@ -5375,6 +5378,16 @@ mod global_descriptor_table_tests {
             source.access = StructuralAccess::WriteOnlyBorrow;
         }
         assert!(refusal(&unreadable).contains("declared byte borrow"));
+    }
+
+    #[test]
+    fn descriptor_table_receiving_rejects_a_dropped_published_service_ceiling() {
+        let mut changed = descriptor_module(GlobalDescriptorTableOperation::Store);
+        changed.machines[0].published_service_ceiling.clear();
+        assert!(
+            refusal(&changed)
+                .contains("authored callable effects differ from their published promises")
+        );
     }
 }
 
@@ -5510,6 +5523,9 @@ mod descriptor_operation_tests {
             }),
             OperationKind::ReadTaskRegister { service },
         ));
+        // Task-register and segment fixtures inherit one explicit service
+        // ceiling, so publication must agree with its authored contract.
+        machine.published_service_ceiling.push(service);
         module.machines.push(machine);
         module
     }
