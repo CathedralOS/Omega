@@ -359,6 +359,95 @@ machine main() crashes Trap {
     }
 }
 
+#[test]
+fn partial_and_whole_branch_transfers_rejoin_before_the_subrecord_is_refilled() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let source = r#"
+data Choice [copy] { case Part; case Whole; }
+data Item { value: u32; }
+data Pair { first: Item; second: Item; }
+data Outer { selected: Pair; other: Pair; }
+machine take_item(item: Item) -> u32 { return item.value; }
+machine take_pair(pair: Pair) -> u32 { return pair.second.value; }
+machine restored(choice: Choice) -> u64 {
+    let mut outer: Outer = Outer {
+        selected: Pair { first: Item { value: 3 }, second: Item { value: 5 } },
+        other: Pair { first: Item { value: 13 }, second: Item { value: 17 } }
+    };
+    let consumed: u32 = match choice {
+        Choice::Part -> take_item(outer.selected.first)
+        Choice::Whole -> take_pair(outer.selected)
+    };
+    outer.selected = Pair { first: Item { value: 7 }, second: Item { value: 11 } };
+    let owner: Outer = outer;
+    return (consumed as+ u64)
+        + (owner.selected.first.value as+ u64) + (owner.selected.second.value as+ u64)
+        + (owner.other.first.value as+ u64) + (owner.other.second.value as+ u64);
+}
+machine main() crashes Trap {
+    let partial: u64 = restored(Choice::Part {});
+    let whole: u64 = restored(Choice::Whole {});
+    transition partial == 51 && whole == 53 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#;
+    for wrong_region in [false, true] {
+        let source = if wrong_region {
+            source.replace("outer.selected =", "outer.other =")
+        } else {
+            source.to_owned()
+        };
+        let frontier = unbuilt_frontier::staged_frontier(
+            if wrong_region {
+                "join-wrong-region"
+            } else {
+                "join-refill"
+            },
+            &source,
+        );
+        let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
+            typed_trees_to_terminal_psi::prepare_compilation(
+                &frontier.typed,
+                Compilation {
+                    entries: &frontier.entries,
+                    subjects: &[frontier.subject],
+                    purpose: source::DependencyScope::Product,
+                    selected: &frontier.selected,
+                    bindings: &frontier.bindings,
+                    supplies: &[],
+                },
+                terminal_codec::TerminalPublication::Portable,
+            )
+            .program,
+        );
+        if wrong_region {
+            assert!(verdicts.iter().any(|verdict| matches!(verdict,
+                Ok(RouteVerdict::Rejected { unestablished, .. })
+                    if unestablished.iter().any(|used| used.detail == "owned storage is used after its value was transferred or consumed")
+            )), "a sibling replacement cannot restore the joined region: {verdicts:?}");
+            continue;
+        }
+        let mut verdicts = verdicts.into_iter();
+        let closure = match verdicts.next().expect("entry closure") {
+            Ok(RouteVerdict::Accepted(closure)) => closure,
+            other => panic!("partial and whole moves share the exact vacant join: {other:?}"),
+        };
+        for verdict in verdicts {
+            assert!(
+                matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                "{verdict:?}"
+            );
+        }
+        execute_refilled_owner(&closure);
+    }
+}
+
 /// Exercise the same whole transfers without repeating source acquisition: a
 /// factory result enters a named home, moves to a call argument, and is consumed.
 #[test]
