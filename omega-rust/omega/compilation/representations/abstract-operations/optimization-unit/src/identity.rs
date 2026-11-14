@@ -2384,7 +2384,9 @@ pub(crate) mod unit_encoding {
                     bytes.u32(slot.slot);
                     bytes.u32(slot.declaring_trait_identity.0);
                     bytes.u32(slot.requirement_identity.0);
-                    bytes.slice(&slot.family_tuple, |bytes, value| bytes.string(value));
+                    bytes.slice(&slot.family_tuple, |bytes, value| {
+                        bytes.string(&value.canonical_identity())
+                    });
                     bytes.slice(&slot.scalar_parameters, |bytes, scalar_type| {
                         encode_scalar_type(bytes, *scalar_type);
                     });

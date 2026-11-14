@@ -1450,7 +1450,7 @@ use entry::EntryRecord;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI22";
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI23";
 const RECORD_SCHEMA_FAMILY: &[u8; 6] = b"OMGNTI";
 const SUPERSEDED_RECORD_SCHEMA: &str = "retained native derivation inputs use a superseded record \
     schema; rebuild the component to retain them again";
@@ -1475,6 +1475,8 @@ mod tests {
             b"OMGNTI18",
             b"OMGNTI19",
             b"OMGNTI20",
+            b"OMGNTI21",
+            b"OMGNTI22",
         ] {
             let mut input =
                 RecordReader::new(bytes, RecordLimits::default()).expect("bounded old schema");
@@ -1498,7 +1500,7 @@ mod tests {
     #[test]
     fn newer_record_schema_is_not_called_superseded() {
         let mut input =
-            RecordReader::new(b"OMGNTI22", RecordLimits::default()).expect("bounded new schema");
+            RecordReader::new(b"OMGNTI24", RecordLimits::default()).expect("bounded new schema");
         let Err(error) = DerivationInputs::read(&mut input) else {
             panic!("newer record schema accepted");
         };

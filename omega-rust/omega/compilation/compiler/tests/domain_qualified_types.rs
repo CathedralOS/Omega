@@ -112,6 +112,7 @@ fn verdicts(name: &str, machines: &str) -> Vec<String> {
         typed_trees_to_terminal_psi::prepare_compilation(
             &frontier.typed,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &frontier.entries,
                 subjects: &[frontier.subject],
                 purpose: source::DependencyScope::Product,
@@ -299,13 +300,16 @@ fn a_plain_machine_does_not_add_a_domain_routed_through_a_requirement() {
     );
 }
 
-/// A value its route issued travels on, and the domain is not cast off it.
+/// Issuance restricts adding a domain. Removing one keeps the carrier and
+/// does not grant permission to add the domain again.
 #[test]
-fn removing_a_routed_domain_is_refused_by_name() {
-    refused_with(
-        "routed_removal",
-        "machine wrong(ticket: Ticket in Stamped) -> Ticket {\n    ticket as -Stamped\n}\n",
-        "removal of a domain with restricted issuance",
+fn removing_a_routed_domain_keeps_the_carrier() {
+    assert_eq!(
+        verdicts(
+            "routed_removal",
+            "machine unstamp(ticket: Ticket in Stamped) -> Ticket {\n    ticket as -Stamped\n}\n",
+        ),
+        ACCEPTED_PARTS,
     );
 }
 
@@ -473,15 +477,98 @@ fn a_store_into_a_field_in_the_domain_is_rejected_at_the_cast_it_cannot_prove() 
     );
 }
 
-/// Predicates over the fields of a data value are not stated yet, so a
-/// domain that has them on a data carrier is refused where it is declared.
+/// A domain with predicates on a data carrier. Its clauses name fields
+/// beneath `self`, so a field `reading: Reading in Valid` owes
+/// `self.reading.value > 0` among the clauses of `Gauge`, the type that
+/// declares the field.
+const RECORD_PREDICATES: &str = "\
+domain Reading::Valid
+    requires self.value > 0;
+data Gauge {
+    reading: Reading in Valid;
+    count: i32;
+}
+";
+
+/// A formal `Gauge` gives the body its clauses, so the reading inside it is
+/// known positive, and a store beside the field keeps it.
+const ACCEPTED_RECORD_PREDICATES: &str = "\
+machine shown(gauge: Gauge) -> i32 ensures result > 0 {
+    gauge.reading.value
+}
+machine counted(gauge: Gauge) -> Gauge {
+    let mut held: Gauge = gauge;
+    held.count = 2;
+    held
+}
+";
+
+fn record_predicate_verdicts(name: &str, machines: &str) -> Vec<String> {
+    verdicts(name, &format!("{RECORD_PREDICATES}{machines}"))
+}
+
 #[test]
-fn a_domain_with_predicates_on_a_data_carrier_is_refused_by_name() {
-    refused_with(
-        "data_predicates",
-        "domain Reading::Valid\n    requires self.value > 0;\n",
-        "constrained by a domain with predicates on a data carrier",
+fn a_record_domain_predicate_is_known_where_the_owning_type_is_declared() {
+    assert_eq!(
+        record_predicate_verdicts("accepted_record_predicates", ACCEPTED_RECORD_PREDICATES),
+        ACCEPTED_PARTS
     );
+}
+
+/// The twin promises more than the field's clause gives.
+#[test]
+fn a_record_domain_predicate_gives_no_more_than_it_states() {
+    let verdicts = record_predicate_verdicts(
+        "record_predicate_bound",
+        "machine wrong(gauge: Gauge) -> i32 ensures result > 1 {\n    gauge.reading.value\n}\n",
+    );
+    assert!(
+        verdicts
+            .iter()
+            .any(|verdict| verdict.starts_with("rejected")
+                && verdict.contains("cannot prove ensures contract for exit from wrong")),
+        "{verdicts:#?}"
+    );
+}
+
+/// Zero is not a positive reading, so a zeroed `Gauge` is not a value until
+/// its reading is stored: the field's clause is one of `Gauge`'s.
+#[test]
+fn a_zeroed_record_whose_record_field_predicate_fails_at_zero_is_not_accepted() {
+    let verdicts = record_predicate_verdicts(
+        "record_predicate_zeroed",
+        "machine wrong() -> Gauge {\n    let gauge: Gauge;\n    gauge\n}\n",
+    );
+    assert!(
+        verdicts
+            .iter()
+            .any(|verdict| verdict.starts_with("rejected: 1 unestablished")),
+        "{verdicts:#?}"
+    );
+}
+
+/// A result or a formal whose data type carries the domain has no owning
+/// type whose clauses its predicates join, so each is refused by name.
+#[test]
+fn a_record_result_or_formal_in_a_domain_with_predicates_is_refused_by_name() {
+    for (name, machines, expected) in [
+        (
+            "record_predicate_result",
+            "machine wrong(gauge: Gauge) -> Reading in Valid {\n    gauge.reading\n}\n",
+            "result of a data type in a domain with predicates",
+        ),
+        (
+            "record_predicate_formal",
+            "machine wrong(reading: Reading in Valid) -> i32 {\n    0\n}\n",
+            "formal of a data type in a domain with predicates",
+        ),
+    ] {
+        let verdicts = record_predicate_verdicts(name, machines);
+        assert!(
+            verdicts.len() == 1 && verdicts[0].contains(expected),
+            "{name}: {verdicts:#?}"
+        );
+    }
 }
 
 /// A domain on a data value travels as one on a scalar does. A domain with
@@ -566,7 +653,7 @@ fn removing_a_governed_domain_is_refused_by_name() {
     refused_with(
         "governed_removal",
         "machine wrong(seal: Seal in Issued) -> Seal {\n    seal as -Issued\n}\n",
-        "removal of a domain with restricted issuance",
+        "removal of a domain governed by an access policy",
     );
 }
 

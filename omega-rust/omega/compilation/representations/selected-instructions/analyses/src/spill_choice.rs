@@ -10,8 +10,8 @@
 use crate::{ValidatedAllocationLegality, ValidatedLiveRanges};
 use register_homes::SpillChoicePolicy;
 use register_model::{
-    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+    PreparedRegisterConstraintCatalog, TargetRegisterEnvironmentConstraintKeys,
+    TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
     ValidatedRegisterReservationProfile,
 };
 
@@ -20,9 +20,9 @@ pub mod compute {
 
     use optimization_core::{OptimizationWorkBudget, OptimizationWorkUsage};
     use register_model::{
-        RegisterView, RegisterViewId, TargetRegisterEnvironmentConstraintKeys,
-        TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
-        ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
+        PreparedRegisterConstraintCatalog, RegisterView, RegisterViewId,
+        TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
+        ValidatedPhysicalRegisterModel, ValidatedRegisterReservationProfile,
         infrastructure_environment_agrees,
     };
     use selected_instructions::VirtualRegisterId;
@@ -50,7 +50,7 @@ pub mod compute {
         ranges: &ValidatedLiveRanges,
         register_environment: TargetRegisterEnvironmentIdentity,
         physical: &ValidatedPhysicalRegisterModel,
-        constraints: &ValidatedRegisterConstraintCatalog,
+        constraints: &PreparedRegisterConstraintCatalog,
         reservations: &ValidatedRegisterReservationProfile,
         selected_keys: &TargetRegisterEnvironmentConstraintKeys,
         policy: SpillChoicePolicy,
@@ -118,7 +118,7 @@ pub mod compute {
         ranges: &ValidatedLiveRanges,
         register_environment: TargetRegisterEnvironmentIdentity,
         physical: &ValidatedPhysicalRegisterModel,
-        constraints: &ValidatedRegisterConstraintCatalog,
+        constraints: &PreparedRegisterConstraintCatalog,
         reservations: &ValidatedRegisterReservationProfile,
         selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     ) -> Result<(), SpillChoiceError> {
@@ -512,7 +512,7 @@ pub fn choose_spill_victims(
     ranges: &ValidatedLiveRanges,
     register_environment: TargetRegisterEnvironmentIdentity,
     physical: &ValidatedPhysicalRegisterModel,
-    constraints: &ValidatedRegisterConstraintCatalog,
+    constraints: &PreparedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
     policy: SpillChoicePolicy,

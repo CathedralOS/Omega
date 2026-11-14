@@ -10,7 +10,15 @@ use semantic_vocabulary::PackageKeyIdentity;
 use source::{SourceFile, SourceId, SourceMap, SourceOrigin, SourceSpan};
 
 use super::builtin::BUILTIN_TYPE_COUNT;
-use numerics::integer_carrier::FixedInteger;
+use numerics::integer_carrier::{FixedInteger, IntegerSign};
+
+/* The spelling of the head of an integer family application, `u<N>` or `i<N>`. */
+fn integer_family_name(sign: IntegerSign) -> &'static str {
+    match sign {
+        IntegerSign::Unsigned => "u",
+        IntegerSign::Signed => "i",
+    }
+}
 mod child_batches {
     /*
         Append-only child batches beneath frozen hierarchy nodes.
@@ -1356,6 +1364,17 @@ mod modules {
                     .has_exact_import
         }
 
+        /*
+            A current-activation extension file sees its module-less package
+            siblings' declarations as local rather than file-private.
+        */
+        pub(super) fn shares_activation_extension(&self, source_span: SourceSpan) -> bool {
+            self.source_file(source_span).is_some_and(|file| {
+                file.resolution_stratum
+                    == source::SourceResolutionStratum::CurrentActivationExtension
+            })
+        }
+
         pub(super) fn select_namespace_candidates(
             &self,
             candidates: &[SymbolHandle],
@@ -1363,10 +1382,7 @@ mod modules {
             reference: SourceSpan,
         ) -> Vec<SymbolHandle> {
             let current_module = self.source_module(reference.source_id);
-            let shared_extension = self.source_file(reference).is_some_and(|file| {
-                file.resolution_stratum
-                    == source::SourceResolutionStratum::CurrentActivationExtension
-            });
+            let shared_extension = self.shares_activation_extension(reference);
             let local = candidates
                 .iter()
                 .copied()
@@ -3620,6 +3636,17 @@ impl SymbolTable {
         if self.source_module(left_span.source_id) != self.source_module(right_span.source_id) {
             return true;
         }
+        // Files that declare no module form one logical module, yet each
+        // file's own declarations take precedence over a sibling's
+        // same-spelled one (`select_namespace_candidates`), so two such files
+        // each select their own declaration. Files of a shared activation
+        // extension see each other's declarations as local and stay one scope.
+        if !self.source_module(left_span.source_id).is_valid()
+            && !self.shares_activation_extension(left_span)
+            && !self.shares_activation_extension(right_span)
+        {
+            return true;
+        }
         if self
             .sources
             .as_deref()
@@ -3926,6 +3953,64 @@ impl SymbolTable {
                 .iter()
                 .map(|name| (SymbolKind::BuiltinType, SymbolNameRef::Borrowed(name))),
         );
+    }
+
+    /*
+        `u<N>` and `i<N>` apply a family of integers to a width, and the head
+        of such an application needs a declaration to name, the way
+        `Pair<u8>` names `Pair`. The two heads are builtin types installed
+        beside the program's declarations under the spellings `u` and `i`, so
+        they resolve like any other type name. They are installed only for a
+        compilation that keeps such an application: every position a table
+        without one publishes stays where it was.
+
+        A head is not a type by itself here: it has no atom
+        (`builtin_type_atom` answers `None`), and only an application at a
+        closed width names a carrier.
+    */
+    pub fn install_integer_families(&mut self) {
+        let missing = [IntegerSign::Unsigned, IntegerSign::Signed]
+            .into_iter()
+            .filter(|sign| self.integer_family_symbol(*sign).is_none())
+            .map(|sign| {
+                (
+                    SymbolKind::BuiltinType,
+                    SymbolNameRef::Static(integer_family_name(sign)),
+                )
+            })
+            .collect::<Vec<_>>();
+        if !missing.is_empty() {
+            self.append_children(self.root, missing);
+        }
+    }
+
+    /* The sign of the integer family `symbol` is the head of, if it is one. */
+    pub fn integer_family(&self, symbol: SymbolHandle) -> Option<IntegerSign> {
+        if !symbol.is_valid() {
+            return None;
+        }
+        let entry = self.get(symbol);
+        if entry.kind != SymbolKind::BuiltinType
+            || entry.parent != self.root
+            || entry.generated_from.is_valid()
+        {
+            return None;
+        }
+        [IntegerSign::Unsigned, IntegerSign::Signed]
+            .into_iter()
+            .find(|sign| self.name(symbol) == integer_family_name(*sign))
+    }
+
+    pub fn integer_family_symbol(&self, sign: IntegerSign) -> Option<SymbolHandle> {
+        self.root_names
+            .0
+            .get_or_init(|| self.root_name_index())
+            .by_name
+            .get(integer_family_name(sign))
+            .into_iter()
+            .flatten()
+            .map(|&(_, symbol)| symbol)
+            .find(|symbol| self.integer_family(*symbol) == Some(sign))
     }
 
     /*

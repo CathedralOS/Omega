@@ -308,7 +308,7 @@ pub(crate) mod literal_folds {
             OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
             RecoveryClassificationPolicy, SpillChoicePolicy, ValidatedSelectedAnalysis,
         };
-        use crate::analyses::validated_machine_effect_catalog;
+        use crate::analyses::prepared_machine_effect_catalog;
         use crate::rewrites::fold_selected_incoming_literal;
         use crate::{
             LiteralFoldPolicy, OptimizedLiteralFoldCustodyError, StagedOptimizedAllocationLegality,
@@ -588,7 +588,7 @@ pub(crate) mod literal_folds {
             )
             .map_err(OptimizedLiteralFoldCustodyError::RecoveryClassification)?;
             let effect_catalog =
-                validated_machine_effect_catalog(environment.target(), environment.constraints())
+                prepared_machine_effect_catalog(environment.target(), environment.constraints())
                     .map_err(OptimizedLiteralFoldCustodyError::MachineEffects)?;
             let fold = fold_selected_incoming_literal(
                 selected,
@@ -1186,8 +1186,8 @@ pub(crate) mod selected_lowering {
             ValidatedRecoveryClassifications, ValidatedSelectedAnalysis, ValidatedSpillChoices,
         };
         use register_model::{
-            TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-            ValidatedRegisterConstraintCatalog,
+            PreparedRegisterConstraintCatalog, TargetRegisterEnvironmentConstraintKeys,
+            TargetRegisterEnvironmentIdentity,
         };
 
         pub(crate) mod compute {
@@ -1567,12 +1567,12 @@ pub(crate) mod selected_lowering {
             }
             pub(crate) mod constraints {
                 use register_model::{
-                    RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
-                    TargetRegisterEnvironmentConstraintKeys, ValidatedRegisterConstraintCatalog,
+                    PreparedRegisterConstraintCatalog, RegisterConstraintKey,
+                    RegisterInstructionConstraint, RegisterOperandAccess,
+                    TargetRegisterEnvironmentConstraintKeys,
                 };
                 use selected_instructions::{
-                    MachineEffectDeclaration, SelectedInstructionKind,
-                    ValidatedMachineEffectCatalog,
+                    MachineEffectDeclaration, PreparedMachineEffectCatalog, SelectedInstructionKind,
                 };
 
                 use crate::rewrites::enabled_pair_rules;
@@ -1590,7 +1590,7 @@ pub(crate) mod selected_lowering {
 
                 pub(crate) struct AdmittedPairs<'a> {
                     pairs: Vec<AdmittedPair<'a>>,
-                    pub(crate) catalog: &'a ValidatedMachineEffectCatalog,
+                    pub(crate) catalog: &'a PreparedMachineEffectCatalog,
                 }
 
                 impl<'a> AdmittedPairs<'a> {
@@ -1635,10 +1635,10 @@ pub(crate) mod selected_lowering {
                 }
 
                 pub(crate) fn select_admitted_pairs<'a>(
-                    constraints: &'a ValidatedRegisterConstraintCatalog,
+                    constraints: &'a PreparedRegisterConstraintCatalog,
                     keys: &TargetRegisterEnvironmentConstraintKeys,
                     policy: LiteralFoldPolicy,
-                    catalog: &'a ValidatedMachineEffectCatalog,
+                    catalog: &'a PreparedMachineEffectCatalog,
                 ) -> Result<AdmittedPairs<'a>, LiteralFoldError> {
                     let find = |key| {
                         register_model::find_register_constraint(
@@ -2346,10 +2346,10 @@ pub(crate) mod selected_lowering {
 
             use optimization_core::OptimizationWorkBudget;
             use register_model::{
-                TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-                ValidatedRegisterConstraintCatalog,
+                PreparedRegisterConstraintCatalog, TargetRegisterEnvironmentConstraintKeys,
+                TargetRegisterEnvironmentIdentity,
             };
-            use selected_instructions::{SelectedInstructionPlan, ValidatedMachineEffectCatalog};
+            use selected_instructions::{PreparedMachineEffectCatalog, SelectedInstructionPlan};
 
             use crate::{
                 LiteralFoldError, LiteralFoldPlan, LiteralFoldPolicy, ValidatedAllocationLegality,
@@ -2370,9 +2370,9 @@ pub(crate) mod selected_lowering {
                 recovery: &ValidatedRecoveryClassifications,
                 availability: &ValidatedAllocatorAvailability,
                 register_environment: TargetRegisterEnvironmentIdentity,
-                constraints: &ValidatedRegisterConstraintCatalog,
+                constraints: &PreparedRegisterConstraintCatalog,
                 selected_keys: &TargetRegisterEnvironmentConstraintKeys,
-                effect_catalog: &ValidatedMachineEffectCatalog,
+                effect_catalog: &PreparedMachineEffectCatalog,
                 policy: LiteralFoldPolicy,
                 budget: OptimizationWorkBudget,
             ) -> Result<(LiteralFoldPlan, SelectedInstructionPlan), LiteralFoldError> {
@@ -4069,9 +4069,9 @@ pub(crate) mod selected_lowering {
             recovery: &ValidatedRecoveryClassifications,
             availability: &ValidatedAllocatorAvailability,
             register_environment: TargetRegisterEnvironmentIdentity,
-            constraints: &ValidatedRegisterConstraintCatalog,
+            constraints: &PreparedRegisterConstraintCatalog,
             selected_keys: &TargetRegisterEnvironmentConstraintKeys,
-            effect_catalog: &selected_instructions::ValidatedMachineEffectCatalog,
+            effect_catalog: &selected_instructions::PreparedMachineEffectCatalog,
             policy: LiteralFoldPolicy,
             budget: optimization_core::OptimizationWorkBudget,
         ) -> Result<ValidatedLiteralFold, LiteralFoldError> {

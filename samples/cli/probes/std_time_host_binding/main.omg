@@ -4,9 +4,11 @@
 // clock measures at least 50ms. Exit 70 when both observations hold.
 //
 // Expected exit: 70.
-use omega_language_std::console;
-use omega_language_std::time;
-use omega_language_std::time_host;
+use omega_language_std::Console;
+use omega_language_std::Duration;
+use omega_language_std::Instant;
+use omega_language_std::Time;
+use omega_language_std::TimeHost;
 
 data Main {
     time: Time;

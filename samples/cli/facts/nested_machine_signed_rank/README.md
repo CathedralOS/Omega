@@ -16,15 +16,15 @@ constrains produced ranks independently of their storage type. See
 [finite integer ranks](../../../../wiki/spec/terminal-psi/control_flow.md) and
 [termination measures](../../../../wiki/spec/language/termination.md).
 
-- [local](local/main.omg), [no-progress twin](local/invalid/main.omg).
-- [field](field/main.omg), [no-progress twin](field/invalid/main.omg).
-- [parameter](parameter/main.omg), [no-progress twin](parameter/invalid/main.omg).
-- [call_result](call_result/main.omg), [no-progress twin](call_result/invalid/main.omg).
-- [match_join](match_join/main.omg), [no-progress twin](match_join/invalid/main.omg).
-- [const_name](const_name/main.omg), [no-progress twin](const_name/invalid/main.omg).
-- [other_state](other_state/main.omg), [no-progress twin](other_state/invalid/main.omg).
-- [other_machine](other_machine/main.omg), [no-progress twin](other_machine/invalid/main.omg).
-- [target_body](target_body/main.omg), [no-progress twin](target_body/invalid/main.omg).
+- [local](local/main.omg), [no-progress twin](invalid_local/main.omg).
+- [field](field/main.omg), [no-progress twin](invalid_field/main.omg).
+- [parameter](parameter/main.omg), [no-progress twin](invalid_parameter/main.omg).
+- [call_result](call_result/main.omg), [no-progress twin](invalid_call_result/main.omg).
+- [match_join](match_join/main.omg), [no-progress twin](invalid_match_join/main.omg).
+- [const_name](const_name/main.omg), [no-progress twin](invalid_const_name/main.omg).
+- [other_state](other_state/main.omg), [no-progress twin](invalid_other_state/main.omg).
+- [other_machine](other_machine/main.omg), [no-progress twin](invalid_other_machine/main.omg).
+- [target_body](target_body/main.omg), [no-progress twin](invalid_target_body/main.omg).
 
 The [original frozen probe](parameter/probe/main.omg) retains the first failing
 program. Fixed base `0ff9f81b3933bb16aaa6eddd05fc7a40107252b0` refuses it and all

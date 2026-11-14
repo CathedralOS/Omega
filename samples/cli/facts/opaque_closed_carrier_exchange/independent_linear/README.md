@@ -7,7 +7,7 @@ A linear closed Inert opaque moves exactly once through independent consuming ca
 The producer declares `InternetAddress [linear]` and selects its complete nested
 Inert carrier. Each place performs the same three constructions and three
 consuming observations through the independent `AddressBridge` provider. The
-[invalid twin](local/invalid/main.omg) omits only the sibling consumption and
+[../invalid_independent_linear twin](invalid_local/main.omg) omits only the sibling consumption and
 must reject the unconsumed `pair.second` at scope exit.
 All nine places have self-contained pass/fail corpus pins under
 `opaque_independent_linear_through_*`.

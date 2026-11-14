@@ -3,7 +3,7 @@
 // through native and Terminal execution, since CLI --both compares statuses.
 // Expected exit: 0.
 // Expected output contains: VERIFIED: domain_oracles
-use omega_language_std::console;
+use omega_language_std::Console;
 use domain::mixture;
 
 data Main { result: Mixture; }

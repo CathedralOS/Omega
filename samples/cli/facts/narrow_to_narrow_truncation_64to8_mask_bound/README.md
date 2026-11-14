@@ -38,15 +38,15 @@ differ in kind:
 | Place | Project | Transport | Positive Witness | Reject Twin |
 | --- | --- | --- | --- | --- |
 | root | `.` | canonical root witness masking and narrowing `(x & 31u64) as u8 as u64` and discharging subtraction | [`main.omg`](main.omg) | - |
-| local | `local/` | the narrowed byte-truncated scalar is bound to a local variable before discharging subtraction | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) |
-| field | `field/` | the narrowed byte-truncated scalar is stored in a ByteCarrier record field before extraction | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) |
-| parameter | `parameter/` | a helper machine receives the narrowed byte-truncated scalar as an explicit parameter under contract | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) |
-| call result | `call_result/` | a producer machine returns the narrowed byte-truncated scalar under postcondition `ensures result <= 31u64` | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) |
-| match join | `match_join/` | both branches of a boolean match expression yield narrowed byte-truncated values before subtraction | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) |
-| const name | `const_name/` | a named constant `MASK_5BIT` defines the `31u64` mask operand before byte truncation and subtraction | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) |
-| a nested machine | `other_state/` | an terminal machine transfer transfers the narrowed byte-truncated scalar to a successor machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
-| another machine | `other_machine/` | an associated `Relay` machine masks, narrows through `u8`, and forwards the scalar to the caller | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) |
-| another target body | `target_body/` | each of the four hosted target bodies receives the narrowed byte-truncated scalar and discharges subtraction | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) |
+| local | `local/` | the narrowed byte-truncated scalar is bound to a local variable before discharging subtraction | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) |
+| field | `field/` | the narrowed byte-truncated scalar is stored in a ByteCarrier record field before extraction | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) |
+| parameter | `parameter/` | a helper machine receives the narrowed byte-truncated scalar as an explicit parameter under contract | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) |
+| call result | `call_result/` | a producer machine returns the narrowed byte-truncated scalar under postcondition `ensures result <= 31u64` | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) |
+| match join | `match_join/` | both branches of a boolean match expression yield narrowed byte-truncated values before subtraction | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) |
+| const name | `const_name/` | a named constant `MASK_5BIT` defines the `31u64` mask operand before byte truncation and subtraction | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) |
+| a nested machine | `other_state/` | an terminal machine transfer transfers the narrowed byte-truncated scalar to a successor machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) |
+| another machine | `other_machine/` | an associated `Relay` machine masks, narrows through `u8`, and forwards the scalar to the caller | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) |
+| another target body | `target_body/` | each of the four hosted target bodies receives the narrowed byte-truncated scalar and discharges subtraction | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) |
 
 ## Execution
 
@@ -70,15 +70,15 @@ All 10 samples report `native exit 0` and `interp exit: 0`.
 Each place carries a fact-sensitive reject twin at `<place>/invalid/main.omg` where the mask or contract bound is widened to `32u64`, causing exact subtraction `31u64 - truncated` to fail closed. Check each twin with:
 
 ```sh
-omega --check samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/local/invalid/main.omg
-omega --check samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/field/invalid/main.omg
-omega --check samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/parameter/invalid/main.omg
-omega --check samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/call_result/invalid/main.omg
-omega --check samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/match_join/invalid/main.omg
-omega --check samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/const_name/invalid/main.omg
-omega --check samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/other_state/invalid/main.omg
-omega --check samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/other_machine/invalid/main.omg
-omega --check samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/target_body/invalid/main.omg
+omega --check samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/invalid_local/main.omg
+omega --check samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/invalid_field/main.omg
+omega --check samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/invalid_parameter/main.omg
+omega --check samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/invalid_call_result/main.omg
+omega --check samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/invalid_match_join/main.omg
+omega --check samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/invalid_const_name/main.omg
+omega --check samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/invalid_other_state/main.omg
+omega --check samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/invalid_other_machine/main.omg
+omega --check samples/cli/facts/narrow_to_narrow_truncation_64to8_mask_bound/invalid_target_body/main.omg
 ```
 
 Every reject twin fails closed with:

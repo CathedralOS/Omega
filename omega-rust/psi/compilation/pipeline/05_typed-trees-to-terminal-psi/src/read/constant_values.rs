@@ -1,16 +1,17 @@
 //! Constant values arrive as materialized source data, never as a source
 //! checking verdict. Source completion joins computed values to their real
 //! invocation receipts before freezing. Reading independently checks the
-//! scalar carrier, value and exact retained initializer entry; that entry is
+//! carrier, each scalar leaf of a scalar, array or record value, and the
+//! exact retained initializer entry; that entry is
 //! an ordinary subject machine whose body the lowered checker also judges.
 
 use language_semantics::const_value::DecodedCanonicalConstValue;
-use semantic_vocabulary::{IntegerValue, MachineId};
+use semantic_vocabulary::{IntegerSign, IntegerValue, MachineId, ScalarType};
 use terminal_check_tables::{Checked, Construct};
 use typed_trees::constant::ConstDeclaration;
 
 use super::Program;
-use crate::body::{ExpressionKind, ValueType};
+use crate::body::{Expression, ExpressionKind, ValueType};
 use crate::{Unserved, refuse};
 
 impl Program<'_> {
@@ -21,8 +22,13 @@ impl Program<'_> {
     ) -> Checked<()> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Declaration(what));
         let carrier = self.value_type(id, constant.declared_type)?;
-        let ValueType::Scalar(_, qualification) = carrier else {
-            return Err(unserved("constant requires its pure snapshot materializer"));
+        let qualification = match carrier {
+            ValueType::Scalar(_, qualification) | ValueType::Record(_, qualification, _) => {
+                qualification
+            }
+            ValueType::Rigid(_) => {
+                return Err(unserved("constant requires its pure snapshot materializer"));
+            }
         };
         if !qualification.is_none() {
             return Err(unserved(
@@ -39,40 +45,11 @@ impl Program<'_> {
         {
             return Err(unserved("constant has no materialized initializer"));
         }
-        if let DecodedCanonicalConstValue::Integer { type_name, .. } = &value {
-            let ValueType::Scalar(semantic_vocabulary::ScalarType::Integer(integer), _) = carrier
-            else {
-                return Err(unserved("constant encoding names another carrier"));
-            };
-            let expected = format!(
-                "{}{}",
-                match integer.sign() {
-                    semantic_vocabulary::IntegerSign::Signed => 'i',
-                    semantic_vocabulary::IntegerSign::Unsigned => 'u',
-                },
-                integer.bits()
-            );
-            if integer.is_address() || type_name != &expected {
-                return Err(unserved("constant encoding names another carrier"));
-            }
-        }
         let materialized =
             self.expression(id, &[], constant.materialized_initializer, Some(carrier))?;
-        let agrees = match (&value, materialized.kind) {
-            (
-                DecodedCanonicalConstValue::Integer { value, .. },
-                ExpressionKind::Integer(IntegerValue::Signed(current)),
-            ) => *value == current,
-            (
-                DecodedCanonicalConstValue::Integer { value, .. },
-                ExpressionKind::Integer(IntegerValue::Unsigned(current)),
-            ) => i128::try_from(current).ok() == Some(*value),
-            (DecodedCanonicalConstValue::Boolean(value), ExpressionKind::Boolean(current)) => {
-                *value == current
-            }
-            _ => false,
-        };
-        if !agrees || materialized.result != Some(carrier) {
+        if materialized.result != Some(carrier)
+            || !self.constant_agrees(id, &value, &materialized)?
+        {
             return Err(unserved(
                 "constant encoding and materialized carrier differ",
             ));
@@ -118,5 +95,117 @@ impl Program<'_> {
             }
         }
         Ok(())
+    }
+
+    /// Whether the materialized initializer, as the reader typed it, is the
+    /// evaluated canonical value leaf by leaf: each integer has the
+    /// encoding's carrier and value, each array element and each record
+    /// field agrees in turn, and a record field is matched to the value's
+    /// field by the declared field symbol at its position. A data type with
+    /// `requires`, a qualified leaf or a sum value has a domain obligation or
+    /// a case this reading does not judge, so it is refused, not compared.
+    fn constant_agrees(
+        &self,
+        id: MachineId,
+        value: &DecodedCanonicalConstValue,
+        materialized: &Expression,
+    ) -> Checked<bool> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Declaration(what));
+        let qualification = match materialized.result {
+            Some(ValueType::Scalar(_, qualification) | ValueType::Record(_, qualification, _)) => {
+                qualification
+            }
+            _ => return Ok(false),
+        };
+        if !qualification.is_none() {
+            return Err(unserved(
+                "qualified constant requires its declared value obligations",
+            ));
+        }
+        Ok(match (value, &materialized.kind) {
+            (
+                DecodedCanonicalConstValue::Integer { type_name, value },
+                ExpressionKind::Integer(current),
+            ) => {
+                let Some(ValueType::Scalar(ScalarType::Integer(integer), _)) = materialized.result
+                else {
+                    return Ok(false);
+                };
+                let expected = format!(
+                    "{}{}",
+                    match integer.sign() {
+                        IntegerSign::Signed => 'i',
+                        IntegerSign::Unsigned => 'u',
+                    },
+                    integer.bits()
+                );
+                !integer.is_address()
+                    && *type_name == expected
+                    && match current {
+                        IntegerValue::Signed(current) => *value == *current,
+                        IntegerValue::Unsigned(current) => {
+                            i128::try_from(*current).ok() == Some(*value)
+                        }
+                    }
+            }
+            (DecodedCanonicalConstValue::Boolean(value), ExpressionKind::Boolean(current)) => {
+                *value == *current
+            }
+            (
+                DecodedCanonicalConstValue::Array { values, .. },
+                ExpressionKind::Array { elements },
+            ) => {
+                if values.len() != elements.len() {
+                    return Ok(false);
+                }
+                for (value, element) in values.iter().zip(elements) {
+                    if !self.constant_agrees(id, value, element)? {
+                        return Ok(false);
+                    }
+                }
+                true
+            }
+            (
+                DecodedCanonicalConstValue::Record { fields, .. },
+                ExpressionKind::Record { fields: operands },
+            ) => {
+                let Some(ValueType::Record(record, ..)) = materialized.result else {
+                    return Ok(false);
+                };
+                let (Some(row), Some(source)) =
+                    (self.records.get(record), self.record_sources.get(record))
+                else {
+                    return Ok(false);
+                };
+                if !row.requires.is_empty() {
+                    return Err(unserved(
+                        "constant of data with requires needs its default-domain proof",
+                    ));
+                }
+                if operands.len() != fields.len() || source.fields.len() != fields.len() {
+                    return Ok(false);
+                }
+                for (position, operand) in operands {
+                    let Some(symbol) = source.fields.get(*position) else {
+                        return Ok(false);
+                    };
+                    let name = self.typed.symbols.name(*symbol);
+                    let mut named = fields.iter().filter(|(field, _)| field.as_str() == name);
+                    let (Some((_, value)), None) = (named.next(), named.next()) else {
+                        return Ok(false);
+                    };
+                    if !self.constant_agrees(id, value, operand)? {
+                        return Ok(false);
+                    }
+                }
+                true
+            }
+            (DecodedCanonicalConstValue::Variant { .. }, _) => {
+                return Err(unserved(
+                    "constant of a sum type requires its case materializer",
+                ));
+            }
+            _ => false,
+        })
     }
 }

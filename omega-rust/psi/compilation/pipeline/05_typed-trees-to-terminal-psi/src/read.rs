@@ -26,7 +26,10 @@ serve is refused when it is set, never ignored.
 mod arrays;
 mod authority;
 mod bytes;
+mod calling_abis;
 mod calls;
+#[cfg(test)]
+mod calls_visibility_tests;
 mod casts;
 mod constant_values;
 mod contracts;
@@ -56,7 +59,10 @@ use crate::{Unserved, refuse};
 
 pub(crate) struct Program<'t> {
     pub publication: terminal_codec::TerminalPublication,
+    pub declaration_metadata: Vec<SymbolHandle>,
     typed: &'t TypedTrees,
+    /// Irreversible storage-description phase, entered after the body closure.
+    descriptor_storage: bool,
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
     pub signatures: IdTable<MachineId, Signature>,
@@ -241,10 +247,28 @@ impl<'t> Program<'t> {
         self.typed
     }
 
+    pub(crate) fn begin_declaration_storage(
+        &mut self,
+        entry: MachineId,
+        bodies: usize,
+    ) -> Checked<()> {
+        if self.descriptor_storage || bodies != self.symbols.len() {
+            return Err(refuse(
+                entry,
+                Construct::Machine,
+                Unserved::Declaration("storage metadata before the complete body closure"),
+            ));
+        }
+        self.descriptor_storage = true;
+        Ok(())
+    }
+
     pub fn new(typed: &'t TypedTrees, rigid: bool) -> Self {
         Self {
             publication: terminal_codec::TerminalPublication::Portable,
+            declaration_metadata: Vec::new(),
             typed,
+            descriptor_storage: false,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
             declaration_signatures: IdTable::default(),
@@ -802,7 +826,7 @@ mod tests {
             values: &[],
             bound: &[],
             owner,
-            result: ResultTerm::Named(result, u32_type, None),
+            result: ResultTerm::Named(result, u32_type, crate::body::Qualification::NONE),
         };
         let entry = ClauseScope {
             result: ResultTerm::Absent("result in an entry clause"),
@@ -815,7 +839,7 @@ mod tests {
                     id: result,
                     scalar_type: u32_type
                 },
-                u32_type
+                ValueType::plain(u32_type)
             ))
         );
         let detail = |scope: &ClauseScope<'_>, handle| {
@@ -880,14 +904,12 @@ mod tests {
         assert_eq!(program.named_case(a_field), None);
     }
 
-    /// A `mut` formal that holds its own value may be named by an entry
-    /// `requires`, where it can only mean the argument. A guarantee or a
-    /// crash route guard that names it is refused: by then the name also
-    /// stands for whatever the body last assigned, and which of the two
-    /// the clause means is not settled. The same clause over a formal that
-    /// is not `mut` names its value.
+    /// Every clause names the scalar input's immutable identity. The body's
+    /// mutable working binding does not change the meaning of a guarantee
+    /// or crash guard. Borrowed observations still need their own storage
+    /// correspondence, and missing input metadata supplies no identity.
     #[test]
-    fn a_mut_formal_is_named_by_an_entry_requires_and_by_no_other_clause() {
+    fn a_mutable_scalar_formal_keeps_its_input_identity_in_every_clause() {
         use typed_trees::name::Identifier;
         let mut typed = TypedTrees::default();
         let formal = SymbolHandle::from_arena_index(3);
@@ -930,14 +952,27 @@ mod tests {
                 id: value,
                 scalar_type: u32_type,
             },
-            u32_type,
+            ValueType::plain(u32_type),
         ));
         let read = |scope: &ClauseScope<'_>| program.term(machine(), scope, named, None);
         assert_eq!(read(&scope(&mutable, true)), term);
+        assert_eq!(read(&scope(&mutable, false)), term);
         assert_eq!(read(&scope(&immutable, false)), term);
+        let missing = ClauseScope {
+            values: &[],
+            ..scope(&mutable, false)
+        };
         assert_eq!(
-            read(&scope(&mutable, false)).unwrap_err().detail,
-            "contract clause that names a mutable parameter outside requires"
+            read(&missing).unwrap_err().detail,
+            "contract formal identity"
+        );
+        let borrowed = [Slot {
+            borrowed: Some(language_core::ReferenceAccess::Mutable),
+            ..slot(true)
+        }];
+        assert_eq!(
+            read(&scope(&borrowed, false)).unwrap_err().detail,
+            "contract clause that names a borrowed formal outside requires"
         );
     }
 

@@ -15,15 +15,15 @@ closed values retain their explicit decision fallback.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [local](local/main.omg) | [invalid](local/invalid/main.omg) |
-| field | [field](field/main.omg) | [invalid](field/invalid/main.omg) |
-| parameter | [parameter](parameter/main.omg) | [invalid](parameter/invalid/main.omg) |
-| call_result | [call_result](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
-| match_join | [match_join](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
-| const_name | [const_name](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| other_state | [other_state](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
-| other_machine | [other_machine](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
-| target_body | [target_body](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+| local | [local](local/main.omg) | [invalid](invalid_local/main.omg) |
+| field | [field](field/main.omg) | [invalid](invalid_field/main.omg) |
+| parameter | [parameter](parameter/main.omg) | [invalid](invalid_parameter/main.omg) |
+| call_result | [call_result](call_result/main.omg) | [invalid](invalid_call_result/main.omg) |
+| match_join | [match_join](match_join/main.omg) | [invalid](invalid_match_join/main.omg) |
+| const_name | [const_name](const_name/main.omg) | [invalid](invalid_const_name/main.omg) |
+| other_state | [other_state](other_state/main.omg) | [invalid](invalid_other_state/main.omg) |
+| other_machine | [other_machine](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
+| target_body | [target_body](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
 Each place is mirrored under `tests/omega/{pass,fail}/facts/closed_integer_bound_through_*`.
 All positives bind the four hosted targets. Execution evidence is Linux x86-64

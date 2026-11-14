@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::I32::from_f64;
 
 // Output is signed integer microunits, truncated toward zero. Fixed width makes

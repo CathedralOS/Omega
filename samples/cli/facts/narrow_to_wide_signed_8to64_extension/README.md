@@ -9,15 +9,15 @@ Every place performs the same operation: define bounded signed 8-bit input `narr
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | (root) | [`main.omg`](main.omg) | — | root 8-bit to 64-bit signed sign extension evaluation |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | both the narrow i8 operand and sign-extended i64 value are transported through local bindings |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the sign-extended i64 value is stored and loaded through a record field |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the sign-extended i64 value is forwarded as a machine call parameter |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the sign-extended i64 value is returned from a callee invocation |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the sign-extended i64 value so the joined binding preserves the bounds |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant i8 value is sign-extended to i64 |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the sign-extended i64 value to a successor machine |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine transports the sign-extended i64 value through an intermediate machine call |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body computes the 8-bit to 64-bit sign extension and verifies the bounds |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | both the narrow i8 operand and sign-extended i64 value are transported through local bindings |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the sign-extended i64 value is stored and loaded through a record field |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the sign-extended i64 value is forwarded as a machine call parameter |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | the sign-extended i64 value is returned from a callee invocation |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both match arms yield the sign-extended i64 value so the joined binding preserves the bounds |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | a named constant i8 value is sign-extended to i64 |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a state transition forwards the sign-extended i64 value to a successor machine |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | a forwarding machine transports the sign-extended i64 value through an intermediate machine call |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each hosted target body computes the 8-bit to 64-bit sign extension and verifies the bounds |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, carries an
@@ -56,15 +56,15 @@ omega --check samples/cli/facts/narrow_to_wide_signed_8to64_extension/<place>/in
 
 | Place | Reject Twin | Obligation Class | Authored Diagnostic Fragment |
 | --- | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | Contract precondition | `cannot prove requires contract for call verify_wide` |
 
 The same nine twins are also mirrored under `invalid/<place>/` with an authored
 `expected.txt`, so the invalid controls are discoverable by both the per-place

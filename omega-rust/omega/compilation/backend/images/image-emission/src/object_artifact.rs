@@ -28,6 +28,7 @@ mod carriers {
         pub(crate) fragment_replay:
             Option<crate::object::function_fragments::replay::FragmentReplay>,
         pub(crate) composition_source: Option<std::sync::Arc<ObjectArtifact>>,
+        pub(crate) semantic_source: Option<ObjectSemanticSource>,
         pub(crate) psi: TerminalPsiIdentity,
         pub(crate) target: NativeTarget,
         pub(crate) profile: Option<target::TargetProfile>,
@@ -50,6 +51,41 @@ mod carriers {
         >,
     }
 
+    /// Retains the exact semantic owner and occurrence coverage of a separately
+    /// emitted body. Linking its bytes does not change this source namespace.
+    #[derive(Clone)]
+    pub struct ObjectSemanticSource {
+        code: terminal_codec::RetainedTerminalCode,
+        coverage: std::sync::Arc<boundary_applications::TerminalBoundaryApplicationCoverage>,
+    }
+
+    impl std::fmt::Debug for ObjectSemanticSource {
+        fn fmt(&self, output: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            output
+                .debug_struct("ObjectSemanticSource")
+                .field("identity", &self.code.view().custody_identity())
+                .field("coverage", &self.coverage)
+                .finish()
+        }
+    }
+
+    impl PartialEq for ObjectSemanticSource {
+        fn eq(&self, other: &Self) -> bool {
+            self.code.view().custody_identity() == other.code.view().custody_identity()
+                && self.coverage == other.coverage
+        }
+    }
+    impl Eq for ObjectSemanticSource {}
+
+    impl ObjectSemanticSource {
+        pub fn view(&self) -> terminal_codec::TerminalExecutionView<'_> {
+            self.code.view()
+        }
+        pub fn coverage(&self) -> &boundary_applications::TerminalBoundaryApplicationCoverage {
+            &self.coverage
+        }
+    }
+
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct ObjectByteLiteralPool {
         pub symbol: ObjectSymbolHandle,
@@ -68,6 +104,42 @@ mod carriers {
     }
 
     impl ObjectArtifact {
+        pub fn with_semantic_source(
+            mut self,
+            code: terminal_codec::RetainedTerminalCode,
+            coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
+        ) -> Result<Self, &'static str> {
+            if self.psi != code.view().identity() || self.semantic_source.is_some() {
+                return Err(
+                    "object semantic source differs from its emitted namespace or is already attached",
+                );
+            }
+            coverage.validate_for_terminal(self.psi)?;
+            self.semantic_source = Some(ObjectSemanticSource {
+                code,
+                coverage: std::sync::Arc::new(coverage),
+            });
+            Ok(self)
+        }
+
+        pub fn semantic_source(&self) -> Option<&ObjectSemanticSource> {
+            self.semantic_source.as_ref()
+        }
+
+        /// Borrows the retained producer for the root object, including after
+        /// private-body composition. Private bodies retain their own producers.
+        pub fn retained_fragment_source(
+            &self,
+        ) -> Option<&std::sync::Arc<object_file::StagedOptimizedRelocationFreeObjectContainer>>
+        {
+            self.composition_source
+                .as_deref()
+                .unwrap_or(self)
+                .fragment_replay
+                .as_ref()
+                .map(|replay| &replay.0)
+        }
+
         pub fn observe_invocation_input_sources(
             &self,
             caller: MachineId,
@@ -5555,7 +5627,7 @@ pub(crate) mod stack_demand {
 pub use carriers::{
     NativeInstructionSourceRows, ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution,
     ObjectForeignCall, ObjectFunction, ObjectPrivateFunctionEntry, ObjectScalarCallStack,
-    ObjectUnitCallStack, PrivateFunctionObject, PrivateObjectSymbolBinding,
+    ObjectSemanticSource, ObjectUnitCallStack, PrivateFunctionObject, PrivateObjectSymbolBinding,
 };
 pub(crate) use carriers::{
     ObjectByteLiteralAddress, ObjectByteLiteralPool, ObjectCompilerPrivateFunction,

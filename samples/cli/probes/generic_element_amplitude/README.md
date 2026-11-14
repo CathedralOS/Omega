@@ -9,5 +9,5 @@ state, and the following index is the same parameter plus one.
 `omega run main.omg` on Linux x86-64 exits 0 and prints
 `generic element amplitude 6 4`.
 
-`invalid/` writes index 4 of a two-element const-generic weight array. Its
+`../invalid_generic_element_amplitude/` writes index 4 of a two-element const-generic weight array. Its
 rejection must identify `cannot prove index `4` is within length`.

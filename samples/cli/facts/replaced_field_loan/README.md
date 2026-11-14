@@ -15,15 +15,15 @@ consuming mutable store remains unchanged.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| Local | [program](local/main.omg) | [shared descriptor](local/invalid/main.omg) |
-| Field | [program](field/main.omg) | [shared descriptor](field/invalid/main.omg) |
-| Parameter | [program](parameter/main.omg) | [shared descriptor](parameter/invalid/main.omg) |
-| Call result | [program](call_result/main.omg) | [shared descriptor](call_result/invalid/main.omg) |
-| Match join | [program](match_join/main.omg) | [shared descriptor](match_join/invalid/main.omg) |
-| Const name | [program](const_name/main.omg) | [shared descriptor](const_name/invalid/main.omg) |
-| A nested machine | [program](other_state/main.omg) | [shared descriptor](other_state/invalid/main.omg) |
-| Another machine | [program](other_machine/main.omg) | [shared descriptor](other_machine/invalid/main.omg) |
-| Another target body | [program](target_body/main.omg) | [shared descriptor](target_body/invalid/main.omg) |
+| Local | [program](local/main.omg) | [shared descriptor](invalid_local/main.omg) |
+| Field | [program](field/main.omg) | [shared descriptor](invalid_field/main.omg) |
+| Parameter | [program](parameter/main.omg) | [shared descriptor](invalid_parameter/main.omg) |
+| Call result | [program](call_result/main.omg) | [shared descriptor](invalid_call_result/main.omg) |
+| Match join | [program](match_join/main.omg) | [shared descriptor](invalid_match_join/main.omg) |
+| Const name | [program](const_name/main.omg) | [shared descriptor](invalid_const_name/main.omg) |
+| A nested machine | [program](other_state/main.omg) | [shared descriptor](invalid_other_state/main.omg) |
+| Another machine | [program](other_machine/main.omg) | [shared descriptor](invalid_other_machine/main.omg) |
+| Another target body | [program](target_body/main.omg) | [shared descriptor](invalid_target_body/main.omg) |
 
 The pairs are pinned in `tests/omega/{pass,fail}/facts/` as
 `replaced_field_loan_through_<place>_{exit,rejected}`.

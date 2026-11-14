@@ -26,7 +26,7 @@ sequence supplies no new permission to access storage.
 The [local program](local/main.omg) checks unequal field values, byte endpoints,
 both formats, short output, malformed input and unchanged failure storage. It
 also checks nonzero canaries around each buffer. Its
-[invalid twin](local/invalid/main.omg) changes only the first encoder's capacity
+[invalid twin](invalid_local/main.omg) changes only the first encoder's capacity
 guard from three bytes to two. The write helper still requires three bytes, so
 the twin must reject at that call.
 
@@ -45,15 +45,15 @@ output, malformed input and buffer neighbors.
 
 | Place | Semantic input | Reject twin |
 | --- | --- | --- |
-| [Local](local/main.omg) | Original local request construction | [Guard requires only two bytes](local/invalid/main.omg) |
-| [Field](field/main.omg) | A field between nonzero neighbors | [Capacity obligation](field/invalid/main.omg) |
-| [Parameter](parameter/main.omg) | A forwarded parameter | [Capacity obligation](parameter/invalid/main.omg) |
-| [Call result](call_result/main.omg) | A completed call | [Capacity obligation](call_result/invalid/main.omg) |
-| [Match join](match_join/main.omg) | Both arms of a match | [Capacity obligation](match_join/invalid/main.omg) |
-| [Constant name](const_name/main.omg) | Two owned constants | [Capacity obligation](const_name/invalid/main.omg) |
-| [Nested machine](other_state/main.omg) | An explicit nested machine | [Capacity obligation](other_state/invalid/main.omg) |
-| [Other machine](other_machine/main.omg) | Another named implementation | [Capacity obligation](other_machine/invalid/main.omg) |
-| [Selected implementation](target_body/main.omg) | An ordinary Build-selected provider | [Capacity obligation](target_body/invalid/main.omg) |
+| [Local](local/main.omg) | Original local request construction | [Guard requires only two bytes](invalid_local/main.omg) |
+| [Field](field/main.omg) | A field between nonzero neighbors | [Capacity obligation](invalid_field/main.omg) |
+| [Parameter](parameter/main.omg) | A forwarded parameter | [Capacity obligation](invalid_parameter/main.omg) |
+| [Call result](call_result/main.omg) | A completed call | [Capacity obligation](invalid_call_result/main.omg) |
+| [Match join](match_join/main.omg) | Both arms of a match | [Capacity obligation](invalid_match_join/main.omg) |
+| [Constant name](const_name/main.omg) | Two owned constants | [Capacity obligation](invalid_const_name/main.omg) |
+| [Nested machine](other_state/main.omg) | An explicit nested machine | [Capacity obligation](invalid_other_state/main.omg) |
+| [Other machine](other_machine/main.omg) | Another named implementation | [Capacity obligation](invalid_other_machine/main.omg) |
+| [Selected implementation](target_body/main.omg) | An ordinary Build-selected provider | [Capacity obligation](invalid_target_body/main.omg) |
 
 The selected provider returns its marker together with the semantic input.
 Selecting the wrong body, exchanging the two inputs or taking the same match

@@ -603,7 +603,9 @@ pub use storage::storage_regions::{
 };
 pub use storage::zero_valid_storage::{scalar_declaration_accepts_zero, zero_valid_record_storage};
 pub use structural::atomic_cell::atomic_cell_type;
-pub use structural::partial_affine::{partial_affine_residuals, structural_region_is_vacant};
+pub use structural::partial_affine::{
+    partial_affine_residuals, partial_affine_residuals_in_regions, structural_region_is_vacant,
+};
 pub use structural::primitive_place::{
     Position, StructuralStorageSelection, borrowed_primitive_projection_declaration,
     byte_carrier_geometry_matches, canonical_primitive_path, canonical_primitive_read_path,
@@ -611,8 +613,8 @@ pub use structural::primitive_place::{
     primitive_place_type, primitive_projection_declaration, primitive_projection_restriction,
     primitive_projection_type, primitive_read_field, primitive_read_projection_type,
     primitive_read_requirement, projection_stays_in_inline_storage,
-    projection_storage_dependencies, runtime_structural_copy_type, runtime_structural_path_tip,
-    stored_descriptor_paths,
+    projection_storage_dependencies, runtime_read_projection_tip, runtime_structural_copy_type,
+    runtime_structural_path_tip, stored_descriptor_paths,
 };
 pub use structural::record_field::{
     CasePayloadCarrier, RecordFieldCarrier, SequenceFieldObservation, case_payload_carrier,

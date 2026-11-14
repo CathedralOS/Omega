@@ -99,7 +99,7 @@ machine RegPlacement::plan(schema: Schema) -> AccessPlan {
 }
 
 
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 machine Main::main(main: &mut Main, view: &mut Access<RegPlacement, Registers>) reaches Console {
     let observed: u32 = view.status.read(&view.status);

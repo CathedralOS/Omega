@@ -69,7 +69,7 @@ the actual native executable and the retained public Terminal artifact with
 that report's runtime provisions, and checks all 22 stdout/stderr/exits.
 CLI `--both` is an additional check of both engines' termination reports.
 
-`invalid/main.omg` is the original complete control: an unguarded ordinal
+`../invalid_clearance_route_planner/main.omg` is the original complete control: an unguarded ordinal
 indexes six nodes and must reject with ``cannot prove index `ordinal` ``.
 An unrelated package, parser or provider refusal does not satisfy that oracle.
 `repro/main.omg` retains the original bounded-byte loan witness, whose authored

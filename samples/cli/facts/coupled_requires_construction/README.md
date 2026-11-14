@@ -29,15 +29,15 @@ Every twin relaxes only the constructing machine's own guard `left > 0` to
 
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
-| local | [source](local/main.omg) | [twin](local/invalid/main.omg) | `value + 1` is bound to a local before construction. |
-| field | [source](field/main.omg) | [twin](field/invalid/main.omg) | `advance` receives `Budget { canary: 9, value, left, tail: 11 }`; its requires and the construction read the fields. |
-| parameter | [source](parameter/main.omg) | [twin](parameter/invalid/main.omg) | The construction reads the parameters directly. |
-| call_result | [source](call_result/main.omg) | [twin](call_result/invalid/main.omg) | `increment` returns `value + 1` through `ensures result == value + 1`. |
-| match_join | [source](match_join/main.omg) | [twin](match_join/invalid/main.omg) | The `left > 30` arm yields `value + 2`; the fallback `value + 1` needs `left > 0`. |
-| const_name | [source](const_name/main.omg) | [twin](const_name/invalid/main.omg) | `LIMIT` names 60 in the coupled clause. |
-| other_state | [source](other_state/main.omg) | [twin](other_state/invalid/main.omg) | A nested `grow` with no requires constructs from the parent's arrival facts. |
-| other_machine | [source](other_machine/main.omg) | [twin](other_machine/invalid/main.omg) | A top-level `grow` owns the construction and its own coupled requires; only its guard changes. |
-| target_body | [source](target_body/main.omg) | [twin](target_body/invalid/main.omg) | `Advance::next` is a boundary requirement; Build selects `X86Advance` or `ArmAdvance` per target. The twin relaxes both implementations' guard. |
+| local | [source](local/main.omg) | [twin](invalid_local/main.omg) | `value + 1` is bound to a local before construction. |
+| field | [source](field/main.omg) | [twin](invalid_field/main.omg) | `advance` receives `Budget { canary: 9, value, left, tail: 11 }`; its requires and the construction read the fields. |
+| parameter | [source](parameter/main.omg) | [twin](invalid_parameter/main.omg) | The construction reads the parameters directly. |
+| call_result | [source](call_result/main.omg) | [twin](invalid_call_result/main.omg) | `increment` returns `value + 1` through `ensures result == value + 1`. |
+| match_join | [source](match_join/main.omg) | [twin](invalid_match_join/main.omg) | The `left > 30` arm yields `value + 2`; the fallback `value + 1` needs `left > 0`. |
+| const_name | [source](const_name/main.omg) | [twin](invalid_const_name/main.omg) | `LIMIT` names 60 in the coupled clause. |
+| other_state | [source](other_state/main.omg) | [twin](invalid_other_state/main.omg) | A nested `grow` with no requires constructs from the parent's arrival facts. |
+| other_machine | [source](other_machine/main.omg) | [twin](invalid_other_machine/main.omg) | A top-level `grow` owns the construction and its own coupled requires; only its guard changes. |
+| target_body | [source](target_body/main.omg) | [twin](invalid_target_body/main.omg) | `Advance::next` is a boundary requirement; Build selects `X86Advance` or `ArmAdvance` per target. The twin relaxes both implementations' guard. |
 
 Pins: `tests/omega/pass/facts/coupled_requires_construction_<place>_exit/` and
 `tests/omega/fail/facts/coupled_requires_construction_<place>_rejected/`,

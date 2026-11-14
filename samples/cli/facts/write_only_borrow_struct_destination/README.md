@@ -10,15 +10,15 @@ Claim Ticket: `0f97c9ed8ebe4f85a776303e1d14b298`
 | Place | Positive Program | Reject Twin (invalid) | Transport Mechanism |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) | — | canonical root witness initializing destination slot via `&write` before exact subtraction |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | The initialized slot value is bound to a local variable before exact subtraction. |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | The initialized slot value is stored in and retrieved from a record carrier field before exact subtraction. |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | The initialized slot value is passed as an explicit machine parameter before exact subtraction. |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | The initialized slot value is returned from a helper call before exact subtraction. |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | The initialized slot values are unified across reconverging match branches before exact subtraction. |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | A named constant supplies the subtrahend ceiling for the initialized destination slot. |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | The initialized slot value is transported across an explicit state transition before exact subtraction. |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Another machine forwards the initialized destination slot before exact subtraction. |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Target-scoped machine bodies initialize and consume the write-only borrow destination across all hosted targets. |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | The initialized slot value is bound to a local variable before exact subtraction. |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | The initialized slot value is stored in and retrieved from a record carrier field before exact subtraction. |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | The initialized slot value is passed as an explicit machine parameter before exact subtraction. |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | The initialized slot value is returned from a helper call before exact subtraction. |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | The initialized slot values are unified across reconverging match branches before exact subtraction. |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | A named constant supplies the subtrahend ceiling for the initialized destination slot. |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | The initialized slot value is transported across an explicit state transition before exact subtraction. |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | Another machine forwards the initialized destination slot before exact subtraction. |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | Target-scoped machine bodies initialize and consume the write-only borrow destination across all hosted targets. |
 
 ## Pinned Fixtures
 

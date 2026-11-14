@@ -8,6 +8,11 @@ identifies which functions need target support here; raw artifact requests witho
 that record keep full-module checking. Unused library helpers do not demand
 unavailable target operations through the selected route.
 
+The execution contract requires host-authorized producer trust, not just
+canonical decoding. Public ingress still needs that enforcement under
+`PSI-CLAIM-ADMISSION`; the cache configuration's authorization meaning is the
+open [native-cache-producer-authorization decision](../../../../../OWNER_QUESTIONS.md#native-cache-producer-authorization).
+
 The build's starting function, implementations and callbacks are joined before
 lowering. The [shared input owner](../../representations/abstract-operations/verified-input/src/lib.rs)
 keeps that checked record with the lowered program. Later stages read the same

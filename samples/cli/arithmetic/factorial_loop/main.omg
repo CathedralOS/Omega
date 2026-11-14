@@ -7,7 +7,7 @@
 //   fact(5, 1) = 120
 //
 // Expected exit: 120
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::narrow_u64_to_i32_trapping;
 machine fact(n: u64, acc: u64 in Wrapping) -> u64
 terminates by n

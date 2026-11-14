@@ -130,6 +130,7 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
     let typed = std::sync::Arc::new(frontier.typed);
     let subjects = [frontier.subject];
     let compilation = || typed_trees_to_terminal_psi::Compilation {
+        declaration_metadata: &[],
         entries: &frontier.entries,
         subjects: &subjects,
         purpose: source::DependencyScope::Product,

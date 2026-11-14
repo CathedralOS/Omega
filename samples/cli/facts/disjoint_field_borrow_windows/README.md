@@ -15,15 +15,15 @@ The nine positive/reject pairs are:
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| Local | [program](local/main.omg) | [invalid](local/invalid/main.omg) |
-| Field | [program](field/main.omg) | [invalid](field/invalid/main.omg) |
-| Parameter | [program](parameter/main.omg) | [invalid](parameter/invalid/main.omg) |
-| Call result | [program](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
-| Match join | [program](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
-| Constant | [program](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| Nested machine | [program](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
-| Other machine | [program](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
-| Selected body | [program](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+| Local | [program](local/main.omg) | [invalid](invalid_local/main.omg) |
+| Field | [program](field/main.omg) | [invalid](invalid_field/main.omg) |
+| Parameter | [program](parameter/main.omg) | [invalid](invalid_parameter/main.omg) |
+| Call result | [program](call_result/main.omg) | [invalid](invalid_call_result/main.omg) |
+| Match join | [program](match_join/main.omg) | [invalid](invalid_match_join/main.omg) |
+| Constant | [program](const_name/main.omg) | [invalid](invalid_const_name/main.omg) |
+| Nested machine | [program](other_state/main.omg) | [invalid](invalid_other_state/main.omg) |
+| Other machine | [program](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
+| Selected body | [program](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
 Each twin changes the producing value/domain to admit `right == 76u64`, while
 keeping the exact subtraction unchanged. The intended rejection is an exact

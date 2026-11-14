@@ -10,15 +10,15 @@ The nine places vary the observed byte storage's carrier or executing body: loca
 
 | Place | Positive | Overlapping twin |
 |---|---|---|
-| local | [source](local/main.omg) | [reject](local/invalid/main.omg) |
-| field | [source](field/main.omg) | [reject](field/invalid/main.omg) |
-| parameter | [source](parameter/main.omg) | [reject](parameter/invalid/main.omg) |
-| call result | [source](call_result/main.omg) | [reject](call_result/invalid/main.omg) |
-| match join | [source](match_join/main.omg) | [reject](match_join/invalid/main.omg) |
-| const name | [source](const_name/main.omg) | [reject](const_name/invalid/main.omg) |
-| a nested machine | [source](other_state/main.omg) | [reject](other_state/invalid/main.omg) |
-| another machine | [source](other_machine/main.omg) | [reject](other_machine/invalid/main.omg) |
-| target body | [source](target_body/main.omg) | [reject](target_body/invalid/main.omg) |
+| local | [source](local/main.omg) | [reject](invalid_local/main.omg) |
+| field | [source](field/main.omg) | [reject](invalid_field/main.omg) |
+| parameter | [source](parameter/main.omg) | [reject](invalid_parameter/main.omg) |
+| call result | [source](call_result/main.omg) | [reject](invalid_call_result/main.omg) |
+| match join | [source](match_join/main.omg) | [reject](invalid_match_join/main.omg) |
+| const name | [source](const_name/main.omg) | [reject](invalid_const_name/main.omg) |
+| a nested machine | [source](other_state/main.omg) | [reject](invalid_other_state/main.omg) |
+| another machine | [source](other_machine/main.omg) | [reject](invalid_other_machine/main.omg) |
+| target body | [source](target_body/main.omg) | [reject](invalid_target_body/main.omg) |
 
 ## Baseline and repair
 

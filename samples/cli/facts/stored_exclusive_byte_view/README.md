@@ -32,15 +32,15 @@ and [fail fixtures](../../../../tests/omega/fail/facts/) as
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| Local | [program](local/main.omg), [holder](local/borrowed_holder/main.omg) | [empty view](local/invalid/main.omg), [empty held view](local/borrowed_holder/invalid/main.omg) |
-| Field | [program](field/main.omg), [holder](field/borrowed_holder/main.omg) | [empty view](field/invalid/main.omg), [empty held view](field/borrowed_holder/invalid/main.omg) |
-| Parameter | [program](parameter/main.omg), [holder](parameter/borrowed_holder/main.omg) | [empty view](parameter/invalid/main.omg), [empty held view](parameter/borrowed_holder/invalid/main.omg) |
-| Call result | [program](call_result/main.omg), [holder](call_result/borrowed_holder/main.omg) | [empty view](call_result/invalid/main.omg), [empty held view](call_result/borrowed_holder/invalid/main.omg) |
-| Match join | [program](match_join/main.omg), [holder](match_join/borrowed_holder/main.omg) | [empty view](match_join/invalid/main.omg), [empty held view](match_join/borrowed_holder/invalid/main.omg) |
-| Const name | [program](const_name/main.omg), [holder](const_name/borrowed_holder/main.omg) | [empty view](const_name/invalid/main.omg), [empty held view](const_name/borrowed_holder/invalid/main.omg) |
-| A nested machine | [program](other_state/main.omg), [holder](other_state/borrowed_holder/main.omg) | [empty view](other_state/invalid/main.omg), [empty held view](other_state/borrowed_holder/invalid/main.omg) |
-| Another machine | [program](other_machine/main.omg), [holder](other_machine/borrowed_holder/main.omg) | [empty view](other_machine/invalid/main.omg), [empty held view](other_machine/borrowed_holder/invalid/main.omg) |
-| Another target body | [program](target_body/main.omg), [holder](target_body/borrowed_holder/main.omg) | [empty view](target_body/invalid/main.omg), [empty held view](target_body/borrowed_holder/invalid/main.omg) |
+| Local | [program](local/main.omg), [holder](local/borrowed_holder/main.omg) | [empty view](invalid_local/main.omg), [empty held view](local/borrowed_holder/invalid/main.omg) |
+| Field | [program](field/main.omg), [holder](field/borrowed_holder/main.omg) | [empty view](invalid_field/main.omg), [empty held view](field/borrowed_holder/invalid/main.omg) |
+| Parameter | [program](parameter/main.omg), [holder](parameter/borrowed_holder/main.omg) | [empty view](invalid_parameter/main.omg), [empty held view](parameter/borrowed_holder/invalid/main.omg) |
+| Call result | [program](call_result/main.omg), [holder](call_result/borrowed_holder/main.omg) | [empty view](invalid_call_result/main.omg), [empty held view](call_result/borrowed_holder/invalid/main.omg) |
+| Match join | [program](match_join/main.omg), [holder](match_join/borrowed_holder/main.omg) | [empty view](invalid_match_join/main.omg), [empty held view](match_join/borrowed_holder/invalid/main.omg) |
+| Const name | [program](const_name/main.omg), [holder](const_name/borrowed_holder/main.omg) | [empty view](invalid_const_name/main.omg), [empty held view](const_name/borrowed_holder/invalid/main.omg) |
+| A nested machine | [program](other_state/main.omg), [holder](other_state/borrowed_holder/main.omg) | [empty view](invalid_other_state/main.omg), [empty held view](other_state/borrowed_holder/invalid/main.omg) |
+| Another machine | [program](other_machine/main.omg), [holder](other_machine/borrowed_holder/main.omg) | [empty view](invalid_other_machine/main.omg), [empty held view](other_machine/borrowed_holder/invalid/main.omg) |
+| Another target body | [program](target_body/main.omg), [holder](target_body/borrowed_holder/main.omg) | [empty view](invalid_target_body/main.omg), [empty held view](target_body/borrowed_holder/invalid/main.omg) |
 
 The [root](main.omg) and [root reject](invalid/main.omg) retain the initial
 observation. After ordinary project preparation, run each positive with

@@ -4,8 +4,8 @@ Summaries of measured runs. A run folder holds a `README.md` that states what wa
 revision, and the headline numbers.
 
 Raw run data does not belong in git: CSV, JSON, logs, per-fixture output, archives, patches and probe
-scripts stay out. `tools/check_rules.py` rejects a pull request that adds a file here other than a
-`.md` file of about 300 lines or fewer. Commit the summary, then link raw data by a pinned commit or
+scripts stay out. `cargo xtask check-rules` (`tools/xtask/src/rules.rs`) rejects a pull request that
+adds a file here other than a `.md` file of at most 300 lines. Commit the summary, then link raw data by a pinned commit or
 keep it in the claim note.
 
 Every raw file that earlier runs committed was removed in one commit. Its parent, `6e5131c510b9`, still

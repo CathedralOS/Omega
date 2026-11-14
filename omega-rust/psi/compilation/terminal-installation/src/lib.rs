@@ -760,7 +760,8 @@ pub(crate) mod target_layouts {
 }
 
 pub use compiler_evaluation::{
-    AdmittedCompilerEvaluation, admit_compiler_evaluation, admit_declaration_selections,
+    AdmittedCompilerEvaluation, InvocationSourceSelection, admit_compiler_evaluation,
+    admit_compiler_evaluation_with_source_consent, admit_declaration_selections,
 };
 pub use component_provider::{AdmittedComponentProvider, admit_component_provider};
 pub use entry_values::{

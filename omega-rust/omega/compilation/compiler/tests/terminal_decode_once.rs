@@ -215,6 +215,16 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     let native_artifact::RequestedNativeArtifact::Direct(artifact) = product.artifact else {
         panic!("{FIXTURE} emits a direct native artifact")
     };
+    let physical = artifact.physical_evidence().unwrap_or_else(|| {
+        panic!(
+            "checked provider dispatch must retain its physical children: {:?}",
+            artifact.physical_evidence_gap()
+        )
+    });
+    assert!(
+        !physical.children().is_empty(),
+        "checked provider dispatch and process exit are executable occurrences"
+    );
 
     // Replaying the finished artifact interrogates its retained Terminal
     // module again for image and physical-evidence checks, and
@@ -298,6 +308,25 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
     );
 
     exercise_owned_and_borrowed_instances();
+
+    // A receiver must compare the exact published children, not merely accept
+    // that it can reconstruct a complete set from the retained producer.
+    let mut parts = artifact.into_parts();
+    assert!(
+        parts.physical_evidence.take().is_some(),
+        "published children"
+    );
+    let error = native_artifact::NativeArtifact::from_replayed_parts(parts)
+        .expect_err("missing physical children must reject at the receiver");
+    assert!(
+        matches!(
+            error,
+            native_artifact::NativeArtifactValidationError::Invariant(
+                "native artifact physical children disagree with its validated identity projection"
+            )
+        ),
+        "wrong refusal: {error}"
+    );
 }
 
 fn exercise_owned_and_borrowed_instances() {

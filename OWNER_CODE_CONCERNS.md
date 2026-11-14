@@ -73,6 +73,34 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### The standard library declares two public things named `DarwinClock`
+- Category: one idea, several implementations
+- Where: [source/library/std/macos_gui.omg:586](source/library/std/macos_gui.omg#L586) (`public boundary trait DarwinClock`) and [source/library/std/targets/macos_arm64/clock_impl.omg:26](source/library/std/targets/macos_arm64/clock_impl.omg#L26) (`public DarwinClock satisfies Clock`)
+- Saw: `use omega_language_std::DarwinClock;` is refused as selecting no one declaration (modules.md, "Resolution": "Ambiguous imported declarations reject"). Five GUI samples (`samples/gui/window_app`, `image_viewer`, ...) write `invokes DarwinClock` and cannot name it; std's own Build names both meanings unqualified (`Build::select_provider<Clock, DarwinClock>` and `Build::bind<DarwinClock::clock_ns>`)
+- Cost: no consumer can import either declaration, and which one an unqualified `DarwinClock` means inside std depends on the operand's role. One of the two needs another name
+- Reported: 2026-11-14, Claude Code, while moving samples to declaration imports
+
+### Missing locked archives stop every pool acquire or release
+- Category: Re-deriving
+- Where: [tools/xtask/src/worktree.rs:532](tools/xtask/src/worktree.rs#L532), `list_worktrees`
+- Saw: the worktree list already records location, lock and prunable status. The pool skips prunable entries but then runs Git inside a missing locked archive checkout, aborting the complete acquire/release command. Locked archives deliberately retain admin, HEAD and restoration evidence; they must not be pruned or unlocked to make discovery work. Root reproduced this while extracting the borrowed-data repair and temporarily created only reversible `.git` handles for the command, then removed them without changing archive source, locks or absent restoration destinations.
+- Cost: an unavailable locked archive prevents unrelated warm pool slots from being acquired or released. Inspect retained Git admin metadata or safely skip unavailable locked checkouts without destroying their recovery evidence.
+- Reported: 2026-11-14, Codex, while isolating the checked mutable-data loan prerequisite for semantic policy normalization
+
+### A provider default may still name a data type, which the spec says is not a provider value
+- Category: zombie machinery
+- Where: `omega-rust/psi/compilation/build-time-evaluation/src/product.rs` `ProviderForm::DefaultClosure` (from #3015) and its test `a_provider_default_may_name_the_data_type_that_owns_its_closure`
+- Saw: `form` refuses a data type in a Build's choice but accepts one in a `provider_defaults` machine. provider_selection.md, "Declaration and choice", says a target package "supplies ordinary named default provider implementations" and "A data type or runtime provider descriptor is not such a value", with no exception for defaults. `std`'s ProcessExit defaults, its only user, now select the named `NativeProcessExit`; the last user anywhere is `samples/cli/probes/device_extent_access` (`LoopbackDeviceLoanProvider`), which is written in other retired forms too (`via`, target-prefixed machines)
+- Cost: a second, looser reading of the Provider position stays served for no library; delete `DefaultClosure` and the `ProviderForm` parameter, turn the test into the refusal twin, and give the probe a named implementation
+- Reported: 2026-11-14, worker-15 (Claude Code), while moving std's ProcessExit defaults to a named implementation
+
+### A selected provider plan travels in two carriers, and only one knows its provider declaration
+- Category: 1. One idea, several implementations.
+- Where: `omega-rust/omega/compilation/realization/selected-dispatch/src/selected_execution.rs` (`SelectedExecution`), `backend-plan/src/target_providers.rs:30` (`TerminalTargetProviderPlan`), `effects/src/provider_evidence.rs:200` (`SelectedProviderPlanFacts`)
+- Saw: the checked-adapter join needs each plan's selecting declaration, which `ProviderPlan` does not hold; `TerminalTargetProviderPlan` wraps the plan with it, `SelectedProviderPlanFacts` sorts and validates bare plans, so `SelectedExecution` keeps both and `require_selected_provider_declarations` rejoins them by equality.
+- Cost: every consumer of selected plans must be handed both carriers and trust they agree; the declaration belongs in the plan.
+- Reported: 2026-11-14, Claude Code worker-10, while forming provider plans from settled supplies.
+
 ### Compiler operations are recognized by their bare spelling, and no declaration answers them
 - Category: one idea, several implementations
 - Where: `"code_layout"` in stage 02 `constant.rs:2063,2362`, `selection_authored.rs:392,1265` and stage 03 `statement_lowering.rs:1336`, `expression_lowering.rs:1445`; `"address_of"` in `expression_lowering.rs:1076`; `Quotient::lift`/`define` and `LayoutPlan::place_private` by namespace spelling in `expression_lowering.rs`
@@ -84,14 +112,14 @@ framework or a list of features that remain unimplemented.
 - Category: one idea, several implementations
 - Where: `typed-trees/src/type_system.rs` (`TypeReferenceNode::primitive_type` calls `PrimitiveType::from_name(name)`; `type_symbol` returns no symbol when the name spells a primitive); `05_typed-trees-to-terminal-psi/src/read/types.rs` (`atom_type` through `SymbolTable::builtin_type_atom`); `symbol-resolved-trees/src/type_system_and_names.rs` (a second `PrimitiveType` with its own `from_name`)
 - Saw: typing reads `u32` as an integer because the text of the name is `u32`, with `AtomicU32` and `AtomicU32#AccessField<` mapped to the same carrier by string prefix; the lowered-form checker reads it as an integer because its symbol sits in a compiler-installed root slot. Two enums named `PrimitiveType` restate the answer for the two tree representations
-- Cost: a package type spelled like a primitive has to be taught to both routes, and the two can disagree about one type reference. The width spellings were taught to both (`u13` is a name to typing and an installed builtin symbol to the checker), which made them agree without removing the second route. Typing still lets two mismatches through that only the checker stops, as `not-supported` instead of a typing error: `machine f(value: u1) -> bool { value }` (`typing arm value type`) and a suffixed literal outside its carrier such as `1i1` or `8192u13` (`integer literal outside its type`)
+- Cost: a package type spelled like a primitive has to be taught to both routes, and the two can disagree about one type reference. The width spellings were taught to both (`u13` is a name to typing and an installed builtin symbol to the checker), which made them agree without removing the second route.
 - Reported: 2026-11-13, Claude Code, while replacing the eight integer names with a sign and a width
 
-### Numeric operations still collapse integer metadata to fixed-width rosters
+### Float semantic evaluation still collapses integer metadata to a fixed-width roster
 - Category: branch per shape
-- Where: `language-semantics/src/numeric_intrinsics.rs` (`NumericType`, published in Terminal Psi); `numerics/src/float_semantics.rs` (the integer side of float conversions)
-- Saw: the front end states an integer as a sign and a width, and these convert that pair back into one of eight variants at their door, refusing the rest. Stage 02's const evaluator (`preparation_const_evaluation.rs`) keys carriers by type-name strings and folds in `i128`, so it serves widths to 64 bits for shifts and 127 for ranges
-- Cost: every width beyond the eight stops at whichever of these it meets first, and each is a published or cross-stage vocabulary that needs its own versioned change
+- Where: `numerics/src/float_semantics.rs` (the integer side of float conversions)
+- Saw: the front end states an integer as a sign and a width, and the float semantic catalog converts that pair back into one of eight variants, refusing the rest. Stage 02's const evaluator (`preparation_const_evaluation.rs`) keys carriers by type-name strings and folds in `i128`, so it serves widths to 64 bits for shifts and 127 for ranges
+- Cost: unusual-width conversion proofs stop at the finite semantic catalog, and its published operation identities require a versioned change
 - Reported: 2026-11-13, Claude Code, while replacing the eight integer names with a sign and a width
 
 ### The lowered form drops declared domains, so only the reader knows a value's type
@@ -171,21 +199,6 @@ framework or a list of features that remain unimplemented.
 - Cost: implicit entry selection and source custody can disagree when name order differs from child order; consolidate their exact entry relationship rather than restoring the deleted selectors.
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### The default ranking view is derived differently in resolution and typing
-- Category: re-deriving
-- Where: `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering_machine.rs` (`elaborate_single_subject_default`); `03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs` (`pending_ranking_default`)
-- Saw: resolution finds a parameter by name text and accepts a `.len` member; typing finds it by symbol, has no `.len` rule, stops after 128 steps and runs only when resolution left the view empty. The resolution comment still claims to mirror the deleted checker "EXACTLY".
-- Cost: two stages own the same default with different selection rules; new rankable carriers can acquire different defaults depending on which stage first recognizes them.
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-
-### Register and machine-effect catalogs are validated by rebuilding them with the builder that made them
-- Category: re-deriving
-- Where: `omega-rust/omega/compilation/backend/instruction-set-architectures/isa-x86_64/src/register_model.rs:1381`, `.../isa-aarch64/src/register_model.rs:1082`, `omega-rust/omega/compilation/representations/selected-instructions/src/effects/catalog.rs:1634-1639`; default arms at `.../isa-x86_64/src/machine_effects.rs:1395-1403` and `.../isa-aarch64/src/machine_effects.rs:993-998`
-- Saw: each validator calls the canonical builder again and requires equality with the catalog it was handed, which in the callers read came from that same builder; the effect builders end in a `_ =>` arm that declares no reads, no writes, never traps and falls through
-- Cost: a new instruction kind that misses the effect table is declared effect-free and passes validation by construction; "validated catalog" reads as an independent check and is not one
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### Native lowering accepts module bytes without artifact-bound host producer trust
 - Category: a verdict with nothing behind it
 - Where: `00_terminal-psi-to-abstract-operations/src/artifact_admission.rs` (`lower_artifact`), `abstract-operations/verified-input/src/lib.rs` (`VerifiedPsiOptimizationInput::lowered`), and `01_abstract-operations-to-abstract-operations/src/verified_unit.rs` (`source_checked_obligation_facts`)
@@ -193,25 +206,11 @@ framework or a list of features that remain unimplemented.
 - Cost: an embedding caller can reach native optimization with asserted obligations but no explicit authorization of their producer; repair the ingress trust boundary under `PSI-CLAIM-ADMISSION`, not by replaying proofs on every trusted internal stage handoff.
 - Reported: 2026-11-12, Claude Code; narrowed against the ratified execution-admission contract by Codex on 2026-11-13 while auditing accepted facts
 
-### A default compile seals the native artifact without running the replay, and a failed replay under `--both` is reported as declined
-- Category: a verdict with nothing behind it
-- Where: `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/native_artifact.rs:479-486`, `:529`, `:629-632`; `omega-rust/omega/interpreter/terminal-runtime/src/execution/native_code_layouts.rs:35-37`; `omega-rust/omega/interpreter/terminal-runtime/src/execution.rs:113-115`; `omega-rust/omega/application/cli/src/execution/mod.rs:549-550`; `omega-rust/omega/application/cli/src/commands/run.rs:113-116`
-- Saw: `from_emitted_parts` seals with no call to `validate`; outside tests and one example, `validate` is reached only through `inspect_native_code_layouts`, whose single caller runs when the Terminal runtime is handed a native image; the three machine-emission and object-file stage validators are called only from each other and from `function_fragments.rs:24444` inside that replay; a validation error becomes a missing provision, which makes the comparison `Declined` and the command exit with the native code
-- Cost: the build-then-replay design reads as if every emitted program was replayed, but an ordinary `omega <root>` never runs it, and when it does run a failure looks like an unavailable comparison
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### Stage 05 of the Omega pipeline hands out "Validated" homes and "validation receipts" with no replay behind them
 - Category: a verdict with nothing behind it
 - Where: `omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/home_assignment.rs:1-6` and `:2628-2640`, `.../src/fixed_view_copy_recovery.rs:1-6` and `:1095-1116`, `.../src/runtime_spill_and_split.rs:530`, `:3224`, `:5460`
 - Saw: both file headers say the result is "independently" replayed; `assign_register_homes_reusing` computes the plan and builds `RegisterHomeValidationReceipt` from that same plan's hash and counts; `seal_validation` does the same for fixed-view copies; the three `ReplayMismatch` error variants are declared and never constructed
 - Cost: a reader of the headers or the type names believes register homes are checked twice, and a wrong home assignment has nothing between it and encoding
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### Stage 03 skips the exhaustiveness check for any dispatch run that has a continuation
-- Category: a verdict with nothing behind it
-- Where: `omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/equality_and_exhaustiveness.rs:932-934` (flag set at `:858`)
-- Saw: `check_dispatch_run` returns `Ok(())` as soon as one transition in the run has a valid `continuation`, before any arm is examined; no comment gives the reason; whether stage 05 catches a missing arm in such a run was not traced
-- Cost: a reader takes stage 03 as the owner of "every case is covered" when for these runs it decides nothing, and the question of who does is left to whoever next breaks it
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### Unchecked arena lookups still conflate stale handles with the zero sentinel
@@ -233,13 +232,6 @@ framework or a list of features that remain unimplemented.
 - Where: `omega-rust/omega/compilation/compiler/src/product_boundary.rs`, `omega-rust/omega/build-system/orchestration/src/build_boundary.rs`, `omega-rust/omega/compilation/native-compiler/src/pipeline_boundary.rs`, `omega-rust/omega/compilation/realization/provider-planning/src/source_guards.rs`, `omega-rust/omega/compilation/backend/plans/program-entry-plan/src/source_guards.rs`, `omega-rust/psi/foundation/access-plans/src/tests.rs`, `omega-rust/psi/interpreter/terminal-interpreter/src/embedding.rs`
 - Saw: these tests assert that source strings are present, absent or ordered, rather than exercise the owned operation or dependency boundary. The compiler guards pinned fields of the deleted custody and had to lose those assertions when it was removed; they never established that custody had a producer. The stage-05 guards themselves are gone.
 - Cost: harmless renaming breaks tests while equivalent forbidden behavior can pass under another spelling. Move actual dependency rules to the boundary checker and use behavior tests for custody and execution claims; do not mechanically preserve old strings or test totals.
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### Physical evidence is never derived in production, yet about 10,000 lines exist to derive and replay it
-- Category: zombie machinery
-- Where: `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/fragment_object_publication.rs:161`, `.../native-artifact/src/physical/derivation/evidence.rs:78-79`, `.../native-artifact/src/physical/` (10,168 lines)
-- Saw: the only non-test place that sets a scope sets `NativePhysicalEvidenceScope::Unavailable`, and derivation returns at once for that scope; the other two scopes are built only in `native_artifact/tests.rs`; seven `#[expect(dead_code)]` markers say "unwired, not superseded" and point at a task
-- Cost: the artifact identity and validation chain carry an evidence slot that is always empty; an agent fixing custody code there is fixing code no shipped compile runs
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### `pipeline.md` says the default compile runs no stage validators; two run, and one stage header misdescribes its own
@@ -305,9 +297,16 @@ framework or a list of features that remain unimplemented.
 - Cost: a misspelled machine name reads as a compiler limitation; state_contracts.md ("an unknown machine name or malformed type is an error wherever it appears") is met only in that the program is not accepted, and the outcome word is `not-supported` where it should be `rejected`
 - Reported: 2026-11-13, Claude Code, while accepting statements after a call that never returns
 
-### Lowering signals "this path ended" through the refusal channel
+### No stage types a result value against the type its machine declares
 - Category: a verdict with nothing behind it
-- Where: `05_typed-trees-to-terminal-psi/src/lower.rs` (`Lowering::end_path`, `Lowering::reached`); taken in `body`, `lower/control.rs` (`complete`, `short_circuit`, `match_value`)
-- Saw: a call that never returns, written inside an expression, ends the evaluation that holds it by returning a `Refusal` up through every `?`, and the construct whose path ended recognizes it by a side field and the refusal's text. Expression lowering returns `Checked<Value>` with no way to say "no value: control left", so the signal borrows the error type
-- Cost: any lowering step that swallows a refusal (`.ok()`, `if let Ok`) between the call and its taker would turn a divergence into an internal refusal later; the honest shape is a `Value::Ended(call)` result that every operand consumer handles, which touches each of the ~25 `scalar`/`record` call sites in `lower/`
-- Reported: 2026-11-14, Claude Code, while lowering calls that never return inside expressions
+- Where: `03_symbol-resolved-trees-to-typed-trees` (no expression has a type there; `typing_queries.rs` answers declared places only); `05_typed-trees-to-terminal-psi/src/read/transitions.rs` and `read/expressions.rs` (`Unserved::Typing("arm value type")`, `"match arm value type"`)
+- Saw: `machine f(value: u32) -> bool { value }`, `machine f(value: u1) -> bool { value }` and `machine f(value: bool) -> u1 { value }` all pass typing. Each is stopped only by the lowered-form reader, which calls it `not-supported` because it expects typing to have rejected it
+- Cost: an ordinary type error reaches the author as "not supported yet" with no source line, and the reader's 57 `Unserved::Typing` refusals are the only owner of value typing. Making any of them a rejection needs typing to compute expression types, which it does not do today
+- Reported: 2026-11-13, Claude Code, while making integer widths symbolic
+
+### A value name in a type is read by its spelling before resolution, past the parameters that hide it
+- Category: one idea, several implementations
+- Where: `02_.../preparation_integer_widths.rs` (`width_of`) and `02_.../preparation_const_evaluation.rs` (`closed_fixed_array_length`) both close a name through `ConstantSelection::select` before resolution; after it, `symbols_type_references.rs` `resolve_type_symbol` and `assign_fixed_array_length_symbol` look at type parameters and then top-level declarations only
+- Saw: in `const count: u64 = 13; machine f(count: u64, v: u<count>)` (or `[u8; count]`) the runtime parameter `count` is read as the constant. modules.md "Resolution" puts local bindings and parameters before imported names. Not reachable as an accepted program today only because the checker refuses every top-level `const` declaration
+- Cost: an integer width and an array extent each decide what a value name in a type means, by spelling, in two places; the day `const` declarations are read, a runtime width or extent is silently fixed to a constant. One type-position value-name resolver that sees the enclosing value bindings would serve both
+- Reported: 2026-11-14, Claude Code, while landing symbolic integer widths

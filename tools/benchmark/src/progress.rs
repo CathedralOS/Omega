@@ -1,9 +1,10 @@
-//! Record one commit's compiler speed, and optionally its corpus completion, on this host.
+//! Record one commit's compiler speed on this host.
 //!
 //! The owner runs `omega-bench progress` from a checkout on each test machine
-//! so speed and completion can be charted per main commit. The workload set is
-//! frozen in `WORKLOADS` and versioned by `BENCHMARK_SET`: change either and
-//! bump the set version, because a dashboard only compares rows of one set.
+//! so speed can be charted per main commit; `cargo xtask sweep` measures how
+//! many programs pass. The workload set is frozen in `WORKLOADS` and versioned
+//! by `BENCHMARK_SET`: change either and bump the set version, because a
+//! dashboard only compares rows of one set.
 //! Every process observation becomes one row; summaries are derived from rows.
 
 use crate::process::{capture, file_digest};
@@ -35,7 +36,7 @@ const WORKLOADS: &[Workload] = &[
             "--check",
             "--build-dir",
             "{build}",
-            "tools/benchmark/progress/one_line/main.omg",
+            "tools/benchmark/workloads/one_line/main.omg",
         ],
         clean: None,
         accept: None,
@@ -90,11 +91,10 @@ struct Options {
     results: PathBuf,
     runs: usize,
     aa_runs: usize,
-    completion: bool,
     only: Option<String>,
 }
 
-const USAGE: &str = "omega-bench progress [--omega <release-omega>] [--results <dir>] [--runs N] [--aa-runs N] [--only <workload>] [--completion]";
+const USAGE: &str = "omega-bench progress [--omega <release-omega>] [--results <dir>] [--runs N] [--aa-runs N] [--only <workload>]";
 
 pub fn run(arguments: &[String]) -> Result<(), String> {
     let options = parse_options(arguments)?;
@@ -173,11 +173,6 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
     }
     let _ = fs::remove_dir_all(&scratch);
     let summary = summarize(&rows);
-    let completion = if options.completion {
-        record_completion(&root)?
-    } else {
-        Value::Null
-    };
     let record = json!({
         "schema": SCHEMA,
         "benchmark_set": BENCHMARK_SET,
@@ -209,7 +204,6 @@ pub fn run(arguments: &[String]) -> Result<(), String> {
         "preparations": preparations,
         "rows": rows,
         "summary": summary,
-        "completion": completion,
     });
     validate_record(&record)?;
     fs::create_dir_all(&options.results).map_err(|error| error.to_string())?;
@@ -243,7 +237,6 @@ fn parse_options(arguments: &[String]) -> Result<Options, String> {
         results: PathBuf::from("build/progress-records"),
         runs: 5,
         aa_runs: 3,
-        completion: false,
         only: None,
     };
     let mut arguments = arguments.iter();
@@ -262,7 +255,6 @@ fn parse_options(arguments: &[String]) -> Result<Options, String> {
                 options.aa_runs = value()?.parse().map_err(|_| "--aa-runs takes a count")?;
             }
             "--only" => options.only = Some(value()?),
-            "--completion" => options.completion = true,
             _ => return Err(format!("unknown argument {argument}\nusage: {USAGE}")),
         }
     }
@@ -303,30 +295,19 @@ fn host_target() -> String {
     }
 }
 
-/// Build the release compiler with mbx, or Cargo where mbx is not installed.
+/// Build the release compiler with mbx, which the repository requires for every
+/// Rust build.
 fn build_release_compiler(root: &Path) -> Result<(PathBuf, Value), String> {
     let arguments = ["build", "--release", "-p", "omega"];
     let started = Instant::now();
-    let mut tool = "mbx";
-    let mut status = Command::new(tool)
+    let status = Command::new("mbx")
         .args(arguments)
         .current_dir(root)
         .stdin(Stdio::null())
-        .status();
-    if status
-        .as_ref()
-        .is_err_and(|error| error.kind() == std::io::ErrorKind::NotFound)
-    {
-        tool = "cargo";
-        status = Command::new(tool)
-            .args(arguments)
-            .current_dir(root)
-            .stdin(Stdio::null())
-            .status();
-    }
-    let status = status.map_err(|error| format!("{tool} build: {error}"))?;
+        .status()
+        .map_err(|error| format!("mbx build: {error}"))?;
     if !status.success() {
-        return Err(format!("{tool} build --release -p omega failed: {status}"));
+        return Err(format!("mbx build --release -p omega failed: {status}"));
     }
     let target =
         std::env::var_os("CARGO_TARGET_DIR").map_or_else(|| root.join("target"), PathBuf::from);
@@ -335,15 +316,14 @@ fn build_release_compiler(root: &Path) -> Result<(PathBuf, Value), String> {
         .join(format!("omega{}", std::env::consts::EXE_SUFFIX));
     Ok((
         path,
-        json!({"command": format!("{tool} {}", arguments.join(" ")), "wall_s": started.elapsed().as_secs_f64()}),
+        json!({"command": format!("mbx {}", arguments.join(" ")), "wall_s": started.elapsed().as_secs_f64()}),
     ))
 }
 
-/// Settle a std-dependent project's package review for this compiler, as
-/// `benchmark.py prepare` and `sample_native_gate.py` do: drop any lock from
-/// another compiler, review, accept every pending decision, resume. This is
-/// project acceptance so the workload can compile, not a source audit. The
-/// review document is LF-only and byte-sensitive, so only the token changes.
+/// Settle a std-dependent project's package review for this compiler: drop any
+/// lock from another compiler, review, accept every pending decision, resume.
+/// This is project acceptance so the workload can compile, not a source audit.
+/// The review document is LF-only and byte-sensitive, so only the token changes.
 fn accept_review(omega: &Path, root: &Path, project: &str, target: &str) -> Result<(), String> {
     let directory = root.join(project);
     let _ = fs::remove_file(directory.join("omega.lock"));
@@ -562,80 +542,6 @@ fn summarize(rows: &[Value]) -> Value {
             })
             .collect(),
     )
-}
-
-/// Run the whole corpus through the existing gate, which owns sharding across
-/// workers and the per-fixture memory caps, then count its verdict document.
-fn record_completion(root: &Path) -> Result<Value, String> {
-    let verdict = root.join("build/progress-records/corpus-verdict.json");
-    let arguments = ["tools/corpus_gate.py", "--sweep", "--json"];
-    let started = Instant::now();
-    let mut python = "python3";
-    let mut status = Command::new(python)
-        .args(arguments)
-        .arg(&verdict)
-        .current_dir(root)
-        .stdin(Stdio::null())
-        .status();
-    if status.is_err() {
-        python = "python";
-        status = Command::new(python)
-            .args(arguments)
-            .arg(&verdict)
-            .current_dir(root)
-            .stdin(Stdio::null())
-            .status();
-    }
-    let status = status.map_err(|error| format!("{python} tools/corpus_gate.py: {error}"))?;
-    let wall_s = started.elapsed().as_secs_f64();
-    let document: Value = serde_json::from_slice(
-        &fs::read(&verdict).map_err(|error| format!("read {}: {error}", verdict.display()))?,
-    )
-    .map_err(|error| error.to_string())?;
-    let mut categories: BTreeMap<String, BTreeMap<String, u64>> = BTreeMap::new();
-    for observation in document["observations"].as_array().into_iter().flatten() {
-        let fixture = observation["fixture"].as_str().unwrap_or_default();
-        let category = fixture.splitn(3, '/').take(2).collect::<Vec<_>>().join("/");
-        let status = observation["status"]
-            .as_str()
-            .unwrap_or("unknown")
-            .to_owned();
-        *categories
-            .entry(category)
-            .or_default()
-            .entry(status)
-            .or_default() += 1;
-    }
-    let counts = &document["counts"];
-    let off_target: Vec<&str> = counts["pinned_off_target_fixtures"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(Value::as_str)
-        .collect();
-    let failing_fail_tier = off_target
-        .iter()
-        .filter(|fixture| fixture.starts_with("fail/"))
-        .count() as u64
-        + counts["wrong_reason"].as_u64().unwrap_or(0);
-    let gate = |failures: u64| if failures == 0 { "pass" } else { "fail" };
-    Ok(json!({
-        "command": format!("{python} {} <verdict.json>", arguments.join(" ")),
-        "exit_code": status.code(),
-        "wall_s": wall_s,
-        "verdict": document["verdict"],
-        "fixtures": counts["fixtures"],
-        "by_status": counts["by_status"],
-        "by_verdict": counts["by_verdict"],
-        "categories": categories,
-        "release_gates": {
-            "RC-SOURCE-SEMANTICS": {"status": gate(off_target.len() as u64 + counts["wrong_reason"].as_u64().unwrap_or(0)),
-                "off_target_fixtures": off_target.len(), "wrong_reason_fixtures": counts["wrong_reason"]},
-            "RC-DIAGNOSTICS": {"status": gate(failing_fail_tier), "failing_fail_fixtures": failing_fail_tier},
-            "RC-NATIVE-MATRIX": {"status": "not_recorded", "reason": "needs corpus_gate.py --native on this host"},
-            "RC-REPRESENTATIVE-PROGRAMS": {"status": "not_recorded", "reason": "needs sample_native_gate.py on this host"},
-        },
-    }))
 }
 
 /// The documented row fields every consumer may rely on; refuse to publish drift.

@@ -118,6 +118,14 @@ impl Program<'_> {
     /// ceilings are held to the same rules whether or not this compilation
     /// calls it. The trait is read as the service it declares.
     ///
+    /// A claim is not a call, so no caller's visibility is checked here.
+    /// Whether the binding's author may name the requirement was decided
+    /// when the Build's binding was admitted, and a compilation claims only
+    /// the bindings its own package's Build made: a dependency's bindings
+    /// are reached through the providers a target chooses, whose calls check
+    /// visibility like any other. A declaration check has no entry at all to
+    /// call from.
+    ///
     /// A selection of anything else (a trait that is no boundary, an
     /// operator family) is refused here. A provider is judged against what
     /// it provides as a `Supply` (`supplied_slots`), never as a bare
@@ -140,7 +148,7 @@ impl Program<'_> {
                     owner.is_boundary && requirement.symbol == *symbol
                 })
             {
-                self.boundary(entry, *symbol)?;
+                self.boundary_declaration(entry, *symbol)?;
             } else if let Some(owner) = typed
                 .trait_definition_by_symbol(*symbol)
                 .filter(|owner| owner.is_boundary)
@@ -177,48 +185,48 @@ impl Program<'_> {
             ))
         };
         for supply in supplies {
-            // The slot is a boundary trait, supplied whole, or one
-            // requirement of a boundary trait.
+            // The slot is a nominal trait, supplied whole, or one
+            // exact requirement. Ordinary traits grant no boundary capability.
             let (owner, requirements) = match typed.trait_definition_by_symbol(supply.slot) {
-                Some(owner) => (
-                    owner,
-                    typed
-                        .trait_machine_signatures(owner)
-                        .iter()
-                        .map(|requirement| requirement.symbol)
-                        .collect::<Vec<_>>(),
-                ),
+                Some(owner) => {
+                    // No applied parent environment is carried by this bare
+                    // whole-trait nomination. Refuse rather than omit inherited
+                    // requirements or pretend the application was empty.
+                    if !owner.lifetime_parameters.is_empty()
+                        || !owner.type_parameters.is_empty()
+                        || !owner.conformance_bounds.is_empty()
+                        || !owner.requires.is_empty()
+                        || owner.refines.is_some()
+                        || !owner.refinement_clauses.is_empty()
+                    {
+                        return unserved(
+                            "whole-trait supply with parameters, parents or refinements",
+                        );
+                    }
+                    (
+                        owner,
+                        typed
+                            .trait_machine_signatures(owner)
+                            .iter()
+                            .map(|requirement| requirement.symbol)
+                            .collect::<Vec<_>>(),
+                    )
+                }
                 None => match typed.trait_machine_signature(supply.slot) {
                     Some((owner, requirement)) if requirement.symbol == supply.slot => {
                         (owner, vec![supply.slot])
                     }
                     _ => {
                         return unserved(
-                            "provider supply of a slot that is not a boundary trait or one of its requirements",
+                            "provider supply of a slot that is not a trait or one of its requirements",
                         );
                     }
                 },
             };
-            if !owner.is_boundary {
-                return unserved("provider supply of a trait that is not a boundary");
-            }
             for requirement in requirements {
-                let mut realizing = typed.machines().iter().filter(|machine| {
-                    typed_trees::provider_declarations::satisfaction_provider_declaration(
-                        typed, machine,
-                    ) == Some(supply.provider)
-                        && (typed
-                            .machine_trait_conformances(machine)
-                            .iter()
-                            .any(|clause| clause.requirement_symbol == requirement)
-                            || typed
-                                .owned_conformance_realization(machine.symbol)
-                                .is_some_and(|(_, row)| row.requirement == requirement))
-                });
-                let (Some(machine), None) = (realizing.next(), realizing.next()) else {
-                    return unserved(
-                        "provider that does not give a supplied requirement exactly one machine",
-                    );
+                let machine = match supply.realization(typed, requirement) {
+                    Ok(machine) => machine,
+                    Err(reason) => return unserved(reason),
                 };
                 let witness = crate::ConformanceWitness {
                     declaring_trait: owner.symbol,
@@ -226,6 +234,13 @@ impl Program<'_> {
                     implementation: machine.symbol,
                 };
                 let root = self.provider(machine.symbol, owner.symbol, requirement)?;
+                // The module declares the boundary of every requirement a
+                // chosen provider supplies, called or not: a provider plan
+                // covers the slot's whole schema, so each requirement needs
+                // the declaration its candidate row names
+                // (`declare::provider_candidates`). No call is made, so no
+                // visibility is checked; `root` only anchors a refusal.
+                self.boundary_declaration(root, requirement)?;
                 if !self.fixed_inputs.contains(&root) {
                     self.fixed_inputs.push(root);
                 }

@@ -26,15 +26,15 @@ the same fact through all nine places:
 
 | Place | Direct bound | Named predicate |
 | --- | --- | --- |
-| Local | [local](local/main.omg) / [reject](local/invalid/main.omg) | [program](alias_contract/local/main.omg) / [reject](alias_contract/local/invalid/main.omg) |
-| Field | [field](field/main.omg) / [reject](field/invalid/main.omg) | [program](alias_contract/field/main.omg) / [reject](alias_contract/field/invalid/main.omg) |
-| Parameter | [parameter](parameter/main.omg) / [reject](parameter/invalid/main.omg) | [program](alias_contract/parameter/main.omg) / [reject](alias_contract/parameter/invalid/main.omg) |
-| Call result | [call_result](call_result/main.omg) / [reject](call_result/invalid/main.omg) | [program](alias_contract/call_result/main.omg) / [reject](alias_contract/call_result/invalid/main.omg) |
-| Match join | [match_join](match_join/main.omg) / [reject](match_join/invalid/main.omg) | [program](alias_contract/match_join/main.omg) / [reject](alias_contract/match_join/invalid/main.omg) |
-| Const name | [const_name](const_name/main.omg) / [reject](const_name/invalid/main.omg) | [program](alias_contract/const_name/main.omg) / [reject](alias_contract/const_name/invalid/main.omg) |
-| Nested machine | [other_state](other_state/main.omg) / [reject](other_state/invalid/main.omg) | [program](alias_contract/other_state/main.omg) / [reject](alias_contract/other_state/invalid/main.omg) |
-| Other machine | [other_machine](other_machine/main.omg) / [reject](other_machine/invalid/main.omg) | [program](alias_contract/other_machine/main.omg) / [reject](alias_contract/other_machine/invalid/main.omg) |
-| Selected target implementation | [target_body](target_body/main.omg) / [reject](target_body/invalid/main.omg) | [program](alias_contract/target_body/main.omg) / [reject](alias_contract/target_body/invalid/main.omg) |
+| Local | [local](local/main.omg) / [reject](invalid_local/main.omg) | [program](alias_contract/local/main.omg) / [reject](alias_contract/local/invalid/main.omg) |
+| Field | [field](field/main.omg) / [reject](invalid_field/main.omg) | [program](alias_contract/field/main.omg) / [reject](alias_contract/field/invalid/main.omg) |
+| Parameter | [parameter](parameter/main.omg) / [reject](invalid_parameter/main.omg) | [program](alias_contract/parameter/main.omg) / [reject](alias_contract/parameter/invalid/main.omg) |
+| Call result | [call_result](call_result/main.omg) / [reject](invalid_call_result/main.omg) | [program](alias_contract/call_result/main.omg) / [reject](alias_contract/call_result/invalid/main.omg) |
+| Match join | [match_join](match_join/main.omg) / [reject](invalid_match_join/main.omg) | [program](alias_contract/match_join/main.omg) / [reject](alias_contract/match_join/invalid/main.omg) |
+| Const name | [const_name](const_name/main.omg) / [reject](invalid_const_name/main.omg) | [program](alias_contract/const_name/main.omg) / [reject](alias_contract/const_name/invalid/main.omg) |
+| Nested machine | [other_state](other_state/main.omg) / [reject](invalid_other_state/main.omg) | [program](alias_contract/other_state/main.omg) / [reject](alias_contract/other_state/invalid/main.omg) |
+| Other machine | [other_machine](other_machine/main.omg) / [reject](invalid_other_machine/main.omg) | [program](alias_contract/other_machine/main.omg) / [reject](alias_contract/other_machine/invalid/main.omg) |
+| Selected target implementation | [target_body](target_body/main.omg) / [reject](invalid_target_body/main.omg) | [program](alias_contract/target_body/main.omg) / [reject](alias_contract/target_body/invalid/main.omg) |
 
 The [root](main.omg) and [named-predicate root](alias_contract/main.omg) use the
 local form. Every positive binds all four hosted targets and expects exit 0

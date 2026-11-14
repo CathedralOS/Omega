@@ -1646,11 +1646,20 @@ pub(crate) mod construction_destinations {
         {
             carrier = *base_type;
         }
-        (!matches!(
-            program.type_reference_table.type_reference(carrier),
-            TypeReferenceNode::Reference { .. }
-        ))
-        .then_some(declared)
+        // Assigning to a binding of reference type writes through the
+        // reference, so the place's own type is not the type the literal is
+        // built at. A view is the exception: `&[u8]` is the value the place
+        // holds (data_and_literals.md, "Quoted bytes": a quoted literal "has
+        // ordinary shared byte-view type `&[u8]`"), so a literal assigned to
+        // a view field lands at the field's declared view type.
+        let receives_its_own_type = match program.type_reference_table.type_reference(carrier) {
+            TypeReferenceNode::Reference { referee, .. } => matches!(
+                program.type_reference_table.type_reference(*referee),
+                TypeReferenceNode::Slice { .. }
+            ),
+            _ => true,
+        };
+        receives_its_own_type.then_some(declared)
     }
 
     fn collect_call_destinations(
@@ -3037,22 +3046,18 @@ pub(crate) mod qualification_casts {
             };
             let authored = *authored;
             if let Some(entry) = authored.form.entry() {
-                /*
-                    Accounting fixed this entry's target and result. Only an
-                    added domain stays on the node, as the membership the cast
-                    establishes; a kept or removed one was named for the
-                    accounting and its selection is recorded above.
-                */
+                // Accounting fixed this entry's target and result. Every
+                // named entry retains the selected declaration and arguments:
+                // the checker must distinguish keeping/removing that domain
+                // from a different qualification with the same carrier.
                 let ExpressionNode::Cast(cast) = program.expression_table.expression_mut(handle)
                 else {
                     continue;
                 };
-                if entry.kind == language_core::cast_form::CastEntryKind::Add {
-                    cast.semantic_domain_symbol = domain;
-                    cast.semantic_domain_id = semantic_id;
-                } else {
+                cast.semantic_domain_symbol = domain;
+                cast.semantic_domain_id = semantic_id;
+                if entry.kind != language_core::cast_form::CastEntryKind::Add {
                     cast.semantic_domain = arena::HandleSpan::empty();
-                    cast.semantic_domain_arguments = arena::HandleSpan::empty();
                 }
                 continue;
             }

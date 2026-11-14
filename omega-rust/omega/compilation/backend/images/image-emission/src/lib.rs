@@ -98,8 +98,8 @@ pub(crate) use object::object_artifact::stack_demand::StackDemand;
 pub use object::object_artifact::stack_demand::derive_stack_demand;
 pub use object::object_artifact::{
     NativeInstructionSourceRows, ObjectArtifact, ObjectBoundarySettlement, ObjectCodeAttribution,
-    ObjectForeignCall, ObjectFunction, ObjectScalarCallStack, ObjectUnitCallStack,
-    derive_normalized_foreign_call_custody, durable_home_offsets,
+    ObjectForeignCall, ObjectFunction, ObjectScalarCallStack, ObjectSemanticSource,
+    ObjectUnitCallStack, derive_normalized_foreign_call_custody, durable_home_offsets,
     foreign_invocation_provenance_matches, foreign_result_operand_count, fragment_instruction_span,
     producer_instruction, scalar_call_result_producer, scalar_immediate_span,
     structural_result_capture, transported_span_end, unique_block_instruction,

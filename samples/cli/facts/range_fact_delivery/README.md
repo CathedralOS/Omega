@@ -40,15 +40,15 @@ legs agree.
 
 | Place | Positive | Fact-sensitive reject twins |
 | --- | --- | --- |
-| local | `local/main.omg` | `local/invalid/main.omg`, `local/controls/missing_bound/main.omg` |
-| field | `field/main.omg` | `field/invalid/main.omg`, `field/controls/missing_bound/main.omg` |
-| parameter | `parameter/main.omg` | `parameter/invalid/main.omg`, `parameter/controls/missing_bound/main.omg` |
-| call_result | `call_result/main.omg` | `call_result/invalid/main.omg`, `call_result/controls/missing_bound/main.omg` |
-| match_join | `match_join/main.omg` | `match_join/invalid/main.omg`, `match_join/controls/missing_bound/main.omg` |
-| const_name | `const_name/main.omg` | `const_name/invalid/main.omg`, `const_name/controls/missing_bound/main.omg` |
-| other_state | `other_state/main.omg` | `other_state/invalid/main.omg`, `other_state/controls/missing_bound/main.omg` |
-| other_machine | `other_machine/main.omg` | `other_machine/invalid/main.omg`, `other_machine/controls/missing_bound/main.omg` |
-| target_body | `target_body/main.omg` | `target_body/invalid/main.omg`, `target_body/controls/missing_bound/main.omg` |
+| local | `local/main.omg` | `invalid_local/main.omg`, `local/controls/missing_bound/main.omg` |
+| field | `field/main.omg` | `invalid_field/main.omg`, `field/controls/missing_bound/main.omg` |
+| parameter | `parameter/main.omg` | `invalid_parameter/main.omg`, `parameter/controls/missing_bound/main.omg` |
+| call_result | `call_result/main.omg` | `invalid_call_result/main.omg`, `call_result/controls/missing_bound/main.omg` |
+| match_join | `match_join/main.omg` | `invalid_match_join/main.omg`, `match_join/controls/missing_bound/main.omg` |
+| const_name | `const_name/main.omg` | `invalid_const_name/main.omg`, `const_name/controls/missing_bound/main.omg` |
+| other_state | `other_state/main.omg` | `invalid_other_state/main.omg`, `other_state/controls/missing_bound/main.omg` |
+| other_machine | `other_machine/main.omg` | `invalid_other_machine/main.omg`, `other_machine/controls/missing_bound/main.omg` |
+| target_body | `target_body/main.omg` | `invalid_target_body/main.omg`, `target_body/controls/missing_bound/main.omg` |
 
 Each twin weakens only the transported premise to `< 6`, keeping `count`'s
 `<= 4` requirement and the runtime oracle unchanged, and rejects at the same
@@ -137,7 +137,7 @@ five places — `const_name`, `field`, `parameter`, `call_result`,
 exited 200 with
 "accepted package `integer_range_delivery` compiler identity changed; run
 `omega packages update` for fresh review before compiling". That is stale
-accepted-review state, not a compiler defect (tools/testing.md). Fresh
+accepted-review state, not a compiler defect (tools/docs/testing.md). Fresh
 `omega packages update` re-recorded the package review in this checkout for all nine
 places; the unchanged programs then passed `--both` with exit 0. No compiler
 repair was needed.

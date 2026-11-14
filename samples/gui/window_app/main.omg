@@ -4,10 +4,15 @@
 // application; named provider maps select code without hidden receiver state.
 // No exit annotation: this sample waits for user input. window_demo is the
 // bounded 60-frame exercise of the same shared rendering and event-pump API.
-use omega_language_std::console;
-use omega_language_std::macos_gui;
-use omega_language_std::macos_image;
-use omega_language_std::windows_gui_host;
+use omega_language_std::Console;
+use omega_language_std::AppKit;
+use omega_language_std::CoreGraphics;
+use omega_language_std::DarwinClock;
+use omega_language_std::ObjectiveC;
+use omega_language_std::Window;
+use omega_language_std::MacosImageData;
+use omega_language_std::MacosImageObjects;
+use omega_language_std::WindowsGuiHost;
 use providers;
 
 // These requirements expose the shared macos_gui operations' service rows.

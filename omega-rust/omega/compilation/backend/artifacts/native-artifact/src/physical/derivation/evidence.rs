@@ -16,6 +16,7 @@ use crate::PhysicalChildParent;
 use crate::PhysicalRelocationDisposition;
 use crate::digest_encoder::DomainDigestEncoder;
 use crate::native_artifact::boundary_application_coverage_identity;
+use crate::physical::PhysicalEvidencePass;
 use crate::physical::derivation::foreign_calls::derive_normalized_foreign_child;
 use crate::physical::derivation::hashing::{
     canonical_usize, hash_callback_relocation, hash_machine_function_identity, hash_object_symbol,
@@ -65,11 +66,40 @@ fn blocked(subject: NativePhysicalEvidenceGapSubject) -> NativePhysicalEvidenceD
 }
 
 pub(crate) fn derive_physical_evidence(
+    pass: PhysicalEvidencePass,
     scope: &NativePhysicalEvidenceScope,
-    terminal_artifact: &terminal_codec::CanonicalTerminalArtifact,
+    terminal_artifact: terminal_codec::TerminalExecutionView<'_>,
     target: NativeTarget,
     object: &image_emission::ObjectArtifact,
-    image: &image::EmittedImageOutput,
+    image: &[u8],
+    final_image_symbol_digest: [u8; 32],
+    selected_provider_plans: &[NativeSelectedProviderPlan],
+    provider_executions: &[NativeProviderExecution],
+    boundary_application_coverage: Option<&TerminalBoundaryApplicationCoverage>,
+) -> Result<NativePhysicalEvidenceDerivation, &'static str> {
+    derive_object_physical_evidence(
+        pass,
+        scope,
+        terminal_artifact,
+        target,
+        object,
+        object,
+        image,
+        final_image_symbol_digest,
+        selected_provider_plans,
+        provider_executions,
+        boundary_application_coverage,
+    )
+}
+
+fn derive_object_physical_evidence(
+    pass: PhysicalEvidencePass,
+    scope: &NativePhysicalEvidenceScope,
+    terminal_artifact: terminal_codec::TerminalExecutionView<'_>,
+    target: NativeTarget,
+    object: &image_emission::ObjectArtifact,
+    linked_object: &image_emission::ObjectArtifact,
+    image: &[u8],
     final_image_symbol_digest: [u8; 32],
     selected_provider_plans: &[NativeSelectedProviderPlan],
     provider_executions: &[NativeProviderExecution],
@@ -82,25 +112,28 @@ pub(crate) fn derive_physical_evidence(
         && let Some(publication) = optimized.fragment_publication()
     {
         publication.validate_object(object)?;
+        pass.verify(|| publication.replay_foreign_call_custody(object))?;
     }
-    let module = terminal_artifact.semantic_module();
+    let module = terminal_artifact.module();
     let boundary_application_coverage = boundary_application_coverage
         .ok_or("native physical evidence requires exact boundary-application coverage custody")?;
 
     let projection = match scope {
-        NativePhysicalEvidenceScope::Unavailable => unreachable!("unavailable returned above"),
+        NativePhysicalEvidenceScope::Unavailable => {
+            return Ok(NativePhysicalEvidenceDerivation::Unavailable);
+        }
         NativePhysicalEvidenceScope::UnoptimizedCompleteBoundaryEvidence => {
             derive_identity_projection(
-                terminal_artifact.manifest().semantic(),
+                terminal_artifact.identity(),
                 module,
                 boundary_application_coverage,
             )?
         }
         NativePhysicalEvidenceScope::ValidatedOptimizedProjection(optimized) => {
-            if optimized.projection().terminal() != terminal_artifact.manifest().semantic()
+            if optimized.projection().terminal() != terminal_artifact.identity()
                 || optimized.boundary_application_coverage()
                     != &boundary_application_coverage_identity(Some(boundary_application_coverage))
-                        .expect("present boundary-application coverage has an identity")
+                        .ok_or("physical scope lost its boundary-application coverage identity")?
             {
                 return Err(
                     "optimized physical scope is detached from its Terminal or D29 coverage",
@@ -144,16 +177,7 @@ pub(crate) fn derive_physical_evidence(
         }
         _ => None,
     };
-    let retained_custody = match scope {
-        NativePhysicalEvidenceScope::ValidatedOptimizedProjection(optimized) => {
-            optimized.foreign_call_custody()
-        }
-        _ => &[],
-    };
     let mut foreign_calls = BTreeMap::new();
-    if fragment_publication.is_some() && retained_custody != object.foreign_calls() {
-        return Err("native physical evidence foreign calls differ from fragment projection");
-    }
     for foreign in object.foreign_calls() {
         let invocation_site = match foreign.owner {
             CallSiteOwner::Operation(operation) => InvocationSite::Operation(operation),
@@ -238,8 +262,9 @@ pub(crate) fn derive_physical_evidence(
         });
         if family && installed.is_none() && foreign.is_none() {
             if let Some(child) = derive_boundary_internal_call_child(
+                pass,
                 module,
-                terminal_artifact.manifest().semantic(),
+                terminal_artifact.identity(),
                 object,
                 image,
                 occurrence,
@@ -270,7 +295,7 @@ pub(crate) fn derive_physical_evidence(
             return Err("native physical evidence cannot rejoin one exact selected provider plan");
         };
         super::provider_custody::validate_family_provider_custody(
-            terminal_artifact.manifest().semantic(),
+            terminal_artifact.identity(),
             module,
             target,
             occurrence.boundary(),
@@ -281,6 +306,7 @@ pub(crate) fn derive_physical_evidence(
             (Some(installed), None) => {
                 if let Some(builtin) = hosted_builtin_settlement(&installed.settlement) {
                     children.push(derive_hosted_builtin_child(
+                        pass,
                         builtin,
                         occurrence,
                         projection.identity(),
@@ -292,6 +318,7 @@ pub(crate) fn derive_physical_evidence(
                         installed,
                     )?);
                 } else if let Some(child) = derive_admitted_provider_settlement_child(
+                    pass,
                     module,
                     object,
                     image,
@@ -315,6 +342,7 @@ pub(crate) fn derive_physical_evidence(
             }
             (None, Some(foreign)) => {
                 let Some(child) = derive_normalized_foreign_child(
+                    pass,
                     occurrence,
                     projection.identity(),
                     requirement,
@@ -323,6 +351,7 @@ pub(crate) fn derive_physical_evidence(
                     target,
                     module,
                     object,
+                    linked_object,
                     image,
                     final_image_symbol_digest,
                     foreign,
@@ -339,8 +368,9 @@ pub(crate) fn derive_physical_evidence(
             }
             (None, None) => {
                 if let Some(child) = derive_boundary_internal_call_child(
+                    pass,
                     module,
-                    terminal_artifact.manifest().semantic(),
+                    terminal_artifact.identity(),
                     object,
                     image,
                     occurrence,
@@ -406,6 +436,7 @@ pub(crate) fn derive_physical_evidence(
             return Err("D29 physical occurrence does not rejoin one realization companion");
         };
         let Some(span) = derive_operator_physical_span(
+            pass,
             occurrence,
             realization.realization(),
             module,
@@ -456,9 +487,97 @@ pub(crate) fn derive_physical_evidence(
     children.sort_by_key(|child| child.occurrence());
     validate_exact_physical_children(&projection, &children)?;
     let identity = physical_evidence_identity(projection.identity(), &children);
-    Ok(NativePhysicalEvidenceDerivation::Complete(
-        native_physical_evidence(projection, children, identity),
-    ))
+    let mut evidence = native_physical_evidence(projection, children, identity);
+    for private in object.private_functions() {
+        let Some(source) = private.body.semantic_source() else {
+            return Ok(blocked(
+                NativePhysicalEvidenceGapSubject::UncoveredPrivateFunction {
+                    function: private.identity,
+                },
+            ));
+        };
+        if source.view().identity() != private.source_psi
+            || private.body.psi() != private.source_psi
+        {
+            return Err("private physical source differs from the linked body namespace");
+        }
+        let final_text = span(
+            image,
+            crate::physical::native_byte_span(private.text_offset, private.body.text_bytes().len()),
+        )?;
+        let scope = NativePhysicalEvidenceScope::from_fragment_publication(
+            source.coverage(),
+            &private.body,
+        )?;
+        let derived = derive_object_physical_evidence(
+            pass,
+            &scope,
+            source.view(),
+            target,
+            &private.body,
+            linked_object,
+            final_text,
+            final_image_symbol_digest,
+            selected_provider_plans,
+            provider_executions,
+            Some(source.coverage()),
+        )?;
+        let NativePhysicalEvidenceDerivation::Complete(mut body_evidence) = derived else {
+            return Ok(derived);
+        };
+        relocate_final_spans(&mut body_evidence, private.text_offset)?;
+        evidence
+            .private_functions
+            .push(super::super::PrivatePhysicalEvidence {
+                function: private.identity,
+                text_offset: private.text_offset,
+                evidence: body_evidence,
+            });
+    }
+    if !evidence.private_functions.is_empty() {
+        let mut digest = DomainDigestEncoder::new(b"omega.native-physical-composition.sha256.v1\0");
+        digest.raw(&evidence.identity);
+        digest.raw(&canonical_usize(evidence.private_functions.len()));
+        for private in &evidence.private_functions {
+            hash_machine_function_identity(&mut digest, private.function);
+            digest.raw(&canonical_usize(private.text_offset));
+            digest.raw(private.evidence.identity());
+        }
+        evidence.identity = digest.finish();
+    }
+    Ok(NativePhysicalEvidenceDerivation::Complete(evidence))
+}
+
+pub(super) fn relocate_final_spans(
+    evidence: &mut crate::physical::NativePhysicalEvidence,
+    text_offset: usize,
+) -> Result<(), &'static str> {
+    if !evidence.private_functions.is_empty() {
+        return Err("private object physical evidence contains a nested composition");
+    }
+    for child in &mut evidence.children {
+        for span in &mut child.final_image_spans {
+            span.offset = span
+                .offset
+                .checked_add(text_offset)
+                .ok_or("private physical image span overflow")?;
+        }
+        child.identity = physical_child_identity(
+            &child.parent,
+            child.projection,
+            child.occurrence,
+            &child.machine_spans,
+            &child.object_spans,
+            &child.final_image_spans,
+            child.machine_bytes_digest,
+            child.object_bytes_digest,
+            child.final_image_bytes_digest,
+            &child.relocation,
+        );
+    }
+    evidence.identity =
+        physical_evidence_identity(evidence.projection.identity(), &evidence.children);
+    Ok(())
 }
 
 #[derive(Clone, Copy)]

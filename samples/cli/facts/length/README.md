@@ -11,15 +11,15 @@ when the byte is 8. Only the transport of the window length changes.
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) with [`build.omg`](build.omg) | — | canonical root witness indexing last byte through window length |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the length is copied into a local variable |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the length is stored in a record field |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the length arrives as an explicit parameter |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | a call result returns the window length |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both arms of a match yield the window length |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant is the window length |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the length |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine supplies the length |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies uses the length |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the length is copied into a local variable |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the length is stored in a record field |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the length arrives as an explicit parameter |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | a call result returns the window length |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both arms of a match yield the window length |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | a named constant is the window length |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine receives the length |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | a forwarding machine supplies the length |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each of four target bodies uses the length |
 
 ## Execution
 
@@ -49,15 +49,15 @@ Each place has an `invalid/` reject twin with authored `sample.json` (`"role": "
 
 | Place | Twin | Pinned Diagnostic Fragment |
 | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | `cannot prove index` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | `cannot prove index` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `cannot prove index` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `cannot prove index` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `cannot prove index` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `cannot prove index` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove index` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `cannot prove index` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `cannot prove index` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | `cannot prove index` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | `cannot prove index` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `cannot prove index` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `cannot prove index` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | `cannot prove index` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | `cannot prove index` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | `cannot prove index` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `cannot prove index` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `cannot prove index` |
 
 ## Pinned Fixtures
 

@@ -527,6 +527,16 @@ pub fn evaluate(
     authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
     accounting: &mut SourceCompletionAccounting,
 ) -> Result<(), Vec<Diagnostic>> {
+    evaluate_with_source_consent(program, request, authority, None, accounting)
+}
+
+pub fn evaluate_with_source_consent(
+    program: &mut TypedTrees,
+    request: psi_terminal_production::TerminalSourceCompilation<'_>,
+    authority: Option<std::sync::Arc<dyn crate::BuildTimeSelectionAuthority>>,
+    source_consent: Option<std::sync::Arc<dyn crate::InvocationSourceConsent>>,
+    accounting: &mut SourceCompletionAccounting,
+) -> Result<(), Vec<Diagnostic>> {
     let demanded =
         demanded_constants(program, request).map_err(|reason| vec![Diagnostic::error(reason)])?;
     let jobs = program
@@ -598,8 +608,13 @@ pub fn evaluate(
     while let Some(position) = ready.pop_front() {
         let (handle, symbol, entry) = jobs[position];
         let result = (|| -> Result<(), String> {
-            let prepared = super::PreparedBuildMachineProgram::prepare(program, authority.clone())
-                .map_err(|errors| diagnostics::join_messages(&errors))?;
+            let prepared = super::PreparedBuildMachineProgram::prepare_for(
+                program,
+                authority.clone(),
+                request.purpose,
+                source_consent.clone(),
+            )
+            .map_err(|errors| diagnostics::join_messages(&errors))?;
             let value = prepared
                 .entry(symbol, entry, &[])?
                 .invoke_recorded(

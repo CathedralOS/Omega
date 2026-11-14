@@ -117,6 +117,35 @@ out from its body.
 The clause permits a crash; it does not cause one. To get trapping arithmetic
 write `+!`.
 
+## Machines that never return
+
+A machine that can never come back to its caller says so with the core type
+`Never` as its result. Callers in other packages rely on that signature, not
+on the body:
+
+```omega
+public machine fail() -> Never crashes Abort {
+    crash Abort;
+}
+
+machine port_or_fail(parsed: bool, port: u16) -> u16 crashes Abort {
+    transition parsed {
+        true -> port
+        false -> fail()
+    }
+}
+```
+
+No value of `Never` is ever made, and a caller never unwraps one. Because
+`fail()` cannot return, it fits where a `u16` is expected. Code written after
+such a call is accepted as unreachable, with a warning.
+
+A machine that exits or crashes on some paths and returns on others keeps its
+ordinary result type. Its `ensures` describes the paths that return.
+`ProcessExit::exit_process` returns `Never`, so a helper that exits only when
+something is fatal still returns its normal value otherwise. See
+[published no-return](../spec/language/state_contracts.md#published-no-return).
+
 ## After a crash
 
 An error return runs normal cleanup. A crash abandons everything in flight: a

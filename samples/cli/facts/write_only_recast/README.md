@@ -29,15 +29,15 @@ or borrow permission still refuses; no source spelling grants a new address.
 | Place | Positive | Reject twin | How the view travels |
 | --- | --- | --- | --- |
 | Root | [main.omg](main.omg) | — | Direct recast and write |
-| Local | [local/main.omg](local/main.omg) | [invalid](local/invalid/main.omg) | Local binding |
-| Field | [field/main.omg](field/main.omg) | [invalid](field/invalid/main.omg) | Record field |
-| Parameter | [parameter/main.omg](parameter/main.omg) | [invalid](parameter/invalid/main.omg) | Helper argument |
-| Call result | [call_result/main.omg](call_result/main.omg) | [invalid](call_result/invalid/main.omg) | Returned view |
-| Match join | [match_join/main.omg](match_join/main.omg) | [invalid](match_join/invalid/main.omg) | Two branches, one with a marked helper call |
-| Const name | [const_name/main.omg](const_name/main.omg) | [invalid](const_name/invalid/main.omg) | Store uses the same named value 73 |
-| Nested machine | [other_state/main.omg](other_state/main.omg) | [invalid](other_state/invalid/main.omg) | Transition argument |
-| Other machine | [other_machine/main.omg](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) | Forwarding helper |
-| Selected implementation | [target_body/main.omg](target_body/main.omg) | [invalid](target_body/invalid/main.omg) | Build-selected checked body |
+| Local | [local/main.omg](local/main.omg) | [invalid](invalid_local/main.omg) | Local binding |
+| Field | [field/main.omg](field/main.omg) | [invalid](invalid_field/main.omg) | Record field |
+| Parameter | [parameter/main.omg](parameter/main.omg) | [invalid](invalid_parameter/main.omg) | Helper argument |
+| Call result | [call_result/main.omg](call_result/main.omg) | [invalid](invalid_call_result/main.omg) | Returned view |
+| Match join | [match_join/main.omg](match_join/main.omg) | [invalid](invalid_match_join/main.omg) | Two branches, one with a marked helper call |
+| Const name | [const_name/main.omg](const_name/main.omg) | [invalid](invalid_const_name/main.omg) | Store uses the same named value 73 |
+| Nested machine | [other_state/main.omg](other_state/main.omg) | [invalid](invalid_other_state/main.omg) | Transition argument |
+| Other machine | [other_machine/main.omg](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) | Forwarding helper |
+| Selected implementation | [target_body/main.omg](target_body/main.omg) | [invalid](invalid_target_body/main.omg) | Build-selected checked body |
 
 Every positive, including the root, declares `Expected exit: 0` and binds
 `ProgramEntry` for all four hosted targets. Every invalid program keeps the same

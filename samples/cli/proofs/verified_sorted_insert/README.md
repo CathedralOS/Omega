@@ -18,5 +18,5 @@ for `5/2/20/1` (positions `3, 1, 4, 1`), inserts `20` then `2` (grown counts
 
 Oracle: exit `58 = (3 + 1 + 4 + 1) + (5 + 6) + (1 + 2 + 3 + 5 + 7 + 20)`
 on success; `crash Trap` on any contract or attestation failure. The
-`invalid/` control calls `search` without establishing `sorted` and must be
+`../invalid_verified_sorted_insert/` control calls `search` without establishing `sorted` and must be
 rejected with `cannot prove requires contract`.

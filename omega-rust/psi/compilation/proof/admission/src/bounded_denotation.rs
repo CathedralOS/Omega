@@ -11294,10 +11294,13 @@ mod multiplication {
             let [sign_evidence, bound_evidence] = parts.as_slice() else {
                 return Ok(None);
             };
-            let one = ScalarTerm::integer(*scalar_type, scalar_type.one())
-                .expect("one is admitted by every fixed carrier");
+            // `i1` holds only -1 and 0, so neither sign premise can be written in it and the
+            // rule declines there, as the rule checker does.
+            let one = ScalarTerm::integer(*scalar_type, scalar_type.one()).ok();
             let negative_two = ScalarTerm::integer(*scalar_type, IntegerValue::Signed(-2)).ok();
-            let positive = sign_evidence == &Proposition::LessOrEqual(one, right.as_ref().clone());
+            let positive = one.is_some_and(|one| {
+                sign_evidence == &Proposition::LessOrEqual(one, right.as_ref().clone())
+            });
             let negative = negative_two.is_some_and(|negative_two| {
                 sign_evidence == &Proposition::LessOrEqual(right.as_ref().clone(), negative_two)
             });
@@ -11566,11 +11569,17 @@ mod multiplication {
                 axioms.push(Proposition::Equal(quotient.clone(), divide));
                 (quotient, vec![definition_index], vec![landed.then_some(0)])
             };
-            let one = literal(integer.one());
-            let sign = if positive {
-                Proposition::LessOrEqual(one, right.clone())
+            // `i1` cannot write either sign premise; a reflexive one stands in so the i1 test
+            // reaches the rule itself.
+            let sign_literal = if positive {
+                ScalarTerm::integer(integer, integer.one())
             } else {
-                Proposition::LessOrEqual(right.clone(), literal(IntegerValue::Signed(-2)))
+                ScalarTerm::integer(integer, IntegerValue::Signed(-2))
+            };
+            let sign = match (sign_literal, positive) {
+                (Ok(one), true) => Proposition::LessOrEqual(one, right.clone()),
+                (Ok(negative_two), false) => Proposition::LessOrEqual(right.clone(), negative_two),
+                (Err(_), _) => Proposition::LessOrEqual(right.clone(), right.clone()),
             };
             let bound = if lower == positive {
                 Proposition::LessOrEqual(root.clone(), left.clone())
@@ -11763,6 +11772,60 @@ mod multiplication {
                 std::slice::from_ref(&missing_premise),
                 &fixture.axioms,
                 &missing,
+            );
+        }
+
+        /// `i1` holds only -1 and 0, so the sign premise `1 <= right` cannot be written in it.
+        /// The rule used to build that literal with `expect` and crashed the compiler; it must
+        /// decline instead, both when the certificate is judged and when the denotation is
+        /// asked directly.
+        #[test]
+        fn correlated_multiply_declines_at_i1_where_one_is_not_a_value() {
+            let integer = IntegerType::new(IntegerSign::Signed, 1).unwrap();
+            let fixture =
+                row!(integer => IntegerValue::Signed(-1) => true => true => false => false);
+            assert_refused(
+                &fixture.context,
+                &fixture.goal,
+                std::slice::from_ref(&fixture.premise),
+                &fixture.axioms,
+                &fixture.proof,
+            );
+            let parameters = BTreeSet::new();
+            let mut elaboration = Elaboration::new(
+                &fixture.context,
+                &fixture.goal,
+                std::slice::from_ref(&fixture.premise),
+                &fixture.axioms,
+                &parameters,
+            )
+            .unwrap();
+            let evidence = elaboration
+                .node(&assumption_proof(fixture.premise.clone(), 0))
+                .unwrap();
+            let ProofRule::IntegerAffineBound { witness, .. } = &fixture.proof.rule else {
+                unreachable!()
+            };
+            let declined = elaboration.denotation.correlated_multiply_bound_evidence(
+                &fixture.premise,
+                evidence,
+                witness,
+                &fixture.goal,
+                &[],
+            );
+            assert!(matches!(declined, Ok(None)), "got {declined:?}");
+        }
+
+        /// The twin: `i2` holds -2..=1, so the same rule writes `1 <= right` and proves the
+        /// upper bound at the narrowest signed width that has a one.
+        #[test]
+        fn correlated_multiply_proves_at_i2_where_one_is_a_value() {
+            let integer = IntegerType::new(IntegerSign::Signed, 2).unwrap();
+            let fixture =
+                row!(integer => IntegerValue::Signed(1) => false => true => false => false);
+            check(
+                &fixture,
+                &[Law::MonotonePositive, Law::DivideUpperPositive(integer)],
             );
         }
     }

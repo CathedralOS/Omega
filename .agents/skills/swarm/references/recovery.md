@@ -214,7 +214,7 @@ observed status and whether a documented lifecycle control is exposed. Do not
 claim infrastructure deletion, automatic expiry or continued billing without
 evidence. Use existing tasks rather than creating a pool of replacements.
 
-Publication follows [landing](../../../../tools/landing.md), including
+Publication follows [landing](../../../../tools/docs/landing.md), including
 self-review, a ready PR, admission, squash merge and remote main verification.
 Preserve the source HEAD; record the merged PR's matching `headRefOid` and its
 published squash commit on fetched main. Source HEAD need not be an ancestor

@@ -55,7 +55,7 @@ No further local compiler build was needed to resolve those conflicts.
 
 ## Changes to the working process
 
-[Testing policy](../../../../tools/testing.md#merge-validation-budget) now
+[Testing policy](../../../../tools/docs/testing.md#merge-validation-budget) now
 requires a short, bounded validation plan, including build cost and reusable
 results. A run expected to exceed about 15 minutes triggers a scope reassessment
 before more work is launched. It is not a waiver of affected checks or a new
@@ -67,7 +67,7 @@ progress PRs. Pinned qualification is conditional rather than a universal
 per-PR ceremony. Reviews stay focused on changed meaning and controls; evidence
 lives in the existing PR/claim rather than accumulating another framework.
 
-[Landing instructions](../../../../tools/landing.md#squash-merge-after-admission)
+[Landing instructions](../../../../tools/docs/landing.md#squash-merge-after-admission)
 require proceeding to the normal queue when the scoped checks and required
 review pass. Incoming main or queue movement alone never starts another local
 build. Extended failures stay visible, with their actual identities and scope.

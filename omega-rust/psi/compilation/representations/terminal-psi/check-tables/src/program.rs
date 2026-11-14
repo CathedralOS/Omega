@@ -78,15 +78,17 @@ pub struct MachineSources {
     /// holds nothing of them, so the advisory warning about them is read
     /// from here (`Elaboration::unreachable_statements`).
     pub unreachable: Vec<Unreachable>,
-    /// Each authored transition arm that only some arrivals take, one row
-    /// per arm (`lower`, `statement`). Whether an arm can be arrived at is
+    /// Each authored transition or value-`match` arm that only some
+    /// arrivals take, one row per arm (`lower`, `statement` and
+    /// `match_value`). Whether an arm can be arrived at is
     /// the checker's question; the lowered form does not say which blocks
     /// begin an authored arm, so the advisory warning about an arm no
     /// arrival can take is read from here.
     pub branches: Vec<Branch>,
 }
 
-/// One authored arm of a transition and where control decides to take it.
+/// One authored arm of a transition or a value `match`, and where control
+/// decides to take it.
 /// `wiki/spec/language/state_contracts.md`, "Unreachable branches": "issue an
 /// unreachable-branch warning when an authored branch contradicts its
 /// machine's entry contract or established source facts independent of

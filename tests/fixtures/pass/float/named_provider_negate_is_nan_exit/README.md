@@ -1,13 +1,16 @@
 # Named negation and NaN classification
 
-From the repository root, settle the local standard-library dependency and run:
+From the repository root, settle the local standard-library dependency (edit
+the `pending` decisions in the review the first command names to `accept`)
+and run:
 
 ```sh
-python3 tools/benchmark/benchmark.py prepare --root tests/omega/pass/float/named_provider_negate_is_nan_exit/main.omg --target macos_arm64 --omega target/release/omega
-target/release/omega run --both tests/omega/pass/float/named_provider_negate_is_nan_exit/main.omg
+target/release/omega packages update --project tests/fixtures/pass/float/named_provider_negate_is_nan_exit --target macos_arm64
+target/release/omega packages update --resume --project tests/fixtures/pass/float/named_provider_negate_is_nan_exit
+target/release/omega run --both tests/fixtures/pass/float/named_provider_negate_is_nan_exit/main.omg
 ```
 
-Expected native exit: **70**. In PowerShell use `python` and the built
+Expected native exit: **70**. On Windows use the built
 `target/release/omega.exe`, selecting `windows_x86_64` during preparation.
 
 Binary32 and binary64 named negation preserve signed zero and negate infinity.

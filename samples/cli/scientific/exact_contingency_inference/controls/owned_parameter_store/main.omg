@@ -1,5 +1,5 @@
 // Complete main-only reproduction: return 7 after a direct owned state field store.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Counter [copy] { value: u64; }
 machine increment(counter: Counter) -> Counter {
     transition { _ -> update(counter) }

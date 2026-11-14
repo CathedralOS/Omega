@@ -1,7 +1,8 @@
 // Expected exit: 0.
 // Expected output contains: float equality: equal and unequal
 module spectrometer_equality_control;
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 use omega::language::core::F64::from_i32;
 
 public data Main { }

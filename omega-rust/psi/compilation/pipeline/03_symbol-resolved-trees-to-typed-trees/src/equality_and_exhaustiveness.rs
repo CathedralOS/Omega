@@ -826,6 +826,152 @@ pub(crate) mod exhaustiveness {
     use symbol_resolved_trees as resolved;
     use symbols::SymbolHandle;
 
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::lowerer::TypingCohort;
+        use resolved::expression::TableBinaryExpression;
+        use resolved::machine::{Machine, MachineStorage};
+        use resolved::state::{State, StateStorage};
+        use resolved::statement::{TableTransition, TransitionTargetNode};
+        use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+        fn dispatches(
+            groups: &[&[Option<bool>]],
+            retained_continuation: bool,
+        ) -> SymbolResolvedTrees {
+            let mut symbols = SymbolTableBuilder::default();
+            let machine_symbol =
+                symbols.insert_root(SymbolKind::Machine, SymbolNameRef::Static("dispatch_test"));
+            let subject_symbol = symbols
+                .insert_children(
+                    machine_symbol,
+                    [(SymbolKind::Parameter, SymbolNameRef::Static("selected"))],
+                )
+                .start();
+            let mut program = SymbolResolvedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            let expressions = &mut program.tables.bodies.expressions;
+            let mut members = HandleSpan::empty();
+            expressions.push_name_path_member(&mut members, DiagnosticName::generated("selected"));
+            let subject = expressions.insert(ExpressionNode::Name(TableNamePath {
+                members,
+                symbol: subject_symbol,
+                head_symbol: subject_symbol,
+                ..Default::default()
+            }));
+            let terminal = program
+                .tables
+                .bodies
+                .statements
+                .insert_transition_target(TransitionTargetNode::Terminal);
+            let mut statement_nodes = HandleSpan::empty();
+            for group in groups {
+                for (arm_position, value) in group.iter().enumerate() {
+                    let guard = match value {
+                        None => TransitionGuardNode::Always,
+                        Some(value) => {
+                            let expressions = &mut program.tables.bodies.expressions;
+                            let expected = expressions.insert(ExpressionNode::Boolean(*value));
+                            TransitionGuardNode::When(expressions.insert(ExpressionNode::Binary(
+                                TableBinaryExpression {
+                                    left: subject,
+                                    operator: BinaryOperator::Equal,
+                                    right: expected,
+                                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                                },
+                            )))
+                        }
+                    };
+                    let statement =
+                        program
+                            .tables
+                            .bodies
+                            .statements
+                            .insert(StatementNode::Transition(TableTransition {
+                                guard,
+                                target: terminal,
+                                continuation: if retained_continuation {
+                                    terminal
+                                } else {
+                                    Default::default()
+                                },
+                                ends_dispatch: arm_position + 1 == group.len(),
+                                ..Default::default()
+                            }));
+                    statement_nodes.push_contiguous(statement);
+                }
+            }
+            let state = program.tables.declarations.machine_states.append(State {
+                name: DiagnosticName::generated("dispatch_test"),
+                storage: StateStorage {
+                    statement_nodes,
+                    ..Default::default()
+                },
+                ..Default::default()
+            });
+            let states = program
+                .tables
+                .declarations
+                .machine_state_handles
+                .insert_many([state]);
+            program.machines.push(Machine {
+                symbol: machine_symbol,
+                name: DiagnosticName::generated("dispatch_test"),
+                storage: MachineStorage {
+                    states,
+                    ..Default::default()
+                },
+                ..Default::default()
+            });
+            program
+        }
+
+        #[test]
+        fn dispatch_continuation_does_not_supply_a_missing_boolean_arm() {
+            for retained_continuation in [false, true] {
+                let missing = dispatches(&[&[Some(true)]], retained_continuation);
+                let error =
+                    validate_case_dispatch_exhaustiveness_in(&missing, &TypingCohort::default())
+                        .expect_err("the false input has no selected arm");
+                assert!(
+                    error
+                        .message
+                        .contains("transition dispatch in `dispatch_test` can fall through"),
+                    "{error:?}"
+                );
+                for arms in [&[Some(true), Some(false)][..], &[Some(true), None][..]] {
+                    validate_case_dispatch_exhaustiveness_in(
+                        &dispatches(&[arms], retained_continuation),
+                        &TypingCohort::default(),
+                    )
+                    .expect("a complete pair or wildcard covers the same subject");
+                }
+            }
+        }
+
+        #[test]
+        fn dispatch_continuation_cannot_borrow_the_next_dispatchs_wildcard() {
+            let program = dispatches(&[&[Some(true)], &[None]], true);
+            let error =
+                validate_case_dispatch_exhaustiveness_in(&program, &TypingCohort::default())
+                    .expect_err("each authored dispatch owes its own coverage");
+            assert!(
+                error
+                    .message
+                    .contains("no arm matches when every guard is false"),
+                "{error:?}"
+            );
+            validate_case_dispatch_exhaustiveness_in(
+                &dispatches(&[&[Some(true), Some(false)], &[None]], true),
+                &TypingCohort::default(),
+            )
+            .expect("two independently complete dispatches remain valid");
+        }
+    }
+
     pub(crate) fn validate_case_dispatch_exhaustiveness_in(
         program: &SymbolResolvedTrees,
         cohort: &crate::lowerer::TypingCohort<'_>,
@@ -850,26 +996,22 @@ pub(crate) mod exhaustiveness {
                     };
 
                 let mut run = Vec::new();
-                let mut run_has_continuation = false;
                 for statement in statements {
                     match statement {
                         StatementNode::Transition(transition) => {
                             run.push(&transition.guard);
-                            run_has_continuation |= transition.continuation.is_valid();
                             if transition.ends_dispatch {
-                                check_dispatch_run(&scope, &run, run_has_continuation, &location)?;
+                                check_dispatch_run(&scope, &run, &location)?;
                                 run.clear();
-                                run_has_continuation = false;
                             }
                         }
                         _ => {
-                            check_dispatch_run(&scope, &run, run_has_continuation, &location)?;
+                            check_dispatch_run(&scope, &run, &location)?;
                             run.clear();
-                            run_has_continuation = false;
                         }
                     }
                 }
-                check_dispatch_run(&scope, &run, run_has_continuation, &location)?;
+                check_dispatch_run(&scope, &run, &location)?;
             }
         }
 
@@ -922,17 +1064,14 @@ pub(crate) mod exhaustiveness {
     fn check_dispatch_run(
         scope: &DispatchScope<'_>,
         run: &[&TransitionGuardNode],
-        has_continuation: bool,
         location: &str,
     ) -> Result<(), Diagnostic> {
         let program = scope.program;
         if run.is_empty() {
             return Ok(());
         }
-        if has_continuation {
-            return Ok(());
-        }
-
+        // Target or continuation metadata cannot prove that a guard matches.
+        // Only the arms inside this authored dispatch contribute coverage.
         let mut finite_arms: Vec<Vec<FiniteConstraint>> = Vec::new();
         let mut uncounted_claims: Vec<CaseClaim> = Vec::new();
         let mut compare_arms: Vec<(ExpressionHandle, ExpressionHandle, bool)> = Vec::new();

@@ -6,7 +6,7 @@ that row's halves. Each window write is visible through the same window.
 
 Closed stdin prints `3 9 5 7` and exits 0.
 
-The invalid control lends overlapping windows of one row and must be
+The ../invalid_disjoint_occupancy_windows control lends overlapping windows of one row and must be
 rejected before execution.
 
 ```text

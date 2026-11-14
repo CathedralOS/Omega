@@ -7,14 +7,22 @@ a particular result, fairness, wakeup, deadlines, no suspension, or no blocking.
 not prove that edge is reached. [Effects](effects.md) independently constrains
 possible suspension, blocking, and crashes.
 
-Permitted endpoints include normal return, a covered crash, and the canonical
-[process-exit transfer](process_exit.md). The promise authorizes none of them;
-crash contracts and service reach/capability requirements remain independent.
-A machine that conditionally exits and otherwise returns can satisfy
-`terminates` when every admitted path has the required progress. An exit leaf
-needs no further cycle decrease, but its operands and preceding calls still
-require progress. Excluding crashes and all external-terminal services together
-with termination establishes normal return under the stated premises.
+Permitted endpoints include normal return, a covered crash, and a call to an
+operation that [cannot return normally](state_contracts.md#published-no-return)
+and itself publishes `terminates`, such as the canonical
+[process-exit transfer](process_exit.md) or an operating-system handoff. The
+promise authorizes none of them; crash contracts and service reach/capability
+requirements remain independent. A machine that conditionally exits and
+otherwise returns can satisfy `terminates` when every admitted path has the
+required progress. A call with no normal return closes the caller's
+continuation. It discharges the caller's progress obligation only through
+independently established callee progress, with all applicable premises
+discharged; its operands and preceding calls still require progress, and
+recursive calls remain subject to the ordinary joint-ranking and cycle-descent
+rules, so a machine cannot cite its own `terminates`. With termination
+established, normal return follows when the applicable checked contracts
+exclude crashes and external terminal transfers. That exclusion is not inferred
+by inspecting the member signatures of reach identities.
 
 An exit does not establish a normal-return `ensures` clause and does not
 necessarily violate it. Unconditional eventual-disposition guarantees must

@@ -14,15 +14,15 @@ qualified `AddressBridge::classified_host` call. Both directions are joined by
 one routine, `component_memberships.rs::admit_memberships`, so the row's nine
 places already cover the transport after the edge.
 
-The [reject twin](local/invalid/main.omg) keeps the receiver identical. Its
+The [reject twin](invalid_local/main.omg) keeps the receiver identical. Its
 [producer](invalid_producer/main.omg) omits only the `classify` call, and the
 producer's own return rejects with `cannot prove default-domain field
 requirement`. That diagnostic does not depend on the receiving place.
 
 | Witness | Positive | Reject |
 | --- | --- | --- |
-| Local | [local](local/main.omg) | [issuer omitted](local/invalid/main.omg) |
-| Inherited child domain | [refinement](refinement/README.md) | [issuer omitted](refinement/local/invalid/main.omg) |
+| Local | [local](local/main.omg) | [issuer omitted](invalid_local/main.omg) |
+| Inherited child domain | [refinement](refinement/README.md) | [issuer omitted](refinement/invalid_local/main.omg) |
 
 Controls specific to the result edge:
 

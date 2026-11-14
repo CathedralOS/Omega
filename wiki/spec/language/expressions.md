@@ -330,6 +330,43 @@ Owning an operand is not a blanket grant to extend somebody else's closed family
 Existing overload ambiguity checking still applies to legitimately participating
 families; declaration-owned supply removes body-choice ambiguity, not overloads.
 
+Named decision: `qualified-operator-home`, ratified 2026-11-14. A qualified
+operator may be declared in any module of the package that owns its
+semantic-home domain, not only beside the domain:
+
+```omega
+// Module `units` of the owning package:
+public domain u64::Distance;
+
+// The same package's root file: accepted, and homed on `Distance`.
+use units;
+
+public machine + Distance::add(
+    left: u64 in Distance, right: u64 in Distance
+) -> u64 in Distance {
+    ((left as -Distance) +% (right as -Distance)) as +Distance
+}
+```
+
+The same declaration in another package rejects there, even after
+`use units;`, because that package does not own `Distance`.
+
+The home is resolved where the operator is declared, by ordinary name
+resolution, visibility and domain exposure. An unknown, inaccessible or
+ambiguous home rejects there; the declaration never falls back to a root-level
+operator or another inferred home. The operator joins the domain's family. For
+operands of that exact domain, a caller finds it through the domain and its
+owning package under ordinary dependency and visibility rules. The caller needs
+no import of the declaring module, and import order cannot choose between
+competing declarations. A non-public operator stays private to its package even
+when its domain is public. The body keeps its own lexical context and ordinary
+visibility. Association with the domain brings in neither the domain's
+declaration scope nor the imports of the domain's source file, and it grants no
+establishment, read or write authority. Duplicate participating shapes are
+checked across the owning package's complete declaration set, wherever in the
+package they are written. Importing a domain gives another package no right to
+extend its closed family; such a declaration rejects where it is written.
+
 Primitive identities are compiler-owned. The toolchain designates exact core
 declaration/package owners for their canonical families, not any package named
 `core` or any authored primitive-qualified path. Declaration authority and

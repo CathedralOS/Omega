@@ -1,9 +1,9 @@
 //! Repository admission rules (`cargo xtask check-rules`):
 //! - Per-file count ratchets (`source_text_reads.txt`, `contract_status_phrases.txt`,
-//!   `dense_id_maps.txt`, `cache_state.txt`)
+//!   `dense_id_maps.txt`, `cache_state.txt`, `place_transport.txt`)
 //! - Dangling task ID citations (`dangling_task_ids.txt`)
 //! - Discrete `TASKS.md` board shape
-//! - Diff hygiene (`MAX_NEW_OMG_FILES = 6`, the `samples/cli/facts/` freeze, no new
+//! - Diff hygiene (`MAX_NEW_OMG_FILES = 6`, the `samples/cli/facts/` freeze on growth, no new
 //!   files under the retired `tests/omega/`, raw measurements limit)
 //! - Commit title lane (`AGENTS.md` table) and PR `Agent:` provenance
 //! - Compiler-lane PR `Gate:`, `Proof:` and `Spec:` lines
@@ -16,14 +16,14 @@ use std::process::{Command, Stdio};
 use crate::repo_root;
 
 const RUST_ROOT: &str = "omega-rust";
-const READS_BASELINE: &str = "tools/source_text_reads.txt";
-const STATUS_BASELINE: &str = "tools/contract_status_phrases.txt";
+const READS_BASELINE: &str = "tools/ratchets/source_text_reads.txt";
+const STATUS_BASELINE: &str = "tools/ratchets/contract_status_phrases.txt";
 const SEMANTIC_IDS: &str = "omega-rust/psi/foundation/semantic-vocabulary/src/identity.rs";
-const DENSE_MAP_BASELINE: &str = "tools/dense_id_maps.txt";
-const CACHE_STATE_BASELINE: &str = "tools/cache_state.txt";
-const PLACE_TRANSPORT_BASELINE: &str = "tools/place_transport.txt";
+const DENSE_MAP_BASELINE: &str = "tools/ratchets/dense_id_maps.txt";
+const CACHE_STATE_BASELINE: &str = "tools/ratchets/cache_state.txt";
+const PLACE_TRANSPORT_BASELINE: &str = "tools/ratchets/place_transport.txt";
 const PSI_COMPILATION_ROOT: &str = "omega-rust/psi/compilation";
-const DANGLING_BASELINE: &str = "tools/dangling_task_ids.txt";
+const DANGLING_BASELINE: &str = "tools/ratchets/dangling_task_ids.txt";
 const TASK_BOARDS: &[&str] = &[
     "TASKS.md",
     "TASKS_OPTIMIZER.md",
@@ -1252,9 +1252,17 @@ pub fn diff_hygiene_violations(changes: &[(char, String)]) -> Vec<String> {
     let mut violations = Vec::new();
     let mut added_omg = 0isize;
     let mut deleted_omg = 0isize;
+    // `samples/cli/facts/` is a frozen finite set: it may not grow, but a
+    // change may move its programs within it. A diff without rename
+    // detection shows each move as one deletion and one addition.
+    let mut added_facts = Vec::new();
+    let mut deleted_facts = 0usize;
     for (status, path) in changes {
         if *status == 'D' && path.ends_with(".omg") {
             deleted_omg += 1;
+            if path.starts_with(FACTS_ROOT) {
+                deleted_facts += 1;
+            }
             continue;
         }
         if *status != 'A' {
@@ -1267,22 +1275,25 @@ pub fn diff_hygiene_violations(changes: &[(char, String)]) -> Vec<String> {
         } else if path.ends_with(".omg") {
             added_omg += 1;
             if path.starts_with(FACTS_ROOT) {
-                violations.push(format!(
-                    "{path}: {FACTS_ROOT} is a frozen set; add no .omg files to it"
-                ));
+                added_facts.push(path.as_str());
             }
         } else if path.starts_with("tools/swarm/waves/") {
             violations.push(format!(
                 "{path}: swarm wave state belongs in ignored build/swarm/<wave>/, not tools/swarm/waves/"
             ));
-        } else if path.starts_with("tools/")
-            && path.ends_with(".py")
-            && !path.starts_with("tools/bootstrap/")
-        {
+        } else if path.starts_with("tools/") && path.ends_with(".py") {
             violations.push(format!(
                 "{path}: Python repository tooling is retired; implement developer and CI tooling in Rust under `tools/xtask/` (`cargo xtask`)"
             ));
         }
+    }
+    if added_facts.len() > deleted_facts {
+        let added = added_facts.len();
+        violations.extend(added_facts.iter().map(|path| {
+            format!(
+                "{path}: {FACTS_ROOT} is a frozen set; it may not grow (this change adds {added} .omg files to it and removes {deleted_facts})"
+            )
+        }));
     }
     let net_added = added_omg - deleted_omg;
     if net_added > MAX_NEW_OMG_FILES {
@@ -1311,7 +1322,7 @@ const RATCHET_SPECS: &[RatchetSpec] = &[
         header: &[
             "Source-text reads (include_str!/read_to_string of .rs or .toml) per file.",
             "Counts may only fall: express the rule as a dependency in",
-            "tools/check_native_boundary.py, a type or visibility, or a test that runs code.",
+            "`cargo xtask check-boundary`, a type or visibility, or a test that runs code.",
         ],
         advice: "Tests check behavior or structure, never source text (AGENTS.md): state the rule as a dependency, a type, or a test that runs the code.",
     },
@@ -1358,7 +1369,7 @@ const RATCHET_SPECS: &[RatchetSpec] = &[
             "*Place*, *Path* or *Projection*, per non-test file under",
             "omega-rust/psi/compilation. Counts may only fall: facts travel on one place",
             "key, one overlap relation and one formal-to-actual map",
-            "(wiki/drafts/designs/fact_transport.md).",
+            "(https://github.com/CathedralOS/Omega/blob/3b24dc9383e37416021ff19b350869a147c57432/wiki/drafts/designs/fact_transport.md).",
         ],
         advice: "Do not add another place comparison, rebaser or path type. The checker on the lowered form names places by terminal_check_tables::ExactPlaceId (wiki/drafts/designs/check_on_lowered_form.md); existing tree-level code keeps using validation::storage_path_relations::canonical_place_segments_may_overlap until it is replaced.",
     },
@@ -1408,7 +1419,7 @@ pub fn compute_ratchet_counts(
 fn format_ratchet_file(spec: &RatchetSpec, counts: &BTreeMap<String, usize>) -> String {
     let mut lines: Vec<String> = spec.header.iter().map(|h| format!("# {h}")).collect();
     lines.push(format!(
-        "# Written by `python tools/check_rules.py --{}`.",
+        "# Written by `cargo xtask check-rules --{}`.",
         spec.flag
     ));
     for (path, count) in counts {
@@ -1513,7 +1524,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     if update_dangling {
         let mut lines = vec![
             "# Task IDs cited by samples/cli/facts READMEs that no board holds.".to_owned(),
-            "# Written by `python tools/check_rules.py --update-dangling-task-ids`.".to_owned(),
+            "# Written by `cargo xtask check-rules --update-dangling-task-ids`.".to_owned(),
             "# Entries may only be removed: repoint a citation to its current board".to_owned(),
             "# item, or delete it when the work is done.".to_owned(),
         ];
@@ -1953,6 +1964,30 @@ struct Ledger;
         assert!(diff_hygiene_violations(&moved).is_empty());
         moved.retain(|(status, _)| *status == 'A');
         assert_eq!(diff_hygiene_violations(&moved).len(), 1);
+    }
+
+    #[test]
+    fn frozen_facts_may_move_but_not_grow() {
+        // A twin moved out of the program that contains it: one deletion
+        // and one addition inside the set.
+        let moved = [
+            ('D', "samples/cli/facts/a/local/invalid/main.omg".to_owned()),
+            ('A', "samples/cli/facts/a/invalid_local/main.omg".to_owned()),
+        ];
+        assert!(diff_hygiene_violations(&moved).is_empty());
+        // An addition beside a move still grows the set.
+        let grown = [
+            moved[0].clone(),
+            moved[1].clone(),
+            ('A', "samples/cli/facts/a/extra/main.omg".to_owned()),
+        ];
+        assert_eq!(diff_hygiene_violations(&grown).len(), 2);
+        // A deletion outside the set makes no room inside it.
+        let elsewhere = [
+            ('D', "tests/fixtures/pass/a/main.omg".to_owned()),
+            ('A', "samples/cli/facts/a/extra/main.omg".to_owned()),
+        ];
+        assert_eq!(diff_hygiene_violations(&elsewhere).len(), 1);
     }
 
     #[test]

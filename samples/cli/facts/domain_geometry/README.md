@@ -29,15 +29,15 @@ observation covers `linux_x86_64`, `linux_arm64` or `windows_x86_64` yet.
 | Place | Positive | Reject twin |
 | --- | --- | --- |
 | root (anchor) | [source](main.omg) | - |
-| local | [source](local/main.omg) | [source](local/invalid/main.omg) |
-| field | [source](field/main.omg) | [source](field/invalid/main.omg) |
-| parameter | [source](parameter/main.omg) | [source](parameter/invalid/main.omg) |
-| call result | [source](call_result/main.omg) | [source](call_result/invalid/main.omg) |
-| match join | [source](match_join/main.omg) | [source](match_join/invalid/main.omg) |
-| const name | [source](const_name/main.omg) | [source](const_name/invalid/main.omg) |
-| other state | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) |
-| other machine | [source](other_machine/main.omg) | [source](other_machine/invalid/main.omg) |
-| target body | [source](target_body/main.omg) | [source](target_body/invalid/main.omg) |
+| local | [source](local/main.omg) | [source](invalid_local/main.omg) |
+| field | [source](field/main.omg) | [source](invalid_field/main.omg) |
+| parameter | [source](parameter/main.omg) | [source](invalid_parameter/main.omg) |
+| call result | [source](call_result/main.omg) | [source](invalid_call_result/main.omg) |
+| match join | [source](match_join/main.omg) | [source](invalid_match_join/main.omg) |
+| const name | [source](const_name/main.omg) | [source](invalid_const_name/main.omg) |
+| other state | [source](other_state/main.omg) | [source](invalid_other_state/main.omg) |
+| other machine | [source](other_machine/main.omg) | [source](invalid_other_machine/main.omg) |
+| target body | [source](target_body/main.omg) | [source](invalid_target_body/main.omg) |
 
 ## Verification
 

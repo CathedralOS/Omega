@@ -12,7 +12,7 @@ use terminal_check_tables::{Checked, Construct, ProgramPoint};
 use terminal_psi::{Operation, OperationKind, OperationResult};
 
 use super::places::{Bound, Witness};
-use super::{Lowering, Value, declaration};
+use super::{Evaluation, Lowering, Reached, Value, declaration};
 use crate::body::{Expression, ExpressionKind, Policy, Strict, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
 
@@ -56,9 +56,9 @@ impl Lowering<'_> {
         Ok(value)
     }
 
-    pub(super) fn scalar(&mut self, expression: &Expression) -> Checked<ValueId> {
-        match self.expression(expression)? {
-            Value::Scalar(value) => Ok(value),
+    pub(super) fn scalar(&mut self, expression: &Expression) -> Evaluation<ValueId> {
+        match continuing!(self.expression(expression)) {
+            Value::Scalar(value) => Ok(Reached::Value(value)),
             Value::Record(_) => Err(self.internal("a record is used as a scalar value")),
             Value::Unit => Err(self.internal("a Unit call is used as a value")),
         }
@@ -101,12 +101,16 @@ impl Lowering<'_> {
             .ok_or_else(|| self.internal("an operand has no scalar type"))
     }
 
-    pub(super) fn expression(&mut self, expression: &Expression) -> Checked<Value> {
+    pub(super) fn expression(&mut self, expression: &Expression) -> Evaluation<Value> {
         let source = expression.source;
         // A record-typed expression names storage; its value is a root that
         // holds it. Everything below is scalar or Unit.
         let result = match expression.result {
-            Some(ValueType::Record(_, _, _)) => return self.record(expression).map(Value::Record),
+            Some(ValueType::Record(_, _, _)) => {
+                return self
+                    .record(expression)
+                    .map(|reached| reached.map(Value::Record));
+            }
             Some(ValueType::Scalar(scalar_type, _)) => Some(scalar_type),
             // A value of a rigid type is only ever named: no operation
             // produces one, so no result row is minted for it here.
@@ -115,7 +119,7 @@ impl Lowering<'_> {
                     return Err(self.internal("an operation over a value of a rigid type"));
                 };
                 return match *self.slot_mut(*slot)? {
-                    Some(Bound::Scalar(value)) => Ok(Value::Scalar(value)),
+                    Some(Bound::Scalar(value)) => Ok(Reached::Value(Value::Scalar(value))),
                     _ => Err(self.internal("a rigid slot is not bound to a value")),
                 };
             }
@@ -129,6 +133,7 @@ impl Lowering<'_> {
                     result,
                     OperationKind::IntegerConstant { value: *value },
                 )
+                .map(Reached::Value)
             }
             ExpressionKind::Boolean(value) => {
                 let operation = self.operation_identity(source);
@@ -137,14 +142,16 @@ impl Lowering<'_> {
                     result,
                     OperationKind::BooleanConstant { value: *value },
                 )
+                .map(Reached::Value)
             }
             ExpressionKind::Slot(slot) => {
                 let bound = *self.slot_mut(*slot)?;
                 match bound {
-                    Some(Bound::Scalar(value)) => Ok(Value::Scalar(value)),
+                    Some(Bound::Scalar(value)) => Ok(Reached::Value(Value::Scalar(value))),
                     Some(Bound::Home(home)) => {
                         let scalar_type = self.result_type(expression)?;
                         self.read_home(home, scalar_type, source)
+                            .map(Reached::Value)
                     }
                     Some(Bound::Record(_)) => Err(self.internal("a record slot has a scalar type")),
                     // The reader refuses a runtime read of an erased
@@ -184,7 +191,7 @@ impl Lowering<'_> {
                     subject,
                     arms,
                     default.as_deref(),
-                    scalar_type,
+                    ValueType::plain(scalar_type),
                     source,
                     *capture,
                 )
@@ -198,21 +205,23 @@ impl Lowering<'_> {
                 Err(self.internal("a loan outside a call's arguments"))
             }
             ExpressionKind::Not(operand) => {
-                let operand = self.scalar(operand)?;
+                let operand = continuing!(self.scalar(operand));
                 let operation = self.operation_identity(source);
                 self.emit(operation, result, OperationKind::BooleanNot { operand })
+                    .map(Reached::Value)
             }
             ExpressionKind::BitwiseNot(operand) => {
-                let operand = self.scalar(operand)?;
+                let operand = continuing!(self.scalar(operand));
                 let operation = self.operation_identity(source);
                 self.emit(
                     operation,
                     result,
                     OperationKind::IntegerBitwiseNot { operand },
                 )
+                .map(Reached::Value)
             }
             ExpressionKind::Cast(operand_expression) => {
-                let operand = self.scalar(operand_expression)?;
+                let operand = continuing!(self.scalar(operand_expression));
                 let (ScalarType::Integer(from), Some(ScalarType::Integer(to))) =
                     (self.result_type(operand_expression)?, result)
                 else {
@@ -231,35 +240,40 @@ impl Lowering<'_> {
                 } else {
                     return Err(self.internal("a cast with no exact conversion"));
                 };
-                self.emit(operation, result, kind)
+                self.emit(operation, result, kind).map(Reached::Value)
             }
             // The operand's value under another policy: nothing is computed.
-            ExpressionKind::Requalify(operand) => self.scalar(operand).map(Value::Scalar),
+            ExpressionKind::Requalify(operand) => self
+                .scalar(operand)
+                .map(|reached| reached.map(Value::Scalar)),
             ExpressionKind::Establish {
                 operand,
                 clauses,
                 stated,
             } => {
                 let scalar_type = self.result_type(operand)?;
-                let operand = self.scalar(operand)?;
+                let operand = continuing!(self.scalar(operand));
                 self.prove_membership(operand, scalar_type, clauses, stated, source)
-                    .map(Value::Scalar)
+                    .map(|value| Reached::Value(Value::Scalar(value)))
             }
             ExpressionKind::Strict {
                 operation,
                 left: left_expression,
                 right,
             } => {
-                let left = self.scalar(left_expression)?;
-                let right = self.scalar(right)?;
+                let left = continuing!(self.scalar(left_expression));
+                let right = continuing!(self.scalar(right));
                 let operand_type = self.result_type(left_expression)?;
                 // An arithmetic or shift result that carries a policy is
                 // that policy's operation; a comparison's result is `bool`
                 // and carries none.
                 if let Some(policy) = expression.result.and_then(ValueType::policy) {
-                    return self.policy_operation(*operation, policy, left, right, result, source);
+                    return self
+                        .policy_operation(*operation, policy, left, right, result, source)
+                        .map(Reached::Value);
                 }
                 self.strict(*operation, operand_type, left, right, result, source)
+                    .map(Reached::Value)
             }
             ExpressionKind::ShortCircuit {
                 conjunction,
@@ -272,7 +286,14 @@ impl Lowering<'_> {
                 source_call,
                 arguments,
                 designated,
-            } => self.call(*callee, *required_contract, arguments, *designated, expression.result, (source, *source_call)),
+            } => self.call(
+                *callee,
+                *required_contract,
+                arguments,
+                *designated,
+                expression.result,
+                (source, *source_call),
+            ),
         }
     }
 

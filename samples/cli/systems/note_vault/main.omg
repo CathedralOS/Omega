@@ -17,11 +17,21 @@
 //
 // Expected exit: 14.
 
-use omega_language_std::filesystem;
-use omega_language_std::time;
-use omega_language_std::time_host;
+use omega_language_std::File;
+use omega_language_std::Filesystem;
+use omega_language_std::IoResult;
+use omega_language_std::Metadata;
+use omega_language_std::MetadataResult;
+use omega_language_std::OpenOptions;
+use omega_language_std::OpenResult;
+use omega_language_std::UnitResult;
+use omega_language_std::Duration;
+use omega_language_std::SystemTime;
+use omega_language_std::SystemTimeDifference;
+use omega_language_std::Time;
+use omega_language_std::TimeHost;
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     fs: Filesystem;

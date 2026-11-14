@@ -66,6 +66,7 @@ fn judged_invocation(text: &str) -> super::RouteVerdict {
     super::judge(typed_trees_to_terminal_psi::elaborate_for(
         &program,
         typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
             purpose: source::DependencyScope::Product,
@@ -566,7 +567,7 @@ machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {{
         let storage = crate::places::Storage::new(
             lowered.id,
             &lowered,
-            &elaboration.module.structural_types,
+            &elaboration.module,
             &elaboration.domains,
             &graph,
             &tables,

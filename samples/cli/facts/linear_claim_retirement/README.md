@@ -22,15 +22,15 @@ of that allocator outcome.
 | Place | Positive witness | Reject twin | Transport |
 | --- | --- | --- | --- |
 | `root` | [main.omg](main.omg) | — | Direct linear `Token` construction and retirement without intermediate transport. |
-| `local` | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | A local binding carries the linear `Token` before retirement. |
-| `field` | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | An enclosing record field carries the linear `Token` before retirement. |
-| `parameter` | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | A parameter carries the linear `Token` into a consuming machine. |
-| `call_result` | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | A call result yields the linear `Token` before retirement. |
-| `match_join` | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | Both branches yield the linear `Token` into retirement. |
-| `const_name` | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | A named constant `const EXPECTED: u64 = 42` supplies the payload carried by the linear `Token` before retirement. |
-| `other_state` | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | A successor machine receives the linear `Token` before retirement. |
-| `other_machine` | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | A separate forwarding machine carries the linear `Token` before retirement. |
-| `target_body` | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | Each target body retires the linear `Token`. |
+| `local` | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | A local binding carries the linear `Token` before retirement. |
+| `field` | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | An enclosing record field carries the linear `Token` before retirement. |
+| `parameter` | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | A parameter carries the linear `Token` into a consuming machine. |
+| `call_result` | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | A call result yields the linear `Token` before retirement. |
+| `match_join` | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | Both branches yield the linear `Token` into retirement. |
+| `const_name` | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | A named constant `const EXPECTED: u64 = 42` supplies the payload carried by the linear `Token` before retirement. |
+| `other_state` | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | A successor machine receives the linear `Token` before retirement. |
+| `other_machine` | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | A separate forwarding machine carries the linear `Token` before retirement. |
+| `target_body` | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | Each target body retires the linear `Token`. |
 
 ## Execution and validation
 

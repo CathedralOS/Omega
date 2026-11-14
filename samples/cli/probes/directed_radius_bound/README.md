@@ -10,7 +10,7 @@ toward zero for binary32. A negative operand produces a NaN.
 
 On agreement the program prints `RADIUS` and exits 0.
 
-`invalid/` calls the nonnegative radius contract with `-1.0` and must be
+`../invalid_directed_radius_bound/` calls the nonnegative radius contract with `-1.0` and must be
 rejected because that precondition is disproved.
 
 ```sh

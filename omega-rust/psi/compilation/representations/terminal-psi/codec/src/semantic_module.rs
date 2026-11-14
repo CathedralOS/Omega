@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 259`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 260`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -2864,9 +2864,9 @@ mod external_provider_tests {
     use terminal_psi::*;
 
     fn module() -> TerminalModule {
-        let mut module = numeric_intrinsic_tests::module(
-            NumericIntrinsic::from_canonical_encoding([3, 0, 0, 0]).unwrap(),
-        );
+        let mut module = numeric_intrinsic_tests::module(NumericIntrinsic::Negation(
+            numerics::literals::FloatFormat::F32,
+        ));
         module.identities = identity_table(8);
         module.external_providers = vec![ExternalProviderConformance {
             requirement: NominalDeclarationIdentity::new(TerminalIdentityIndex(3)),
@@ -3059,7 +3059,13 @@ mod numeric_intrinsic_tests {
 
     #[test]
     fn numeric_meaning_survives_portable_round_trip_and_changes_program_identity() {
-        let meaning = NumericIntrinsic::from_canonical_encoding([0, 5, 1, 0]).unwrap();
+        let meaning = language_semantics::numeric_intrinsics::NamedNumericIntrinsic::resolve(
+            "F64",
+            "is_nan",
+            numerics::arithmetic::ArithmeticDomain::Exact,
+        )
+        .unwrap()
+        .execution;
         let module = module(meaning);
         let bytes = encode_module(&module).unwrap();
         let decoded = decode_module(&bytes).unwrap();
@@ -3079,7 +3085,7 @@ mod numeric_intrinsic_tests {
 
     #[test]
     fn numeric_boundary_refuses_substituted_parameters_results_and_evidence_roles() {
-        let meaning = NumericIntrinsic::from_canonical_encoding([3, 0, 0, 0]).unwrap();
+        let meaning = NumericIntrinsic::Negation(numerics::literals::FloatFormat::F32);
         for mutation in 0..4 {
             let mut module = module(meaning);
             let boundary = &mut module.boundary_machines[0];
@@ -3108,8 +3114,35 @@ mod numeric_intrinsic_tests {
     }
 
     #[test]
+    fn integer_width_numeric_meanings_round_trip_without_carrier_substitution() {
+        use language_semantics::numeric_intrinsics::PrimitiveIntegerComparisonOperation;
+        use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
+        for meaning in [
+            NumericIntrinsic::IntegerComparison {
+                operation: PrimitiveIntegerComparisonOperation::Less,
+                integer_type: NumericType::Integer(FixedInteger::unsigned(13)),
+            },
+            NumericIntrinsic::Conversion {
+                source: NumericType::Integer(FixedInteger::signed(13)),
+                target: NumericType::F32,
+                domain: ArithmeticDomain::Exact,
+            },
+        ] {
+            let original = module(meaning);
+            let bytes = encode_module(&original).unwrap();
+            assert_eq!(decode_module(&bytes).unwrap(), original);
+            let mut substituted = original.clone();
+            substituted.boundary_machines[0].scalar_parameters[0] =
+                NumericType::Integer(FixedInteger::unsigned(16))
+                    .scalar_type()
+                    .unwrap();
+            assert!(decode_module(&encode_raw(&substituted).unwrap()).is_err());
+        }
+    }
+
+    #[test]
     fn numeric_meaning_wire_rejects_noncanonical_padding_unknown_rows_and_truncation() {
-        let meaning = NumericIntrinsic::from_canonical_encoding([3, 0, 0, 0]).unwrap();
+        let meaning = NumericIntrinsic::Negation(numerics::literals::FloatFormat::F32);
         let boundary = &module(meaning).boundary_machines[0];
         let mut writer = super::wire::Writer::default();
         <super::structural_signature_wire::BoundaryMachine as super::wire_fields::Field<_>>::write(
@@ -3126,7 +3159,7 @@ mod numeric_intrinsic_tests {
                 .is_err()
             );
         }
-        for bytes in [
+        for header in [
             [0, 255, 0, 0],
             [0, 0, 2, 0],
             [1, 255, 0, 0],
@@ -3135,6 +3168,8 @@ mod numeric_intrinsic_tests {
             [4, 8, 0, 1],
             [255, 0, 0, 0],
         ] {
+            let mut bytes = [0; NumericIntrinsic::ENCODED_SIZE];
+            bytes[..4].copy_from_slice(&header);
             assert!(
                 NumericIntrinsic::from_canonical_encoding(bytes).is_none(),
                 "{bytes:?}"
@@ -4692,9 +4727,11 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 259 carries dynamic-family tuple members as scalar values rather
-// than identity strings. Earlier artifacts cannot supply that typed roster.
-pub(crate) const FORMAT_MARKER: u16 = 259;
+// Marker 261 retains each machine contract's optional inferred write frame:
+// an unknown ceiling differs from a complete empty set. Marker 260 and older
+// artifacts lack that field. Exact intrinsic widths and typed dynamic-family
+// values from markers 260/259 remain unchanged.
+pub(crate) const FORMAT_MARKER: u16 = 261;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

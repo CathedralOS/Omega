@@ -30,7 +30,7 @@ The match join retains distinct true/false markers alongside the same foreign
 result and checks both paths. The const place names the original construction
 inputs; it does not evaluate a foreign call as a constant initializer.
 
-Each place and the root has an `invalid/main.omg` that removes only the outer
+Each place and the root has an `../invalid_nested/main.omg` that removes only the outer
 `Division`'s `[copy]` property. `Word` remains copyable. The repeated whole-value
 use in `receive` must reject with `holds no value`; the input pairs, nested
 layout, operation, comparisons and branch markers are unchanged. The nine

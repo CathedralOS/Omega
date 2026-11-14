@@ -15,15 +15,15 @@ all four hosted targets. Native execution evidence must name its matching host.
 | Place | Project | Positive Witness | Reject Twin | Transport to the indexed loan |
 | --- | --- | --- | --- | --- |
 | (root) | `.` | [source](main.omg) | — | root application performing the indexed loan |
-| local | `local/` | [source](local/main.omg) | [source](local/invalid/main.omg) | a local copy of the runtime selector |
-| field | `field/` | [source](field/main.omg) | [source](field/invalid/main.omg) | the selector is read directly from a record field |
-| parameter | `parameter/` | [source](parameter/main.omg) | [source](parameter/invalid/main.omg) | the array and selector are explicit callee parameters |
-| call result | `call_result/` | [source](call_result/main.omg) | [source](call_result/invalid/main.omg) | `select_index` returns the selector with an equality postcondition |
-| match join | `match_join/` | [source](match_join/main.omg) | [source](match_join/invalid/main.omg) | a join chooses between equal runtime selectors; both arms run |
-| const name | `const_name/` | [source](const_name/main.omg) | [source](const_name/invalid/main.omg) | `ROOM_COUNT = 2` supplies the bound on the runtime selector |
-| a nested machine | `other_state/` | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) | a successor machine receives array and selector and performs the loan |
-| another machine | `other_machine/` | [source](other_machine/main.omg) | [source](other_machine/invalid/main.omg) | a forwarding machine transports array and selector to the loaning machine |
-| another target body | `target_body/` | [source](target_body/main.omg) | [source](target_body/invalid/main.omg) | each of four target bodies performs the same indexed loan |
+| local | `local/` | [source](local/main.omg) | [source](invalid_local/main.omg) | a local copy of the runtime selector |
+| field | `field/` | [source](field/main.omg) | [source](invalid_field/main.omg) | the selector is read directly from a record field |
+| parameter | `parameter/` | [source](parameter/main.omg) | [source](invalid_parameter/main.omg) | the array and selector are explicit callee parameters |
+| call result | `call_result/` | [source](call_result/main.omg) | [source](invalid_call_result/main.omg) | `select_index` returns the selector with an equality postcondition |
+| match join | `match_join/` | [source](match_join/main.omg) | [source](invalid_match_join/main.omg) | a join chooses between equal runtime selectors; both arms run |
+| const name | `const_name/` | [source](const_name/main.omg) | [source](invalid_const_name/main.omg) | `ROOM_COUNT = 2` supplies the bound on the runtime selector |
+| a nested machine | `other_state/` | [source](other_state/main.omg) | [source](invalid_other_state/main.omg) | a successor machine receives array and selector and performs the loan |
+| another machine | `other_machine/` | [source](other_machine/main.omg) | [source](invalid_other_machine/main.omg) | a forwarding machine transports array and selector to the loaning machine |
+| another target body | `target_body/` | [source](target_body/main.omg) | [source](invalid_target_body/main.omg) | each of four target bodies performs the same indexed loan |
 
 Every `exercise` requires the same strict upper bound, `index < 2` (spelled
 `index < ROOM_COUNT` in the const place). `u64` supplies nonnegativity. Neither

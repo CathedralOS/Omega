@@ -82,6 +82,11 @@ impl FixedInteger {
             b'i' => (IntegerSign::Signed, &name[1..]),
             _ => return None,
         };
+        Self::from_decimal_digits(sign, digits)
+    }
+
+    /// Parses a canonical positive decimal width with an already selected sign.
+    pub fn from_decimal_digits(sign: IntegerSign, digits: &str) -> Option<Self> {
         let bytes = digits.as_bytes();
         if bytes.is_empty() || bytes[0] == b'0' || !bytes.iter().all(u8::is_ascii_digit) {
             return None;

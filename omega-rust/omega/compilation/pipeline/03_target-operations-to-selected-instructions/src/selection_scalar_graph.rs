@@ -28,8 +28,8 @@ pub(crate) use legalized_operations::{
 pub(crate) use optimization_unit::ValueDefinitionSite;
 #[allow(unused_imports)]
 pub(crate) use register_model::{
-    RegisterClassId, RegisterConstraintKey, RegisterOperandAccess,
-    ValidatedRegisterConstraintCatalog,
+    PreparedRegisterConstraintCatalog, RegisterClassId, RegisterConstraintKey,
+    RegisterOperandAccess,
 };
 #[allow(unused_imports)]
 pub(crate) use selected_instructions::{
@@ -7609,7 +7609,7 @@ pub(crate) struct Builder<'a> {
     pub(crate) transport: structural::Transport,
     pub(crate) class: RegisterClassId,
     pub(crate) constraints: &'a SelectedSelectionConstraints,
-    pub(crate) catalog: &'a ValidatedRegisterConstraintCatalog,
+    pub(crate) catalog: &'a PreparedRegisterConstraintCatalog,
     pub(crate) registers: Vec<VirtualRegister>,
     pub(crate) pending_result_origins: Vec<VirtualRegisterId>,
     pub(crate) instructions: Vec<SelectedInstruction>,

@@ -115,6 +115,7 @@ fn probe(
         typed_trees_to_terminal_psi::prepare_compilation(
             &frontier.typed,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &frontier.entries,
                 subjects: &subjects,
                 purpose: source::DependencyScope::Product,

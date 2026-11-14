@@ -23,15 +23,15 @@ fact to discharge its authored value < Zero Trap route.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| Local | [local](local/main.omg) | [invalid](local/invalid/main.omg) |
-| Field | [field](field/main.omg) | [invalid](field/invalid/main.omg) |
-| Parameter | [parameter](parameter/main.omg) | [invalid](parameter/invalid/main.omg) |
-| Call result | [call_result](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
-| Match join | [match_join](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
-| Const name | [const_name](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| A nested machine | [other_state](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
-| Another machine | [other_machine](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
-| A selected target implementation | [target_body](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+| Local | [local](local/main.omg) | [invalid](invalid_local/main.omg) |
+| Field | [field](field/main.omg) | [invalid](invalid_field/main.omg) |
+| Parameter | [parameter](parameter/main.omg) | [invalid](invalid_parameter/main.omg) |
+| Call result | [call_result](call_result/main.omg) | [invalid](invalid_call_result/main.omg) |
+| Match join | [match_join](match_join/main.omg) | [invalid](invalid_match_join/main.omg) |
+| Const name | [const_name](const_name/main.omg) | [invalid](invalid_const_name/main.omg) |
+| A nested machine | [other_state](other_state/main.omg) | [invalid](invalid_other_state/main.omg) |
+| Another machine | [other_machine](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
+| A selected target implementation | [target_body](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
 The row is pinned under `tests/omega/{pass,fail}/facts/selected_crash_formal_through_*`.
 All nine positives and the root bind all four hosted targets and expect exit 0.

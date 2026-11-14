@@ -78,6 +78,7 @@ pub(super) fn roster<'a>(
     purpose: DependencyScope,
 ) -> typed_trees_to_terminal_psi::Compilation<'a> {
     typed_trees_to_terminal_psi::Compilation {
+        declaration_metadata: &[],
         entries,
         subjects,
         purpose,

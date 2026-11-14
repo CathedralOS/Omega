@@ -26,15 +26,15 @@ than `bound`, and must also refuse.
 
 | Place | Positive | Index-sensitive twin |
 | --- | --- | --- |
-| Local | [program](local/main.omg) | [reject](local/invalid/main.omg) |
-| Field | [program](field/main.omg) | [reject](field/invalid/main.omg) |
-| Parameter | [program](parameter/main.omg) | [reject](parameter/invalid/main.omg) |
-| Call result | [program](call_result/main.omg) | [reject](call_result/invalid/main.omg) |
-| Match join | [program](match_join/main.omg) | [reject](match_join/invalid/main.omg) |
-| Const name | [program](const_name/main.omg) | [reject](const_name/invalid/main.omg) |
-| Nested machine | [program](other_state/main.omg) | [reject](other_state/invalid/main.omg) |
-| Other machine | [program](other_machine/main.omg) | [reject](other_machine/invalid/main.omg) |
-| Selected target body | [program](target_body/main.omg) | [reject](target_body/invalid/main.omg) |
+| Local | [program](local/main.omg) | [reject](invalid_local/main.omg) |
+| Field | [program](field/main.omg) | [reject](invalid_field/main.omg) |
+| Parameter | [program](parameter/main.omg) | [reject](invalid_parameter/main.omg) |
+| Call result | [program](call_result/main.omg) | [reject](invalid_call_result/main.omg) |
+| Match join | [program](match_join/main.omg) | [reject](invalid_match_join/main.omg) |
+| Const name | [program](const_name/main.omg) | [reject](invalid_const_name/main.omg) |
+| Nested machine | [program](other_state/main.omg) | [reject](invalid_other_state/main.omg) |
+| Other machine | [program](other_machine/main.omg) | [reject](invalid_other_machine/main.omg) |
+| Selected target body | [program](target_body/main.omg) | [reject](invalid_target_body/main.omg) |
 
 The original three parameter compositions remain:
 

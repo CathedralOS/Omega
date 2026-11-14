@@ -100,6 +100,7 @@ pub enum TerminalRuntimeError {
         reason: String,
     },
     InvalidProvision(&'static str),
+    NativeArtifactInspection(String),
     Artifact(TerminalArtifactInterpretError),
     Requirements(TerminalInterpretError),
     Binding(TerminalBindingRejection),
@@ -154,6 +155,9 @@ impl std::fmt::Display for TerminalRuntimeError {
                 write!(formatter, "{capability}: {reason}")
             }
             Self::InvalidProvision(reason) => formatter.write_str(reason),
+            Self::NativeArtifactInspection(reason) => {
+                write!(formatter, "native artifact inspection failed: {reason}")
+            }
             Self::Artifact(error) => std::fmt::Display::fmt(error, formatter),
             Self::Requirements(error) => std::fmt::Display::fmt(error, formatter),
             Self::Binding(error) => write!(formatter, "runtime binding rejected: {error:?}"),

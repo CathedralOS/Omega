@@ -1,6 +1,6 @@
 // Expected exit: 0.
 // Expected output contains: PASS: dungeon campaign, collision, combat, pixels
-use omega_language_std::console;
+use omega_language_std::Console;
 use dungeon_core::simulation::game::Game;
 use dungeon_core::presentation::frame::Frame;
 use dungeon_core::render;

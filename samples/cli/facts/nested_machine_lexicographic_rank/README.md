@@ -9,15 +9,15 @@ steps and advances the caller counter3→7. Already-complete0,0 leaves it unchan
 A `[copy]` declaration admits the constant and copied-field transports; it does
 not supply progress or a tuple ordering proof.
 
-- [local](local/main.omg), [zero-step twin](local/invalid/main.omg).
-- [field](field/main.omg), [zero-step twin](field/invalid/main.omg).
-- [parameter](parameter/main.omg), [zero-step twin](parameter/invalid/main.omg).
-- [call_result](call_result/main.omg), [zero-step twin](call_result/invalid/main.omg).
-- [match_join](match_join/main.omg), [zero-step twin](match_join/invalid/main.omg).
-- [const_name](const_name/main.omg), [zero-step twin](const_name/invalid/main.omg).
-- [other_state](other_state/main.omg), [zero-step twin](other_state/invalid/main.omg).
-- [other_machine](other_machine/main.omg), [zero-step twin](other_machine/invalid/main.omg).
-- [target_body](target_body/main.omg), [zero-step twin](target_body/invalid/main.omg).
+- [local](local/main.omg), [zero-step twin](invalid_local/main.omg).
+- [field](field/main.omg), [zero-step twin](invalid_field/main.omg).
+- [parameter](parameter/main.omg), [zero-step twin](invalid_parameter/main.omg).
+- [call_result](call_result/main.omg), [zero-step twin](invalid_call_result/main.omg).
+- [match_join](match_join/main.omg), [zero-step twin](invalid_match_join/main.omg).
+- [const_name](const_name/main.omg), [zero-step twin](invalid_const_name/main.omg).
+- [other_state](other_state/main.omg), [zero-step twin](invalid_other_state/main.omg).
+- [other_machine](other_machine/main.omg), [zero-step twin](invalid_other_machine/main.omg).
+- [target_body](target_body/main.omg), [zero-step twin](invalid_target_body/main.omg).
 
 The [frozen original probe](parameter/probe/main.omg) is byte-identical to the
 first failing affine-carrier program. Exact optimized fixed base

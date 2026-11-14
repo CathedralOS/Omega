@@ -1341,6 +1341,10 @@ mod machine_termination {
             binding: Option<ExternalBindingId>,
             mechanism: Option<ExternalBindingMechanism>,
         },
+        /// A bodyless declaration supplied by a closed compiler catalog.
+        /// Consumers still authenticate its exact custody and complete schema;
+        /// this source role does not assert a checked body or authorize supply.
+        CompilerProvided,
     }
 
     impl MachineSupplyMode {

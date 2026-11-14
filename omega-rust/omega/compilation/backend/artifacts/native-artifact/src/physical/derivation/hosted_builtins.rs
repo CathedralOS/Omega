@@ -52,10 +52,11 @@ enum HostedResultForm {
     Unit,
     Structural {
         bind: fn(
+            crate::physical::PhysicalEvidencePass,
             &machine_code::BoundaryStructuralResultRecord,
             &OptimizedBoundaryOccurrence,
             NativeTarget,
-        ) -> Result<Vec<u8>, &'static str>,
+        ) -> Result<Option<Vec<u8>>, &'static str>,
     },
 }
 
@@ -138,10 +139,11 @@ fn selected_process_exit_i32_source(source: &InternalUnitScalarArgumentSourceRec
 }
 
 fn read_byte_result_bytes(
+    pass: crate::physical::PhysicalEvidencePass,
     result: &machine_code::BoundaryStructuralResultRecord,
     occurrence: &OptimizedBoundaryOccurrence,
     target: NativeTarget,
-) -> Result<Vec<u8>, &'static str> {
+) -> Result<Option<Vec<u8>>, &'static str> {
     if Some(result.defining_operation) != occurrence.operation()
         || result.layout.tag_byte_offset != 0
         || result.layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
@@ -162,6 +164,9 @@ fn read_byte_result_bytes(
         .home_byte_offset
         .checked_add(result.layout.payload_byte_offset)
         .ok_or("hosted read-byte physical child result home overflow")?;
+    if !pass.is_receiver() {
+        return Ok(None);
+    }
     match target.architecture {
         Architecture::X86_64 if target == NativeTarget::macos_x64() => {
             isa_x86_64::encode_darwin_read_byte_to_stack(result.home_byte_offset, payload_offset)
@@ -180,6 +185,7 @@ fn read_byte_result_bytes(
                 .map_err(|_| "Linux read-byte AArch64 encoding is not reproducible")
         }
     }
+    .map(Some)
 }
 
 fn signed_immediate_fits_declared(immediate: IntegerValue, scalar_type: ScalarType) -> bool {
@@ -236,6 +242,7 @@ fn bind_scalar_form(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn derive_hosted_builtin_child(
+    pass: crate::physical::PhysicalEvidencePass,
     builtin: &HostedBuiltinSettlement,
     occurrence: &OptimizedBoundaryOccurrence,
     projection: NativeOptimizationProjectionIdentity,
@@ -243,7 +250,7 @@ pub(crate) fn derive_hosted_builtin_child(
     selected_plan_digest: NativeSelectedProviderPlanDigest,
     target: NativeTarget,
     object: &image_emission::ObjectArtifact,
-    image: &image::EmittedImageOutput,
+    image: &[u8],
     installed: &image_emission::ObjectBoundarySettlement,
 ) -> Result<NativePhysicalChild, &'static str> {
     let settlement = &installed.settlement;
@@ -278,7 +285,7 @@ pub(crate) fn derive_hosted_builtin_child(
             };
             (
                 CompilerBuiltinResult::Structural(result.clone()),
-                Some(bind(result, occurrence, target)?),
+                bind(pass, result, occurrence, target)?,
             )
         }
     };
@@ -304,10 +311,11 @@ pub(crate) fn derive_hosted_builtin_child(
     let final_image_span = object_span;
     let machine_bytes = span(function.bytes(object), machine_span)?;
     let object_bytes = span(object.text_bytes(), object_span)?;
-    let final_image_bytes = span(&image.final_text_bytes, final_image_span)?;
-    if machine_bytes != object_bytes
-        || object_bytes != final_image_bytes
-        || expected.is_some_and(|expected| machine_bytes != expected.as_slice())
+    let final_image_bytes = span(image, final_image_span)?;
+    if pass.is_receiver()
+        && (machine_bytes != object_bytes
+            || object_bytes != final_image_bytes
+            || expected.is_some_and(|expected| machine_bytes != expected.as_slice()))
     {
         return Err("hosted builtin physical child bytes changed across physical custody");
     }

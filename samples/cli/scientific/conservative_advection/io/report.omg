@@ -1,5 +1,5 @@
 module io::report;
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::I64::from_f64;
 use io::decimal;
 // Sixteen significant decimal digits with explicit exponent. Normalization bounds integer

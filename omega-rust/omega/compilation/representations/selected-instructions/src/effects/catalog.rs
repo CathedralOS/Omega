@@ -1,6 +1,6 @@
 /*
   Target machine-effect catalog declarations (`MachineEffectCatalog`,
-  `ValidatedMachineEffectCatalog`), semantic kind inventory
+  `PreparedMachineEffectCatalog`), semantic kind inventory
   (`MachineSemanticKind`), alternative families (`MachineAlternativeFamily`),
   and constraint-key ordering.
 */
@@ -457,7 +457,7 @@ mod validation;
 
 use std::collections::BTreeSet;
 
-use register_model::ValidatedRegisterConstraintCatalog;
+use register_model::PreparedRegisterConstraintCatalog;
 
 use validation::validate_declaration;
 
@@ -476,9 +476,9 @@ use register_model::{RegisterConstraintCatalogIdentity, RegisterConstraintKey, R
 use target::NativeTarget;
 
 pub fn validate_machine_effect_catalog(
-    constraints: &ValidatedRegisterConstraintCatalog,
+    constraints: &PreparedRegisterConstraintCatalog,
     catalog: MachineEffectCatalog,
-) -> Result<ValidatedMachineEffectCatalog, MachineEffectCatalogValidationError> {
+) -> Result<PreparedMachineEffectCatalog, MachineEffectCatalogValidationError> {
     if catalog.target.architecture != constraints.architecture() {
         return Err(MachineEffectCatalogValidationError::TargetArchitectureMismatch);
     }
@@ -520,7 +520,7 @@ pub fn validate_machine_effect_catalog(
         validate_declaration(catalog.target.architecture, row, declaration)?;
     }
     let identity = machine_effect_catalog_identity(&catalog);
-    Ok(ValidatedMachineEffectCatalog { catalog, identity })
+    Ok(PreparedMachineEffectCatalog { catalog, identity })
 }
 
 crate::identity::sha256_identity!(MachineEffectCatalogIdentity);
@@ -1538,13 +1538,15 @@ impl MachineEffectCatalog {
     }
 }
 
+/// Identity-bound machine effects prepared by their trusted ISA producer or checked on receipt.
+/// Preparation alone does not claim independent validation of the ISA description.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ValidatedMachineEffectCatalog {
+pub struct PreparedMachineEffectCatalog {
     catalog: MachineEffectCatalog,
     identity: MachineEffectCatalogIdentity,
 }
 
-impl ValidatedMachineEffectCatalog {
+impl PreparedMachineEffectCatalog {
     pub const fn catalog(&self) -> &MachineEffectCatalog {
         &self.catalog
     }
@@ -1579,36 +1581,48 @@ impl std::fmt::Display for MachineEffectCatalogValidationError {
 
 impl std::error::Error for MachineEffectCatalogValidationError {}
 
+/// Reuses the compiler-owned ISA catalog and its identity without replaying its producer.
+/// The builder must be the target's trusted ISA owner, not a decoder of supplied data.
+/// Separately supplied catalogs enter through `validate_isa_machine_effect_catalog`.
 pub fn canonical_machine_effect_catalog<E>(
     target: NativeTarget,
-    constraints: &ValidatedRegisterConstraintCatalog,
+    constraints: &PreparedRegisterConstraintCatalog,
     build: impl FnOnce(
         NativeTarget,
-        &ValidatedRegisterConstraintCatalog,
+        &PreparedRegisterConstraintCatalog,
     ) -> Result<MachineEffectCatalog, E>,
-) -> Result<std::sync::Arc<MachineEffectCatalog>, E> {
+) -> Result<std::sync::Arc<PreparedMachineEffectCatalog>, E> {
     type Canonical = (
         NativeTarget,
         RegisterConstraintCatalogIdentity,
-        std::sync::Arc<MachineEffectCatalog>,
+        std::sync::Arc<PreparedMachineEffectCatalog>,
     );
     static CANONICAL: std::sync::OnceLock<std::sync::Mutex<Vec<Canonical>>> =
         std::sync::OnceLock::new();
     let cache = CANONICAL.get_or_init(Default::default);
-    let identity = constraints.identity();
+    let constraint_identity = constraints.identity();
     if let Some(catalog) = cache.lock().ok().and_then(|cached| {
         cached
             .iter()
             .find(|(seen_target, seen_identity, _)| {
-                *seen_target == target && *seen_identity == identity
+                *seen_target == target && *seen_identity == constraint_identity
             })
             .map(|(_, _, catalog)| catalog.clone())
     }) {
         return Ok(catalog);
     }
-    let catalog = std::sync::Arc::new(build(target, constraints)?);
+    let catalog = build(target, constraints)?;
+    let identity = machine_effect_catalog_identity(&catalog);
+    let catalog = std::sync::Arc::new(PreparedMachineEffectCatalog { catalog, identity });
     if let Ok(mut cached) = cache.lock() {
-        cached.push((target, identity, catalog.clone()));
+        // Concurrent cold preparations may finish together; publish one retained
+        // value so every caller borrows the same catalog rather than a second copy.
+        if let Some((_, _, retained)) = cached.iter().find(|(seen_target, seen_identity, _)| {
+            *seen_target == target && *seen_identity == constraint_identity
+        }) {
+            return Ok(retained.clone());
+        }
+        cached.push((target, constraint_identity, catalog.clone()));
     }
     Ok(catalog)
 }
@@ -1624,10 +1638,10 @@ pub enum IsaCatalogValidation<E> {
 pub fn validate_isa_machine_effect_catalog<E>(
     architecture: target::Architecture,
     target: NativeTarget,
-    constraints: &ValidatedRegisterConstraintCatalog,
+    constraints: &PreparedRegisterConstraintCatalog,
     catalog: MachineEffectCatalog,
-    build: impl Fn(NativeTarget, &ValidatedRegisterConstraintCatalog) -> Result<MachineEffectCatalog, E>,
-) -> Result<ValidatedMachineEffectCatalog, IsaCatalogValidation<E>> {
+    build: impl Fn(NativeTarget, &PreparedRegisterConstraintCatalog) -> Result<MachineEffectCatalog, E>,
+) -> Result<PreparedMachineEffectCatalog, IsaCatalogValidation<E>> {
     if target.architecture != architecture || constraints.architecture() != architecture {
         return Err(IsaCatalogValidation::ArchitectureMismatch);
     }
@@ -1635,7 +1649,7 @@ pub fn validate_isa_machine_effect_catalog<E>(
         .map_err(IsaCatalogValidation::Builder)?;
     let validated = validate_machine_effect_catalog(constraints, catalog)
         .map_err(IsaCatalogValidation::Structural)?;
-    if validated.catalog() != &*canonical {
+    if validated.catalog() != canonical.catalog() {
         return Err(IsaCatalogValidation::SemanticMismatch);
     }
     Ok(validated)
@@ -1662,9 +1676,9 @@ macro_rules! isa_machine_effect_catalog_plumbing {
 
         pub fn $validate(
             target: ::target::NativeTarget,
-            constraints: &::register_model::ValidatedRegisterConstraintCatalog,
+            constraints: &::register_model::PreparedRegisterConstraintCatalog,
             catalog: $crate::MachineEffectCatalog,
-        ) -> Result<$crate::ValidatedMachineEffectCatalog, $error> {
+        ) -> Result<$crate::PreparedMachineEffectCatalog, $error> {
             $crate::validate_isa_machine_effect_catalog(
                 $architecture,
                 target,

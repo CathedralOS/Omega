@@ -24,15 +24,15 @@ Neither parent task is closed by this row.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [program](local/main.omg) | [invalid selection](local/invalid/main.omg) |
-| field | [program](field/main.omg) | [invalid selection](field/invalid/main.omg) |
-| parameter | [program](parameter/main.omg) | [invalid selection](parameter/invalid/main.omg) |
-| call result | [program](call_result/main.omg) | [invalid selection](call_result/invalid/main.omg) |
-| match join | [program](match_join/main.omg) | [invalid selection](match_join/invalid/main.omg) |
-| const name | [program](const_name/main.omg) | [invalid selection](const_name/invalid/main.omg) |
-| nested machine | [program](other_state/main.omg) | [invalid selection](other_state/invalid/main.omg) |
-| another machine | [program](other_machine/main.omg) | [invalid selection](other_machine/invalid/main.omg) |
-| Build-selected target implementation | [program](target_body/main.omg) | [invalid selection](target_body/invalid/main.omg) |
+| local | [program](local/main.omg) | [invalid selection](invalid_local/main.omg) |
+| field | [program](field/main.omg) | [invalid selection](invalid_field/main.omg) |
+| parameter | [program](parameter/main.omg) | [invalid selection](invalid_parameter/main.omg) |
+| call result | [program](call_result/main.omg) | [invalid selection](invalid_call_result/main.omg) |
+| match join | [program](match_join/main.omg) | [invalid selection](invalid_match_join/main.omg) |
+| const name | [program](const_name/main.omg) | [invalid selection](invalid_const_name/main.omg) |
+| nested machine | [program](other_state/main.omg) | [invalid selection](invalid_other_state/main.omg) |
+| another machine | [program](other_machine/main.omg) | [invalid selection](invalid_other_machine/main.omg) |
+| Build-selected target implementation | [program](target_body/main.omg) | [invalid selection](invalid_target_body/main.omg) |
 
 The [root program](main.omg) checks the same operation. Positive programs bind
 `ProgramEntry` for Windows x86-64, Linux x86-64, macOS ARM64 and Linux ARM64 and
@@ -105,7 +105,7 @@ The nested twin expects caller/state names `main`/`pick`; the diagnostic reports
 The compiler and library sources are also unchanged.
 The changed provider and control packages do not enter that nested program.
 The failure therefore predates this migration and is outside its changed scope,
-as allowed by [validation scope](../../../../tools/testing.md#validation-scope).
+as allowed by [validation scope](../../../../tools/docs/testing.md#validation-scope).
 
 The expectation and strict validation rule are unchanged. Every failed report
 remains failed. Correcting that expectation is separate work on the broader row;

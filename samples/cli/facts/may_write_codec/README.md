@@ -22,15 +22,15 @@ witness runs both choices and observes an independent path marker.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [local](local/main.omg) | [overlap](local/invalid/main.omg) |
-| field | [field](field/main.omg) | [overlap](field/invalid/main.omg) |
-| parameter | [parameter](parameter/main.omg) | [overlap](parameter/invalid/main.omg) |
-| call result | [call_result](call_result/main.omg) | [overlap](call_result/invalid/main.omg) |
-| match join | [match_join](match_join/main.omg) | [overlap](match_join/invalid/main.omg) |
-| const name | [const_name](const_name/main.omg) | [overlap](const_name/invalid/main.omg) |
-| a nested machine | [other_state](other_state/main.omg) | [overlap](other_state/invalid/main.omg) |
-| another machine | [other_machine](other_machine/main.omg) | [overlap](other_machine/invalid/main.omg) |
-| another target body | [target_body](target_body/main.omg) | [overlap](target_body/invalid/main.omg) |
+| local | [local](local/main.omg) | [overlap](invalid_local/main.omg) |
+| field | [field](field/main.omg) | [overlap](invalid_field/main.omg) |
+| parameter | [parameter](parameter/main.omg) | [overlap](invalid_parameter/main.omg) |
+| call result | [call_result](call_result/main.omg) | [overlap](invalid_call_result/main.omg) |
+| match join | [match_join](match_join/main.omg) | [overlap](invalid_match_join/main.omg) |
+| const name | [const_name](const_name/main.omg) | [overlap](invalid_const_name/main.omg) |
+| a nested machine | [other_state](other_state/main.omg) | [overlap](invalid_other_state/main.omg) |
+| another machine | [other_machine](other_machine/main.omg) | [overlap](invalid_other_machine/main.omg) |
+| another target body | [target_body](target_body/main.omg) | [overlap](invalid_target_body/main.omg) |
 
 Root [main.omg](main.omg) carries the same operation. Each positive binds all four
 hosted `ProgramEntry` targets. Matching fixtures live under

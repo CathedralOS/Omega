@@ -31,8 +31,11 @@ const TARGETS: [(&str, &str); 4] = [
 
 /// Judge the actual source roots as the normal compile-time invocation does.
 /// Keep the full verdict so rejection controls can pin its real obligation.
-fn judged(text: &str, roots: &[&str]) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
-    let typed = typed(text);
+fn prepared(
+    typed: typed_trees::TypedTrees,
+    roots: &[&str],
+    publication: terminal_codec::TerminalPublication,
+) -> terminal_check_tables::compilation::TerminalCompilation {
     let entries: Vec<_> = typed
         .machines()
         .iter()
@@ -44,21 +47,28 @@ fn judged(text: &str, roots: &[&str]) -> Vec<Result<RouteVerdict, crate::Compila
         .collect();
     assert!(!entries.is_empty());
     let frozen: typed_trees::FrozenTypedTrees = typed.into();
-    crate::judge_compilation(
-        typed_trees_to_terminal_psi::prepare_compilation(
-            &frozen,
-            typed_trees_to_terminal_psi::Compilation {
-                entries: &entries,
-                subjects: &[],
-                purpose: source::DependencyScope::Product,
-                selected: &[],
-                bindings: &[],
-                supplies: &[],
-            },
-            terminal_codec::TerminalPublication::Invocation,
-        )
-        .program,
+    typed_trees_to_terminal_psi::prepare_compilation(
+        &frozen,
+        typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
+            entries: &entries,
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        publication,
     )
+    .program
+}
+
+fn judged(text: &str, roots: &[&str]) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
+    crate::judge_compilation(prepared(
+        typed(text),
+        roots,
+        terminal_codec::TerminalPublication::Invocation,
+    ))
 }
 
 fn verdict(text: &str, roots: &[&str]) -> String {
@@ -164,6 +174,23 @@ fn an_arm_knows_every_conjunct_of_its_guard() {
     ] {
         assert!(guarded_index(guard).starts_with(UNSAFE_INDEX), "{guard}");
     }
+}
+
+/// A bound that every alternative of a disjunction establishes, each in its
+/// own form, holds after the join: the arm knows the disjunction and the
+/// prover takes each alternative in turn. The failing twin's second
+/// alternative establishes no bound on `second`.
+#[test]
+fn a_bound_every_alternative_establishes_crosses_the_join() {
+    for guard in [
+        "(first < 128 && second < 128) || (first < 200 && second < 200)",
+        "(first < 100 || first < 200) && second < 256",
+    ] {
+        assert_eq!(guarded_index(guard), "accepted", "{guard}");
+    }
+    assert!(
+        guarded_index("(first < 128 && second < 128) || first < 200").starts_with(UNSAFE_INDEX)
+    );
 }
 
 /// A table cell read at a field of `key`, declared as `formal`.
@@ -319,6 +346,313 @@ fn data_with_requires_is_lent_and_restored_at_loan_handback() {
             "an actual open window at loan handback"
         );
     }
+}
+
+// A public helper's written fields are operational contract information.
+// The caller keeps the other field's entry identity without an authored
+// guarantee for that untouched field or a private result-summary premise.
+#[test]
+fn a_call_preserves_only_storage_outside_its_published_write_frame() {
+    let source = r#"
+data Pair [copy] { left: u64; right: u64; }
+public machine update(pair: &mut Pair, value: u64) reaches none crashes none terminates {
+    pair.left = value;
+}
+machine root(mut pair: Pair) -> u64
+requires pair.right == 9
+ensures result == 9
+{
+    update(&mut pair, 7);
+    pair.right
+}
+"#;
+    // A portable artifact needs actual package-owned source. Use the same
+    // retained test package loader as the existing provider controls; do not
+    // give an anonymous invocation a portable identity after preparation.
+    let input = prepared(
+        super::build_purpose::frontier_of(source, "machine build_entry() { }"),
+        &["root"],
+        terminal_codec::TerminalPublication::Portable,
+    );
+    let terminal_check_tables::compilation::TerminalCompilation::Prepared(compilation) = &input
+    else {
+        panic!("the ordinary source preparation must retain its complete compilation")
+    };
+    assert!(compilation.forms.is_empty() && compilation.witnesses.is_empty());
+    let program = compilation.closure.as_ref().unwrap().clone();
+    let root = &program.module.machines[0];
+    let calls: Vec<_> = root
+        .operations()
+        .filter_map(|operation| terminal_psi::direct_call_parts(&operation.kind))
+        .collect();
+    let [call] = calls.as_slice() else {
+        panic!("the source contains one actual update call")
+    };
+    let callee = program.module.machine(call.callee).unwrap();
+    let stores: Vec<_> = callee
+        .operations()
+        .filter_map(|operation| match operation.kind {
+            terminal_psi::OperationKind::StructuralScalarFieldStore { field, .. } => Some(field),
+            _ => None,
+        })
+        .collect();
+    let [left] = stores.as_slice() else {
+        panic!("the helper writes one actual field")
+    };
+    let declaration = program
+        .module
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == callee.structural_parameters[0].structural_type)
+        .unwrap();
+    let fields = declaration.shape.record_fields().unwrap();
+    assert_eq!(
+        program.module.identities.text(
+            terminal_psi::live_field_by_id(fields, *left)
+                .unwrap()
+                .identity
+        ),
+        Some("left")
+    );
+    assert_eq!(
+        callee.contract.published_writes,
+        Some(vec![(0, vec![*left])])
+    );
+
+    let verdicts = crate::judge_compilation(input);
+    let [Ok(RouteVerdict::Accepted(accepted))] = verdicts.as_slice() else {
+        panic!("the untouched right field retains its actual entry value: {verdicts:?}")
+    };
+    accepted.publish().unwrap();
+    let encoded = terminal_codec::encode_module(&accepted.elaboration.module).unwrap();
+    let received = terminal_codec::decode_module(&encoded).unwrap();
+    assert_eq!(
+        received
+            .machine(call.callee)
+            .unwrap()
+            .contract
+            .published_writes,
+        Some(vec![(0, vec![*left])])
+    );
+
+    let mut omitted = program.clone();
+    omitted
+        .module
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == call.callee)
+        .unwrap()
+        .contract
+        .published_writes = Some(Vec::new());
+    let refused = judge(Ok(omitted)).unwrap_err();
+    assert_eq!(refused.reason, RefusalReason::ForeignIdentity);
+    assert!(
+        refused.detail.contains("published write frame"),
+        "{refused:?}"
+    );
+    let mut forged = received.clone();
+    forged
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == call.callee)
+        .unwrap()
+        .contract
+        .published_writes = Some(Vec::new());
+    assert!(
+        matches!(terminal_codec::decode_module(&terminal_codec::encode_module(&forged).unwrap()),
+        Err(terminal_codec::CodecError::MalformedWriteFrame(detail)) if detail.contains("differs from its body")),
+        "receiving reconstructs actual writes instead of trusting an empty supplied frame"
+    );
+    let mut unknown = received.clone();
+    unknown
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == call.callee)
+        .unwrap()
+        .contract
+        .published_writes = None;
+    let unknown_bytes = terminal_codec::encode_module(&unknown).unwrap();
+    let unknown = terminal_codec::decode_module(&unknown_bytes).unwrap();
+    assert_eq!(
+        unknown
+            .machine(call.callee)
+            .unwrap()
+            .contract
+            .published_writes,
+        None,
+        "an unknown ceiling does not become a complete empty frame"
+    );
+    let mut old = encoded.clone();
+    old[8..10].copy_from_slice(&260u16.to_le_bytes());
+    assert!(matches!(
+        terminal_codec::decode_module(&old),
+        Err(terminal_codec::CodecError::UnsupportedFormatMarker(260))
+    ));
+
+    let changed = source.replace("pair.left = value;", "pair.right = value;");
+    let rejected = crate::judge_compilation(prepared(
+        super::build_purpose::frontier_of(&changed, "machine build_entry() { }"),
+        &["root"],
+        terminal_codec::TerminalPublication::Portable,
+    ));
+    let [
+        Ok(RouteVerdict::Rejected {
+            unproved,
+            formations,
+            violations,
+            unestablished,
+            conflicts,
+            exceeded,
+        }),
+    ] = rejected.as_slice()
+    else {
+        panic!("an overlapping write cannot preserve the original right value: {rejected:?}")
+    };
+    assert!(
+        formations.is_empty()
+            && violations.is_empty()
+            && unestablished.is_empty()
+            && conflicts.is_empty()
+            && exceeded.is_empty(),
+        "{rejected:?}"
+    );
+    assert_eq!(unproved.len(), 1, "{rejected:?}");
+    assert!(
+        matches!(unproved[0].kind, ObligationKind::NormalGuarantee { .. })
+            && unproved[0].cause == UnprovedCause::NoDerivation,
+        "{rejected:?}"
+    );
+
+    let restored = source.replace(
+        "pair.left = value;",
+        "let saved: u64 = pair.right; pair.right = value; pair.right = saved;",
+    );
+    let restored = prepared(
+        super::build_purpose::frontier_of(&restored, "machine build_entry() { }"),
+        &["update"],
+        terminal_codec::TerminalPublication::Portable,
+    );
+    let terminal_check_tables::compilation::TerminalCompilation::Prepared(restored) = restored
+    else {
+        panic!("the restoring helper must retain its complete compilation")
+    };
+    assert!(restored.forms.is_empty() && restored.witnesses.is_empty());
+    let restored = restored.closure.unwrap();
+    let restoring = &restored.module.machines[0];
+    let writes: Vec<_> = restoring
+        .operations()
+        .filter_map(|operation| match operation.kind {
+            terminal_psi::OperationKind::StructuralScalarFieldStore { field, .. } => Some(field),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(writes.len(), 2);
+    assert_eq!(writes[0], writes[1]);
+    assert_eq!(
+        restoring.contract.published_writes,
+        Some(vec![(0, vec![writes[0]])]),
+        "restoring the original value does not erase the two actual write events"
+    );
+}
+
+// An indexed replacement preserves an intact array's availability even
+// after a disjoint sibling moved. It neither reconstructs an unknown hole
+// nor supplies the separate bound needed by the actual runtime selector.
+#[test]
+fn runtime_record_replacement_needs_an_intact_array_and_its_actual_bound() {
+    let source = |prefix: &str, bound: u64| {
+        format!(
+            "data Item {{ value: u64; }}\n\
+         data Table {{ items: [Item; 2]; side: Item; }}\n\
+         machine root(mut table: Table, index: u64) -> u64 requires index < {bound} {{\n\
+             {prefix}\n\
+             table.items[index] = Item {{ value: 7 }};\n\
+             table.items[index].value\n\
+         }}"
+        )
+    };
+    for prefix in ["", "let detached: Item = table.side;"] {
+        let verdicts = judged(&source(prefix, 2), &["root"]);
+        let [Ok(RouteVerdict::Accepted(accepted))] = verdicts.as_slice() else {
+            panic!("an intact array stays available: {prefix}: {verdicts:?}")
+        };
+        accepted.publish_invocation().unwrap();
+        let module = &accepted.elaboration.module;
+        let mut forged = module.machines[0].clone();
+        terminal_semantics::plain_affine::verify(&forged, &module.structural_types).unwrap();
+        let store = forged.blocks.iter_mut().flat_map(|block| &mut block.operations).find(|operation| {
+            matches!(&operation.kind, terminal_psi::OperationKind::StoreStructuralField { path, .. }
+                if path.iter().any(|segment| matches!(segment, terminal_psi::StructuralPathSegment::RuntimeIndex { .. })))
+        }).expect("the actual source emits a runtime-indexed record store");
+        let stored_at = store.id;
+        let terminal_psi::OperationKind::StoreStructuralField { disposition, .. } = &mut store.kind
+        else {
+            unreachable!()
+        };
+        assert_eq!(
+            *disposition,
+            terminal_psi::StructuralStoreDisposition::ReplaceDiscardable
+        );
+        *disposition = terminal_psi::StructuralStoreDisposition::Vacant;
+        assert!(
+            matches!(
+                terminal_semantics::plain_affine::verify(&forged, &module.structural_types),
+                Err(terminal_semantics::plain_affine::Error::Malformed {
+                    detail: "a vacant store displaces established affine contents",
+                    site: Some(terminal_semantics::plain_affine::Site::Operation(at)),
+                }) if at == stored_at
+            ),
+            "source-free receiving reconstructs the disposition instead of trusting the producer tag"
+        );
+    }
+    let missing = judged(
+        &source("let detached: Item = table.items[0];", 2),
+        &["root"],
+    );
+    let [Ok(RouteVerdict::FallBack(refusal))] = missing.as_slice() else {
+        panic!("the inexact store cannot reconstruct a moved element: {missing:?}")
+    };
+    assert_eq!(refusal.reason, RefusalReason::Unsupported);
+    assert!(
+        matches!(refusal.concerns, Construct::Operation(_)),
+        "{refusal:?}"
+    );
+    assert!(
+        refusal
+            .detail
+            .ends_with("runtime-indexed replacement in an incomplete affine array"),
+        "{refusal:?}"
+    );
+    let unsafe_index = judged(&source("", 3), &["root"]);
+    let [
+        Ok(RouteVerdict::Rejected {
+            formations,
+            violations,
+            unproved,
+            unestablished,
+            conflicts,
+            exceeded,
+        }),
+    ] = unsafe_index.as_slice()
+    else {
+        panic!("store and read still owe the actual array bound: {unsafe_index:?}")
+    };
+    assert!(
+        formations.is_empty()
+            && violations.is_empty()
+            && unestablished.is_empty()
+            && conflicts.is_empty()
+            && exceeded.is_empty(),
+        "{unsafe_index:?}"
+    );
+    assert_eq!(unproved.len(), 2, "the actual store and read bounds");
+    assert!(
+        unproved.iter().all(|failure| matches!(
+            failure.kind,
+            terminal_check_tables::obligations::ObligationKind::OperationSafety { .. }
+        ) && failure.cause == UnprovedCause::NoDerivation),
+        "{unproved:?}"
+    );
 }
 
 const PLACE: &str = r#"

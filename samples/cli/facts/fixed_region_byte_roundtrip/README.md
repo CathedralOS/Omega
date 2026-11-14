@@ -19,7 +19,7 @@ The [field](field/main.omg), [parameter](parameter/main.omg), and
 `ByteView` record. The exact five-word footprint and backing survive field
 projection, a call argument, and a returned descriptor; the consumer still copies
 all 40 bytes and checks all fourteen words, including the distinct canaries.
-Each [reject twin](call_result/invalid/main.omg) changes only the source endpoint
+Each [reject twin](invalid_call_result/main.omg) changes only the source endpoint
 from 6 to 5, preserving the complete operation and runtime oracle.
 
 All three ordinary programs agree at native/Terminal exit 0 on Mac ARM64, and

@@ -10,11 +10,10 @@ that artifact and its settled provider plans
 (`SelectedExecution::provider_proposal`), and the caller's request order is
 restored.
 
-A product here is descriptive: the accepted program and the provider proposal
-its target-local conditions are checked against. An executable application
-also needs the selected program entry, its callback roots and behavior
-exclusions; none has a producer on the lowered route, so the compiler refuses
-those products before they request a production (`product_execution`).
+This shared production retains the accepted program and its target-local
+provider proposal. Executable applications additionally settle their exact
+program entry, application roots and calling/storage plans from that same
+artifact (`product_execution`). Unsupported Build demands refuse there.
 */
 
 use super::product_code::ProductCodeSource;
@@ -122,7 +121,7 @@ impl<'a> TerminalProductRequest<'a> {
 
 pub(crate) struct ProducedTerminalProduct {
     pub(crate) program: Arc<psi_compiler::PortableTerminalProgram>,
-    proposal: Option<backend_plan::TerminalTargetProviderProposal>,
+    pub(super) proposal: Option<backend_plan::TerminalTargetProviderProposal>,
 }
 
 impl ProducedTerminalProduct {

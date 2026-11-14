@@ -9,15 +9,15 @@ Every place performs the same operation: index a fixed-size array field inside a
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | (root) | [`main.omg`](main.omg) | — | root record array element projection and exact subtraction |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the record and index are copied into locals before indexing the array and subtracting |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | an enclosing structural record holds the row and index in fields before indexing and subtracting |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | machine receives the row and index directly as parameters to index the array and subtract |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the bounded element is returned from a contracted helper call result before subtracting |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms project the bounded element and join before subtracting |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the element ceiling bound is governed by a named constant |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the row and index to project the element and subtract |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate forwarding machine passes the row and index to the projection machine |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies indexes the array and subtracts |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the record and index are copied into locals before indexing the array and subtracting |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | an enclosing structural record holds the row and index in fields before indexing and subtracting |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | machine receives the row and index directly as parameters to index the array and subtract |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | the bounded element is returned from a contracted helper call result before subtracting |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both match arms project the bounded element and join before subtracting |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | the element ceiling bound is governed by a named constant |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine receives the row and index to project the element and subtract |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | an intermediate forwarding machine passes the row and index to the projection machine |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each of four target bodies indexes the array and subtracts |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, carries an
@@ -56,15 +56,15 @@ omega --check samples/cli/facts/nested_array_element_projection/<place>/invalid/
 
 | Place | Reject Twin | Obligation Class | Authored Diagnostic Fragment |
 | --- | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | Exact arithmetic | `may overflow \`u64\`` |
 
 ### Acceptance Gate
 

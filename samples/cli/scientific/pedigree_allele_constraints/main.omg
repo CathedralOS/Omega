@@ -2,7 +2,7 @@
 // Empty stdin is an invalid request (the sample harness EOF case).
 // Expected exit: 64.
 // Expected output contains: INVALID INPUT
-use omega_language_std::console;
+use omega_language_std::Console;
 use domain::model;
 use domain::input;
 use domain::solver;

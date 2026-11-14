@@ -263,15 +263,16 @@ impl AcceptedTerminalSource {
     /// The boundary requirements this accepted module declares, in the
     /// order the module declares them.
     ///
-    /// The module declares a boundary callable exactly when one of its
-    /// machines calls one. Its machines are the closure of every root of
-    /// the compilation: the entries, the subject's declarations and the
-    /// providers chosen for every target. So a declared requirement is not
-    /// yet a demand on any one target: which of them a target must supply
-    /// is decided by following its entries through the providers that
-    /// target chose (`supplied_requirements`, and
-    /// `provider_planning::target_supply`). Each row is rejoined to the
-    /// source declaration the elaboration lowered it from.
+    /// The module declares a boundary callable when one of its machines
+    /// calls one, and for every requirement a chosen provider supplies. Its
+    /// machines are the closure of every root of the compilation: the
+    /// entries, the subject's declarations and the providers chosen for
+    /// every target. So a declared requirement is not yet a demand on any
+    /// one target: which of them a target must supply is decided by
+    /// following its entries through the providers that target chose
+    /// (`supplied_requirements`, and `provider_planning::target_supply`).
+    /// Each row is rejoined to the source declaration the elaboration
+    /// lowered it from.
     pub fn boundary_requirements_declared(
         &self,
     ) -> Result<Vec<DeclaredBoundaryRequirement>, Diagnostic> {
@@ -310,6 +311,29 @@ impl AcceptedTerminalSource {
     /// requirement of the slot it supplies.
     pub fn supplied_requirements(&self) -> &[typed_trees_to_terminal_psi::SuppliedRequirement] {
         &self.closure.elaboration.supplied
+    }
+
+    /// The provider schema of the boundary trait `slot`: every requirement a
+    /// provider of the slot must supply, with the identities a provider
+    /// plan binds its rows by. provider_selection.md: "The assembled record
+    /// must satisfy the slot's complete schema". It is projected from the
+    /// slot's declaration in the judged source, not from the requirements
+    /// this module happens to declare, so a plan missing one is refused
+    /// rather than shrunk to fit. `None` when `slot` is not a boundary trait
+    /// of the product.
+    pub fn slot_schema(
+        &self,
+        slot: symbols::SymbolHandle,
+    ) -> Option<Arc<language_semantics::service_surface::ServiceSurface>> {
+        let declaration = self.source.trait_definition_by_symbol(slot)?;
+        typed_trees::service_declarations::projection::from_typed(
+            typed_trees::provider_declarations::ProviderPlanningContext::new(
+                &self.source,
+                source::DependencyScope::Product,
+            ),
+            declaration,
+        )
+        .map(|projected| projected.declaration)
     }
 
     /// The machine of this module that elaborates the source machine

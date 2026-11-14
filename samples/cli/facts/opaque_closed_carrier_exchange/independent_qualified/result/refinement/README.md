@@ -15,7 +15,7 @@ separate provenance gate.
 
 The [local witness](local/main.omg) differs from the checked-result local
 witness only by the `Classified::Ready` annotations and two non-zero canary
-fields beside the replaced field. Its [reject twin](local/invalid/main.omg)
+fields beside the replaced field. Its [reject twin](invalid_local/main.omg)
 keeps the receiver identical; [its producer](producer_invalid/main.omg) omits
 only the issuer call and rejects at its own return.
 

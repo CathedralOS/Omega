@@ -304,6 +304,7 @@ pub(crate) mod contract_wire {
             closed_reach_application: ReachApplication,
             published_service_ceiling: Ids,
             published_synchronous_entries: Ids,
+            published_writes: Optional<List<(U32, Ids)>>,
             termination: Termination,
             content_entry_claims: List<super::content_wire::EntryClaim>,
             crash_routes: CrashRoutes,

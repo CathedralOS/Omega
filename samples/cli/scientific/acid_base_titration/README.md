@@ -64,7 +64,7 @@ concentration. It additionally reconstructs mass and charge from printed values
 and checks scaling invariance. Runtime refusals live in `validation/refusals.json`.
 The supplemental `endpoint_oracle.json` additionally freezes equivalent decimal
 endpoint spellings and the long integer coefficient case uncovered by review.
-The separate `invalid` project must reject reading species index 3 from length 3.
+The separate `../invalid_acid_base_titration` project must reject reading species index 3 from length 3.
 
 `terminal_validate.py` compiles an output observer against exact recorded producer
 libraries. It consumes the actual admitted application's retained canonical

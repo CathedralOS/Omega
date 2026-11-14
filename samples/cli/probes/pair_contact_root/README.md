@@ -14,5 +14,5 @@ omega run samples/cli/independent/pair_contact_root/main.omg < /dev/null
 omega --check samples/cli/independent/pair_contact_root/invalid/main.omg
 ```
 
-Expected exit 0 and stdout containing `pair contact root 2 impulse 1.5`. The invalid
+Expected exit 0 and stdout containing `pair contact root 2 impulse 1.5`. The ../invalid_pair_contact_root
 control indexes a two-slot ledger at 2 and must reject with `cannot prove index`.

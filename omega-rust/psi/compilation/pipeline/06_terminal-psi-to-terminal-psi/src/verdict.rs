@@ -171,7 +171,7 @@ impl AcceptedClosure {
                     .arms
                     .iter()
                     .find(|(at, _)| *at == span)
-                    .map(|(_, label)| format!("the `{label}` arm")),
+                    .map(|(_, label)| label.clone()),
                 _ => None,
             }
             .unwrap_or_else(|| String::from("an arm"));
@@ -191,7 +191,7 @@ impl AcceptedClosure {
             };
             advisories.push(located(
                 Diagnostic::warning(format!(
-                    "unreachable branch: {arm} of a transition in {owner} can never run; {reason}"
+                    "unreachable branch: {arm} in {owner} can never run; {reason}"
                 )),
                 branch.condition,
             ));
@@ -888,19 +888,23 @@ fn examine(
         ) {
             Ok(plan) => plan,
             Err(error) => {
+                let concerns = match error.site() {
+                    Some(terminal_semantics::plain_affine::Site::Operation(at)) => {
+                        Construct::Operation(at)
+                    }
+                    Some(terminal_semantics::plain_affine::Site::Edge(at)) => Construct::Edge(at),
+                    None => Construct::Machine,
+                };
                 let (reason, detail) = match error {
-                    terminal_semantics::plain_affine::Error::Unsupported(detail) => {
+                    terminal_semantics::plain_affine::Error::Unsupported { detail, .. } => {
                         (RefusalReason::Unsupported, detail)
                     }
-                    terminal_semantics::plain_affine::Error::Malformed(detail) => {
+                    terminal_semantics::plain_affine::Error::Malformed { detail, .. } => {
                         (RefusalReason::ForeignIdentity, detail)
                     }
                 };
                 return Err(fall_back_or_defect(refusal(
-                    reason,
-                    machine.id,
-                    Construct::Machine,
-                    detail,
+                    reason, machine.id, concerns, detail,
                 )));
             }
         };

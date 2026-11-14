@@ -12,15 +12,15 @@ Governing contracts: [type equality and inference](../../../../wiki/spec/languag
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [program](local/main.omg) | [stale replacement](local/invalid/main.omg) |
-| field | [program](field/main.omg) | [stale replacement](field/invalid/main.omg) |
-| parameter | [program](parameter/main.omg) | [stale replacement](parameter/invalid/main.omg) |
-| call_result | [program](call_result/main.omg) | [stale replacement](call_result/invalid/main.omg) |
-| match_join | [program](match_join/main.omg) | [stale replacement](match_join/invalid/main.omg) |
-| const_name | [program](const_name/main.omg) | [stale replacement](const_name/invalid/main.omg) |
-| other_state | [program](other_state/main.omg) | [stale replacement](other_state/invalid/main.omg) |
-| other_machine | [program](other_machine/main.omg) | [stale replacement](other_machine/invalid/main.omg) |
-| target_body | [program](target_body/main.omg) | [stale replacement](target_body/invalid/main.omg) |
+| local | [program](local/main.omg) | [stale replacement](invalid_local/main.omg) |
+| field | [program](field/main.omg) | [stale replacement](invalid_field/main.omg) |
+| parameter | [program](parameter/main.omg) | [stale replacement](invalid_parameter/main.omg) |
+| call_result | [program](call_result/main.omg) | [stale replacement](invalid_call_result/main.omg) |
+| match_join | [program](match_join/main.omg) | [stale replacement](invalid_match_join/main.omg) |
+| const_name | [program](const_name/main.omg) | [stale replacement](invalid_const_name/main.omg) |
+| other_state | [program](other_state/main.omg) | [stale replacement](invalid_other_state/main.omg) |
+| other_machine | [program](other_machine/main.omg) | [stale replacement](invalid_other_machine/main.omg) |
+| target_body | [program](target_body/main.omg) | [stale replacement](invalid_target_body/main.omg) |
 
 The guard retains the evaluated decision separately from a reusable current
 expression. A call-containing initializer still has an actual completed tag

@@ -49,6 +49,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     };
     let mut records = IdTable::default();
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Pair"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![

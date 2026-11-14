@@ -33,6 +33,8 @@
 //! requirements": the value "must be statically known within the compiled
 //! specialization". Only a closed scalar the author wrote as a literal is
 //! read here; an argument that would have to be computed is unserved.
+//! Where the parameter is the width of an integer, `u<N>`, the copied type
+//! becomes the builtin integer of that width ([`substitute_widths`]).
 //!
 //! An implementation parameter (`advance<Selected satisfies Step>`) is bound
 //! like a type parameter and differs only in what replaces it. conformances.md,
@@ -86,6 +88,11 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
                         span,
                     );
                 }
+                Err(Stop::Rejected(message)) => {
+                    return Err(vec![
+                        Diagnostic::error(message).with_source_span(site.source_span(program)),
+                    ]);
+                }
                 Err(Stop::Defect(message)) => return Err(vec![Diagnostic::error(message)]),
             }
         }
@@ -98,6 +105,8 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
 enum Stop {
     /// A request this pass does not serve yet; nothing was changed for it.
     Unserved,
+    /// The application is wrong as the author wrote it.
+    Rejected(String),
     /// The trees broke an invariant while a machine was being generated.
     Defect(&'static str),
 }
@@ -1197,6 +1206,7 @@ fn generate(
     }
     copy_expression_types(program, expression_start, symbols)?;
     substitute_types(program, type_start, operands)?;
+    substitute_widths(program, type_start, operands)?;
     substitute_values(program, expression_start, operands);
     select_requirements(
         program,
@@ -1340,6 +1350,86 @@ fn substitute_types(
             operand.parameter,
             replacement,
         );
+    }
+    Ok(())
+}
+
+/// Closes each integer whose width is a value parameter, `u<N>` or `i<N>`,
+/// in every type written since `type_start`. numeric_values.md,
+/// "Width-indexed integers": `u13` and `u<13>` "are exactly the same type",
+/// so with `13` for `N` the application is replaced by the builtin type of
+/// that carrier, the very symbol the shorthand names; no later stage sees a
+/// width that is still a name. A carrier no source spelled has no symbol
+/// yet and is installed here.
+///
+/// "Zero widths ... reject": an application that gives such a parameter
+/// zero, or a width no carrier has, is rejected at the call that applies it.
+fn substitute_widths(
+    program: &mut TypedTrees,
+    type_start: usize,
+    operands: &[Operand],
+) -> Served<()> {
+    for operand in operands {
+        let Some(literal) = &operand.scalar else {
+            continue;
+        };
+        let table = &program.type_reference_table;
+        let occurrences = table
+            .type_reference_rows_from(type_start)
+            .filter_map(|(handle, node)| {
+                let TypeReferenceNode::Generic {
+                    base_symbol,
+                    arguments,
+                    ..
+                } = node
+                else {
+                    return None;
+                };
+                let sign = program.symbols.integer_family(*base_symbol)?;
+                let [argument] = table.type_reference_handles(*arguments) else {
+                    return None;
+                };
+                matches!(
+                    table.type_reference(*argument),
+                    TypeReferenceNode::Named { symbol, .. } if *symbol == operand.parameter
+                )
+                .then_some((handle, sign))
+            })
+            .collect::<Vec<_>>();
+        for (occurrence, sign) in occurrences {
+            let letter = match sign {
+                numerics::integer_carrier::IntegerSign::Unsigned => 'u',
+                numerics::integer_carrier::IntegerSign::Signed => 'i',
+            };
+            let width = literal.canonical_spelling().to_string();
+            let Some(carrier) = literal
+                .value_u64()
+                .filter(|width| *width > 0)
+                .and_then(|width| numerics::integer_carrier::FixedInteger::new(sign, width))
+            else {
+                return Err(Stop::Rejected(format!(
+                    "this application gives `{letter}<{}>` the width {width}: an integer width \
+                     is a positive `u64`",
+                    program.symbols.name(operand.parameter),
+                )));
+            };
+            let atom = symbols::BuiltinTypeAtom::Integer(carrier);
+            program.symbols.install_integer_types([carrier]);
+            let symbol = program
+                .symbols
+                .builtin_atom_symbol(atom)
+                .ok_or(Stop::Defect("an installed integer carrier has no symbol"))?;
+            let replacement = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol,
+                    name: Identifier::generated(carrier.to_string()),
+                });
+            program
+                .type_reference_table
+                .substitute_from(occurrence, replacement)
+                .map_err(Stop::Defect)?;
+        }
     }
     Ok(())
 }

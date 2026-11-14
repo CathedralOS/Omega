@@ -3,7 +3,7 @@
 // Valid requests in data/*.stdin exit 0 and emit the wave/voltage/energy records.
 // Complete bounded transmission-line pulse simulation. Output is CSV records
 // in micro-units; see data/oracle.json for independently frozen exact fractions.
-use omega_language_std::console;
+use omega_language_std::Console;
 use physics::model;
 use io::input;
 use io::report;

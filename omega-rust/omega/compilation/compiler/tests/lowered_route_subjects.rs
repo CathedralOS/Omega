@@ -268,6 +268,7 @@ fn route_verdict(
     let elaborated = elaborate(
         &frontier.typed,
         Compilation {
+            declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &[frontier.subject],
             purpose: source::DependencyScope::Product,
@@ -471,6 +472,7 @@ fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
     let as_dependency = judge(elaborate(
         &frontier.typed,
         Compilation {
+            declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &[Some(another)],
             purpose: source::DependencyScope::Product,
@@ -507,6 +509,7 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
         judge(elaborate(
             typed,
             Compilation {
+                declaration_metadata: &[],
                 entries: &frontier.entries,
                 subjects: &[Some(another)],
                 purpose: source::DependencyScope::Product,
@@ -557,6 +560,7 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
     let bound = judge(elaborate(
         typed,
         Compilation {
+            declaration_metadata: &[],
             entries: &frontier.entries,
             subjects: &[Some(another)],
             purpose: source::DependencyScope::Product,
@@ -637,6 +641,21 @@ const UNUSED_DECLARATIONS: &[(&str, &str)] = &[
          requires machine Observe(kept: bool) -> bool;\n{\n    Observe(kept)\n}",
     ),
     ("constant", "const GOOD: u64 = 2;"),
+    // Aggregate constants: each leaf of the materialized initializer is
+    // the evaluated value.
+    (
+        "record_constant",
+        "data Pair [copy] { left: u64; right: u64; }\n\
+         const START: Pair = Pair { left: 3, right: 4 };",
+    ),
+    ("array_constant", "const ROW: [u64; 3] = [5, 6, 7];"),
+    // A constant of data with `requires` owes the default-domain proof,
+    // which the route does not build yet.
+    (
+        "constrained_record_constant",
+        "data Pair [copy] requires left < right { left: u64; right: u64; }\n\
+         const START: Pair = Pair { left: 3, right: 4 };",
+    ),
     ("domain", "domain u64::AtMostSeven requires self <= 7;"),
     (
         "trait",
@@ -741,6 +760,7 @@ fn judged_parts(name: &str, declaration: &str) -> Vec<Verdict> {
         typed_trees_to_terminal_psi::prepare_compilation(
             &frontier.typed,
             Compilation {
+                declaration_metadata: &[],
                 entries: &frontier.entries,
                 subjects: &[frontier.subject],
                 purpose: source::DependencyScope::Product,
@@ -880,8 +900,9 @@ fn a_generic_body_that_applies_another_generic_machine_is_judged() {
 }
 
 /// Every kind of unused subject declaration is in the check. What the route
-/// can judge it judges: a valid machine and plain data are accepted with the
-/// machine in the module, and a defective machine is rejected. Every kind it
+/// can judge it judges: a valid machine, plain data and scalar, record and
+/// array constants are accepted with the machine in the module, and a
+/// defective machine is rejected. Every kind it
 /// cannot judge hands the compilation back with a refusal naming that kind,
 /// so none is skipped.
 #[test]
@@ -898,7 +919,10 @@ fn each_kind_of_unused_subject_declaration_is_judged_or_handed_back() {
         Verdict::Accepted(1),
         falls_back("machine generic machines not judged as their own check forms"),
         falls_back("machine generic machines not judged as their own check forms"),
-        falls_back("declaration const"),
+        Verdict::Accepted(1),
+        Verdict::Accepted(1),
+        Verdict::Accepted(1),
+        falls_back("declaration constant of data with requires needs its default-domain proof"),
         // A domain's predicates are contracts of the places declared in it,
         // so a declaration no type names owes nothing once its clauses are
         // read.
@@ -1097,7 +1121,7 @@ fn a_mut_formal_is_written_as_a_mut_local_is_and_no_other_formal_is_written() {
         falls_back("statement store into an immutable binding"),
         Verdict::Accepted(3),
         Verdict::Rejected,
-        falls_back("contract clause that names a mutable parameter outside requires"),
+        Verdict::Accepted(2),
         // Plain data without `[copy]` is served since affine moves landed:
         // the callee owns the value, stores into it and drops it.
         Verdict::Accepted(2),
@@ -1111,6 +1135,164 @@ fn a_mut_formal_is_written_as_a_mut_local_is_and_no_other_formal_is_written() {
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// Contracts retain invocation inputs while executable bindings are assigned
+/// or lent. The same identities survive publication, and the actual working
+/// values execute; a guarantee equating the result with the final binding
+/// instead of the input is rejected.
+#[test]
+fn mutable_contract_inputs_publish_and_execute_without_runtime_snapshots() {
+    use terminal_interpreter::{
+        TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
+        TerminalExecutionStatus, TerminalStructuralInputs,
+    };
+
+    struct NoEffects;
+    impl TerminalEffectHandler for NoEffects {
+        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+            Err(TerminalEffectRejection::new(
+                "the counter performs no effect",
+            ))
+        }
+    }
+
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let frontier =
+        unbuilt_frontier::fixture_frontier("tests/fixtures/pass/contracts/mutable_contract_input");
+    let counter = unbuilt_frontier::program_machine(&frontier.typed, "counter").unwrap();
+    let closure = match route_verdict(&frontier).1 {
+        Ok(RouteVerdict::Accepted(closure)) => closure,
+        other => panic!("the original-input contracts must check: {other:?}"),
+    };
+    let counter_id = closure
+        .elaboration
+        .machines
+        .iter()
+        .find_map(|(id, symbol)| (*symbol == counter).then_some(id))
+        .unwrap();
+    let counter = closure
+        .elaboration
+        .module
+        .machines
+        .iter()
+        .find(|machine| machine.id == counter_id)
+        .unwrap();
+    assert_eq!(counter.parameters.len(), 2);
+    assert!(
+        counter.structural_places.is_empty(),
+        "logical scalar inputs require no snapshot storage"
+    );
+    let publication = closure.publish().expect("counter publication");
+    assert_eq!(
+        publication.artifact.semantic_module(),
+        &closure.elaboration.module
+    );
+    let input = terminal_psi_to_abstract_operations::lower_module_with_evidence(
+        publication.artifact.semantic_module(),
+        publication.seals.clone(),
+    )
+    .expect("Omega 00 retains the original-input guarantees")
+    .into_optimization_artifact()
+    .into_optimization_input();
+    abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
+        input,
+        psi_work::WorkSchedule::CURRENT.identity(),
+    )
+    .expect("Omega 01 independently checks the published operations");
+    let bytes = terminal_codec::encode_module(publication.artifact.semantic_module())
+        .expect("the published module encodes");
+    let mut execution =
+        TerminalExecution::start_artifact(&bytes, &[], TerminalStructuralInputs::default())
+            .expect("the published module loads");
+    let status = execution
+        .resume(
+            &mut psi_work::WorkMeter::with_budget(10_000_000),
+            &mut NoEffects,
+        )
+        .expect("direct, lent, terminal and affine counter calls execute");
+    assert!(
+        matches!(status, TerminalExecutionStatus::Complete(_)),
+        "{status:?}"
+    );
+
+    let wrong =
+        unbuilt_frontier::fixture_frontier("tests/fixtures/fail/contracts/mutable_contract_input");
+    let verdict = route_verdict(&wrong).1;
+    let Ok(RouteVerdict::Rejected { unproved, .. }) = verdict else {
+        panic!("the final-value interpretation must reject: {verdict:?}");
+    };
+    assert!(
+        unproved.iter().any(|row| matches!(
+            row.kind,
+            terminal_check_tables::obligations::ObligationKind::NormalGuarantee { .. }
+        )),
+        "the authored return guarantee must be unproved: {unproved:?}"
+    );
+}
+
+#[test]
+fn mutable_contract_inputs_keep_crash_guards_and_arrivals_at_their_own_inputs() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    for (name, guard, accepted) in [
+        ("original_input_crash", 3, true),
+        ("assigned_value_crash", 0, false),
+    ] {
+        let source = format!(
+            "machine spare(mut position: u32) requires position == 3u32 \
+             crashes Trap position == {guard}u32 {{ position = 0; crash Trap; }}"
+        );
+        let frontier = staged_unused(name, &source);
+        let verdict = route_verdict(&frontier).1;
+        if accepted {
+            assert!(
+                matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                "{name}: {verdict:?}"
+            );
+        } else {
+            let Ok(RouteVerdict::Rejected { unproved, .. }) = verdict else {
+                panic!("{name}: the assigned value cannot cover an input-based route: {verdict:?}");
+            };
+            assert!(
+                unproved.iter().any(|row| matches!(
+                    row.kind,
+                    terminal_check_tables::obligations::ObligationKind::CrashCoverage { .. }
+                )),
+                "{name}: {unproved:?}"
+            );
+        }
+    }
+    assert_eq!(
+        verdict_on_unused(
+            "fresh_recursive_input",
+            "machine spare(mut position: u32) requires position <= 10u32 { \
+             position = position + 1; transition position <= 10u32 { \
+             true -> spare(position) false -> done() } } machine done() {}"
+        ),
+        Verdict::Accepted(3)
+    );
+    assert_eq!(
+        verdict_on_unused(
+            "recursive_input_not_original",
+            "machine spare(mut position: u32) requires position <= 10u32 { \
+             position = position + 1; spare(position) }"
+        ),
+        Verdict::Rejected
+    );
+    assert_eq!(
+        verdict_on_unused(
+            "borrowed_completion_not_input_snapshot",
+            "machine spare(position: &mut u32) -> u32 ensures result == position { \
+             position = 0; position }"
+        ),
+        Verdict::FallsBack(
+            "contract clause that names a borrowed formal outside requires".to_owned()
+        )
+    );
 }
 
 /// One program per thing the route decides about an integer whose type

@@ -48,15 +48,15 @@ retained observations cover `macos_arm64` and `linux_x86_64`, not all four hosts
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| Local | [program](local/main.omg) | [invalid](local/invalid/main.omg) |
-| Field | [program](field/main.omg) | [invalid](field/invalid/main.omg) |
-| Parameter | [program](parameter/main.omg) | [invalid](parameter/invalid/main.omg) |
-| Call result | [program](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
-| Match join | [program](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
-| Const name | [program](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| A nested machine | [program](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
-| Another machine | [program](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
-| Target body | [program](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+| Local | [program](local/main.omg) | [invalid](invalid_local/main.omg) |
+| Field | [program](field/main.omg) | [invalid](invalid_field/main.omg) |
+| Parameter | [program](parameter/main.omg) | [invalid](invalid_parameter/main.omg) |
+| Call result | [program](call_result/main.omg) | [invalid](invalid_call_result/main.omg) |
+| Match join | [program](match_join/main.omg) | [invalid](invalid_match_join/main.omg) |
+| Const name | [program](const_name/main.omg) | [invalid](invalid_const_name/main.omg) |
+| A nested machine | [program](other_state/main.omg) | [invalid](invalid_other_state/main.omg) |
+| Another machine | [program](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
+| Target body | [program](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
 The same sources and Build companions are pinned in
 `tests/omega/{pass,fail}/facts/selected_value_application_through_<place>_*`.

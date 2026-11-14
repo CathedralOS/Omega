@@ -20,7 +20,7 @@ meaningful overlap refusals, then record the changed fixtures from clean
 source. The measurements and earlier landing descriptions below refer to their
 stated legacy source revisions; they are not observations of this migrated
 source. Four-host acceptance remains required, with any retained evidence
-checked for consumer-based applicability under `tools/testing.md`.
+checked for consumer-based applicability under `tools/docs/testing.md`.
 
 Every place copies that sentence and performs the same forwarding call with the
 same content equation and the same runtime oracle: all four returned fields are
@@ -40,15 +40,15 @@ four hosted targets.
 | Place | Positive | Reject twin | Transport mechanism |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) with [`build.omg`](build.omg) | — | canonical root witness forwarding two adjacent owned claims |
-| Local | [local](local/main.omg) | [overlap allowed](local/invalid/main.omg) | the adjacent claims are locals forwarded in one construction |
-| Field | [field](field/main.omg) | [overlap allowed](field/invalid/main.omg) | the pair is built inside a record field and projected back out |
-| Parameter | [parameter](parameter/main.omg) | [overlap allowed](parameter/invalid/main.omg) | the adjacency premise arrives as the callable's own parameter |
-| Call result | [call result](call_result/main.omg) | [overlap allowed](call_result/invalid/main.omg) | a wrapper returns the completed call's pair |
-| Match join | [match join](match_join/main.omg) | [overlap allowed](match_join/invalid/main.omg) | both match arms build the same pair |
-| Const name | [const name](const_name/main.omg) | [overlap allowed](const_name/invalid/main.omg) | a named constant joins the sum |
-| A nested machine | [state](other_state/main.omg) | [overlap allowed](other_state/invalid/main.omg) | a successor machine receives both claims |
-| Another machine | [machine](other_machine/main.omg) | [overlap allowed](other_machine/invalid/main.omg) | a forwarding machine supplies the pair |
-| Target body | [target body](target_body/main.omg) | [overlap allowed](target_body/invalid/main.omg) | each of four target bodies supplies the pair |
+| Local | [local](local/main.omg) | [overlap allowed](invalid_local/main.omg) | the adjacent claims are locals forwarded in one construction |
+| Field | [field](field/main.omg) | [overlap allowed](invalid_field/main.omg) | the pair is built inside a record field and projected back out |
+| Parameter | [parameter](parameter/main.omg) | [overlap allowed](invalid_parameter/main.omg) | the adjacency premise arrives as the callable's own parameter |
+| Call result | [call result](call_result/main.omg) | [overlap allowed](invalid_call_result/main.omg) | a wrapper returns the completed call's pair |
+| Match join | [match join](match_join/main.omg) | [overlap allowed](invalid_match_join/main.omg) | both match arms build the same pair |
+| Const name | [const name](const_name/main.omg) | [overlap allowed](invalid_const_name/main.omg) | a named constant joins the sum |
+| A nested machine | [state](other_state/main.omg) | [overlap allowed](invalid_other_state/main.omg) | a successor machine receives both claims |
+| Another machine | [machine](other_machine/main.omg) | [overlap allowed](invalid_other_machine/main.omg) | a forwarding machine supplies the pair |
+| Target body | [target body](target_body/main.omg) | [overlap allowed](invalid_target_body/main.omg) | each of four target bodies supplies the pair |
 
 Each twin changes only the adjacency requirement from `==` to `>=`, allowing
 overlap. It must reject the separated-content postcondition. The nested machine's
@@ -238,15 +238,15 @@ nine reject at checking with status 1:
 
 | Place | Twin | Rejected obligation |
 | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | `cannot prove ensures contract for exit from forward` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | `cannot prove ensures contract for exit from forward` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `cannot prove ensures contract for exit from forward` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `cannot prove ensures contract for exit from carry` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `cannot prove ensures contract for exit from forward` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `cannot prove ensures contract for exit from forward` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove ensures contract for exit from forward` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `cannot prove ensures contract for exit from Forwarder::forward` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `cannot prove ensures contract for exit from forward` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | `cannot prove ensures contract for exit from forward` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | `cannot prove ensures contract for exit from forward` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `cannot prove ensures contract for exit from forward` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `cannot prove ensures contract for exit from carry` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | `cannot prove ensures contract for exit from forward` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | `cannot prove ensures contract for exit from forward` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | `cannot prove ensures contract for exit from forward` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `cannot prove ensures contract for exit from Forwarder::forward` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `cannot prove ensures contract for exit from forward` |
 
 Every diagnostic names the same obligation, and each prints
 `separate(Held.content(old(&left)), Held.content(old(&right))) ==

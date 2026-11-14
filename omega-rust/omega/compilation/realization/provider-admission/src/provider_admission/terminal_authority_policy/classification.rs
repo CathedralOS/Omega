@@ -17,24 +17,16 @@ intrinsics exercise no host authority class.
 use std::sync::OnceLock;
 
 use effects::{
-    CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
-    CompilerPrimitiveIntegerComparisonOperation, TerminalAuthorityClass,
-    TerminalAuthorityDisposition, numeric_type_tag, primitive_float_operation_tag,
-    primitive_integer_comparison_operation_tag,
+    CompilerIntrinsicExecutionIdentity, CompilerPrimitiveFloatBinaryOperation,
+    TerminalAuthorityClass, TerminalAuthorityDisposition, primitive_float_operation_tag,
 };
-use numerics::{arithmetic::ArithmeticDomain, literals::FloatFormat};
+use numerics::literals::FloatFormat;
 use symbols::BuiltinFunction;
 
 use super::UnclassifiedTerminalMechanism;
 
-pub(super) const CLOSED_POLICY_ROW_COUNT: u32 = 494 + BuiltinFunction::COUNT as u32;
+pub(super) const CLOSED_POLICY_ROW_COUNT: u32 = 46 + BuiltinFunction::COUNT as u32;
 const FLOAT_FORMATS: [FloatFormat; 2] = [FloatFormat::F32, FloatFormat::F64];
-const ARITHMETIC_DOMAINS: [ArithmeticDomain; 4] = [
-    ArithmeticDomain::Exact,
-    ArithmeticDomain::Wrapping,
-    ArithmeticDomain::Saturating,
-    ArithmeticDomain::Trapping,
-];
 
 pub(super) fn committed_policy_mechanisms() -> &'static [CompilerIntrinsicExecutionIdentity] {
     static MECHANISMS: OnceLock<Vec<CompilerIntrinsicExecutionIdentity>> = OnceLock::new();
@@ -95,35 +87,11 @@ pub(super) fn closed_policy_mechanisms() -> Vec<CompilerIntrinsicExecutionIdenti
             });
         }
     }
-    for operation in CompilerPrimitiveIntegerComparisonOperation::ALL {
-        for integer_type in CompilerNumericType::ALL {
-            if integer_type.is_float() {
-                continue;
-            }
-            mechanisms.push(
-                CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
-                    operation,
-                    integer_type,
-                },
-            );
-        }
-    }
     mechanisms.extend(
         FLOAT_FORMATS
             .into_iter()
             .map(CompilerIntrinsicExecutionIdentity::NamedFloatNegation),
     );
-    for source in CompilerNumericType::ALL {
-        for target in CompilerNumericType::ALL {
-            for domain in ARITHMETIC_DOMAINS {
-                mechanisms.push(CompilerIntrinsicExecutionIdentity::NamedFloatConversion {
-                    source,
-                    target,
-                    domain,
-                });
-            }
-        }
-    }
     assert_eq!(mechanisms.len(), CLOSED_POLICY_ROW_COUNT as usize);
     mechanisms
 }
@@ -165,18 +133,11 @@ pub(super) fn classify_compiler_intrinsic(
         CompilerIntrinsicExecutionIdentity::PrimitiveFloatBinary { operation, format } => {
             classify_primitive_float_binary(operation, format)
         }
-        CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
-            operation,
-            integer_type,
-        } => classify_primitive_integer_comparison(operation, integer_type),
         CompilerIntrinsicExecutionIdentity::NamedFloatNegation(format) => {
             classify_named_float_negation(format)
         }
-        CompilerIntrinsicExecutionIdentity::NamedFloatConversion {
-            source,
-            target,
-            domain,
-        } => classify_named_float_conversion(source, target, domain),
+        CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison { .. }
+        | CompilerIntrinsicExecutionIdentity::NamedFloatConversion { .. } => empty_disposition(),
     }
 }
 
@@ -203,32 +164,8 @@ fn classify_primitive_float_binary(
     empty_disposition()
 }
 
-fn classify_primitive_integer_comparison(
-    operation: CompilerPrimitiveIntegerComparisonOperation,
-    integer_type: CompilerNumericType,
-) -> TerminalAuthorityDisposition {
-    let _closed_coordinates = (
-        primitive_integer_comparison_operation_tag(operation),
-        numeric_type_tag(integer_type),
-    );
-    empty_disposition()
-}
-
 fn classify_named_float_negation(format: FloatFormat) -> TerminalAuthorityDisposition {
     let _closed_format = float_format_tag(format);
-    empty_disposition()
-}
-
-fn classify_named_float_conversion(
-    source: CompilerNumericType,
-    target: CompilerNumericType,
-    domain: ArithmeticDomain,
-) -> TerminalAuthorityDisposition {
-    let _closed_coordinates = (
-        numeric_type_tag(source),
-        numeric_type_tag(target),
-        arithmetic_domain_tag(domain),
-    );
     empty_disposition()
 }
 
@@ -359,14 +296,5 @@ const fn float_format_tag(format: FloatFormat) -> u8 {
     match format {
         FloatFormat::F32 => 0,
         FloatFormat::F64 => 1,
-    }
-}
-
-const fn arithmetic_domain_tag(domain: ArithmeticDomain) -> u8 {
-    match domain {
-        ArithmeticDomain::Exact => 0,
-        ArithmeticDomain::Wrapping => 1,
-        ArithmeticDomain::Saturating => 2,
-        ArithmeticDomain::Trapping => 3,
     }
 }

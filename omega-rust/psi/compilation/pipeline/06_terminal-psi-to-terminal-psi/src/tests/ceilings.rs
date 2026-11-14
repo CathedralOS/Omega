@@ -17,6 +17,7 @@ fn judged(text: &str) -> RouteVerdict {
         typed_trees_to_terminal_psi::prepare_compilation(
             &frozen,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,
@@ -443,9 +444,18 @@ machine entry() invokes Missing {}
             .unwrap()
             .contains("Missing")
     );
-    let refusal = verdict_kind(&judged(text));
+    // effects.md: "A row names a parameter path or a requirement identity",
+    // and nothing in the program is called `Missing`, so the program is
+    // wrong, not unsupported. The twin that names a declared entry,
+    // `invokes Handler`, is accepted in
+    // `a_body_publishes_its_written_entries_and_an_omitted_clause_is_derived`.
+    let RouteVerdict::Rejected { violations, .. } = judged(text) else {
+        panic!("an `invokes` row naming nothing is rejected");
+    };
     assert!(
-        refusal.contains("invokes names nothing this program declares"),
-        "{refusal}"
+        violations.iter().any(|violation| violation
+            .statement
+            .contains("`invokes Missing` names no parameter and no requirement")),
+        "{violations:#?}"
     );
 }

@@ -12,15 +12,15 @@ caller condition supplies the missing fact.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [program](local/main.omg) | [unproved write](local/invalid/main.omg) |
-| field | [program](field/main.omg) | [unproved write](field/invalid/main.omg) |
-| parameter | [program](parameter/main.omg) | [unproved write](parameter/invalid/main.omg) |
-| call_result | [program](call_result/main.omg) | [unproved write](call_result/invalid/main.omg) |
-| match_join | [program](match_join/main.omg) | [unproved write](match_join/invalid/main.omg) |
-| const_name | [program](const_name/main.omg) | [unproved write](const_name/invalid/main.omg) |
-| other_state | [program](other_state/main.omg) | [unproved write](other_state/invalid/main.omg) |
-| other_machine | [program](other_machine/main.omg) | [unproved write](other_machine/invalid/main.omg) |
-| target_body | [program](target_body/main.omg) | [unproved write](target_body/invalid/main.omg) |
+| local | [program](local/main.omg) | [unproved write](invalid_local/main.omg) |
+| field | [program](field/main.omg) | [unproved write](invalid_field/main.omg) |
+| parameter | [program](parameter/main.omg) | [unproved write](invalid_parameter/main.omg) |
+| call_result | [program](call_result/main.omg) | [unproved write](invalid_call_result/main.omg) |
+| match_join | [program](match_join/main.omg) | [unproved write](invalid_match_join/main.omg) |
+| const_name | [program](const_name/main.omg) | [unproved write](invalid_const_name/main.omg) |
+| other_state | [program](other_state/main.omg) | [unproved write](invalid_other_state/main.omg) |
+| other_machine | [program](other_machine/main.omg) | [unproved write](invalid_other_machine/main.omg) |
+| target_body | [program](target_body/main.omg) | [unproved write](invalid_target_body/main.omg) |
 
 The target-body place calls `TransmitCode::value()`. Its Build companion selects an
 ordinary named implementation for each hosted target. Each positive implementation

@@ -1,0 +1,10 @@
+use omega::language::core::ProgramImage;
+
+machine build(builder: &mut Build) suspends {
+    Build::application(builder, "provider_readiness_replacement");
+    let mut backing_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "../provider_readiness/backing" });
+    dependency::with_alias(&mut backing_dependency, "backing");
+    let backing_registration: DependencyRegistration = Build::build_dependency(builder, backing_dependency);
+    suspend Build::await_provider<ProgramImage, backing::TestImage>(builder);
+    suspend Build::await_provider<ProgramImage, backing::OtherImage>(builder);
+}

@@ -44,7 +44,7 @@
 // Expected exit: 0.
 // Expected output contains: BDZGO
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main {
     fwd_left: [i32; 26];   // rotor I    "EKMFLGDQVZNTOWYHXUSPAIBRCJ"

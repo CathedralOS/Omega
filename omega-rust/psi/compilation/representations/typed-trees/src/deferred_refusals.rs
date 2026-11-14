@@ -94,6 +94,14 @@ pub enum DeferredRequest {
     /// violation: "an unknown machine name ... is an error wherever it
     /// appears" (`state_contracts.md`).
     UndeclaredCallName,
+    /// A value name, in a constant's initializer or a body, that resolution
+    /// left unbound and that nothing in the program has: no declaration,
+    /// parameter, local or field of any kind. A violation, as for a call:
+    /// resolution looks through locals, parameters, imports and qualified
+    /// paths (`modules.md`, "Resolution"), and "name resolution ... [is]
+    /// checked as usual" even where a statement never executes
+    /// (`state_contracts.md`), so a name none of them answers is an error.
+    UndeclaredValueName,
 }
 
 impl DeferredRequest {
@@ -101,7 +109,7 @@ impl DeferredRequest {
     /// reader that demands its declaration rejects the program rather than
     /// calling it unsupported.
     pub fn is_violation(self) -> bool {
-        matches!(self, Self::UndeclaredCallName)
+        matches!(self, Self::UndeclaredCallName | Self::UndeclaredValueName)
     }
 
     /// The construct as a refusal names it, after the word "declaration";
@@ -152,6 +160,10 @@ impl DeferredRequest {
             Self::UndeclaredCallName => {
                 "this call names nothing the program declares: an unknown machine name is an \
                  error wherever it appears, in a statement that never executes as in any other"
+            }
+            Self::UndeclaredValueName => {
+                "this expression names a value nothing the program declares: an unknown name is \
+                 an error wherever it appears"
             }
         }
     }
@@ -222,6 +234,36 @@ impl TypedTrees {
         self.deferred_refusals[start..]
             .iter()
             .take_while(move |row| row.declaration == declaration)
+    }
+
+    /// Of the written names `names`, those nothing in the program has, in
+    /// sorted order: no symbol of any kind, a declaration, parameter, local,
+    /// state or builtin, in this source or any library, carries one as the
+    /// last segment of its name. A name nothing has is an error wherever it
+    /// is written; a name something has may name that thing validly where a
+    /// reader does not follow it yet.
+    pub fn names_nothing_has<'a>(&self, mut names: Vec<&'a str>) -> Vec<&'a str> {
+        names.retain(|name| !name.is_empty());
+        names.sort_unstable();
+        names.dedup();
+        if names.is_empty() {
+            return names;
+        }
+        let mut named = vec![false; names.len()];
+        for (symbol, _) in self.symbols.symbols().nodes().iter() {
+            // A declaration may keep its qualified spelling as its name
+            // (`machine kit::work`); a use writes the last segment.
+            let name = self.symbols.name(symbol);
+            let leaf = name.rsplit("::").next().unwrap_or(name);
+            if let Ok(position) = names.binary_search(&leaf) {
+                named[position] = true;
+            }
+        }
+        names
+            .into_iter()
+            .zip(named)
+            .filter_map(|(name, named)| (!named).then_some(name))
+            .collect()
     }
 
     /// The declaration a reader demands as one unit for anything owned by
@@ -324,6 +366,18 @@ mod tests {
             program.deferred_refusal(holder).map(|row| row.request),
             Some(DeferredRequest::ReceiverCallSelection)
         );
+    }
+
+    #[test]
+    fn only_a_name_no_symbol_of_any_kind_has_names_nothing() {
+        let (program, _) = program();
+        // A machine, a state and a trait each have their name; an empty
+        // name was written by no one.
+        assert_eq!(
+            program.names_nothing_has(vec!["run", "nowhere", "holder", "", "Api", "nowhere"]),
+            ["nowhere"]
+        );
+        assert!(program.names_nothing_has(vec!["served", "call"]).is_empty());
     }
 
     #[test]

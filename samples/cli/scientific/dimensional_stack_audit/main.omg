@@ -1,7 +1,7 @@
 // With EOF, bounded input rejects explicitly.
 // Expected exit: 64.
 // Expected output contains: INVALID INPUT: expected profile 1..6 and ordered temperatures in [-100,100]
-use omega_language_std::console;
+use omega_language_std::Console;
 use model::audit;
 use data::profiles;
 use io::numbers;

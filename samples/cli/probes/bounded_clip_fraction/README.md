@@ -17,5 +17,5 @@ omega run samples/cli/independent/bounded_clip_fraction/main.omg
 
 Expected exit: 0.
 
-`invalid/` guards only the lower bound and must still reject: `difference >= 0.5`
+`../invalid_bounded_clip_fraction/` guards only the lower bound and must still reject: `difference >= 0.5`
 does not prove `difference <= 8`.

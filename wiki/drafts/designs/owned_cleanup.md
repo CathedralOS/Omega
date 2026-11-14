@@ -113,7 +113,7 @@ count of selections.
    generated cleanup calls in termination, effect and stack analysis.
 4. Keep an address-stable subject in place through transfer and partition.
 5. Admit source calls to a selected machine.
-6. Sweep `samples` and `tests/omega`, re-recording touched golden rows.
+6. Sweep `samples` and `tests/fixtures`.
 
 The encoded Terminal Psi fields for cleanup actions and decomposition evidence
 are settled with this implementation, as one coordinated semantic-format
@@ -136,7 +136,7 @@ change, so that a borrowed-cleanup row never acquires owned-transfer meaning.
   automatically; one with only a stored operation stays linear.
 
 Acceptance: these pass `omega run --both`, and no selected cleanup machine in
-`samples` or `tests/omega` takes its subject by reference.
+`samples` or `tests/fixtures` takes its subject by reference.
 
 ## Left open
 

@@ -11,9 +11,9 @@ use build_time_evaluation::provider_declarations::{
 };
 use provider_planning::target_supply::{
     PreparedTargetSupply, ReachedBoundaryRequirement, SettledTargetSupply, SupplyAuthority,
-    TargetSupplyRequest,
+    SupplyPlanning, TargetSupplyRequest,
 };
-use psi_compiler::{AcceptedTerminalSource, TerminalSourceCompilation};
+use psi_compiler::AcceptedTerminalSource;
 use std::sync::Arc;
 
 const TARGET: &str = "linux_x86_64";
@@ -42,9 +42,12 @@ fn package() -> semantic_vocabulary::PackageKeyIdentity {
 fn accepted(
     supplied: &str,
     program: &str,
-) -> (AcceptedTerminalSource, Vec<TargetProviderDefaults>) {
-    let (accepted, defaults, _) = judged(supplied, program);
-    (accepted, defaults)
+) -> (Arc<AcceptedTerminalSource>, Vec<TargetProviderDefaults>) {
+    let (source, defaults, roster) = judged(supplied, program);
+    (
+        roster.judge(source).expect("the exact roster accepts"),
+        defaults,
+    )
 }
 
 /// The same, with the roster the judgment accepted.
@@ -52,7 +55,7 @@ fn judged(
     supplied: &str,
     program: &str,
 ) -> (
-    AcceptedTerminalSource,
+    Arc<typed_trees::FrozenTypedTrees>,
     Vec<TargetProviderDefaults>,
     compilation_products::ProductRoster,
 ) {
@@ -116,25 +119,12 @@ fn judged(
         .expect("the program declares main")
         .symbol;
     let frozen: typed_trees::FrozenTypedTrees = typed.into();
-    let accepted = AcceptedTerminalSource::judge(
-        Arc::new(frozen),
-        TerminalSourceCompilation {
-            entries: &[entry],
-            subjects: &[Some(package())],
-            purpose: source::DependencyScope::Product,
-            selected: &[],
-            bindings: &[],
-            supplies: &[],
-        },
-        terminal_codec::TerminalPublication::Portable,
-    )
-    .unwrap_or_else(|refused| panic!("the route must accept the program: {refused:?}"));
     let roster = compilation_products::ProductRoster {
         entries: vec![entry],
         subject: Some(package()),
         ..Default::default()
     };
-    (accepted, defaults, roster)
+    (Arc::new(frozen), defaults, roster)
 }
 
 /// What a product of one target reads after its source is checked.
@@ -142,9 +132,18 @@ fn judged(
 struct Supplied {
     supply: PreparedTargetSupply,
     roster: compilation_products::ProductRoster,
-    /// The second judgment, when a target chose a provider the Product's
-    /// own roster did not name.
-    accepted: Option<Arc<AcceptedTerminalSource>>,
+    publication: Arc<compilation_products::ProductTerminalPublication>,
+    rejudged: bool,
+}
+
+impl Supplied {
+    fn accepted(&self) -> Option<&AcceptedTerminalSource> {
+        self.rejudged.then(|| {
+            self.publication
+                .accepted()
+                .expect("the actual publication accepted")
+        })
+    }
 }
 
 /// Target preparation for `program` as a product runs it: every provider a
@@ -162,29 +161,91 @@ fn supplied_on(
     target: &str,
     key: impl FnOnce(&mut Vec<TargetProviderDefaults>),
 ) -> Result<Supplied, String> {
-    let (accepted, mut defaults, roster) = judged(supplied, program);
+    let (source, mut defaults, roster) = judged(supplied, program);
     key(&mut defaults);
+    let original = Arc::new(
+        compilation_products::ProductTerminalPublication::judge(
+            source,
+            roster,
+            optimization_core::OptimizationSelections::default(),
+        )
+        .map_err(first)?,
+    );
     let product = compiler::judge_supplied_product(compiler::ProductSupplySource {
-        program: accepted.source(),
-        roster: &roster,
-        accepted: &accepted,
+        publication: Arc::clone(&original),
         build: &[],
         defaults: &defaults,
     })
     .map_err(first)?;
     let supply = compiler::prepare_supplied_target(compiler::TargetSupplySource {
-        roster: &product.roster,
-        accepted: product.accepted.as_deref().unwrap_or(&accepted),
+        publication: &product,
         build: &[],
         defaults: &defaults,
         target: Some(target),
     })
     .map_err(first)?;
+    let rejudged = !Arc::ptr_eq(&original, &product);
     Ok(Supplied {
         supply,
-        roster: product.roster,
-        accepted: product.accepted,
+        roster: product.roster().map_err(first)?.clone(),
+        publication: product,
+        rejudged,
     })
+}
+
+/// An accepted module cannot authenticate an extra supply that its roster
+/// never asked the checker to judge.
+#[test]
+fn a_publication_judges_its_exact_roster_including_predeclared_supplies() {
+    let declarations = format!(
+        "{SLOT}Native satisfies Service {{ machine go() reaches none crashes Trap {{ }} }}{NATIVE_DEFAULT}"
+    );
+    let (source, defaults, mut roster) = judged(&declarations, REACHES);
+    let original = compilation_products::ProductTerminalPublication::judge(
+        Arc::clone(&source),
+        roster.clone(),
+        optimization_core::OptimizationSelections::default(),
+    )
+    .unwrap();
+    let accepted = original.accepted().unwrap();
+    assert_eq!(accepted.module().boundary_machines.len(), 1);
+    assert_eq!(accepted.module().machines.len(), 1);
+    let (_, requirement) = source
+        .trait_machine_signatures
+        .iter()
+        .find(|(_, row)| row.name.as_str() == "go")
+        .unwrap();
+    let native = source
+        .conformances()
+        .iter()
+        .find(|row| {
+            row.alias
+                .as_ref()
+                .is_some_and(|name| name.as_str() == "Native")
+        })
+        .unwrap();
+    roster.supplies.push(psi_compiler::TerminalSourceSupply {
+        slot: requirement.symbol,
+        provider: native.symbol,
+    });
+    let error = compilation_products::ProductTerminalPublication::judge(
+        source,
+        roster,
+        optimization_core::OptimizationSelections::default(),
+    )
+    .unwrap_err();
+    let message = diagnostics::join_messages(&error);
+    assert!(message.contains("crash"), "{message}");
+    // The global queue must mint B's own publication too: A cannot stand in
+    // for the newly chosen provider's body and refinement obligations.
+    let error = compiler::judge_supplied_product(compiler::ProductSupplySource {
+        publication: Arc::new(original),
+        build: &[],
+        defaults: &defaults,
+    })
+    .unwrap_err();
+    let message = diagnostics::join_messages(&error);
+    assert!(message.contains("crash"), "{message}");
 }
 
 /// A second boundary trait whose provider reaches a third.
@@ -199,7 +260,7 @@ fn a_chosen_provider_is_judged_as_a_root_of_the_same_compilation() {
     let target = supplied_target(&format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"), REACHES)
         .expect("the provider refines the requirement");
     assert_eq!(target.roster.supplies.len(), 1);
-    let supplied = target.accepted.expect("the chosen provider was judged");
+    let supplied = target.accepted().expect("the chosen provider was judged");
     assert_eq!(supplied.module().machines.len(), 2);
     assert_eq!(target.supply.requirements().len(), 1);
 
@@ -209,7 +270,7 @@ fn a_chosen_provider_is_judged_as_a_root_of_the_same_compilation() {
     )
     .unwrap();
     assert!(unreached.roster.supplies.is_empty());
-    assert!(unreached.accepted.is_none());
+    assert!(unreached.accepted().is_none());
 }
 
 /// A provider that reaches a boundary requirement of its own has that
@@ -224,7 +285,7 @@ fn a_provider_that_reaches_a_requirement_has_its_supply_judged_too() {
     .expect("both providers refine their requirements");
     assert_eq!(target.roster.supplies.len(), 2);
     assert_eq!(target.supply.requirements().len(), 2);
-    let supplied = target.accepted.expect("the chosen providers were judged");
+    let supplied = target.accepted().expect("the chosen providers were judged");
     assert_eq!(supplied.module().machines.len(), 3);
 }
 
@@ -239,7 +300,7 @@ fn a_chosen_provider_that_does_not_refine_its_requirement_stops_the_program() {
     );
     assert_eq!(
         supplied_target(&stray, REACHES).unwrap_err(),
-        "not supported yet: declaration provider that does not give a supplied requirement exactly one machine; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong"
+        "not supported yet: declaration provider does not give the supplied requirement exactly one machine; the checker does not support this construct yet, so the program is refused, with no claim that it is wrong"
     );
     let crashing = format!(
         "{SLOT}{NATIVE_DEFAULT}Native satisfies Service {{\n    machine go() reaches none crashes Trap {{\n    }}\n}}\n"
@@ -249,7 +310,7 @@ fn a_chosen_provider_that_does_not_refine_its_requirement_stops_the_program() {
     assert!(
         supplied_target(&crashing, REACHES_NOTHING)
             .unwrap()
-            .accepted
+            .accepted()
             .is_none()
     );
 }
@@ -288,7 +349,7 @@ fn a_target_demands_what_its_own_chosen_providers_reach() {
     let declarations = format!("{REACHES_BOTH_OS}{NATIVE_DEFAULT}{OTHER_DEFAULT}{PER_TARGET}");
     let linux = supplied_on(&declarations, REACHES, "linux_x86_64", key_per_target)
         .expect("every requirement Linux reaches has a provider");
-    let module = linux.accepted.expect("the chosen providers were judged");
+    let module = linux.accepted().expect("the chosen providers were judged");
     assert_eq!(
         module.module().boundary_machines.len(),
         3,
@@ -319,12 +380,16 @@ fn a_target_demands_what_its_own_chosen_providers_reach() {
 /// nobody judged.
 #[test]
 fn a_chosen_provider_the_module_does_not_hold_is_refused() {
-    let (accepted, defaults, roster) =
-        judged(&format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"), REACHES);
+    let (source, defaults, roster) = judged(&format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"), REACHES);
+    let publication = compilation_products::ProductTerminalPublication::judge(
+        source,
+        roster,
+        optimization_core::OptimizationSelections::default(),
+    )
+    .unwrap();
     assert_eq!(
         compiler::prepare_supplied_target(compiler::TargetSupplySource {
-            roster: &roster,
-            accepted: &accepted,
+            publication: &publication,
             build: &[],
             defaults: &defaults,
             target: Some(TARGET),
@@ -386,6 +451,39 @@ fn profile() -> target::TargetProfile {
     target::TargetProfile::from_canonical_target_name(TARGET).expect("a hosted target")
 }
 
+/// The provider plans of `settled`, formed over the module and slot schemas
+/// of `accepted` as a product of the target forms them.
+fn plans(
+    accepted: &AcceptedTerminalSource,
+    settled: &SettledTargetSupply,
+) -> Result<Vec<backend_plan::TerminalTargetProviderPlan>, String> {
+    let schemas = compiler::settled_slot_schemas(accepted, settled);
+    settled
+        .plans(SupplyPlanning {
+            module: accepted.module(),
+            schemas: &schemas,
+        })
+        .map_err(first)
+}
+
+/// The selected execution a product of `profile` forms from `settled`.
+fn execution(
+    profile: Option<target::TargetProfile>,
+    accepted: &AcceptedTerminalSource,
+    settled: &SettledTargetSupply,
+) -> Result<selected_dispatch::SelectedExecution, String> {
+    let schemas = compiler::settled_slot_schemas(accepted, settled);
+    selected_dispatch::SelectedExecution::settle(
+        profile,
+        settled,
+        SupplyPlanning {
+            module: accepted.module(),
+            schemas: &schemas,
+        },
+    )
+    .map_err(first)
+}
+
 /// The Terminal artifact a product of the accepted source is checked on.
 fn produced(accepted: &AcceptedTerminalSource) -> Arc<terminal_codec::CanonicalTerminalArtifact> {
     let program = accepted
@@ -425,7 +523,7 @@ fn a_module_that_reaches_nothing_checks_against_its_settled_execution() {
         .unwrap()
         .settle()
         .unwrap();
-    let execution = selected_dispatch::SelectedExecution::settle(Some(profile()), &settled)
+    let execution = execution(Some(profile()), &accepted, &settled)
         .expect("a supply that demands nothing settles");
     assert_eq!(execution.target_profile(), Some(profile()));
     assert!(execution.plans().plans().is_empty());
@@ -456,30 +554,30 @@ fn a_module_that_reaches_nothing_checks_against_its_settled_execution() {
 }
 
 /// A second program with a different accepted module.
-fn accepted_other() -> (AcceptedTerminalSource, Vec<TargetProviderDefaults>) {
+fn accepted_other() -> (Arc<AcceptedTerminalSource>, Vec<TargetProviderDefaults>) {
     accepted(
         &format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"),
         "machine helper() {\n}\nmachine main() {\n    helper();\n}\n",
     )
 }
 
-/// The twin reaches the requirement, so its supply is chosen and no selected
-/// execution can be formed for the target: the only constructor refuses with
-/// the plan that cannot be formed, and no product can read a custody that
-/// was never settled.
+/// The twin reaches the requirement, so its supply is chosen, but it is read
+/// from the first judgment, which never judged the chosen provider. No
+/// selected execution can be formed for the target: the only constructor
+/// refuses with the plan that cannot be formed, and no product can read a
+/// custody that was never settled.
 #[test]
-fn a_reached_requirement_forms_no_selected_execution_without_its_plan() {
+fn a_reached_requirement_forms_no_selected_execution_without_its_judged_provider() {
     let (accepted, defaults) = accepted(&format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"), REACHES);
     let settled = prepare(&accepted, &[], &defaults)
         .unwrap()
         .settle()
         .unwrap();
     assert_eq!(
-        selected_dispatch::SelectedExecution::settle(Some(profile()), &settled)
-            .map(|execution| execution.plans().plans().len())
-            .map_err(first),
+        execution(Some(profile()), &accepted, &settled)
+            .map(|execution| execution.plans().plans().len()),
         Err(
-            "no product route yet: provider settlement for `linux_x86_64`: `Service::go` is supplied by `Native`, and no provider or calling plan can be formed for a selected provider on this route"
+            "provider settlement for `linux_x86_64`: `Service::go` is supplied by `Native`, which the accepted module does not hold as a judged provider"
                 .to_owned()
         )
     );
@@ -499,7 +597,7 @@ fn a_module_that_reaches_no_boundary_requirement_has_nothing_to_settle() {
     let prepared = prepare(&accepted, &[], &defaults).unwrap();
     assert!(prepared.demands_nothing());
     let settled = prepared.settle().unwrap();
-    assert_eq!(settled.plans(), Ok(Vec::new()));
+    assert_eq!(plans(&accepted, &settled), Ok(Vec::new()));
 }
 
 #[test]
@@ -511,7 +609,7 @@ fn unscoped_supply_keeps_pure_programs_targetless_and_refuses_provider_demands()
     let prepared = prepare_for_target(&accepted, &[], &defaults, None).unwrap();
     assert_eq!(prepared.target(), None);
     let settled = prepared.settle().unwrap();
-    let execution = selected_dispatch::SelectedExecution::settle(None, &settled).unwrap();
+    let execution = execution(None, &accepted, &settled).unwrap();
     assert_eq!(execution.target_profile(), None);
     let artifact = produced(&accepted);
     assert!(
@@ -522,7 +620,7 @@ fn unscoped_supply_keeps_pure_programs_targetless_and_refuses_provider_demands()
             )
             .is_none()
     );
-    assert!(selected_dispatch::SelectedExecution::settle(Some(profile()), &settled).is_err());
+    assert!(self::execution(Some(profile()), &accepted, &settled).is_err());
 
     let (reached, defaults) =
         self::accepted(&format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"), REACHES);
@@ -534,8 +632,9 @@ fn unscoped_supply_keeps_pure_programs_targetless_and_refuses_provider_demands()
 }
 
 /// The twin reaches the requirement. Preparation pairs it with the declared
-/// default, settlement chooses that default, and the plan of the chosen
-/// provider is refused by the requirement's and the provider's names.
+/// default and settlement chooses that default. Read from the first
+/// judgment, which holds no provider, the plan of the chosen provider is
+/// refused by the requirement's and the provider's names.
 #[test]
 fn a_reached_requirement_settles_to_its_one_declared_default() {
     let (accepted, defaults) = accepted(&format!("{SLOT}{PROVIDERS}{NATIVE_DEFAULT}"), REACHES);
@@ -559,11 +658,146 @@ fn a_reached_requirement_settles_to_its_one_declared_default() {
         "Native"
     );
     assert_eq!(
-        settled.plans().map_err(first),
+        plans(&accepted, &settled),
         Err(
-            "no product route yet: provider settlement for `linux_x86_64`: `Service::go` is supplied by `Native`, and no provider or calling plan can be formed for a selected provider on this route"
+            "provider settlement for `linux_x86_64`: `Service::go` is supplied by `Native`, which the accepted module does not hold as a judged provider"
                 .to_owned()
         )
+    );
+}
+
+/// A boundary trait with two requirements, and a provider of both. The
+/// programs below reach only `go`.
+const WHOLE_SLOT: &str = "public boundary trait Service {\n    machine go() reaches none crashes none;\n    machine stop() reaches none crashes none;\n}\ndata NativeDefaults {}\nNative satisfies Service {\n    machine go() reaches none crashes none {\n    }\n    machine stop() reaches none crashes none {\n    }\n}\n";
+
+/// The settled supply of `WHOLE_SLOT`'s provider for a program that reaches
+/// `go`, and the product whose module judged the provider.
+fn whole_slot() -> (
+    Arc<compilation_products::ProductTerminalPublication>,
+    SettledTargetSupply,
+) {
+    let target = supplied_target(&format!("{WHOLE_SLOT}{NATIVE_DEFAULT}"), REACHES)
+        .expect("the provider refines both requirements");
+    assert!(target.rejudged, "the chosen provider was judged");
+    let settled = target.supply.settle().expect("one default is chosen");
+    (target.publication, settled)
+}
+
+/// A chosen provider forms one plan for its whole slot. The program reaches
+/// only `go`, but the plan binds `stop` too, because a plan covers the
+/// slot's complete schema: the module declares both requirements and states
+/// the provider's candidate for each. The product's proposal joins the
+/// plan's rows to those candidates and installs the two machines the
+/// checker judged for the provider, and the produced program's target-local
+/// conditions check against it.
+#[test]
+fn a_chosen_provider_forms_one_plan_for_its_whole_slot() {
+    let (publication, settled) = whole_slot();
+    let accepted = publication
+        .accepted()
+        .expect("the product publication accepted");
+    assert_eq!(settled.requirements().len(), 1, "only `go` is reached");
+    let module = accepted.module();
+    assert_eq!(module.boundary_machines.len(), 2);
+    assert_eq!(module.provider_candidates.len(), 2);
+
+    let execution = execution(Some(profile()), accepted, &settled)
+        .expect("the chosen provider's plan covers its slot");
+    let [plan] = execution.plans().plans() else {
+        panic!("one provider is chosen: {:?}", execution.plans().plans());
+    };
+    assert_eq!(plan.provider_type, "Native");
+    assert_eq!(plan.target, TARGET);
+    let mut methods = plan
+        .rows
+        .iter()
+        .map(|row| row.method.as_str())
+        .collect::<Vec<_>>();
+    methods.sort_unstable();
+    assert_eq!(methods, ["go", "stop"]);
+
+    let artifact = produced(accepted);
+    let proposal = execution
+        .provider_proposal(
+            artifact.view(),
+            optimization_core::OptimizationSelections::default().identity(),
+        )
+        .expect("selected deployment retains its provider proposal");
+    let selection = proposal
+        .selection
+        .as_ref()
+        .expect("the plan's rows join the artifact's candidates");
+    let mut installed = selection
+        .checked_candidates
+        .iter()
+        .map(|installed| installed.candidate)
+        .collect::<Vec<_>>();
+    installed.sort_unstable();
+    let mut judged = accepted
+        .supplied_requirements()
+        .iter()
+        .map(|supplied| supplied.machine)
+        .collect::<Vec<_>>();
+    judged.sort_unstable();
+    assert_eq!(installed, judged);
+    assert_eq!(check_conditions(&artifact, &proposal), Ok(()));
+}
+
+/// The twins of the plan. A module that states no candidate of the provider
+/// for one requirement of the slot forms no plan, and the refusal names that
+/// requirement although the program never reaches it. A plan whose adapter
+/// rows name each other's machines is refused by the artifact's candidates:
+/// each row must name the machine stated for its own requirement.
+#[test]
+fn a_plan_is_refused_by_the_requirement_it_does_not_bind() {
+    let (publication, settled) = whole_slot();
+    let accepted = publication
+        .accepted()
+        .expect("the product publication accepted");
+    let schemas = compiler::settled_slot_schemas(accepted, &settled);
+    let reached = settled.requirements()[0].reached.boundary;
+    let mut missing = accepted.module().clone();
+    missing
+        .provider_candidates
+        .retain(|candidate| candidate.boundary == reached);
+    let refused = settled
+        .plans(SupplyPlanning {
+            module: &missing,
+            schemas: &schemas,
+        })
+        .map_err(first)
+        .unwrap_err();
+    assert!(
+        refused.contains("`Native` supplies `Service::stop` with no checked machine"),
+        "{refused}"
+    );
+
+    let mut crossed = plans(accepted, &settled).expect("the plan covers its slot");
+    let rows = &mut crossed[0].plan.rows;
+    let machines = rows
+        .iter()
+        .map(|row| match row.binding {
+            effects::provider_plan::ProviderBinding::CheckedAdapter {
+                machine_identity, ..
+            } => machine_identity,
+            _ => panic!("a checked provider's rows are checked adapters"),
+        })
+        .collect::<Vec<_>>();
+    for (row, machine) in rows.iter_mut().zip(machines.into_iter().rev()) {
+        if let effects::provider_plan::ProviderBinding::CheckedAdapter {
+            machine_identity, ..
+        } = &mut row.binding
+        {
+            *machine_identity = machine;
+        }
+    }
+    let artifact = produced(accepted);
+    let refused =
+        backend_plan::TerminalTargetProviderSelection::from_plans(crossed, artifact.view())
+            .unwrap_err();
+    assert!(
+        refused.contains("no emitted exact declaration candidate"),
+        "{refused}"
     );
 }
 

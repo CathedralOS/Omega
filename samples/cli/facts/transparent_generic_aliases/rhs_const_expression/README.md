@@ -6,7 +6,7 @@ The imported `Padded<const Count:u64>` authors `Count + 1u64` in its RHS.
 Supplying 3 gives the ordinary four-byte array carrier, observed through both
 alias and explicit annotations and shared array borrows. The retained 17/42
 values distinguish the first and last elements; a caller local `Count=17`
-must not capture the alias's declaration-owned formal. The invalid changes
+must not capture the alias's declaration-owned formal. The ../invalid_rhs_const_expression changes
 only the supplied argument 3 to the maximum u64, so ordinary Exact addition
 must reject instead of changing arithmetic policy or wrapping the extent.
 
