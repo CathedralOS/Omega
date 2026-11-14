@@ -1543,6 +1543,7 @@ impl<'t> Program<'t> {
             blocking: Some(signature.blocks),
         };
         lowered.termination = self.requirement_termination(id, signature)?;
+        self.retain_signature_view(signature);
         Ok(lowered)
     }
 
@@ -1584,7 +1585,15 @@ impl<'t> Program<'t> {
             blocking: Some(requirement.blocks),
         };
         signature.termination = self.requirement_termination(id, requirement)?;
+        self.retain_signature_view(requirement);
         Ok((signature, names))
+    }
+
+    fn retain_signature_view(&mut self, signature: &StateSignature) {
+        self.admitted_declarations.include(signature.symbol);
+        if !self.admitted_signature_views.contains(signature) {
+            self.admitted_signature_views.push(signature.clone());
+        }
     }
 
     fn read_callable_signature(

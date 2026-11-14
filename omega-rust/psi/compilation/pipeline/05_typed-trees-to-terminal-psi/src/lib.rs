@@ -623,6 +623,7 @@ fn capture_source_questions(
         program.typed,
         &program.admitted_declarations,
         &program.completed_operators,
+        &program.admitted_signature_views,
     )
     .map_err(|error| Refusal {
         machine: entry,

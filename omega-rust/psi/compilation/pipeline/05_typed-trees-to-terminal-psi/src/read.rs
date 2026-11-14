@@ -74,6 +74,9 @@ pub(crate) struct Program<'t> {
     pub(super) typed: &'t TypedTrees,
     /// Exact declarations admitted by this reader form, before source questions are captured.
     pub(crate) admitted_declarations: typed_trees::references::DeclarationSelection,
+    /// Applied signatures can share a declaration symbol while owning
+    /// different source expressions. Capture the views this reader formed.
+    pub(crate) admitted_signature_views: Vec<typed_trees::signature::StateSignature>,
     /// Choices made by this reader, prepared once before source admission.
     pub(crate) completed_operators: crate::selection_questions::CompletedOperators,
     /// The typed-tree machine of each discovered `MachineId`.
@@ -263,6 +266,7 @@ impl<'t> Program<'t> {
             type_purpose: storage_metadata::TypePurpose::Value,
             value_records: Vec::new(),
             admitted_declarations: typed_trees::references::DeclarationSelection::from_symbols([]),
+            admitted_signature_views: Vec::new(),
             completed_operators: crate::selection_questions::CompletedOperators::default(),
             symbols: IdTable::default(),
             signatures: IdTable::default(),

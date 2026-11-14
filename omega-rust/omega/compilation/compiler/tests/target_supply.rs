@@ -802,7 +802,37 @@ fn a_chosen_provider_forms_one_plan_for_its_whole_slot() {
     let [plan] = execution.plans().plans() else {
         panic!("one provider is chosen: {:?}", execution.plans().plans());
     };
-    assert_eq!(plan.provider_type, "Native");
+    let [choice] = module.provider_selections.as_slice() else {
+        panic!("the accepted source selected exactly one whole-slot provider");
+    };
+    assert_eq!(choice.target, TARGET);
+    let provider_identity = module
+        .identities
+        .text(choice.provider_identity)
+        .expect("the accepted choice retains its canonical provider identity");
+    assert_eq!(plan.provider_type, provider_identity);
+    assert_eq!(
+        plan.application_identity(),
+        choice.provider_application.map(|application| {
+            module
+                .identities
+                .text(application)
+                .expect("the accepted choice retains its exact provider application")
+        })
+    );
+    assert_eq!(plan.provider_type_package_identity, choice.provider_package);
+    assert!(module.provider_candidates.iter().all(|candidate| {
+        candidate.provider_identity == choice.provider_identity
+            && candidate.provider_declaration.identity() == choice.provider_declaration
+    }));
+    assert_eq!(
+        settled.requirements()[0]
+            .supply
+            .selection
+            .provider_type
+            .authored_path,
+        "Native"
+    );
     assert_eq!(plan.target, TARGET);
     let mut methods = plan
         .rows

@@ -1158,6 +1158,10 @@ pub trait TypedReferences: Extend<SymbolHandle> {
         visit_machine_value_dependencies(program, &mut CodeSelectionReferences(self), value);
     }
     fn callable_signature(&mut self, _: &crate::signature::StateSignature) {}
+    /// Whether to visit this exact source view, before reporting or walking it.
+    fn callable_signature_contents(&mut self, _: &crate::signature::StateSignature) -> bool {
+        true
+    }
     fn callable_contract(
         &mut self,
         _: crate::callable_values::RuntimeCallableContractHandle,
@@ -1239,6 +1243,12 @@ impl<References: TypedReferences> TypedReferences for CodeSelectionReferences<'_
     }
     fn callable_signature(&mut self, signature: &crate::signature::StateSignature) {
         self.0.callable_signature(signature);
+    }
+    fn callable_signature_contents(
+        &mut self,
+        signature: &crate::signature::StateSignature,
+    ) -> bool {
+        self.0.callable_signature_contents(signature)
     }
     fn callable_contract(
         &mut self,
@@ -3117,6 +3127,9 @@ pub fn visit_signature(
     retained: &mut impl TypedReferences,
     signature: &crate::signature::StateSignature,
 ) {
+    if !retained.callable_signature_contents(signature) {
+        return;
+    }
     retained.callable_signature(signature);
     retained.enter_lexical_scope(signature.symbol);
     visit_constant_evaluation_entries(program, retained, signature.symbol);

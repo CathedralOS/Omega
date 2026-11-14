@@ -217,6 +217,7 @@ struct Capture<'a> {
     typed: &'a TypedTrees,
     admitted: &'a DeclarationSelection,
     completed_operators: &'a CompletedOperators,
+    signature_views: &'a [typed_trees::signature::StateSignature],
     output: RawSelectionQuestions,
     owner: SymbolHandle,
     scopes: Vec<SymbolHandle>,
@@ -641,6 +642,19 @@ impl TypedReferences for Capture<'_> {
     fn callable_signature(&mut self, signature: &typed_trees::signature::StateSignature) {
         self.seen_signatures.insert(signature.symbol);
     }
+    fn callable_signature_contents(
+        &mut self,
+        signature: &typed_trees::signature::StateSignature,
+    ) -> bool {
+        let mut views = self
+            .signature_views
+            .iter()
+            .filter(|view| view.symbol == signature.symbol);
+        match views.next() {
+            Some(first) => first == signature || views.any(|view| view == signature),
+            None => true,
+        }
+    }
     fn enter_lexical_scope(&mut self, owner: SymbolHandle) {
         self.scopes.push(self.owner);
         if self.valid_symbol(owner, "lexical scope owner") {
@@ -907,6 +921,7 @@ pub(crate) fn capture(
     typed: &TypedTrees,
     admitted: &DeclarationSelection,
     completed_operators: &CompletedOperators,
+    signature_views: &[typed_trees::signature::StateSignature],
 ) -> Result<RawSelectionQuestions, SelectionCaptureError> {
     let roots = admitted.explicit_symbols().ok_or_else(|| {
         SelectionCaptureError(
@@ -925,6 +940,7 @@ pub(crate) fn capture(
         typed,
         admitted,
         completed_operators,
+        signature_views,
         output: RawSelectionQuestions {
             declarations: roots.to_vec(),
             ..RawSelectionQuestions::default()
@@ -944,6 +960,14 @@ pub(crate) fn capture(
         next_authored_symbol: None,
         error: None,
     };
+    // A prepared application retains its declaration symbol but has its own
+    // parameter and clause handles. Visit that actual read before considering
+    // declaration-wide traversal or the standalone-signature fallback.
+    for signature in signature_views {
+        if capture.declaration(signature.symbol) {
+            typed_trees::references::visit_signature(typed, &mut capture, signature);
+        }
+    }
     typed_trees::references::visit_program(typed, &mut capture);
     // Some logical forms admit one stored signature rather than its entire
     // declaring trait. The root filter is still the reader's exact inventory.
@@ -1126,6 +1150,7 @@ mod tests {
             &typed,
             &DeclarationSelection::from_symbols([a]),
             &CompletedOperators::default(),
+            &[],
         )
         .unwrap();
         assert_eq!(captured.declarations, vec![a]);
@@ -1148,6 +1173,7 @@ mod tests {
             &typed,
             &DeclarationSelection::from_symbols([a, b]),
             &CompletedOperators::default(),
+            &[],
         )
         .unwrap_err();
         assert!(refused.to_string().contains("CheckedMember"), "{refused}");
@@ -1264,6 +1290,7 @@ mod tests {
                 &typed,
                 &DeclarationSelection::from_symbols([a]),
                 &CompletedOperators::default(),
+                &[],
             )
             .unwrap();
             let calls = captured
@@ -1306,6 +1333,7 @@ mod tests {
             &typed,
             &DeclarationSelection::from_symbols([a]),
             &CompletedOperators::default(),
+            &[],
         )
         .unwrap_err();
         assert!(refused.to_string().contains("CheckedCall"), "{refused}");
@@ -1320,6 +1348,7 @@ mod tests {
             &typed,
             &DeclarationSelection::from_symbols([a]),
             &CompletedOperators::default(),
+            &[],
         )
         .unwrap_err();
         assert!(
@@ -1370,7 +1399,7 @@ mod tests {
         let admitted = DeclarationSelection::from_symbols([a]);
         let mut answers = CompletedOperators::default();
         assert!(
-            capture(&typed, &admitted, &answers)
+            capture(&typed, &admitted, &answers, &[])
                 .unwrap_err()
                 .to_string()
                 .contains("CheckedOperator")
@@ -1378,14 +1407,14 @@ mod tests {
         answers.record_builtin(&typed, b, expression).unwrap();
         answers.finish();
         assert!(
-            capture(&typed, &admitted, &answers)
+            capture(&typed, &admitted, &answers, &[])
                 .unwrap_err()
                 .to_string()
                 .contains("CheckedOperator")
         );
         answers.record_builtin(&typed, a, expression).unwrap();
         answers.finish();
-        let captured = capture(&typed, &admitted, &answers).unwrap();
+        let captured = capture(&typed, &admitted, &answers, &[]).unwrap();
         assert!(
             captured
                 .questions
@@ -1408,14 +1437,14 @@ mod tests {
             .insert_statements([StatementNode::Expression(copied)]);
         typed.machine_states.get_mut(state).statement_nodes = copied_body;
         assert!(
-            capture(&typed, &admitted, &answers)
+            capture(&typed, &admitted, &answers, &[])
                 .unwrap_err()
                 .to_string()
                 .contains("CheckedOperator")
         );
         answers.record_builtin(&typed, a, copied).unwrap();
         answers.finish();
-        capture(&typed, &admitted, &answers).unwrap();
+        capture(&typed, &admitted, &answers, &[]).unwrap();
 
         // Neither a new occurrence nor an explicit declaration choice inherits it.
         let other = typed
@@ -1431,7 +1460,7 @@ mod tests {
             .expression_table
             .attach_authored_selection_occurrences(copied, [other]);
         assert!(
-            capture(&typed, &admitted, &answers)
+            capture(&typed, &admitted, &answers, &[])
                 .unwrap_err()
                 .to_string()
                 .contains("CheckedOperator")
