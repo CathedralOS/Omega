@@ -238,7 +238,7 @@ pub struct MachineDischarge {
     /// Each loan that may not be formed, with what it conflicts with. Its
     /// row's verdict is the `Conflict` refusal.
     pub conflicts: Vec<places::ConflictingLoan>,
-    /// The authored arms no arrival can take (`impossible_arms`), for the
+    /// The authored arms no arrival can take (`branch_warnings`), for the
     /// advisory warning about them. Nothing is decided by them.
     pub impossible: Vec<ImpossibleArm>,
 }
@@ -249,9 +249,9 @@ pub struct MachineDischarge {
 /// checked contradiction between valid premises can establish that a
 /// particular arrival is impossible", and "issue an unreachable-branch
 /// warning when an authored branch contradicts its machine's entry contract
-/// or established source facts". `premises` is a minimal set of the facts
-/// before the branch that the condition contradicts, the condition itself
-/// left out.
+/// or established source facts". `premises` names the facts cited by the
+/// accepted refutation, in authored order with the incoming condition itself
+/// left out. It need not be a minimal explanation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ImpossibleArm {
     pub block: BlockId,
@@ -667,20 +667,16 @@ fn machine(
         });
         decided[index] = Some(verdict);
     }
-    let mut verdicts: IdTable<ObligationId, Checked<Discharged>> = IdTable::default();
-    for ((obligation, row), verdict) in tables.obligations.iter().zip(&decided) {
-        verdicts.push(match (verdict, row.kind) {
-            (Some(verdict), _) => verdict.clone(),
-            (None, ObligationKind::PublishedGuarantee { clause }) => {
-                published(tables, id, obligation, clause, &decided)
-            }
-            (None, _) => Err(refusal(
-                RefusalReason::Unsupported,
-                id,
-                Construct::Obligation(obligation),
-                "obligation left undecided",
-            )),
-        });
+    // Published guarantees read normal-return verdicts, so finish that last
+    // dependency pass before moving any certificate out of this table. Once
+    // it is complete, settlement owns each result; no duplicate proof tree
+    // or intermediate verdict table is needed.
+    for (index, (obligation, row)) in tables.obligations.iter().enumerate() {
+        if decided[index].is_none()
+            && let ObligationKind::PublishedGuarantee { clause } = row.kind
+        {
+            decided[index] = Some(published(tables, id, obligation, clause, &decided));
+        }
     }
     // A store or a zero establishment that was not shown to keep a clause
     // does not fail: it opens an invariant window, and the clause is owed
@@ -690,9 +686,17 @@ fn machine(
     let mut windows: Vec<places::Window> = Vec::new();
     let mut restoring: Vec<(places::Owner, OperationId)> = Vec::new();
     let mut settled = IdTable::default();
-    for ((obligation, row), (_, verdict)) in tables.obligations.iter().zip(verdicts.iter()) {
+    for ((obligation, row), verdict) in tables.obligations.iter().zip(decided) {
+        let verdict = verdict.unwrap_or_else(|| {
+            Err(refusal(
+                RefusalReason::Unsupported,
+                id,
+                Construct::Obligation(obligation),
+                "obligation left undecided",
+            ))
+        });
         let ObligationKind::DataDomain { operation, clause } = row.kind else {
-            settled.push(verdict.clone());
+            settled.push(verdict);
             continue;
         };
         let concerns = Construct::Obligation(obligation);
@@ -701,9 +705,9 @@ fn machine(
         settled.push(match verdict {
             // data_and_literals.md: "Construction and every restoring write
             // prove the owning default-domain clauses."
-            Ok(Discharged::Certificate(_)) if stores => {
+            Ok(Discharged::Certificate(evidence)) if stores => {
                 restoring.push((storage.owner(operation, clause, concerns)?, operation));
-                verdict.clone()
+                Ok(Discharged::Certificate(evidence))
             }
             Err(unproved)
                 if matches!(unproved.reason, RefusalReason::Unproved(_)) && (stores || zeroes) =>
@@ -719,10 +723,10 @@ fn machine(
                         initial: zeroes,
                         restored: Vec::new(),
                     });
-                    Ok(Discharged::Window(Box::new(unproved.clone())))
+                    Ok(Discharged::Window(Box::new(unproved)))
                 }
             }
-            verdict => verdict.clone(),
+            verdict => verdict,
         });
     }
     for window in &mut windows {
