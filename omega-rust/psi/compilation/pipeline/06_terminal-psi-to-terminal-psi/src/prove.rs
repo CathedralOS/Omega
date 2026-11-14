@@ -2120,6 +2120,13 @@ impl<'a> Prover<'a> {
                     Direction::Lower => order == Some(Ordering::Greater),
                 }
             });
+        #[cfg(test)]
+        if std::env::var_os("OMEGA_FORMATION_TRACE").is_some() {
+            eprintln!(
+                "AFFINE stronger={stronger} related={:?} interval={:?}",
+                related.conclusion, interval.conclusion
+            );
+        }
         Ok(if stronger { related } else { interval })
     }
 
@@ -2175,14 +2182,18 @@ impl<'a> Prover<'a> {
                         witness.definition_axioms.push(index);
                         witness.literal_axioms.push(None);
                     }
-                    let Ok(form) =
-                        check_integer_affine_witness(self.context, self.axioms, &witness)
-                    else {
-                        continue;
-                    };
-                    let Ok(conclusion) = map_integer_affine_bound(&form, &fact.proposition) else {
-                        continue;
-                    };
+                    let form = check_integer_affine_witness(self.context, self.axioms, &witness);
+                    #[cfg(test)]
+                    if std::env::var_os("OMEGA_FORMATION_TRACE").is_some() {
+                        eprintln!("AFFINE witness={witness:?} form={form:?}");
+                    }
+                    let Ok(form) = form else { continue };
+                    let conclusion = map_integer_affine_bound(&form, &fact.proposition);
+                    #[cfg(test)]
+                    if std::env::var_os("OMEGA_FORMATION_TRACE").is_some() {
+                        eprintln!("AFFINE conclusion={conclusion:?}");
+                    }
+                    let Ok(conclusion) = conclusion else { continue };
                     let (actual, limit, endpoint) = match (&conclusion, direction) {
                         (Proposition::IntegerMathLessOrEqual(actual, limit), Direction::Upper) => {
                             (actual, limit, 0)
@@ -2202,11 +2213,13 @@ impl<'a> Prover<'a> {
                     };
                     // Commuting the operands must itself have checked evidence.
                     // This also rejects an image for a different expression.
-                    let Some(equality) =
-                        self.closed(Proposition::IntegerMathEqual(actual.clone(), term.clone()))
-                    else {
-                        continue;
-                    };
+                    let equality =
+                        self.closed(Proposition::IntegerMathEqual(actual.clone(), term.clone()));
+                    #[cfg(test)]
+                    if std::env::var_os("OMEGA_FORMATION_TRACE").is_some() {
+                        eprintln!("AFFINE equality={equality:?} actual={actual:?} term={term:?}");
+                    }
+                    let Some(equality) = equality else { continue };
                     let image = node(
                         conclusion,
                         ProofRule::IntegerAffineBound {
