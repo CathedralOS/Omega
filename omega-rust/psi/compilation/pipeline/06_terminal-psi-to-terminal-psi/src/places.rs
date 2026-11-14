@@ -3129,6 +3129,74 @@ pub(crate) struct AtCall<'s, 'a> {
     concerns: Construct,
 }
 
+impl AtCall<'_, '_> {
+    fn actual(
+        &self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<Lineage, crate::Unbound> {
+        // The callee's root is one of its record formals; the actual is the
+        // place at the same position of the structural lane.
+        let actual = self
+            .callee_formals
+            .iter()
+            .find(|parameter| parameter.place == root)
+            .and_then(|parameter| usize::try_from(parameter.position).ok())
+            .and_then(|position| self.places.get(position))
+            .ok_or(crate::Unbound::Unsupported(
+                "clause names storage that is no record formal of the callee",
+            ))?;
+        extended(actual.clone(), path)
+    }
+
+    /// Fields and descriptor metadata both name the actual's reaching
+    /// content immediately before this call. An earlier observation of a
+    /// replaced descriptor cannot supply the callee's requirement.
+    fn observation(
+        &self,
+        leaf: Lineage,
+        scalar_type: ScalarType,
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        let storage = self.storage;
+        if !matches!(
+            storage
+                .shape(&leaf, self.concerns)
+                .map_err(crate::Unbound::Refused)?,
+            Shape::Scalar(_)
+        ) {
+            return Err(crate::Unbound::Unsupported(
+                "clause names storage that is no scalar observation of the actual",
+            ));
+        }
+        let mut budget = storage.budget();
+        let Reached::Value(held) = storage
+            .reaching(
+                self.tables,
+                Asked::Contents(&leaf),
+                self.block,
+                self.up_to,
+                &mut budget,
+                self.concerns,
+            )
+            .map_err(crate::Unbound::Refused)?
+        else {
+            return Err(crate::Unbound::Unproved(
+                "the actual's observation has no reaching value identity at the call",
+            ));
+        };
+        let held_type =
+            terminal_check_tables::row(&self.tables.values, held, storage.machine, self.concerns)
+                .map_err(crate::Unbound::Refused)?
+                .scalar_type;
+        if held_type != scalar_type {
+            return Err(crate::Unbound::Unsupported(
+                "an actual's observation holds a value of another type than its clause term",
+            ));
+        }
+        Ok(ScalarTerm::value(held, scalar_type))
+    }
+}
+
 impl crate::Bindings for AtCall<'_, '_> {
     type Error = crate::Unbound;
     fn value(
@@ -3145,55 +3213,18 @@ impl crate::Bindings for AtCall<'_, '_> {
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, crate::Unbound> {
-        // The callee's root is one of its record formals; the actual is the
-        // place at the same position of the structural lane.
-        let actual = self
-            .callee_formals
-            .iter()
-            .find(|parameter| parameter.place == root)
-            .and_then(|parameter| usize::try_from(parameter.position).ok())
-            .and_then(|position| self.places.get(position))
-            .ok_or(crate::Unbound::Unsupported(
-                "clause names storage that is no record formal of the callee",
-            ))?;
-        let leaf = extended(actual.clone(), path)?;
-        let storage = self.storage;
-        if !matches!(
-            storage
-                .shape(&leaf, self.concerns)
-                .map_err(crate::Unbound::Refused)?,
-            Shape::Scalar(_)
-        ) {
-            return Err(crate::Unbound::Unsupported(
-                "clause names storage that is no scalar field of the actual",
-            ));
-        }
-        let mut budget = storage.budget();
-        let Reached::Value(held) = storage
-            .reaching(
-                self.tables,
-                Asked::Contents(&leaf),
-                self.block,
-                self.up_to,
-                &mut budget,
-                self.concerns,
-            )
-            .map_err(crate::Unbound::Refused)?
-        else {
-            return Err(crate::Unbound::Unproved(
-                "a field of the record actual the clause names holds no value identity at the call",
-            ));
-        };
-        let held_type =
-            terminal_check_tables::row(&self.tables.values, held, storage.machine, self.concerns)
-                .map_err(crate::Unbound::Refused)?
-                .scalar_type;
-        if held_type != scalar_type {
-            return Err(crate::Unbound::Unsupported(
-                "an actual's field holds a value of another type than its clause term",
-            ));
-        }
-        Ok(ScalarTerm::value(held, scalar_type))
+        self.observation(self.actual(root, path)?, scalar_type)
+    }
+
+    fn extent(
+        &mut self,
+        root: PlaceId,
+        path: &[CanonicalStructuralPathSegment],
+        scalar_type: semantic_vocabulary::IntegerType,
+    ) -> Result<ScalarTerm, crate::Unbound> {
+        let mut leaf = self.actual(root, path)?;
+        leaf.segments.push(Segment::Extent);
+        self.observation(leaf, ScalarType::Integer(scalar_type))
     }
 
     fn case(
