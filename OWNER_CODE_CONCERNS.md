@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### MSVC refuses an existing 266-character managed dependency path
+- Category: verifying costs more than writing
+- Where: mbx 1.29.2 managed targets (`target.views` / `target.lanes`), [tools/docs/testing.md:537](tools/docs/testing.md#L537)
+- Saw: worker-18's focused `mbx test -p machine-emission --lib` compiled its source, then failed linking with LNK1104 on the stage-07 dependency rlib. The file exists and opens through .NET. MSVC's own `/dump /headers` fails on its 266-character managed path (1104) and succeeds on the same file's 209-character checkout alias (0). A command-local `MBX_TARGET_VIEWS=false` retry still supplied the retained long dependency path; no target cleanup or global settings change was requested.
+- Cost: a compiled focused test never executes, and a plain retry repeats the same infrastructure failure. Repair or isolate the long-path publication route without cleaning shared caches or changing settings of live peer builds.
+- Reported: 2026-11-14, Codex, while removing default native stage-output replay
+
 ### The standard library declares two public things named `DarwinClock`
 - Category: one idea, several implementations
 - Where: [source/library/std/macos_gui.omg:586](source/library/std/macos_gui.omg#L586) (`public boundary trait DarwinClock`) and [source/library/std/targets/macos_arm64/clock_impl.omg:26](source/library/std/targets/macos_arm64/clock_impl.omg#L26) (`public DarwinClock satisfies Clock`)
@@ -225,13 +232,6 @@ framework or a list of features that remain unimplemented.
 - Where: `omega-rust/omega/compilation/compiler/src/product_boundary.rs`, `omega-rust/omega/build-system/orchestration/src/build_boundary.rs`, `omega-rust/omega/compilation/native-compiler/src/pipeline_boundary.rs`, `omega-rust/omega/compilation/realization/provider-planning/src/source_guards.rs`, `omega-rust/omega/compilation/backend/plans/program-entry-plan/src/source_guards.rs`, `omega-rust/psi/foundation/access-plans/src/tests.rs`, `omega-rust/psi/interpreter/terminal-interpreter/src/embedding.rs`
 - Saw: these tests assert that source strings are present, absent or ordered, rather than exercise the owned operation or dependency boundary. The compiler guards pinned fields of the deleted custody and had to lose those assertions when it was removed; they never established that custody had a producer. The stage-05 guards themselves are gone.
 - Cost: harmless renaming breaks tests while equivalent forbidden behavior can pass under another spelling. Move actual dependency rules to the boundary checker and use behavior tests for custody and execution claims; do not mechanically preserve old strings or test totals.
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### `pipeline.md` says the default compile runs no stage validators; two run, and one stage header misdescribes its own
-- Category: the documents disagree
-- Where: `omega-rust/pipeline.md:66-68` and `:91-93`; `omega-rust/omega/compilation/backend/machine-emission/src/exit_contract.rs:153` and `:205-222`; `omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding/src/lib.rs:45-47` against `.../src/validation.rs:630`, `:639` and `.../src/row_encoding.rs:661`, `:670`
-- Saw: `stage_whole_function_exit_contract_for_layout`, reached from `native-compiler/src/pipeline.rs`, calls the stage 08 and stage 09 validators, and the stage 08 header says so; the stage 07 header says its replay "never calls the producer's route table or encoders", yet it calls the same dynamic-call template encoders the producer calls. The former corpus-runner comparison is no longer a consumer.
-- Cost: an agent can cite the document to remove the stage 08 and 09 checks or to add more, and cannot tell from headers which checks are separate work and which reuse the producer
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### Typing refuses its own questions as if they waited for the checker

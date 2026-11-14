@@ -13,6 +13,7 @@ and [stack provisioning](../../../../../wiki/spec/resources/storage.md).
 
 [Fixed-frame realization](src/function_realization.rs) is the
 common entrance for admitted allocation histories, including identity execution.
+
 It reads the current allocation as produced, derives frame evidence,
 performs selected-form encoding and baseline layout, executes the phase-local
 layout selection, and stages the whole-function exit contract. The retained
@@ -20,18 +21,24 @@ result owns all replay inputs. Its validator reconstructs their complete join
 for retained-artifact readers and tests; the stage does not run it on what it
 just produced, and it does not select another machine or rerun allocation.
 
+Layout and exit-contract producers compute their results once. Their separate
+validators serve explicit checks, retained-artifact readers and tests; assembling
+a function does not replay the layout or exit record it just produced. ABI,
+frame and exact-input identity joins remain part of construction. This separation
+does not remove the final-artifact machine-state admission obligation.
+
 Within one fixed-frame validation, exit-record checking reuses the layout replay
 already performed against the same immutable inputs. Encoding remains checked
 against the actual frame, and layout remains checked against the source's phase
-selections. Public exit admission still replays its complete input; no result is
-cached across invocations or substituted artifacts.
+selections. Every requested replay reads its complete input; no result is cached
+across invocations or substituted artifacts.
 
 Encoding and layout are separate pipeline transforms. Target-owned encoders
 produce bytes; independent validation uses target-owned decoders and exact
 instruction effects. Layout binds labels, canonical order, spans, offsets,
 fixups, predicates, and taken/fallthrough successors. An x86 relative branch uses
 its instruction end as displacement origin; AArch64 uses the instruction
-address. Relaxation consumes a complete validated baseline and retains both
+address. Relaxation consumes a complete staged baseline and retains both
 baseline and selected layout evidence. An instruction rule must not hand-assemble
 bytes or derive semantic authority from a size estimate.
 
