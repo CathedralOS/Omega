@@ -82,6 +82,13 @@ pub enum Segment {
     /// value never changes, a later write to the selector's source names a
     /// different value and therefore a different place.
     RuntimeIndex { selector: ValueId },
+    /// The descriptor's current extent, a scalar observation of its
+    /// contents. This is metadata, not a physical field or another owner.
+    /// byte_views.md: "a validated length observation of a machine or block
+    /// parameter equals that exact parameter's `ViewExtent`".
+    /// Replacing any ancestor descriptor replaces this observation's
+    /// reaching content, just as a store replaces a scalar field's.
+    Extent,
 }
 
 /// One write, in program order: within a block, `WriteId`s increase in

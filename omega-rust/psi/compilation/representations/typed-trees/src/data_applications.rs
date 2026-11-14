@@ -156,9 +156,12 @@ impl<'source> ApplicationPreparation<'source> {
             return Ok(true);
         }
         if lifetimes != 0
-            || parameters
-                .iter()
-                .any(|parameter| !matches!(parameter.kind, TypeParameterKind::Type))
+            || parameters.iter().any(|parameter| {
+                !matches!(
+                    parameter.kind,
+                    TypeParameterKind::Type | TypeParameterKind::Const { .. }
+                )
+            })
         {
             return Ok(false);
         }
@@ -187,7 +190,31 @@ impl<'source> ApplicationPreparation<'source> {
             {
                 return Err("data application refers to a missing type reference".into());
             }
-            substitutions.push((parameter.symbol, argument));
+            // Keep the authored application untouched, including a literal's
+            // carrier. Its member types need the canonical integer value so
+            // array extents substitute identically for both literal encodings.
+            let substituted = if matches!(parameter.kind, TypeParameterKind::Const { .. }) {
+                self.source
+                    .static_const_literal_from_type_reference(argument)
+                    .and_then(|literal| {
+                        literal
+                            .value_i64()
+                            .map(i128::from)
+                            .or_else(|| literal.value_u64().map(i128::from))
+                    })
+                    .map(|value| {
+                        self.source
+                            .type_reference_table
+                            .insert(TypeReferenceNode::Named {
+                                symbol: SymbolHandle::invalid(),
+                                name: crate::name::Identifier::generated(value.to_string()),
+                            })
+                    })
+                    .unwrap_or(argument)
+            } else {
+                argument
+            };
+            substitutions.push((parameter.symbol, substituted));
         }
         // Normalized source references remain immutable while this owner
         // appends their views. Reuse that exact association, not a second
@@ -199,8 +226,15 @@ impl<'source> ApplicationPreparation<'source> {
             return Ok(self.source.data_application_is_closed(reference));
         }
         let mut closed = true;
-        for (_, argument) in &substitutions {
-            closed &= self.reference(*argument)?;
+        for (parameter, (_, argument)) in parameters.iter().zip(&substitutions) {
+            closed &= match parameter.kind {
+                TypeParameterKind::Type => self.reference(*argument)?,
+                TypeParameterKind::Const { .. } => self
+                    .source
+                    .static_const_literal_from_type_reference(*argument)
+                    .is_some(),
+                _ => false,
+            };
         }
         let mut definition = template.clone();
         definition.type_parameters = HandleSpan::empty();

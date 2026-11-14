@@ -603,13 +603,12 @@ pub(crate) mod expression {
                     ) -> Result<typed::expression::ExpressionHandle, Diagnostic>
                     {
                         let subject = self.lower_value(dispatch.subject)?;
-                        let capture = if dispatch.capture.is_valid() {
-                            self.target().insert_match_subject(subject)
-                        } else {
-                            Handle::invalid()
-                        };
+                        // Even a fieldless case match owns one completed
+                        // subject for dispatch and cleanup. Resolution needs a
+                        // saved-subject name only when an arm refers to it.
+                        let capture = self.target().insert_match_subject(subject);
                         let outer_captures = self.match_captures.len();
-                        if capture.is_valid() {
+                        if dispatch.capture.is_valid() {
                             self.match_captures.push((dispatch.capture, capture));
                         }
                         let lowered = (|| {

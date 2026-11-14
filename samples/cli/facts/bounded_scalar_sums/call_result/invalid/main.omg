@@ -5,7 +5,12 @@ machine supply(value: u64) -> u64 {
     value
 }
 
-machine add(left: u64, right: u64) -> u64 {
+// `requires true` insists on every u64 input: a private machine that omits
+// `requires` would infer the bound its sum needs from its callers instead
+// (state_contracts.md, "Private entry inference").
+machine add(left: u64, right: u64) -> u64
+    requires true
+{
     supply(left) + supply(right)
 }
 

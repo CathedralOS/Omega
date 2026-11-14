@@ -120,16 +120,19 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
     }
     assert_ne!(source, original);
     let frontier = unbuilt_frontier::staged_frontier("failed_actual_refinement", &source);
+    let typed = std::sync::Arc::new(frontier.typed);
+    let subjects = [frontier.subject];
+    let compilation = || typed_trees_to_terminal_psi::Compilation {
+        entries: &frontier.entries,
+        subjects: &subjects,
+        purpose: source::DependencyScope::Product,
+        selected: &frontier.selected,
+        bindings: &frontier.bindings,
+        supplies: &[],
+    };
     let prepared = match typed_trees_to_terminal_psi::prepare_compilation(
-        &frontier.typed,
-        typed_trees_to_terminal_psi::Compilation {
-            entries: &frontier.entries,
-            subjects: &[frontier.subject],
-            purpose: source::DependencyScope::Product,
-            selected: &frontier.selected,
-            bindings: &frontier.bindings,
-            supplies: &[],
-        },
+        &typed,
+        compilation(),
         terminal_codec::TerminalPublication::Portable,
     )
     .program
@@ -172,13 +175,19 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
         4,
         "closure, generic form and both actual witnesses"
     );
+    assert!(
+        matches!(verdicts.first(), Some(Ok(RouteVerdict::Accepted(_)))),
+        "the first closure's conditional proofs do not admit the failed actual witness"
+    );
     let mut accepted = 0;
     let mut rejected = 0;
+    let mut failed_witness_diagnostics = Vec::new();
     for verdict in &verdicts[2..] {
         match verdict {
             Ok(RouteVerdict::Accepted(_)) => accepted += 1,
             Ok(RouteVerdict::Rejected {
                 formations,
+                violations,
                 unproved,
                 unestablished,
                 conflicts,
@@ -186,6 +195,7 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
             }) => {
                 assert!(
                     formations.is_empty()
+                        && violations.is_empty()
                         && unestablished.is_empty()
                         && conflicts.is_empty()
                         && exceeded.is_empty()
@@ -204,12 +214,34 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
                         UnprovedCause::ReturnDoesNotEstablish
                     )
                 )));
+                failed_witness_diagnostics.extend(
+                    unproved
+                        .iter()
+                        .map(|refusal| refusal.reject_diagnostic().message),
+                );
                 rejected += 1;
             }
             other => panic!("the actual witness must be judged, not omitted: {other:?}"),
         }
     }
     assert_eq!((accepted, rejected), (1, 1));
+
+    // Publication must refuse the same source even if its first closure
+    // passed: an actual selected member's failed witness remains decisive.
+    let refused = psi_compiler::AcceptedTerminalSource::judge(
+        typed,
+        compilation(),
+        terminal_codec::TerminalPublication::Portable,
+    )
+    .expect_err("normal admission must not publish a closure with a failed actual witness");
+    for message in failed_witness_diagnostics {
+        assert!(
+            refused
+                .iter()
+                .any(|diagnostic| diagnostic.message == message),
+            "normal admission must retain the actual witness refusal: {message}; got {refused:?}"
+        );
+    }
 }
 
 /// A value parameter, with an implementation parameter beside it:

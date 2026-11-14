@@ -517,7 +517,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         i += 1;
     }
 
-    let root = repo_root();
+    let root = repo_root()?;
     let since_epoch = if full_session {
         None
     } else {

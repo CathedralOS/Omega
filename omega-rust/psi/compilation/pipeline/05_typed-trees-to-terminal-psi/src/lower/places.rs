@@ -522,6 +522,7 @@ fn expression_homes<'b>(
         | ExpressionKind::Requalify(operand)
         | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::Field { base: operand, .. }
+        | ExpressionKind::CollectionMeasure { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {
             subject: operand, ..
@@ -866,6 +867,24 @@ impl<'a> Lowering<'a> {
                 }
                 if let StorageShape::PrimitiveScalar { scalar_type, .. } = data.shape {
                     return self.entry_content(place, scalar_type).map(drop);
+                }
+                if matches!(
+                    data.shape,
+                    StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(
+                            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                        ),
+                    })
+                ) {
+                    let extent = self.project(place, Segment::Extent)?;
+                    let scalar_type = ScalarType::Integer(
+                        semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned,
+                            64,
+                        )
+                        .expect("u64 is valid"),
+                    );
+                    return self.entry_content(extent, scalar_type).map(drop);
                 }
                 for field in data.fields() {
                     let leaf = self.project(place, Segment::Field(field.id))?;
@@ -1265,6 +1284,7 @@ impl<'a> Lowering<'a> {
             ExpressionKind::Integer(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::IsCase { .. }
+            | ExpressionKind::CollectionMeasure { .. }
             | ExpressionKind::Match { .. }
             | ExpressionKind::Strict { .. }
             | ExpressionKind::Not(_)
@@ -2076,6 +2096,48 @@ impl<'a> Lowering<'a> {
         let mut steps = at.path;
         steps.push(step);
         self.read_projected_scalar(at.root, leaf, &steps, scalar_type, source)
+    }
+
+    pub(super) fn measure_collection(
+        &mut self,
+        base: &Expression,
+        measure: typed_trees::expression::CollectionMeasure,
+        source: SourceOrigin,
+    ) -> Checked<Value> {
+        if measure != typed_trees::expression::CollectionMeasure::Length {
+            return Err(self.internal("a collection measure has no canonical operation"));
+        }
+        // Locating evaluates a call or constructor base exactly once. Naming
+        // the metadata beneath its actual descriptor lets the same write
+        // history distinguish the initial extent from a replacement's.
+        let at = self.located(base)?;
+        if !matches!(
+            self.record_type(at.record)?.shape,
+            StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+            })
+        ) {
+            return Err(self.internal("a length observation has no byte descriptor"));
+        }
+        let scalar_type = ScalarType::Integer(
+            semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+                .expect("u64 is valid"),
+        );
+        self.name_entry(at.root, at.place, ValueType::record(at.record))?;
+        self.project(at.place, Segment::Extent)?;
+        let operation = self.operation_identity(source);
+        let path = self.storage_path(&at.path, ExecutionSite::Operation(operation), source)?;
+        self.emit(
+            operation,
+            Some(scalar_type),
+            OperationKind::ByteSequenceLength {
+                source: StructuralArgument {
+                    place: at.root,
+                    path,
+                    access: StructuralAccess::SharedBorrow,
+                },
+            },
+        )
     }
 
     /// `let x: T;`. The operations are the ones the current pipeline emits,

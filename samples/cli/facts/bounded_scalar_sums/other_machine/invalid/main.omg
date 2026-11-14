@@ -5,7 +5,12 @@ machine combine(left: u64, right: u64) -> u64 {
     left + right
 }
 
-machine add(a: u64, b: u64) -> u64 {
+// `requires true` insists on every u64 input: a private machine that omits
+// `requires` would infer the bound its sum needs from its callers instead
+// (state_contracts.md, "Private entry inference").
+machine add(a: u64, b: u64) -> u64
+    requires true
+{
     combine(a, b)
 }
 

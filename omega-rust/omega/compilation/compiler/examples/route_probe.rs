@@ -38,6 +38,7 @@
 //! For each source one line per judged part (the entry closure first, then each generic
 //! check form), then `<path>\troute=<verdict>` where the verdict is
 //! `accepted`, `rejected`, `incomplete`, `not-supported` or `no-typed-trees`.
+//! An accepted part lists its advisory warnings and their notes beneath it.
 //! The exit code is 0 only when every source was accepted.
 
 use std::path::{Path, PathBuf};
@@ -139,12 +140,17 @@ fn probe(
     };
     for (part, verdict) in verdicts.iter().enumerate() {
         match verdict {
-            Ok(RouteVerdict::Accepted(_)) => {
+            Ok(RouteVerdict::Accepted(closure)) => {
                 println!("  part {part}: accepted");
+                // Warnings about an accepted part and their notes.
+                for advisory in closure.advisories() {
+                    println!("    {advisory}");
+                }
                 worse("accepted");
             }
             Ok(RouteVerdict::Rejected {
                 formations,
+                violations,
                 unproved,
                 unestablished,
                 conflicts,
@@ -154,6 +160,7 @@ fn probe(
                 for diagnostic in formations
                     .iter()
                     .map(|entry| entry.reject_diagnostic())
+                    .chain(violations.iter().map(|entry| entry.reject_diagnostic()))
                     .chain(unproved.iter().map(|entry| entry.reject_diagnostic()))
                     .chain(unestablished.iter().map(|entry| entry.reject_diagnostic()))
                     .chain(conflicts.iter().map(|entry| entry.reject_diagnostic()))

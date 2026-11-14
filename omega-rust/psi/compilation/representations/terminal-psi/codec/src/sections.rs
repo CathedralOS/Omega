@@ -465,10 +465,13 @@ pub(crate) mod debug_map {
                             })
                     })
             }),
-            DebugSubject::Contract(id) => module
-                .machines
-                .iter()
-                .any(|machine| machine.contract.id == id),
+            DebugSubject::Contract(id) => {
+                module.declaration_contract(id).is_some()
+                    || module
+                        .machines
+                        .iter()
+                        .any(|machine| machine.contract.id == id)
+            }
             DebugSubject::Obligation(id) => module
                 .machines
                 .iter()
