@@ -143,7 +143,7 @@ impl fmt::Display for PrepareLocalProjectError {
             ),
             Self::Locked(detail) => write!(
                 formatter,
-                "cannot prepare accepted omega.lock: {detail}; run omega update for fresh review (restore a compatible lock or explicitly remove an unsupported lock first); no selector was refreshed"
+                "cannot prepare accepted omega.lock: {detail}; run omega packages update for fresh review (restore a compatible lock or explicitly remove an unsupported lock first); no selector was refreshed"
             ),
             Self::Publication(error) => error.fmt(formatter),
             Self::EntryOutsideProject {

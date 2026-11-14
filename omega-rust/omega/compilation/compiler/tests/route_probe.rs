@@ -14,7 +14,7 @@
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
 
-use lowered_discharge::RouteVerdict;
+use terminal_psi_to_terminal_psi::RouteVerdict;
 
 // Compilation shares process-wide counters; run one at a time.
 static COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -68,7 +68,7 @@ fn verdicts(name: &str, source: &str) -> Vec<&'static str> {
 fn judged(
     name: &str,
     source: &str,
-) -> Vec<Result<RouteVerdict, lowered_discharge::CompilationRefusal>> {
+) -> Vec<Result<RouteVerdict, terminal_psi_to_terminal_psi::CompilationRefusal>> {
     let _compilation = COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);
@@ -83,17 +83,21 @@ fn judged(
 
 fn judge(
     frontier: &compiler::TypedFrontier,
-) -> Vec<Result<RouteVerdict, lowered_discharge::CompilationRefusal>> {
-    lowered_discharge::judge_compilation(
-        &frontier.typed,
-        structure_elaboration::Compilation {
-            entries: &frontier.entries,
-            subjects: &[frontier.subject],
-            purpose: source::DependencyScope::Product,
-            selected: &frontier.selected,
-            bindings: &frontier.bindings,
-            supplies: &[],
-        },
+) -> Vec<Result<RouteVerdict, terminal_psi_to_terminal_psi::CompilationRefusal>> {
+    terminal_psi_to_terminal_psi::judge_compilation(
+        typed_trees_to_terminal_psi::prepare_compilation(
+            &frontier.typed,
+            typed_trees_to_terminal_psi::Compilation {
+                entries: &frontier.entries,
+                subjects: &[frontier.subject],
+                purpose: source::DependencyScope::Product,
+                selected: &frontier.selected,
+                bindings: &frontier.bindings,
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .program,
     )
 }
 
@@ -457,7 +461,8 @@ fn judged_with_dependencies(
     directory: &str,
     entry: &str,
     dependencies: &[(&str, &str)],
-) -> Result<Vec<Result<RouteVerdict, lowered_discharge::CompilationRefusal>>, Vec<String>> {
+) -> Result<Vec<Result<RouteVerdict, terminal_psi_to_terminal_psi::CompilationRefusal>>, Vec<String>>
+{
     let _compilation = COMPILATIONS
         .lock()
         .unwrap_or_else(std::sync::PoisonError::into_inner);

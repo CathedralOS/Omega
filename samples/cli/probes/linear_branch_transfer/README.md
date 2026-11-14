@@ -1,7 +1,7 @@
 # linear branch transfer
 
 Runnable probe; no standard-library dependency. `omega run main.omg` must exit 0
-natively after `omega update --project .` reviews the local package inputs.
+natively after `omega packages update --project .` reviews the local package inputs.
 
 Transition arms are alternatives: both arms transfer the same linear receipt
 into a consuming state, and the checker joins them as one live claim.

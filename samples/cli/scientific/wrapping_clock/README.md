@@ -102,9 +102,9 @@ candidate selection. Validation cannot overwrite the frozen expectations.
 maximum residual 2400/1400. Signed boundary cases end exactly at i64::MAX.
 
 From repository root, with a compiler built from this base and its matching
-library selected. Prepare the host-local acceptance first with `omega update`,
+library selected. Prepare the host-local acceptance first with `omega packages update`,
 inspect its generated review, edit the exact pending decisions to `accept`, then
-run `omega update --resume`. Repository policy keeps `omega.lock` host-local:
+run `omega packages update --resume`. Repository policy keeps `omega.lock` host-local:
 
 ```
 OMEGA_LIBRARY_ROOT="$PWD/source/library" "$OMEGA_BIN" update --project samples/cli/independent/wrapping_clock --target linux_x86_64

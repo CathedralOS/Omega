@@ -56,7 +56,7 @@ Commands from the repository root after activating cloud-setup:
 
 ```
 mbx build -p omega --release --message-format=json
-omega update --project samples/cli/independent/mold_front_vent_analysis --target linux_x86_64
+omega packages update --project samples/cli/independent/mold_front_vent_analysis --target linux_x86_64
 omega --check --target linux_x86_64 samples/cli/independent/mold_front_vent_analysis/main.omg
 omega --target linux_x86_64 samples/cli/independent/mold_front_vent_analysis/main.omg
 PYTHONDONTWRITEBYTECODE=1 python3 samples/cli/independent/mold_front_vent_analysis/validation/validate.py /workspace/Omega/.codex/worktrees/new078/samples/cli/independent/mold_front_vent_analysis/build/omega-program

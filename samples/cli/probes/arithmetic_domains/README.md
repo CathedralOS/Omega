@@ -17,7 +17,7 @@ dependency, no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/arithmetic_domains/main.omg
-mbx run -p omega -- update --project samples/cli/probes/arithmetic_domains
+mbx run -p omega -- packages update --project samples/cli/probes/arithmetic_domains
 ```
 
 Both green on Linux x86-64; `omega.lock` publishes locally, ignored.

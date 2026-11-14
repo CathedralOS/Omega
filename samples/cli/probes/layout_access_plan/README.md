@@ -20,5 +20,5 @@ Compile-checked only (no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/layout_access_plan/main.omg
-mbx run -p omega -- update --project samples/cli/probes/layout_access_plan
+mbx run -p omega -- packages update --project samples/cli/probes/layout_access_plan
 ```

@@ -51,9 +51,9 @@ From the repository root, using the optimized development compiler:
 
 ```sh
 cargo build -p omega
-target/debug/omega update --project samples/gui/dungeon_crawler
+target/debug/omega packages update --project samples/gui/dungeon_crawler
 # Review the generated decisions, then resume the accepted proposal:
-target/debug/omega update --resume --project samples/gui/dungeon_crawler
+target/debug/omega packages update --resume --project samples/gui/dungeon_crawler
 target/debug/omega --build-dir samples/gui/dungeon_crawler/build/native samples/gui/dungeon_crawler/main.omg
 open samples/gui/dungeon_crawler/build/native/dungeon_crawler.app
 ```
@@ -71,7 +71,7 @@ victory, and representative framebuffer pixels. Its authored result is exit 0
 and `PASS: dungeon campaign, collision, combat, pixels`.
 
 ```sh
-target/debug/omega update --project samples/gui/dungeon_crawler/smoke
+target/debug/omega packages update --project samples/gui/dungeon_crawler/smoke
 # Review and resume as above.
 target/debug/omega run --both samples/gui/dungeon_crawler/smoke/main.omg
 ```

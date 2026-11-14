@@ -166,11 +166,10 @@ impl RequestedCompileProduct {
             .iter()
             .filter(|optimization| match self {
                 Self::Check => true,
-                Self::TerminalArtifact => !matches!(
-                    optimization.execution_phase(),
-                    optimization_core::OptimizationExecutionPhase::CheckedTrees
-                        | optimization_core::OptimizationExecutionPhase::Psi
-                ),
+                Self::TerminalArtifact => {
+                    optimization.execution_phase()
+                        != optimization_core::OptimizationExecutionPhase::Psi
+                }
                 Self::NativeArtifact => false,
             })
             .map(|optimization| format!("`{}`", optimization.build_case_name()))

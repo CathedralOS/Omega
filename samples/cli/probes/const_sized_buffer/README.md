@@ -17,7 +17,7 @@ Compile-checked only (no std dependency):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/const_sized_buffer/main.omg
-mbx run -p omega -- update --project samples/cli/probes/const_sized_buffer
+mbx run -p omega -- packages update --project samples/cli/probes/const_sized_buffer
 ```
 
 Both green on Linux x86-64; `omega.lock` publishes locally, ignored.

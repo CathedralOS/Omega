@@ -15,7 +15,7 @@
 /*
     Separating this small, deterministic, search-free verification kernel from
     the proof-search and obligation-collection machinery in `proof` ensures that
-    neither Terminal Psi verification nor checked-tree admission ever trusts a
+    neither Terminal Psi verification nor proof admission ever trusts a
     producer's derivation flags, and that bounded proof nodes and universe-
     polymorphic mathematical declarations share one predicative kernel.
 */

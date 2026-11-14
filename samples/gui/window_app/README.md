@@ -10,9 +10,9 @@ machines without hidden provider state.
 From the repository root, with the current `omega` executable:
 
 ```sh
-omega update --project samples/gui/window_app --target macos_arm64 --offline
+omega packages update --project samples/gui/window_app --target macos_arm64 --offline
 # If review is required, inspect the reported file and decide its pending rows.
-omega update --resume --project samples/gui/window_app --offline
+omega packages update --resume --project samples/gui/window_app --offline
 omega run --keep samples/gui/window_app/main.omg
 ```
 

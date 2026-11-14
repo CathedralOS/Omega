@@ -174,5 +174,4 @@ are checked in every compile. `--verify` withholds trust acceptance
 and re-verifies under retained source pins; it does not widen the subject set.
 Optimization settings change how a valid program is realized, never which
 declarations a check claims. There is no setting that narrows a subject below
-its full declaration set. Checked-tree pruning still runs only after the
-subjects and their closure are checked, within that declared scope.
+its full declaration set.

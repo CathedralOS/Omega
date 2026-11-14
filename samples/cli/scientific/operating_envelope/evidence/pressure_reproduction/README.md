@@ -5,7 +5,7 @@ the application's ordinary decimal formatter state loop. Expected native
 stdout is exactly `1120` (no newline), and expected native/Terminal exit is 70.
 These oracles were fixed before executing the reproduction.
 
-From repository root, prepare its build metadata using ordinary `omega update
+From repository root, prepare its build metadata using ordinary `omega packages update
 --project samples/cli/independent/operating_envelope/evidence/pressure_reproduction`,
 review required std/Console decisions, then run:
 

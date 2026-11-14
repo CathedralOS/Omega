@@ -126,15 +126,18 @@ pub(super) fn prepare<'host, 'code>(
             Some(account),
             accounting,
             |scope| {
+                let scope = scope.ok_or("Build helper requires its explicit deployment")?;
                 let scope_profile = TargetProfile::from_canonical_target_name(scope)
                     .map_err(|diagnostic| diagnostic.message)?;
                 Ok(ScalarScopeEvaluation {
                     application_roots: None,
                     import_realizations: None,
-                    layout_target: scope_profile
-                        .layout_target_facts()
-                        .ok_or("scalar evaluation target has no immutable layout catalogue")?,
-                    targets: admit_target_machine_selections(artifact.view(), scope),
+                    layout_target: Some(
+                        scope_profile
+                            .layout_target_facts()
+                            .ok_or("scalar evaluation target has no immutable layout catalogue")?,
+                    ),
+                    targets: Some(admit_target_machine_selections(artifact.view(), scope)),
                     providers: admitted.selection().clone(),
                     address_model: Ok(target::TargetSemantics::close_address_model(scope_profile)
                         .map(|model| terminal_installation::ScalarAddressModel {
@@ -153,8 +156,14 @@ pub(super) fn prepare<'host, 'code>(
         let supplies = runtime_supplies(
             &program,
             &admitted,
-            completed.primary().targets(),
-            completed.primary().layouts(),
+            completed
+                .primary()
+                .targets()
+                .ok_or("Build helper lost its deployment selection")?,
+            completed
+                .primary()
+                .layouts()
+                .ok_or("Build helper lost its deployment layouts")?,
         )?;
         bindings.push(TerminalComponentBinding::new(
             admitted,

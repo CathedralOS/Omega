@@ -1,7 +1,7 @@
 # arm field variance
 
 Runnable probe; no standard-library dependency. `omega run main.omg` must exit 0
-natively after `omega update --project .` reviews the local package inputs.
+natively after `omega packages update --project .` reviews the local package inputs.
 
 `pack` places its inputs in different fields on each transition arm; the claim
 map a caller binds does not depend on which arm ran. Both projected members are

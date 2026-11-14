@@ -67,14 +67,6 @@ impl NativeBuildOutputs {
                 .usage
                 .validate()
                 .map_err(|reason| format!("native Build evaluation usage: {reason:?}"))?;
-            if !matches!(
-                evaluation.usage.measurement,
-                evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi { .. }
-            ) {
-                return Err(
-                    "native Build bindings require their actual Terminal evaluation".into(),
-                );
-            }
         }
         Ok(Self {
             declarations,

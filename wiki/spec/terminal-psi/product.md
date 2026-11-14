@@ -331,7 +331,7 @@ A nonempty Psi selection has no product route yet.
 
 Later Omega phases optimize their own representations while retaining the
 canonical Psi identity. They cannot mutate the published module or
-reselect a Psi/checked-tree pass. Rollback may subtract a selection only at a
+reselect a Psi pass. Rollback may subtract a selection only at a
 phase the invocation actually executes; the report distinguishes effective
 Psi selection from pending native selection.
 

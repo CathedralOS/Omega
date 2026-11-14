@@ -322,7 +322,7 @@ native oracles. It uses the role-aware
 nested build roots and non-`main.omg` entries. Libraries qualify through consumers;
 external submodules use their own gates.
 
-`mbx xtask sample-gate` runs each sample's `omega update`, then builds
+`mbx xtask sample-gate` runs each sample's `omega packages update`, then builds
 and runs it. Without `--cli` it first builds the opt-level 1 CLI with `mbx`
 (direct Cargo fallback is forbidden) in the checkout's own Cargo target directory
 (`target/`, or `CARGO_TARGET_DIR`) and measures that. The default input inventory

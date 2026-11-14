@@ -20,7 +20,7 @@ Compile-checked only (no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/overload_by_use/main.omg
-mbx run -p omega -- update --project samples/cli/probes/overload_by_use
+mbx run -p omega -- packages update --project samples/cli/probes/overload_by_use
 ```
 
 Both green on Linux x86-64; `omega.lock` publishes locally, ignored.

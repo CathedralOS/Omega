@@ -137,7 +137,7 @@ AGENTS.md stop rule 6 applies to every row above.
 - Every certificate goes through `prove.rs` and `verify_obligation`. If a
   rank comparison needs a rule the kernel lacks, that is reported as a
   finding, not worked around.
-- Acyclic joins (`lowered-discharge`, `joins`) were on `main` first: lowering
+- Acyclic joins (`terminal-psi-to-terminal-psi`, `joins`) were on `main` first: lowering
   mints one `ArrivalInvariant` on every edge that passes arguments, and the
   checker infers a join's predicate as a `BlockInvariant` knowledge row.
   Slice 1 uses that one mechanism. A loop head's declared row becomes the
@@ -175,7 +175,7 @@ only the first refusal of each program.
 ## Measures and acceptance
 
 Per slice, measured as route one measures them (`route_one_comparison`,
-`structure_elaboration_corpus`):
+`typed_trees_to_terminal_psi_corpus`):
 
 1. **Agreement.** Every program of the slice above that the slice brings
    into the subset is checked by both routes, and each disagreement is read

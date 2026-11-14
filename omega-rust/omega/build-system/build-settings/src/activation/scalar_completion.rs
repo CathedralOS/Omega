@@ -6,9 +6,10 @@ Both post-Terminal source checking and native preparation call `complete` to
 evaluate `ScalarApplicationId` demands against the retained
 `TerminalTargetProviderProposal` companions without reopening source trees. Any
 attempted evaluation usage is recorded in `accounting` even when a condition
-refuses. Each scope also receives `TargetRealizedIntrinsics`, so a constant that
-reaches a canonical float operation executes the realization its target
-selected.
+refuses. Each deployed scope also receives `TargetRealizedIntrinsics`, so a
+constant that reaches a canonical float operation executes the realization its
+target selected. An unscoped request supplies only portable facts; demands for
+target-dependent operations must still resolve a deployment.
 */
 
 use backend_plan::TerminalTargetProviderProposal;
@@ -16,9 +17,9 @@ use runtime_abi::target_carrier_layout;
 use std::sync::Arc;
 use terminal_installation::admit_target_machine_selections;
 
-pub fn complete(
+pub fn complete<'scope>(
     artifact: &Arc<terminal_codec::CanonicalTerminalArtifact>,
-    primary: &str,
+    primary: impl Into<Option<&'scope str>>,
     demand: &[semantic_vocabulary::ScalarApplicationId],
     proposals: &[TerminalTargetProviderProposal],
     accounting: &mut build_time_evaluation::SourceCompletionAccounting,
@@ -39,6 +40,22 @@ pub fn complete(
         None,
         accounting,
         |scope| {
+            let Some(scope) = scope else {
+                return Ok(build_time_evaluation::ScalarScopeEvaluation {
+                    application_roots: None,
+                    targets: None,
+                    providers: terminal_installation::admit_provider_installation(
+                        artifact.view(),
+                        &[],
+                        &[],
+                    )
+                    .map_err(|error| format!("unscoped scalar provider installation: {error:?}"))?,
+                    address_model: Ok(None),
+                    carrier_layout: None,
+                    layout_target: None,
+                    import_realizations: None,
+                });
+            };
             let proposal = proposals
                 .iter()
                 .find(|proposal| proposal.target == scope)
@@ -65,10 +82,12 @@ pub fn complete(
                 });
             Ok(build_time_evaluation::ScalarScopeEvaluation {
                 application_roots: proposal.application_roots.clone(),
-                layout_target: profile
-                    .layout_target_facts()
-                    .ok_or("scalar evaluation target has no immutable layout catalogue")?,
-                targets: admit_target_machine_selections(artifact.view(), scope),
+                layout_target: Some(
+                    profile
+                        .layout_target_facts()
+                        .ok_or("scalar evaluation target has no immutable layout catalogue")?,
+                ),
+                targets: Some(admit_target_machine_selections(artifact.view(), scope)),
                 providers,
                 import_realizations: Some(Box::new(realizations)),
                 address_model: Ok(address_model),

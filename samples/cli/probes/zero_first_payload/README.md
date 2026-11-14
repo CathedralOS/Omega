@@ -10,5 +10,5 @@ Compile-checked only (no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/zero_first_payload/main.omg
-mbx run -p omega -- update --project samples/cli/probes/zero_first_payload
+mbx run -p omega -- packages update --project samples/cli/probes/zero_first_payload
 ```

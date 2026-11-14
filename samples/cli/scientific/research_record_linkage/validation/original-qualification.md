@@ -110,7 +110,7 @@ The default empty-stdin smoke control expects INVALID input and exit 64.
 
 Prior denials and prepared-copy proposal are preserved as historical evidence.
 Specific renewed authorization for NEW064's same original-origin 286-decision
-scope admitted one retry. It executed `omega update --resume --project` at the
+scope admitted one retry. It executed `omega packages update --resume --project` at the
 original worktree root and passed, exit 0 in 125s; two packages published.
 Approved pending review SHA-256:
 `b147db7849ec1a2b63910e1f1d842c61db67adc03fdccf4f7ee31658fb1f2a28`;

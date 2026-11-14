@@ -266,7 +266,7 @@ worktree-bound build receipt retains exact input blobs and profile queries.
   and native/Terminal agreement. This includes all original and new transported
   positives and the executable contract probes. Package acceptance round-trip
   behavior remains separately required by the parent task.
-- `omega audit packages --project contracts/declared_slack --details` after
+- `omega packages audit --project contracts/declared_slack --details` after
   ordinary project review reports `requires-review false`. Its fresh policy
   retains published Mark + Unused, checked Mark, and one ConsumerAudit Unused
   slack finding. Accepted lock data is historical; the fresh findings supply

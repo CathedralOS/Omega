@@ -43,7 +43,6 @@ There is no debug/release bundle and no `O1`, `O2`, or `O3` alias.
 | `SelectedIncomingSaturatingAddUpperBoundMaterialization` | SelectedLowering | Target-independent | Experimental | `--disable-optimization SelectedIncomingSaturatingAddUpperBoundMaterialization` | Required |
 | `SelectedIncomingWrappingRemainderMinusOneZeroMaterialization` | SelectedLowering | Target-independent | Experimental | `--disable-optimization SelectedIncomingWrappingRemainderMinusOneZeroMaterialization` | Required |
 | `SelectedIncomingSaturatingSubtractUpperBoundSubtrahendZeroMaterialization` | SelectedLowering | Target-independent | Experimental | `--disable-optimization SelectedIncomingSaturatingSubtractUpperBoundSubtrahendZeroMaterialization` | Required |
-| `CheckedTreeProductPruning` | CheckedTrees | Target-independent | Experimental | `--disable-optimization CheckedTreeProductPruning` | Required |
 | `StateSpecialization` | Psi | Target-independent | Experimental | `--disable-optimization StateSpecialization` | Required |
 | `RepresentationSpecialization` | Psi | Target-independent | Experimental | `--disable-optimization RepresentationSpecialization` | Required |
 | `LoopInvariantScalarMotion` | Psi | Target-independent | Experimental | `--disable-optimization LoopInvariantScalarMotion` | Required |
@@ -75,11 +74,6 @@ as mechanically verified.
   elision, state specialization, representation specialization, and
   loop-invariant scalar motion run no rule there; they execute in the
   post-Terminal rule catalog.
-- One checked-tree product-pruning rule may follow authored checking when the
-  compilation binds an exact product root; it prunes unreachable machine
-  declarations and retains the identity-bearing product selection evidence.
-  A checked-tree selection without a bound product root rejects before
-  mutation.
 - One allocation-recovery rule may precede the canonical frame and layout stages.
 - x86-64 branch relaxation runs in the resolved-layout phase.
 - Selected-lowering and retired post-allocation machine rewrite selections are

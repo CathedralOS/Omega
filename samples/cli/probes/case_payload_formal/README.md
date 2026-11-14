@@ -16,7 +16,7 @@ Compile-checked only (no std dependency, no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/case_payload_formal/main.omg
-mbx run -p omega -- update --project samples/cli/probes/case_payload_formal
+mbx run -p omega -- packages update --project samples/cli/probes/case_payload_formal
 ```
 
 Both green on Linux x86-64; `omega.lock` publishes locally, ignored.

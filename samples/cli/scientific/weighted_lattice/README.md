@@ -13,9 +13,9 @@ enumeration, weighting, accumulation, and decimal formatting. Its only host
 service is Console input, output, and termination of its own process.
 
 ```sh
-omega update --project samples/cli/independent/weighted_lattice --offline --target linux_x86_64
+omega packages update --project samples/cli/independent/weighted_lattice --offline --target linux_x86_64
 # Review the generated package decisions, then resume the same proposal.
-omega update --resume --project samples/cli/independent/weighted_lattice --offline
+omega packages update --resume --project samples/cli/independent/weighted_lattice --offline
 omega run samples/cli/independent/weighted_lattice/main.omg < samples/cli/independent/weighted_lattice/input.txt
 ```
 

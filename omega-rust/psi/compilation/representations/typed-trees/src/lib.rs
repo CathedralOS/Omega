@@ -22,7 +22,7 @@ without re-running type inference or inspecting surface syntax.
 
 /*
 - Produced by: `Psi 03` (`03_symbol-resolved-trees-to-typed-trees`) and frozen by `Psi 04` (`04_typed-trees-to-typed-trees`).
-- Consumed by: `Psi 05` (`05_typed-trees-to-checked-trees`), `Psi 06`, `Psi 08`, `proof`, `validation`, and Omega realization crates.
+- Consumed by: later Psi stages, `proof`, and Omega realization crates.
 - Flat module layout:
   - `lib.rs`: `TypedTrees`, `FrozenTypedTrees`, `TypedTreeRoots`, `TypedTreeTables`, `boundary_values`, `direct_calls`, and `source_review`.
   - `references.rs`: typed declaration and expression reference occurrences (`references`).

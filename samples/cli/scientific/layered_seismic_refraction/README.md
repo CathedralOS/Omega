@@ -79,9 +79,9 @@ interface index 3 in a three-interface extent.
 From the repository root, using a compiler of recorded source provenance:
 
 ```
-omega update --project samples/cli/independent/layered_seismic_refraction --target linux_x86_64
+omega packages update --project samples/cli/independent/layered_seismic_refraction --target linux_x86_64
 # Inspect any ordinary package review decisions; resume only after acceptance.
-omega update --resume --project samples/cli/independent/layered_seismic_refraction
+omega packages update --resume --project samples/cli/independent/layered_seismic_refraction
 omega run --keep samples/cli/independent/layered_seismic_refraction/main.omg < samples/cli/independent/layered_seismic_refraction/input.txt
 python3 samples/cli/independent/layered_seismic_refraction/validation/run.py --omega /absolute/path/to/omega
 ```

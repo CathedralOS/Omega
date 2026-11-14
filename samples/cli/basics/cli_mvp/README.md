@@ -33,7 +33,7 @@ Cross-compilation is not host execution.
 Run from the repository root, in the checkout where you intend to compile:
 
 ```text
-mbx run --release -p omega -- update --project samples/cli/basics/cli_mvp --target macos_arm64
+mbx run --release -p omega -- packages update --project samples/cli/basics/cli_mvp --target macos_arm64
 ```
 
 Select `windows_x86_64`, `linux_x86_64`, or `linux_arm64` for those hosts.
@@ -43,7 +43,7 @@ acceptance was published. Inspect the reported
 from `pending` to `accept` or `reject`, then resume:
 
 ```text
-mbx run --release -p omega -- update --resume --project samples/cli/basics/cli_mvp
+mbx run --release -p omega -- packages update --resume --project samples/cli/basics/cli_mvp
 ```
 
 Resume must succeed before compilation. The observed fresh macOS review required

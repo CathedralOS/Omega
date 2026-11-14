@@ -779,7 +779,7 @@ pub(crate) mod instance {
         };
         use crate::engine::execution::TerminalExecution;
         use crate::storage::byte_sequences::binding::ByteSequenceBinding;
-        use crate::storage::structural_storage::contents::{self, StorageLeafKind};
+        use crate::storage::structural_storage::contents::{self, StorageLeaf, StorageLeafKind};
         use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, PlaceId};
         use terminal_psi::{StructuralAccess, StructuralTypeShape};
 
@@ -830,6 +830,49 @@ pub(crate) mod instance {
                 observe_leaf(execution, *place, value, path)
             }
 
+            /// Read the live length of a typed sequence in this completed
+            /// result. Element observations still use observe_result with
+            /// exact indices into that same authenticated backing.
+            pub fn observe_result_sequence_length(
+                &self,
+                path: &[Path],
+            ) -> Result<u64, TerminalStorageObservationError> {
+                let execution = self
+                    .execution
+                    .as_ref()
+                    .ok_or(TerminalStorageObservationError::Closed)?;
+                let result = execution
+                    .result
+                    .as_ref()
+                    .ok_or(TerminalStorageObservationError::NormalReturnRequired)?;
+                let crate::TerminalExecutionResult::Structural(returned) = result else {
+                    return Err(TerminalStorageObservationError::NotStructuralResult);
+                };
+                let (_, leaf) = selected_leaf(execution, &returned.value, path)?;
+                let StorageLeafKind::Opaque {
+                    destination,
+                    declaration,
+                } = leaf.kind
+                else {
+                    return Err(TerminalStorageObservationError::UnknownPath);
+                };
+                if !matches!(
+                    execution.structural_declaration(declaration)?.shape,
+                    StructuralTypeShape::ElementView { .. }
+                ) {
+                    return Err(TerminalStorageObservationError::UnknownPath);
+                }
+                let descriptor = TerminalStructuralValue {
+                    opaque_identity: destination.opaque_identity,
+                    structural_type: declaration,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    path: destination.path,
+                };
+                let view = execution.element_view_at_resolved_home(&descriptor)?;
+                u64::try_from(view.len()).map_err(|_| malformed().into())
+            }
+
             pub fn observe_result(
                 &self,
                 path: &[Path],
@@ -868,6 +911,17 @@ pub(crate) mod instance {
             }
         }
 
+        fn selected_leaf(
+            execution: &TerminalExecution<'_>,
+            value: &TerminalStructuralValue,
+            path: &[Path],
+        ) -> Result<(TerminalStructuralValue, StorageLeaf), TerminalStorageObservationError>
+        {
+            contents::select(execution, value, path)
+                .map_err(|error| error.in_argument_preparation("select observed storage"))?
+                .ok_or(TerminalStorageObservationError::UnknownPath)
+        }
+
         fn observe_leaf<'storage>(
             execution: &'storage TerminalExecution<'_>,
             source: PlaceId,
@@ -875,19 +929,25 @@ pub(crate) mod instance {
             path: &[Path],
         ) -> Result<TerminalStorageObservationValue<'storage>, TerminalStorageObservationError>
         {
-            let leaf = contents::select(execution, value, path)?
-                .ok_or(TerminalStorageObservationError::UnknownPath)?;
+            let (selected, leaf) = selected_leaf(execution, value, path)?;
             match &leaf.kind {
                 StorageLeafKind::Scalar { .. } | StorageLeafKind::Case { .. } => {
+                    // Only a backing crossing supplies a retained original
+                    // owner. Inline/presented values keep ordinary owner lookup.
+                    let source_owner = (selected.opaque_identity != value.opaque_identity
+                        || selected.path != value.path
+                        || selected.structural_type != value.structural_type)
+                        .then_some(&selected);
                     let (mut values, _) = contents::capture(
                         execution,
                         source,
-                        value,
+                        &selected,
                         None,
                         None,
                         StructuralAccess::SharedBorrow,
                         std::slice::from_ref(&leaf),
                         &[],
+                        source_owner,
                     )?;
                     let observed = values
                         .pop()
@@ -900,11 +960,15 @@ pub(crate) mod instance {
                     } else {
                         StructuralFieldNamespace::Member
                     };
-                    let bytes = execution.byte_field_read(&StructuralByteSequenceRuntimeField {
-                        parent: parent.clone(),
-                        namespace,
-                        field: *field,
-                    })?;
+                    let bytes = execution
+                        .byte_field_read(&StructuralByteSequenceRuntimeField {
+                            parent: parent.clone(),
+                            namespace,
+                            field: *field,
+                        })
+                        .map_err(|error| {
+                            error.in_argument_preparation("read observed byte field")
+                        })?;
                     Ok(TerminalStorageObservationValue::Bytes(bytes))
                 }
                 StorageLeafKind::EmptyScalarArray {
@@ -2129,26 +2193,21 @@ pub(crate) mod program {
                 .ok_or(TerminalInterpretError::VerifiedEntryMachineMissing)?;
             let selected =
                 installation.and_then(|installation| installation.target_machines.as_ref());
-            let machine = match selected {
-                Some(selected) => selected
-                    .entry(self.identity.semantic(), &self.catalogs, root)
-                    .map_err(TerminalInterpretError::TargetMachineSelection)?,
-                None => match root {
-                    terminal_psi::TargetMachineCallable::Machine(machine) => {
-                        if self.catalogs.target_machine_families.iter().any(|family| {
-                            family.members.iter().any(|member| member.callable == root)
-                        }) {
-                            return Err(TerminalInterpretError::TargetMachineSelectionMissing(
-                                root,
-                            ));
-                        }
-                        machine
-                    }
-                    terminal_psi::TargetMachineCallable::Boundary(_) => {
-                        return Err(TerminalInterpretError::TargetMachineSelectionMissing(root));
-                    }
-                },
-            };
+            let machine = terminal_installation::AdmittedTargetMachineSelections::resolve_entry(
+                selected,
+                self.identity.semantic(),
+                &self.catalogs,
+                root,
+            )
+            .map_err(|error| match error {
+                terminal_installation::TargetMachineSelectionError::MissingDeployment { head } => {
+                    TerminalInterpretError::TargetMachineSelectionMissing(head)
+                }
+                terminal_installation::TargetMachineSelectionError::MissingMachine(_) => {
+                    TerminalInterpretError::VerifiedEntryMachineMissing
+                }
+                other => TerminalInterpretError::TargetMachineSelection(other),
+            })?;
             self.machines()
                 .get(&machine)
                 .ok_or(TerminalInterpretError::VerifiedEntryMachineMissing)?;
@@ -2910,9 +2969,9 @@ pub(crate) mod program {
             }
             let expected = TerminalRuntimeSupplies::from(primary.providers());
             if self.program.identity != *admission.execution_identity()
-                || installation.target_machines.as_ref() != Some(primary.targets())
+                || installation.target_machines.as_ref() != primary.targets()
                 || installation.provider_selections.as_ref() != Some(primary.providers())
-                || installation.target_layouts.as_deref() != Some(primary.layouts())
+                || installation.target_layouts.as_deref() != primary.layouts()
                 || installation.assumed_bindings != expected.assumed_bindings
                 || expected
                     .supplies
@@ -2940,11 +2999,11 @@ pub(crate) mod program {
             let installation = installation.ok_or_else(reject)?;
             let expected_providers = TerminalRuntimeSupplies::from(observations.providers());
             if self.program.identity != observations.artifact().custody_identity()
-                || installation.target_machines.as_ref() != Some(observations.targets())
+                || installation.target_machines.as_ref() != observations.targets()
                 || installation.provider_selections.as_ref() != Some(observations.providers())
                 || installation.supplies != expected_providers.supplies
                 || installation.assumed_bindings != expected_providers.assumed_bindings
-                || installation.target_layouts.as_deref() != Some(observations.layouts())
+                || installation.target_layouts.as_deref() != observations.layouts()
                 || observations
                     .entry(application)
                     .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?

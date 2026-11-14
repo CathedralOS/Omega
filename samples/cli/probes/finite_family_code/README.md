@@ -19,7 +19,7 @@ dependency, no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/finite_family_code/main.omg
-mbx run -p omega -- update --project samples/cli/probes/finite_family_code
+mbx run -p omega -- packages update --project samples/cli/probes/finite_family_code
 ```
 
 Both green on Linux x86-64; `omega.lock` publishes locally, ignored.

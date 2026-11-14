@@ -17,5 +17,5 @@ Compile-checked only (no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/transitivity_lemma/main.omg
-mbx run -p omega -- update --project samples/cli/probes/transitivity_lemma
+mbx run -p omega -- packages update --project samples/cli/probes/transitivity_lemma
 ```

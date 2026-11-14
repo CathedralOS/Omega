@@ -76,13 +76,11 @@ fn evaluate(
     closure.raw(&source_occurrence_digest);
     let closure = EvaluatedBindingProducerClosureDigest::from_bytes(closure.finish())?;
     let usage = supply.evaluation.usage;
-    let (work_schedule, storage_schedule) = match usage.measurement {
-        evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
-            work_schedule,
-            storage_schedule,
-        } => (work_schedule.marker(), storage_schedule.marker()),
-        _ => return Err("native Build evidence has a different evaluator measurement".into()),
-    };
+    let evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
+        work_schedule,
+        storage_schedule,
+    } = usage.measurement;
+    let (work_schedule, storage_schedule) = (work_schedule.marker(), storage_schedule.marker());
     let retained_usage = EvaluatedBindingUsage::from_evaluator(
         usage.usage_schema_version,
         usage.step_schedule_marker,

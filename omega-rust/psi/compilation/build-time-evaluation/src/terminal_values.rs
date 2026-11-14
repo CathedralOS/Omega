@@ -300,6 +300,27 @@ fn read_structural(
                 payload: payload?,
             })
         }
+        StructuralTypeShape::ElementView { element, .. } => {
+            let length = instance
+                .observe_result_sequence_length(path)
+                .map_err(|error| format!("Terminal result sequence backing: {error:?}"))?;
+            let count = usize::try_from(length)
+                .map_err(|_| "Terminal result sequence extent exceeds usize")?;
+            let mut elements = Vec::new();
+            elements
+                .try_reserve_exact(count)
+                .map_err(|reason| format!("Terminal result sequence snapshot: {reason}"))?;
+            for ordinal in 0..length {
+                path.push(Path::FixedIndex(ordinal));
+                let result = read_structural(instance, *element, path);
+                path.pop();
+                elements
+                    .push(result.map_err(|reason| {
+                        format!("Terminal result element {ordinal}: {reason}")
+                    })?);
+            }
+            Ok(BuildTimeValue::Array(elements))
+        }
         StructuralTypeShape::FixedArray { element, length } => {
             let length = length
                 .literal()
@@ -309,7 +330,10 @@ fn read_structural(
                 path.push(Path::FixedIndex(ordinal));
                 let result = read_structural(instance, *element, path);
                 path.pop();
-                elements.push(result?);
+                elements
+                    .push(result.map_err(|reason| {
+                        format!("Terminal result element {ordinal}: {reason}")
+                    })?);
             }
             Ok(BuildTimeValue::Array(elements))
         }
@@ -336,10 +360,9 @@ fn read_fields(
             _ => read_leaf(instance, path),
         };
         path.pop();
-        values.push((
-            label(instance.program(), field.identity)?.to_owned(),
-            value?,
-        ));
+        let name = label(instance.program(), field.identity)?.to_owned();
+        let value = value.map_err(|reason| format!("Terminal result field `{name}`: {reason}"))?;
+        values.push((name, value));
     }
     Ok(values)
 }

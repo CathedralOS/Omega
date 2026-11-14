@@ -161,7 +161,7 @@ require that exact correspondence and refuse unsupported multi-origin substituti
 without consuming inputs or publishing a qualification.
 
 The disposal finisher exposed a canonical-artifact mismatch: native and Terminal
-execution returned 0, while `inspect-terminal` rejected the retained `program.oterm`
+execution returned 0, while `psi inspect` rejected the retained `program.oterm`
 because the disposed tail had no returned claim origin. Terminal ancestry now
 accounts for exact nominal disposal separately from returned origins. Its bounded
 replay follows the complete claim frontier on every normal path and accepts only
