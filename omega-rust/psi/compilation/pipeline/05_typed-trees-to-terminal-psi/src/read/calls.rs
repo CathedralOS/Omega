@@ -163,14 +163,17 @@ impl<'t> Program<'t> {
         }
         // The registered operation of an ordinary call is the callee: its
         // machine symbol or its one state's symbol (stage 04 records the
-        // entry state). Any other declaration is a static or captured call.
+        // entry state), or the exact mathematical/builtin declaration the
+        // proof reader selected. Other identities remain static or captured.
         let registration = application.registration_operation;
         let owner = if self.typed.trait_machine_signature(target).is_some() {
             target
         } else {
             match self.typed.symbols.get(target).kind {
                 SymbolKind::State => self.typed.symbols.get(target).parent,
-                SymbolKind::Machine => target,
+                SymbolKind::Machine
+                | SymbolKind::MathematicalDefinition
+                | SymbolKind::BuiltinFunction => target,
                 other => {
                     return Err(refuse(
                         id,
