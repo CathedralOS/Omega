@@ -675,7 +675,7 @@ fn values_are_declared(
                 }
             }
             None => {
-                if !matches!(row.origin, ValueOrigin::InitialContent { .. }) {
+                if !matches!(row.origin, ValueOrigin::StorageContent { .. }) {
                     return Err(foreign(
                         value,
                         "a value row that nothing in the lowered form declares",

@@ -163,11 +163,31 @@ impl<'t> Program<'t> {
                 if slots[slot].erased {
                     return unserved("runtime use of an erased binding");
                 }
-                return Ok(Expression {
+                if slots[slot].borrowed.is_some()
+                    && let Some(expected) = expected
+                    && self.reference_referent(id, expected)?.is_some()
+                {
+                    return self.borrow_value(id, slots, handle, expected, source);
+                }
+                let value = Expression {
                     kind: ExpressionKind::Slot(slot),
                     result: Some(slots[slot].value_type),
                     source,
-                });
+                };
+                // A reference context transports the permission descriptor.
+                // An ordinary value context observes its exact referent.
+                if !expected.is_some_and(|value| matches!(value,
+                    ValueType::Record(row, _, _) if matches!(self.records.get(row).map(|row| &row.shape),
+                        Some(crate::StorageShape::Reference { .. }))))
+                    && let Some((referent, _)) = self.reference_referent(id, slots[slot].value_type)?
+                {
+                    return Ok(Expression {
+                        kind: ExpressionKind::Referent(Box::new(value)),
+                        result: Some(referent),
+                        source,
+                    });
+                }
+                return Ok(value);
             }
             ExpressionNode::Unary(unary) => {
                 let operand = self.expression(id, slots, unary.operand, expected)?;
@@ -333,7 +353,12 @@ impl<'t> Program<'t> {
             ExpressionNode::UndeterminedNaN(_) => return unserved("undetermined NaN"),
             ExpressionNode::Indexed(indexed) => return self.indexed(id, slots, indexed, source),
             ExpressionNode::Member(member) => return self.member(id, slots, member, source),
-            ExpressionNode::Borrow(_) => return unserved("borrow"),
+            ExpressionNode::Borrow(_) => {
+                let Some(expected) = expected else {
+                    return unserved("reference formation without its retained contextual type");
+                };
+                return self.borrow_value(id, slots, handle, expected, source);
+            }
             ExpressionNode::Range(_) => return unserved("range"),
             ExpressionNode::StructLiteral(literal) => {
                 self.expected = expected;
@@ -1173,7 +1198,8 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                 | ExpressionKind::ShortCircuit { .. }
                 | ExpressionKind::Call { .. }
                 // A loan is formed afresh each time; two are never one.
-                | ExpressionKind::Borrow { .. },
+                | ExpressionKind::Borrow { .. }
+                | ExpressionKind::Referent(_),
                 _,
             ) => false,
         }

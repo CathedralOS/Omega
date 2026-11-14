@@ -50,6 +50,38 @@ impl Program<'_> {
         match self.node(id, assignment.target)? {
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, slots, path)?;
+                if let Some((referent, access)) =
+                    self.reference_referent(id, slots[slot].value_type)?
+                {
+                    if !terminal_psi::StructuralAccess::MutableBorrow.admits_referent(access) {
+                        return Err(unserved("write through a reference without mutable access"));
+                    }
+                    let descriptor = crate::Expression {
+                        kind: ExpressionKind::Slot(slot),
+                        result: Some(slots[slot].value_type),
+                        source,
+                    };
+                    let destination = crate::Expression {
+                        kind: ExpressionKind::Referent(Box::new(descriptor)),
+                        result: Some(referent),
+                        source,
+                    };
+                    self.reference_place_access(
+                        id,
+                        &destination,
+                        language_core::ReferenceAccess::Mutable,
+                    )?;
+                    self.authorized(id, referent, Access::Replace)?;
+                    let value = self.expression(id, slots, assignment.value, Some(referent))?;
+                    if !self.agrees(value.result, referent) {
+                        return Err(assigned(self, &value, referent));
+                    }
+                    return Ok(Statement::Store {
+                        destination,
+                        value,
+                        source,
+                    });
+                }
                 if !slots[slot].assignable {
                     return Err(unserved("assignment to an immutable binding"));
                 }
@@ -105,7 +137,12 @@ impl Program<'_> {
                 let ExpressionKind::Slot(slot) = root.kind else {
                     return Err(unserved("store into a value that is not a local"));
                 };
-                if !slots[slot].assignable {
+                let crossed = self.reference_place_access(
+                    id,
+                    &place,
+                    language_core::ReferenceAccess::Mutable,
+                )?;
+                if !crossed && !slots[slot].assignable {
                     return Err(unserved("store into an immutable binding"));
                 }
                 self.written_through(id, &place)?;
@@ -231,6 +268,7 @@ impl Program<'_> {
                     homed: slots[original].homed,
                     erased: false,
                     borrowed: Some(*access),
+                    borrowed_regions: slots[original].borrowed_regions,
                 },
                 Statement::CaptureReference {
                     slot: slots.len(),
@@ -279,6 +317,7 @@ impl Program<'_> {
                 homed: value_type.scalar().is_some(),
                 erased: false,
                 borrowed: None,
+                borrowed_regions: crate::body::Regions::NONE,
             };
             return Ok((
                 slot,
@@ -337,6 +376,7 @@ impl Program<'_> {
             homed: false,
             erased: false,
             borrowed: None,
+            borrowed_regions: crate::body::Regions::NONE,
         };
         Ok((
             slot,
@@ -391,6 +431,7 @@ impl Program<'_> {
             homed: false,
             erased: true,
             borrowed: None,
+            borrowed_regions: crate::body::Regions::NONE,
         };
         Ok((
             slot,

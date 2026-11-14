@@ -79,6 +79,7 @@ pub(super) fn lower_lending(
             .map(|(position, access)| Borrowed {
                 position: *position,
                 access: *access,
+                regions: Default::default(),
                 home: matches!(machine.parameters[*position], ValueType::Scalar(..))
                     .then(|| String::from("u32")),
             })
@@ -679,4 +680,184 @@ fn a_home_a_loan_gives_a_local_in_an_arm_is_not_the_continuations() {
         )
     };
     accepted(vec![main, set]);
+}
+
+#[test]
+fn a_selected_reference_result_needs_its_public_requirement_contract() {
+    // The implementation's body returns its input, but that private fact
+    // cannot supply the requirement's result origins to a selected caller.
+    let text = r#"
+trait Handoff {
+    machine hand(source: &mut i64) -> &mut i64 crashes none;
+}
+Direct satisfies Handoff {
+    machine hand(source: &mut i64) -> &mut i64 crashes none { source }
+}
+machine relay<Chosen satisfies Handoff>(source: &mut i64) -> &mut i64
+crashes none { Chosen::hand(source) }
+machine entry() crashes none {
+    let mut backing: i64 = 17;
+    let child: &mut i64 = relay<Direct>(&mut backing);
+    child = 41;
+}
+"#;
+    let (typed, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        super::boundary_calls::typed(text),
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap();
+    let entry = super::boundary_calls::entry(&typed);
+    let refused = typed_trees_to_terminal_psi::elaborate_for(
+        &typed,
+        typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
+            entries: &[entry],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .expect_err("a private implementation result cannot authorize the selected call");
+    assert_eq!(refused.reason, RefusalReason::Unsupported);
+    assert_eq!(
+        refused.detail,
+        "call selected reference result requires its public requirement contract"
+    );
+}
+
+#[test]
+fn an_original_returned_reference_keeps_its_backing_and_excludes_its_parent() {
+    use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus, TerminalProgram};
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../../../samples/cli/facts/reference_arrival_handoff");
+    let prepared = |path: &std::path::Path| {
+        let text = std::fs::read_to_string(path)
+            .unwrap_or_else(|error| panic!("reading reference source {}: {error}", path.display()));
+        let typed = super::boundary_calls::typed(&text);
+        let entry = typed
+            .machines()
+            .iter()
+            .find(|machine| machine.name.as_str() == "main")
+            .unwrap()
+            .symbol;
+        typed_trees_to_terminal_psi::elaborate_for(
+            &typed,
+            typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+    };
+    // These are the retained source programs, including the original 17/41
+    // values and the invalid write to the parent. No test rewrites the body.
+    let positive = prepared(&root.join("call_result/main.omg")).unwrap();
+    // A foreign result header cannot substitute for the body's actual
+    // borrowed source, even at the same caller/callee operation coordinates.
+    let mut changed = positive.module.clone();
+    let (caller, operation, callee) = changed
+        .machines
+        .iter()
+        .find_map(|machine| {
+            machine
+                .blocks
+                .iter()
+                .flat_map(|block| &block.operations)
+                .find_map(|operation| {
+                    let call = operation.kind.declared_invocation()?;
+                    let terminal_psi::TargetMachineCallable::Machine(callee) = call.callee else {
+                        return None;
+                    };
+                    changed
+                        .machine(callee)?
+                        .result
+                        .structural()
+                        .filter(|result| !result.reference_sources.is_empty())?;
+                    Some((machine.id, operation.id, callee))
+                })
+        })
+        .expect("the original source calls a reference-returning helper");
+    let terminal_psi::TerminalMachineResult::Structural(changed_result) = &mut changed
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == callee)
+        .unwrap()
+        .contract
+        .result
+    else {
+        panic!("the helper has a structural reference result")
+    };
+    changed_result.reference_sources[0].sources.clear();
+    let graph = terminal_semantics::descriptor_results::terminal_borrowed_storage_graph_from(
+        &changed,
+        [caller],
+        &[],
+    )
+    .unwrap();
+    let mut analysis =
+        terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
+            &changed.structural_types,
+            &graph,
+        );
+    let caller = changed.machine(caller).unwrap();
+    let refusal = match terminal_semantics::reference_call_lifetimes(
+        &changed,
+        caller,
+        caller.operation(operation).unwrap(),
+        &mut analysis,
+    ) {
+        Err(reason) => reason,
+        Ok(_) => panic!("changed result origins must not supply a retained loan"),
+    };
+    assert_eq!(
+        refusal,
+        "returned reference header differs from its actual body origins"
+    );
+    let positive = crate::judge(Ok(positive)).unwrap();
+    let RouteVerdict::Accepted(accepted) = positive else {
+        panic!("{positive:?}");
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let program = TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    assert_eq!(
+        instance
+            .invoke(&mut psi_work::WorkMeter::with_budget(10_000))
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+    );
+    let negative = crate::judge(prepared(&root.join("invalid_call_result/main.omg"))).unwrap();
+    let RouteVerdict::Rejected {
+        formations,
+        violations,
+        unproved,
+        unestablished,
+        conflicts,
+        exceeded,
+    } = negative
+    else {
+        panic!("the invalid parent write must be a program rejection: {negative:?}");
+    };
+    assert!(
+        formations.is_empty()
+            && violations.is_empty()
+            && unproved.is_empty()
+            && unestablished.is_empty()
+            && exceeded.is_empty()
+    );
+    assert_eq!(conflicts.len(), 1);
+    assert_eq!(conflicts[0].conflict, LoanConflict::ChangeWhileBorrowed);
+    assert!(matches!(conflicts[0].site, SourceOrigin::Authored(_)));
+    assert_eq!(
+        conflicts[0].statement,
+        "storage is changed while a conflicting reference remains live"
+    );
 }

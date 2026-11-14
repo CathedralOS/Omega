@@ -23,6 +23,7 @@
 
 #![forbid(unsafe_code)]
 
+mod product_descriptions;
 mod root_bindings;
 mod source_checking;
 mod source_compilation;

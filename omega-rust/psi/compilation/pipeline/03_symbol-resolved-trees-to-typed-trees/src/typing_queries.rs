@@ -193,6 +193,38 @@ pub(crate) fn declared_callable_value_type(
     if !program.symbols.symbols().nodes().is_valid(owner) {
         return Err(crate::unavailable_judgment("contract value owner"));
     }
+    // Entry observation preserves the operand's complete declared type. This
+    // is a value query, not a writable-place query or admission of an `old`
+    // subject: the lowered reader still checks its input identity and phase.
+    let table = &program.expression_table;
+    let mut target = target;
+    for _ in 0..table.expression_count() {
+        if !table.expression_is_valid(target) {
+            break;
+        }
+        let typed_trees::expression::ExpressionNode::Call(call) = table.expression(target) else {
+            break;
+        };
+        if call.receiver.is_valid()
+            || !call.machine_arguments.is_empty()
+            || !call.evidence_arguments.is_empty()
+            || !program
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(call.target_symbol)
+            || program
+                .symbols
+                .builtin_function_for_symbol(call.target_symbol)
+                != Some(symbols::BuiltinFunction::ContentOld)
+        {
+            break;
+        }
+        let [argument] = table.expression_handles(call.arguments) else {
+            return Err(crate::unavailable_judgment("old input declared type arity"));
+        };
+        target = *argument;
+    }
     let states = program
         .machine_by_symbol(owner)
         .map(|machine| program.machine_states(machine));

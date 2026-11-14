@@ -280,3 +280,39 @@ machine entry() {{
         "declaration holding a domain cast through a reference, which no pass accounts for yet"
     );
 }
+
+#[test]
+fn old_scalar_inputs_keep_their_qualification_until_an_admitted_cast() {
+    let source = |guarantee, returned| {
+        format!(
+            r#"
+{DOMAIN}
+machine observe(handle: i64 in Classified) -> i64
+ensures {guarantee}
+{{ {returned} }}
+machine entry() -> i64 {{ observe(issue(7)) }}
+"#
+        )
+    };
+    let guarantee = "result == (old(handle) as -Classified)";
+    let accepted = judge(invocation(&source(guarantee, "handle as -Classified"))).unwrap();
+    assert!(
+        matches!(accepted, RouteVerdict::Accepted(_)),
+        "{accepted:?}"
+    );
+
+    let qualified =
+        invocation(&source("result == old(handle)", "handle as -Classified")).unwrap_err();
+    assert_eq!(qualified.reason, RefusalReason::Unsupported);
+    assert_eq!(
+        qualified.detail,
+        "contract builtin operator on a value with a declared domain in a clause"
+    );
+
+    let wrong_value = judge(invocation(&source(guarantee, "0"))).unwrap();
+    assert!(
+        matches!(wrong_value, RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::NormalGuarantee { .. }))),
+        "{wrong_value:?}"
+    );
+}

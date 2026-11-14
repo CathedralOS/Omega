@@ -132,6 +132,234 @@ pub(crate) mod reference_completion {
         Ok(())
     }
 
+    /// Identify the immediate loan carried by a descriptor at formation.
+    /// Current storage names alone do not identify that resource: transport
+    /// must preserve an authorized name from its actual formation, or the
+    /// exact original reference leaf of a declared input.
+    pub fn reference_loan_parent<'a>(
+        module: &terminal_psi::TerminalModule,
+        machine: &terminal_psi::TerminalMachine,
+        analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+        at: crate::descriptor_lifetimes::DescriptorPosition,
+        descriptor: &crate::descriptor_lifetimes::DescriptorLocation,
+        candidates: impl Iterator<
+            Item = (
+                semantic_vocabulary::ObligationId,
+                &'a crate::descriptor_lifetimes::DescriptorLifetime,
+            ),
+        >,
+    ) -> Result<Option<semantic_vocabulary::ObligationId>, &'static str> {
+        let mut parent = None;
+        for (identity, lifetime) in candidates {
+            if !lifetime
+                .authorized
+                .get(&at)
+                .is_some_and(|names| names.contains(descriptor))
+            {
+                continue;
+            }
+            if parent.is_some_and(|previous| previous != identity) {
+                return Err("reference descriptor has ambiguous immediate loan occurrences");
+            }
+            parent = Some(identity);
+        }
+        if parent.is_some() {
+            return Ok(parent);
+        }
+        let origins = analysis
+            .symbolic_source_origins(machine.id, at, descriptor)
+            .ok_or("reference descriptor has no complete original loan correspondence")?;
+        let [origin] = origins.as_slice() else {
+            return Err("reference descriptor has no single immediate incoming occurrence");
+        };
+        let original = origin
+            .captured_entry_slot()
+            .ok_or("reference descriptor has no authenticated formation or incoming loan")?;
+        let parameter = machine
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == original.root)
+            .ok_or("incoming reference occurrence names no declared input")?;
+        let path = crate::descriptor_lifetimes::descriptor_path(
+            &module.structural_types,
+            parameter.structural_type,
+            &original.path,
+        )
+        .ok_or("incoming reference occurrence has no exact declared path")?;
+        if !crate::projection_stays_in_inline_storage(
+            module.structural_types.iter(),
+            parameter.structural_type,
+            &path,
+        ) || !crate::runtime_structural_path_tip(
+            module.structural_types.iter(),
+            parameter.structural_type,
+            &path,
+        )
+        .is_some_and(|row| matches!(row.shape, StructuralTypeShape::Reference { .. }))
+        {
+            return Err("incoming reference parent is not an original contained reference leaf");
+        }
+        // None denotes this verified caller-owned resource, not a failed
+        // lookup. No local Loan identity is invented for an incoming leaf.
+        Ok(None)
+    }
+
+    /// A reference returned by a call keeps its input loan until every
+    /// transported result descriptor ends. Reconstruct the callee's actual
+    /// origins before using the existing call binding; a result header alone
+    /// cannot extend a loan or supply an unrelated backing resource.
+    pub fn reference_call_lifetimes(
+        module: &terminal_psi::TerminalModule,
+        caller: &terminal_psi::TerminalMachine,
+        operation: &terminal_psi::Operation,
+        analysis: &mut crate::descriptor_results::DescriptorAnalysis<'_>,
+    ) -> Result<Vec<(usize, crate::descriptor_lifetimes::DescriptorLifetime)>, &'static str> {
+        use super::reference_origins::{
+            ReferenceCallContract, ReferenceCallOrigin, bind_reference_call_results,
+        };
+        use crate::descriptor_lifetimes::{descriptor_location, descriptor_location_lifetime};
+
+        let Some(result) = operation.result.as_structural().filter(|result| {
+            terminal_psi::structural_type_contains_reference_by(
+                |id| module.structural_type(id),
+                result.structural_type,
+            )
+        }) else {
+            return Ok(Vec::new());
+        };
+        let Some(call) = operation.kind.declared_invocation() else {
+            return if matches!(
+                operation.kind,
+                terminal_psi::OperationKind::CallDynamic { .. }
+            ) {
+                Err("returned dynamic reference needs its admitted completion resource")
+            } else {
+                Ok(Vec::new())
+            };
+        };
+        let terminal_psi::TargetMachineCallable::Machine(callee) = call.callee else {
+            return Err("returned boundary reference needs its admitted completion resource");
+        };
+        let callee = module
+            .machine(callee)
+            .ok_or("returned reference call has no actual callee body")?;
+        let signature = callee
+            .result
+            .structural()
+            .ok_or("returned reference call has no structural result contract")?;
+        if result.structural_type != signature.structural_type
+            || result.multiplicity != signature.multiplicity
+        {
+            return Err("returned reference call changes its declared result carrier");
+        }
+        let slots = analysis
+            .result_slots(callee.id)
+            .ok_or("returned reference callee has no complete actual source correspondence")?;
+        let actual = super::reference_origins::reference_result_sources(
+            &module.structural_types,
+            &callee.structural_parameters,
+            signature,
+            &slots,
+        )?;
+        if actual != signature.reference_sources {
+            return Err("returned reference header differs from its actual body origins");
+        }
+        let bindings = bind_reference_call_results(
+            module.structural_types.iter(),
+            ReferenceCallContract::Machine {
+                parameters: &callee.structural_parameters,
+                sources: &actual,
+            },
+            call.structural_arguments,
+        )?;
+        let mut positions = caller.blocks.iter().flat_map(|block| {
+            block
+                .operations
+                .iter()
+                .enumerate()
+                .filter_map(move |(ordinal, candidate)| {
+                    (candidate.id == operation.id && candidate == operation)
+                        .then_some((block.id, ordinal))
+                })
+        });
+        let (block, ordinal) = positions
+            .next()
+            .ok_or("returned reference has no exact caller operation")?;
+        if positions.next().is_some() {
+            return Err("returned reference has ambiguous caller operation coordinates");
+        }
+        let at = (
+            block,
+            u32::try_from(ordinal).map_err(|_| "call ordinal overflows")?,
+        );
+        let flow = analysis
+            .flow(caller.id)
+            .ok_or("returned reference caller has no complete descriptor flow")?;
+        let mut retained: Vec<Option<crate::descriptor_lifetimes::DescriptorLifetime>> = (0
+            ..callee.structural_parameters.len())
+            .map(|_| None)
+            .collect();
+        for (mapping, binding) in actual.iter().zip(bindings) {
+            let descriptor = descriptor_location(
+                &module.structural_types,
+                result.place,
+                result.structural_type,
+                &binding.path,
+                None,
+            )
+            .ok_or("returned reference has no exact result descriptor path")?;
+            for (origin, bound) in mapping.sources.iter().zip(binding.sources) {
+                let ReferenceCallOrigin::Parameter {
+                    source,
+                    transfers_existing,
+                } = bound.origin
+                else {
+                    return Err("returned invocation reference needs its admitted resource");
+                };
+                if transfers_existing {
+                    // The existing descriptor flow transports that input
+                    // occurrence. It does not form a new loan of its backing.
+                    continue;
+                }
+                let formal = origin
+                    .parameter()
+                    .ok_or("returned reference has no exact formal input origin")?;
+                let position = terminal_psi::structural_parameter_position(
+                    &callee.structural_parameters,
+                    formal.place,
+                )
+                .ok_or("returned reference names no formal input")?;
+                let argument = call
+                    .structural_arguments
+                    .get(position)
+                    .ok_or("returned reference input has no actual argument")?;
+                if argument.access == StructuralAccess::Owned
+                    || source.place != argument.place
+                    || !source.path.starts_with(&argument.path)
+                {
+                    return Err("returned reference does not retain an actual input loan");
+                }
+                let lifetime = descriptor_location_lifetime(&flow, at, &descriptor);
+                if lifetime.live.contains(&at) {
+                    return Err("returned reference loan crosses its own call formation");
+                }
+                if let Some(previous) = &mut retained[position] {
+                    previous.live.extend(lifetime.live);
+                    for (at, names) in lifetime.authorized {
+                        previous.authorized.entry(at).or_default().extend(names);
+                    }
+                } else {
+                    retained[position] = Some(lifetime);
+                }
+            }
+        }
+        Ok(retained
+            .into_iter()
+            .enumerate()
+            .filter_map(|(position, lifetime)| lifetime.map(|lifetime| (position, lifetime)))
+            .collect())
+    }
+
     pub fn cleanup_disposes_reference(
         actions: &[TerminalAffineCleanupAction],
         carrier: PlaceId,
@@ -1138,7 +1366,7 @@ pub(crate) mod reference_origins {
         use terminal_psi::{
             ReferenceOriginProjection, ReferenceOriginSource, StructuralAccess,
             StructuralParameterDeclaration, StructuralPathSegment, StructuralResultDeclaration,
-            StructuralTypeDeclaration, TerminalDynamicReferenceRegion,
+            StructuralTypeDeclaration, StructuralTypeShape, TerminalDynamicReferenceRegion,
         };
 
         use crate::descriptors::descriptor_lifetimes::{
@@ -1220,7 +1448,7 @@ pub(crate) mod reference_origins {
                         }
                         continue;
                     }
-                    let (position, path) = input_origin_path(types, parameters, origin)?;
+                    let (position, path) = descriptor_input_origin_path(types, parameters, origin)?;
                     let parameter = parameters
                         .get(position)
                         .ok_or("dynamic returned view names no formal input")?;
@@ -1266,7 +1494,167 @@ pub(crate) mod reference_origins {
             Ok(())
         }
 
-        fn input_origin_path(
+        /// Derive the declared input origins from actual returned descriptor
+        /// slots. A signature alone cannot authorize unrelated backing; callers
+        /// must reconstruct the slots from the body before using this mapping.
+        pub fn reference_result_sources(
+            types: &[StructuralTypeDeclaration],
+            parameters: &[StructuralParameterDeclaration],
+            result: &StructuralResultDeclaration,
+            slots: &[DescriptorResultSlot],
+        ) -> Result<Vec<terminal_psi::StructuralReferenceResultSource>, &'static str> {
+            let leaves = super::reference_leaves(types.iter(), result.structural_type, slots.len())
+                .ok_or("reference result has no complete finite leaf roster")?;
+            let mut mappings = Vec::with_capacity(leaves.len());
+            for leaf in leaves {
+                let StructuralTypeShape::Reference { referent, access } = types
+                    .iter()
+                    .find(|row| row.id == leaf.structural_type)
+                    .ok_or("reference result leaf has no type")?
+                    .shape
+                else {
+                    return Err("reference result leaf changed constructor");
+                };
+                let mut matching = slots.iter().filter(|slot| {
+                    descriptor_path(types, result.structural_type, &slot.path).as_ref()
+                        == Some(&leaf.path)
+                });
+                let slot = matching
+                    .next()
+                    .ok_or("reference result leaf has no actual return origins")?;
+                if matching.next().is_some() || slot.origins.is_empty() {
+                    return Err("reference result origins are ambiguous or empty");
+                }
+                let mut sources = Vec::with_capacity(slot.origins.len());
+                for origin in &slot.origins {
+                    match origin {
+                        DescriptorStoredOrigin::Parameter { projection, .. }
+                        | DescriptorStoredOrigin::IncomingContents { projection, .. }
+                            if !projection.exact
+                                || projection.indirect
+                                || projection.window.is_some() =>
+                        {
+                            return Err(
+                                "reference result needs an exact retained input projection",
+                            );
+                        }
+                        DescriptorStoredOrigin::Parameter { .. }
+                        | DescriptorStoredOrigin::IncomingSlot { .. }
+                        | DescriptorStoredOrigin::IncomingContents { .. } => {}
+                        _ => {
+                            return Err(
+                                "reference result backing needs its actual admitted producer",
+                            );
+                        }
+                    }
+                    let (position, mut path) =
+                        descriptor_input_origin_path(types, parameters, origin)?;
+                    if path.iter().any(|step| {
+                        !matches!(
+                            step,
+                            ReferenceOriginProjection::Exact(
+                                StructuralPathSegment::Field(_)
+                                    | StructuralPathSegment::Case(_)
+                                    | StructuralPathSegment::FixedIndex(_)
+                                    | StructuralPathSegment::Referent
+                            )
+                        )
+                    }) {
+                        return Err("reference result needs a static captured input path");
+                    }
+                    let parameter = parameters
+                        .get(position)
+                        .ok_or("reference result input is unavailable")?;
+                    let endpoint = super::reference_origin_type(
+                        types.iter(),
+                        parameter.structural_type,
+                        &path,
+                    )
+                    .ok_or("reference result input path has no exact typed endpoint")?;
+                    if endpoint != referent {
+                        let Some(StructuralTypeShape::Reference {
+                            referent: stored,
+                            access: ceiling,
+                        }) = types
+                            .iter()
+                            .find(|row| row.id == endpoint)
+                            .map(|row| &row.shape)
+                        else {
+                            return Err("reference result changes its original referent");
+                        };
+                        if *stored != referent || !access.admits_referent(*ceiling) {
+                            return Err("reference result changes its input type or access");
+                        }
+                        path.push(ReferenceOriginProjection::Exact(
+                            StructuralPathSegment::Referent,
+                        ));
+                    } else if !access.admits(parameter.access) {
+                        return Err("reference result exceeds its input storage access");
+                    }
+                    if parameter.access == StructuralAccess::Owned
+                        && !path.iter().any(|step| {
+                            matches!(
+                                step,
+                                ReferenceOriginProjection::Exact(StructuralPathSegment::Referent)
+                            )
+                        })
+                    {
+                        return Err(
+                            "reference result escapes owned input storage rather than its carried backing",
+                        );
+                    }
+                    // Check the whole path's access, not only its endpoint.
+                    // A mutable result cannot cross a shared ancestor.
+                    let exact = path
+                        .iter()
+                        .map(|step| match step {
+                            ReferenceOriginProjection::Exact(segment) => segment.clone(),
+                            ReferenceOriginProjection::Element => {
+                                unreachable!("checked static above")
+                            }
+                        })
+                        .collect::<Vec<_>>();
+                    if !crate::reference_source_projection_accessible(
+                        types.iter(),
+                        parameter.structural_type,
+                        parameter.multiplicity,
+                        parameter.access,
+                        &exact,
+                        access,
+                    ) {
+                        return Err("reference result exceeds an input path's access");
+                    }
+                    let source = ReferenceOriginSource {
+                        place: parameter.place,
+                        path,
+                        extent: ReferenceOriginExtent::Projected,
+                        access,
+                    };
+                    sources.push(terminal_psi::StructuralReferenceOrigin::Parameter(source));
+                }
+                sources.sort();
+                sources.dedup();
+                let first = sources
+                    .first()
+                    .and_then(|source| source.parameter())
+                    .map(|source| source.place);
+                if sources
+                    .iter()
+                    .filter_map(|source| source.parameter())
+                    .any(|source| Some(source.place) != first)
+                {
+                    return Err("reference result has alternatives from different input roots");
+                }
+                mappings.push(terminal_psi::StructuralReferenceResultSource {
+                    path: leaf.path,
+                    sources,
+                });
+            }
+            mappings.sort();
+            Ok(mappings)
+        }
+
+        pub fn descriptor_input_origin_path(
             types: &[StructuralTypeDeclaration],
             parameters: &[StructuralParameterDeclaration],
             origin: &DescriptorStoredOrigin,
@@ -1738,7 +2126,9 @@ pub(crate) mod reference_origins {
         ReferenceCallContract, ReferenceCallOrigin, ReferenceCallResult, ReferenceCallSource,
         bind_public_reference_call_results, bind_reference_call_results,
     };
-    pub use descriptor_regions::validate_descriptor_result_regions;
+    pub use descriptor_regions::{
+        descriptor_input_origin_path, reference_result_sources, validate_descriptor_result_regions,
+    };
     pub use result_regions::{
         ReferenceLeaf, reference_leaves, validate_boundary_reference_regions,
         validate_dynamic_reference_regions,

@@ -50,6 +50,7 @@ struct Source {
     boolean: SymbolHandle,
     forward: Generic,
     relay: Generic,
+    nested: Option<Generic>,
     sized_state: SymbolHandle,
     main: SymbolHandle,
     counted: SymbolHandle,
@@ -224,6 +225,18 @@ fn source() -> Source {
 }
 
 fn source_named(relay_name: &'static str) -> Source {
+    source_with_nested(relay_name, false)
+}
+
+fn source_with_nested(relay_name: &'static str, with_nested: bool) -> Source {
+    source_with_child_telescope(relay_name, with_nested, false)
+}
+
+fn source_with_child_telescope(
+    relay_name: &'static str,
+    with_nested: bool,
+    independent_child: bool,
+) -> Source {
     let mut builder = SymbolTableBuilder::new();
     let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
     let top = builder.insert_children(
@@ -242,7 +255,61 @@ fn source_named(relay_name: &'static str) -> Source {
     let [byte, boolean, wide, forward, relay, sized, main, counted] =
         std::array::from_fn(|position| top.handle_at(position as u32));
     let forward = generic(&mut builder, forward);
-    let relay = generic(&mut builder, relay);
+    let (relay, nested) = if with_nested {
+        let children = builder.insert_children(
+            relay,
+            [
+                (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
+                (SymbolKind::State, SymbolNameRef::Static("entry")),
+            ],
+        );
+        let (parameter, state) = (children.handle_at(0), children.handle_at(1));
+        let children = builder.insert_children(
+            state,
+            [
+                (SymbolKind::Parameter, SymbolNameRef::Static("item")),
+                (SymbolKind::Machine, SymbolNameRef::Static("nested")),
+            ],
+        );
+        let (item, machine) = (children.handle_at(0), children.handle_at(1));
+        let child_roster = if independent_child {
+            vec![
+                (SymbolKind::State, SymbolNameRef::Static("entry")),
+                (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
+            ]
+        } else {
+            vec![(SymbolKind::State, SymbolNameRef::Static("entry"))]
+        };
+        let children = builder.insert_children(machine, child_roster);
+        let nested_state = children.handle_at(0);
+        let nested_parameter = if independent_child {
+            children.handle_at(1)
+        } else {
+            parameter
+        };
+        let nested_item = builder
+            .insert_children(
+                nested_state,
+                [(SymbolKind::Parameter, SymbolNameRef::Static("item"))],
+            )
+            .handle_at(0);
+        (
+            Generic {
+                machine: relay,
+                state,
+                parameter,
+                item,
+            },
+            Some(Generic {
+                machine,
+                state: nested_state,
+                parameter: nested_parameter,
+                item: nested_item,
+            }),
+        )
+    } else {
+        (generic(&mut builder, relay), None)
+    };
     let sized_children = builder.insert_children(
         sized,
         [
@@ -308,6 +375,18 @@ fn source_named(relay_name: &'static str) -> Source {
         argument(relay.parameter, "T"),
         item,
     );
+    if let Some(nested) = &nested {
+        let ExpressionNode::Call(call) = program.expression_table.expression_mut(forwarded) else {
+            panic!("call fixture");
+        };
+        call.target_symbol = nested.state;
+        call.target = Identifier::generated("nested");
+        let application = call.authored_machine_application;
+        program
+            .expression_table
+            .static_machine_application_mut(application)
+            .registration_operation = nested.state;
+    }
     let body = returns(&mut program, forwarded);
     state.statement_nodes = program.statement_table.insert_statements([body]);
     push_machine(
@@ -318,6 +397,48 @@ fn source_named(relay_name: &'static str) -> Source {
         contracts,
         state,
     );
+
+    if let Some(nested) = &nested {
+        let type_parameters = program.data_type_parameters.insert_many([TypeParameter {
+            symbol: nested.parameter,
+            name: Identifier::generated("T"),
+            kind: TypeParameterKind::Type,
+            ..Default::default()
+        }]);
+        let item_type = named(&mut program, nested.parameter, "T");
+        let parameters = program.state_parameters.insert_many([StateParameter {
+            symbol: nested.item,
+            name: Identifier::generated("item"),
+            type_reference: item_type,
+            ..Default::default()
+        }]);
+        let item = name(&mut program, nested.item, "item");
+        let forwarded = call(
+            &mut program,
+            nested.machine,
+            forward.state,
+            "forward",
+            argument(nested.parameter, "T"),
+            item,
+        );
+        let body = returns(&mut program, forwarded);
+        let state = State {
+            symbol: nested.state,
+            name: Identifier::generated("entry"),
+            parameters,
+            return_type: item_type,
+            statement_nodes: program.statement_table.insert_statements([body]),
+            ..Default::default()
+        };
+        push_machine(
+            &mut program,
+            nested.machine,
+            "nested",
+            type_parameters,
+            HandleSpan::empty(),
+            state,
+        );
+    }
 
     // sized<const N: u64>() { }
     let carrier = named(&mut program, wide, "u64");
@@ -431,6 +552,7 @@ fn source_named(relay_name: &'static str) -> Source {
         boolean,
         forward,
         relay,
+        nested,
         sized_state,
         main,
         counted,
@@ -763,4 +885,235 @@ fn an_application_the_pass_does_not_serve_is_refused_on_its_holder_only() {
         Some(DeferredRequest::StaticApplication)
     );
     assert!(program.deferred_refusal(main).is_none());
+}
+
+#[test]
+fn nested_declarations_keep_each_enclosing_application_and_their_own_call_owner() {
+    let Source {
+        mut program,
+        byte,
+        boolean,
+        relay,
+        nested,
+        main,
+        ..
+    } = source_with_nested("relay", true);
+    let nested = nested.unwrap();
+    prepare(&mut program).unwrap();
+    let entered = calls(&program, main)
+        .iter()
+        .map(|call| call.target_symbol)
+        .collect::<Vec<_>>();
+    assert_eq!(entered[0], entered[1]);
+    assert_ne!(entered[0], entered[2]);
+    let mut children = Vec::new();
+    for (entry, actual) in [(entered[0], byte), (entered[2], boolean)] {
+        let owner = program.symbols.get(entry).parent;
+        let child_call = calls(&program, owner)[0];
+        assert!(child_call.machine_arguments.is_empty());
+        let child_entry = child_call.target_symbol;
+        let child = program.symbols.get(child_entry).parent;
+        children.push(child);
+        assert_eq!(program.symbols.get(child).parent, entry);
+        assert_eq!(program.symbols.get(child).generated_from, nested.machine);
+        assert_eq!(
+            program.symbols.get(child_entry).generated_from,
+            nested.state
+        );
+        assert_eq!(
+            program.executable_application_template(child).unwrap(),
+            Some(nested.machine)
+        );
+        let state = only_state(&program, child);
+        let [item] = program.state_parameters(state) else {
+            panic!("one formal");
+        };
+        assert_ne!(item.symbol, nested.item);
+        assert_eq!(named_symbol(&program, item.type_reference), actual);
+        assert_eq!(named_symbol(&program, state.return_type), actual);
+        let call = calls(&program, child)[0];
+        let selected = program.symbols.get(call.target_symbol).parent;
+        assert_eq!(
+            named_symbol(&program, only_state(&program, selected).return_type),
+            actual
+        );
+        assert_eq!(
+            program
+                .expression_table
+                .static_machine_application(call.authored_machine_application)
+                .lexical_owner,
+            child
+        );
+        let receipt = program.machine_specialization(child).unwrap();
+        assert_eq!(
+            receipt.template_parameters,
+            program
+                .machine_by_symbol(relay.machine)
+                .unwrap()
+                .type_parameters
+        );
+        assert_eq!(
+            program
+                .machine_specialization(owner)
+                .unwrap()
+                .binding_application,
+            receipt.binding_application
+        );
+    }
+    assert_ne!(children[0], children[1]);
+    assert_eq!(
+        named_symbol(&program, only_state(&program, nested.machine).return_type),
+        relay.parameter
+    );
+    assert!(program.deferred_refusal(main).is_none());
+}
+
+#[test]
+fn an_unserved_child_telescope_leaves_the_whole_specialization_unwritten() {
+    let Source {
+        mut program,
+        relay,
+        nested,
+        main,
+        ..
+    } = source_with_child_telescope("relay", true, true);
+    let nested = nested.unwrap();
+    assert_ne!(nested.parameter, relay.parameter);
+    assert_eq!(program.symbols.get(nested.parameter).parent, nested.machine);
+    let symbols = program.symbols.symbols().len();
+    let machines = program.machines().len();
+    prepare(&mut program).unwrap();
+    assert_eq!(program.symbols.symbols().len(), symbols);
+    assert_eq!(program.machines().len(), machines);
+    assert!(program.deferred_refusal(main).is_some());
+}
+
+#[test]
+fn an_existing_nested_copy_does_not_accept_another_argument_or_source_selection() {
+    for foreign_owner in [false, true] {
+        let Source {
+            mut program,
+            byte,
+            boolean,
+            main,
+            forward,
+            ..
+        } = source_with_nested("relay", true);
+        prepare(&mut program).unwrap();
+        let owner = program
+            .symbols
+            .get(calls(&program, main)[0].target_symbol)
+            .parent;
+        let position = program
+            .machines()
+            .iter()
+            .position(|machine| machine.symbol == owner)
+            .unwrap();
+        let site = super::call_sites(&program, position)[0];
+        let child = super::entered_machine(&program, site.applied(&program).unwrap().target)
+            .unwrap()
+            .0;
+        let requested = if foreign_owner { byte } else { boolean };
+        let argument = argument(requested, if foreign_owner { "u8" } else { "bool" });
+        let application = site.call(&program).unwrap().application();
+        let super::Site::Expression(handle) = site else {
+            panic!("fixture expression");
+        };
+        let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
+            panic!("fixture call");
+        };
+        call.machine_arguments = vec![argument.clone()].into_boxed_slice();
+        program
+            .expression_table
+            .static_machine_application_arguments_mut(application)[0] = argument;
+        if foreign_owner {
+            let foreign = program
+                .machine_specializations
+                .iter()
+                .find(|row| row.template == forward.machine)
+                .unwrap()
+                .binding_application;
+            program
+                .machine_specializations
+                .iter_mut()
+                .find(|row| row.instance == child)
+                .unwrap()
+                .binding_application = foreign;
+        }
+        let symbols = program.symbols.symbols().len();
+        prepare(&mut program).unwrap();
+        assert_eq!(program.symbols.symbols().len(), symbols);
+        assert_eq!(
+            program.deferred_refusal(owner).map(|row| row.request),
+            Some(DeferredRequest::StaticApplication)
+        );
+        assert_eq!(calls(&program, owner)[0].machine_arguments.len(), 1);
+    }
+}
+
+#[test]
+fn an_already_bound_tuple_keeps_even_an_unused_parameter() {
+    let mut builder = SymbolTableBuilder::default();
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let declarations = builder.insert_children(
+        root,
+        [
+            (SymbolKind::BuiltinType, SymbolNameRef::Static("u8")),
+            (SymbolKind::BuiltinType, SymbolNameRef::Static("bool")),
+            (SymbolKind::Machine, SymbolNameRef::Static("owner")),
+        ],
+    );
+    let byte = declarations.handle_at(0);
+    let boolean = declarations.handle_at(1);
+    let owner = declarations.handle_at(2);
+    let binders = builder.insert_children(
+        owner,
+        [
+            (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
+            (SymbolKind::TypeParameter, SymbolNameRef::Static("Unused")),
+        ],
+    );
+    let parameters = binders
+        .handles()
+        .zip(["T", "Unused"])
+        .map(|(symbol, name)| TypeParameter {
+            symbol,
+            name: Identifier::generated(name),
+            ..Default::default()
+        })
+        .collect::<Vec<_>>();
+    let mut program = TypedTrees {
+        symbols: builder.finish(),
+        ..Default::default()
+    };
+    let actual = [argument(byte, "u8"), argument(boolean, "bool")];
+    let application = program.expression_table.retain_static_machine_application(
+        owner,
+        Identifier::generated("owner"),
+        &actual,
+    );
+    let selected = parameters
+        .iter()
+        .zip(&actual)
+        .map(|(parameter, argument)| {
+            super::Operand::read(&mut program, parameter.symbol, &parameter.kind, argument)
+                .unwrap_or_else(|_| panic!("closed argument"))
+        })
+        .collect::<Vec<_>>();
+    super::bind(&mut program, application, &selected);
+    assert!(
+        super::bound_arguments(&mut program, &parameters, &parameters, application, &actual)
+            .is_ok()
+    );
+    let different_unused = [argument(byte, "u8"), argument(byte, "u8")];
+    assert!(matches!(
+        super::bound_arguments(
+            &mut program,
+            &parameters,
+            &parameters,
+            application,
+            &different_unused
+        ),
+        Err(super::Stop::Unserved)
+    ));
 }

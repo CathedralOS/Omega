@@ -383,6 +383,46 @@ impl<'t> Program<'t> {
             {
                 Ok(())
             }
+            // Copying a lexical declaration rebinds the execution target,
+            // while the authored binding keeps its original declaration.
+            // The existing application/state correspondence must join them;
+            // generated provenance alone is not that association.
+            Some(binding) if binding.selected == target => {
+                if !binding.original.is_valid()
+                    || !self
+                        .typed
+                        .symbols
+                        .symbols()
+                        .nodes()
+                        .is_valid(binding.original)
+                {
+                    return unserved("rebound call");
+                }
+                let Some(instance) = self.entered_machine(binding.selected) else {
+                    return unserved("rebound call");
+                };
+                let Some(template) = self.entered_machine(binding.original) else {
+                    return unserved("rebound call");
+                };
+                let matches = match self.typed.symbols.get(binding.original).kind {
+                    SymbolKind::State => self.typed.instantiated_machine_state_matches(
+                        instance,
+                        template,
+                        binding.original,
+                        binding.selected,
+                    ),
+                    SymbolKind::Machine => self
+                        .typed
+                        .machine_instantiation_path(instance, template)
+                        .is_some(),
+                    _ => false,
+                };
+                if matches {
+                    Ok(())
+                } else {
+                    unserved("rebound call")
+                }
+            }
             Some(_) => unserved("rebound call"),
         }
     }
@@ -1543,6 +1583,16 @@ impl<'t> Program<'t> {
                 self.expression(id, slots, *argument, Some(*formal))?
             });
             if !free.is_empty()
+                && let Some(borrowed) = borrowed
+                && let Some(Expression {
+                    kind: ExpressionKind::Borrow { place, .. },
+                    ..
+                }) = read.last()
+            {
+                let actual = self.loan_regions(id, slots, place)?;
+                self.unify_regions(id, &free, borrowed.regions, actual, &mut bound)?;
+            }
+            if !free.is_empty()
                 && let Some(actual) = read.last().and_then(|argument| argument.result)
             {
                 self.unify(id, &free, *declared, actual, &mut bound)?;
@@ -1597,10 +1647,13 @@ impl<'t> Program<'t> {
         // body is judged against that lifetime as a parameter it knows
         // nothing about, so only a view valid at every choice is returned.
         for parameter in &free {
-            let chosen_by_caller = !formals
-                .iter()
-                .any(|(formal, _, _)| self.names_any(*formal, &[*parameter]))
-                && declared_result.is_some_and(|result| self.names_any(result, &[*parameter]))
+            let chosen_by_caller = !formals.iter().any(|(formal, _, borrowed)| {
+                self.names_any(*formal, &[*parameter])
+                    || borrowed.as_ref().is_some_and(|borrowed| {
+                        self.regions_name_any(borrowed.regions, &[*parameter])
+                    })
+            }) && declared_result
+                .is_some_and(|result| self.names_any(result, &[*parameter]))
                 && !bound.iter().any(|(known, _)| known == parameter);
             if chosen_by_caller {
                 self.region_variables.push(None);
@@ -1656,7 +1709,7 @@ impl<'t> Program<'t> {
     /// This covers ... formation of `&mut` or `&write` loans to those
     /// places. A callee cannot grant writable access that the caller's place
     /// lacks."
-    fn lent(
+    pub(super) fn lent(
         &mut self,
         id: MachineId,
         slots: &[Slot],
@@ -1692,45 +1745,53 @@ impl<'t> Program<'t> {
                 self.typed.expression_table.display_name(argument),
             ));
         }
-        // Ordinary references still name existing storage or explicitly
-        // borrow it; a descriptor expression cannot grant writable custody.
-        let (target, access) = match self.node(id, argument)? {
-            ExpressionNode::Borrow(borrow) => (borrow.target, borrow.access),
-            ExpressionNode::Name(path) => {
-                let slot = self.slot_of(id, slots, path)?;
-                match slots[slot].borrowed {
-                    Some(_) => (argument, formal.access),
-                    None => return unserved("argument for a borrowed formal that is not a borrow"),
-                }
-            }
-            _ => return unserved("argument for a borrowed formal that is not a borrow"),
+        // Evaluate the supplied value once. A reference descriptor carries
+        // the permission to cross into its backing, whether it came from a
+        // binding, a field or another helper call. An ordinary owned value
+        // still needs an explicit borrow of its place.
+        let (mut place, access, explicit) = match node {
+            ExpressionNode::Borrow(borrow) => (
+                self.expression(id, slots, borrow.target, None)?,
+                borrow.access,
+                true,
+            ),
+            _ => (
+                self.expression(id, slots, argument, None)?,
+                formal.access,
+                false,
+            ),
         };
         if access != formal.access {
             return unserved("borrow whose access differs from its formal's");
         }
-        // What a diagnostic calls the lender: the binding at the root of
-        // the place, as the deleted checker named it.
-        let mut root = target;
-        while let ExpressionNode::Member(member) = self.node(id, root)? {
-            root = member.receiver;
+        if let Some(value_type) = place.result
+            && let Some((referent, _)) = self.reference_referent(id, value_type)?
+        {
+            place = Expression {
+                source: place.source,
+                kind: ExpressionKind::Referent(Box::new(place)),
+                result: Some(referent),
+            };
         }
-        let lender_text = self.typed.expression_table.display_name(root);
-        let place = self.expression(id, slots, target, None)?;
-        if !names_storage(&place) {
-            return unserved("borrow of a value that is not a place");
+        let crossed = self.reference_place_access(id, &place, access)?;
+        let slot = root_slot(id, &place, &self.captures)?;
+        if !crossed {
+            let Some(slot) = slot else {
+                return unserved("borrow of a value that is not a place");
+            };
+            let lender = &slots[slot];
+            if !explicit && lender.borrowed.is_none() {
+                return unserved("argument for a borrowed formal that is not a borrow");
+            }
+            if !names_storage(&place) {
+                return unserved("borrow of a value that is not a place");
+            }
+            if access == ReferenceAccess::Mutable && lender.borrowed.is_none() && !lender.assignable
+            {
+                return unserved("exclusive loan of an immutable binding");
+            }
         }
-        // The binding whose storage the place is in: through fields,
-        // elements, case payloads and the subject a match saved.
-        let Some(slot) = root_slot(id, &place, &self.captures)? else {
-            return unserved("borrow of a value that is not a place");
-        };
-        // A binding's mutability is a source rule the lowered form does not
-        // keep, so it is decided here; a reborrow's access against its
-        // parent's is the checker's judgment (`terminal-psi-to-terminal-psi`, loans).
-        let lender = &slots[slot];
-        if access == ReferenceAccess::Mutable && lender.borrowed.is_none() && !lender.assignable {
-            return unserved("exclusive loan of an immutable binding");
-        }
+        let lender_text = self.typed.expression_table.display_name(argument);
         // An exclusive loan of a field hands its holder a write inside
         // every value the path goes through.
         if access != ReferenceAccess::Shared {
@@ -1744,9 +1805,10 @@ impl<'t> Program<'t> {
         if place.result.and_then(ValueType::policy).is_some() {
             return unserved("loan of a policy-qualified integer");
         }
-        let home = match (&place.kind, lender.value_type) {
-            (ExpressionKind::Slot(_), ValueType::Scalar(_, Qualification::NONE))
-                if !lender.homed =>
+        let home = match (&place.kind, slot.and_then(|slot| slots.get(slot))) {
+            (ExpressionKind::Slot(_), Some(lender))
+                if matches!(lender.value_type, ValueType::Scalar(_, Qualification::NONE))
+                    && !lender.homed =>
             {
                 Some(formal.home.clone().ok_or_else(|| {
                     refuse(
@@ -1843,9 +1905,9 @@ fn selectors_mention<'a>(
             Ok(selectors_mention(id, base, slots, captures)?
                 || mentions(id, index, slots, captures)?)
         }
-        ExpressionKind::Field { base, .. } | ExpressionKind::Payload { base, .. } => {
-            selectors_mention(id, base, slots, captures)
-        }
+        ExpressionKind::Field { base, .. }
+        | ExpressionKind::Payload { base, .. }
+        | ExpressionKind::Referent(base) => selectors_mention(id, base, slots, captures),
         ExpressionKind::SavedSubject(_) => {
             root_slot(id, place, captures)?;
             Ok(false)
@@ -1872,7 +1934,8 @@ fn mentions<'a>(
         ExpressionKind::Integer(_)
         | ExpressionKind::ByteLiteral(_)
         | ExpressionKind::Boolean(_) => Ok(false),
-        ExpressionKind::Not(operand)
+        ExpressionKind::Referent(operand)
+        | ExpressionKind::Not(operand)
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
         | ExpressionKind::Requalify(operand)
@@ -1951,6 +2014,132 @@ mod tests {
     use super::*;
     use crate::Unpositioned;
     use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType, StructuralTypeId};
+
+    #[test]
+    fn copied_call_bindings_keep_their_exact_authored_state() {
+        use language_semantics::declaration_selection::ResolvedAuthoredCallBinding;
+        use symbols::{SymbolNameRef, SymbolTableBuilder};
+        use typed_trees::{MachineSpecialization, machine::Machine, state::State};
+        let mut builder = SymbolTableBuilder::default();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let declarations = builder.insert_children(
+            root,
+            [
+                (SymbolKind::Machine, SymbolNameRef::Static("source")),
+                (SymbolKind::Machine, SymbolNameRef::Static("foreign")),
+            ],
+        );
+        let source = declarations.handle_at(0);
+        let foreign = declarations.handle_at(1);
+        let source_state = builder
+            .insert_children(source, [(SymbolKind::State, SymbolNameRef::Static("run"))])
+            .handle_at(0);
+        let foreign_state = builder
+            .insert_children(foreign, [(SymbolKind::State, SymbolNameRef::Static("run"))])
+            .handle_at(0);
+        let mut typed = typed_trees::TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
+        let instance =
+            typed
+                .symbols
+                .insert_generated_root_from(source, SymbolKind::Machine, "instance");
+        let state = typed
+            .symbols
+            .insert_generated_children_from(instance, [(source_state, SymbolKind::State, "run")])
+            .handle_at(0);
+        for (symbol, state) in [
+            (source, source_state),
+            (foreign, foreign_state),
+            (instance, state),
+        ] {
+            let states = typed.machine_states.insert_many([State {
+                symbol: state,
+                ..Default::default()
+            }]);
+            typed.push_machine(Machine {
+                symbol,
+                states,
+                ..Default::default()
+            });
+        }
+        let row = MachineSpecialization {
+            template: source,
+            instance,
+            ..Default::default()
+        };
+        typed.machine_specializations.push(row.clone());
+        let binding = ResolvedAuthoredCallBinding {
+            selected: state,
+            original: source_state,
+        };
+        let id = MachineId::new(1).unwrap();
+        assert!(
+            Program::new(&typed, false)
+                .direct_selection(id, state, None, Some(binding))
+                .is_ok()
+        );
+        assert!(
+            Program::new(&typed, false)
+                .direct_selection(
+                    id,
+                    instance,
+                    None,
+                    Some(ResolvedAuthoredCallBinding {
+                        selected: instance,
+                        original: source
+                    })
+                )
+                .is_ok()
+        );
+        assert!(
+            Program::new(&typed, false)
+                .direct_selection(
+                    id,
+                    state,
+                    None,
+                    Some(ResolvedAuthoredCallBinding {
+                        original: foreign_state,
+                        ..binding
+                    })
+                )
+                .is_err()
+        );
+        assert!(
+            Program::new(&typed, false)
+                .direct_selection(
+                    id,
+                    state,
+                    None,
+                    Some(ResolvedAuthoredCallBinding {
+                        original: SymbolHandle::invalid(),
+                        ..binding
+                    })
+                )
+                .is_err()
+        );
+        typed.machine_specializations[0].template = foreign;
+        assert!(
+            Program::new(&typed, false)
+                .direct_selection(id, state, None, Some(binding))
+                .is_err()
+        );
+        typed.machine_specializations[0] = row.clone();
+        typed.machine_specializations.push(row);
+        assert!(
+            Program::new(&typed, false)
+                .direct_selection(id, state, None, Some(binding))
+                .is_err()
+        );
+        typed.machine_specializations.clear();
+        assert!(
+            Program::new(&typed, false)
+                .direct_selection(id, state, None, Some(binding))
+                .is_err(),
+            "generated_from is insufficient without the actual application"
+        );
+    }
 
     #[test]
     fn saved_subject_reads_keep_loan_provenance_without_replaying_selectors() {

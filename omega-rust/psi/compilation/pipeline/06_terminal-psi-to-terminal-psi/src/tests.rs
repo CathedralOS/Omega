@@ -38,6 +38,7 @@ mod entry_inputs;
 mod entryless;
 mod guard_contradiction;
 mod handoffs;
+mod indexed_contracts;
 mod inferred_bounds;
 mod lifetime_elision;
 mod lifetime_generics;
@@ -2028,7 +2029,7 @@ fn a_formal_leaf_reads_as_its_one_entry_content_value() {
     assert_eq!(read_equals(tables, *second), Some(held));
     assert!(matches!(
         tables.values.get(held).unwrap().origin,
-        ValueOrigin::InitialContent { .. }
+        ValueOrigin::StorageContent { .. }
     ));
     let (obligation, verdict) = verdicts(&elaboration, &result, 1, safety)[0];
     assert_kernel_accepted(&elaboration, 1, obligation, certificate(verdict));
@@ -2095,7 +2096,7 @@ fn a_copy_reads_as_what_its_source_held_and_a_call_result_as_its_own_unknown_lea
     let leaf = read_equals(tables, *of_result).expect("the result leaf's initial content");
     assert!(matches!(
         tables.values.get(leaf).unwrap().origin,
-        ValueOrigin::InitialContent { .. }
+        ValueOrigin::StorageContent { .. }
     ));
     let requirements = verdicts(&elaboration, &result, 1, requirement);
     let [(first, through_copy), (_, through_result)] = requirements.as_slice() else {
@@ -4741,7 +4742,7 @@ fn a_read_of_what_a_call_returned_carries_its_types_clause() {
     let held = read_equals(tables, observed).expect("the result leaf's initial content");
     assert!(matches!(
         tables.values.get(held).unwrap().origin,
-        ValueOrigin::InitialContent { .. }
+        ValueOrigin::StorageContent { .. }
     ));
     assert_eq!(
         read_premises(tables, observed),
@@ -4886,7 +4887,7 @@ fn an_entry_clause_over_a_formals_field_is_known_of_its_entry_content() {
     let entry = read_equals(tables, observed).unwrap();
     assert!(matches!(
         tables.values.get(entry).unwrap().origin,
-        ValueOrigin::InitialContent { .. }
+        ValueOrigin::StorageContent { .. }
     ));
     let stated: Vec<_> = tables
         .knowledge

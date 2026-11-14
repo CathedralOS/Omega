@@ -820,7 +820,7 @@ pub mod expression {
     }
     pub(crate) mod static_members {
         use super::{ExpressionTable, StaticMachineArgument};
-        use symbols::SymbolHandle;
+        use crate::remapped;
 
         impl ExpressionTable {
             pub fn copy_static_argument_from(
@@ -865,17 +865,13 @@ pub mod expression {
                 copied
             }
 
-            pub fn remap_static_argument_symbols(
+            pub fn remap_static_argument_symbols<'scope>(
                 &mut self,
                 argument: &mut StaticMachineArgument,
-                symbols: &[(SymbolHandle, SymbolHandle)],
+                symbols: impl Into<crate::SymbolRebinding<'scope>>,
             ) {
-                if let Some((_, replacement)) = symbols
-                    .iter()
-                    .find(|(source, _)| *source == argument.symbol)
-                {
-                    argument.symbol = *replacement;
-                }
+                let symbols = symbols.into();
+                argument.symbol = remapped(argument.symbol, symbols);
                 if let Some(application) = &mut argument.application {
                     for argument in application.arguments.iter_mut() {
                         self.remap_static_argument_symbols(argument, symbols);
@@ -919,23 +915,20 @@ pub mod expression {
                     .clone_from_slice(&selected);
             }
 
-            pub fn remap_static_binding_symbols(
+            pub fn remap_static_binding_symbols<'scope>(
                 &mut self,
                 binding: &mut crate::static_applications::StaticMachineBinding,
-                symbols: &[(SymbolHandle, SymbolHandle)],
+                symbols: impl Into<crate::SymbolRebinding<'scope>>,
             ) {
                 use crate::static_applications::StaticMachineBindingValue;
+                let symbols = symbols.into();
                 match &mut binding.value {
                     StaticMachineBindingValue::Machine(argument)
                     | StaticMachineBindingValue::Conformance(argument) => {
                         self.remap_static_argument_symbols(argument, symbols)
                     }
                     StaticMachineBindingValue::RuntimeValue { subject, .. } => {
-                        if let Some((_, replacement)) =
-                            symbols.iter().find(|(source, _)| *source == *subject)
-                        {
-                            *subject = *replacement;
-                        }
+                        *subject = remapped(*subject, symbols);
                     }
                     StaticMachineBindingValue::Type(_) | StaticMachineBindingValue::Const(_) => {}
                 }
@@ -1504,6 +1497,8 @@ pub mod expression {
                         };
                         current.head_symbol = remapped(path.head_symbol, name_symbols);
                         current.symbol = remapped(path.symbol, name_symbols);
+                        current.reserved_result_of =
+                            remapped(path.reserved_result_of, symbols.execution());
                         for member_symbol in self
                             .name_path_member_symbols
                             .span_mut_or_empty(path.member_symbols)
@@ -2401,6 +2396,19 @@ pub mod expression {
                 };
                 assert_eq!(path.reserved_result_of, owner);
                 assert!(!path.symbol.is_valid());
+                let copied = table.insert_copy(stored);
+                let new_owner = SymbolHandle::from_arena_index(17);
+                let mut prepared = crate::PreparedSymbolRebinding::default();
+                assert!(prepared.insert_execution(owner, new_owner).is_none());
+                table.remap_symbols_in(copied, prepared.rebinding());
+                assert_eq!(
+                    table.name_path_node(copied).unwrap().reserved_result_of,
+                    new_owner
+                );
+                assert_eq!(
+                    table.name_path_node(stored).unwrap().reserved_result_of,
+                    owner
+                );
 
                 let plain = table.insert_tree(&Expression::Name(NamePath::unresolved(vec![name(
                     "result",
@@ -2417,140 +2425,150 @@ pub mod expression {
 
             #[test]
             fn applied_names_keep_authored_targets_and_complete_arguments_in_copies() {
-                use crate::expression::{StaticMachineArgument, StaticSymbolApplication};
-                use numerics::literals::IntegerLiteral;
-                let original = SymbolHandle::from_arena_index(7);
-                let entry = SymbolHandle::from_arena_index(8);
-                let parameter = SymbolHandle::from_arena_index(9);
-                let replacement = SymbolHandle::from_arena_index(17);
-                let new_entry = SymbolHandle::from_arena_index(18);
-                let new_parameter = SymbolHandle::from_arena_index(19);
-                let mut table = ExpressionTable::default();
-                let member = table.insert_static_member(StaticMachineArgument {
-                    symbol: entry,
-                    application: Some(Box::new(StaticSymbolApplication {
-                        member: Default::default(),
-                        arguments: Box::new([StaticMachineArgument {
-                            const_literal: Some(IntegerLiteral::from_value(3)),
-                            ..Default::default()
-                        }]),
-                        lifetime_arguments: Box::default(),
-                    })),
-                    ..Default::default()
-                });
-                let application = table.insert_static_member(StaticMachineArgument {
-                    symbol: original,
-                    application: Some(Box::new(StaticSymbolApplication {
-                        member,
-                        arguments: Box::new([
-                            StaticMachineArgument {
-                                const_literal: Some(IntegerLiteral::from_value(7)),
+                for indexed in [false, true] {
+                    use crate::expression::{StaticMachineArgument, StaticSymbolApplication};
+                    use numerics::literals::IntegerLiteral;
+                    let original = SymbolHandle::from_arena_index(7);
+                    let entry = SymbolHandle::from_arena_index(8);
+                    let parameter = SymbolHandle::from_arena_index(9);
+                    let replacement = SymbolHandle::from_arena_index(17);
+                    let new_entry = SymbolHandle::from_arena_index(18);
+                    let new_parameter = SymbolHandle::from_arena_index(19);
+                    let mut table = ExpressionTable::default();
+                    let member = table.insert_static_member(StaticMachineArgument {
+                        symbol: entry,
+                        application: Some(Box::new(StaticSymbolApplication {
+                            member: Default::default(),
+                            arguments: Box::new([StaticMachineArgument {
+                                const_literal: Some(IntegerLiteral::from_value(3)),
                                 ..Default::default()
-                            },
-                            StaticMachineArgument {
-                                symbol: parameter,
-                                ..Default::default()
-                            },
-                        ]),
-                        lifetime_arguments: Box::default(),
-                    })),
-                    ..Default::default()
-                });
-                let mut members = HandleSpan::empty();
-                table.push_name_path_member(&mut members, Identifier::generated("value"));
-                let described = table.insert(ExpressionNode::Name(TableNamePath {
-                    static_application: application,
-                    ..TableNamePath::new(members, Default::default(), original, original)
-                }));
-                let ordinary = table.insert(ExpressionNode::Name(TableNamePath::new(
-                    members,
-                    Default::default(),
-                    original,
-                    original,
-                )));
-                let copied = table.insert_copy(described);
-                assert!(table.expressions_structurally_equal(described, copied));
-                assert!(!table.expressions_structurally_equal(described, ordinary));
-                let copied_application = table.name_path_node(copied).unwrap().static_application;
-                assert_ne!(application, copied_application);
-                table
-                    .static_member_mut(copied_application)
-                    .unwrap()
-                    .application
-                    .as_mut()
-                    .unwrap()
-                    .arguments[0]
-                    .const_literal = Some(IntegerLiteral::from_value(8));
-                assert!(
-                    !table.expressions_structurally_equal(described, copied),
-                    "outer arguments are part of the path"
-                );
-                let local_copy = table.insert_copy(described);
-                let local_application = table
-                    .static_member(table.name_path_node(local_copy).unwrap().static_application)
-                    .unwrap()
-                    .application
-                    .as_ref()
-                    .unwrap()
-                    .member;
-                assert_ne!(member, local_application);
-                table
-                    .static_member_mut(local_application)
-                    .unwrap()
-                    .application
-                    .as_mut()
-                    .unwrap()
-                    .arguments[0]
-                    .const_literal = Some(IntegerLiteral::from_value(4));
-                assert!(
-                    !table.expressions_structurally_equal(described, local_copy),
-                    "member arguments are part of the path"
-                );
-                let executable = [
-                    (original, replacement),
-                    (entry, new_entry),
-                    (parameter, new_parameter),
-                ];
-                let authored = [(parameter, new_parameter)];
-                table.remap_symbols_in(
-                    described,
-                    crate::SymbolRebinding::new(&executable, &authored),
-                );
-                table.remap_symbols_in(
-                    ordinary,
-                    crate::SymbolRebinding::new(&executable, &authored),
-                );
-                let path = table.name_path_node(described).unwrap();
-                assert_eq!((path.head_symbol, path.symbol), (original, original));
-                let selected = table.static_member(path.static_application).unwrap();
-                assert_eq!(selected.symbol, original);
-                let arguments = selected.application.as_ref().unwrap();
-                assert_eq!(arguments.arguments[1].symbol, new_parameter);
-                assert_eq!(table.static_member(arguments.member).unwrap().symbol, entry);
-                let ordinary_path = table.name_path_node(ordinary).unwrap();
-                assert_eq!(
-                    (ordinary_path.head_symbol, ordinary_path.symbol),
-                    (replacement, replacement)
-                );
-                assert!(!table.name_path_is_single_member(path));
-                assert!(table.single_name_member(described).is_none());
-                assert!(path.resolved_symbol().is_none());
-                assert!(!table.names_parameter(
-                    described,
-                    &crate::signature::StateParameter {
-                        symbol: original,
-                        name: Identifier::generated("value"),
+                            }]),
+                            lifetime_arguments: Box::default(),
+                        })),
                         ..Default::default()
+                    });
+                    let application = table.insert_static_member(StaticMachineArgument {
+                        symbol: original,
+                        application: Some(Box::new(StaticSymbolApplication {
+                            member,
+                            arguments: Box::new([
+                                StaticMachineArgument {
+                                    const_literal: Some(IntegerLiteral::from_value(7)),
+                                    ..Default::default()
+                                },
+                                StaticMachineArgument {
+                                    symbol: parameter,
+                                    ..Default::default()
+                                },
+                            ]),
+                            lifetime_arguments: Box::default(),
+                        })),
+                        ..Default::default()
+                    });
+                    let mut members = HandleSpan::empty();
+                    table.push_name_path_member(&mut members, Identifier::generated("value"));
+                    let described = table.insert(ExpressionNode::Name(TableNamePath {
+                        static_application: application,
+                        ..TableNamePath::new(members, Default::default(), original, original)
+                    }));
+                    let ordinary = table.insert(ExpressionNode::Name(TableNamePath::new(
+                        members,
+                        Default::default(),
+                        original,
+                        original,
+                    )));
+                    let copied = table.insert_copy(described);
+                    assert!(table.expressions_structurally_equal(described, copied));
+                    assert!(!table.expressions_structurally_equal(described, ordinary));
+                    let copied_application =
+                        table.name_path_node(copied).unwrap().static_application;
+                    assert_ne!(application, copied_application);
+                    table
+                        .static_member_mut(copied_application)
+                        .unwrap()
+                        .application
+                        .as_mut()
+                        .unwrap()
+                        .arguments[0]
+                        .const_literal = Some(IntegerLiteral::from_value(8));
+                    assert!(
+                        !table.expressions_structurally_equal(described, copied),
+                        "outer arguments are part of the path"
+                    );
+                    let local_copy = table.insert_copy(described);
+                    let local_application = table
+                        .static_member(table.name_path_node(local_copy).unwrap().static_application)
+                        .unwrap()
+                        .application
+                        .as_ref()
+                        .unwrap()
+                        .member;
+                    assert_ne!(member, local_application);
+                    table
+                        .static_member_mut(local_application)
+                        .unwrap()
+                        .application
+                        .as_mut()
+                        .unwrap()
+                        .arguments[0]
+                        .const_literal = Some(IntegerLiteral::from_value(4));
+                    assert!(
+                        !table.expressions_structurally_equal(described, local_copy),
+                        "member arguments are part of the path"
+                    );
+                    let executable = [
+                        (original, replacement),
+                        (entry, new_entry),
+                        (parameter, new_parameter),
+                    ];
+                    let authored = [(parameter, new_parameter)];
+                    let mut prepared = crate::PreparedSymbolRebinding::default();
+                    for (source, target) in executable {
+                        assert!(prepared.insert_execution(source, target).is_none());
                     }
-                ));
-                let mut result_name = HandleSpan::empty();
-                table.push_name_path_member(&mut result_name, Identifier::generated("result"));
-                let result_description = table.insert(ExpressionNode::Name(TableNamePath {
-                    members: result_name,
-                    static_application: application,
-                    ..Default::default()
-                }));
-                assert!(!table.names_reserved_result(result_description));
+                    for (source, target) in authored {
+                        assert!(prepared.insert_authored(source, target).is_none());
+                    }
+                    let rebinding = if indexed {
+                        prepared.rebinding()
+                    } else {
+                        crate::SymbolRebinding::new(&executable, &authored)
+                    };
+                    assert_eq!(rebinding.iter().copied().collect::<Vec<_>>(), executable);
+                    table.remap_symbols_in(described, rebinding);
+                    table.remap_symbols_in(ordinary, rebinding);
+                    let path = table.name_path_node(described).unwrap();
+                    assert_eq!((path.head_symbol, path.symbol), (original, original));
+                    let selected = table.static_member(path.static_application).unwrap();
+                    assert_eq!(selected.symbol, original);
+                    let arguments = selected.application.as_ref().unwrap();
+                    assert_eq!(arguments.arguments[1].symbol, new_parameter);
+                    assert_eq!(table.static_member(arguments.member).unwrap().symbol, entry);
+                    let ordinary_path = table.name_path_node(ordinary).unwrap();
+                    assert_eq!(
+                        (ordinary_path.head_symbol, ordinary_path.symbol),
+                        (replacement, replacement)
+                    );
+                    assert!(!table.name_path_is_single_member(path));
+                    assert!(table.single_name_member(described).is_none());
+                    assert!(path.resolved_symbol().is_none());
+                    assert!(!table.names_parameter(
+                        described,
+                        &crate::signature::StateParameter {
+                            symbol: original,
+                            name: Identifier::generated("value"),
+                            ..Default::default()
+                        }
+                    ));
+                    let mut result_name = HandleSpan::empty();
+                    table.push_name_path_member(&mut result_name, Identifier::generated("result"));
+                    let result_description = table.insert(ExpressionNode::Name(TableNamePath {
+                        members: result_name,
+                        static_application: application,
+                        ..Default::default()
+                    }));
+                    assert!(!table.names_reserved_result(result_description));
+                }
             }
 
             #[test]

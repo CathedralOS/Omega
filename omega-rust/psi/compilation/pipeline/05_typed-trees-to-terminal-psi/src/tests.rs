@@ -2070,7 +2070,9 @@ fn a_nested_read_interns_one_place_per_projection_and_reuses_it() {
         .values
         .iter()
         .filter_map(|(value, row)| match row.origin {
-            ValueOrigin::InitialContent { place } => Some((value, place, row.scalar_type)),
+            ValueOrigin::StorageContent { place, after: None } => {
+                Some((value, place, row.scalar_type))
+            }
             _ => None,
         })
         .collect();
@@ -2199,10 +2201,13 @@ fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
     for field in [1, 2] {
         let leaf = projected(&tables, formal, &[field]);
         assert!(written(&tables, leaf).is_empty());
-        let values = tables
-            .values
-            .iter()
-            .filter(|(_, row)| row.origin == ValueOrigin::InitialContent { place: leaf });
+        let values = tables.values.iter().filter(|(_, row)| {
+            row.origin
+                == ValueOrigin::StorageContent {
+                    place: leaf,
+                    after: None,
+                }
+        });
         assert_eq!(values.count(), 1);
     }
     // A call's record result has no value identity: nothing is invented.
@@ -2324,10 +2329,13 @@ fn a_projected_record_is_copied_out_by_its_path() {
     );
     for field in [1, 2] {
         let from = projected(&tables, formal, &[4, field]);
-        let values = tables
-            .values
-            .iter()
-            .filter(|(_, row)| row.origin == ValueOrigin::InitialContent { place: from });
+        let values = tables.values.iter().filter(|(_, row)| {
+            row.origin
+                == ValueOrigin::StorageContent {
+                    place: from,
+                    after: None,
+                }
+        });
         assert_eq!(values.count(), 1);
     }
 }

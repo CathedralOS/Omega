@@ -34,6 +34,11 @@ algebraic equality to admit values across differently written indexed types.
   specialization. Shared expressions/aliases support APIs needing exact identity.
   Distinct symbolic keys may emit distinct specializations; fully closed equal
   values still share keys. Backend deduplication remains optional.
+- [Same-family record transport](../../spec/proofs/contracts.md#exact-matching-and-evidence-transport)
+  (2026-11-14) extends value admission to explicitly supplied implementation
+  records without changing this selection rule. It keeps their machines and
+  requirement bindings, checks dependent evidence and source handback, and
+  needs no forwarding members. Delivery is `SAME-FAMILY-RECORD-TRANSPORT` on the board.
 - No new generic argument, cast requirement, language keyword, implicit algebra,
   runtime proof operation, or polynomial source language.
 

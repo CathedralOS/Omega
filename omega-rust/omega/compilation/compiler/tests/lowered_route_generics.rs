@@ -450,3 +450,102 @@ fn the_threshold_family_lowers_per_alternative_and_corresponds() {
     assert_eq!(outcome, "route=carried-accepted");
     assert!(rows.iter().all(|row| row[4] != "refused"), "{rows:?}");
 }
+
+/// The ordinary product factory must judge and publish the nested context,
+/// not only the source experiment's separately selected generic closures.
+#[test]
+fn the_default_product_publishes_distinct_nested_static_contexts_and_checks_their_bodies() {
+    let _guard = FIXTURE_COMPILATIONS.lock().unwrap();
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            let main = repository("tests/fixtures/run/generics/nested_static_context/main.omg");
+            let checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+            )
+            .result
+            .unwrap_or_else(|failure| panic!("nested source: {:?}", failure.into_diagnostics()));
+            let accepted = checked.terminal_publication().accepted().unwrap();
+            let publication = accepted.closure().publish().unwrap();
+            assert_eq!(publication.artifact.semantic_module(), accepted.module());
+            let source = accepted.source();
+            let nested = source
+                .machines()
+                .iter()
+                .find(|machine| {
+                    machine.name.as_str() == "nested"
+                        && !source.symbols.get(machine.symbol).generated_from.is_valid()
+                })
+                .unwrap();
+            let instances = source
+                .machine_specializations
+                .iter()
+                .filter(|row| row.template == nested.symbol)
+                .collect::<Vec<_>>();
+            assert_eq!(
+                instances.len(),
+                2,
+                "one helper for each actual outer application"
+            );
+            let declarations = publication
+                .artifact
+                .semantic_module()
+                .machines
+                .iter()
+                .filter_map(|machine| machine.declaration.as_ref())
+                .filter(|declaration| {
+                    declaration
+                        .specialization
+                        .as_ref()
+                        .is_some_and(|specialization| {
+                            publication
+                                .artifact
+                                .semantic_module()
+                                .identities
+                                .text(specialization.template_callable)
+                                == source.machine_callable_identity_text(nested).as_deref()
+                        })
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(declarations.len(), 2);
+            assert_ne!(
+                declarations[0].parameter_types,
+                declarations[1].parameter_types
+            );
+            assert_ne!(
+                declarations[0].specialization.as_ref().unwrap().commitment,
+                declarations[1].specialization.as_ref().unwrap().commitment
+            );
+            let (_, application) = compiler::prepare_program_entry(&checked).unwrap();
+            assert_eq!(
+                application
+                    .receipt
+                    .unwrap()
+                    .unwrap()
+                    .terminal_psi_identity(),
+                publication.artifact.manifest().semantic()
+            );
+
+            let main = repository(
+                "tests/fixtures/fail/generics/nested_static_context_bad_guarantee/main.omg",
+            );
+            let failure = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+            )
+            .result
+            .expect_err("selected arguments cannot justify a false generic helper guarantee");
+            let diagnostics = failure.into_diagnostics();
+            assert!(
+                diagnostics.iter().any(|diagnostic| diagnostic
+                    .message
+                    .contains("cannot prove ensures contract")
+                    && diagnostic.message.contains("result <= 10")),
+                "{diagnostics:#?}"
+            );
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+    });
+}

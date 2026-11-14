@@ -21,7 +21,7 @@ use super::places::Member;
 use super::{Program, Slot};
 use crate::body::ValueType;
 use crate::canonical::{self, Repeated};
-use crate::{ClauseText, Piece, Unserved, refuse};
+use crate::{ClauseText, Piece, SourceOrigin, Unserved, refuse, reject};
 
 /// What a contract clause may name: the formals, and the result pseudo-value
 /// only in a normal-return guarantee of its owning callable.
@@ -31,6 +31,8 @@ pub(super) struct ClauseScope<'s> {
     /// Each formal's immutable logical input identity, by slot
     /// (`body::formal_values`); `None` for a record or borrowed formal.
     /// Body assignments change working slots, never these contract inputs.
+    /// The signature owner constructs this roster from declaration formals
+    /// only; `old` additionally excludes erased and borrowed formals.
     pub(super) values: &'s [Option<ValueId>],
     /// The value parameters this reading of the clause has bound, each to
     /// its literal: a requirement read at the static arguments of one call
@@ -394,9 +396,12 @@ impl Program<'_> {
                 text.push_text(&language_core::PLACE_MEMBER_SEPARATOR.to_string());
                 text.push_text(member.member.as_str());
             }
-            // `embed(rest)`: the formal inside stays open, so a call's
+            // Proof projections keep the formal inside open, so a call's
             // statement of the clause names its own argument there.
-            ExpressionNode::Call(call) if self.embeds(call) => {
+            ExpressionNode::Call(call)
+                if self.embeds(call)
+                    || self.builtin_call(call, symbols::BuiltinFunction::ContentOld) =>
+            {
                 text.push_text(call.target.as_str());
                 text.push_text("(");
                 for argument in table.expression_handles(call.arguments) {
@@ -609,19 +614,21 @@ impl Program<'_> {
             }
             // `self.value`, `self.from.x`: a field of the value a data
             // clause is about.
-            ExpressionNode::Member(_) if scope.subject.is_some() => {
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_) if scope.subject.is_some() => {
                 self.field_term(id, scope, expression)
             }
             // `p.first == 7` in an entry `requires`: the field of a record
             // formal's place.
-            ExpressionNode::Member(_)
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
                 if scope.formal_fields || matches!(scope.result, ResultTerm::Structural(..)) =>
             {
                 self.field_term(id, scope, expression)
             }
             // Other formal projections need their own input or completion
             // storage correspondence; a readable spelling does not supply it.
-            ExpressionNode::Member(_) => unserved("clause that projects a formal or result"),
+            ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+                unserved("clause that projects a formal or result")
+            }
             ExpressionNode::Integer(literal) => {
                 let (value, integer) = self.literal(id, literal, expected)?;
                 Ok((
@@ -668,6 +675,11 @@ impl Program<'_> {
                 }
             },
             ExpressionNode::Cast(cast) => self.clause_cast(id, scope, cast, expected),
+            ExpressionNode::Call(call)
+                if self.builtin_call(call, symbols::BuiltinFunction::ContentOld) =>
+            {
+                self.old_term(id, scope, call, expected)
+            }
             // An `embed` is a mathematical integer, which only a
             // mathematical comparison holds (`mathematical_term`).
             ExpressionNode::Call(call) if self.embeds(call) => {
@@ -675,6 +687,74 @@ impl Program<'_> {
             }
             ExpressionNode::Call(_) => unserved("call in a clause term"),
             _ => unserved("term other than a formal, a literal or an embedded integer"),
+        }
+    }
+
+    /// A by-value scalar's entry observation is its existing logical input.
+    /// Keep its complete declared type for the consumer's qualification and
+    /// cast checks, and require this signature's actual runtime input identity.
+    /// A result, erased value, bound constant, computed term or storage read
+    /// cannot acquire an entry identity by being wrapped in `old`.
+    fn old_term(
+        &self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        call: &typed_trees::expression::TableCallExpression,
+        expected: Option<ScalarType>,
+    ) -> Checked<(ScalarTerm, ValueType)> {
+        if scope.subject.is_some() {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("old outside a callable contract"),
+            ));
+        }
+        let argument = self.old_argument(id, call)?;
+        let inputs = ClauseScope {
+            result: ResultTerm::Absent("result has no callable-entry value"),
+            ..*scope
+        };
+        let term = self.term(id, &inputs, argument, expected)?;
+        let is_input = match &term.0 {
+            ScalarTerm::Value {
+                id: value,
+                scalar_type,
+            } => scope.slots.iter().zip(scope.values).any(|(slot, input)| {
+                !slot.erased
+                    && slot.borrowed.is_none()
+                    && *input == Some(*value)
+                    && slot.value_type == term.1
+                    && matches!(slot.value_type, ValueType::Scalar(declared, _)
+                            if declared == *scalar_type)
+            }),
+            _ => false,
+        };
+        if !is_input {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("old of a subject without a scalar invocation input"),
+            ));
+        }
+        Ok(term)
+    }
+
+    fn old_argument(
+        &self,
+        id: MachineId,
+        call: &typed_trees::expression::TableCallExpression,
+    ) -> Checked<ExpressionHandle> {
+        match self
+            .typed
+            .expression_table
+            .expression_handles(call.arguments)
+        {
+            [argument] => Ok(*argument),
+            _ => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("old of other than one subject"),
+            )),
         }
     }
 
@@ -778,6 +858,14 @@ impl Program<'_> {
     /// decided by the symbol stage 02 resolved the callee to, never by its
     /// spelling, so a machine a program names `embed` is not one.
     fn embeds(&self, call: &typed_trees::expression::TableCallExpression) -> bool {
+        self.builtin_call(call, symbols::BuiltinFunction::IntegerEmbed)
+    }
+
+    fn builtin_call(
+        &self,
+        call: &typed_trees::expression::TableCallExpression,
+        builtin: symbols::BuiltinFunction,
+    ) -> bool {
         !call.receiver.is_valid()
             && call.machine_arguments.is_empty()
             && call.evidence_arguments.is_empty()
@@ -786,7 +874,7 @@ impl Program<'_> {
                 .typed
                 .symbols
                 .builtin_function_for_symbol(call.target_symbol)
-                == Some(symbols::BuiltinFunction::IntegerEmbed)
+                == Some(builtin)
     }
 
     /// Whether `expression` holds an `embed` beneath binary operators only:
@@ -1120,8 +1208,47 @@ impl Program<'_> {
                 };
                 (root, base, record, member.selection.field_symbol())
             }
-            ExpressionNode::Indexed(_)
-            | ExpressionNode::TypeExpression(_)
+            ExpressionNode::Indexed(indexed) => {
+                let unavailable = |what| refuse(id, Construct::Machine, Unserved::Contract(what));
+                let Some((root, mut path, receiver)) =
+                    self.projected(id, scope, indexed.collection)?
+                else {
+                    return Err(unavailable("index of something that is not storage"));
+                };
+                let Some(array) = self.opened(id, Some(receiver), Access::Read)? else {
+                    return Err(unavailable("index of something that is not an array"));
+                };
+                let (element, terminal_semantics::CollectionExtent::Fixed(length)) =
+                    self.array_element(id, array)?
+                else {
+                    return Err(unavailable("indexed clause without a fixed array extent"));
+                };
+                let Some(selected) = self
+                    .typed
+                    .closed_integer_expression_value_in(indexed.index, scope.owner)
+                else {
+                    return Err(unavailable(
+                        "array index in a clause that is not a closed integer",
+                    ));
+                };
+                let source =
+                    SourceOrigin::of(self.typed.expression_table.source_span(indexed.index));
+                let Some(position) = selected.to_u64().filter(|position| *position < length) else {
+                    return Err(reject(
+                        id,
+                        source,
+                        format!(
+                            "contract array index {selected} is outside its fixed extent {length}"
+                        ),
+                    ));
+                };
+                // Keep the checked index in the same typed path as fields
+                // and cases. Storage substitution must follow this exact leaf.
+                path.push(CanonicalStructuralPathSegment::FixedIndex(position));
+                let value_type = self.storage_value_type(id, element)?;
+                return Ok(Some((root, path, value_type)));
+            }
+            ExpressionNode::TypeExpression(_)
             | ExpressionNode::Match(_)
             | ExpressionNode::SavedSubject(_)
             | ExpressionNode::ArrayLiteral(_)

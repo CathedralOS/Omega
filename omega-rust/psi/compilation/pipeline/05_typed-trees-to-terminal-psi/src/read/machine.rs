@@ -1243,10 +1243,7 @@ impl<'t> Program<'t> {
         // Distinct declarations own distinct lifetime binders. Compare the
         // supplied signature after instantiating it in the requirement's
         // regions, for both inherited clauses and the advertised entry.
-        if !self.same_signature(id, required, body, machine)?
-            || body.erased != required.erased
-            || body.borrowed != required.borrowed
-        {
+        if !self.same_signature(id, required, body, machine)? || body.erased != required.erased {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -1550,6 +1547,9 @@ impl<'t> Program<'t> {
                 erased.push(position);
             }
             let access = reference.as_ref().map(|reference| reference.access);
+            let borrowed_regions = reference
+                .as_ref()
+                .map_or(crate::body::Regions::NONE, |reference| reference.regions);
             if let Some(reference) = reference {
                 borrowed.push(crate::body::Borrowed {
                     position,
@@ -1565,6 +1565,7 @@ impl<'t> Program<'t> {
                 homed: false,
                 erased: is_erased,
                 borrowed: access,
+                borrowed_regions,
             });
         }
         for binder in binders {
@@ -1577,6 +1578,7 @@ impl<'t> Program<'t> {
                 homed: false,
                 erased: false,
                 borrowed: None,
+                borrowed_regions: crate::body::Regions::NONE,
             });
         }
         // An elided lifetime in the result is the one its inputs carry
@@ -1933,8 +1935,8 @@ impl<'t> Program<'t> {
     /// with the reference beside it (`Borrowed`), for a builtin scalar or a
     /// plain record `T`. Stage 01 marks `x: &mut T` mutable for the
     /// reference's exclusivity; that is the reference's access, not a `mut`
-    /// binding. A `&write T` formal, a reference with a named lifetime and
-    /// a reference to anything else stay refused.
+    /// binding. The outer reference lifetime is retained separately from
+    /// the referent's regions. A `&write T` formal remains unsupported.
     ///
     /// A `mut` formal that holds its own value is read like any other: the
     /// binding mode says only that the body may assign and store into its
@@ -1967,17 +1969,15 @@ impl<'t> Program<'t> {
                 .type_reference(formal.type_reference)
         }) {
             Some(TypeReferenceNode::Reference {
-                referee,
-                access,
-                lifetime,
-            }) => Some((*referee, *access, lifetime.is_some())),
+                referee, access, ..
+            }) => Some((*referee, *access)),
             _ => None,
         };
         let erased = match formal.relevance {
             language_core::BindingRelevance::Relevant => false,
             language_core::BindingRelevance::Erased => true,
         };
-        let Some((referee, access, named_lifetime)) = reference else {
+        let Some((referee, access)) = reference else {
             let value_type = self.value_type(id, formal.type_reference)?;
             if formal.is_mutable {
                 let unserved =
@@ -2016,17 +2016,22 @@ impl<'t> Program<'t> {
             self.typed.type_reference_table.type_reference(referee),
             TypeReferenceNode::Slice { .. }
         );
-        if named_lifetime && !is_view {
-            return unserved("reference parameter with a named lifetime");
-        }
-        // The loan itself is an unnamed carried reference beside whatever
-        // its referent carries, so it is one more input lifetime an elided
-        // result could have meant (lifetimes.md: "Several unnamed carried
-        // references do not become one source merely because they occupy
-        // one parameter"). No type names it; it is counted, not read.
-        if !is_view {
-            self.elided_region(id)?;
-        }
+        // Retain the outer loan itself, independently of nested views in
+        // its referent. A returned reference cannot borrow only a pointer
+        // word or substitute a referent's nested lifetime for this one.
+        let ordinary_region = if is_view {
+            None
+        } else {
+            let identity = self
+                .typed
+                .normalized_type_identity_text(formal.type_reference);
+            Some(self.borrowed_view_region(
+                id,
+                formal.type_reference,
+                self.lifetime_owner,
+                &identity,
+            )?)
+        };
         // Stage 01 sets `is_mutable` for an exclusive reference; a shared
         // one marked mutable would be a `mut` binding of the carrier.
         match access {
@@ -2068,12 +2073,27 @@ impl<'t> Program<'t> {
                     })?,
             ),
         };
+        let outer = match ordinary_region {
+            Some(region) => region,
+            None => *self
+                .region_tuple(value_type.regions())
+                .first()
+                .ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Parameter("view without its outer loan region"),
+                    )
+                })?,
+        };
+        let regions = self.intern_regions(vec![outer]);
         Ok((
             value_type,
             false,
             Some(crate::body::Borrowed {
                 position: 0,
                 access,
+                regions,
                 home,
             }),
         ))
@@ -2168,6 +2188,9 @@ impl<'t> Program<'t> {
                     homed: borrowed.is_some() && value_type.scalar().is_some(),
                     erased: signature.is_erased(position),
                     borrowed,
+                    borrowed_regions: signature
+                        .borrowed(position)
+                        .map_or(crate::body::Regions::NONE, |reference| reference.regions),
                 }
             })
             .collect();
@@ -2643,6 +2666,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
         | ExpressionKind::Requalify(operand)
+        | ExpressionKind::Referent(operand)
         | ExpressionKind::Establish { operand, .. } => {
             spans(operand, binder, out);
         }
@@ -2794,6 +2818,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         | ExpressionKind::BitwiseNot(operand)
         | ExpressionKind::Cast(operand)
         | ExpressionKind::Requalify(operand)
+        | ExpressionKind::Referent(operand)
         | ExpressionKind::Establish { operand, .. } => {
             expression_slot_uses(operand, uses);
         }

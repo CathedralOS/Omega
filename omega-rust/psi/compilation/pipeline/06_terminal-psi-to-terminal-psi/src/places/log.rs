@@ -42,16 +42,17 @@ returns as `Err`:
 - the place table must hold one place per path, since a place identity
   stands for its path wherever a table names one
   (`places_are_interned`);
-- an initial-content value must name a scalar leaf of an invocation formal
-  or the exact result of its declared producing call, with the leaf's type (`Storage::initial_contents_are_declared`).
+- a storage snapshot must name a scalar leaf at invocation entry or the
+  normal return of its exact establishing call, with the leaf's type
+  (`Storage::initial_contents_are_declared`).
 */
 
 use semantic_vocabulary::{
     BlockId, IdTable, IntegerValue, MachineId, OperationId, PsiSemanticId, ScalarType,
-    StructuralCaseId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    StructuralCaseId, StructuralTypeId, ValueId,
 };
 use terminal_check_tables::bindings::{Content, PlaceOrigin, Segment};
-use terminal_check_tables::{Checked, Construct, ExactPlaceId, MachineTables, ProgramPoint};
+use terminal_check_tables::{Checked, Construct, MachineTables, ProgramPoint};
 use terminal_psi::{
     Block, Operation, OperationKind, RecordFieldValue, StructuralAccess, StructuralFieldType,
     StructuralTypeShape,
@@ -76,8 +77,8 @@ pub(super) enum Stored {
     /// are stores of their own, after this one.
     Zeroed,
     /// What a call returned, or left in storage this machine lent it
-    /// exclusively. Only the exact producing call may supply a retained
-    /// initial leaf identity; other established contents remain unnamed.
+    /// exclusively. Only this call may supply the returned leaf identities;
+    /// an earlier snapshot never names the contents after it.
     Established,
 }
 
@@ -97,6 +98,9 @@ impl Stored {
 
 /// One store, located in the graph.
 pub(super) struct Logged {
+    /// The logical destination is retained for permission checks after the
+    /// reaching-write owner resolves its separately captured backing.
+    pub(super) captured: Lineage,
     pub(super) lineage: Lineage,
     pub(super) block: BlockId,
     /// The normal continuation of its operation, as `Graph::locate` orders
@@ -232,6 +236,7 @@ impl Storage<'_> {
             for (position, operation) in block.operations.iter().enumerate() {
                 for (lineage, stored) in self.stored_by(block, position, value_types)? {
                     log.push(Logged {
+                        captured: lineage.clone(),
                         lineage,
                         block: block.id,
                         position: position + 1,
@@ -473,6 +478,15 @@ impl Storage<'_> {
                     Stored::Moved(self.stored_at(*source, &[], concerns)?),
                 ));
             }
+            OperationKind::EstablishReference { .. } => {
+                rows.push((fresh()?, Stored::Established));
+            }
+            OperationKind::ReleaseReference { source, path } => {
+                rows.push((
+                    self.released_reference(*source, path, concerns)?,
+                    Stored::Vacated,
+                ));
+            }
             OperationKind::EstablishPrimitiveLocal { value, .. } => {
                 rows.push((fresh()?, Stored::Value(*value)));
             }
@@ -639,51 +653,6 @@ impl Storage<'_> {
                 return Err(self.foreign(
                     concerns,
                     "a write row states a store its operation does not make",
-                ));
-            }
-        }
-        Ok(())
-    }
-
-    /// A logical initial-content value must name a real scalar leaf, with
-    /// its declared type. Only formals and results of actual declared calls
-    /// supply such values. The reaching-write walk exposes a call result's
-    /// identity only after that producing call, never at machine entry.
-    pub(super) fn initial_contents_are_declared(&self, tables: &MachineTables) -> Checked<()> {
-        for (slot, value) in self.initial_contents.iter().enumerate() {
-            let Some(value) = value else {
-                continue;
-            };
-            let concerns = Construct::Value(*value);
-            let place = ExactPlaceId::new(slot as u64 + 1)
-                .ok_or_else(|| self.foreign(concerns, "a place identity out of range"))?;
-            let leaf = lineage(self.machine, &tables.places, place)?;
-            let supported = match self.root_kind(leaf.root, concerns)? {
-                StructuralPlaceKind::Parameter { .. } => true,
-                StructuralPlaceKind::OperationResult { producer, .. } => {
-                    let operation = self.operation(producer, concerns)?;
-                    operation.kind.declared_invocation().is_some()
-                        && operation.result.as_structural().is_some_and(|result| {
-                            result.place == leaf.root
-                                && self.lowered.structural_place_type(leaf.root)
-                                    == Some(result.structural_type)
-                        })
-                }
-                _ => false,
-            };
-            let declared = if supported {
-                match self.shape(&leaf, concerns)? {
-                    Shape::Scalar(scalar_type) => Some(scalar_type),
-                    Shape::Typed(_) | Shape::View | Shape::Payload(_) => None,
-                }
-            } else {
-                None
-            };
-            let stated = tables.values.get(*value).map(|row| row.scalar_type);
-            if declared.is_none() || declared != stated {
-                return Err(self.foreign(
-                    concerns,
-                    "an initial content value of storage that is no scalar leaf of a formal or declared call result",
                 ));
             }
         }
