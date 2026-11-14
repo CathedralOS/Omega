@@ -1190,6 +1190,36 @@ pub(crate) mod tests {
         }
         let bytes = terminal_codec::encode_module(module).unwrap();
         assert_eq!(terminal_codec::decode_module(&bytes).unwrap(), *module);
+        for suspension in [false, true] {
+            for change_declared in [false, true] {
+                let mut forged = module.clone();
+                let public = forged
+                    .declaration_contracts
+                    .iter_mut()
+                    .find(|contract| contract.id == calls[0].0)
+                    .unwrap();
+                if suspension {
+                    public.published_may_suspend = !public.published_may_suspend;
+                    if change_declared {
+                        public.declared_suspension = Some(public.published_may_suspend);
+                    }
+                } else {
+                    public.published_may_block = !public.published_may_block;
+                    if change_declared {
+                        public.declared_blocking = Some(public.published_may_block);
+                    }
+                }
+                assert_eq!(
+                    terminal_codec::decode_module(&terminal_codec::encode_module(&forged).unwrap())
+                        .unwrap_err(),
+                    terminal_codec::CodecError::MalformedStructuralFoundation(if change_declared {
+                        "public operational contract differs from its source declaration"
+                    } else {
+                        "authored callable effects differ from their published promises"
+                    })
+                );
+            }
+        }
         let (caller, call) = module
             .machines
             .iter()

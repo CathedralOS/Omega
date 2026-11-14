@@ -410,8 +410,7 @@ fn a_selected_recursive_call_keeps_an_explicit_unavailable_boundary() {
         machine main() { Named::again(); }
     "#,
     )
-    .err()
-    .expect("a selected cycle needs its public call association");
+    .expect_err("a selected cycle needs its public call association");
     assert_eq!(error.reason, RefusalReason::Unsupported);
     assert!(
         error

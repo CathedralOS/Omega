@@ -10139,6 +10139,12 @@ fn validate_declaration_contracts(module: &TerminalModule) -> Result<(), CodecEr
                 .declared_crash_routes
                 .as_ref()
                 .is_some_and(|row| row != &contract.crash_routes)
+            || contract
+                .declared_suspension
+                .is_some_and(|allowed| allowed != contract.published_may_suspend)
+            || contract
+                .declared_blocking
+                .is_some_and(|allowed| allowed != contract.published_may_block)
         {
             return malformed("authored callable effects differ from their published promises");
         }
@@ -10170,6 +10176,11 @@ fn validate_declaration_contracts(module: &TerminalModule) -> Result<(), CodecEr
                 ))?;
         if declaration.contract == [0; 32] {
             return malformed("public contract has no source commitment");
+        }
+        if declaration.published_may_suspend != contract.published_may_suspend
+            || declaration.published_may_block != contract.published_may_block
+        {
+            return malformed("public operational contract differs from its source declaration");
         }
         for identity in declaration_identity_references(declaration) {
             if module.identities.text(identity).is_none_or(str::is_empty) {
