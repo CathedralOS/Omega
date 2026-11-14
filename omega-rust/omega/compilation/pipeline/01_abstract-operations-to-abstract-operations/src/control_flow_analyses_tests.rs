@@ -187,7 +187,7 @@ fn constant_ranges_drive_comparisons_and_reject_forged_bounds() {
     let function = &mut plan.functions[0];
     function.parameters.clear();
     function.structural_parameters.clear();
-    function.blocks = vec![AbstractBlockEntry {
+    function.block_entries = vec![AbstractBlockEntry {
         block: block(1),
         structural_parameters: Vec::new(),
         parameters: Vec::new(),
