@@ -39,6 +39,11 @@ and [places](src/lower/places.rs) (roots, projections, the write log, record
 and case construction, field and payload reads, whole copies, the dispatch
 terminator).
 
+Expression evaluation returns either a value or an explicit ended-path outcome.
+Calls, projections and constructors propagate that outcome in evaluation order;
+branch owners retain whichever paths still reach their join. A genuine refusal
+stays an error, independent of its diagnostic text.
+
 ## The subset
 
 Machines with one state and a complete body whose formals, locals and result
@@ -62,11 +67,10 @@ form the kernel denotes a false integer equality by; a `requires` or
 `crash Trap;` and `crash Abort;`; guarded transition arms; and returns. A call
 of a machine that may return is an operation wherever it stands, and carries
 the callee's crash routes when it publishes any. A call of a machine with no
-normal completion is served only in terminal position (an arm target or a
-call statement), where it becomes the block's no-normal invocation.
+normal completion becomes the block's no-normal invocation wherever it occurs.
+The surrounding evaluation stops on that path; other branch arrivals remain.
 Everything else is refused with `RefusalReason::Unsupported` and a detail
-naming the construct (`expression match`, `type reference`, `call no-normal
-call inside an expression`, ...): a reference outside [References](#references), slice, generic, callable value, suspension, assembly, float,
+naming the construct (`type reference`, ...): a reference outside [References](#references), slice, generic, callable value, suspension, assembly, float,
 domain, cast that names a domain, or service reach is never skipped, approximated or passed through. A
 refusal anywhere in the compilation refuses the whole compilation.
 
