@@ -2594,7 +2594,7 @@ fn begin(
 
 /*
     The route. Each phase is one call into its owner, in the one order their
-    preconditions allow: operator homes consult a temporary namespace table
+    preconditions allow: operator homes consult a scratch copy of the program
     and are published by the symbol table built afterwards; constants need the
     table; the authored-selection ledger needs substituted constants; operator
     obligations need the ledger; every remaining selection needs all of it;
