@@ -1485,15 +1485,9 @@ pub(crate) fn callee(
                     ));
                 }
             }
-            if declaration
-                .declaration
-                .as_ref()
-                .is_some_and(|checked| checked.source.published_may_suspend)
-            {
-                return Err(unavailable(
-                    "boundary call needs its continuation, carry and loan preservation proof",
-                ));
-            }
+            // A boundary that may suspend is judged with every other
+            // possibly suspending call, by its crossing
+            // (`operational::judge`, which every discharge runs first).
             if !declaration.requires.is_empty()
                 || !declaration.normal_qualifications.is_empty()
                 || !declaration.scalar_domain_requirements.is_empty()
