@@ -57,6 +57,10 @@ pub(crate) mod declaration_selection {
     pub(crate) struct ConstantSelection<'base> {
         symbols: SymbolTable,
         retained: Option<SelectionBase<'base>>,
+        // Geometry is derived for one structural-completion pass from its actual
+        // resolved owner. A resumed pass reconstructs it from that owner's tree.
+        #[record(skip)]
+        array_lengths: Vec<(source::SourceSpan, Option<usize>)>,
     }
 
     /*
@@ -182,6 +186,7 @@ pub(crate) mod declaration_selection {
                     .symbols;
             Ok(ConstantSelection {
                 symbols,
+                array_lengths: Vec::new(),
                 retained: base.map(SelectionBase::Shared),
             })
         }
@@ -296,6 +301,7 @@ pub(crate) mod declaration_selection {
             Ok(Self {
                 symbols,
                 retained: retained.map(SelectionBase::Borrowed),
+                array_lengths: Vec::new(),
             })
         }
 
@@ -962,93 +968,6 @@ pub(crate) mod declaration_selection {
             None
         }
 
-        /*
-            Read the receiving telescope selected in this invocation's namespace.
-            Parsed headers supply carrier syntax only; they never add declarations
-            or authorize evaluation. Retained headers are outside the cohort's work
-            roots, so copy their operands into its tables before returning handles.
-        */
-        pub(super) fn const_parameter_carriers(
-            &self,
-            syntax: &mut SyntaxTrees,
-            declaration_syntax: Option<&SyntaxTrees>,
-            name: &Identifier,
-            kinds: &[SymbolKind],
-        ) -> Option<Vec<Option<syntax_trees::types::TypeReferenceHandle>>> {
-            let selected = self.symbols.find_top_level_by_name_and_kinds_from_source(
-                name.as_str(syntax),
-                kinds,
-                name.source_span(),
-            )?;
-            let reference = self.symbols.symbol_source_span(selected)?;
-            let selected_kind = self.symbols.get(selected).kind;
-            let selected_name = self.symbols.name(selected);
-            let parameters = |forest: &SyntaxTrees| {
-                let mut declarations = forest.root_items().filter_map(|item| {
-                    let (kind, declaration, parameters, evidence_count) = match item {
-                        Item::Data(data) => (SymbolKind::Data, &data.name, data.type_parameters, 0),
-                        Item::TypeAlias(alias) => {
-                            (SymbolKind::TypeAlias, &alias.name, alias.type_parameters, 0)
-                        }
-                        Item::Trait(definition) => (
-                            SymbolKind::Trait,
-                            &definition.name,
-                            definition.type_parameters,
-                            0,
-                        ),
-                        Item::Machine(machine) => (
-                            SymbolKind::Machine,
-                            &machine.name,
-                            machine.type_parameters,
-                            machine.conformance_bounds.len(),
-                        ),
-                        Item::Conformance(conformance) => (
-                            SymbolKind::Conformance,
-                            conformance.alias.as_ref()?,
-                            conformance.type_parameters,
-                            0,
-                        ),
-                        _ => return None,
-                    };
-                    (kind == selected_kind
-                        && declaration.source_span() == reference
-                        && declaration.as_str(forest) == selected_name)
-                        .then_some((parameters, evidence_count))
-                });
-                let Some((parameters, evidence_count)) = declarations.next() else {
-                    return Ok(None);
-                };
-                if declarations.next().is_some() {
-                    return Err(());
-                }
-                let mut carriers = syntax_items(forest)
-                    .type_parameters(parameters)
-                    .iter()
-                    .map(|parameter| match parameter.kind {
-                        syntax_trees::item::TypeParameterKind::Const { type_reference } => {
-                            Some(type_reference)
-                        }
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>();
-                carriers.resize(carriers.len() + evidence_count, None);
-                Ok(Some(carriers))
-            };
-            if let Some(parameters) = parameters(syntax).ok()? {
-                return Some(parameters);
-            }
-            let forest = declaration_syntax?;
-            Some(
-                parameters(forest)
-                    .ok()??
-                    .into_iter()
-                    .map(|carrier| {
-                        carrier.map(|carrier| syntax.copy_type_reference_handle(forest, carrier))
-                    })
-                    .collect(),
-            )
-        }
-
         pub(crate) fn constructor<'syntax>(
             &self,
             syntax: &'syntax SyntaxTrees,
@@ -1512,6 +1431,53 @@ pub(crate) mod declaration_selection {
                     Diagnostic::error("selected constant header has no retained declaration source")
                         .with_source_span(name.source_span())
                 })
+        }
+
+        /* Geometry borrows completed values from this pass's resolved owner. */
+        pub(crate) fn with_array_lengths(
+            &self,
+            mut lengths: Vec<(source::SourceSpan, Option<usize>)>,
+        ) -> Self {
+            lengths.sort_by_key(|(reference, _)| {
+                (
+                    reference.source_id.0,
+                    reference.span.start,
+                    reference.span.end,
+                )
+            });
+            let mut selection = self.clone();
+            selection.array_lengths = lengths;
+            selection
+        }
+
+        pub(crate) fn selected_array_length(
+            &self,
+            reference: source::SourceSpan,
+        ) -> Result<usize, String> {
+            let key = |reference: source::SourceSpan| {
+                (
+                    reference.source_id.0,
+                    reference.span.start,
+                    reference.span.end,
+                )
+            };
+            let first = self
+                .array_lengths
+                .partition_point(|(known, _)| key(*known) < key(reference));
+            let mut selected = self.array_lengths[first..]
+                .iter()
+                .take_while(|(known, _)| *known == reference);
+            let length = selected
+                .next()
+                .and_then(|(_, value)| *value)
+                .ok_or_else(|| {
+                    "array extent requires a completed integer value selected in its lexical scope"
+                        .to_owned()
+                })?;
+            if selected.any(|(_, other)| *other != Some(length)) {
+                return Err("array extent occurrence has conflicting selected values".to_owned());
+            }
+            Ok(length)
         }
 
         /*
@@ -4958,31 +4924,6 @@ pub(crate) mod declared_types {
                     .root_items()
                     .any(|item| matches!(item, Item::TypeAlias(_)))
             })
-    }
-
-    /*
-        Build-time evaluation expands type heads before discovering constant and
-        representation work. Imported declaration forests lend headers only.
-    */
-    pub fn normalize_declared_types(
-        mut request: super::generic_data::GenericDataRequest<'_>,
-    ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
-        let declarations = request
-            .declaration_syntax
-            .into_iter()
-            .chain(request.retained_declaration_syntax)
-            .collect::<Vec<_>>();
-        if !needs_normalization(&request.syntax, &declarations) {
-            return Ok(request.syntax);
-        }
-        let selection = ConstantSelection::with_retained_base(
-            &request.syntax,
-            request.sources,
-            request.top_level_bindings,
-            request.retained_base,
-        )?;
-        normalize_with_declarations(&mut request.syntax, &selection, &declarations)?;
-        Ok(request.syntax)
     }
 
     fn mark_header_references(syntax: &mut SyntaxTrees, root: TypeReferenceHandle) {

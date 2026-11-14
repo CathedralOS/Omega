@@ -74,14 +74,10 @@ mod type_structure {
     */
 
     use super::{Binding, Solver, collect_expression_binder_mentions};
-    use crate::preparation::generic_data::{
-        canonicalize_selected_declared_const_definition, closed_argument_identity,
-        closed_fixed_array_length,
-    };
+    use crate::preparation::generic_data::{closed_argument_identity, closed_fixed_array_length};
     use crate::tables::syntax_items;
     use crate::tables::syntax_type_references;
     use diagnostics::Diagnostic;
-    use language_semantics::const_value::DecodedCanonicalConstValue;
     use numerics::bignum::BigInt;
     use source::SourceSpan;
     use syntax_trees::SyntaxTrees;
@@ -1653,27 +1649,12 @@ mod type_structure {
                             }
                         }
                     } else if let Some(selection) = self.selection {
-                        let definition = selection.select(self.syntax, name)?.ok_or_else(|| {
-                            self.type_structure_error(
-                                "requires an unambiguous selected array length constant",
-                                name.source_span(),
-                            )
-                        })?;
-                        let value = canonicalize_selected_declared_const_definition(
-                            self.syntax,
-                            &definition,
-                            Some(selection),
-                        )
-                        .map_err(|reason| self.type_structure_error(&reason, name.source_span()))?;
-                        let Some(DecodedCanonicalConstValue::Integer { value, .. }) =
-                            value.decode_encoding()
-                        else {
-                            return Err(self.type_structure_error(
-                                "requires an integer array length constant",
-                                name.source_span(),
-                            ));
-                        };
-                        value
+                        return selection
+                            .selected_array_length(name.source_span())
+                            .map(Some)
+                            .map_err(|reason| {
+                                self.type_structure_error(&reason, name.source_span())
+                            });
                     } else {
                         return Err(
                             self.type_structure_error("requires a closed array length", span)
