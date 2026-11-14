@@ -96,6 +96,8 @@ pub enum ReflectionDeclaration {
     Schema,
     /// `callable(declaration)`, an uninvoked declaration selector.
     Callable,
+    /// `field(declaration)`, an uninvoked field selector.
+    Field,
     /// `CallableInfo`, the descriptive result of `callable`.
     CallableInfo,
     /// `TypeSchema`, the result of `schema`.
@@ -335,6 +337,12 @@ const ROWS: &[CoreVocabularyRow] = &[
         "reflect::callable",
         REFLECT,
         CoreVocabulary::Reflection(ReflectionDeclaration::Callable),
+    ),
+    row(
+        "reflect.omg",
+        "reflect::field",
+        REFLECT,
+        CoreVocabulary::Reflection(ReflectionDeclaration::Field),
     ),
     row(
         "reflect.omg",
