@@ -347,6 +347,21 @@ impl<'t> Program<'t> {
             if row.declaring_trait != implemented.symbol {
                 return unserved("implementation row of an inherited requirement");
             }
+            if row.source == typed_trees::trait_definition::ConformanceRowSource::Reference {
+                let Some(realization) = typed.machine_by_symbol(row.realization_machine) else {
+                    return unserved("selection row without an existing machine declaration");
+                };
+                // A reference attaches a route only to an independently
+                // valid plain machine. An owning body already has its
+                // requirement, so another row cannot rebind that entry.
+                if !realization.satisfies.is_empty()
+                    || typed
+                        .owned_conformance_realization(realization.symbol)
+                        .is_some()
+                {
+                    return unserved("selection row cannot rebind a declared conformer");
+                }
+            }
             self.conformance_witnesses.push(crate::ConformanceWitness {
                 declaring_trait: row.declaring_trait,
                 requirement: row.requirement,

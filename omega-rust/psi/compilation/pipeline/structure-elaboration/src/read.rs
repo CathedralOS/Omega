@@ -56,6 +56,9 @@ pub(crate) struct Program<'t> {
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
     pub signatures: IdTable<MachineId, Signature>,
+    /// Only this root of a refinement witness exposes the member's own
+    /// body contract. Every named call, including recursion, uses its route.
+    implementation_body: Option<MachineId>,
     /// Exact requirement declarations use their own canonical namespace and
     /// the same formal/contract reader as body-backed machine declarations.
     pub boundary_symbols: IdTable<BoundaryMachineId, SymbolHandle>,
@@ -188,6 +191,7 @@ impl<'t> Program<'t> {
             typed,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
+            implementation_body: None,
             boundary_symbols: IdTable::default(),
             boundary_signatures: IdTable::default(),
             boundary_completions: IdTable::default(),

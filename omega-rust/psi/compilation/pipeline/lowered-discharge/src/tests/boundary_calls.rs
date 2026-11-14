@@ -331,3 +331,269 @@ fn a_requirement_does_not_replace_written_inputs_or_donate_them_to_a_selection()
         )), "{verdicts:?}");
     }
 }
+
+fn declared_source(contract: &str, body: &str, actual: &str, promised: &str) -> String {
+    format!(
+        r#"
+trait Step {{
+    machine apply(value: u32) -> u32
+    requires value > 0
+    ensures result < value
+    crashes none;
+}}
+machine previous(input: u32) -> u32 satisfies Step::apply
+{contract}
+crashes none
+{{ {body} }}
+machine entry() -> u32
+{promised}
+crashes none
+{{ previous({actual}) }}
+"#
+    )
+}
+
+fn declared_verdicts(text: &str) -> Vec<RouteVerdict> {
+    let typed = typed(text);
+    let entry = entry(&typed);
+    let verdicts = crate::judge_compilation_for(
+        &typed,
+        structure_elaboration::Compilation {
+            entries: &[entry],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    );
+    assert_eq!(verdicts.len(), 2, "{verdicts:?}");
+    verdicts.into_iter().map(Result::unwrap).collect()
+}
+
+#[test]
+fn a_declared_conformers_name_invokes_its_requirement() {
+    let text = declared_source("", "input - 1", "7", "ensures result < 7");
+    let mut verdicts = declared_verdicts(&text);
+    for verdict in &verdicts {
+        assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+    }
+    let RouteVerdict::Accepted(accepted) = verdicts.remove(0) else {
+        unreachable!()
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance
+        .invoke(&mut psi_work::WorkMeter::with_budget(1_000))
+        .unwrap();
+    assert_eq!(
+        status,
+        terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Scalar(
+                terminal_interpreter::TerminalScalarValue::Integer {
+                    scalar_type: semantic_vocabulary::IntegerType::new(
+                        semantic_vocabulary::IntegerSign::Unsigned,
+                        32
+                    )
+                    .unwrap(),
+                    value: semantic_vocabulary::IntegerValue::Unsigned(6),
+                }
+            )
+        )
+    );
+}
+
+#[test]
+fn a_declared_conformers_written_body_contract_is_independently_owed() {
+    for (contract, body, expected) in [("", "input", false), ("requires true", "input - 1", true)] {
+        let verdicts = declared_verdicts(&declared_source(contract, body, "7", ""));
+        assert!(
+            matches!(&verdicts[1], RouteVerdict::Rejected { unproved, .. }
+            if unproved.iter().any(|row| if expected {
+                matches!(row.kind, ObligationKind::OperationSafety { .. })
+            } else {
+                matches!(row.kind, ObligationKind::NormalGuarantee { .. })
+            })),
+            "{verdicts:?}"
+        );
+    }
+}
+
+#[test]
+fn a_conformer_has_no_callable_direct_contract_beside_its_requirement() {
+    for (actual, promised, input_failure) in [("0", "", true), ("7", "ensures result == 0", false)]
+    {
+        let verdicts = declared_verdicts(&declared_source(
+            "requires true ensures result == 0",
+            "0",
+            actual,
+            promised,
+        ));
+        assert!(
+            matches!(&verdicts[1], RouteVerdict::Accepted(_)),
+            "{verdicts:?}"
+        );
+        assert!(
+            matches!(&verdicts[0], RouteVerdict::Rejected { unproved, .. }
+            if unproved.iter().any(|row| if input_failure {
+                matches!(row.kind, ObligationKind::CallRequirement { .. })
+            } else {
+                matches!(row.kind, ObligationKind::NormalGuarantee { .. })
+            })),
+            "{verdicts:?}"
+        );
+    }
+}
+
+#[test]
+fn recursive_named_calls_in_a_body_witness_keep_the_requirement_inputs() {
+    // A postcondition on a call cycle has no served inference rule. This
+    // control isolates the named recursive call's input obligation.
+    let text = declared_source("requires true", "previous(0)", "7", "")
+        .replace("ensures result < value", "");
+    let typed = typed(&text);
+    let member = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "previous")
+        .unwrap();
+    let [edge] = typed.machine_trait_conformances(member) else {
+        panic!("one declared edge")
+    };
+    let mut witness = structure_elaboration::elaborate_witness(
+        &typed,
+        edge.symbol,
+        edge.requirement_symbol,
+        &[],
+        member.symbol,
+    )
+    .unwrap();
+    let discharged = discharge(&mut witness).unwrap();
+    let body = id(2);
+    let tables = witness.tables.machines.get(body).unwrap();
+    let judgments = discharged.machines.get(body).unwrap();
+    assert!(
+        tables.obligations.iter().any(|(obligation, row)| matches!(
+            row.kind,
+            ObligationKind::CallRequirement { .. }
+        ) && judgments
+            .verdicts
+            .get(obligation)
+            .is_some_and(Result::is_err)),
+        "{judgments:?}"
+    );
+}
+
+#[test]
+fn a_boundary_conformer_is_not_a_named_direct_entry() {
+    let text = declared_source("", "input - 1", "7", "")
+        .replacen("trait Step", "boundary trait Step", 1)
+        .replacen("requires value > 0", "reaches none requires value > 0", 1);
+    let typed = typed(&text);
+    let entry = entry(&typed);
+    let verdicts = crate::judge_compilation_for(
+        &typed,
+        structure_elaboration::Compilation {
+            entries: &[entry],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    );
+    assert!(
+        matches!(verdicts.as_slice(), [Ok(RouteVerdict::FallBack(refusal))]
+        if refusal.detail.contains("boundary conformer is callable only through its provider slot")),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
+fn a_declared_conformers_call_keeps_the_requirement_reach_ceiling() {
+    let typed = typed(
+        r#"
+boundary trait Service {}
+trait Read {
+    machine value() -> u32 reaches Service crashes none;
+}
+machine chosen() -> u32 satisfies Read::value crashes none { 7 }
+machine entry() -> u32 reaches none crashes none { chosen() }
+"#,
+    );
+    let entry = entry(&typed);
+    let verdicts = crate::judge_compilation_for(
+        &typed,
+        structure_elaboration::Compilation {
+            entries: &[entry],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    );
+    assert!(
+        matches!(&verdicts[0], Ok(RouteVerdict::Rejected { exceeded, .. })
+        if !exceeded.is_empty()),
+        "{verdicts:?}"
+    );
+    assert!(
+        matches!(&verdicts[1], Ok(RouteVerdict::Accepted(_))),
+        "{verdicts:?}"
+    );
+}
+
+#[test]
+fn a_declared_conformer_cannot_be_rebound_by_a_selection_row() {
+    let text = declared_source("", "input - 1", "7", "")
+        + r#"
+trait Other {
+    machine apply(value: u32) -> u32
+    requires value > 0 ensures result < value crashes none;
+}
+
+Rebound satisfies Other { Other::apply = previous; }
+"#;
+    let typed = typed(&text);
+    let entry = entry(&typed);
+    let verdicts = crate::judge_compilation_for(
+        &typed,
+        structure_elaboration::Compilation {
+            entries: &[entry],
+            subjects: &[None],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    );
+    assert!(
+        matches!(verdicts.as_slice(), [Ok(RouteVerdict::FallBack(refusal))]
+        if refusal.detail.contains("selection row cannot rebind a declared conformer")),
+        "the existing bound entry must not acquire another route"
+    );
+}
+
+#[test]
+fn an_own_progress_promise_does_not_change_a_silent_requirement_contract() {
+    let mut published = Vec::new();
+    for contract in ["", "terminates"] {
+        let verdicts = declared_verdicts(&declared_source(contract, "input - 1", "7", ""));
+        assert!(
+            verdicts
+                .iter()
+                .all(|verdict| matches!(verdict, RouteVerdict::Accepted(_)))
+        );
+        let RouteVerdict::Accepted(closure) = &verdicts[0] else {
+            unreachable!()
+        };
+        let member = closure.elaboration.module.machine(id(2)).unwrap();
+        published.push(member.declaration.as_ref().unwrap().contract);
+    }
+    assert_eq!(
+        published[0], published[1],
+        "only the requirement's advertised progress belongs in the routed contract"
+    );
+}

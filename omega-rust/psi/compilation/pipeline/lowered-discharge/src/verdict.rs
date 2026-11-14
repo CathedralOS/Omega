@@ -1151,18 +1151,37 @@ pub fn judge_compilation_for(
         }
         .map_err(CompilationRefusal::Elaboration)
     }));
-    verdicts.extend(rows.into_iter().map(
-        |(declaring_trait, requirement, arguments, implementation)| {
-            judge(structure_elaboration::elaborate_witness(
-                typed,
-                declaring_trait,
-                requirement,
-                &arguments,
-                implementation,
-            ))
-            .map_err(CompilationRefusal::Elaboration)
-        },
-    ));
+    // A witness's authored body can call another declared conformer. That
+    // callee still has its routed contract; its own authored body is a
+    // separate obligation. Close this exact declaration roster once, so a
+    // recursive named call neither exposes a direct entry nor queues an
+    // unbounded sequence of the same refinement.
+    let mut next = 0;
+    while next < rows.len() {
+        let (declaring_trait, requirement, arguments, implementation) = rows[next].clone();
+        next += 1;
+        let mut elaborated = structure_elaboration::elaborate_witness(
+            typed,
+            declaring_trait,
+            requirement,
+            &arguments,
+            implementation,
+        );
+        if let Ok(witness) = &mut elaborated {
+            for declared in std::mem::take(&mut witness.conformance_witnesses) {
+                let row = (
+                    declared.declaring_trait,
+                    declared.requirement,
+                    Vec::new(),
+                    declared.implementation,
+                );
+                if !rows.contains(&row) {
+                    rows.push(row);
+                }
+            }
+        }
+        verdicts.push(judge(elaborated).map_err(CompilationRefusal::Elaboration));
+    }
     verdicts
 }
 
