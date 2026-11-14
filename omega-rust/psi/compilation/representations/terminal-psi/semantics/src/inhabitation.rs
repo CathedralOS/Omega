@@ -53,6 +53,20 @@ pub fn predicates_are_false_with(
         .any(|predicate| constant_truth(predicate, &mut boolean_value) == Some(false))
 }
 
+/// Resolve a Boolean term using values from that term's exact owner. A caller's
+/// erased actual is evaluated in the caller before binding it to a callee's
+/// genuine formal; equal numeric IDs across those owners confer no identity.
+/// The resolver must leave foreign, unavailable and result-pseudo values unknown.
+///
+/// This is the same term evaluator used for published predicates. It reads no
+/// body or name and supplies no facts for non-Boolean terms.
+pub fn boolean_value_with(
+    term: &ScalarTerm,
+    mut boolean_value: impl FnMut(ValueId) -> Option<bool>,
+) -> Option<bool> {
+    boolean_term_value(term, &mut boolean_value)
+}
+
 fn boolean_term_value(
     term: &ScalarTerm,
     boolean_value: &mut impl FnMut(ValueId) -> Option<bool>,
