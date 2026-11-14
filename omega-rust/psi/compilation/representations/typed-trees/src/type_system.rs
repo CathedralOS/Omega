@@ -205,9 +205,7 @@ pub mod closed_numeric {
                     }
                     if let Some((value, type_reference)) = binding(expression) {
                         typed_owner?;
-                        let primitive = program
-                            .type_reference_table
-                            .primitive_type(type_reference)?;
+                        let primitive = program.primitive_type_reference(type_reference)?;
                         land_integer(&value, primitive)?;
                         values.push(NumericValue {
                             value: BigRational::from_integer(value),
@@ -275,8 +273,7 @@ pub mod closed_numeric {
                         {
                             if !program.contains_type_reference(cast.result_type)
                                 || !program
-                                    .type_reference_table
-                                    .primitive_type(cast.result_type)
+                                    .primitive_type_reference(cast.result_type)
                                     .is_some_and(PrimitiveType::is_fixed_integer)
                             {
                                 return None;
@@ -313,7 +310,7 @@ pub mod closed_numeric {
                 Step::Cast(reference) => {
                     let source = values.pop()?;
                     let value = source.value.to_integer_exact()?;
-                    let primitive = program.type_reference_table.primitive_type(reference)?;
+                    let primitive = program.primitive_type_reference(reference)?;
                     land_integer(&value, primitive)?;
                     values.push(NumericValue {
                         value: BigRational::from_integer(value),
@@ -1371,7 +1368,6 @@ pub mod types {
     use arena::{Arena, Handle, HandleSpan};
     use language_core::ReferenceAccess;
     use numerics::arithmetic::ArithmeticDomain;
-    use numerics::integer_carrier::FixedInteger;
     use std::fmt;
     use symbols::SymbolHandle;
 
@@ -3694,8 +3690,12 @@ pub mod types {
         }
 
         #[inline]
-        pub fn primitive_type(&self, handle: TypeReferenceHandle) -> Option<PrimitiveType> {
-            self.type_reference(handle).primitive_type(self)
+        pub fn primitive_type(
+            &self,
+            handle: TypeReferenceHandle,
+            symbols: &symbols::SymbolTable,
+        ) -> Option<PrimitiveType> {
+            self.type_reference(handle).primitive_type(self, symbols)
         }
 
         pub fn named_type(&self, handle: TypeReferenceHandle) -> Option<&Identifier> {
@@ -3710,7 +3710,11 @@ pub mod types {
             }
         }
 
-        pub fn is_borrowed_byte_slice(&self, handle: TypeReferenceHandle) -> bool {
+        pub fn is_borrowed_byte_slice(
+            &self,
+            handle: TypeReferenceHandle,
+            symbols: &symbols::SymbolTable,
+        ) -> bool {
             let mut handle = handle;
             loop {
                 if !handle.is_valid() {
@@ -3720,7 +3724,8 @@ pub mod types {
                     TypeReferenceNode::Reference { referee, .. } => handle = *referee,
                     TypeReferenceNode::Constrained { base_type, .. } => handle = *base_type,
                     TypeReferenceNode::Slice { element_type } => {
-                        return self.primitive_type(*element_type) == Some(PrimitiveType::U8);
+                        return self.primitive_type(*element_type, symbols)
+                            == Some(PrimitiveType::U8);
                     }
                     _ => return false,
                 }
@@ -3838,13 +3843,17 @@ pub mod types {
     }
 
     impl TypeReferenceNode {
-        pub fn primitive_type(&self, table: &TypeReferenceTable) -> Option<PrimitiveType> {
+        pub fn primitive_type(
+            &self,
+            table: &TypeReferenceTable,
+            symbols: &symbols::SymbolTable,
+        ) -> Option<PrimitiveType> {
             match self {
                 TypeReferenceNode::Reference { .. } => None,
                 TypeReferenceNode::Constrained { base_type, .. } => {
-                    table.primitive_type(*base_type)
+                    table.primitive_type(*base_type, symbols)
                 }
-                TypeReferenceNode::Named { name, .. } => PrimitiveType::from_name(name),
+                TypeReferenceNode::Named { symbol, .. } => symbols.primitive_type(*symbol),
                 TypeReferenceNode::DynamicTrait { .. } => Some(PrimitiveType::Selector),
                 TypeReferenceNode::FixedArray { .. }
                 | TypeReferenceNode::Slice { .. }
@@ -3883,26 +3892,10 @@ pub mod types {
                     table.type_symbol(*element_type)
                 }
                 TypeReferenceNode::Slice { element_type } => table.type_symbol(*element_type),
-                TypeReferenceNode::Generic {
-                    base_symbol,
-                    base_name,
-                    ..
-                } => {
-                    if PrimitiveType::from_name(base_name.as_str()).is_some() {
-                        SymbolHandle::invalid()
-                    } else {
-                        *base_symbol
-                    }
-                }
+                TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
                 TypeReferenceNode::DynamicTrait { symbol, .. } => *symbol,
                 TypeReferenceNode::ConstExpression(_) => SymbolHandle::invalid(),
-                TypeReferenceNode::Named { symbol, name } => {
-                    if PrimitiveType::from_name(name.as_str()).is_some() {
-                        SymbolHandle::invalid()
-                    } else {
-                        *symbol
-                    }
-                }
+                TypeReferenceNode::Named { symbol, .. } => *symbol,
                 TypeReferenceNode::Unit => SymbolHandle::invalid(),
             }
         }
@@ -3986,173 +3979,7 @@ pub mod types {
         }
     }
 
-    /*
-        The scalar a type reference denotes. A fixed-width integer is its
-        carrier (sign and width); the built-in names are spellings of it,
-        so nothing here lists widths.
-    */
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
-    pub enum PrimitiveType {
-        Bool,
-        F32,
-        F64,
-        Integer(FixedInteger),
-        Addr,
-        Selector,
-    }
-
-    impl PrimitiveType {
-        pub const U8: Self = Self::Integer(FixedInteger::U8);
-        pub const U64: Self = Self::Integer(FixedInteger::U64);
-
-        pub fn from_builtin_atom(atom: symbols::BuiltinTypeAtom) -> Option<Self> {
-            atom.fixed_integer().map(Self::Integer)
-        }
-
-        /* The carrier of a fixed-width integer; the address is not one. */
-        #[inline]
-        pub fn fixed_integer(self) -> Option<FixedInteger> {
-            match self {
-                Self::Integer(carrier) => Some(carrier),
-                Self::Bool | Self::F32 | Self::F64 | Self::Addr | Self::Selector => None,
-            }
-        }
-
-        #[inline]
-        pub fn is_integer(&self) -> bool {
-            matches!(self, Self::Integer(_))
-        }
-
-        #[inline]
-        pub fn is_unsigned_integer(self) -> bool {
-            matches!(self, Self::Integer(carrier) if !carrier.is_signed())
-        }
-
-        #[inline]
-        pub fn from_name(name: &str) -> Option<Self> {
-            if !matches!(
-                name.as_bytes().first(),
-                Some(b'b' | b'f' | b'i' | b'u' | b'a' | b'A')
-            ) {
-                return None;
-            }
-            match name {
-                "bool" => Some(Self::Bool),
-                "f32" => Some(Self::F32),
-                "f64" => Some(Self::F64),
-                "addr" => Some(Self::Addr),
-                "AtomicBool" => Some(Self::Bool),
-                "AtomicU32" => Some(Self::Integer(FixedInteger::unsigned(32))),
-                "AtomicU64" => Some(Self::U64),
-                name if name.starts_with("AtomicBool#AccessField<") => Some(Self::Bool),
-                name if name.starts_with("AtomicU32#AccessField<") => {
-                    Some(Self::Integer(FixedInteger::unsigned(32)))
-                }
-                name if name.starts_with("AtomicU64#AccessField<") => Some(Self::U64),
-                name => FixedInteger::from_decimal_spelling(name).map(Self::Integer),
-            }
-        }
-
-        pub fn name(self) -> String {
-            self.to_string()
-        }
-
-        /*
-            Host-integer endpoints, or `None` for a carrier whose endpoints
-            exceed them; such a caller refuses the width.
-        */
-        pub fn integer_bounds(self) -> Option<(i128, i128)> {
-            match self {
-                Self::Integer(carrier) => carrier.bounds_i128(),
-                Self::Addr => FixedInteger::U64.bounds_i128(),
-                Self::Bool | Self::F32 | Self::F64 | Self::Selector => None,
-            }
-        }
-
-        pub fn accepts_integer_literal(self) -> bool {
-            self.accepts_range_constraint() && !self.accepts_finite_constraint()
-        }
-
-        pub fn accepts_float_literal(self) -> bool {
-            matches!(self, Self::F32 | Self::F64)
-        }
-
-        pub fn is_fixed_integer(self) -> bool {
-            self.is_integer()
-        }
-
-        pub fn is_signed_integer(self) -> bool {
-            match self {
-                Self::Integer(carrier) => carrier.is_signed(),
-                Self::Bool | Self::F32 | Self::F64 => true,
-                Self::Addr | Self::Selector => false,
-            }
-        }
-
-        /*
-            Bytes of the native scalar. An integer whose width has no native
-            scalar yet answers `None`, and its user refuses that width.
-        */
-        pub fn scalar_byte_size(self) -> Option<usize> {
-            match self {
-                Self::Bool => Some(1),
-                Self::Integer(carrier) => carrier.native_scalar_bytes(),
-                Self::F32 => Some(4),
-                Self::F64 | Self::Addr | Self::Selector => Some(8),
-            }
-        }
-
-        pub fn accepts_range_constraint(self) -> bool {
-            matches!(self, Self::F32 | Self::F64 | Self::Integer(_) | Self::Addr)
-        }
-
-        pub fn accepts_finite_constraint(self) -> bool {
-            matches!(self, Self::F32 | Self::F64)
-        }
-
-        pub fn from_landed_integer(kind: numerics::literals::LandedIntegerType) -> Self {
-            match kind {
-                numerics::literals::LandedIntegerType::Fixed(carrier) => Self::Integer(carrier),
-                numerics::literals::LandedIntegerType::Addr => Self::Addr,
-            }
-        }
-
-        pub fn landed_landing(self) -> Option<numerics::literals::LandedIntegerType> {
-            use numerics::literals::LandedIntegerType;
-            match self {
-                Self::Integer(carrier) => Some(LandedIntegerType::Fixed(carrier)),
-                Self::Addr => Some(LandedIntegerType::Addr),
-                Self::Selector | Self::Bool | Self::F32 | Self::F64 => None,
-            }
-        }
-
-        pub fn landed_landing_fixed(self) -> Option<numerics::literals::LandedIntegerType> {
-            self.fixed_integer()
-                .map(numerics::literals::LandedIntegerType::Fixed)
-        }
-
-        pub fn non_address_landed_integer(
-            kind: numerics::literals::LandedIntegerType,
-        ) -> Option<Self> {
-            match kind {
-                numerics::literals::LandedIntegerType::Addr => None,
-                kind => Some(Self::from_landed_integer(kind)),
-            }
-        }
-    }
-
-    impl std::fmt::Display for PrimitiveType {
-        fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            match self {
-                Self::Bool => formatter.write_str("bool"),
-                Self::F32 => formatter.write_str("f32"),
-                Self::F64 => formatter.write_str("f64"),
-                Self::Integer(carrier) => carrier.fmt(formatter),
-                Self::Addr => formatter.write_str("addr"),
-                Self::Selector => formatter.write_str("selector"),
-            }
-        }
-    }
+    pub use symbols::PrimitiveType;
 
     pub fn builtin_type_atom(
         kind: numerics::literals::LandedIntegerType,
@@ -4232,13 +4059,12 @@ pub mod types {
         use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
 
         /*
-            A built-in integer name denotes its carrier and nothing else, so
-            every question about it is answered from the sign and width. The
-            twins are the names that are not carriers and the widths the
-            front end does not admit yet.
+            A builtin integer atom denotes its carrier and nothing else, so
+            its properties come from sign and width, including widths with
+            no native scalar representation yet.
         */
         #[test]
-        fn a_built_in_integer_name_is_its_sign_and_width() {
+        fn a_builtin_integer_atom_is_its_sign_and_width() {
             use super::PrimitiveType;
             use numerics::integer_carrier::FixedInteger;
             use numerics::literals::LandedIntegerType;
@@ -4253,7 +4079,9 @@ pub mod types {
                 ("u32", FixedInteger::unsigned(32), 4),
                 ("u64", FixedInteger::unsigned(64), 8),
             ] {
-                let primitive = PrimitiveType::from_name(name).unwrap();
+                let primitive =
+                    PrimitiveType::from_builtin_atom(symbols::BuiltinTypeAtom::Integer(carrier))
+                        .unwrap();
                 assert_eq!(primitive, PrimitiveType::Integer(carrier));
                 assert_eq!(primitive.name(), name);
                 assert_eq!(primitive.fixed_integer(), Some(carrier));
@@ -4274,11 +4102,10 @@ pub mod types {
                     symbols::BuiltinTypeAtom::Integer(carrier)
                 );
             }
-            assert_eq!(PrimitiveType::U8, PrimitiveType::from_name("u8").unwrap());
-            assert_eq!(PrimitiveType::U64, PrimitiveType::from_name("u64").unwrap());
 
             /* The address has the unsigned 64-bit range and is not an integer. */
-            let address = PrimitiveType::from_name("addr").unwrap();
+            let address =
+                PrimitiveType::from_builtin_atom(symbols::BuiltinTypeAtom::Address).unwrap();
             assert_eq!(address.fixed_integer(), None);
             assert!(!address.is_integer() && !address.is_unsigned_integer());
             assert_eq!(
@@ -4288,9 +4115,6 @@ pub mod types {
             assert_eq!(address.landed_landing(), Some(LandedIntegerType::Addr));
             assert_eq!(address.landed_landing_fixed(), None);
 
-            for name in ["u", "i", "u0", "U32", "usize", "u032"] {
-                assert_eq!(PrimitiveType::from_name(name), None, "{name}");
-            }
             /* Every width is a name; `u1` is an integer, never `bool`. */
             for (name, carrier) in [
                 ("u13", FixedInteger::unsigned(13)),
@@ -4299,15 +4123,115 @@ pub mod types {
                 ("u128", FixedInteger::unsigned(128)),
                 ("i257", FixedInteger::signed(257)),
             ] {
-                let primitive = PrimitiveType::from_name(name).unwrap();
+                let primitive =
+                    PrimitiveType::from_builtin_atom(symbols::BuiltinTypeAtom::Integer(carrier))
+                        .unwrap();
                 assert_eq!(primitive, PrimitiveType::Integer(carrier), "{name}");
                 assert_ne!(primitive, PrimitiveType::Bool, "{name}");
             }
             /* A width with no native scalar has no byte size to hand out. */
-            let odd = PrimitiveType::from_name("u13").unwrap();
+            let odd = PrimitiveType::Integer(FixedInteger::unsigned(13));
             assert_eq!(odd.scalar_byte_size(), None);
             assert_eq!(odd.name(), "u13");
             assert_eq!(odd.integer_bounds(), Some((0, 8191)));
+        }
+
+        #[test]
+        fn scalar_identity_survives_names_qualifications_and_atomic_wrappers() {
+            use super::PrimitiveType;
+            use numerics::integer_carrier::FixedInteger;
+            use symbols::{BuiltinTypeAtom, SymbolHandle, builtin_type_symbols};
+
+            let mut builder = SymbolTableBuilder::new();
+            let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            builder.insert_children(root, builtin_type_symbols());
+            let impostors = builder.insert_children(
+                root,
+                [
+                    (SymbolKind::Data, SymbolNameRef::Static("u32")),
+                    (
+                        SymbolKind::Data,
+                        SymbolNameRef::Static("AtomicU32#AccessField<forged>"),
+                    ),
+                ],
+            );
+            let mut symbols = builder.finish();
+            symbols.install_integer_types([FixedInteger::unsigned(13), FixedInteger::signed(257)]);
+            let mut table = TypeReferenceTable::new();
+            for atom in [
+                BuiltinTypeAtom::Bool,
+                BuiltinTypeAtom::F32,
+                BuiltinTypeAtom::Address,
+                BuiltinTypeAtom::Integer(FixedInteger::unsigned(13)),
+                BuiltinTypeAtom::Integer(FixedInteger::signed(257)),
+                BuiltinTypeAtom::AtomicBool,
+                BuiltinTypeAtom::AtomicU32,
+                BuiltinTypeAtom::AtomicU64,
+            ] {
+                let symbol = symbols.builtin_atom_symbol(atom).unwrap();
+                if atom.is_atomic() {
+                    assert_eq!(PrimitiveType::from_builtin_atom(atom), None);
+                }
+                let base = table.insert(TypeReferenceNode::Named {
+                    symbol,
+                    name: Identifier::generated("display::not_the_carrier"),
+                });
+                let constraints = table.insert_constraints([TypeConstraintNode::ArithmeticDomain(
+                    numerics::arithmetic::ArithmeticDomain::Wrapping,
+                )]);
+                let qualified = table.insert(TypeReferenceNode::Constrained {
+                    base_type: base,
+                    constraints,
+                });
+                assert_eq!(
+                    table.primitive_type(base, &symbols),
+                    PrimitiveType::from_builtin_atom(atom)
+                );
+                assert_eq!(
+                    table.primitive_type(qualified, &symbols),
+                    PrimitiveType::from_builtin_atom(atom)
+                );
+                assert_eq!(table.type_symbol(base), symbol);
+                assert_eq!(table.type_symbol(qualified), symbol);
+                assert_eq!(
+                    table.arithmetic_domain(qualified),
+                    numerics::arithmetic::ArithmeticDomain::Wrapping
+                );
+                let reference = table.insert(TypeReferenceNode::Reference {
+                    referee: qualified,
+                    access: ReferenceAccess::Shared,
+                    lifetime: None,
+                });
+                assert_eq!(table.primitive_type(reference, &symbols), None);
+                assert_eq!(table.type_symbol(reference), symbol);
+            }
+            for symbol in impostors.handles().chain([SymbolHandle::invalid()]) {
+                for name in ["u32", "AtomicU32", "AtomicU32#AccessField<u32>"] {
+                    let reference = table.insert(TypeReferenceNode::Named {
+                        symbol,
+                        name: Identifier::generated(name),
+                    });
+                    assert_eq!(table.primitive_type(reference, &symbols), None, "{name}");
+                    assert_eq!(table.type_symbol(reference), symbol);
+                }
+            }
+            let mut program = crate::TypedTrees {
+                symbols,
+                ..Default::default()
+            };
+            program.type_reference_table = table;
+            for symbol in impostors.handles() {
+                let reference = program
+                    .type_reference_table
+                    .insert(TypeReferenceNode::Named {
+                        symbol,
+                        name: Identifier::generated("u32"),
+                    });
+                assert_eq!(
+                    program.type_multiplicity(reference),
+                    language_semantics::Multiplicity::Affine
+                );
+            }
         }
 
         #[test]

@@ -1712,10 +1712,10 @@ fn generic_named_map_source_retains_its_explicit_application() {
     assert_eq!(row.requirement, call.target_symbol);
     assert_eq!(signature.symbol, row.requirement);
     assert_eq!(
-        program
-            .type_reference_table
-            .primitive_type(signature.return_type),
-        typed_trees::types::PrimitiveType::from_name("u32")
+        program.primitive_type_reference(signature.return_type),
+        Some(typed_trees::types::PrimitiveType::Integer(
+            numerics::integer_carrier::FixedInteger::unsigned(32)
+        ))
     );
     let selection = program
         .authored_declaration_selections()

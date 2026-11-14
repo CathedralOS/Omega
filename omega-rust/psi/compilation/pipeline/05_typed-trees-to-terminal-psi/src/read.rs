@@ -3,9 +3,8 @@ The reader: one machine's frozen typed trees resolved into the closed body. This
 is fixed before elaboration"):
 
 - A type is scalar only through `SymbolTable::builtin_type_atom` on its
-  resolved symbol: the compiler-installed root slot, never the spelling. The
-  typed trees' own `PrimitiveType::from_name` classifies by spelling and is
-  not used. A `Named` type whose symbol is invalid is refused as a spelling.
+  resolved symbol, through the shared scalar classification in `symbols`,
+  never the spelling. A `Named` type whose symbol is invalid is refused as a spelling.
 - A type is a record only through its `SymbolKind::Data` symbol and that
   symbol's declaration; a field is its declaration position, found from the
   field symbol on the literal or member (`places`).
@@ -2026,12 +2025,17 @@ mod tests {
         let named = |typed: &mut TypedTrees, symbol| {
             typed.type_reference_table.insert(TypeReferenceNode::Named {
                 symbol,
-                name: Default::default(),
+                name: typed_trees::name::Identifier::generated("u32"),
             })
         };
         let builtin = named(&mut typed, u32_slot);
         let nominal = named(&mut typed, impostor);
         let unresolved = named(&mut typed, SymbolHandle::invalid());
+        let atomic_symbol = typed
+            .symbols
+            .builtin_atom_symbol(symbols::BuiltinTypeAtom::AtomicU32)
+            .unwrap();
+        let atomic = named(&mut typed, atomic_symbol);
         let reference = typed
             .type_reference_table
             .insert(TypeReferenceNode::Reference {
@@ -2039,6 +2043,17 @@ mod tests {
                 access: ReferenceAccess::Shared,
                 lifetime: None,
             });
+        assert_eq!(
+            typed.primitive_type_reference(builtin),
+            Some(symbols::PrimitiveType::Integer(
+                numerics::integer_carrier::FixedInteger::unsigned(32)
+            ))
+        );
+        assert_eq!(typed.primitive_type_reference(nominal), None);
+        assert_eq!(typed.primitive_type_reference(unresolved), None);
+        assert_eq!(typed.primitive_type_reference(atomic), None);
+        assert_eq!(typed.type_reference_symbol(builtin), u32_slot);
+        assert_eq!(typed.type_reference_symbol(nominal), impostor);
         let mut program = Program::new(&typed, false);
         assert_eq!(
             program.scalar_type(machine(), builtin),
@@ -2049,6 +2064,7 @@ mod tests {
         let detail = |handle| program.scalar_type(machine(), handle).unwrap_err().detail;
         assert_eq!(detail(nominal), "type nominal type");
         assert_eq!(detail(unresolved), "spelling type without a symbol");
+        assert_eq!(detail(atomic), "type atomic");
         assert_eq!(detail(reference), "type reference");
         assert_eq!(
             program.result_type(machine(), TypeReferenceHandle::invalid()),
