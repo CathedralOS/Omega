@@ -480,6 +480,7 @@ impl<'t> Program<'t> {
     ) -> Checked<MachineId> {
         let id = self.next_identity()?;
         let (signature, names) = self.requirement_signature(id, declared, arguments)?;
+        self.retain_requirement_policy(id, declared, declared.symbol)?;
         self.admitted_declarations.include(declared.symbol);
         self.symbols.push(declared.symbol);
         self.signatures.push(signature);
@@ -1086,6 +1087,7 @@ impl<'t> Program<'t> {
         {
             let (routed, routed_names) = self.requirement_signature(id, requirement, &[])?;
             self.same_conformer_shape(id, &signature, &routed, machine.symbol)?;
+            self.retain_requirement_policy(id, requirement, machine.symbol)?;
             // There is one executable entry: its caller-facing contract is
             // the requirement's. The member's own clauses remain owed by
             // the independent root-scoped conformance witness.

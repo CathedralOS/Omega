@@ -79,6 +79,9 @@ pub(crate) struct Program<'t> {
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
     pub signatures: IdTable<MachineId, Signature>,
+    /// Requirement headers keep their exact source parameter origins until
+    /// the call closure completes their omitted bounds.
+    declared_envelope_policies: IdTable<MachineId, Option<services::Policy>>,
     /// Contracts and exact code selections named by the read program. A
     /// selection retains code without adding an invocation to its call graph.
     pub callables: crate::callables::CallableNamespace,
@@ -263,6 +266,7 @@ impl<'t> Program<'t> {
             completed_operators: crate::selection_questions::CompletedOperators::default(),
             symbols: IdTable::default(),
             signatures: IdTable::default(),
+            declared_envelope_policies: IdTable::default(),
             callables: crate::callables::CallableNamespace::default(),
             boundaries: crate::boundaries::BoundaryNamespace::default(),
             external_providers: crate::external_providers::ExternalProviderNamespace::default(),

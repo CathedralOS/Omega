@@ -470,7 +470,8 @@ fn prepare_witness(
     let mut program = read::Program::new(typed, false);
     let entry = program.witnessed(declaring_trait, requirement, arguments, implementation)?;
     let callee = program.implementation(implementation, declaring_trait, requirement)?;
-    elaborate_witness_call(program, entry, callee)
+    let bodies = witness_call(&mut program, entry, callee)?;
+    finish_reading(program, Some(entry), bodies, None, None, None)
 }
 
 /// The declaration supplying a callable's published contract. An applied
@@ -490,14 +491,18 @@ pub fn elaborate_callable_witness<'a>(
     let mut program = read::Program::new(typed, false);
     let entry = program.witnessed_signature(required, &[])?;
     let callee = program.callable_contract(supplied)?;
-    elaborate_witness_call(program, entry, callee).map(|prepared| prepared.program)
+    let bodies = witness_call(&mut program, entry, callee)?;
+    finish_logical_witness(program, entry, bodies).map(|prepared| prepared.program)
 }
 
-fn elaborate_witness_call(
-    mut program: read::Program<'_>,
+/// Form the same positional call obligation for a body conformance or a
+/// purely logical callable contract. Each entrance retains its actual body
+/// ownership and publication rules when it finishes this checking form.
+fn witness_call(
+    program: &mut read::Program<'_>,
     entry: MachineId,
     callee: MachineId,
-) -> Checked<PreparedProgram> {
+) -> Checked<IdTable<MachineId, Body>> {
     let required =
         terminal_check_tables::row(&program.signatures, entry, entry, Construct::Machine)?.clone();
     let supplied =
@@ -550,7 +555,7 @@ fn elaborate_witness_call(
             None => Statement::Evaluate(call),
         }],
     });
-    finish_logical_witness(program, entry, bodies)
+    Ok(bodies)
 }
 
 /// A logical witness has abstract dependencies and no executable closure. Read

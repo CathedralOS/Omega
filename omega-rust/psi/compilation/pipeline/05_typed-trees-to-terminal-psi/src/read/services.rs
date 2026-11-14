@@ -194,7 +194,18 @@ impl Program<'_> {
         let mut published = IdTable::default();
         let mut calls = IdTable::default();
         for (id, symbol) in self.symbols.iter() {
-            let policy = if let Some(machine) = self.typed.machine_by_symbol(*symbol) {
+            let operational = self
+                .signatures
+                .get(id)
+                .ok_or_else(|| unavailable(id, "callable has no retained signature"))?
+                .operational;
+            let policy = if let Some(policy) = self
+                .declared_envelope_policies
+                .get(id)
+                .and_then(Option::as_ref)
+            {
+                policy.clone()
+            } else if let Some(machine) = self.typed.machine_by_symbol(*symbol) {
                 if machine.service_reach_is_installation_bound {
                     return Err(unavailable(
                         id,
@@ -235,14 +246,8 @@ impl Program<'_> {
                     } else {
                         None
                     },
-                    suspends: (machine.is_public
-                        || machine.suspends
-                        || !machine.suspends_keyword_source_spans.is_empty())
-                    .then_some(machine.suspends),
-                    blocks: (machine.is_public
-                        || machine.blocks
-                        || !machine.blocks_keyword_source_spans.is_empty())
-                    .then_some(machine.blocks),
+                    suspends: operational.suspension,
+                    blocks: operational.blocking,
                     termination,
                 }
             } else {
@@ -502,6 +507,49 @@ impl Program<'_> {
         }
         Ok(())
     }
+
+    pub(super) fn retain_requirement_policy(
+        &mut self,
+        id: MachineId,
+        signature: &StateSignature,
+        source_owner: symbols::SymbolHandle,
+    ) -> Checked<()> {
+        let parameters = self
+            .typed
+            .state_parameters
+            .span(signature.parameters)
+            .ok_or_else(|| unavailable(id, "requirement policy has a stale parameter span"))?;
+        let authored = self
+            .typed
+            .signature_invokes
+            .span(signature.invokes)
+            .ok_or_else(|| unavailable(id, "requirement policy has a stale invocation span"))?;
+        let mut reach = crate::reach::written_ceiling(self.typed, id, signature.symbol)?;
+        // An open requirement defers to the implementation's published bound.
+        // Infer from its body only when that declaration also omits the bound.
+        if reach.is_none() && source_owner != signature.symbol {
+            reach = crate::reach::written_ceiling(self.typed, id, source_owner)?;
+        }
+        let policy = Policy {
+            reach,
+            invokes: Some(invocations(self.typed, id, authored, parameters)?),
+            suspends: Some(signature.suspends),
+            blocks: Some(signature.blocks),
+            termination: termination(id, &signature.termination_guarantee)?,
+        };
+        while self.declared_envelope_policies.len() < id.get() as usize {
+            self.declared_envelope_policies.push(None);
+        }
+        let saved = self
+            .declared_envelope_policies
+            .get_mut(id)
+            .ok_or_else(|| unavailable(id, "requirement policy has no exact callable row"))?;
+        if saved.is_some() {
+            return Err(unavailable(id, "requirement policy was already retained"));
+        }
+        *saved = Some(policy);
+        Ok(())
+    }
 }
 
 fn call_terminates(
@@ -532,7 +580,8 @@ fn call_terminates(
     }
 }
 
-struct Policy {
+#[derive(Clone)]
+pub(super) struct Policy {
     reach: Option<Vec<ServiceReachId>>,
     invokes: Option<Vec<Invocation>>,
     suspends: Option<bool>,

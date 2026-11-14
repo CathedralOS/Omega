@@ -327,10 +327,11 @@ pub(crate) fn prepare_named_value(
         program
             .expression_table
             .retain_static_machine_application(target, target_name, &[]);
-    program
+    let row = program
         .expression_table
-        .static_machine_application_mut(application)
-        .lexical_owner = lexical_owner;
+        .static_machine_application_mut(application);
+    row.lexical_owner = lexical_owner;
+    row.binding_declaration = target;
     *program.expression_table.expression_mut(value) =
         ExpressionNode::MachineValue(typed::callable_values::MachineValue {
             type_reference: destination,
@@ -1497,6 +1498,30 @@ machine entry(scale: &Scale) -> u64 {
                 row.requirement.arena_index(),
                 row.requirement.generation().checked_add(1).unwrap(),
             );
+            let binding = program
+                .expression_table
+                .static_machine_application(constructed.application)
+                .binding_declaration;
+            assert_eq!(binding, machine.symbol);
+            assert!(
+                !program
+                    .runtime_machine_value_identity(constructed, &[])
+                    .unwrap()
+                    .is_empty()
+            );
+            program
+                .expression_table
+                .static_machine_application_mut(constructed.application)
+                .binding_declaration = symbols::SymbolHandle::invalid();
+            assert_eq!(
+                program.runtime_machine_value_identity(constructed, &[]),
+                Err(typed::runtime_callable_identity::RuntimeCallableIdentityError::UnresolvedSymbol),
+                "a retained application cannot lose its actual binding declaration",
+            );
+            program
+                .expression_table
+                .static_machine_application_mut(constructed.application)
+                .binding_declaration = binding;
             let mut members = Default::default();
             program
                 .expression_table
