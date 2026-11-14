@@ -131,6 +131,10 @@ pub(crate) fn declare(
                         Published {
                             reach: &reach,
                             entries: &entries,
+                            operational: [
+                                machine.published_may_suspend,
+                                machine.published_may_block,
+                            ],
                         },
                         &mut identities,
                     )
@@ -172,6 +176,7 @@ pub(crate) fn declare(
                 Published {
                     reach: &reach,
                     entries: &entries,
+                    operational: signature.operational.published([false; 2]),
                 },
                 &mut identities,
             )?;
@@ -376,11 +381,8 @@ fn declaration(
         callable: identities.intern(&callable),
         result_type: identities.intern(&result_type),
         contract,
-        // The reader refuses a machine that declares `suspends` or `blocks`
-        // (`read/machine.rs`, `machine_shape`), so every machine here
-        // publishes neither.
-        published_may_suspend: false,
-        published_may_block: false,
+        published_may_suspend: machine.published_may_suspend,
+        published_may_block: machine.published_may_block,
         specialization,
     })
 }
@@ -415,24 +417,28 @@ fn application(
     // template and arguments. Anonymous invocation source does not acquire
     // a package owner merely because stage 04 generated a specialization.
     let semantic = semantic_identity(typed, template, identities)?;
-    let mut rows = typed
-        .machine_specializations
-        .iter()
-        .filter(|row| row.instance == instance);
-    let (Some(row), None) = (rows.next(), rows.next()) else {
-        return Err("a generated machine does not have exactly one application");
-    };
+    let row = typed
+        .machine_instantiation(instance)?
+        .filter(|row| row.template() == template)
+        .ok_or("a generated machine does not have exactly one application")?;
+    let binding_application = row.binding_application();
+    if !typed
+        .expression_table
+        .static_machine_application_is_valid(binding_application)
+    {
+        return Err("a generated machine has a foreign binding application");
+    }
     let mut commitment = Commitment(DomainDigestEncoder::new(APPLICATION_DOMAIN));
     callable.hash(&mut commitment);
     let bindings = typed
         .expression_table
-        .static_machine_application_bindings(row.binding_application);
+        .static_machine_application_bindings(binding_application);
     if bindings.is_empty() {
         return Err("a generated machine's application binds nothing");
     }
     let arguments = typed
         .expression_table
-        .static_machine_application_arguments(row.binding_application);
+        .static_machine_application_arguments(binding_application);
     if arguments.len() != bindings.len() {
         return Err(
             "a generated machine's application binds other than one argument per parameter",
@@ -779,6 +785,7 @@ fn declaration_contract_commitment<'a>(
     if !published.entries.is_empty() {
         ("synchronous entries", published.entries).hash(&mut commitment);
     }
+    published.operational.hash(&mut commitment);
     commitment.0.finish()
 }
 
@@ -788,6 +795,7 @@ fn declaration_contract_commitment<'a>(
 pub(crate) struct Published<'a> {
     pub reach: &'a [&'a str],
     pub entries: &'a [&'a str],
+    pub operational: [bool; 2],
 }
 
 /// Reuse the declaration owner's existing scoped identity for application

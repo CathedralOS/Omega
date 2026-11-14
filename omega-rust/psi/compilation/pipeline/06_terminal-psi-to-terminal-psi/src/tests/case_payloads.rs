@@ -120,7 +120,7 @@ machine route(source: Source) -> u32 {{
     // place twice.
     assert_eq!(
         verdict(&scalar("both(&mut held, &location)")),
-        "state `both` receives `<saved subject #1:1>` as both mutable and read-only"
+        "state `both` receives `&<saved subject #1:1>.location` as both mutable and read-only"
     );
 }
 
@@ -185,8 +185,11 @@ machine route() -> u32 {{
         )),
         NO_CASE
     );
-    // An exclusive loan of the sum lets its holder replace the case.
-    assert_eq!(verdict(&scalar("replace(&mut held);")), NO_CASE);
+    // An exclusive loan of the sum lets its holder replace the case, and
+    // what a helper may have written is the write frame it publishes
+    // (dependent_values.md, "Mutation frames"). This helper writes nothing,
+    // so the case it was lent still stands after the call.
+    assert_eq!(verdict(&scalar("replace(&mut held);")), "accepted");
 }
 
 /// A sum never known to hold the case lends no payload of it.
@@ -221,6 +224,6 @@ machine route() -> u32 {{
     assert_eq!(verdict(&lent("revision")), "accepted");
     assert_eq!(
         verdict(&lent("repository")),
-        "state `two` receives `held` as both mutable and read-only"
+        "state `two` receives `&held.repository` as both mutable and read-only"
     );
 }

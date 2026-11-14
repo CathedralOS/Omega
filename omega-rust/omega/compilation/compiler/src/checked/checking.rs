@@ -268,16 +268,20 @@ impl PreparedPackageInvocation {
         if let Some(original) = &self.inputs
             && original != &inputs
         {
-            return Err(vec![Diagnostic::error(
-                "Build invocation cannot replace supplied package inputs",
-            )]
-            .into());
+            return Err(CompileFailure::source_completion(
+                vec![Diagnostic::error(
+                    "Build invocation cannot replace supplied package inputs",
+                )],
+                self.source.source_completion_accounting().clone(),
+            ));
         }
         if self.inputs.is_some() && self.target != target {
-            return Err(vec![Diagnostic::error(
-                "Build invocation cannot replace its admitted Product target",
-            )]
-            .into());
+            return Err(CompileFailure::source_completion(
+                vec![Diagnostic::error(
+                    "Build invocation cannot replace its admitted Product target",
+                )],
+                self.source.source_completion_accounting().clone(),
+            ));
         }
         self.target = target;
         self.inputs = Some(inputs);
@@ -288,14 +292,24 @@ impl PreparedPackageInvocation {
         self.source.execution()
     }
 
+    pub(super) fn source_completion_accounting(
+        &self,
+    ) -> &build_time_evaluation::SourceCompletionAccounting {
+        self.source.source_completion_accounting()
+    }
+
     pub(super) fn settle(
         self,
         returned: Option<build_settings::ReturnedBuild>,
     ) -> Result<compilation_products::SettledPackageBuild, CompileFailure> {
+        let spent = self.source.source_completion_accounting().clone();
         let inputs = self.inputs.ok_or_else(|| {
-            vec![Diagnostic::error(
-                "Build completion requires joined package source custody",
-            )]
+            CompileFailure::source_completion(
+                vec![Diagnostic::error(
+                    "Build completion requires joined package source custody",
+                )],
+                spent,
+            )
         })?;
         let source = self
             .source
@@ -315,8 +329,16 @@ pub(super) fn prepare_settled_package_product(
     target: target::TargetProfile,
     inputs: PackageCompilationInputs,
 ) -> Result<PreparedPackageBuild, CompileFailure> {
-    inputs.validate_execution_context(Some(target), settled.source.build_execution_profile)?;
+    let spent = settled
+        .source
+        .evaluated
+        .source_completion_accounting
+        .clone();
+    inputs
+        .validate_execution_context(Some(target), settled.source.build_execution_profile)
+        .map_err(|diagnostics| CompileFailure::source_completion(diagnostics, spent))?;
     let prepared = build_continuation::prepare_settled_product(settled.source, Some(&inputs))?;
+    let spent = prepared.built.build_accounting.clone();
     let base_sources = prepared.built.base_sources.clone();
     PreparedPackageBuild::seal(
         settled.root,
@@ -327,7 +349,7 @@ pub(super) fn prepare_settled_package_product(
     )
     .map_err(|mut diagnostics| {
         attribute_diagnostics(&mut diagnostics, &base_sources, Some(&inputs));
-        CompileFailure::from(diagnostics)
+        CompileFailure::source_completion(diagnostics, spent)
     })
 }
 
@@ -366,6 +388,12 @@ pub struct SourceCompilation {
 }
 
 impl SourceCompilation {
+    pub fn source_completion_accounting(
+        &self,
+    ) -> &build_time_evaluation::SourceCompletionAccounting {
+        self.source.source_completion_accounting()
+    }
+
     pub(crate) fn package_inputs(&self) -> Option<&PackageCompilationInputs> {
         self.inputs.as_ref()
     }
@@ -397,7 +425,10 @@ impl SourceCompilation {
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
         frontier: Option<&mut Option<typed_frontier::TypedFrontier>>,
     ) -> Result<SelectedCompileOutcome, CompileFailure> {
-        let prepared = self.source.complete(returned?, None, None)?;
+        let spent = self.source.source_completion_accounting().clone();
+        let returned =
+            returned.map_err(|failure| failure.with_source_completion_accounting(spent))?;
+        let prepared = self.source.complete(returned, None, None)?;
         Ok(select_completed_build(
             prepared,
             self.target,
@@ -411,7 +442,10 @@ impl SourceCompilation {
         self,
         returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
     ) -> Result<compilation_products::CheckedProductSource, CompileFailure> {
-        let prepared = self.source.complete(returned?, None, None)?;
+        let spent = self.source.source_completion_accounting().clone();
+        let returned =
+            returned.map_err(|failure| failure.with_source_completion_accounting(spent))?;
+        let prepared = self.source.complete(returned, None, None)?;
         let source = complete_prepared_build(prepared, self.inputs.as_ref())?;
         check_product_source(source, self.inputs.as_ref(), &self.rollback, None)
     }
@@ -464,27 +498,25 @@ fn prepare_build_source_invocation(
 pub(super) fn complete_prepared_build(
     prepared: PreparedBuild,
     package_inputs: Option<&PackageCompilationInputs>,
-) -> Result<PreparedProductSource, Vec<Diagnostic>> {
+) -> Result<PreparedProductSource, CompileFailure> {
     let PreparedBuild {
         built,
         mut build_sources,
         mut timings,
     } = prepared;
     let base_sources = built.base_sources.clone();
-    let (typed, source_completion_accounting, computed_build_config, admission) =
+    let (source, build_accounting, computed_build_config, admission) =
         build_continuation::complete_product_frontend(
             built,
             &mut build_sources,
             package_inputs,
             &mut timings,
         )
-        .map_err(|mut diagnostics| {
-            attribute_diagnostics(&mut diagnostics, &base_sources, package_inputs);
-            diagnostics
-        })?;
+        .map_err(|failure| attribute_failure(failure, &base_sources, package_inputs))?;
     Ok(PreparedProductSource {
-        source_completion_accounting,
-        typed,
+        build_accounting,
+        source_completion_accounting: source.accounting,
+        typed: source.typed,
         computed_build_config,
         admission,
         build_sources,
@@ -504,7 +536,6 @@ pub(super) fn select_completed_build(
         .computed_build_config
         .independent_components();
     match complete_prepared_build(prepared, package_inputs)
-        .map_err(CompileFailure::from)
         .and_then(|source| check_product_source(source, package_inputs, rollback, frontier))
     {
         Ok(source) => crate::execution_settlement::select_product_target(

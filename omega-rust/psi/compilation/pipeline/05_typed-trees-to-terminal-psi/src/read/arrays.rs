@@ -149,6 +149,7 @@ impl Program<'_> {
             elements.push(element);
         }
         Ok(Expression {
+            call_context: None,
             kind: ExpressionKind::Array { elements },
             result: Some(ValueType::Record(array, Qualification::NONE, regions)),
             source,
@@ -170,6 +171,9 @@ impl Program<'_> {
                 Unserved::Typing("index into non-array storage"),
             ));
         };
+        if self.is_readable_byte_view(machine, array)? {
+            return self.byte_element(machine, slots, base, indexed.index, source);
+        }
         let (element, extent) = self.array_element(machine, array)?;
         if !matches!(extent, CollectionExtent::Fixed(_)) {
             return Err(refuse(
@@ -211,6 +215,7 @@ impl Program<'_> {
             ));
         }
         Ok(Expression {
+            call_context: None,
             kind: ExpressionKind::Index {
                 base: Box::new(base),
                 index: Box::new(index),

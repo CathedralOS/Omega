@@ -286,6 +286,7 @@ fn summarize(
         &module.scalar_block_invariants,
         knowledge == Knowledge::All,
     )?;
+    let references = prepared.references(&module.structural_types);
     let storage = crate::places::Storage::new(
         id,
         lowered,
@@ -294,6 +295,7 @@ fn summarize(
         &prepared.graph,
         &scratch,
         &prepared.types,
+        &references,
     )?;
     let relations = knowledge != Knowledge::LiteralIntervals;
     let beyond = unreached.values(lowered, &scratch);

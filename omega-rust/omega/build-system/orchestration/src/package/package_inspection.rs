@@ -52,7 +52,7 @@ pub fn inspect_packages(
         }
         inspection.finish()
     })();
-    session.dispose(result)
+    session.dispose_inspection(result)
 }
 
 fn resolve_inspection_sources(
@@ -78,14 +78,14 @@ fn resolve_inspection_sources(
             },
             false,
         )
-        .map_err(|error| PackageInspectionError::from(error.to_string()))?;
+        .map_err(|error| PackageInspectionError::from(error.into_package_failure()))?;
     let sources = inspection.complete_source_resolution(resolved)?;
     let completed = crate::compile::build_execution::source_resolution::settle_source_builds(
         builds,
         &mut session.compiler,
         profile,
     )
-    .map_err(|error| PackageInspectionError::from(error.to_string()))?;
+    .map_err(|error| PackageInspectionError::from(error.into_package_failure()))?;
     Ok((sources, completed))
 }
 

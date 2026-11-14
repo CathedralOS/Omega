@@ -283,6 +283,19 @@ pub(crate) fn declare<'a>(
             crate::StorageShape::ByteSequence(carrier) => {
                 StructuralTypeShape::ByteSequence(*carrier)
             }
+            crate::StorageShape::Reference { referent, access } => {
+                if types.get(*referent).is_none() {
+                    return Err(refuse(
+                        entry,
+                        Construct::Machine,
+                        Unserved::Type("reference without its exact referent declaration"),
+                    ));
+                }
+                StructuralTypeShape::Reference {
+                    referent: *referent,
+                    access: *access,
+                }
+            }
             crate::StorageShape::ElementView { element, access } => {
                 if element.get() >= id.get() {
                     return Err(refuse(
@@ -526,6 +539,7 @@ fn expression_homes<'b>(
         | ExpressionKind::Cast(operand)
         | ExpressionKind::Requalify(operand)
         | ExpressionKind::Establish { operand, .. }
+        | ExpressionKind::Referent(operand)
         | ExpressionKind::Field { base: operand, .. }
         | ExpressionKind::CollectionMeasure { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
@@ -537,7 +551,7 @@ fn expression_homes<'b>(
                 expression_homes(element, homes);
             }
         }
-        ExpressionKind::Index { base, index } => {
+        ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
             expression_homes(base, homes);
             expression_homes(index, homes);
         }
@@ -671,6 +685,9 @@ impl Witness {
 /// segments of the place, `Case` then `Field`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum Step {
+    Referent {
+        owner: StructuralTypeId,
+    },
     Index {
         owner: StructuralTypeId,
         selector: ValueId,
@@ -882,7 +899,7 @@ impl<'a> Lowering<'a> {
     /// The declared field or payload field a step selects.
     fn declared(&self, step: Step) -> Checked<&'a RecordField> {
         match step {
-            Step::Index { .. } => None,
+            Step::Index { .. } | Step::Referent { .. } => None,
             Step::Field { owner, field } => self.record_type(owner)?.fields().get(field),
             Step::Payload { owner, case, field } => self
                 .record_type(owner)?
@@ -902,6 +919,15 @@ impl<'a> Lowering<'a> {
 
     /// The place one step beneath `parent`, interned.
     fn step(&mut self, parent: ExactPlaceId, step: Step) -> Checked<ExactPlaceId> {
+        if let Step::Referent { owner } = step {
+            if !matches!(
+                self.record_type(owner)?.shape,
+                StorageShape::Reference { .. }
+            ) {
+                return Err(self.internal("a referent step has no reference descriptor"));
+            }
+            return self.project(parent, Segment::Referent);
+        }
         if let Step::Index {
             selector, fixed, ..
         } = step
@@ -916,7 +942,9 @@ impl<'a> Lowering<'a> {
         }
         let field = self.declared(step)?.id;
         let parent = match step {
-            Step::Index { .. } => return Err(self.internal("an index was not projected")),
+            Step::Index { .. } | Step::Referent { .. } => {
+                return Err(self.internal("a non-field step was not projected"));
+            }
             Step::Field { .. } => parent,
             Step::Payload { owner, case, .. } => {
                 let case = self.case_of(owner, case)?.id;
@@ -939,6 +967,10 @@ impl<'a> Lowering<'a> {
         let mut path = Vec::with_capacity(steps.len());
         for step in steps {
             let identity = match *step {
+                Step::Referent { .. } => {
+                    path.push(StructuralPathSegment::Referent);
+                    continue;
+                }
                 Step::Index {
                     owner,
                     selector,
@@ -1243,6 +1275,7 @@ impl<'a> Lowering<'a> {
                     *designated,
                     expression.result,
                     expression.source,
+                    expression.call_context.unwrap_or_default(),
                 )) {
                     Value::Record(root) => Ok(Reached::Value(Located {
                         root,
@@ -1288,6 +1321,7 @@ impl<'a> Lowering<'a> {
             ExpressionKind::Integer(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::IsCase { .. }
+            | ExpressionKind::ByteElement { .. }
             | ExpressionKind::CollectionMeasure { .. }
             | ExpressionKind::Strict { .. }
             | ExpressionKind::Not(_)
@@ -1303,8 +1337,81 @@ impl<'a> Lowering<'a> {
             ExpressionKind::Establish { .. } => {
                 Err(self.internal("a cast that proves predicates of a data value"))
             }
-            ExpressionKind::Borrow { .. } => {
-                Err(self.internal("a loan outside a call's arguments"))
+            ExpressionKind::Borrow {
+                access,
+                place,
+                home,
+            } => {
+                let StorageShape::Reference {
+                    referent,
+                    access: declared,
+                } = self.record_type(record)?.shape
+                else {
+                    return Err(self.internal("a persistent loan has no reference descriptor type"));
+                };
+                if Some(declared) != borrowed_access(*access)
+                    || place.result.map(ValueType::erased)
+                        != Some(self.storage_value_type(referent)?.erased())
+                {
+                    return Err(
+                        self.internal("a reference formation changed its referent or access")
+                    );
+                }
+                // A persistent reference borrows the original storage. The
+                // descriptor snapshot used for a call argument expires with
+                // that call and cannot become this reference's backing.
+                let captured = continuing!(self.capture_place(place, home.as_deref()));
+                let lent = self.captured_loan(place, *access, captured, None)?;
+                let operation = self.operation_identity(expression.source);
+                let before = self.here()?;
+                self.obligation(
+                    ObligationKind::Loan {
+                        captured: lent.place,
+                        access: *access,
+                        lender: lent.lender,
+                    },
+                    before,
+                    expression.source,
+                );
+                let source = StructuralArgument {
+                    place: lent.argument.0,
+                    path: self.storage_path(
+                        &lent.argument.1,
+                        ExecutionSite::Operation(operation),
+                        expression.source,
+                    )?,
+                    access: lent.argument.2,
+                };
+                let (root, place) = self.produce(
+                    operation,
+                    record,
+                    OperationKind::EstablishReference {
+                        source,
+                        storage: None,
+                    },
+                )?;
+                self.write(
+                    place,
+                    ProgramPoint::AfterOperation(operation),
+                    Content::Overwritten,
+                )?;
+                Ok(Reached::Value(Located {
+                    root,
+                    place,
+                    path: Vec::new(),
+                    record,
+                    fresh: true,
+                }))
+            }
+            ExpressionKind::Referent(_) => {
+                let (root, path, place, _) = continuing!(self.capture_place(expression, None));
+                Ok(Reached::Value(Located {
+                    root,
+                    path,
+                    place,
+                    record,
+                    fresh: false,
+                }))
             }
         }
     }
@@ -1434,8 +1541,6 @@ impl<'a> Lowering<'a> {
         access: language_core::ReferenceAccess,
         home_identity: Option<&str>,
     ) -> Evaluation<Lent> {
-        let lent_access =
-            borrowed_access(access).ok_or_else(|| self.internal("a write-only loan"))?;
         let value_type = place
             .result
             .ok_or_else(|| self.internal("a loan of a Unit value"))?;
@@ -1479,6 +1584,22 @@ impl<'a> Lowering<'a> {
                 continuing!(self.capture_place(place, home_identity));
             (root, steps, exact, actual, None)
         };
+        self.captured_loan(place, access, (root, steps, exact, actual), temporary)
+            .map(Reached::Value)
+    }
+
+    fn captured_loan(
+        &mut self,
+        place: &Expression,
+        access: language_core::ReferenceAccess,
+        (root, steps, exact, actual): (PlaceId, Vec<Step>, ExactPlaceId, ValueType),
+        temporary: Option<PlaceId>,
+    ) -> Checked<Lent> {
+        let lent_access =
+            borrowed_access(access).ok_or_else(|| self.internal("a write-only loan"))?;
+        let value_type = place
+            .result
+            .ok_or_else(|| self.internal("a loan of a Unit value"))?;
         if actual.erased() != value_type.erased() {
             return Err(self.internal("a loan has another type than its captured place"));
         }
@@ -1488,12 +1609,12 @@ impl<'a> Lowering<'a> {
         } else {
             Lender::Owner
         };
-        Ok(Reached::Value(Lent {
+        Ok(Lent {
             argument: (root, steps, lent_access),
             place: exact,
             lender,
             temporary,
-        }))
+        })
     }
 
     /// Capture an existing place using the same expression and declared
@@ -1530,6 +1651,23 @@ impl<'a> Lowering<'a> {
                     _ => return Err(self.internal("a captured slot holds no storage")),
                 };
                 (root, Vec::new(), self.exact_root(root)?, value_type)
+            }
+            ExpressionKind::Referent(descriptor) => {
+                let mut at = continuing!(self.located(descriptor));
+                let StorageShape::Reference { referent, .. } = self.record_type(at.record)?.shape
+                else {
+                    return Err(self.internal("a reference crossing lost its descriptor type"));
+                };
+                let step = Step::Referent { owner: at.record };
+                at.place = self.step(at.place, step)?;
+                at.path.push(step);
+                let actual = expression
+                    .result
+                    .ok_or_else(|| self.internal("a referent has no value type"))?;
+                if actual.erased() != self.storage_value_type(referent)?.erased() {
+                    return Err(self.internal("a reference crossing changed its referent type"));
+                }
+                (at.root, at.path, at.place, actual)
             }
             ExpressionKind::Field { base, field } => {
                 let (root, mut steps, parent, ValueType::Record(owner, _, _)) =
@@ -2093,6 +2231,16 @@ impl<'a> Lowering<'a> {
         )
     }
 
+    pub(super) fn read_referent(
+        &mut self,
+        expression: &Expression,
+        scalar_type: ScalarType,
+    ) -> Evaluation<Value> {
+        let (root, steps, exact, _) = continuing!(self.capture_place(expression, None));
+        self.read_projected_scalar(root, exact, &steps, scalar_type, expression.source)
+            .map(Reached::Value)
+    }
+
     pub(super) fn read_field(
         &mut self,
         base: &Expression,
@@ -2166,6 +2314,86 @@ impl<'a> Lowering<'a> {
                     path,
                     access: StructuralAccess::SharedBorrow,
                 },
+            },
+        )
+        .map(Reached::Value)
+    }
+
+    /// `view[index]` on a borrowed byte view. The view is measured and then
+    /// read, in that order and with nothing between: the read names the
+    /// measurement as its length and owes `index < length` against it
+    /// (byte_views.md, `ByteSequenceRead`: "dominating length observation of
+    /// the identical view; checked `index < length`"). The base is located
+    /// before the index is evaluated, as source order has it.
+    pub(super) fn read_byte_element(
+        &mut self,
+        base: &Expression,
+        index: &Expression,
+        source: SourceOrigin,
+    ) -> Evaluation<Value> {
+        let at = continuing!(self.located(base));
+        if !matches!(
+            self.record_type(at.record)?.shape,
+            StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow),
+            })
+        ) {
+            return Err(self.internal("a byte read has no byte descriptor"));
+        }
+        // `ByteSequenceRead` names a whole view root. A view stored in a
+        // field is read by the field form, which this lowering does not
+        // emit yet.
+        if !at.path.is_empty() {
+            return Err(refuse(
+                self.id,
+                Construct::Machine,
+                Unserved::Expression("byte of a view stored in a field"),
+            ));
+        }
+        let selector = continuing!(self.scalar(index));
+        let unsigned = |bits| {
+            ScalarType::Integer(
+                semantic_vocabulary::IntegerType::new(
+                    semantic_vocabulary::IntegerSign::Unsigned,
+                    bits,
+                )
+                .expect("valid width"),
+            )
+        };
+        self.name_contents(at.place, ValueType::record(at.record))?;
+        self.project(at.place, Segment::Extent)?;
+        let measurement = self.operation_identity(source);
+        let Value::Scalar(length) = self.emit(
+            measurement,
+            Some(unsigned(64)),
+            OperationKind::ByteSequenceLength {
+                source: StructuralArgument {
+                    place: at.root,
+                    path: Vec::new(),
+                    access: StructuralAccess::SharedBorrow,
+                },
+            },
+        )?
+        else {
+            return Err(self.internal("a length observation produced no scalar"));
+        };
+        let operation = self.operation_identity(source);
+        let before = self.here()?;
+        let obligation = self.obligation(
+            ObligationKind::OperationSafety {
+                site: ExecutionSite::Operation(operation),
+            },
+            before,
+            source,
+        );
+        self.emit(
+            operation,
+            Some(unsigned(8)),
+            OperationKind::ByteSequenceRead {
+                source: at.root,
+                index: selector,
+                length,
+                obligation,
             },
         )
         .map(Reached::Value)
@@ -2325,7 +2553,8 @@ impl<'a> Lowering<'a> {
             let owner = match step {
                 Step::Field { owner, .. }
                 | Step::Payload { owner, .. }
-                | Step::Index { owner, .. } => *owner,
+                | Step::Index { owner, .. }
+                | Step::Referent { owner } => *owner,
             };
             owed += self.record_type(owner)?.requires.len();
         }
@@ -2497,6 +2726,9 @@ impl<'a> Lowering<'a> {
             StorageShape::ElementView { .. } => {
                 return Err(self.internal("zero mutable sequence requires actual backing"));
             }
+            StorageShape::Reference { .. } => {
+                return Err(self.internal("a reference requires an established backing loan"));
+            }
             StorageShape::Record(_) | StorageShape::Sum(_) => {}
         }
         let (fields, case) = match data.cases().first() {
@@ -2617,11 +2849,13 @@ mod tests {
         let source = SourceOrigin::Unpositioned(Unpositioned::SpanAbsent);
         let mut signatures = IdTable::default();
         signatures.push(Signature {
+            operational: Default::default(),
             parameters: vec![plain],
             erased: Vec::new(),
             borrowed: vec![Borrowed {
                 position: 0,
                 access: language_core::ReferenceAccess::Shared,
+                regions: crate::body::Regions::NONE,
                 home: Some("plain-u32".into()),
             }],
             result: Some(plain),
@@ -2649,20 +2883,24 @@ mod tests {
                 Statement::Bind {
                     slot: 3,
                     value: Expression {
+                        call_context: None,
                         kind: ExpressionKind::Integer(IntegerValue::Unsigned(0)),
                         result: Some(plain),
                         source,
                     },
                 },
                 Statement::Evaluate(Expression {
+                    call_context: None,
                     kind: ExpressionKind::Call {
                         callee: semantic_vocabulary::TargetMachineCallable::Machine(
                             MachineId::new(2).unwrap(),
                         ),
                         arguments: vec![Expression {
+                            call_context: None,
                             kind: ExpressionKind::Borrow {
                                 access: language_core::ReferenceAccess::Shared,
                                 place: Box::new(Expression {
+                                    call_context: None,
                                     kind: ExpressionKind::Slot(3),
                                     result: Some(plain),
                                     source,
@@ -2680,6 +2918,7 @@ mod tests {
                 Statement::Arm {
                     guard: None,
                     target: Target::Value(Expression {
+                        call_context: None,
                         kind: ExpressionKind::Slot(0),
                         result: Some(plain),
                         source,
@@ -2694,6 +2933,7 @@ mod tests {
             statements: vec![Statement::Arm {
                 guard: None,
                 target: Target::Value(Expression {
+                    call_context: None,
                     kind: ExpressionKind::Slot(0),
                     result: Some(plain),
                     source,

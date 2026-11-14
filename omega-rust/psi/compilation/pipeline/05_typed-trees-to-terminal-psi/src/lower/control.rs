@@ -143,6 +143,7 @@ impl Lowering<'_> {
         member: MachineId,
         arguments: Vec<ValueId>,
         source: SourceOrigin,
+        acknowledgement: Option<terminal_psi::CallAcknowledgement>,
     ) -> Checked<()> {
         let Some(head) = self.heads.iter().find(|head| head.member == member) else {
             return Err(self.internal("an arrival at a machine outside the call component"));
@@ -152,6 +153,13 @@ impl Lowering<'_> {
             return Err(self.internal("an arrival does not match the head's parameters"));
         }
         let edge = self.edge(Destination::Block(target), source)?;
+        if let Some(acknowledgement) = acknowledgement {
+            self.call_formations.push(terminal_psi::CallFormation {
+                site: terminal_psi::CallSite::Edge(edge),
+                acknowledgement,
+                tail_callee: Some(member),
+            });
+        }
         self.terminate(Terminator::Jump {
             edge,
             target,
@@ -381,7 +389,12 @@ impl Lowering<'_> {
                         Reached::Ended(_) => return Ok(()),
                     }
                 }
-                self.arrive(member, values, expression.source)
+                self.arrive(
+                    member,
+                    values,
+                    expression.source,
+                    Some(expression.call_context.unwrap_or_default()),
+                )
             }
             // An arm whose every path ends at a call that never returns is
             // complete there.

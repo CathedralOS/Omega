@@ -179,6 +179,9 @@ impl Program<'_> {
                 StorageShape::ElementView { .. } => {
                     return unserved("zero-established mutable sequence");
                 }
+                StorageShape::Reference { .. } => {
+                    return unserved("zero-established reference without backing");
+                }
                 StorageShape::ByteSequence(_) | StorageShape::PrimitiveScalar { .. } => {}
             }
         }

@@ -60,6 +60,7 @@ mod graph;
 mod joins;
 mod known;
 mod minted;
+mod operational;
 mod places;
 mod prove;
 mod result_summaries;
@@ -381,6 +382,7 @@ fn discharge_inner(
     carried: &[Carried<'_>],
 ) -> Checked<Discharge> {
     minted::width_questions_are_minted(elaboration)?;
+    operational::judge(elaboration)?;
     // A caller may retain old contents only outside the callee's actual
     // writes. Check every published frame before summaries or knowledge can
     // use it. Low-level proof reconstruction still states a conditional
@@ -579,8 +581,24 @@ fn machine(
         types,
         graph,
         context,
+        reference_graph,
     } = prepare(module, domains, id, tables, knowledge)?;
-    let storage = places::Storage::new(id, lowered, module, domains, &graph, tables, &types)?;
+    let references = std::cell::RefCell::new(
+        terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
+            &module.structural_types,
+            &reference_graph,
+        ),
+    );
+    let storage = places::Storage::new(
+        id,
+        lowered,
+        module,
+        domains,
+        &graph,
+        tables,
+        &types,
+        &references,
+    )?;
     let mut decided: Vec<Option<Checked<Discharged>>> =
         (0..tables.obligations.len()).map(|_| None).collect();
     // Loans are judged by structure, not proved (`places::loans`).
@@ -1195,6 +1213,21 @@ pub(crate) struct Prepared {
     pub(crate) types: IdTable<ValueId, ScalarType>,
     pub(crate) graph: Graph,
     pub(crate) context: PropositionContext,
+    reference_graph: Vec<terminal_semantics::descriptor_results::DescriptorMachine>,
+}
+
+impl Prepared {
+    fn references<'a>(
+        &'a self,
+        types: &'a [terminal_psi::StructuralTypeDeclaration],
+    ) -> std::cell::RefCell<terminal_semantics::descriptor_results::DescriptorAnalysis<'a>> {
+        std::cell::RefCell::new(
+            terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
+                types,
+                &self.reference_graph,
+            ),
+        )
+    }
 }
 
 /// Fills `tables.knowledge` from the lowered form and builds what deciding
@@ -1218,8 +1251,24 @@ pub(crate) fn prepare(
     minted::follow_the_lowered_form(id, module, lowered, tables, &types)?;
     minted::domains_are_declared(id, structural_types, domains)?;
     let graph = Graph::new(id, lowered, tables)?;
+    let reference_graph = places::reference_graph(module, id)?;
     if fill {
-        let storage = places::Storage::new(id, lowered, module, domains, &graph, tables, &types)?;
+        let references = std::cell::RefCell::new(
+            terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
+                &module.structural_types,
+                &reference_graph,
+            ),
+        );
+        let storage = places::Storage::new(
+            id,
+            lowered,
+            module,
+            domains,
+            &graph,
+            tables,
+            &types,
+            &references,
+        )?;
         storage.owed_are_minted(tables)?;
         fill_knowledge(module, id, lowered, tables, knowledge, &types, &storage)?;
     }
@@ -1248,6 +1297,7 @@ pub(crate) fn prepare(
         types,
         graph,
         context,
+        reference_graph,
     })
 }
 
@@ -1424,11 +1474,13 @@ pub(crate) fn callee(
                     ));
                 }
             }
-            if declaration.declaration.as_ref().is_some_and(|checked| {
-                checked.source.published_may_suspend || checked.source.published_may_block
-            }) {
+            if declaration
+                .declaration
+                .as_ref()
+                .is_some_and(|checked| checked.source.published_may_suspend)
+            {
                 return Err(unavailable(
-                    "boundary call needs its suspension and blocking proof",
+                    "boundary call needs its continuation, carry and loan preservation proof",
                 ));
             }
             if !declaration.requires.is_empty()

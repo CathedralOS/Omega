@@ -25,10 +25,10 @@ things it did now has one owner, and this file only sequences them:
    the package authority and admits the actual invocation closure against it;
    host effects remain a separate admission, not a pure-evaluation exemption.
 3. Constants and provider plans. Source preparation evaluates demanded Build
-   constants through their accepted invocations. Their charges still need a
-   settlement owner across the Build activation, so new invocation records
-   reach an explicit refusal below. The original Product pending work stays
-   whole. No provider plan is selected here; `BuildProviderPlans::admit` holds
+   constants through their accepted invocations. Their charges stay with the
+   prepared and evaluated Build, separately from Product materialization proof.
+   A retyped Build evaluates its own demanded constants under its own request.
+   The original Product pending work stays whole. No provider plan is selected here; `BuildProviderPlans::admit` holds
    the published module's actual demand against that selection before it runs.
 */
 
@@ -44,86 +44,117 @@ const BUILD_SOURCE_JUDGMENT: StageMeta = StageMeta::new(
 );
 
 /*
-A Product frontier typed after Build ran holds the Build source again, with
-its constants unsettled. What the Build admission evaluated must be settled
-there too, or the Product would retain the constant and evaluate it for its
-own targets.
-
-The admission states what it owes (`BuildConstants`): whether it folded a
-constant under Build's provider plans, and which constants the module it
-accepted names, each with its declaration and the value the judged source
-recorded for it.
-
-A constant the admission read at a recorded value owes no evaluation: no
-stage ran anything to produce it, so there is nothing to repeat. It is
-settled when the rejoined frontier holds that same declaration at that same
-recorded value, which is checked here on the frontier itself and never
-assumed from how either frontier was typed. Then the Product has no pending
-work for it and reads what Build read.
-
-Everything else needs its own evaluation request on this rejoined frontier
-and is refused naming the constant: a fold under provider plans, a constant
-the frontier no longer declares or has not evaluated, and one whose value
-there differs. Computed values from another Build context cannot supply that
-request's receipt. The rejoin needs the actual frontier, its Build entry and
-the package inputs under which that new request is admitted.
+Build and Product have distinct typed inputs. A rejoined Build slice therefore
+prepares its own Build-purpose request and evaluates its own demanded constants.
+The old declaration/value ledger checks correspondence; it cannot authorize an
+old result or receipt on the new source. Both invocation occurrences remain
+chargeable, while a cloned history of either occurrence is counted only once.
+Provider-dependent folding still requires a provider-aware producer and is
+refused before an unsupported rejoin can be treated as settled.
 */
 pub fn settle_rejoined_build_slice(
     constants: &compilation_products::BuildConstants,
     rejoined: psi_compiler::BuildSourceInput<'_>,
-    _entry: symbols::SymbolHandle,
-    _packages: Option<&PackageCompilationInputs>,
-    _dependency_activation: bool,
-    _execution_profile: Option<target::TargetProfile>,
+    entry: symbols::SymbolHandle,
+    packages: Option<&PackageCompilationInputs>,
+    anonymous_source: Option<&package_compilation::AnonymousSourceCapture>,
+    dependency_activation: bool,
+    timings: &mut artifacts::compile_timings::CompileTimings,
+) -> Result<build_time_evaluation::SourceCompletionAccounting, compilation_products::CompileFailure>
+{
+    if constants.folded_under_providers {
+        return Err(vec![Diagnostic::error(
+            "no product route yet: Build admission folded a constant under its provider plans, and settling it on a Product frontier typed after Build ran requires the constant evaluator",
+        )].into());
+    }
+    if constants.read.is_empty() {
+        return Ok(Default::default());
+    }
+    let refusals = constants.read.iter().filter(|read| read.declaration.is_none() || read.value.is_none()).map(|read| {
+        Diagnostic::error(format!(
+            "no product route yet: the Build program reads constant `{}`, and settling it on a Product frontier typed after Build ran requires the constant evaluator", read.name
+        ))
+    }).collect::<Vec<_>>();
+    if !refusals.is_empty() {
+        return Err(refusals.into());
+    }
+    // A retyped Build is a new request in its actual Build context. Nothing
+    // copies its old result into Product or uses an old receipt for this input.
+    let (accepted, _, current, accounting) = prepare_admitted_build(
+        rejoined.typed,
+        entry,
+        packages,
+        anonymous_source,
+        dependency_activation,
+        timings,
+    )?;
+    let result = compare_rejoined_constants(constants, &current, accepted.source());
+    result.map(|()| accounting.clone()).map_err(|diagnostics| {
+        compilation_products::CompileFailure::source_completion(diagnostics, accounting)
+    })
+}
+
+fn compare_rejoined_constants(
+    original: &compilation_products::BuildConstants,
+    current: &compilation_products::BuildConstants,
+    typed: &typed_trees::TypedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
-    let typed = &*rejoined.typed;
-    let mut refusals = constants
-        .read
+    // Index only this constant family. The source anchor still authenticates
+    // bytes, owner, purpose and declaration kind inside the matching range.
+    let mut family = typed
+        .const_declarations()
         .iter()
-        .filter(|read| !holds_recorded_value(typed, read))
-        .map(|read| {
-            Diagnostic::error(format!(
-                "no product route yet: the Build program reads constant `{}`, and settling \
-                 it on a Product frontier typed after Build ran requires the constant evaluator",
-                read.name
+        .filter_map(|constant| {
+            let span = typed.symbols.symbol_source_span(constant.symbol)?;
+            let source = typed.symbols.source_file(span)?;
+            Some((
+                source.path.as_path(),
+                span.span.start,
+                span.span.end,
+                constant.symbol,
             ))
         })
         .collect::<Vec<_>>();
-    if constants.folded_under_providers && refusals.is_empty() {
-        refusals.push(Diagnostic::error(
-            "no product route yet: Build admission folded a constant under its provider plans, \
-             and settling it on a Product frontier typed after Build ran requires the constant \
-             evaluator",
-        ));
-    }
-    if refusals.is_empty() {
-        Ok(())
-    } else {
-        Err(refusals)
-    }
-}
-
-/// Whether `typed` declares the constant Build read, at the value Build
-/// read. A constant no stage had evaluated when Build read it has no value
-/// to hold the frontier to.
-fn holds_recorded_value(
-    typed: &typed_trees::TypedTrees,
-    read: &psi_compiler::ConstantRead,
-) -> bool {
-    let (Some(declaration), Some(value)) = (&read.declaration, &read.value) else {
-        return false;
+    family
+        .sort_unstable_by_key(|row| (row.0, row.1, row.2, row.3.arena_index(), row.3.generation()));
+    let resolve = |reads: &[psi_compiler::ConstantRead]| {
+        let mut values = Vec::with_capacity(reads.len());
+        for read in reads {
+            let declaration = read.declaration.as_ref().ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "Build constant `{}` has no rejoinable declaration",
+                    read.name
+                ))]
+            })?;
+            let span = declaration.span();
+            let key = (declaration.source().path.as_path(), span.start, span.end);
+            let start = family.partition_point(|row| (row.0, row.1, row.2) < key);
+            let end = family.partition_point(|row| (row.0, row.1, row.2) <= key);
+            let symbol = declaration
+                .rejoin(&typed.symbols, family[start..end].iter().map(|row| row.3))
+                .map_err(|reason| {
+                    vec![Diagnostic::error(format!(
+                        "Build constant `{}` rejoin: {reason}",
+                        read.name
+                    ))]
+                })?;
+            let value = read.value.clone().ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "Build constant `{}` has no evaluated value in its own context",
+                    read.name
+                ))]
+            })?;
+            values.push(((symbol.arena_index(), symbol.generation()), value));
+        }
+        values.sort_unstable_by_key(|row| row.0);
+        Ok::<_, Vec<Diagnostic>>(values)
     };
-    declaration
-        .rejoin(
-            &typed.symbols,
-            typed
-                .const_declarations()
-                .iter()
-                .map(|constant| constant.symbol),
-        )
-        .ok()
-        .and_then(|constant| typed.const_declaration_by_symbol(constant))
-        .is_some_and(|constant| constant.evaluated_value.as_ref() == Some(value))
+    if resolve(&original.read)? != resolve(&current.read)? {
+        return Err(vec![Diagnostic::error(
+            "retyped Build constant demand or value differs from the executed Build context",
+        )]);
+    }
+    Ok(())
 }
 
 pub(crate) fn prepare_admitted_build(
@@ -138,6 +169,7 @@ pub(crate) fn prepare_admitted_build(
         Arc<psi_compiler::AcceptedTerminalSource>,
         super::provider_execution::BuildProviderPlans,
         compilation_products::BuildConstants,
+        build_time_evaluation::SourceCompletionAccounting,
     ),
     compilation_products::CompileFailure,
 > {
@@ -153,7 +185,7 @@ pub(crate) fn prepare_admitted_build(
         // (`wiki/spec/build/validation_subjects.md`, "Orchestration").
         let subject =
             (!dependency_activation).then(|| packages.map(PackageCompilationInputs::root));
-        let accepted = timings.record_result(BUILD_SOURCE_JUDGMENT, || {
+        let (accepted, read) = timings.record_result(BUILD_SOURCE_JUDGMENT, || {
             let compilation = psi_compiler::TerminalSourceCompilation {
                 declaration_metadata: &[],
                 entries: &[entry],
@@ -176,36 +208,29 @@ pub(crate) fn prepare_admitted_build(
                 compilation,
             }
             .prepare();
-            let source = match source {
+            let (source, constants) = match source {
                 Ok(source) => {
                     accounting = source.accounting;
-                    source.program
+                    (source.program, source.constants)
                 }
                 Err(failure) => {
                     accounting = failure.accounting;
                     return Err(failure.diagnostics);
                 }
             };
-            // This admission has no settlement owner for newly evaluated source
-            // constants yet. Preserve the explicit boundary rather than dropping
-            // invocation charges when a Build requests such work.
-            if !accounting.receipts().is_empty() {
-                return Err(vec![Diagnostic::error(
-                    "no product route yet: Build constant invocation accounting settlement",
-                )]);
-            }
             psi_compiler::AcceptedTerminalSource::judge(
                 source,
                 compilation,
                 terminal_codec::TerminalPublication::Invocation,
             )
+            .map(|accepted| (accepted, constants))
         })?;
-        // Only admissions without invocation records pass the guard above.
-        // Names and recorded values come from that accepted module rather
-        // than an assumption about how a later frontier was typed.
+        // Source preparation retains the demanded family before literal
+        // substitution. Its genuine receipts travel as Build costs, while
+        // the declaration/value ledger describes a later independent rejoin.
         let constants = compilation_products::BuildConstants {
             folded_under_providers: false,
-            read: accepted.constants_read(),
+            read,
         };
         Ok((
             Arc::new(accepted),
@@ -213,9 +238,13 @@ pub(crate) fn prepare_admitted_build(
             constants,
         ))
     })();
-    result.map_err(|diagnostics| {
-        compilation_products::CompileFailure::source_completion(diagnostics, accounting)
-    })
+    match result {
+        Ok((accepted, providers, constants)) => Ok((accepted, providers, constants, accounting)),
+        Err(diagnostics) => Err(compilation_products::CompileFailure::source_completion(
+            diagnostics,
+            accounting,
+        )),
+    }
 }
 
 #[cfg(test)]
@@ -234,11 +263,14 @@ mod tests {
             },
             symbols::SymbolHandle::invalid(),
             None,
-            false,
             None,
+            false,
+            &mut artifacts::compile_timings::CompileTimings::default(),
         )
+        .map(|_| ())
         .map_err(|refusals| {
             refusals
+                .into_diagnostics()
                 .into_iter()
                 .map(|refusal| refusal.message)
                 .collect()
@@ -295,5 +327,208 @@ mod tests {
         .unwrap_err();
         assert_eq!(refusals.len(), 1);
         assert!(refusals[0].contains("folded a constant under its provider plans"));
+    }
+
+    fn source(text: &str) -> typed_trees::TypedTrees {
+        let mut sources = source::SourceMap::default();
+        let id = sources
+            .add_checked_instance(
+                "/unit/build.omg".into(),
+                text,
+                "/unit".into(),
+                None,
+                source::SourceOrigin::Toolchain,
+                source::SourceResolutionStratum::Base,
+                source::DependencyScope::Build,
+            )
+            .source_id;
+        let sources = std::sync::Arc::new(sources);
+        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+        let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap();
+        let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
+        request.sources = Some(sources);
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap()
+    }
+
+    fn prepare(
+        typed: typed_trees::TypedTrees,
+    ) -> Result<psi_compiler::FrozenSource, psi_compiler::SourcePreparationFailure> {
+        let entry = typed.realized_machine_named("build").unwrap().symbol;
+        psi_compiler::SourcePreparationRequest {
+            program: typed,
+            accounting: Default::default(),
+            admission: Default::default(),
+            compilation: psi_compiler::TerminalSourceCompilation {
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Build,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+        }
+        .prepare()
+    }
+
+    #[test]
+    fn independent_build_contexts_keep_actual_constant_demands_and_charge_each_run() {
+        for (initializer, executions) in [("answer()", 1), ("4u64", 0)] {
+            let text = format!(
+                "const VALUE:u64={initializer}; const OTHER:u64=9u64; machine answer()->u64 {{4u64}} machine build()->u64 {{VALUE}}"
+            );
+            let first = prepare(source(&text)).unwrap();
+            let next = prepare(source(&text)).unwrap();
+            assert_ne!(first.program.identity.get(), next.program.identity.get());
+            assert_eq!(
+                first.constants.len(),
+                1,
+                "the actual demand survives literal substitution"
+            );
+            assert_eq!(first.constants[0].name, "VALUE");
+            let old = BuildConstants {
+                folded_under_providers: false,
+                read: first.constants.clone(),
+            };
+            let current = BuildConstants {
+                folded_under_providers: false,
+                read: next.constants.clone(),
+            };
+            super::compare_rejoined_constants(&old, &current, &next.program).unwrap();
+            let missing = BuildConstants::default();
+            assert!(super::compare_rejoined_constants(&old, &missing, &next.program).is_err());
+            let other = next
+                .program
+                .const_declarations()
+                .iter()
+                .find(|declaration| next.program.symbols.name(declaration.symbol) == "OTHER")
+                .unwrap();
+            let mut wrong = current.clone();
+            wrong.read[0].value = other.evaluated_value.clone();
+            assert!(super::compare_rejoined_constants(&old, &wrong, &next.program).is_err());
+            assert_eq!(first.accounting.receipts().len(), executions);
+            let mut joined = first.accounting.clone();
+            joined.append(first.accounting.clone());
+            assert_eq!(
+                joined.receipts().len(),
+                executions,
+                "a held occurrence is charged once"
+            );
+            joined.append(next.accounting.clone());
+            assert_eq!(
+                joined.receipts().len(),
+                executions * 2,
+                "a fresh invocation is a second charge"
+            );
+            let mut retyped = source(&text);
+            let entry = retyped.realized_machine_named("build").unwrap().symbol;
+            let mut pre_checks = Vec::new();
+            let fresh = super::settle_rejoined_build_slice(
+                &old,
+                psi_compiler::BuildSourceInput {
+                    typed: &mut retyped,
+                    pre_checks: &mut pre_checks,
+                },
+                entry,
+                None,
+                None,
+                false,
+                &mut artifacts::compile_timings::CompileTimings::default(),
+            )
+            .unwrap();
+            assert_eq!(fresh.receipts().len(), executions);
+            joined.append(fresh);
+            assert_eq!(
+                joined.receipts().len(),
+                executions * 3,
+                "settlement executes a third independent Build request"
+            );
+            joined.validate_charges().unwrap();
+        }
+    }
+
+    #[test]
+    fn a_retyped_value_cannot_replace_its_fresh_computation_receipt() {
+        let mut typed = source(
+            "const VALUE:u64=answer(); const OTHER:u64=9u64; machine answer()->u64 {4u64} machine build()->u64 {VALUE}",
+        );
+        let other = typed
+            .const_declarations()
+            .iter()
+            .find(|declaration| typed.symbols.name(declaration.symbol) == "OTHER")
+            .unwrap()
+            .evaluated_value
+            .clone();
+        let value = typed
+            .roots
+            .const_declarations
+            .handles()
+            .find(|handle| {
+                typed
+                    .symbols
+                    .name(typed.tables.const_declarations.get(*handle).symbol)
+                    == "VALUE"
+            })
+            .unwrap();
+        typed
+            .tables
+            .const_declarations
+            .get_mut(value)
+            .evaluated_value = other;
+        let failure = match prepare(typed) {
+            Err(failure) => failure,
+            Ok(_) => panic!("a retyped value is not a receipt"),
+        };
+        assert!(diagnostics::join_messages(&failure.diagnostics).contains("receipt"));
+        assert!(failure.accounting.receipts().is_empty());
+    }
+
+    #[test]
+    fn later_refusal_and_pending_consent_retain_the_actual_earlier_work() {
+        use compilation_products::CompileFailure;
+        use package_compilation::build_execution::{
+            RestrictedBuildBounds, RestrictedBuildOperation, RestrictedBuildRequest,
+        };
+        let prepared = prepare(source(
+            "const VALUE:u64=answer(); machine answer()->u64 {4u64} machine build()->u64 {VALUE}",
+        ))
+        .unwrap();
+        assert_eq!(prepared.accounting.receipts().len(), 1);
+        let failure = CompileFailure::Diagnostics(vec![diagnostics::Diagnostic::error(
+            "later admission refused",
+        )])
+        .with_source_completion_accounting(prepared.accounting.clone());
+        assert_eq!(
+            failure
+                .source_completion_accounting()
+                .unwrap()
+                .receipts()
+                .len(),
+            1
+        );
+        let request = RestrictedBuildRequest::from_retained(
+            RestrictedBuildOperation::ScopedFilesystemExecution,
+            Vec::new(),
+            Vec::new(),
+            RestrictedBuildBounds::from_retained(None, None, Vec::new(), false),
+            None,
+            None,
+        );
+        let failure = CompileFailure::BuildConsentRequired {
+            requests: vec![request.clone()],
+            accounting: prepared.accounting.clone(),
+        }
+        .with_source_completion_accounting(prepared.accounting.clone());
+        let CompileFailure::BuildConsentRequired {
+            requests,
+            accounting,
+        } = failure
+        else {
+            panic!("costs cannot replace the pending consent kind")
+        };
+        assert_eq!(requests, vec![request]);
+        assert_eq!(accounting.receipts().len(), 1);
+        accounting.validate_charges().unwrap();
     }
 }

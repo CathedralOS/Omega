@@ -26,6 +26,10 @@ pub struct PreparedPackageBuild {
 }
 
 impl PreparedPackageBuild {
+    pub fn source_completion_accounting(&self) -> &crate::SourceCompletionAccounting {
+        &self.prepared.built.build_accounting
+    }
+
     pub fn has_source_admission(
         &self,
         inputs: &PackageCompilationInputs,

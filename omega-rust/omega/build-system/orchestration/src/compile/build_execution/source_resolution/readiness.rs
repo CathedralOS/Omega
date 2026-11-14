@@ -41,7 +41,8 @@ use std::path::Path;
 use std::sync::Arc;
 use target::TargetProfile;
 
-use ProjectSourceResolutionError::{Compilation, Resources, Source};
+use super::{resources_error as Resources, source_error as Source};
+use ProjectSourceResolutionError::Compilation;
 
 struct SourceBuild {
     acquired: AcquiredBuildSource,
@@ -89,6 +90,7 @@ pub(super) struct ReadinessScheduler<'session, 'operation> {
     sources: Vec<SourceBuild>,
     products: Vec<(usize, DependencyPurpose, PackageBuild)>,
     catalog_builds: Vec<CatalogMemberBuild>,
+    source_completion_accounting: compilation_products::SourceCompletionAccounting,
 }
 
 impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
@@ -107,10 +109,20 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
             sources: Vec::new(),
             products: Vec::new(),
             catalog_builds: Vec::new(),
+            source_completion_accounting: Default::default(),
         }
     }
 
     pub(super) fn join_sources(
+        self,
+        resolved: &ResolvedBuildSources,
+    ) -> Result<Vec<ResolvedPackageBuild>, ProjectSourceResolutionError> {
+        let spent = self.source_completion_accounting.clone();
+        self.join_source_inputs(resolved)
+            .map_err(|failure| failure.with_source_completion_accounting(spent))
+    }
+
+    fn join_source_inputs(
         self,
         resolved: &ResolvedBuildSources,
     ) -> Result<Vec<ResolvedPackageBuild>, ProjectSourceResolutionError> {
@@ -144,30 +156,51 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
         Ok(builds)
     }
 
+    fn retain_source_accounting<T>(&mut self, result: &Result<T, ProjectSourceResolutionError>) {
+        if let Err(failure) = result
+            && let Some(accounting) = failure.source_completion_accounting()
+        {
+            self.session
+                .packages
+                .record_source_completion(accounting.clone());
+        }
+    }
+
     pub(super) fn execute_source(
         &mut self,
         acquired: AcquiredBuildSource,
         entry: &Path,
         execution: package_compilation::BuildExecutionInputs,
     ) -> Result<usize, ProjectSourceResolutionError> {
-        self.run_work(Work::Source {
-            acquired,
-            entry: entry.to_path_buf(),
-            execution,
-        })?
-        .source()
+        let result = self
+            .run_work(Work::Source {
+                acquired,
+                entry: entry.to_path_buf(),
+                execution,
+            })
+            .and_then(CompletedWork::source);
+        self.retain_source_accounting(&result);
+        result.map_err(|failure| {
+            failure.with_source_completion_accounting(self.source_completion_accounting.clone())
+        })
     }
 
     pub(super) fn resolve_graph(
         &mut self,
         root: usize,
     ) -> Result<ResolvedBuildSources, ProjectSourceResolutionError> {
-        let resolution = self.sources[root]
-            .declared
-            .clone()
-            .resolve()
-            .map_err(Source)?;
-        self.run_work(Work::Graph(resolution))?.graph()
+        let result = (|| {
+            let resolution = self.sources[root]
+                .declared
+                .clone()
+                .resolve()
+                .map_err(Source)?;
+            self.run_work(Work::Graph(resolution))?.graph()
+        })();
+        self.retain_source_accounting(&result);
+        result.map_err(|failure: ProjectSourceResolutionError| {
+            failure.with_source_completion_accounting(self.source_completion_accounting.clone())
+        })
     }
 
     fn run_work(&mut self, root: Work) -> Result<CompletedWork, ProjectSourceResolutionError> {
@@ -239,6 +272,11 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                         .compiler
                         .begin_package_build(request)
                         .map_err(Compilation)?;
+                    self.source_completion_accounting
+                        .append(invocation.source_completion_accounting().clone());
+                    self.session.packages.record_source_completion(
+                        invocation.source_completion_accounting().clone(),
+                    );
                     pending.push(Work::Start {
                         acquired,
                         invocation,
@@ -852,6 +890,11 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
             .compiler
             .prepare_package_product(completed, self.profile, inputs, Default::default())
             .map_err(Compilation)?;
+        self.source_completion_accounting
+            .append(prepared.source_completion_accounting().clone());
+        self.session
+            .packages
+            .record_source_completion(prepared.source_completion_accounting().clone());
         let retained = prepared
             .select_target(self.profile, prepared.package_inputs().clone())
             .map_err(Compilation)?;

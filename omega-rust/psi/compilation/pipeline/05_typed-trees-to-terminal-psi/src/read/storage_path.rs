@@ -21,7 +21,8 @@ pub(super) fn walk<'a, E>(
         match &place.kind {
             ExpressionKind::Field { base, .. }
             | ExpressionKind::Payload { base, .. }
-            | ExpressionKind::Index { base, .. } => {
+            | ExpressionKind::Index { base, .. }
+            | ExpressionKind::Referent(base) => {
                 projected(place, base)?;
                 place = base;
             }
@@ -34,6 +35,7 @@ pub(super) fn walk<'a, E>(
             | ExpressionKind::Integer(_)
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::CollectionMeasure { .. }
+            | ExpressionKind::ByteElement { .. }
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Array { .. }
             | ExpressionKind::Record { .. }
@@ -119,6 +121,7 @@ mod tests {
 
     fn expression(kind: ExpressionKind) -> Expression {
         Expression {
+            call_context: None,
             kind,
             result: None,
             source: SourceOrigin::Unpositioned(Unpositioned::SpanAbsent),
