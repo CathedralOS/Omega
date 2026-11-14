@@ -9,8 +9,8 @@ and single-bit instruction mutations are refused.
 */
 
 use register_model::{
-    RegisterConstraintFamily, RegisterConstraintKey, RegisterInstructionConstraint,
-    RegisterOperandAccess, RegisterViewId, ValidatedRegisterConstraintCatalog,
+    PreparedRegisterConstraintCatalog, RegisterConstraintFamily, RegisterConstraintKey,
+    RegisterInstructionConstraint, RegisterOperandAccess, RegisterViewId,
 };
 use selected_instructions::{
     MachineCallEffect, MachineEffectCatalog, MachineEncodedControlEffect, MachineEncodedEffects,
@@ -84,7 +84,7 @@ pub fn conformance<E>(
 }
 
 pub fn effects_conformance(
-    constraints: &ValidatedRegisterConstraintCatalog,
+    constraints: &PreparedRegisterConstraintCatalog,
     catalog: &MachineEffectCatalog,
     keys: &[RegisterConstraintKey],
     stack_pointer: RegisterViewId,

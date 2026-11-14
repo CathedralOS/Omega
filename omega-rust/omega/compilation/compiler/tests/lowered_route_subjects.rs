@@ -641,6 +641,21 @@ const UNUSED_DECLARATIONS: &[(&str, &str)] = &[
          requires machine Observe(kept: bool) -> bool;\n{\n    Observe(kept)\n}",
     ),
     ("constant", "const GOOD: u64 = 2;"),
+    // Aggregate constants: each leaf of the materialized initializer is
+    // the evaluated value.
+    (
+        "record_constant",
+        "data Pair [copy] { left: u64; right: u64; }\n\
+         const START: Pair = Pair { left: 3, right: 4 };",
+    ),
+    ("array_constant", "const ROW: [u64; 3] = [5, 6, 7];"),
+    // A constant of data with `requires` owes the default-domain proof,
+    // which the route does not build yet.
+    (
+        "constrained_record_constant",
+        "data Pair [copy] requires left < right { left: u64; right: u64; }\n\
+         const START: Pair = Pair { left: 3, right: 4 };",
+    ),
     ("domain", "domain u64::AtMostSeven requires self <= 7;"),
     (
         "trait",
@@ -885,8 +900,9 @@ fn a_generic_body_that_applies_another_generic_machine_is_judged() {
 }
 
 /// Every kind of unused subject declaration is in the check. What the route
-/// can judge it judges: a valid machine and plain data are accepted with the
-/// machine in the module, and a defective machine is rejected. Every kind it
+/// can judge it judges: a valid machine, plain data and scalar, record and
+/// array constants are accepted with the machine in the module, and a
+/// defective machine is rejected. Every kind it
 /// cannot judge hands the compilation back with a refusal naming that kind,
 /// so none is skipped.
 #[test]
@@ -903,7 +919,10 @@ fn each_kind_of_unused_subject_declaration_is_judged_or_handed_back() {
         Verdict::Accepted(1),
         falls_back("machine generic machines not judged as their own check forms"),
         falls_back("machine generic machines not judged as their own check forms"),
-        falls_back("declaration const"),
+        Verdict::Accepted(1),
+        Verdict::Accepted(1),
+        Verdict::Accepted(1),
+        falls_back("declaration constant of data with requires needs its default-domain proof"),
         // A domain's predicates are contracts of the places declared in it,
         // so a declaration no type names owes nothing once its clauses are
         // read.

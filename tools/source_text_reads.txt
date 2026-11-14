@@ -1,7 +1,7 @@
 # Source-text reads (include_str!/read_to_string of .rs or .toml) per file.
 # Counts may only fall: express the rule as a dependency in
-# tools/check_native_boundary.py, a type or visibility, or a test that runs code.
-# Written by `python tools/check_rules.py --update-source-reads`.
+# `cargo xtask check-boundary`, a type or visibility, or a test that runs code.
+# Written by `cargo xtask check-rules --update-source-reads`.
 26 omega-rust/omega/build-system/orchestration/src/build_boundary.rs
 36 omega-rust/omega/compilation/compiler/src/product_boundary.rs
 4 omega-rust/omega/compilation/native-compiler/src/pipeline_boundary.rs

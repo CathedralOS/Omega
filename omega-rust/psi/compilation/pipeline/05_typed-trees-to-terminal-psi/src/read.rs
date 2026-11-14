@@ -684,7 +684,7 @@ mod tests {
             values: &[],
             bound: &[],
             owner,
-            result: ResultTerm::Named(result, u32_type, None),
+            result: ResultTerm::Named(result, u32_type, crate::body::Qualification::NONE),
         };
         let entry = ClauseScope {
             result: ResultTerm::Absent("result in an entry clause"),
@@ -697,7 +697,7 @@ mod tests {
                     id: result,
                     scalar_type: u32_type
                 },
-                u32_type
+                ValueType::plain(u32_type)
             ))
         );
         let detail = |scope: &ClauseScope<'_>, handle| {
@@ -810,7 +810,7 @@ mod tests {
                 id: value,
                 scalar_type: u32_type,
             },
-            u32_type,
+            ValueType::plain(u32_type),
         ));
         let read = |scope: &ClauseScope<'_>| program.term(machine(), scope, named, None);
         assert_eq!(read(&scope(&mutable, true)), term);

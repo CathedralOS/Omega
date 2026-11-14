@@ -8,8 +8,7 @@
 /tests/fixtures/*/*/build/
 
 # Package-manager state is host-local: a project's omega.lock names its
-# absolute checkout path, so a committed one fails in every other checkout
-# (tools/benchmark/README.md).
+# absolute checkout path, so a committed one fails in every other checkout.
 /samples/**/omega.lock
 /samples/**/omega.admissions
 /tests/fixtures/**/omega.lock

@@ -1214,6 +1214,170 @@ fn a_right_operand_that_never_returns_ends_only_its_branch() {
     assert!(lowered.sources.unreachable.is_empty());
 }
 
+#[test]
+fn a_never_returning_argument_stops_later_arguments_and_the_outer_call() {
+    let mut first = call(3, Vec::new(), Some(u32_type()));
+    first.source = authored(10);
+    let mut later = call(4, Vec::new(), Some(u32_type()));
+    later.source = authored(20);
+    let body = Body {
+        slots: scalars(vec![u32_type()]),
+        statements: vec![
+            Statement::Bind {
+                slot: 0,
+                value: call(2, vec![first, later.clone()], Some(u32_type())),
+            },
+            Statement::Evaluate(later),
+        ],
+    };
+    let lowered = try_lower(
+        body,
+        vec![
+            signature(Vec::new(), Some(u32_type())),
+            signature(vec![u32_type(), u32_type()], Some(u32_type())),
+            signature(Vec::new(), Some(u32_type())),
+            signature(Vec::new(), Some(u32_type())),
+        ],
+        vec![
+            returns_normally(),
+            returns_normally(),
+            never_returns(),
+            returns_normally(),
+        ],
+    )
+    .unwrap();
+    assert_module_and_tables_agree(&lowered.machine, &lowered.tables);
+    assert_eq!(lowered.machine.blocks.len(), 1);
+    assert!(block(&lowered.machine, 1).operations.is_empty());
+    assert!(matches!(block(&lowered.machine, 1).terminator,
+        Terminator::InvokeNoNormal { callee, .. } if callee == id(3)));
+    assert_eq!(
+        lowered.sources.unreachable,
+        vec![crate::Unreachable {
+            statement: authored(20),
+            call: authored(10),
+        }]
+    );
+}
+
+#[test]
+fn a_never_returning_record_base_stops_its_field_projection() {
+    let body = Body {
+        slots: Vec::new(),
+        statements: vec![returns(member(
+            of_type(
+                ExpressionKind::Call {
+                    callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
+                    arguments: Vec::new(),
+                    designated: None,
+                },
+                point(),
+            ),
+            0,
+            u32_type().into(),
+        ))],
+    };
+    let mut signatures = IdTable::default();
+    signatures.push(signature(Vec::new(), Some(u32_type())));
+    signatures.push(shaped(Vec::new(), Some(point())));
+    let mut outcomes = IdTable::default();
+    outcomes.push(returns_normally());
+    outcomes.push(never_returns());
+    let lowered = lower_records(body, &signatures, &outcomes, &records()).unwrap();
+    assert_module_and_tables_agree(&lowered.machine, &lowered.tables);
+    assert!(block(&lowered.machine, 1).operations.is_empty());
+    assert!(matches!(block(&lowered.machine, 1).terminator,
+        Terminator::InvokeNoNormal { callee, .. } if callee == id(2)));
+}
+
+#[test]
+fn a_refused_operand_is_not_a_never_returning_evaluation() {
+    let body = Body {
+        slots: Vec::new(),
+        statements: vec![returns(strict(
+            Strict::Add,
+            slot(99, u32_type()),
+            call(2, Vec::new(), Some(u32_type())),
+            u32_type(),
+        ))],
+    };
+    let refusal = try_lower(
+        body,
+        vec![
+            signature(Vec::new(), Some(u32_type())),
+            signature(Vec::new(), Some(u32_type())),
+        ],
+        vec![returns_normally(), never_returns()],
+    )
+    .unwrap_err();
+    assert_eq!(
+        refusal.reason,
+        terminal_check_tables::RefusalReason::ForeignIdentity
+    );
+    assert!(refusal.detail.contains("slot is past the end"));
+}
+
+#[test]
+fn a_never_returning_later_pattern_keeps_earlier_match_arrivals() {
+    let body = Body {
+        slots: scalars(vec![u32_type()]),
+        statements: vec![returns(expression(
+            ExpressionKind::Match {
+                capture: None,
+                subject: Box::new(slot(0, u32_type())),
+                arms: vec![
+                    (Selector::Value(integer(1)), integer(7)),
+                    (
+                        Selector::Value(call(2, Vec::new(), Some(u32_type()))),
+                        integer(9),
+                    ),
+                ],
+                default: Some(Box::new(integer(11))),
+            },
+            Some(u32_type()),
+        ))],
+    };
+    let lowered = try_lower(
+        body,
+        vec![
+            signature(vec![u32_type()], Some(u32_type())),
+            signature(Vec::new(), Some(u32_type())),
+        ],
+        vec![returns_normally(), never_returns()],
+    )
+    .unwrap();
+    assert_module_and_tables_agree(&lowered.machine, &lowered.tables);
+    assert_eq!(
+        lowered
+            .machine
+            .blocks
+            .iter()
+            .filter(|block| matches!(block.terminator, Terminator::Return { .. }))
+            .count(),
+        1
+    );
+    assert_eq!(
+        lowered
+            .machine
+            .blocks
+            .iter()
+            .filter(|block| matches!(block.terminator, Terminator::InvokeNoNormal { .. }))
+            .count(),
+        1
+    );
+    let constants: Vec<_> = lowered
+        .machine
+        .operations()
+        .filter_map(|operation| match operation.kind {
+            OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(value),
+            } => Some(value),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(constants, [1, 7]);
+}
+
 /// An authored position, so a test can tell two constructs apart.
 fn authored(start: usize) -> SourceOrigin {
     SourceOrigin::Authored(source::SourceSpan::new(
@@ -2304,7 +2468,7 @@ fn a_moved_owned_field_is_refilled_before_its_whole_owner_is_transferred() {
                     &forged,
                     &elaboration.module.structural_types,
                 ),
-                Err(terminal_semantics::plain_affine::Error::Malformed(_))
+                Err(terminal_semantics::plain_affine::Error::Malformed { .. })
             ),
             "the supplied disposition cannot substitute for actual vacancy"
         );

@@ -245,7 +245,9 @@ result-by-out-parameter is an ABI detail, not an alternate source result form.
 
 A non-Unit call result cannot be silently discarded. Intentional discard is
 `_ = call();`, subject to the result's ordinary ownership and legal-disposition
-obligations; the marker cannot erase linear custody. Failure propagation is an
+obligations; the marker cannot erase linear custody. A call with a proved
+[absence of normal return](state_contracts.md#published-no-return) produces no
+result to discard, so it needs no `_ =` and owes no disposition for one. Failure propagation is an
 explicit checked edge returning the caller's outcome. There is no implicit
 propagation operator `?` or `fails` clause.
 

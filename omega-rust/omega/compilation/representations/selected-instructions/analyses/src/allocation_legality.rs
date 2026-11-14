@@ -9,8 +9,8 @@
 
 use crate::{ValidatedAllocatorAvailability, ValidatedLiveRanges};
 use register_model::{
-    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+    PreparedRegisterConstraintCatalog, TargetRegisterEnvironmentConstraintKeys,
+    TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
     ValidatedRegisterReservationProfile,
 };
 
@@ -945,8 +945,8 @@ pub mod compute {
     pub(crate) use function::compute_reusing as compute_function_reusing;
 
     use register_model::{
-        TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-        ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+        PreparedRegisterConstraintCatalog, TargetRegisterEnvironmentConstraintKeys,
+        TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
         ValidatedRegisterReservationProfile, target_register_environment_identity,
     };
 
@@ -961,7 +961,7 @@ pub mod compute {
         availability: &ValidatedAllocatorAvailability,
         register_environment: TargetRegisterEnvironmentIdentity,
         physical: &ValidatedPhysicalRegisterModel,
-        constraints: &ValidatedRegisterConstraintCatalog,
+        constraints: &PreparedRegisterConstraintCatalog,
         reservations: &ValidatedRegisterReservationProfile,
         selected_keys: &TargetRegisterEnvironmentConstraintKeys,
         previous: Option<(&ValidatedLiveRanges, &ValidatedAllocationLegality)>,
@@ -1047,7 +1047,7 @@ pub mod compute {
         availability: &ValidatedAllocatorAvailability,
         register_environment: TargetRegisterEnvironmentIdentity,
         physical: &ValidatedPhysicalRegisterModel,
-        constraints: &ValidatedRegisterConstraintCatalog,
+        constraints: &PreparedRegisterConstraintCatalog,
         reservations: &ValidatedRegisterReservationProfile,
     ) -> Result<(), AllocationLegalityError> {
         let physical_identity = physical.identity();
@@ -1189,7 +1189,7 @@ pub fn analyze_allocation_legality(
     availability: &ValidatedAllocatorAvailability,
     register_environment: TargetRegisterEnvironmentIdentity,
     physical: &ValidatedPhysicalRegisterModel,
-    constraints: &ValidatedRegisterConstraintCatalog,
+    constraints: &PreparedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<ValidatedAllocationLegality, AllocationLegalityError> {
@@ -1213,7 +1213,7 @@ pub fn analyze_allocation_legality_reusing(
     availability: &ValidatedAllocatorAvailability,
     register_environment: TargetRegisterEnvironmentIdentity,
     physical: &ValidatedPhysicalRegisterModel,
-    constraints: &ValidatedRegisterConstraintCatalog,
+    constraints: &PreparedRegisterConstraintCatalog,
     reservations: &ValidatedRegisterReservationProfile,
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<ValidatedAllocationLegality, AllocationLegalityError> {

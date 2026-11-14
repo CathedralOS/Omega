@@ -1,62 +1,57 @@
 # Benchmark records
 
-[Cathedral composition, 2026-10-28](cathedral_2026_10_28/README.md): frozen
+[Cathedral composition, 2026-10-28](https://github.com/CathedralOS/Omega/blob/3b24dc9383e37416021ff19b350869a147c57432/wiki/drafts/measurements/cathedral_2026_10_28/README.md): frozen
 eight-entry customer workload, partial native compilation measurements and
 the compatibility failures preventing a full-build baseline.
 
 Versioned compile-time, peak-memory, code-size, and runtime
 measurements of the reference compiler, one JSON record per (subject,
-target, exact rule selection) row. The harness and schema live in
-[tools/benchmark](../../../tools/benchmark/README.md); committed rows live
-in `tools/benchmark/records/`. This note holds methodology and host
+target, exact rule selection) row. The rows were deleted from the tree and
+remain at [`tools/benchmark/records/` as of `09d7d4c08e`](https://github.com/CathedralOS/Omega/tree/09d7d4c08e992a86d024086327cbff44c4d5f92b/tools/benchmark/records);
+the current harness is described in [tools/benchmark](../../../tools/benchmark/README.md). This note holds methodology and host
 coverage; it is not a leaderboard. Delete this note once
 `tools/benchmark/README.md` owns the method and the host-coverage
 account.
 
 ## Method
 
-`tools/benchmark/benchmark.py measure` compiles the subject with
+The records came from a Python harness, `tools/benchmark/benchmark.py` (since
+deleted), which the Rust `omega-bench` in `tools/benchmark/src/` replaces. That harness compiled the subject with
 `omega --timings --target <profile>` into a fresh temporary build
-directory per sample, records the wall clock and per-child peak RSS of
-each compile, keeps the published executable for its size, then runs it
+directory per sample, recorded the wall clock and per-child peak RSS of
+each compile, kept the published executable for its size, then ran it
 with stdin closed (`/dev/null`) for the runtime leg. Samples select
 optimizations through authored `Optimizations::enable(...)` calls in
-their `build.omg`; the harness reads the same file to key the record, so
+their `build.omg`; the harness read the same file to key the record, so
 the empty selection is the honest default and never an implied bundle.
 
 Subjects that `depend()` on packages must pass the package-review gate before any
-compile. `benchmark.py prepare` performs the one-time settlement —
+compile. The harness performed the one-time settlement —
 `omega update`, accept the generated `pending` decisions, `omega update
 --resume` — publishing the host-local `omega.lock` beside the subject.
 This records project acceptance, not a source audit, and the lock
 (which embeds absolute paths) is never committed.
 
-Units are milliseconds and bytes. The schema marker
-`omega-benchmark-record/2` is pinned by `tools/tests/test_benchmark.py`;
-historical `/1` rows remain readable:
-a record that drifts from the documented fields, or a README that no
-longer names the current schema, fails the check.
+Units are milliseconds and bytes. The records carry the schema marker
+`omega-benchmark-record/2` (older rows `/1`).
 
 ## Host-row matrix
 
-The [2026-10-29 Windows run](../../../tools/benchmark/evidence/2026-10-29-windows/README.md)
+The [2026-10-29 Windows run](https://github.com/CathedralOS/Omega/blob/09d7d4c08e992a86d024086327cbff44c4d5f92b/tools/benchmark/evidence/2026-10-29-windows/README.md)
 retains its exact producer, replay commands and rejected attempts. The table
 also contains older observations from different sources and hosts; it does not
 establish a speedup between those rows.
 
-`python3 tools/benchmark/benchmark.py matrix` renders one row per
+The matrix below has one row per
 committed record plus one explicit row per catalogued deployment
 profile (`TargetProfile::ALL` order) that no committed record covers
 yet, so unavailable host legs stay visible rather than implied. Cell
 vocabulary: `measured` quotes the record's own status and headline
-number; `measurable` legs run on any build host that invokes
-`measure`; `pending <host>` needs the named runtime environment;
+number; `measurable` legs run on any build host; `pending <host>` needs the named runtime environment;
 `unavailable (<reason>)` carries the structural gap the leg cannot
 report a number for — `uefi_x86_64` runtime waits on QEMU or hardware.
 Records for targets outside `HOST_LEGS` append after the catalogued
-rows. Regenerate with the `matrix` command after a row lands and paste
-the table between the markers; `tools/tests/test_benchmark.py` fails
-when this block drifts.
+rows. The block was generated from the committed records.
 
 <!-- benchmark-matrix:start -->
 | Target | Host leg | Subject | Selection | compile_time_ms | peak_memory_bytes | code_size_bytes | runtime_ms |
@@ -107,14 +102,14 @@ when this block drifts.
 
 Four measured linux_x86_64 rows exist: the w9 session produced the
 dev-profile `omega` compile/run row for `cli_mvp` (record
-`tools/benchmark/records/cli_mvp__linux_x86_64__default.json`), a
+[`cli_mvp__linux_x86_64__default.json`](https://github.com/CathedralOS/Omega/blob/09d7d4c08e992a86d024086327cbff44c4d5f92b/tools/benchmark/records/cli_mvp__linux_x86_64__default.json)), a
 release-profile `omega` measured `wrapping_square_sum` under a non-default
 selection (`CopyPropagation` disabled; record
-`wrapping_square_sum__linux_x86_64__sel-885944b13b84.json` — the first
+[`wrapping_square_sum__linux_x86_64__sel-885944b13b84.json`](https://github.com/CathedralOS/Omega/blob/09d7d4c08e992a86d024086327cbff44c4d5f92b/tools/benchmark/records/wrapping_square_sum__linux_x86_64__sel-885944b13b84.json) — the first
 selection-keyed row, covering the enabled/disabled dimension of the record
 space), a second non-default selection row (`SparseConditionalConstantPropagation`
 disabled), and the missing default-selection `wrapping_square_sum` row
-(`wrapping_square_sum__linux_x86_64__default.json` — compile median
+([`wrapping_square_sum__linux_x86_64__default.json`](https://github.com/CathedralOS/Omega/blob/09d7d4c08e992a86d024086327cbff44c4d5f92b/tools/benchmark/records/wrapping_square_sum__linux_x86_64__default.json) — compile median
 33396.8 ms, runtime median 4.37554 ms over 5 exit-0 samples, published
 8192 B artifact, recorded at `e7c0099cb2` on linux x86-64 dev-profile
 `omega`).
@@ -162,8 +157,7 @@ uncovered occurrence lived in the shared `std`/entry plumbing every
 `build.omg` dependency — `math_proofs` and `structural_proofs` — were
 blocked on selection (no authored `ProgramEntry`). `structural_proofs`
 now carries an authored `build.omg` + `ProgramEntry` and its compile-only
-`linux_x86_64` record is committed (`records/structural_proofs__
-linux_x86_64__default.json`, measured this host); `math_proofs` still
+`linux_x86_64` record is committed ([`structural_proofs__linux_x86_64__default.json`](https://github.com/CathedralOS/Omega/blob/09d7d4c08e992a86d024086327cbff44c4d5f92b/tools/benchmark/records/structural_proofs__linux_x86_64__default.json), measured this host); `math_proofs` still
 fails earlier at checked-call selection — that fix stays with
 PROOF-SAMPLES-CHECKED-CALL-SELECTION.
 
@@ -176,7 +170,7 @@ post-unblock record is now committed —
 `wrapping_square_sum__linux_x86_64__default.json` at `e7c0099cb2`
 (compile 33396.8 ms median, runtime 4.37554 ms median, 8192 B).
 The remaining frontier is further record-production legs
-(`tools/benchmark/records/`) and the uncovered host rows —
+and the uncovered host rows —
 `linux_arm64`, `macos_arm64`, `windows_x86_64`, and `uefi_x86_64` each
 still need their named runtime environment, and `macos_x86_64` stays
 structurally unavailable under MACOS-X64-HOST-PROFILE.
@@ -214,16 +208,13 @@ with `validate` clean. `uefi_x86_64`, `cross_platform_cli`, and
 `local_unchecked` are non-applicable for this subject: review
 settlement rejects each with "no bound required root slot
 `<target>::ProgramEntry`" (the subject binds only the four hosted
-targets). Note `omega.lock` settles per target — `prepare` must run
-once per `--target` leg before `measure`, and a failed settlement
-leaves the lock's earlier accepted sections intact. The produced JSON
-rows await commit under `tools/benchmark/records/` once its claim
-frees; regenerating them is one `measure` invocation per target.
+targets). A failed settlement leaves the lock's earlier accepted sections
+intact.
 
 Update (z27, `5e2d355a02`, linux x86_64 host): the first
 dependency-free proof subject is committed — `structural_proofs` ×
 `linux_x86_64` default selection
-(`tools/benchmark/records/structural_proofs__linux_x86_64__default.json`):
+([`structural_proofs__linux_x86_64__default.json`](https://github.com/CathedralOS/Omega/blob/09d7d4c08e992a86d024086327cbff44c4d5f92b/tools/benchmark/records/structural_proofs__linux_x86_64__default.json)):
 3 compile samples, median 34932.9 ms, published 8192 B artifact,
 runtime `skipped` (proof machines emit no runtime code). `math_proofs`
 still fails earlier at checked-call selection

@@ -33,8 +33,8 @@ use register_homes::{
     VirtualRegisterHome,
 };
 use register_model::{
-    RegisterOperandAccess, TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
-    ValidatedRegisterConstraintCatalog,
+    PreparedRegisterConstraintCatalog, RegisterOperandAccess, TargetRegisterEnvironmentIdentity,
+    ValidatedPhysicalRegisterModel,
 };
 use selected_instructions::{
     BlockMachineEffects, InstructionMachineEffects, MachineAlternative,
@@ -166,7 +166,7 @@ pub(crate) struct PlanSources<'a> {
     pub(crate) allocation: AllocatedProgramFacts<'a>,
     pub(crate) register_environment: TargetRegisterEnvironmentIdentity,
     pub(crate) physical: &'a ValidatedPhysicalRegisterModel,
-    pub(crate) constraints: &'a ValidatedRegisterConstraintCatalog,
+    pub(crate) constraints: &'a PreparedRegisterConstraintCatalog,
 }
 
 pub(crate) fn seal_post_allocation_machine_plan(

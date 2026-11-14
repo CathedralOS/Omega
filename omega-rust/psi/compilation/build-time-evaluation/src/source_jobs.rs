@@ -8,9 +8,12 @@ use typed_trees::TypedTrees;
 mod build_activation;
 mod constant_jobs;
 mod invocation;
+mod source_selection;
 
 pub use constant_jobs::{
-    evaluate as evaluate_constant_initializers, validate_constant_evaluations,
+    evaluate as evaluate_constant_initializers,
+    evaluate_with_source_consent as evaluate_constant_initializers_with_source_consent,
+    validate_constant_evaluations,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -70,6 +73,8 @@ pub enum BuildMachineExecutionMode {
 pub struct PreparedBuildMachineProgram {
     source: Arc<TypedTrees>,
     authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    purpose: source::DependencyScope,
+    source_consent: Option<Arc<dyn crate::InvocationSourceConsent>>,
 }
 #[derive(Clone)]
 pub struct PreparedBuildMachineEntry {
@@ -79,6 +84,8 @@ pub struct PreparedBuildMachineEntry {
     call: typed_trees::expression::TableCallExpression,
     call_source: typed_trees::expression::ExpressionHandle,
     authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+    purpose: source::DependencyScope,
+    source_consent: Option<Arc<dyn crate::InvocationSourceConsent>>,
     accepted: Arc<psi_terminal_production::AcceptedTerminalSource>,
     arguments: Vec<crate::BuildTimeValue>,
 }
@@ -249,13 +256,17 @@ impl PreparedBuildMachineEntry {
             }
             _ => semantic_vocabulary::compiler_evaluation::DeclarationCustody::Missing,
         };
-        let admitted = terminal_installation::admit_compiler_evaluation(
+        let source_selection = source_selection::InvocationSelection::new(self, view);
+        let admitted = terminal_installation::admit_compiler_evaluation_with_source_consent(
             view,
             target.name,
             root,
             providers,
             requester,
             self.authority.as_deref(),
+            source_selection.as_ref().map(|selection| {
+                selection as &dyn terminal_installation::InvocationSourceSelection
+            }),
         )?;
         admitted.require_invocation(view, target.name, selected)?;
         Ok(admitted)
@@ -327,11 +338,24 @@ impl PreparedBuildMachineProgram {
         typed: &TypedTrees,
         authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
     ) -> Result<Self, Vec<Diagnostic>> {
+        Self::prepare_for(typed, authority, source::DependencyScope::Product, None)
+    }
+
+    /// Retain the caller's actual source purpose and captured-source consent.
+    /// A private capture remains unowned; it is not a package-selection grant.
+    pub fn prepare_for(
+        typed: &TypedTrees,
+        authority: Option<Arc<dyn BuildTimeSelectionAuthority>>,
+        purpose: source::DependencyScope,
+        source_consent: Option<Arc<dyn crate::InvocationSourceConsent>>,
+    ) -> Result<Self, Vec<Diagnostic>> {
         // Retaining source is preparation, not acceptance. Each actual job is
         // checked with its materialized arguments before any execution starts.
         Ok(Self {
             source: Arc::new(typed.clone()),
             authority,
+            purpose,
+            source_consent,
         })
     }
     fn prepare_call(
@@ -376,7 +400,7 @@ impl PreparedBuildMachineProgram {
                 // Evaluating this call requests its dependency closure, not a
                 // full check of the requester's package or standalone source.
                 subjects: &[],
-                purpose: source::DependencyScope::Product,
+                purpose: self.purpose,
                 selected: &[],
                 bindings: &[],
                 supplies,
@@ -415,6 +439,8 @@ impl PreparedBuildMachineProgram {
             call: actual_call,
             call_source: call,
             authority: self.authority.clone(),
+            purpose: self.purpose,
+            source_consent: self.source_consent.clone(),
             accepted: Arc::new(accepted),
             arguments: arguments.to_vec(),
         })
@@ -1531,6 +1557,79 @@ pub(crate) mod tests {
         }
     }
 
+    // The real interpreter must replace exactly the selected owned element.
+    // A neighboring element and sibling field retain their supplied values;
+    // the same source still refuses an index beyond its declared extent.
+    #[test]
+    fn source_jobs_execute_indexed_record_replacement_without_changing_siblings() {
+        let program = program(
+            "data Item { value: u64; }\n\
+             data Table { items: [Item; 2]; side: Item; }\n\
+             machine answer(mut table: Table, index: u64) -> Table requires index < 2 {\n\
+                 table.items[index] = Item { value: 7 };\n\
+                 table\n\
+             }",
+        );
+        let item = |value| BuildTimeValue::Struct {
+            type_name: "Item".into(),
+            fields: vec![("value".into(), BuildTimeValue::Int(value))],
+        };
+        let supplied = BuildTimeValue::Struct {
+            type_name: "Table".into(),
+            fields: vec![
+                (
+                    "items".into(),
+                    BuildTimeValue::Array(vec![item(1), item(2)]),
+                ),
+                ("side".into(), item(9)),
+            ],
+        };
+        let arguments = [supplied.clone(), BuildTimeValue::Int(1)];
+        let entry = bind(&program, &arguments).expect("judge the actual owned caller");
+        let mut accounting = crate::SourceCompletionAccounting::default();
+        let result = entry
+            .invoke_recorded(target(), &mut accounting)
+            .expect("execute the indexed record store and ordinary owned return");
+        fn field<'a>(value: &'a BuildTimeValue, name: &str) -> &'a BuildTimeValue {
+            let BuildTimeValue::Struct { fields, .. } = value else {
+                panic!("actual source record")
+            };
+            &fields
+                .iter()
+                .find(|(key, _)| key == name)
+                .expect("complete returned field roster")
+                .1
+        }
+        let BuildTimeValue::Array(values) = field(result.value(), "items") else {
+            panic!("complete returned array")
+        };
+        assert_eq!(values.len(), 2);
+        assert_eq!(field(&values[0], "value"), &BuildTimeValue::Int(1));
+        assert_eq!(field(&values[1], "value"), &BuildTimeValue::Int(7));
+        assert_eq!(
+            field(field(result.value(), "side"), "value"),
+            &BuildTimeValue::Int(9)
+        );
+        let [crate::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+            panic!("one exact call was interpreted")
+        };
+        assert_eq!(receipt.arguments(), &arguments);
+        receipt.validate_charge().unwrap();
+        accounting.validate_charges().unwrap();
+        let error = bind(&program, &[supplied, BuildTimeValue::Int(2)])
+            .err()
+            .expect("the same source requires the actual index bound before execution");
+        assert!(
+            error.contains("cannot prove requires contract") && error.contains("index < 2"),
+            "{error}"
+        );
+        assert_eq!(
+            accounting.receipts().len(),
+            1,
+            "the refused actual never executes"
+        );
+    }
+
     #[test]
     fn source_jobs_establish_record_domains_without_discarding_extra_fields() {
         let entry = program(
@@ -1689,7 +1788,7 @@ pub(crate) mod tests {
         let error = run(&entry, &[unknown], &mut meter)
             .expect_err("unknown case is not supplied by a number");
         assert!(
-            error.contains("case is not declared by its formal"),
+            error.contains("invocation case `#99` is not declared by formal"),
             "{error}"
         );
         assert_eq!(meter.usage().total_units(), 0);

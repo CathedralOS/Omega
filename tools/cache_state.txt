@@ -2,7 +2,7 @@
 # *Cache*/*Memo*, plus OwnedIndex/KeyedRows uses, per non-test file. Counts
 # may only fall: derived data is computed once by its owner, not cached
 # (AGENTS.md conventions).
-# Written by `python tools/check_rules.py --update-cache-state`.
+# Written by `cargo xtask check-rules --update-cache-state`.
 1 omega-rust/omega/compilation/backend/plans/effects/src/provider_evidence/providers/provider_plan.rs
 2 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/home_assignment.rs
 1 omega-rust/omega/packages/package-compilation/src/package_compilation/bindings.rs

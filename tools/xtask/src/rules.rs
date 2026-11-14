@@ -1,6 +1,6 @@
 //! Repository admission rules (`cargo xtask check-rules`):
 //! - Per-file count ratchets (`source_text_reads.txt`, `contract_status_phrases.txt`,
-//!   `dense_id_maps.txt`, `cache_state.txt`)
+//!   `dense_id_maps.txt`, `cache_state.txt`, `place_transport.txt`)
 //! - Dangling task ID citations (`dangling_task_ids.txt`)
 //! - Discrete `TASKS.md` board shape
 //! - Diff hygiene (`MAX_NEW_OMG_FILES = 6`, the `samples/cli/facts/` freeze on growth, no new
@@ -1281,10 +1281,7 @@ pub fn diff_hygiene_violations(changes: &[(char, String)]) -> Vec<String> {
             violations.push(format!(
                 "{path}: swarm wave state belongs in ignored build/swarm/<wave>/, not tools/swarm/waves/"
             ));
-        } else if path.starts_with("tools/")
-            && path.ends_with(".py")
-            && !path.starts_with("tools/bootstrap/")
-        {
+        } else if path.starts_with("tools/") && path.ends_with(".py") {
             violations.push(format!(
                 "{path}: Python repository tooling is retired; implement developer and CI tooling in Rust under `tools/xtask/` (`cargo xtask`)"
             ));
@@ -1325,7 +1322,7 @@ const RATCHET_SPECS: &[RatchetSpec] = &[
         header: &[
             "Source-text reads (include_str!/read_to_string of .rs or .toml) per file.",
             "Counts may only fall: express the rule as a dependency in",
-            "tools/check_native_boundary.py, a type or visibility, or a test that runs code.",
+            "`cargo xtask check-boundary`, a type or visibility, or a test that runs code.",
         ],
         advice: "Tests check behavior or structure, never source text (AGENTS.md): state the rule as a dependency, a type, or a test that runs the code.",
     },
@@ -1372,7 +1369,7 @@ const RATCHET_SPECS: &[RatchetSpec] = &[
             "*Place*, *Path* or *Projection*, per non-test file under",
             "omega-rust/psi/compilation. Counts may only fall: facts travel on one place",
             "key, one overlap relation and one formal-to-actual map",
-            "(wiki/drafts/designs/fact_transport.md).",
+            "(https://github.com/CathedralOS/Omega/blob/3b24dc9383e37416021ff19b350869a147c57432/wiki/drafts/designs/fact_transport.md).",
         ],
         advice: "Do not add another place comparison, rebaser or path type. The checker on the lowered form names places by terminal_check_tables::ExactPlaceId (wiki/drafts/designs/check_on_lowered_form.md); existing tree-level code keeps using validation::storage_path_relations::canonical_place_segments_may_overlap until it is replaced.",
     },
@@ -1422,7 +1419,7 @@ pub fn compute_ratchet_counts(
 fn format_ratchet_file(spec: &RatchetSpec, counts: &BTreeMap<String, usize>) -> String {
     let mut lines: Vec<String> = spec.header.iter().map(|h| format!("# {h}")).collect();
     lines.push(format!(
-        "# Written by `python tools/check_rules.py --{}`.",
+        "# Written by `cargo xtask check-rules --{}`.",
         spec.flag
     ));
     for (path, count) in counts {
@@ -1527,7 +1524,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     if update_dangling {
         let mut lines = vec![
             "# Task IDs cited by samples/cli/facts READMEs that no board holds.".to_owned(),
-            "# Written by `python tools/check_rules.py --update-dangling-task-ids`.".to_owned(),
+            "# Written by `cargo xtask check-rules --update-dangling-task-ids`.".to_owned(),
             "# Entries may only be removed: repoint a citation to its current board".to_owned(),
             "# item, or delete it when the work is done.".to_owned(),
         ];

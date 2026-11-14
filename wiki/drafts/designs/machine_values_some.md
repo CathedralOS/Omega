@@ -4,7 +4,9 @@ Ratified 2026-11-06. Runtime behavior is selected through machine values in
 ordinary data. `some S` lets each data value package a concrete type while
 keeping dependent fields related. All source `dyn` forms are retired, including
 the earlier captured extension. Static traits, named implementations, checked
-laws and `machine F` generic binders remain.
+laws and static machine parameters, written as
+[typed static parameters](../../spec/language/generics.md#typed-static-parameters)
+such as `const F: machine(value: u32) -> u32`, remain.
 
 The source contracts are [machine values](../../spec/language/machine_values.md)
 and [some packages](../../spec/language/some_packages.md); the
@@ -52,7 +54,7 @@ positive/negative controls rather than new frozen facts matrices. Run affected
 four hosted targets with `omega run --both`, and attribute every pinned pass/fail
 movement. Record clean source identities. Required semantic coverage includes:
 
-- Static `machine F` direct selection alongside runtime machine fields; rebinding
+- Static `const F: machine ...` direct selection alongside runtime machine fields; rebinding
   descriptors, passing operations records and independently selected source/sink
   callables. Reject wrong signatures, stronger target preconditions, weaker
   guarantees, undeclared effects and null/forged descriptors.

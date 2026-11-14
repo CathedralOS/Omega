@@ -89,11 +89,12 @@ actual operation safety even for trusted inputs. General untrusted artifact
 execution remains gated on a containment audit of the interpreter, host bindings
 and teardown; inspection remains available under bounded structural decoding.
 
-Machine-effect preparation retains the ISA producer's catalog and identity in
-one shared prepared value; ordinary analyses borrow that value rather than
-constructing and checking another copy. Supplied-catalog validators still check
-structure and compare against the canonical ISA catalog. Preparation is not an
-independent validation claim.
+Machine-effect and register-constraint preparation retain the ISA producers'
+catalogs and identities in shared immutable storage; ordinary consumers borrow
+those tables rather than constructing and checking another copy. Physical-model
+roots and platform reservation joins remain checked. Supplied-catalog validators
+still check structure and compare against the canonical ISA catalog. Preparation
+is not an independent validation claim.
 
 Focused tests exercise independent validators where those validators exist.
 The default compile path does not run these stage-output validators on

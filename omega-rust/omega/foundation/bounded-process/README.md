@@ -28,7 +28,7 @@ cleanup still runs. Windows queries the owned primary handle before closing it.
 Each `ProcessResourceUsage` names its provider and accounting scope; unavailable
 metrics are `None`, including cycles on Unix. Windows peak working set is resident
 memory, and its total faults do not distinguish minor/major faults. See the
-[benchmark guide](../../../../../tools/benchmark/comparison.md) for units and uses.
+[benchmark guide](../../../../tools/benchmark/README.md#cpu-resident-memory-and-faults) for units and uses.
 
 Windows uses a kill-on-close Job Object with process, memory, and CPU ceilings.
 Unix applies inherited resource-limit intersections, launches a process group,

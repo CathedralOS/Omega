@@ -20,11 +20,12 @@ only the first was unavailable to source.
 
 ## Decisions
 
-1. Fixed nonmoving stacks stay. `suspends`, `blocks` and their markers keep
-   their meanings. No `yield` keyword, yielding clause or generator-colored
-   machine.
+1. [Storage plans](../../spec/build/task_runtime.md#storage-plans), `suspends`,
+   `blocks` and their markers keep their meanings. No `yield` keyword,
+   yielding clause or generator-colored machine.
 2. An activation is prepared from an exact entry machine and arguments, its
-   checked stack plan and explicitly supplied backing. Preparation runs nothing
+   checked storage plan, which carries the `ActivationStorage` selection, and
+   explicitly supplied compatible retained backing. Preparation runs nothing
    and returns what it did not take on failure.
 3. Execution custody is a linear claim with one owner. The running state and a
    usable claim never coexist.

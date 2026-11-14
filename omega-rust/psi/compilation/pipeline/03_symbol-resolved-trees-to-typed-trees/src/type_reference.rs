@@ -1856,6 +1856,63 @@ pub(crate) mod direct {
     use crate::lowerer::name::{lower_name, lower_names};
     use crate::type_reference::constraints::lower_type_constraint_node_span_with_context;
 
+    /*
+        `u<N>` and `i<N>` reach typing only when their width is not a closed
+        number: Psi 02 already replaced every closed application by the
+        carrier it names. What is left is a width the declaration is generic
+        in, which `wiki/spec/language/generics.md` ("Binder forms") admits
+        only for a `const` binder: "Value must be statically known within the
+        compiled specialization", whereas `N: u64` is "runtime-capable" and
+        "a static-only use of a dynamic binder rejects". The name was
+        resolved in the scope of the declaration that wrote the type, so a
+        runtime value that only shares its spelling with a constant or a
+        parameter somewhere else is told apart here by its symbol.
+
+        A width written as an expression is left for the specialization that
+        would have to compute it.
+    */
+    fn integer_family_width(
+        source_trees: &SymbolResolvedTrees,
+        generic: &resolved::types::GenericTypeReference,
+        arguments: &[resolved::types::TypeReference],
+    ) -> Result<(), Diagnostic> {
+        let Some(sign) = source_trees.symbols.integer_family(generic.base_symbol) else {
+            return Ok(());
+        };
+        let letter = match sign {
+            numerics::integer_carrier::IntegerSign::Unsigned => 'u',
+            numerics::integer_carrier::IntegerSign::Signed => 'i',
+        };
+        let [resolved::types::TypeReference::Named { symbol, name, .. }] = arguments else {
+            return Ok(());
+        };
+        let is_const_binder = symbol.is_valid()
+            && source_trees.symbols.get(*symbol).kind == symbols::SymbolKind::TypeParameter
+            && source_trees
+                .tables
+                .declarations
+                .data_type_parameters
+                .iter()
+                .any(|(_, parameter)| {
+                    parameter.symbol == *symbol
+                        && matches!(
+                            parameter.kind,
+                            resolved::data::TypeParameterKind::Const { .. }
+                        )
+                });
+        /* A declared constant whose value Psi 02 did not close is not a runtime value. */
+        let is_constant = symbol.is_valid()
+            && source_trees.symbols.get(*symbol).kind == symbols::SymbolKind::Const;
+        if is_const_binder || is_constant {
+            return Ok(());
+        }
+        Err(Diagnostic::error(format!(
+            "the width of `{letter}<{name}>` is a runtime value: `{name}` is not a constant or a \
+             `const` parameter in scope here, and an integer width is known before the program runs"
+        ))
+        .with_source_span(generic.base_name.source_span()))
+    }
+
     pub(crate) fn lower_type_reference_handle_with_context(
         source_trees: &SymbolResolvedTrees,
         typed_trees: &mut typed::TypedTrees,
@@ -1932,6 +1989,7 @@ pub(crate) mod direct {
                     )
                 } else {
                     let source_arguments = source_trees.child_type_references(generic.arguments);
+                    integer_family_width(source_trees, generic, source_arguments)?;
                     let mut lowered_arguments = Vec::with_capacity(source_arguments.len());
                     for argument in source_arguments {
                         let argument = lower!(argument)?;

@@ -1186,8 +1186,8 @@ pub(crate) mod selected_lowering {
             ValidatedRecoveryClassifications, ValidatedSelectedAnalysis, ValidatedSpillChoices,
         };
         use register_model::{
-            TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-            ValidatedRegisterConstraintCatalog,
+            PreparedRegisterConstraintCatalog, TargetRegisterEnvironmentConstraintKeys,
+            TargetRegisterEnvironmentIdentity,
         };
 
         pub(crate) mod compute {
@@ -1567,8 +1567,9 @@ pub(crate) mod selected_lowering {
             }
             pub(crate) mod constraints {
                 use register_model::{
-                    RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
-                    TargetRegisterEnvironmentConstraintKeys, ValidatedRegisterConstraintCatalog,
+                    PreparedRegisterConstraintCatalog, RegisterConstraintKey,
+                    RegisterInstructionConstraint, RegisterOperandAccess,
+                    TargetRegisterEnvironmentConstraintKeys,
                 };
                 use selected_instructions::{
                     MachineEffectDeclaration, PreparedMachineEffectCatalog, SelectedInstructionKind,
@@ -1634,7 +1635,7 @@ pub(crate) mod selected_lowering {
                 }
 
                 pub(crate) fn select_admitted_pairs<'a>(
-                    constraints: &'a ValidatedRegisterConstraintCatalog,
+                    constraints: &'a PreparedRegisterConstraintCatalog,
                     keys: &TargetRegisterEnvironmentConstraintKeys,
                     policy: LiteralFoldPolicy,
                     catalog: &'a PreparedMachineEffectCatalog,
@@ -2345,8 +2346,8 @@ pub(crate) mod selected_lowering {
 
             use optimization_core::OptimizationWorkBudget;
             use register_model::{
-                TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
-                ValidatedRegisterConstraintCatalog,
+                PreparedRegisterConstraintCatalog, TargetRegisterEnvironmentConstraintKeys,
+                TargetRegisterEnvironmentIdentity,
             };
             use selected_instructions::{PreparedMachineEffectCatalog, SelectedInstructionPlan};
 
@@ -2369,7 +2370,7 @@ pub(crate) mod selected_lowering {
                 recovery: &ValidatedRecoveryClassifications,
                 availability: &ValidatedAllocatorAvailability,
                 register_environment: TargetRegisterEnvironmentIdentity,
-                constraints: &ValidatedRegisterConstraintCatalog,
+                constraints: &PreparedRegisterConstraintCatalog,
                 selected_keys: &TargetRegisterEnvironmentConstraintKeys,
                 effect_catalog: &PreparedMachineEffectCatalog,
                 policy: LiteralFoldPolicy,
@@ -4068,7 +4069,7 @@ pub(crate) mod selected_lowering {
             recovery: &ValidatedRecoveryClassifications,
             availability: &ValidatedAllocatorAvailability,
             register_environment: TargetRegisterEnvironmentIdentity,
-            constraints: &ValidatedRegisterConstraintCatalog,
+            constraints: &PreparedRegisterConstraintCatalog,
             selected_keys: &TargetRegisterEnvironmentConstraintKeys,
             effect_catalog: &selected_instructions::PreparedMachineEffectCatalog,
             policy: LiteralFoldPolicy,

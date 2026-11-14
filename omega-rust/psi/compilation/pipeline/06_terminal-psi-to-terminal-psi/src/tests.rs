@@ -47,6 +47,7 @@ mod owned_dispatch;
 mod owned_match_results;
 mod proof_scope;
 mod provider_supplies;
+mod qualified_terms;
 mod ranges;
 mod reach;
 mod references;
@@ -1716,7 +1717,7 @@ fn affine_residual_replay_rejects_a_wrong_subtree_type() {
     assert!(
         matches!(
             terminal_semantics::plain_affine::verify(&array.machines[0], &array.structural_types),
-            Err(terminal_semantics::plain_affine::Error::Malformed(detail))
+            Err(terminal_semantics::plain_affine::Error::Malformed { detail, .. })
                 if detail.contains("exceeds its output")
         ),
         "a short supplied roster must bound reconstruction before array enumeration"
@@ -1741,7 +1742,7 @@ fn affine_residual_replay_rejects_a_wrong_subtree_type() {
     }
     assert!(
         matches!(terminal_semantics::plain_affine::verify(&array.machines[0], &array.structural_types),
-        Err(terminal_semantics::plain_affine::Error::Malformed(detail)) if detail.contains("exceeds its output")),
+        Err(terminal_semantics::plain_affine::Error::Malformed { detail, .. }) if detail.contains("exceeds its output")),
         "an unrelated edge's forged output cannot inflate this edge's reconstruction budget"
     );
     let mut changed = false;
@@ -1866,7 +1867,7 @@ fn affine_terminal_boundaries_transfer_custody_once() {
     };
     assert!(
         matches!(terminal_semantics::plain_affine::plan(machine, &borrowed.module.structural_types),
-        Err(terminal_semantics::plain_affine::Error::Unsupported(detail)) if detail.contains("borrowed storage")),
+        Err(terminal_semantics::plain_affine::Error::Unsupported { detail, .. }) if detail.contains("borrowed storage")),
         "a borrowed affine referent cannot escape as an owned result"
     );
 }

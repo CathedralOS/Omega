@@ -77,18 +77,36 @@ pub(crate) fn derive_physical_evidence(
     provider_executions: &[NativeProviderExecution],
     boundary_application_coverage: Option<&TerminalBoundaryApplicationCoverage>,
 ) -> Result<NativePhysicalEvidenceDerivation, &'static str> {
+    derive_object_physical_evidence(
+        pass,
+        scope,
+        terminal_artifact,
+        target,
+        object,
+        object,
+        image,
+        final_image_symbol_digest,
+        selected_provider_plans,
+        provider_executions,
+        boundary_application_coverage,
+    )
+}
+
+fn derive_object_physical_evidence(
+    pass: PhysicalEvidencePass,
+    scope: &NativePhysicalEvidenceScope,
+    terminal_artifact: terminal_codec::TerminalExecutionView<'_>,
+    target: NativeTarget,
+    object: &image_emission::ObjectArtifact,
+    linked_object: &image_emission::ObjectArtifact,
+    image: &[u8],
+    final_image_symbol_digest: [u8; 32],
+    selected_provider_plans: &[NativeSelectedProviderPlan],
+    provider_executions: &[NativeProviderExecution],
+    boundary_application_coverage: Option<&TerminalBoundaryApplicationCoverage>,
+) -> Result<NativePhysicalEvidenceDerivation, &'static str> {
     if matches!(scope, NativePhysicalEvidenceScope::Unavailable) {
         return Ok(NativePhysicalEvidenceDerivation::Unavailable);
-    }
-    // The root projection does not cover separately emitted private namespaces.
-    // Publish the missing body explicitly instead of claiming root-only coverage
-    // proves the complete linked image.
-    if let Some(private) = object.private_functions().first() {
-        return Ok(blocked(
-            NativePhysicalEvidenceGapSubject::UncoveredPrivateFunction {
-                function: private.identity,
-            },
-        ));
     }
     if let NativePhysicalEvidenceScope::ValidatedOptimizedProjection(optimized) = scope
         && let Some(publication) = optimized.fragment_publication()
@@ -333,6 +351,7 @@ pub(crate) fn derive_physical_evidence(
                     target,
                     module,
                     object,
+                    linked_object,
                     image,
                     final_image_symbol_digest,
                     foreign,
@@ -468,9 +487,97 @@ pub(crate) fn derive_physical_evidence(
     children.sort_by_key(|child| child.occurrence());
     validate_exact_physical_children(&projection, &children)?;
     let identity = physical_evidence_identity(projection.identity(), &children);
-    Ok(NativePhysicalEvidenceDerivation::Complete(
-        native_physical_evidence(projection, children, identity),
-    ))
+    let mut evidence = native_physical_evidence(projection, children, identity);
+    for private in object.private_functions() {
+        let Some(source) = private.body.semantic_source() else {
+            return Ok(blocked(
+                NativePhysicalEvidenceGapSubject::UncoveredPrivateFunction {
+                    function: private.identity,
+                },
+            ));
+        };
+        if source.view().identity() != private.source_psi
+            || private.body.psi() != private.source_psi
+        {
+            return Err("private physical source differs from the linked body namespace");
+        }
+        let final_text = span(
+            image,
+            crate::physical::native_byte_span(private.text_offset, private.body.text_bytes().len()),
+        )?;
+        let scope = NativePhysicalEvidenceScope::from_fragment_publication(
+            source.coverage(),
+            &private.body,
+        )?;
+        let derived = derive_object_physical_evidence(
+            pass,
+            &scope,
+            source.view(),
+            target,
+            &private.body,
+            linked_object,
+            final_text,
+            final_image_symbol_digest,
+            selected_provider_plans,
+            provider_executions,
+            Some(source.coverage()),
+        )?;
+        let NativePhysicalEvidenceDerivation::Complete(mut body_evidence) = derived else {
+            return Ok(derived);
+        };
+        relocate_final_spans(&mut body_evidence, private.text_offset)?;
+        evidence
+            .private_functions
+            .push(super::super::PrivatePhysicalEvidence {
+                function: private.identity,
+                text_offset: private.text_offset,
+                evidence: body_evidence,
+            });
+    }
+    if !evidence.private_functions.is_empty() {
+        let mut digest = DomainDigestEncoder::new(b"omega.native-physical-composition.sha256.v1\0");
+        digest.raw(&evidence.identity);
+        digest.raw(&canonical_usize(evidence.private_functions.len()));
+        for private in &evidence.private_functions {
+            hash_machine_function_identity(&mut digest, private.function);
+            digest.raw(&canonical_usize(private.text_offset));
+            digest.raw(private.evidence.identity());
+        }
+        evidence.identity = digest.finish();
+    }
+    Ok(NativePhysicalEvidenceDerivation::Complete(evidence))
+}
+
+pub(super) fn relocate_final_spans(
+    evidence: &mut crate::physical::NativePhysicalEvidence,
+    text_offset: usize,
+) -> Result<(), &'static str> {
+    if !evidence.private_functions.is_empty() {
+        return Err("private object physical evidence contains a nested composition");
+    }
+    for child in &mut evidence.children {
+        for span in &mut child.final_image_spans {
+            span.offset = span
+                .offset
+                .checked_add(text_offset)
+                .ok_or("private physical image span overflow")?;
+        }
+        child.identity = physical_child_identity(
+            &child.parent,
+            child.projection,
+            child.occurrence,
+            &child.machine_spans,
+            &child.object_spans,
+            &child.final_image_spans,
+            child.machine_bytes_digest,
+            child.object_bytes_digest,
+            child.final_image_bytes_digest,
+            &child.relocation,
+        );
+    }
+    evidence.identity =
+        physical_evidence_identity(evidence.projection.identity(), &evidence.children);
+    Ok(())
 }
 
 #[derive(Clone, Copy)]

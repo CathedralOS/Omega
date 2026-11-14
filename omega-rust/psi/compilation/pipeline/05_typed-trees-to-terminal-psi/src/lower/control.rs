@@ -19,7 +19,7 @@ use terminal_psi::{
 };
 
 use super::places::Bound;
-use super::{Draft, Lowering, Reached, Value, declaration, successor};
+use super::{Draft, Evaluation, Lowering, Reached, Value, declaration, successor};
 use crate::body::{
     Expression, ExpressionKind, Qualification, Selector, Statement, Strict, Target, ValueType,
 };
@@ -231,7 +231,7 @@ impl Lowering<'_> {
         self.guarantee(edge, source)
     }
 
-    pub(super) fn statement(&mut self, statement: &Statement) -> Checked<()> {
+    pub(super) fn statement(&mut self, statement: &Statement) -> Evaluation<()> {
         if !self.open() {
             return Err(
                 self.internal("a statement follows an unconditional arm or a no-successor exit")
@@ -240,13 +240,15 @@ impl Lowering<'_> {
         match statement {
             Statement::Bind { slot, value } => {
                 let bound = match value.result {
-                    Some(ValueType::Record(_, _, _)) => Bound::Record(self.bind_record(value)?),
+                    Some(ValueType::Record(_, _, _)) => {
+                        Bound::Record(continuing!(self.bind_record(value)))
+                    }
                     Some(ValueType::Scalar(..) | ValueType::Rigid(_)) | None => {
-                        Bound::Scalar(self.scalar(value)?)
+                        Bound::Scalar(continuing!(self.scalar(value)))
                     }
                 };
                 *self.slot_mut(*slot)? = Some(bound);
-                Ok(())
+                Ok(Reached::Value(()))
             }
             Statement::CaptureReference { slot, original } => {
                 let bound = *self.slot_mut(*original)?;
@@ -254,16 +256,16 @@ impl Lowering<'_> {
                     return Err(self.internal("a reference capture has no storage"));
                 }
                 *self.slot_mut(*slot)? = bound;
-                Ok(())
+                Ok(Reached::Value(()))
             }
             Statement::Witness { slot, term } => {
                 let witness = self.witness(term)?;
                 *self.slot_mut(*slot)? = Some(Bound::Erased(witness));
-                Ok(())
+                Ok(Reached::Value(()))
             }
-            Statement::Declare { slot, home, source } => {
-                self.declare_local(*slot, home.as_deref(), *source)
-            }
+            Statement::Declare { slot, home, source } => self
+                .declare_local(*slot, home.as_deref(), *source)
+                .map(Reached::Value),
             Statement::Store {
                 destination,
                 value,
@@ -277,7 +279,7 @@ impl Lowering<'_> {
             } => {
                 let cases: Vec<usize> = arms.iter().map(|(case, _, _)| *case).collect();
                 let (blocks, rest) =
-                    self.select(subject, &cases, default.is_some(), *source, None)?;
+                    continuing!(self.select(subject, &cases, default.is_some(), *source, None));
                 // Each arm completes the machine, so what one binds (the home
                 // a loan gives a local) is no other arm's.
                 let bound = self.slots.clone();
@@ -295,15 +297,17 @@ impl Lowering<'_> {
                     self.selected.pop();
                     self.slots.clone_from(&bound);
                 }
-                Ok(())
+                Ok(Reached::Value(()))
             }
-            Statement::Evaluate(expression) => self.expression(expression).map(drop),
+            Statement::Evaluate(expression) => {
+                self.expression(expression).map(|reached| reached.map(drop))
+            }
             Statement::Arm {
                 guard: Some(guard),
                 target,
                 source,
             } => {
-                let condition = self.scalar(guard)?;
+                let condition = continuing!(self.scalar(guard));
                 let decided_in = self.current()?;
                 let arm = self.block(*source);
                 let rest = self.block(SourceOrigin::Unpositioned(
@@ -343,7 +347,7 @@ impl Lowering<'_> {
                 self.slots = bound;
                 self.enter(rest);
                 self.path.push(not_taken);
-                Ok(())
+                Ok(Reached::Value(()))
             }
             Statement::Arm {
                 guard: None,
@@ -358,7 +362,7 @@ impl Lowering<'_> {
                         ..fallthrough
                     });
                 }
-                self.complete(target, *source)
+                self.complete(target, *source).map(Reached::Value)
             }
         }
     }
@@ -372,7 +376,10 @@ impl Lowering<'_> {
             Target::Value(expression) if let Some((member, arguments)) = self.loops(expression) => {
                 let mut values = Vec::with_capacity(arguments.len());
                 for argument in arguments {
-                    values.push(self.scalar(argument)?);
+                    match self.scalar(argument)? {
+                        Reached::Value(value) => values.push(value),
+                        Reached::Ended(_) => return Ok(()),
+                    }
                 }
                 self.arrive(member, values, expression.source)
             }
@@ -380,7 +387,7 @@ impl Lowering<'_> {
             // complete there.
             Target::Value(expression) => {
                 let value = self.expression(expression);
-                match self.reached(value)? {
+                match value? {
                     Reached::Ended(_) => Ok(()),
                     Reached::Value(Value::Scalar(value)) => {
                         self.return_value(value, expression.source)
@@ -501,7 +508,7 @@ impl Lowering<'_> {
         result_type: ValueType,
         source: SourceOrigin,
         capture: Option<arena::Handle<typed_trees::expression::CompletedValueCapture>>,
-    ) -> Checked<Value> {
+    ) -> Evaluation<Value> {
         if let Some(ValueType::Scalar(subject_type, _)) = subject.result {
             return self.scalar_match(subject, subject_type, arms, default, result_type);
         }
@@ -513,7 +520,8 @@ impl Lowering<'_> {
                     .ok_or_else(|| self.internal("a value pattern on a sum subject"))
             })
             .collect::<Checked<Vec<usize>>>()?;
-        let (blocks, rest) = self.select(subject, &cases, default.is_some(), source, capture)?;
+        let (blocks, rest) =
+            continuing!(self.select(subject, &cases, default.is_some(), source, capture));
         let bodies = arms
             .iter()
             .map(|(_, value)| value)
@@ -545,17 +553,25 @@ impl Lowering<'_> {
         arms: &[(Selector, Expression)],
         default: Option<&Expression>,
         result_type: ValueType,
-    ) -> Checked<Value> {
+    ) -> Evaluation<Value> {
         let Some(default) = default else {
             return Err(self.internal("a scalar match without a default arm"));
         };
-        let tested = self.scalar(subject)?;
+        let tested = continuing!(self.scalar(subject));
         let mut arrivals = Arrivals::default();
         for (selector, value) in arms {
             let Selector::Value(pattern) = selector else {
                 return Err(self.internal("a case pattern on a scalar subject"));
             };
-            let expected = self.scalar(pattern)?;
+            let expected = match self.scalar(pattern)? {
+                Reached::Value(value) => value,
+                Reached::Ended(call) => {
+                    // Earlier arms may already arrive. Only the remaining tests
+                    // end here, so retain those arrivals rather than ending the match.
+                    arrivals.ended = Some(call);
+                    return self.join(arrivals, result_type);
+                }
+            };
             let Value::Scalar(condition) = self.strict(
                 Strict::Equal,
                 subject_type,
@@ -591,7 +607,7 @@ impl Lowering<'_> {
         self.joining += 1;
         let value = self.expression(value);
         self.joining -= 1;
-        match self.reached(value)? {
+        match value? {
             Reached::Value(value) => {
                 arrivals.values.push((self.current()?, self.here()?, value));
             }
@@ -606,12 +622,12 @@ impl Lowering<'_> {
     /// not arrive. The join is made once the arms are lowered, so a `match`
     /// none of whose arms arrives has no join: its every path ended, at the
     /// last arm's call.
-    fn join(&mut self, arrivals: Arrivals, result_type: ValueType) -> Checked<Value> {
+    fn join(&mut self, arrivals: Arrivals, result_type: ValueType) -> Evaluation<Value> {
         if arrivals.values.is_empty() {
             let call = arrivals
                 .ended
                 .ok_or_else(|| self.internal("a match with no arm"))?;
-            return Err(self.end_path(call));
+            return Ok(Reached::Ended(call));
         }
         let join = self.block(SourceOrigin::Unpositioned(Unpositioned::MatchJoin));
         let result = match result_type {
@@ -683,7 +699,7 @@ impl Lowering<'_> {
             )?;
         }
         self.enter(join);
-        Ok(result)
+        Ok(Reached::Value(result))
     }
 
     /// `value as +D` for a domain with predicates: a jump, at the cast, to
@@ -762,8 +778,8 @@ impl Lowering<'_> {
         conjunction: bool,
         left: &Expression,
         right: &Expression,
-    ) -> Checked<Value> {
-        let decided = self.scalar(left)?;
+    ) -> Evaluation<Value> {
+        let decided = continuing!(self.scalar(left));
         let evaluate_right =
             self.block(SourceOrigin::Unpositioned(Unpositioned::ShortCircuitRight));
         let join = self.block(SourceOrigin::Unpositioned(Unpositioned::ShortCircuitJoin));
@@ -787,7 +803,7 @@ impl Lowering<'_> {
         self.joining -= 1;
         // A right operand whose every path ends at a call that never returns
         // ends that branch only: the join has the left operand's arrival.
-        if let Reached::Value(right_value) = self.reached(right_value)? {
+        if let Reached::Value(right_value) = right_value? {
             self.jump(
                 join,
                 vec![right_value],
@@ -795,7 +811,7 @@ impl Lowering<'_> {
             )?;
         }
         self.enter(join);
-        Ok(Value::Scalar(result))
+        Ok(Reached::Value(Value::Scalar(result)))
     }
 }
 
