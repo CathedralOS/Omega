@@ -203,3 +203,56 @@ fn source_sequence_inputs_keep_element_identity_and_literal_indices_need_live_bo
         "{error}"
     );
 }
+
+/// A shared typed view is its descriptor and immutable backing, not a loan of
+/// the descriptor's containing record. Exercise that actual argument branch.
+#[test]
+fn shared_typed_sequence_arguments_keep_complete_backing_and_refuse_mutable_fabrication() {
+    const SHARED: &str = r#"
+data Item [copy] { number: u64; bytes: &[u8]; }
+machine echo(items: &[Item]) -> &[Item] { items }
+machine consume(items: &[Item]) { }
+"#;
+    let prepared = PreparedBuildMachineProgram::prepare(&super::tests::typed(SHARED), None)
+        .expect("real shared typed-view source");
+    let item = |number, bytes: &[u8]| BuildTimeValue::Struct {
+        type_name: "Item".into(),
+        fields: vec![
+            ("number".into(), BuildTimeValue::Int(number)),
+            ("bytes".into(), BuildTimeValue::Text(bytes.to_vec())),
+        ],
+    };
+    let elements = BuildTimeValue::Array(vec![item(11, b"first"), item(29, b"second")]);
+    let mut accounting = SourceCompletionAccounting::default();
+    for value in [elements, BuildTimeValue::Array(Vec::new())] {
+        let returned = entry(&prepared, "echo", std::slice::from_ref(&value))
+            .expect("checked shared typed-view actual")
+            .invoke_recorded(target(), &mut accounting)
+            .expect("complete shared sequence result");
+        assert_eq!(returned.value(), &value);
+        entry(&prepared, "consume", std::slice::from_ref(returned.value()))
+            .expect("returned backing is materialized in a separate checked caller")
+            .invoke_recorded(target(), &mut accounting)
+            .expect("shared typed-view consumer");
+    }
+    accounting
+        .validate_charges()
+        .expect("all actual invocations accounted");
+    let mutable = SHARED.replace("&[Item]", "&mut [Item]");
+    let mutable = PreparedBuildMachineProgram::prepare(&super::tests::typed(&mutable), None)
+        .expect("retain the exact mutable twin for checking");
+    let error = entry(
+        &mutable,
+        "echo",
+        &[BuildTimeValue::Array(vec![
+            item(11, b"first"),
+            item(29, b"second"),
+        ])],
+    )
+    .err()
+    .expect("immutable host values cannot supply exclusive typed backing");
+    assert!(
+        error.contains("mutable typed sequence requires its actual exclusive backing and loan"),
+        "{error}"
+    );
+}
