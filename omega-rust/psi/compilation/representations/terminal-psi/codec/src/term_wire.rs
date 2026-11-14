@@ -303,7 +303,7 @@ pub(crate) mod contract_wire {
             closed_reach_application: ReachApplication,
             published_service_ceiling: Ids,
             published_synchronous_entries: Ids,
-            published_writes: Optional<List<WritePath>>,
+            published_writes: Optional<List<(U32, Ids)>>,
             termination: Termination,
             content_entry_claims: List<super::content_wire::EntryClaim>,
             crash_routes: CrashRoutes,
@@ -329,24 +329,6 @@ pub(crate) mod contract_wire {
             argument_subjects: List<ArgumentSubstitution>,
         }
         Bucket: CrashRouteBucket { cause: Cause, alternatives: List<RouteGuard> }
-    }
-
-    struct WritePath;
-
-    impl Field<(u32, Vec<semantic_vocabulary::StructuralFieldId>)> for WritePath {
-        fn write(
-            writer: &mut Writer,
-            (parameter, path): &(u32, Vec<semantic_vocabulary::StructuralFieldId>),
-        ) -> Result<(), CodecError> {
-            U32::write(writer, parameter)?;
-            Ids::write(writer, path)
-        }
-
-        fn read(
-            reader: &mut Reader<'_>,
-        ) -> Result<(u32, Vec<semantic_vocabulary::StructuralFieldId>), CodecError> {
-            Ok((U32::read(reader)?, Ids::read(reader)?))
-        }
     }
 
     wire_enum! {
