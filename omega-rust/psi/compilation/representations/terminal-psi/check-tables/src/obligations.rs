@@ -243,8 +243,9 @@ pub fn integer_width_parameters(
     Vec<(semantic_vocabulary::MachineId, Vec<ValueId>)>,
     (semantic_vocabulary::MachineId, &'static str),
 > {
+    use semantic_vocabulary::StructuralPlaceKind;
     use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ScalarType};
-    use terminal_psi::{StructuralTypeShape, TerminalMachineResult};
+    use terminal_psi::TerminalMachineResult;
 
     let diagnostic = module
         .machines
@@ -271,15 +272,74 @@ pub fn integer_width_parameters(
             "integer width inventory has duplicate referent identities",
         ));
     }
-    // One catalog-sized membership owner for this whole inventory. Epochs
-    // retain only the currently selected family's visits, with no max-ID
-    // allocation or catalog clearing for each machine or proof question.
+
+    // Resolve the graph once, including dormant references. Closed branches
+    // can then be skipped without concealing a missing declaration. Flat
+    // edge/seed ranges are indexed by this actual catalog, never by raw IDs.
+    let mut children = Vec::new();
+    let mut child_ranges = Vec::with_capacity(catalog.len());
+    let mut seeds = Vec::new();
+    let mut seed_ranges = Vec::with_capacity(catalog.len());
+    let mut roots = Vec::new();
+    for declaration in &catalog {
+        roots.clear();
+        let seed_start = seeds.len();
+        width_type_parts(declaration, &mut roots, &mut seeds);
+        seed_ranges.push(seed_start..seeds.len());
+        let child_start = children.len();
+        for child in &roots {
+            if let Some(index) = width_type_index(*child, &catalog, &referents, diagnostic)? {
+                children.push(index);
+            }
+        }
+        child_ranges.push(child_start..children.len());
+    }
+    let mut symbolic = seed_ranges
+        .iter()
+        .map(|range| !range.is_empty())
+        .collect::<Vec<_>>();
+    let mut pending = Vec::new();
+    if !seeds.is_empty() {
+        // Ordinary closed modules need neither reverse adjacency nor a
+        // per-machine graph walk after the one reference-validation pass.
+        let mut reverse = Vec::with_capacity(children.len());
+        for (parent, range) in child_ranges.iter().enumerate() {
+            reverse.extend(children[range.clone()].iter().map(|child| (*child, parent)));
+        }
+        reverse.sort_unstable();
+        let mut reverse_ranges = Vec::with_capacity(catalog.len());
+        let mut cursor = 0;
+        for child in 0..catalog.len() {
+            let start = cursor;
+            while reverse.get(cursor).is_some_and(|(at, _)| *at == child) {
+                cursor += 1;
+            }
+            reverse_ranges.push(start..cursor);
+        }
+        pending.extend(
+            symbolic
+                .iter()
+                .enumerate()
+                .filter_map(|(index, present)| present.then_some(index)),
+        );
+        while let Some(child) = pending.pop() {
+            for (_, parent) in &reverse[reverse_ranges[child].clone()] {
+                if !symbolic[*parent] {
+                    symbolic[*parent] = true;
+                    pending.push(*parent);
+                }
+            }
+        }
+    }
+    // Only symbolic branches are visited per machine. Shared closed graphs
+    // cost one catalog traversal for the entire module; epochs deduplicate
+    // the remaining selected branches without clearing a catalog per owner.
     let mut visited = vec![0; catalog.len()];
     let mut output = Vec::with_capacity(module.machines.len());
     for (position, machine) in module.machines.iter().enumerate() {
         let epoch = position + 1;
         let mut widths = Vec::new();
-        let mut pending = Vec::new();
+        roots.clear();
         for formal in machine
             .parameters
             .iter()
@@ -287,24 +347,39 @@ pub fn integer_width_parameters(
         {
             width_scalar(machine.id, formal.scalar_type, &mut widths)?;
         }
-        pending.extend(
+        roots.extend(machine.attachment);
+        roots.extend(machine.nominal_cleanup_subject);
+        roots.extend(
             machine
                 .structural_parameters
                 .iter()
                 .map(|formal| formal.structural_type),
         );
+        for place in &machine.structural_places {
+            roots.extend(place.kind.produced_structural_type());
+            match place.kind {
+                StructuralPlaceKind::ProviderAttachment { attachment, .. } => {
+                    roots.push(attachment)
+                }
+                StructuralPlaceKind::TrivialAffineLocal {
+                    construction: Some(construction),
+                    ..
+                } => roots.push(construction.root_structural_type),
+                _ => {}
+            }
+        }
         match &machine.result {
             TerminalMachineResult::Unit => {}
             TerminalMachineResult::Scalar(result) => {
                 width_scalar(machine.id, result.scalar_type, &mut widths)?
             }
-            TerminalMachineResult::Structural(result) => pending.push(result.structural_type),
+            TerminalMachineResult::Structural(result) => roots.push(result.structural_type),
         }
         for block in &machine.blocks {
             for value in block.parameters.iter().chain(&block.erased_scalar_formals) {
                 width_scalar(machine.id, value.scalar_type, &mut widths)?;
             }
-            pending.extend(
+            roots.extend(
                 block
                     .structural_parameters
                     .iter()
@@ -315,86 +390,55 @@ pub fn integer_width_parameters(
                     width_scalar(machine.id, value.scalar_type, &mut widths)?;
                 }
                 if let Some(result) = operation.result.as_structural() {
-                    pending.push(result.structural_type);
+                    roots.push(result.structural_type);
                 }
             }
         }
-        while let Some(current) = pending.pop() {
-            let Ok(index) = catalog.binary_search_by_key(&current, |declaration| declaration.id)
-            else {
-                if referents.binary_search(&current).is_ok() {
-                    // An authenticated abstract referent has no numeric carrier
-                    // declaration here. Its absent layout grants no width fact.
-                    continue;
-                }
-                return Err((
-                    machine.id,
-                    "integer width inventory has a missing structural type",
-                ));
-            };
+        pending.clear();
+        for root in &roots {
+            if let Some(index) = width_type_index(*root, &catalog, &referents, machine.id)?
+                && symbolic[index]
+            {
+                pending.push(index);
+            }
+        }
+        while let Some(index) = pending.pop() {
             if visited[index] == epoch {
                 continue;
             }
             visited[index] = epoch;
-            let declaration = catalog[index];
-            if let Some(carrier) = declaration.quotient_carrier {
-                pending.push(carrier);
+            for parameter in &seeds[seed_ranges[index].clone()] {
+                width_parameter(machine.id, *parameter, &mut widths)?;
             }
-            if let Some(restriction) = &declaration.scalar_restriction {
-                if let Some(scalar) = restriction.scalar_type() {
-                    width_scalar(machine.id, scalar, &mut widths)?;
-                }
-                if let Some(child) = restriction.as_structural() {
-                    pending.push(child);
-                }
-            }
-            match &declaration.shape {
-                StructuralTypeShape::PrimitiveScalar(scalar) => {
-                    width_scalar(machine.id, *scalar, &mut widths)?
-                }
-                StructuralTypeShape::AtomicCell(cell) => {
-                    width_scalar(machine.id, cell.scalar_type(), &mut widths)?
-                }
-                StructuralTypeShape::Reference { referent, .. } => pending.push(*referent),
-                StructuralTypeShape::FixedArray { element, .. }
-                | StructuralTypeShape::ElementView { element, .. } => pending.push(*element),
-                StructuralTypeShape::Record { fields, .. } => {
-                    width_fields(machine.id, fields, &mut pending, &mut widths)?
-                }
-                StructuralTypeShape::Sum { cases } => {
-                    for case in cases {
-                        width_fields(machine.id, &case.fields, &mut pending, &mut widths)?;
-                    }
-                }
-                StructuralTypeShape::Mixed { fields, cases } => {
-                    width_fields(machine.id, fields, &mut pending, &mut widths)?;
-                    for case in cases {
-                        width_fields(machine.id, &case.fields, &mut pending, &mut widths)?;
-                    }
-                }
-                StructuralTypeShape::Opaque | StructuralTypeShape::ByteSequence(_) => {}
-            }
+            pending.extend(
+                children[child_ranges[index].clone()]
+                    .iter()
+                    .copied()
+                    .filter(|child| symbolic[*child]),
+            );
         }
-        widths.sort_unstable();
-        widths.dedup();
-        let mut inputs = machine
-            .parameters
-            .iter()
-            .map(|value| (value.id, value.scalar_type))
-            .collect::<Vec<_>>();
-        inputs.sort_unstable_by_key(|(value, _)| *value);
-        let carrier = ScalarType::Integer(
-            IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is a carrier"),
-        );
-        for width in &widths {
-            let Ok(position) = inputs.binary_search_by_key(width, |(value, _)| *value) else {
-                return Err((machine.id, "integer width is not a declared scalar input"));
-            };
-            if inputs[position].1 != carrier {
-                return Err((
-                    machine.id,
-                    "integer width input does not have the exact u64 carrier",
-                ));
+        if !widths.is_empty() {
+            widths.sort_unstable();
+            widths.dedup();
+            let mut inputs = machine
+                .parameters
+                .iter()
+                .map(|value| (value.id, value.scalar_type))
+                .collect::<Vec<_>>();
+            inputs.sort_unstable_by_key(|(value, _)| *value);
+            let carrier = ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 64).expect("u64 is a carrier"),
+            );
+            for width in &widths {
+                let Ok(position) = inputs.binary_search_by_key(width, |(value, _)| *value) else {
+                    return Err((machine.id, "integer width is not a declared scalar input"));
+                };
+                if inputs[position].1 != carrier {
+                    return Err((
+                        machine.id,
+                        "integer width input does not have the exact u64 carrier",
+                    ));
+                }
             }
         }
         output.push((machine.id, widths));
@@ -402,38 +446,279 @@ pub fn integer_width_parameters(
     Ok(output)
 }
 
+fn width_type_index(
+    identity: semantic_vocabulary::StructuralTypeId,
+    catalog: &[&terminal_psi::StructuralTypeDeclaration],
+    referents: &[semantic_vocabulary::StructuralTypeId],
+    owner: semantic_vocabulary::MachineId,
+) -> Result<Option<usize>, (semantic_vocabulary::MachineId, &'static str)> {
+    match catalog.binary_search_by_key(&identity, |declaration| declaration.id) {
+        Ok(index) => Ok(Some(index)),
+        // An authenticated abstract referent grants no numeric carrier.
+        Err(_) if referents.binary_search(&identity).is_ok() => Ok(None),
+        Err(_) => Err((
+            owner,
+            "integer width inventory has a missing structural type",
+        )),
+    }
+}
+
+fn scalar_width(
+    scalar: semantic_vocabulary::ScalarType,
+) -> Option<semantic_vocabulary::WidthParameter> {
+    let semantic_vocabulary::ScalarType::Integer(integer) = scalar else {
+        return None;
+    };
+    let semantic_vocabulary::IntegerWidth::Parameter(parameter) = integer.width() else {
+        return None;
+    };
+    Some(parameter)
+}
+
+fn width_parameter(
+    owner: semantic_vocabulary::MachineId,
+    parameter: semantic_vocabulary::WidthParameter,
+    widths: &mut Vec<ValueId>,
+) -> Result<(), (semantic_vocabulary::MachineId, &'static str)> {
+    if parameter.owner != owner {
+        return Err((owner, "integer width belongs to another machine"));
+    }
+    widths.push(parameter.value);
+    Ok(())
+}
+
 fn width_scalar(
     owner: semantic_vocabulary::MachineId,
     scalar: semantic_vocabulary::ScalarType,
     widths: &mut Vec<ValueId>,
 ) -> Result<(), (semantic_vocabulary::MachineId, &'static str)> {
-    if let semantic_vocabulary::ScalarType::Integer(integer) = scalar
-        && let semantic_vocabulary::IntegerWidth::Parameter(parameter) = integer.width()
-    {
-        if parameter.owner != owner {
-            return Err((owner, "integer width belongs to another machine"));
-        }
-        widths.push(parameter.value);
+    if let Some(parameter) = scalar_width(scalar) {
+        width_parameter(owner, parameter, widths)?;
     }
     Ok(())
 }
 
+fn width_type_parts(
+    declaration: &terminal_psi::StructuralTypeDeclaration,
+    children: &mut Vec<semantic_vocabulary::StructuralTypeId>,
+    widths: &mut Vec<semantic_vocabulary::WidthParameter>,
+) {
+    use terminal_psi::StructuralTypeShape;
+    children.extend(declaration.quotient_carrier);
+    if let Some(restriction) = &declaration.scalar_restriction {
+        widths.extend(restriction.scalar_type().and_then(scalar_width));
+        children.extend(restriction.as_structural());
+    }
+    match &declaration.shape {
+        StructuralTypeShape::PrimitiveScalar(scalar) => widths.extend(scalar_width(*scalar)),
+        StructuralTypeShape::AtomicCell(cell) => widths.extend(scalar_width(cell.scalar_type())),
+        StructuralTypeShape::Reference { referent, .. } => children.push(*referent),
+        StructuralTypeShape::FixedArray { element, .. }
+        | StructuralTypeShape::ElementView { element, .. } => children.push(*element),
+        StructuralTypeShape::Record { fields, .. } => width_fields(fields, children, widths),
+        StructuralTypeShape::Sum { cases } => {
+            for case in cases {
+                width_fields(&case.fields, children, widths);
+            }
+        }
+        StructuralTypeShape::Mixed { fields, cases } => {
+            width_fields(fields, children, widths);
+            for case in cases {
+                width_fields(&case.fields, children, widths);
+            }
+        }
+        StructuralTypeShape::Opaque | StructuralTypeShape::ByteSequence(_) => {}
+    }
+}
+
 fn width_fields(
-    owner: semantic_vocabulary::MachineId,
     fields: &[terminal_psi::StructuralFieldDeclaration],
-    pending: &mut Vec<semantic_vocabulary::StructuralTypeId>,
-    widths: &mut Vec<ValueId>,
-) -> Result<(), (semantic_vocabulary::MachineId, &'static str)> {
+    children: &mut Vec<semantic_vocabulary::StructuralTypeId>,
+    widths: &mut Vec<semantic_vocabulary::WidthParameter>,
+) {
     for field in fields {
-        if let Some(scalar) = field.field_type.scalar_type() {
-            width_scalar(owner, scalar, widths)?;
-        }
-        if let Some(child) = field.field_type.as_structural() {
-            pending.push(child);
-        }
-        if let Some(child) = field.inline_carrier {
-            pending.push(child);
+        widths.extend(field.field_type.scalar_type().and_then(scalar_width));
+        children.extend(field.field_type.as_structural());
+        children.extend(field.inline_carrier);
+    }
+}
+
+#[cfg(test)]
+mod width_inventory_tests {
+    use super::*;
+    use semantic_vocabulary::{
+        BlockId, ContractId, EdgeId, IntegerSign, IntegerType, MachineId, PlaceId, ScalarType,
+        StructuralPlaceKind, StructuralTypeId, WidthParameter,
+    };
+    use terminal_psi::{
+        Block, BoundaryParameterKind, MachineContract, StructuralAccess, StructuralMultiplicity,
+        StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
+        StructuralTypeShape, TerminalMachine, TerminalModule, Terminator, ValueDeclaration,
+    };
+
+    fn id(raw: u64) -> StructuralTypeId {
+        StructuralTypeId::new(raw).unwrap()
+    }
+
+    fn declaration(raw: u64, shape: StructuralTypeShape) -> StructuralTypeDeclaration {
+        StructuralTypeDeclaration {
+            quotient_carrier: None,
+            id: id(raw),
+            identity: terminal_psi::TerminalIdentityIndex::ABSENT,
+            owns_linear_claim: false,
+            copyable: true,
+            no_code_affine_cleanup: false,
+            descriptor_cleanup: false,
+            shape,
+            scalar_restriction: None,
+            requires: Vec::new(),
         }
     }
-    Ok(())
+
+    fn machine(raw: u64, root: Option<StructuralTypeId>) -> TerminalMachine {
+        let block = BlockId::new(1).unwrap();
+        let mut contract = MachineContract::empty(ContractId::new(raw).unwrap());
+        contract.parameters.push(ValueDeclaration {
+            qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+            id: ValueId::new(1).unwrap(),
+            scalar_type: ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap()),
+        });
+        contract.parameter_order.push(BoundaryParameterKind::Scalar);
+        if let Some(root) = root {
+            contract
+                .parameter_order
+                .push(BoundaryParameterKind::Structural);
+            contract
+                .structural_parameters
+                .push(StructuralParameterDeclaration {
+                    place: PlaceId::new(1).unwrap(),
+                    position: 1,
+                    structural_type: root,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access: StructuralAccess::SharedBorrow,
+                    qualifications: Vec::new(),
+                    projected_qualifications: Vec::new(),
+                    additional_input_qualifications: Vec::new(),
+                });
+        }
+        TerminalMachine {
+            assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
+            id: MachineId::new(raw).unwrap(),
+            attachment: None,
+            nominal_cleanup_subject: None,
+            ranked_scc: None,
+            structural_places: Vec::new(),
+            block_entry_claims: Vec::new(),
+            loan_completions: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: block,
+            blocks: vec![Block::plain(
+                block,
+                Vec::new(),
+                Terminator::ReturnUnit {
+                    edge: EdgeId::new(1).unwrap(),
+                    cleanup_actions: Vec::new(),
+                },
+            )],
+            contract,
+        }
+    }
+
+    fn symbolic() -> ScalarType {
+        ScalarType::Integer(IntegerType::parameterized(
+            IntegerSign::Unsigned,
+            WidthParameter {
+                owner: MachineId::new(1).unwrap(),
+                value: ValueId::new(1).unwrap(),
+            },
+        ))
+    }
+
+    #[test]
+    fn an_unread_local_still_owes_its_width_formation() {
+        let mut module = TerminalModule::declarations();
+        module.structural_types.push(declaration(
+            1_000_000,
+            StructuralTypeShape::PrimitiveScalar(symbolic()),
+        ));
+        let mut machine = machine(1, None);
+        machine.structural_places.push(StructuralPlaceDeclaration {
+            id: PlaceId::new(1).unwrap(),
+            kind: StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal: 0,
+                structural_type: id(1_000_000),
+                construction: None,
+            },
+        });
+        module.machines.push(machine);
+        assert_eq!(
+            integer_width_parameters(&module).unwrap(),
+            vec![(MachineId::new(1).unwrap(), vec![ValueId::new(1).unwrap()])]
+        );
+    }
+
+    #[test]
+    fn shared_closed_graphs_remain_empty_and_dangling_edges_are_not_pruned() {
+        let mut module = TerminalModule::declarations();
+        module.structural_types.push(declaration(
+            1,
+            StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            )),
+        ));
+        for index in 2..=256 {
+            module.structural_types.push(declaration(
+                index,
+                StructuralTypeShape::Reference {
+                    referent: id(index - 1),
+                    access: StructuralAccess::SharedBorrow,
+                },
+            ));
+        }
+        module
+            .machines
+            .extend((1..=512).map(|index| machine(index, Some(id(256)))));
+        let result = integer_width_parameters(&module).unwrap();
+        assert_eq!(result.len(), 512);
+        assert!(result.iter().all(|(_, widths)| widths.is_empty()));
+        module.structural_types.push(declaration(
+            1_000_000,
+            StructuralTypeShape::Reference {
+                referent: id(2_000_000),
+                access: StructuralAccess::SharedBorrow,
+            },
+        ));
+        assert!(integer_width_parameters(&module).is_err());
+    }
+
+    #[test]
+    fn zero_array_headers_retain_the_width_owner_through_shared_types() {
+        let mut module = TerminalModule::declarations();
+        module.structural_types.push(declaration(
+            1_000_000,
+            StructuralTypeShape::PrimitiveScalar(symbolic()),
+        ));
+        module.structural_types.push(declaration(
+            2_000_000,
+            StructuralTypeShape::FixedArray {
+                element: id(1_000_000),
+                length: terminal_psi::ArrayExtent::Literal(0),
+            },
+        ));
+        module.structural_types.push(declaration(
+            3_000_000,
+            StructuralTypeShape::Reference {
+                referent: id(2_000_000),
+                access: StructuralAccess::SharedBorrow,
+            },
+        ));
+        module.machines.push(machine(1, Some(id(3_000_000))));
+        assert_eq!(
+            integer_width_parameters(&module).unwrap()[0].1,
+            vec![ValueId::new(1).unwrap()]
+        );
+        module.machines.push(machine(2, Some(id(3_000_000))));
+        assert!(integer_width_parameters(&module).is_err());
+    }
 }

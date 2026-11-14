@@ -194,6 +194,13 @@ pub(crate) fn width_questions_are_minted(
             }
         }
     }
+    let mut owners = elaboration
+        .module
+        .machines
+        .iter()
+        .map(|machine| machine.id)
+        .collect::<Vec<_>>();
+    owners.sort_unstable();
     // No body outside the actual module may smuggle a question into tables.
     // This visits only machines with this question family, without allocating
     // a table up to the largest raw machine identity.
@@ -202,11 +209,7 @@ pub(crate) fn width_questions_are_minted(
             .obligations
             .iter()
             .any(|(_, row)| matches!(row.kind, ObligationKind::IntegerWidthPositive { .. }))
-            && !elaboration
-                .module
-                .machines
-                .iter()
-                .any(|lowered| lowered.id == machine)
+            && owners.binary_search(&machine).is_err()
         {
             return Err(refusal(
                 RefusalReason::ForeignIdentity,
@@ -742,13 +745,8 @@ pub(crate) fn follow_the_lowered_form(
 /// operation result, under its own identity, with its declared type and the
 /// origin of what declares it.
 ///
-/// The type of a value is what Terminal semantics states an operation's goal
-/// over and what the kernel bounds the value by, and its origin is what the
-/// payload judgment reads to learn which test a condition is the result of.
-/// The one kind of row the lowered form does not declare is the content a
-/// formal's leaf held at entry, which no operation produces; `places` checks
-/// those against the formal's type. A declared value restated as one would
-/// make a read of that leaf equal to it.
+/// The shared logical positions of scalar formals include structural and
+/// erased predecessors; widths and ordinary value validation use this owner.
 fn scalar_formals_with_origins(
     id: MachineId,
     lowered: &TerminalMachine,
@@ -815,6 +813,13 @@ fn scalar_formals_with_origins(
     Ok(formals)
 }
 
+/// The type of a value is what Terminal semantics states an operation's goal
+/// over and what the kernel bounds the value by, and its origin is what the
+/// payload judgment reads to learn which test a condition is the result of.
+/// The one kind of row the lowered form does not declare is the content a
+/// formal's leaf held at entry, which no operation produces; `places` checks
+/// those against the formal's type. A declared value restated as one would
+/// make a read of that leaf equal to it.
 fn values_are_declared(
     id: MachineId,
     lowered: &TerminalMachine,
