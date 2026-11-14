@@ -137,6 +137,11 @@ pub(crate) fn width_questions_are_minted(
                 "integer width questions do not match the exact used width parameters",
             ));
         }
+        let formals = if questions.is_empty() {
+            Vec::new()
+        } else {
+            scalar_formals_with_origins(machine, lowered, tables)?
+        };
         for (parameter, (question_parameter, obligation, point)) in
             parameters.into_iter().zip(questions)
         {
@@ -179,7 +184,8 @@ pub(crate) fn width_questions_are_minted(
                 || input.scalar_type != u64_type
                 || row.scalar_type != u64_type
                 || row.rigid.is_some()
-                || !matches!(row.origin, ValueOrigin::MachineParameter { position: origin } if usize::try_from(origin).ok() == Some(position))
+                || !matches!(formals.iter().find(|(formal, _)| formal.id == parameter),
+                    Some((_, origin)) if *origin == row.origin)
             {
                 return Err(foreign(
                     concerns,
@@ -728,6 +734,72 @@ pub(crate) fn follow_the_lowered_form(
 /// formal's leaf held at entry, which no operation produces; `places` checks
 /// those against the formal's type. A declared value restated as one would
 /// make a read of that leaf equal to it.
+fn scalar_formals_with_origins(
+    id: MachineId,
+    lowered: &TerminalMachine,
+    tables: &MachineTables,
+) -> Checked<Vec<(ValueDeclaration, ValueOrigin)>> {
+    let foreign = |value: ValueId, detail: &str| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            id,
+            Construct::Value(value),
+            detail,
+        )
+    };
+    let mut formals =
+        Vec::with_capacity(lowered.parameters.len() + lowered.erased_scalar_formals.len());
+    // A formal's position is its place among all the formals, erased ones
+    // included. An erased scalar formal has no runtime lane, so the lowered
+    // form does not say where among the formals it was written; its row
+    // does. Those positions are accepted only when they strictly increase in
+    // the contract's order and lie among the formals, and the runtime
+    // formals then take the remaining positions in their own order.
+    let erased = &lowered.contract.erased_scalar_formals;
+    let total = lowered.parameter_order.len() + erased.len();
+    let mut erased_positions = Vec::with_capacity(erased.len());
+    for formal in erased {
+        let position = match tables.values.get(formal.id).map(|row| row.origin) {
+            Some(ValueOrigin::MachineParameter { position }) => position,
+            _ => return Err(foreign(formal.id, "an erased formal's row is not a formal")),
+        };
+        let increasing = erased_positions.last().is_none_or(|last| *last < position);
+        if !increasing || usize::try_from(position).map_or(true, |position| position >= total) {
+            return Err(foreign(
+                formal.id,
+                "an erased formal's position is out of order or past the formals",
+            ));
+        }
+        erased_positions.push(position);
+        formals.push((*formal, ValueOrigin::MachineParameter { position }));
+    }
+    let mut runtime_positions = (0..total)
+        .map(|position| crate::position(position, id))
+        .collect::<Checked<Vec<u32>>>()?
+        .into_iter()
+        .filter(|position| erased_positions.binary_search(position).is_err());
+    let mut scalars = lowered.parameters.iter();
+    for kind in &lowered.parameter_order {
+        let Some(position) = runtime_positions.next() else {
+            break;
+        };
+        if !matches!(kind, BoundaryParameterKind::Scalar) {
+            continue;
+        }
+        let Some(formal) = scalars.next() else {
+            break;
+        };
+        formals.push((*formal, ValueOrigin::MachineParameter { position }));
+    }
+    if let Some(formal) = scalars.next() {
+        return Err(foreign(
+            formal.id,
+            "a scalar formal has no position among the formals",
+        ));
+    }
+    Ok(formals)
+}
+
 fn values_are_declared(
     id: MachineId,
     lowered: &TerminalMachine,
@@ -754,53 +826,8 @@ fn values_are_declared(
         }
         Ok(())
     };
-    // A formal's position is its place among all the formals, erased ones
-    // included. An erased scalar formal has no runtime lane, so the lowered
-    // form does not say where among the formals it was written; its row
-    // does. Those positions are accepted only when they strictly increase in
-    // the contract's order and lie among the formals, and the runtime
-    // formals then take the remaining positions in their own order.
-    let erased = &lowered.contract.erased_scalar_formals;
-    let total = lowered.parameter_order.len() + erased.len();
-    let mut erased_positions = Vec::with_capacity(erased.len());
-    for formal in erased {
-        let position = match tables.values.get(formal.id).map(|row| row.origin) {
-            Some(ValueOrigin::MachineParameter { position }) => position,
-            _ => return Err(foreign(formal.id, "an erased formal's row is not a formal")),
-        };
-        let increasing = erased_positions.last().is_none_or(|last| *last < position);
-        if !increasing || usize::try_from(position).map_or(true, |position| position >= total) {
-            return Err(foreign(
-                formal.id,
-                "an erased formal's position is out of order or past the formals",
-            ));
-        }
-        erased_positions.push(position);
-        declare(*formal, ValueOrigin::MachineParameter { position })?;
-    }
-    let mut runtime_positions = (0..total)
-        .map(|position| crate::position(position, id))
-        .collect::<Checked<Vec<u32>>>()?
-        .into_iter()
-        .filter(|position| erased_positions.binary_search(position).is_err());
-    let mut scalars = lowered.parameters.iter();
-    for kind in &lowered.parameter_order {
-        let Some(position) = runtime_positions.next() else {
-            break;
-        };
-        if !matches!(kind, BoundaryParameterKind::Scalar) {
-            continue;
-        }
-        let Some(formal) = scalars.next() else {
-            break;
-        };
-        declare(*formal, ValueOrigin::MachineParameter { position })?;
-    }
-    if let Some(formal) = scalars.next() {
-        return Err(foreign(
-            formal.id,
-            "a scalar formal has no position among the formals",
-        ));
+    for (formal, origin) in scalar_formals_with_origins(id, lowered, tables)? {
+        declare(formal, origin)?;
     }
     if let TerminalMachineResult::Scalar(result) = &lowered.result {
         declare(*result, ValueOrigin::MachineResult)?;
