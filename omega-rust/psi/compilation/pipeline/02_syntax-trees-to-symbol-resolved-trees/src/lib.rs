@@ -10,7 +10,8 @@
     declarations are validated. `drive` then runs the phases in the
     one order their preconditions allow: `lowering` translates items and
     mathematical definitions into the symbol-resolved carrier; `selection`
-    binds operator homes, which need no symbols yet; `symbols` builds the
+    binds operator homes from a temporary namespace table, using the same
+    `domain_name_reaches` check as later name lookup; `symbols` builds the
     table and assigns identities; `lowering` normalizes exact arithmetic
     intrinsics and marks the domain homes of token-bearing machines, which
     need those attached symbols; then `constant` and `selection` close in turn

@@ -64,4 +64,30 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-None currently.
+### Q1 - When an operator's carrier does not resolve, is the declaration a root operator or an error?
+
+Decision name: `unresolved-qualified-operator-home`.
+
+**Customer.** A module imports another module and declares
+`operator Carrier::Leaf::op(...)`, where `domain Carrier::Leaf` lives in the
+imported module and `Carrier` is a data type that module declares. `use geometry`
+exposes `geometry`'s domains. It does not bring the bare name `Carrier` into
+the importer.
+
+**Gap.** [Operator families](wiki/spec/language/expressions.md#operator-families)
+says a qualified declaration such as `Domain::operation` establishes its
+semantic home, and does not say what happens when that qualification matches
+no domain. [Foreign attached declaration paths](wiki/spec/language/modules.md#foreign-attached-declaration-paths)
+says a short carrier-qualified selection must match both the resolved carrier
+and an exposed domain, which means the short form does not select the domain
+when `Carrier` does not resolve. It does not say the declaration is illegal.
+[Resolution](wiki/spec/language/modules.md#resolution) lists lookup order and
+rejects ambiguity, and is silent on this declaration.
+
+**Question.** (a) Is a root-level operator literally named `Carrier::Leaf::op`
+allowed? (b) Or is that declaration a resolution error?
+
+**Until answered.** Resolution succeeds and the operator stays on the root
+list under its authored spelling. The same spelling homes in the domain when
+the carrier does resolve, including a builtin carrier such as `u64::Distance`
+imported through its declaring module.

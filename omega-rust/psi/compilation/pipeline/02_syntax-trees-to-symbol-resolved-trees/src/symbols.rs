@@ -5340,14 +5340,6 @@ impl syntax_trees::SyntaxTextContext for NamespaceDeclarations {
 }
 
 impl NamespaceDeclarations {
-    pub(crate) fn module_paths(&self) -> &[Vec<syntax_trees::identifier::Identifier>] {
-        &self.modules
-    }
-
-    pub(crate) fn import_paths(&self) -> &[Vec<syntax_trees::identifier::Identifier>] {
-        &self.imports
-    }
-
     pub(crate) fn record_module(
         &mut self,
         syntax: &syntax_trees::SyntaxTrees,
@@ -5481,6 +5473,199 @@ fn assign_program_symbols(
         diagnostics.extend(errors);
     }
     diagnostics
+}
+
+/*
+    Namespace facts operator homing asks `domain_name_reaches` about. The
+    published table is built after the operator has moved, because its symbol
+    parent is the domain it joined. This table answers the question and is
+    then dropped; declaration symbols it wrote are restored so assignment
+    mints the published handles.
+*/
+pub(crate) struct OperatorHomeNamespace {
+    pub(crate) symbols: symbols::SymbolTable,
+    /*
+        Symbol handles the root operators had before this temporary table
+        existed. Homing reorders that roster, so these cannot be written back
+        by index afterwards. A fresh operator's handle is invalid; a seeded
+        base operator keeps the handle assignment already published.
+    */
+    pub(crate) prior_operator_symbols: Vec<symbols::SymbolHandle>,
+    snapshot: DeclarationSymbolSnapshot,
+}
+
+pub(crate) fn operator_home_namespace(
+    lowerer: &mut Lowerer,
+) -> Result<OperatorHomeNamespace, Vec<Diagnostic>> {
+    let snapshot = DeclarationSymbolSnapshot::capture(&lowerer.symbol_resolved_trees);
+    let prior_operator_symbols = lowerer
+        .symbol_resolved_trees
+        .operators
+        .iter()
+        .map(|operator| operator.symbol)
+        .collect();
+    let seeded = lowerer.seed.as_ref().map(|seed| seed.roots);
+    let symbols = if let Some(roots) = seeded {
+        let base = lowerer.symbol_resolved_trees.symbols.clone();
+        let Some(sources) = lowerer.sources.clone() else {
+            return Err(vec![Diagnostic::error(
+                "seeded symbol resolution requires retained source custody",
+            )]);
+        };
+        symbol_table::extend_symbol_table(
+            &mut lowerer.symbol_resolved_trees,
+            sources,
+            lowerer.source_scoped_top_level_bindings.clone(),
+            roots,
+            &lowerer.pending_const_declarations,
+        );
+        if let Err(error) = lowerer
+            .namespace_declarations
+            .register(&mut lowerer.symbol_resolved_trees.symbols)
+        {
+            lowerer.symbol_resolved_trees.symbols = base;
+            snapshot.restore(&mut lowerer.symbol_resolved_trees);
+            return Err(error);
+        }
+        std::mem::replace(&mut lowerer.symbol_resolved_trees.symbols, base)
+    } else {
+        let mut symbols = symbol_table::build_symbol_table(
+            &mut lowerer.symbol_resolved_trees,
+            lowerer.sources.clone(),
+            lowerer.source_scoped_top_level_bindings.clone(),
+            &lowerer.pending_const_declarations,
+            !lowerer.namespace_declarations.modules.is_empty(),
+        );
+        if let Err(error) = lowerer.namespace_declarations.register(&mut symbols) {
+            snapshot.restore(&mut lowerer.symbol_resolved_trees);
+            return Err(error);
+        }
+        symbols
+    };
+    Ok(OperatorHomeNamespace {
+        symbols,
+        prior_operator_symbols,
+        snapshot,
+    })
+}
+
+pub(crate) fn restore_operator_home_symbols(
+    program: &mut SymbolResolvedTrees,
+    namespace: OperatorHomeNamespace,
+) {
+    namespace.snapshot.restore(program);
+}
+
+struct DeclarationSymbolSnapshot {
+    domains: Vec<symbols::SymbolHandle>,
+    data: Vec<symbols::SymbolHandle>,
+    aliases: Vec<symbols::SymbolHandle>,
+    conformances: Vec<symbols::SymbolHandle>,
+    machines: Vec<symbols::SymbolHandle>,
+    propositions: Vec<symbols::SymbolHandle>,
+    mathematical: Vec<symbols::SymbolHandle>,
+    measures: Vec<symbols::SymbolHandle>,
+    traits: Vec<symbols::SymbolHandle>,
+    wire_schemas: Vec<symbols::SymbolHandle>,
+    constants: Vec<symbols::SymbolHandle>,
+}
+
+impl DeclarationSymbolSnapshot {
+    fn capture(program: &SymbolResolvedTrees) -> Self {
+        Self {
+            domains: program
+                .domain_definitions
+                .iter()
+                .map(|definition| definition.symbol)
+                .collect(),
+            data: program
+                .data_definitions
+                .iter()
+                .map(|definition| definition.symbol)
+                .collect(),
+            aliases: program
+                .type_aliases
+                .iter()
+                .map(|definition| definition.symbol)
+                .collect(),
+            conformances: program
+                .conformances
+                .iter()
+                .map(|definition| definition.symbol)
+                .collect(),
+            machines: program
+                .machines
+                .iter()
+                .map(|definition| definition.symbol)
+                .collect(),
+            propositions: program
+                .propositions
+                .iter()
+                .map(|definition| definition.symbol)
+                .collect(),
+            mathematical: program
+                .mathematical_definitions
+                .iter()
+                .map(|definition| definition.symbol)
+                .collect(),
+            measures: program
+                .measures
+                .iter()
+                .map(|definition| definition.symbol)
+                .collect(),
+            traits: program
+                .traits
+                .iter()
+                .map(|definition| definition.symbol)
+                .collect(),
+            wire_schemas: program
+                .wire_schemas
+                .iter()
+                .map(|definition| definition.symbol)
+                .collect(),
+            constants: program
+                .const_declarations
+                .iter()
+                .map(|definition| definition.symbol)
+                .collect(),
+        }
+    }
+
+    fn restore(self, program: &mut SymbolResolvedTrees) {
+        for (index, symbol) in self.domains.into_iter().enumerate() {
+            program.domain_definitions[index].symbol = symbol;
+        }
+        for (index, symbol) in self.data.into_iter().enumerate() {
+            program.data_definitions[index].symbol = symbol;
+        }
+        for (index, symbol) in self.aliases.into_iter().enumerate() {
+            program.type_aliases[index].symbol = symbol;
+        }
+        for (index, symbol) in self.conformances.into_iter().enumerate() {
+            program.conformances[index].symbol = symbol;
+        }
+        for (index, symbol) in self.machines.into_iter().enumerate() {
+            program.machines[index].symbol = symbol;
+        }
+        for (index, symbol) in self.propositions.into_iter().enumerate() {
+            program.propositions[index].symbol = symbol;
+        }
+        for (index, symbol) in self.mathematical.into_iter().enumerate() {
+            program.mathematical_definitions[index].symbol = symbol;
+        }
+        for (index, symbol) in self.measures.into_iter().enumerate() {
+            program.measures[index].symbol = symbol;
+        }
+        for (index, symbol) in self.traits.into_iter().enumerate() {
+            program.traits[index].symbol = symbol;
+        }
+        for (index, symbol) in self.wire_schemas.into_iter().enumerate() {
+            program.wire_schemas[index].symbol = symbol;
+        }
+        for (index, symbol) in self.constants.into_iter().enumerate() {
+            program.const_declarations[index].symbol = symbol;
+        }
+    }
 }
 
 pub(crate) fn assign_symbols(

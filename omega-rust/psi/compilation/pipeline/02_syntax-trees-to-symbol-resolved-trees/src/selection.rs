@@ -2526,208 +2526,54 @@ pub(crate) mod domain_establishment {
 }
 pub(crate) mod domain_operator_homes {
     /*
-        Operator homes: a top-level operator moves into its exact domain's
-        operator family before symbols are assigned.
+        Operator homes: a top-level operator moves into the domain
+        `domain_name_reaches` selects for its authored owner. That is the same
+        exposure check later name lookup uses, so the two cannot disagree.
 
-        Selection follows module name law. A domain declared in the operator's own
-        module outranks same-spelled foreign declarations, qualified paths select
-        exactly, and relative spellings reach a foreign domain only through an
-        exposing import.
+        A qualified declaration such as `Domain::operation` establishes its
+        semantic home (wiki/spec/language/expressions.md#operator-families).
+        A module import exposes that module's directly declared public domains
+        (wiki/spec/language/modules.md#import-scope-and-exposure), and a short
+        carrier-qualified spelling selects only when both the carrier and the
+        domain resolve
+        (wiki/spec/language/modules.md#foreign-attached-declaration-paths).
+        When the carrier does not resolve, the specification is silent; the
+        operator stays a root item under its authored spelling
+        (`unresolved-qualified-operator-home`).
     */
 
-    use std::collections::HashMap;
-    use syntax_trees::identifier::JoinedSyntaxPath;
+    use std::mem::take;
+
+    use symbols::JoinedPath;
 
     use arena::{Arena, HandleSpan, OrderedRootArena};
     use diagnostics::Diagnostic;
-    use source::SourceId;
     use symbol_resolved_trees::SymbolResolvedTrees;
-    use symbol_resolved_trees::domain::DomainDefinition;
-
-    use crate::symbols::NamespaceDeclarations;
-    use std::mem::take;
     use symbol_resolved_trees::data::TypeParameterKind;
+    use symbol_resolved_trees::domain::DomainDefinition;
+    use symbol_resolved_trees::name::DiagnosticName;
     use symbol_resolved_trees::operator::OperatorDefinition;
     use symbol_resolved_trees::types::TypeReference;
-    use symbols::JoinedPath;
-    use symbols::same_semantic_name;
-
-    /*
-        Logical module/import custody available before the final symbol table is
-        assigned. Fresh sources answer from the collected namespace declarations;
-        retained base sources (seeded extension) answer through the base table
-        already installed on the program.
-    */
-    struct NamespaceScope {
-        source_modules: HashMap<SourceId, String>,
-        source_imports: HashMap<SourceId, Vec<String>>,
-    }
-
-    impl NamespaceScope {
-        fn collect(namespaces: &NamespaceDeclarations) -> Self {
-            let mut source_modules = HashMap::new();
-            for path in namespaces.module_paths() {
-                let Some(first) = path.first() else {
-                    continue;
-                };
-                source_modules.insert(
-                    first.source_span().source_id,
-                    path.joined_path_in(namespaces),
-                );
-            }
-            let mut source_imports: HashMap<SourceId, Vec<String>> = HashMap::new();
-            for path in namespaces.import_paths() {
-                let Some(first) = path.first() else {
-                    continue;
-                };
-                source_imports
-                    .entry(first.source_span().source_id)
-                    .or_default()
-                    .push(path.joined_path_in(namespaces));
-            }
-            Self {
-                source_modules,
-                source_imports,
-            }
-        }
-
-        /*
-            The declaring module's logical path for one source, or "" for
-            unmoduled scope. New sources come from the collected declarations;
-            base sources resolve through the retained table.
-        */
-        fn module_of_source(&self, program: &SymbolResolvedTrees, source: SourceId) -> String {
-            if let Some(module) = self.source_modules.get(&source) {
-                return module.clone();
-            }
-            let module = program.symbols.source_module(source);
-            if module.is_valid() {
-                program.symbols.display_path(module, "::")
-            } else {
-                String::new()
-            }
-        }
-
-        fn imports_of_source(
-            &self,
-            program: &SymbolResolvedTrees,
-            source: SourceId,
-        ) -> Vec<String> {
-            let mut imports = self
-                .source_imports
-                .get(&source)
-                .cloned()
-                .unwrap_or_default();
-            imports.extend(
-                program
-                    .symbols
-                    .source_module_import_paths(source)
-                    .map(str::to_owned),
-            );
-            imports
-        }
-
-        fn domain_module(
-            &self,
-            program: &SymbolResolvedTrees,
-            domain: &DomainDefinition,
-        ) -> String {
-            if domain.symbol.is_valid() {
-                let module = program.symbols.symbol_module(domain.symbol);
-                return if module.is_valid() {
-                    program.symbols.display_path(module, "::")
-                } else {
-                    String::new()
-                };
-            }
-            self.module_of_source(program, domain.name.source_span().source_id)
-        }
-
-        /*
-            The domain's complete logical path: module prefix plus its declared
-            carrier-qualified name. Retained symbols answer exactly; unsymbolled
-            declarations compose the path from their owning module.
-        */
-        fn domain_path(&self, program: &SymbolResolvedTrees, domain: &DomainDefinition) -> String {
-            if domain.symbol.is_valid() {
-                return program.symbols.display_path(domain.symbol, "::");
-            }
-            let module = self.domain_module(program, domain);
-            let local = domain.name.as_str();
-            if module.is_empty() {
-                local.to_owned()
-            } else {
-                format!("{module}::{local}")
-            }
-        }
-
-        /*
-            A relative spelling (the domain's declared name or its leaf) reaches a
-            module-owned domain only inside its own module or through a narrow
-            import of the exact declaration, which exposes the leaf spelling just
-            like ordinary name resolution. Fully qualified spellings always
-            select exactly; unmoduled domains keep root scope.
-        */
-        fn domain_exposed_to(
-            &self,
-            program: &SymbolResolvedTrees,
-            domain_module: &str,
-            domain_path: &str,
-            authored: &str,
-            reference_source: SourceId,
-        ) -> bool {
-            if authored == domain_path || domain_module.is_empty() {
-                return true;
-            }
-            let reference_module = self.module_of_source(program, reference_source);
-            if !reference_module.is_empty() && reference_module == domain_module {
-                return true;
-            }
-            !authored.contains("::")
-                && self
-                    .imports_of_source(program, reference_source)
-                    .iter()
-                    .any(|import| import == domain_path)
-        }
-    }
+    use symbols::{SymbolHandle, SymbolTable};
 
     /*
         Move an ordinary top-level operator into its exact domain's semantic
-        operator family before symbols are assigned. The home is supplied either
-        by a qualified declaration name (`operator Quantity::Additive::add ...`)
-        or by one unique declared-domain constraint across the operand tuple
+        operator family. The home is supplied either by a qualified declaration
+        name (`operator Quantity::Additive::add ...`) or by one unique
+        declared-domain constraint across the operand tuple
         (`operator add(left: i32::Degrees, ...)`).
 
-        Selection follows module name law rather than declared spelling alone:
-        a domain declared in the operator's own module outranks same-spelled
-        foreign declarations, fully qualified paths select exactly, and relative
-        spellings reach a foreign module's domain only through an exposing import.
-
-        The declaration remains an ordinary root item in source. This one lowering
-        point owns the semantic association; domain bodies are reserved for exact
-        establishment requirements and no checked consumer reconstructs ownership
-        from an operator name later.
+        `symbols` is a temporary namespace table: modules, imports, and
+        domains, discarded after this pass. `prior_operator_symbols` are the
+        root operators' handles from before that table existed. Operators that
+        stay at the root keep those handles; a homed operator's handle is
+        cleared so the published table can parent it under the domain.
     */
     pub(crate) fn normalize_domain_operator_homes(
         program: &mut SymbolResolvedTrees,
-        namespaces: &NamespaceDeclarations,
+        symbols: &SymbolTable,
+        prior_operator_symbols: &[SymbolHandle],
     ) -> Result<(), Diagnostic> {
-        let scope = NamespaceScope::collect(namespaces);
-        let domain_names = program
-            .domain_definitions
-            .iter()
-            .map(|domain| domain.name.as_str().to_owned())
-            .collect::<Vec<_>>();
-        let domain_modules = program
-            .domain_definitions
-            .iter()
-            .map(|domain| scope.domain_module(program, domain))
-            .collect::<Vec<_>>();
-        let domain_paths = program
-            .domain_definitions
-            .iter()
-            .map(|domain| scope.domain_path(program, domain))
-            .collect::<Vec<_>>();
         let mut operators_by_domain = program
             .domain_definitions
             .iter()
@@ -2737,39 +2583,25 @@ pub(crate) mod domain_operator_homes {
         let authored_roots = take(&mut program.operators);
         let mut remaining_roots = OrderedRootArena::new();
 
-        for operator in &authored_roots {
+        for (index, operator) in authored_roots.iter().enumerate() {
+            let prior_symbol = prior_operator_symbols
+                .get(index)
+                .copied()
+                .unwrap_or_else(SymbolHandle::invalid);
             let path = program.operator_path_members(operator.name).to_vec();
             let Some((leaf, owner_path)) = path.split_last() else {
-                remaining_roots.push(operator.clone());
+                keep_root(&mut remaining_roots, operator, prior_symbol);
                 continue;
             };
-            let reference_source = path
-                .first()
-                .map(|member| member.source_span().source_id)
-                .unwrap_or_default();
-            let reference_module = scope.module_of_source(program, reference_source);
             let explicit_owner = owner_path.joined_path();
-            let explicit_matches = explicit_domain_homes(
-                program,
-                &scope,
-                &explicit_owner,
-                &domain_names,
-                &domain_modules,
-                &domain_paths,
-                reference_source,
-                &reference_module,
-            );
-            let inferred_matches = inferred_domain_homes(
-                program,
-                &scope,
-                operator,
-                &domain_names,
-                &domain_modules,
-                &domain_paths,
-            );
-            let matches = if explicit_matches.is_empty() {
+            let owner_span = path_span(owner_path);
+            let explicit_matches = domains_reached(program, symbols, &explicit_owner, owner_span);
+            let inferred_matches = inferred_domain_homes(program, symbols, operator);
+            let explicit_was_empty = explicit_matches.is_empty();
+            let inferred_was_empty = inferred_matches.is_empty();
+            let matches = if explicit_was_empty {
                 inferred_matches
-            } else if inferred_matches.is_empty() {
+            } else if inferred_was_empty {
                 explicit_matches
             } else {
                 explicit_matches
@@ -2780,22 +2612,13 @@ pub(crate) mod domain_operator_homes {
 
             let [domain_index] = matches.as_slice() else {
                 if matches.is_empty() {
-                    if !inferred_domain_homes(
-                        program,
-                        &scope,
-                        operator,
-                        &domain_names,
-                        &domain_modules,
-                        &domain_paths,
-                    )
-                    .is_empty()
-                    {
+                    if !explicit_was_empty && !inferred_was_empty {
                         return Err(Diagnostic::error(format!(
                             "operator `{}` names a domain home that conflicts with its operand domains",
                             operator_label(program, operator)
                         )));
                     }
-                    remaining_roots.push(operator.clone());
+                    keep_root(&mut remaining_roots, operator, prior_symbol);
                     continue;
                 }
                 return Err(Diagnostic::error(format!(
@@ -2811,6 +2634,7 @@ pub(crate) mod domain_operator_homes {
                 .operator_path_members
                 .append(leaf.clone());
             let mut operator = operator.clone();
+            operator.symbol = SymbolHandle::invalid();
             operator.name = HandleSpan::from_parts(leaf, 1);
             operators_by_domain[*domain_index].push(operator);
         }
@@ -2834,101 +2658,91 @@ pub(crate) mod domain_operator_homes {
         Ok(())
     }
 
+    fn keep_root(
+        remaining: &mut OrderedRootArena<OperatorDefinition>,
+        operator: &OperatorDefinition,
+        prior_symbol: SymbolHandle,
+    ) {
+        let mut operator = operator.clone();
+        operator.symbol = prior_symbol;
+        remaining.push(operator);
+    }
+
     /*
-        The explicit `Owner::` prefix of an operator name selects its home.
-        Module-local declarations bind tighter than imported or absolute matches;
-        each narrower set must still be unique.
+        Domains `domain_name_reaches` accepts for this spelling, narrowed to
+        the reference's own module when any candidate is local.
     */
-    fn explicit_domain_homes(
+    fn domains_reached(
         program: &SymbolResolvedTrees,
-        scope: &NamespaceScope,
-        explicit_owner: &str,
-        domain_names: &[String],
-        domain_modules: &[String],
-        domain_paths: &[String],
-        reference_source: SourceId,
-        reference_module: &str,
+        symbols: &SymbolTable,
+        authored: &str,
+        reference: source::SourceSpan,
     ) -> Vec<usize> {
-        if explicit_owner.is_empty() {
+        if authored.is_empty() || reference.span.start == reference.span.end {
             return Vec::new();
         }
-        let local = (0..domain_names.len())
-            .filter(|index| {
-                !reference_module.is_empty()
-                    && domain_modules[*index] == reference_module
-                    && domain_names[*index].as_str() == explicit_owner
+        let reached = program
+            .domain_definitions
+            .iter()
+            .filter(|domain| {
+                domain.symbol.is_valid()
+                    && symbols.domain_name_reaches(domain.symbol, authored, reference)
             })
+            .map(|domain| domain.symbol)
             .collect::<Vec<_>>();
-        if !local.is_empty() {
-            return local;
-        }
-        let imports = scope.imports_of_source(program, reference_source);
-        let imported = (0..domain_names.len())
-            .filter(|index| {
-                !explicit_owner.contains("::")
-                    && domain_names[*index].as_str() == explicit_owner
-                    && imports.iter().any(|import| import == &domain_paths[*index])
-            })
-            .collect::<Vec<_>>();
-        if !imported.is_empty() {
-            return imported;
-        }
-        (0..domain_names.len())
-            .filter(|index| domain_paths[*index].as_str() == explicit_owner)
+        let preferred = crate::symbols::prefer_module_local_domain(symbols, reached, reference);
+        program
+            .domain_definitions
+            .iter()
+            .enumerate()
+            .filter_map(|(index, domain)| preferred.contains(&domain.symbol).then_some(index))
             .collect()
+    }
+
+    fn path_span(members: &[DiagnosticName]) -> source::SourceSpan {
+        let Some(first) = members.first() else {
+            return source::SourceSpan::default();
+        };
+        let Some(last) = members.last() else {
+            return first.source_span();
+        };
+        if first.source_span().source_id != last.source_span().source_id {
+            return first.source_span();
+        }
+        source::SourceSpan::new(
+            first.source_span().source_id,
+            source::Span::new(first.source_span().span.start, last.source_span().span.end),
+        )
     }
 
     fn inferred_domain_homes(
         program: &SymbolResolvedTrees,
-        scope: &NamespaceScope,
+        symbols: &SymbolTable,
         operator: &OperatorDefinition,
-        domain_names: &[String],
-        domain_modules: &[String],
-        domain_paths: &[String],
     ) -> Vec<usize> {
         let mut matches = Vec::new();
         for parameter in program.state_parameters(operator.parameters) {
-            collect_type_domain_homes(
-                program,
-                scope,
-                &parameter.type_reference,
-                domain_names,
-                domain_modules,
-                domain_paths,
-                &mut matches,
-            );
+            collect_type_domain_homes(program, symbols, &parameter.type_reference, &mut matches);
         }
         matches
     }
 
     fn collect_type_domain_homes(
         program: &SymbolResolvedTrees,
-        scope: &NamespaceScope,
+        symbols: &SymbolTable,
         type_reference: &TypeReference,
-        domain_names: &[String],
-        domain_modules: &[String],
-        domain_paths: &[String],
         matches: &mut Vec<usize>,
     ) {
         use symbol_resolved_trees::types::{TypeConstraint, TypeReference};
 
         match type_reference {
-            TypeReference::AliasUse { expansion, .. } => collect_type_domain_homes(
-                program,
-                scope,
-                expansion,
-                domain_names,
-                domain_modules,
-                domain_paths,
-                matches,
-            ),
+            TypeReference::AliasUse { expansion, .. } => {
+                collect_type_domain_homes(program, symbols, expansion, matches);
+            }
             TypeReference::Reference(reference) => collect_type_domain_homes(
                 program,
-                scope,
+                symbols,
                 program.child_type_reference(reference.referee),
-                domain_names,
-                domain_modules,
-                domain_paths,
                 matches,
             ),
             TypeReference::Constrained(constrained) => {
@@ -2942,64 +2756,39 @@ pub(crate) mod domain_operator_homes {
                     let TypeConstraint::Domain(authored) = constraint else {
                         continue;
                     };
-                    let reference_source = authored.name.source_span().source_id;
-                    let reference_module = scope.module_of_source(program, reference_source);
-                    let mut constraint_matches = Vec::new();
-                    for (index, domain) in program.domain_definitions.iter().enumerate() {
-                        let local = &domain_names[index];
-                        let qualified = &domain_paths[index];
-                        let name_matches = qualified.as_str() == authored.name.as_str()
-                            || same_semantic_name(local.as_str(), authored.name.as_str());
-                        if name_matches
-                            && scope.domain_exposed_to(
-                                program,
-                                &domain_modules[index],
-                                qualified,
-                                authored.name.as_str(),
-                                reference_source,
-                            )
-                            && domain_accepts_carrier(
-                                program,
-                                domain,
-                                carrier,
-                                authored.arguments.len(),
-                            )
-                        {
-                            constraint_matches.push(index);
-                        }
-                    }
-                    let local_matches = constraint_matches
+                    let reference = authored.name.source_span();
+                    let reached = program
+                        .domain_definitions
                         .iter()
-                        .copied()
-                        .filter(|index| {
-                            !reference_module.is_empty()
-                                && domain_modules[*index] == reference_module
+                        .filter(|domain| {
+                            domain.symbol.is_valid()
+                                && symbols.domain_name_reaches(
+                                    domain.symbol,
+                                    authored.name.as_str(),
+                                    reference,
+                                )
+                                && domain_accepts_carrier(
+                                    program,
+                                    domain,
+                                    carrier,
+                                    authored.arguments.len(),
+                                )
                         })
+                        .map(|domain| domain.symbol)
                         .collect::<Vec<_>>();
-                    for index in if local_matches.is_empty() {
-                        constraint_matches
-                    } else {
-                        local_matches
-                    } {
-                        if !matches.contains(&index) {
+                    let preferred =
+                        crate::symbols::prefer_module_local_domain(symbols, reached, reference);
+                    for (index, domain) in program.domain_definitions.iter().enumerate() {
+                        if preferred.contains(&domain.symbol) && !matches.contains(&index) {
                             matches.push(index);
                         }
                     }
                 }
-                collect_type_domain_homes(
-                    program,
-                    scope,
-                    carrier,
-                    domain_names,
-                    domain_modules,
-                    domain_paths,
-                    matches,
-                );
+                collect_type_domain_homes(program, symbols, carrier, matches);
             }
             super::leaf_carrier_type_reference_pattern!() => {}
         }
     }
-
     fn domain_accepts_carrier(
         program: &SymbolResolvedTrees,
         domain: &DomainDefinition,
@@ -4648,16 +4437,20 @@ pub(crate) const ANY_DECLARATION_LOOKUP_KINDS: &[symbols::SymbolKind] = &[
 ];
 
 /*
-    Move every top-level operator into its exact domain's operator family.
-    Runs before symbol assignment.
+    Move every top-level operator into the domain `domain_name_reaches`
+    selects. A temporary namespace table answers that question; declaration
+    symbols it wrote are restored, and the published table is built afterwards
+    so a homed operator's symbol parent is that domain.
 */
 pub(crate) fn select_operator_homes(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
-    domain_operator_homes::normalize_domain_operator_homes(
+    let namespace = crate::symbols::operator_home_namespace(lowerer)?;
+    let result = domain_operator_homes::normalize_domain_operator_homes(
         &mut lowerer.symbol_resolved_trees,
-        &lowerer.namespace_declarations,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    Ok(())
+        &namespace.symbols,
+        &namespace.prior_operator_symbols,
+    );
+    crate::symbols::restore_operator_home_symbols(&mut lowerer.symbol_resolved_trees, namespace);
+    result.map_err(|diagnostic| vec![diagnostic])
 }
 
 /*
@@ -4824,3 +4617,202 @@ pub(super) use leaf_carrier_type_reference_pattern;
 use machine_parameter_requirements::normalize_nominal_machine_parameter_requirements;
 use machine_parameter_requirements::normalize_trait_machine_requirement_arguments;
 use signature_free_requirements::validate_signature_free_requirement_compatibility;
+
+#[cfg(test)]
+mod imported_domain_operator_home_tests {
+    /*
+        A qualified operator declaration establishes its semantic home
+        (wiki/spec/language/expressions.md#operator-families). A module import
+        exposes that module's directly declared public domains
+        (wiki/spec/language/modules.md#import-scope-and-exposure), and a short
+        carrier-qualified spelling selects the domain when the carrier resolves
+        to the one the declaration attached
+        (wiki/spec/language/modules.md#foreign-attached-declaration-paths).
+
+        `u64` is a builtin, so `use units` plus `operator u64::Distance::add`
+        homes the operator in `units::u64::Distance`. On main the string map
+        left that operator on the root list while `domain_name_reaches` was
+        already true.
+
+        Bare `Carrier` is not brought into scope by `use geometry`. The
+        specification does not say whether `operator Carrier::Leaf::op` is then
+        a resolution error or a root operator under that spelling
+        (`unresolved-qualified-operator-home`). Until that is answered,
+        resolution succeeds and the operator stays on the root list.
+    */
+
+    use std::sync::Arc;
+
+    use source_files_to_tokens::Lexer;
+    use symbols::SymbolKind;
+    use syntax_trees::SyntaxTrees;
+
+    use crate::resolution::{ResolutionRequest, resolve};
+
+    fn resolve_units(
+        units: &[(&str, &str)],
+    ) -> Result<symbol_resolved_trees::SymbolResolvedTrees, Vec<diagnostics::Diagnostic>> {
+        let mut sources = source::SourceMap::default();
+        let mut syntax = SyntaxTrees::default();
+        for (path, text) in units {
+            let path = std::path::PathBuf::from(path);
+            let root = path.parent().unwrap().to_path_buf();
+            let source = sources
+                .add_checked_instance(
+                    path,
+                    (*text).to_owned(),
+                    root,
+                    None,
+                    source::SourceOrigin::User,
+                    source::SourceResolutionStratum::Base,
+                    source::DependencyScope::Product,
+                )
+                .source_id;
+            let tokens = Lexer::new(text).tokenize().expect("lex");
+            let unit =
+                tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).expect("parse");
+            syntax.extend_from(&unit);
+        }
+        resolve(ResolutionRequest {
+            syntax,
+            sources: Some(Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
+    }
+
+    fn domain_named<'a>(
+        program: &'a symbol_resolved_trees::SymbolResolvedTrees,
+        name: &str,
+    ) -> &'a symbol_resolved_trees::domain::DomainDefinition {
+        program
+            .domain_definitions
+            .iter()
+            .find(|domain| domain.name.as_str() == name)
+            .unwrap_or_else(|| panic!("missing domain {name}"))
+    }
+
+    #[test]
+    fn imported_module_homes_builtin_carrier_operator() {
+        let program = resolve_units(&[
+            (
+                "pkg/units.omg",
+                "module units;\n\npublic domain u64::Distance requires self > 0;\n",
+            ),
+            (
+                "pkg/client.omg",
+                "module client;\n\nuse units;\n\noperator u64::Distance::add(left: u64, right: u64) -> u64;\n",
+            ),
+        ])
+        .unwrap_or_else(|errors| {
+            panic!(
+                "{}",
+                errors
+                    .iter()
+                    .map(|error| error.message.clone())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+        let roots = program
+            .operators
+            .iter()
+            .map(|operator| program.operator_path_string(operator.name))
+            .collect::<Vec<_>>();
+        assert!(
+            roots.is_empty(),
+            "operator stayed on the root list: {roots:?}"
+        );
+        let domain = domain_named(&program, "u64::Distance");
+        assert_eq!(
+            program.symbols.display_path(domain.symbol, "::"),
+            "units::u64::Distance"
+        );
+        let homed = program.operator_definitions(domain.operators);
+        let names = homed
+            .iter()
+            .map(|operator| program.operator_path_string(operator.name))
+            .collect::<Vec<_>>();
+        assert_eq!(names, vec!["add".to_owned()]);
+        let operator = &homed[0];
+        assert!(operator.symbol.is_valid());
+        assert_eq!(
+            program.symbols.get(operator.symbol).parent,
+            domain.symbol,
+            "operator symbol is parented by the domain family"
+        );
+        assert_eq!(program.symbols.get(domain.symbol).kind, SymbolKind::Domain);
+    }
+
+    #[test]
+    fn unresolved_carrier_keeps_root_operator() {
+        let program = resolve_units(&[
+            (
+                "pkg/geometry.omg",
+                "module geometry;\n\npublic data Carrier {\n    value: i32;\n}\n\npublic domain Carrier::Leaf;\n",
+            ),
+            (
+                "pkg/client.omg",
+                "module client;\n\nuse geometry;\n\noperator Carrier::Leaf::op(left: i32, right: i32) -> i32;\n",
+            ),
+        ])
+        .unwrap_or_else(|errors| {
+            panic!(
+                "{}",
+                errors
+                    .iter()
+                    .map(|error| error.message.clone())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+        let domain = domain_named(&program, "Carrier::Leaf");
+        assert_eq!(
+            program.symbols.display_path(domain.symbol, "::"),
+            "geometry::Carrier::Leaf"
+        );
+        assert!(
+            program.operator_definitions(domain.operators).is_empty(),
+            "unresolved carrier must not home the operator"
+        );
+        let roots = program
+            .operators
+            .iter()
+            .map(|operator| program.operator_path_string(operator.name))
+            .collect::<Vec<_>>();
+        assert_eq!(roots, vec!["Carrier::Leaf::op".to_owned()]);
+        let operator = program.operators.iter().next().expect("root operator");
+        let members = program.operator_path_members(operator.name);
+        let owner_end = members.get(members.len() - 2).expect("owner path");
+        let first = members.first().expect("path");
+        let reference = source::SourceSpan::new(
+            first.source_span().source_id,
+            source::Span::new(
+                first.source_span().span.start,
+                owner_end.source_span().span.end,
+            ),
+        );
+        assert!(
+            program
+                .symbols
+                .find_top_level_by_name_and_kinds_from_source(
+                    "Carrier",
+                    &[
+                        SymbolKind::BuiltinType,
+                        SymbolKind::Data,
+                        SymbolKind::Machine,
+                        SymbolKind::Trait,
+                    ],
+                    reference,
+                )
+                .is_none(),
+            "a module import does not expose the bare carrier"
+        );
+        assert!(
+            !program
+                .symbols
+                .domain_name_reaches(domain.symbol, "Carrier::Leaf", reference),
+            "the symbol table and the operator home agree the carrier does not resolve"
+        );
+    }
+}

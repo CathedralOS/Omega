@@ -122,6 +122,12 @@ machine + Degrees::add(left: u32::Degrees, right: u32::Degrees) -> u32::Degrees 
 }
 ```
 
+When the carrier written in that qualification does not resolve in the file
+that declares the operator, the specification does not say whether the
+declaration is rejected or kept. Until `unresolved-qualified-operator-home`
+is answered, resolution keeps it as a root operator under that spelling.
+The same spelling joins the domain when the carrier does resolve.
+
 Now `a + b` on two `u32::Degrees` wraps at 360. The arithmetic policies of
 [Chapter 5](chapter_5_expressions_evaluation.md#integer-arithmetic),
 `Wrapping`, `Saturating` and `Trapping`, are core domains of this kind.

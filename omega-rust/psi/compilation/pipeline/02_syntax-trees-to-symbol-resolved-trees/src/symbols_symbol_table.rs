@@ -869,6 +869,29 @@ pub(super) fn extend_symbol_table(
     const_declarations: &[crate::resolution::lowerer::PendingConstDeclaration],
 ) {
     let has_sources = true;
+    /*
+        An operator homed onto a domain this extension did not create is no
+        longer a new root child. The domain's existing children stay put;
+        only the operators past that prefix are appended, in declaration order.
+    */
+    let homed_onto_existing = program
+        .domain_definitions
+        .iter()
+        .filter_map(|domain| {
+            if !domain.symbol.is_valid() {
+                return None;
+            }
+            let placed = program
+                .symbols
+                .child_handles(domain.symbol)
+                .into_iter()
+                .flatten()
+                .filter(|child| program.symbols.get(*child).kind == SymbolKind::Operator)
+                .count();
+            let authored = program.operator_definitions(domain.operators).len();
+            (authored > placed).then_some((domain.symbol, placed))
+        })
+        .collect::<Vec<_>>();
     let mut extension = std::mem::take(&mut program.symbols)
         .begin_extension(Some(sources.clone()), source_scoped_top_level_bindings);
 
@@ -970,6 +993,47 @@ pub(super) fn extend_symbol_table(
             .const_declarations
             .get_mut(declaration.declaration)
             .symbol = symbol;
+    }
+
+    for (domain_symbol, placed) in homed_onto_existing {
+        let operators = program
+            .domain_definitions
+            .iter()
+            .find(|domain| domain.symbol == domain_symbol)
+            .map(|domain| domain.operators);
+        let Some(operators) = operators else {
+            continue;
+        };
+        let extras = program
+            .operator_definitions(operators)
+            .iter()
+            .skip(placed)
+            .cloned()
+            .collect::<Vec<_>>();
+        if extras.is_empty() {
+            continue;
+        }
+        let names = extras
+            .iter()
+            .map(|operator| operator_symbol_name(program, operator))
+            .collect::<Vec<_>>();
+        let seeds = names
+            .iter()
+            .zip(extras.iter())
+            .map(|(name, operator)| operator_symbol_seed(program, operator, name, has_sources))
+            .collect::<Vec<_>>();
+        let span = extension.append_children(domain_symbol, seeds);
+        for (operator_symbol, operator) in
+            SymbolTableBuilder::child_handles(span).zip(extras.iter())
+        {
+            insert_operator_symbol_children(
+                &mut extension,
+                program,
+                operator_symbol,
+                operator,
+                has_sources,
+            );
+        }
     }
 
     program.symbols = extension.finish();
