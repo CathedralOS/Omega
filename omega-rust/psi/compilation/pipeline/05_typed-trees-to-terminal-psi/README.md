@@ -1452,12 +1452,14 @@ worked around by adding to `terminal-check-tables`.
     leaf stated as a value in the caller, which this slice does not do.
 29. **A machine generated for a static application keeps its declaration's
     identities.** Stage 04 generates one machine per application of a
-    generic machine; its state symbol's `generated_from` is the declared
-    machine. The call's authored selection and binding still name the
+    generic machine; its retained application owns the template, bound
+    arguments and exact entry-state correspondence. The call's authored selection and binding still name the
     declaration, and the generated machine's `ensures` clause still records
-    `result` against the declaration, because it shares the declaration's
-    clause trees. The reader accepts each where the symbol is the callee's
-    `generated_from` and refuses any other mismatch. Nothing is matched by
+    `result` against the declaration, because the copied clauses retain their
+    declaration owner. The reader accepts each where the symbol is the declaration
+    retained by the callee's application and refuses missing or ambiguous
+    entry correspondence and any other mismatch. Symbol provenance is not a
+    second application marker. Nothing is matched by
     name.
 30. **A trait requirement is a bare signature.** The typed trees hold a
     requirement as a `StateSignature`, not as a machine, so the reader has a

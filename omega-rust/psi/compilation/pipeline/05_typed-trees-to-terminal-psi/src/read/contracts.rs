@@ -114,8 +114,14 @@ impl Program<'_> {
         scope: &ClauseScope<'_>,
         owner: SymbolHandle,
     ) -> Checked<()> {
-        let declared = self.typed.symbols.get(scope.owner).generated_from;
-        if owner == scope.owner || (declared.is_valid() && owner == declared) {
+        if owner == scope.owner {
+            return Ok(());
+        }
+        let declared = self
+            .typed
+            .executable_callable_template(scope.owner)
+            .map_err(|what| refuse(id, Construct::Machine, Unserved::Contract(what)))?;
+        if declared == Some(owner) {
             Ok(())
         } else {
             Err(refuse(

@@ -1550,10 +1550,7 @@ pub mod operator {
     }
     pub(crate) mod satisfied_operators {
         use crate::TypedTrees;
-        use crate::declarations::operator::applications::{
-            ClosedOperatorRealizationApplication, closed_operator_realization_application,
-        };
-        use crate::declarations::operator::{OperatorDefinition, declaration_by_symbol};
+        use crate::declarations::operator::OperatorDefinition;
         use crate::type_identity::TypeIdentityRequest;
         use symbols::SymbolHandle;
 
@@ -1610,41 +1607,6 @@ pub mod operator {
             candidates
                 .into_iter()
                 .find(|candidate| candidate.symbol == selected)
-        }
-
-        pub fn resolve_specialized_checked_operator_application<'program>(
-            program: &'program TypedTrees,
-            machine: &'program crate::machine::Machine,
-            namespace: &str,
-            requirement: &str,
-        ) -> Option<(
-            &'program OperatorDefinition,
-            &'program ClosedOperatorRealizationApplication,
-        )> {
-            let mut specializations = program
-                .machine_specializations
-                .iter()
-                .filter(|specialization| specialization.instance == machine.symbol);
-            let specialization = specializations.next()?;
-            if specializations.next().is_some() {
-                return None;
-            }
-            let mut rows = specialization
-                .operator_realizations
-                .iter()
-                .filter_map(|row| {
-                    let operator = declaration_by_symbol(program, row.requirement_symbol)?;
-                    operator_path_matches(operator, program, namespace, requirement)
-                        .then_some((operator, row))
-                });
-            let (operator, retained) = rows.next()?;
-            if rows.next().is_some()
-                || closed_operator_realization_application(program, machine, operator).as_ref()
-                    != Some(retained)
-            {
-                return None;
-            }
-            Some((operator, retained))
         }
 
         fn satisfied_operator_candidates<'program>(
@@ -3955,7 +3917,6 @@ pub mod operator {
         boundary_operator_requirement_identity,
         resolve_satisfied_boundary_operator_for_conformance,
         resolve_satisfied_checked_operator_for_conformance,
-        resolve_specialized_checked_operator_application,
     };
     pub use spellings::{
         OperandType, OperatorOperandBindings, arithmetic_operator_spelling,

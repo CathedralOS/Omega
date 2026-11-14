@@ -853,6 +853,25 @@ impl<'t> Program<'t> {
 
     fn machine_shape(&self, id: MachineId, machine: &Machine, reading: &Reading) -> Checked<()> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
+        if self
+            .typed
+            .executable_application_template(machine.symbol)
+            .map_err(|what| refuse(id, Construct::Machine, Unserved::Machine(what)))?
+            .is_some()
+        {
+            for state in self.typed.machine_states(machine) {
+                self.typed
+                    .executable_callable_template(state.symbol)
+                    .map_err(|what| refuse(id, Construct::Machine, Unserved::Machine(what)))?
+                    .ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Machine("generated entry has no retained application"),
+                        )
+                    })?;
+            }
+        }
         // The entry of a generic check form keeps its parameters, each
         // rigid; a generic machine it calls is read at the call's type
         // arguments; every other machine is closed.
