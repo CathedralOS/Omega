@@ -464,7 +464,8 @@ with the remedy printed beside them. On Linux, `bash tools/agent_setup.sh`
 installs everything doctor checks for; it is also the setup script for Claude
 Code cloud environments (`if [ -d Omega ]; then bash Omega/tools/agent_setup.sh; fi`).
 
-Builds need Git, the pinned Rust toolchain, `mbx` 1.29.0 or newer, and
+Builds need Git, the pinned Rust toolchain, `mbx` at the version in
+`tools/mbx-version` or newer, and
 `cargo-nextest` 0.9.140 or newer (`mbx` is mandatory; direct Cargo fallback is forbidden).
 `mbx` is [Mr Boxington](https://mr-boxington.jdx.dev/), a shared build cache
 that wraps Cargo ([source](https://github.com/jdx/mr-boxington)); installation

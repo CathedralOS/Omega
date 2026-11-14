@@ -14,9 +14,10 @@ initialize:
     run: |
       # mbx is Mr Boxington, the shared Cargo build cache AGENTS.md builds with:
       # https://mr-boxington.jdx.dev/ (source https://github.com/jdx/mr-boxington).
-      # Same pinned, checksum-checked release as tools/agent_setup.sh.
+      # Same checksum-checked release as tools/agent_setup.sh, pinned in
+      # tools/mbx-version, read relative to the checkout this step runs in.
       export PATH="$HOME/.cargo/bin:$PATH"
-      version=1.29.2
+      version=$(tr -d "[:space:]" < tools/mbx-version)
       archive=mbx-$(uname -m)-unknown-linux-gnu.tar.gz
       release=https://github.com/jdx/mr-boxington/releases/download/v$version
       work=$(mktemp -d)
