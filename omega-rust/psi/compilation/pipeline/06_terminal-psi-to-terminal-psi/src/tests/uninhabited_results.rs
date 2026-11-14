@@ -484,3 +484,56 @@ fn a_published_no_return_promise_still_owes_its_own_bodys_guarantee() {
         );
     }
 }
+
+#[test]
+fn an_empty_input_crosses_an_annotated_local_without_fabricating_its_carrier() {
+    let accepted = accepted(
+        "public data Empty requires false {} \
+         machine main(value: Empty) -> u32 ensures result == 7u32 { \
+             let n: u32 = value; n \
+         }",
+    );
+    let module = &accepted.elaboration.module;
+    let [machine] = module.machines.as_slice() else {
+        panic!("the bare Empty expression needs no helper machine");
+    };
+    assert_eq!(
+        machine.result.scalar_ref().unwrap().scalar_type,
+        ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap()),
+    );
+    assert_eq!(machine.module_invocations().count(), 0);
+    assert!(
+        module.operations().all(|operation| {
+            !matches!(
+                operation.kind,
+                terminal_psi::OperationKind::IntegerConstant { .. }
+            ) && operation.result.scalar_ref().is_none()
+        }),
+        "an impossible initializer must not materialize a scalar local value"
+    );
+    let query =
+        Inhabitation::prepare(&TerminalContracts::new(module.structural_types.iter())).unwrap();
+    let sources = terminal_semantics::normal_completion::ReturnSources::new(machine).unwrap();
+    assert!(
+        machine.blocks.iter().any(|block| {
+            sources
+                .is_uninhabited_return(&block.terminator, &query)
+                .unwrap()
+        }),
+        "the actual owned Empty expression must justify completion"
+    );
+    accepted
+        .publish_invocation()
+        .expect("actual accepted publication");
+    let closed = terminal_codec::ClosedTerminalModule::new(module.clone()).unwrap();
+    let received =
+        terminal_codec::ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes())
+            .expect("receiving admission retains the actual empty initializer");
+    assert_eq!(received.semantic_bytes(), closed.semantic_bytes());
+    assert_eq!(received.identity(), closed.identity());
+
+    type_refusal(
+        "public data Empty requires false {} \
+         machine main(value: Empty) { let n: u32 = value; let b: bool = n; }",
+    );
+}
