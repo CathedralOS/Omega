@@ -1689,7 +1689,7 @@ pub(crate) mod byte_input {
 }
 pub(crate) mod byte_output {
     use super::{
-        Builder, IntegerSign, LegalizedScalarInstructionKind, ScalarType, SelectedBlockId,
+        Builder, IntegerSign, LegalizedScalarInstructionKind, SelectedBlockId,
         SelectedInstructionKind,
     };
     use crate::SelectedInstructionError;
@@ -5788,7 +5788,7 @@ pub(crate) mod operation_control {
 }
 pub(crate) mod process_exit {
     use super::{
-        Builder, IntegerSign, ScalarType, SelectedBlockId, SelectedInstructionKind,
+        Builder, IntegerSign, SelectedBlockId, SelectedInstructionKind,
         SelectedInstructionProvenance,
     };
     use crate::SelectedInstructionError;
@@ -6015,7 +6015,7 @@ pub(crate) mod register_access {
     use crate::SelectedInstructionError;
     use crate::selection::construction::scalar_graph::structural::operation_provenance;
     use legalized_operations::{LegalizedScalarInstruction, LegalizedScalarInstructionKind};
-    use semantic_vocabulary::{IntegerSign, ScalarType};
+    use semantic_vocabulary::IntegerSign;
     use terminal_psi::RegisterOperation;
 
     pub(crate) fn emit(
