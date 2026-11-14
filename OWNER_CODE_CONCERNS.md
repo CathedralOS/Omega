@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Compiler operations are recognized by their bare spelling, and no declaration answers them
+- Category: one idea, several implementations
+- Where: `"code_layout"` in stage 02 `constant.rs:2063,2362`, `selection_authored.rs:392,1265` and stage 03 `statement_lowering.rs:1336`, `expression_lowering.rs:1445`; `"address_of"` in `expression_lowering.rs:1076`; `Quotient::lift`/`define` and `LayoutPlan::place_private` by namespace spelling in `expression_lowering.rs`
+- Saw: each stage compares the written name to a string literal, and resolution leaves the call with no target symbol, so the call is unbound in the same way a misspelled name is; telling "unknown name" from "compiler operation" needs a third copy of the list (stage 03 `typing_queries.rs` `COMPILER_CALL_SPELLINGS`)
+- Cost: a new compiler operation added in one place and missed in the list would be rejected as an unknown name; one declaration per operation (as `BuiltinFunction` symbols are) would let resolution answer it once
+- Reported: 2026-11-14, Claude Code (worker-14), while making a call of an undeclared name a rejection
+
 ### A view passed from a place is lent as that place, so it conflicts with a loan of its holder
 - Category: one idea, several implementations
 - Where: `05_typed-trees-to-terminal-psi/src/read/calls.rs:1453` (`lent_storage_is_untouched` with `holds_view`), `lower/calls.rs:65` (`arguments`, the `Borrow` arm), `lower/places.rs:1428` (`lend`), `06_terminal-psi-to-terminal-psi/src/places/loans.rs`
@@ -183,13 +190,6 @@ framework or a list of features that remain unimplemented.
 - Where: `omega-rust/psi/compilation/representations/typed-trees/src/calls_and_control_flow.rs` and `src/lib.rs`; `omega-rust/psi/interpreter/terminal-interpreter/src/engine_calls.rs` (`family_tuple_member_value`)
 - Saw: the string `named(integer-const(N))` is made with `format!`, then each reader strips the prefix and suffix by hand and parses an `i128`; the Terminal interpreter picks a dynamic family member this way, and `terminal-psi/src/boundary.rs:555-556` interns two such strings as literals
 - Cost: the surviving producer and consumers agree by spelling rather than a shared typed value; a reader that misses the form fails only at run time (`None`, or "dynamic family tuple identity is not an integer constant").
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### The Omega unit validator carries copies of two Terminal Psi codec checks
-- Category: one idea, several implementations
-- Where: `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs:17909` and `:17846`, against `omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs:8566` and `:11744`
-- Saw: `attachment_storage_types` differs between the two files in two lines (visibility and one `use`); `validate_structural_type_graph` is the same walk with a different error type and lookup
-- Cost: the type-graph rules live once on each side of the Psi/Omega boundary, so a fix on one side leaves the other accepting or rejecting something different, with no test found tying them together
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### The default ranking view is derived differently in resolution and typing

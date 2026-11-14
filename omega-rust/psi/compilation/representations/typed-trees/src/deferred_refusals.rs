@@ -23,14 +23,31 @@ use crate::TypedTrees;
 use source::SourceSpan;
 use symbols::{SymbolHandle, SymbolKind};
 
-/// What a pass was asked for and does not serve yet. Closed: a pass that
-/// starts recording a new kind of refusal names it here.
+/*
+Most rows are requests no pass serves yet: the program may be valid, and the
+reader says it is not supported. A few are errors in every program of their
+form, found where the whole program is seen but raised, like the others, only
+where a reader demands the declaration. Such a row is a violation, and the
+reader rejects the program for it (`DeferredRequest::is_violation`).
+
+A violation row is raised even where the construct is never lowered, as a
+statement after a call that never returns is not:
+`wiki/spec/language/state_contracts.md`, "Statements after a call that never
+returns": "Unreachable statements are still source ... an unknown machine name
+or malformed type is an error wherever it appears."
+*/
+
+/// What a pass was asked for and does not serve yet, or a form that is an
+/// error in every program (`is_violation`). Closed: a pass that starts
+/// recording a new kind of refusal names it here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, compiler_storage::Record)]
 pub enum DeferredRequest {
     /// A call on a value, `value.method(..)`: which machine it enters is
     /// chosen from the receiver's type, and no pass makes that choice yet.
     ReceiverCallSelection,
-    /// A call whose written name no declaration in scope answers.
+    /// A call whose written name no declaration in scope answers, though
+    /// something in the program has that name (a local holding a callable,
+    /// an ambiguous import, a qualified path resolution does not follow).
     UnresolvedCallTarget,
     /// A call naming something that is not called this way: a machine reached
     /// through a value, or a declaration of a kind with no call form.
@@ -72,10 +89,23 @@ pub enum DeferredRequest {
     /// signature means matching the two telescopes binder for binder, and
     /// typing has no such comparison yet.
     TargetFamilyGenericSignature,
+    /// A call whose bare written name nothing in the program has: no
+    /// declaration, parameter, local or compiler operation of any kind. A
+    /// violation: "an unknown machine name ... is an error wherever it
+    /// appears" (`state_contracts.md`).
+    UndeclaredCallName,
 }
 
 impl DeferredRequest {
-    /// The construct as a refusal names it, after the word "declaration".
+    /// Whether the row is an error in every program of its form, so the
+    /// reader that demands its declaration rejects the program rather than
+    /// calling it unsupported.
+    pub fn is_violation(self) -> bool {
+        matches!(self, Self::UndeclaredCallName)
+    }
+
+    /// The construct as a refusal names it, after the word "declaration";
+    /// for a violation, the rule the program breaks.
     pub fn construct(self) -> &'static str {
         match self {
             Self::ReceiverCallSelection => {
@@ -118,6 +148,10 @@ impl DeferredRequest {
             }
             Self::TargetFamilyGenericSignature => {
                 "of a generic machine with one body per target, whose bodies typing does not compare with their shared signature yet"
+            }
+            Self::UndeclaredCallName => {
+                "this call names nothing the program declares: an unknown machine name is an \
+                 error wherever it appears, in a statement that never executes as in any other"
             }
         }
     }
@@ -167,10 +201,13 @@ impl TypedTrees {
         }
     }
 
-    /// The first refusal recorded on `declaration`, if it holds any request
-    /// that was never served.
+    /// The row a reader raises for `declaration`, if it holds any: a
+    /// violation when it holds one, because the program is then wrong
+    /// whatever else is not served, else the first refusal recorded.
     pub fn deferred_refusal(&self, declaration: SymbolHandle) -> Option<&DeferredRefusal> {
-        self.deferred_refusals_of(declaration).next()
+        self.deferred_refusals_of(declaration)
+            .find(|row| row.request.is_violation())
+            .or_else(|| self.deferred_refusals_of(declaration).next())
     }
 
     /// Every refusal recorded on `declaration`, ordered by request.
@@ -287,5 +324,30 @@ mod tests {
             program.deferred_refusal(holder).map(|row| row.request),
             Some(DeferredRequest::ReceiverCallSelection)
         );
+    }
+
+    #[test]
+    fn a_violation_is_raised_before_any_unserved_request_of_its_declaration() {
+        let (mut program, [served, holder, state, _]) = program();
+        for request in [
+            DeferredRequest::ReceiverCallSelection,
+            DeferredRequest::UndeclaredCallName,
+            DeferredRequest::StaticApplication,
+        ] {
+            program.record_deferred_refusal(state, request, SourceSpan::default());
+        }
+        let raised = program.deferred_refusal(holder).expect("the holder's row");
+        assert_eq!(raised.request, DeferredRequest::UndeclaredCallName);
+        assert!(raised.request.is_violation());
+        // The twin: a declaration holding only unserved requests raises the
+        // first, which is no violation.
+        program.record_deferred_refusal(
+            served,
+            DeferredRequest::UnresolvedCallTarget,
+            SourceSpan::default(),
+        );
+        let unserved = program.deferred_refusal(served).expect("the served row");
+        assert_eq!(unserved.request, DeferredRequest::UnresolvedCallTarget);
+        assert!(!unserved.request.is_violation());
     }
 }

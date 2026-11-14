@@ -39,6 +39,18 @@ pub struct ProductRoster {
 }
 
 impl ProductRoster {
+    /// Borrow the full roster for source preparation and judgment alike.
+    pub fn compilation(&self) -> psi_compiler::TerminalSourceCompilation<'_> {
+        psi_compiler::TerminalSourceCompilation {
+            entries: &self.entries,
+            subjects: std::slice::from_ref(&self.subject),
+            purpose: source::DependencyScope::Product,
+            selected: &self.selected,
+            bindings: &self.bindings,
+            supplies: &self.supplies,
+        }
+    }
+
     /// The lowered-form checker's judgment of this roster over `typed`: the
     /// closure of the roots, the check form of each generic machine the
     /// subject declares, and the refinement witness of each implementation
@@ -52,14 +64,7 @@ impl ProductRoster {
     ) -> Result<Arc<psi_compiler::AcceptedTerminalSource>, Vec<Diagnostic>> {
         psi_compiler::AcceptedTerminalSource::judge(
             typed,
-            psi_compiler::TerminalSourceCompilation {
-                entries: &self.entries,
-                subjects: &[self.subject],
-                purpose: source::DependencyScope::Product,
-                selected: &self.selected,
-                bindings: &self.bindings,
-                supplies: &self.supplies,
-            },
+            self.compilation(),
             terminal_codec::TerminalPublication::Portable,
         )
         .map(Arc::new)

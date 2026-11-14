@@ -125,7 +125,57 @@ impl From<Vec<Diagnostic>> for CompilationProductError {
     }
 }
 
+impl From<crate::CompileFailure> for CompilationProductError {
+    fn from(failure: crate::CompileFailure) -> Self {
+        match failure {
+            crate::CompileFailure::SourceCompletion {
+                diagnostics,
+                accounting,
+            } => Self::ProductionAttempt {
+                diagnostics,
+                accounting,
+            },
+            other => Self::Production(other.into_diagnostics()),
+        }
+    }
+}
+
+impl From<CompilationProductError> for crate::CompileFailure {
+    fn from(error: CompilationProductError) -> Self {
+        match error {
+            CompilationProductError::ProductionAttempt {
+                diagnostics,
+                accounting,
+            } => Self::source_completion(diagnostics, accounting),
+            other => Self::Diagnostics(other.into_diagnostics()),
+        }
+    }
+}
+
 impl CompilationProductError {
+    pub fn with_source_completion_accounting(
+        self,
+        mut accounting: build_time_evaluation::SourceCompletionAccounting,
+    ) -> Self {
+        match self {
+            Self::ProductionAttempt {
+                diagnostics,
+                accounting: attempted,
+            } => {
+                accounting.append(attempted);
+                Self::ProductionAttempt {
+                    diagnostics,
+                    accounting,
+                }
+            }
+            other if accounting.receipts().is_empty() => other,
+            other => Self::ProductionAttempt {
+                diagnostics: other.into_diagnostics(),
+                accounting,
+            },
+        }
+    }
+
     pub fn into_diagnostics(self) -> Vec<Diagnostic> {
         match self {
             Self::TrustAdmission(diagnostics) | Self::Production(diagnostics) => diagnostics,
@@ -263,13 +313,17 @@ impl ProductRequest {
                 permissions,
             } => (realization, root, product, permissions),
             Self::Component(checked) => {
+                let accounting = checked.source_completion_accounting().clone();
                 if checked.sources().package_identity().is_none() {
-                    return Err(vec![Diagnostic::error(
+                    return Err(CompilationProductError::from(vec![Diagnostic::error(
                         "component publication requires package-aware checked custody for the dependency compiled as its own component",
-                    )]
-                    .into());
+                    )])
+                    .with_source_completion_accounting(accounting));
                 }
-                return Err(refuse_executable_product("a component").into());
+                return Err(CompilationProductError::from(refuse_executable_product(
+                    "a component",
+                ))
+                .with_source_completion_accounting(accounting));
             }
         };
         let requested = match product {
@@ -284,12 +338,14 @@ impl ProductRequest {
         };
         let report = ProductReportPlan::new(root, requested, &realization.custody.build);
         if report.needs_terminal(&realization.custody.build_admission) {
-            return Err(refuse_executable_product(if report.is_native() {
-                "a native"
-            } else {
-                "a Terminal"
-            })
-            .into());
+            return Err(CompilationProductError::from(refuse_executable_product(
+                if report.is_native() {
+                    "a native"
+                } else {
+                    "a Terminal"
+                },
+            ))
+            .with_source_completion_accounting(realization.custody.source_completion_accounting));
         }
         // The accepted Terminal module always exists on this route, so every
         // non-executing stop checks its target-local conditions against it.
@@ -308,6 +364,15 @@ fn refuse_executable_product(product: &str) -> Vec<Diagnostic> {
 }
 
 impl TerminalCompilation {
+    pub(crate) fn source_completion_accounting(
+        &self,
+    ) -> &build_time_evaluation::SourceCompletionAccounting {
+        match self {
+            Self::Checking(product) => &product.realization.custody.source_completion_accounting,
+            Self::Inspection(product) => product.source_completion_accounting(),
+        }
+    }
+
     pub(crate) fn terminal_request(&mut self) -> TerminalProductRequest<'_> {
         match self {
             Self::Checking(product) => product.terminal_request(),

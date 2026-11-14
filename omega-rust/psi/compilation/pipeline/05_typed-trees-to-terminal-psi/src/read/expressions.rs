@@ -478,10 +478,12 @@ impl<'t> Program<'t> {
                             head: *head,
                             ..Default::default()
                         },
+                        SourceOrigin::of(arm.source_span),
                     )?)
                 }
                 MatchPattern::Destructure(pattern) => {
-                    let case = self.case_pattern(id, record, pattern)?;
+                    let case =
+                        self.case_pattern(id, record, pattern, SourceOrigin::of(arm.source_span))?;
                     // Stage 03 keeps the arm's test as the pattern's
                     // condition, `subject in case && true`; it must read to
                     // exactly that, or the arm tests something else.

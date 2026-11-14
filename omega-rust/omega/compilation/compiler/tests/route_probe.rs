@@ -714,25 +714,37 @@ fn a_statement_after_a_call_that_may_return_is_checked() {
 }
 
 /// Its other twin names a machine nothing declares in the statement after
-/// the exit. "Unreachable statements are still source": leaving the
+/// the exit. "Unreachable statements are still source ... an unknown machine
+/// name or malformed type is an error wherever it appears": leaving the
 /// statement out of the lowered form does not excuse the name, and the
-/// program is not accepted. It is refused where an unknown call name is
-/// refused anywhere today: the reader raises the row typing left on the
-/// declaration that holds the call (`typed_trees::deferred_refusals`).
+/// program is rejected at the call. Typing finds that nothing in the program
+/// has the name and leaves a violation row on `main`; the reader that demands
+/// `main` raises it (`typed_trees::deferred_refusals`), lowered or not.
 #[test]
-fn an_unknown_machine_after_a_call_that_never_returns_is_not_accepted() {
+fn an_unknown_machine_after_a_call_that_never_returns_is_rejected() {
     let parts = judged_with_dependencies(
         "tests/fixtures/fail/calls/unknown_machine_after_process_exit",
         "entry_start",
         &[],
     )
     .unwrap_or_else(|stopped| panic!("Psi 00 through 04 must complete: {stopped:?}"));
-    let [Ok(RouteVerdict::FallBack(refusal))] = &parts[..] else {
-        panic!("the unknown name refuses the program: {parts:?}");
+    let [Ok(RouteVerdict::Rejected { violations, .. })] = &parts[..] else {
+        panic!("the unknown name rejects the program: {parts:?}");
     };
-    assert_eq!(
-        refusal.detail,
-        "declaration holding a call whose name resolves to no declaration"
+    let [violation] = &violations[..] else {
+        panic!("one violation, at the call: {violations:?}");
+    };
+    assert!(
+        violation
+            .statement
+            .contains("an unknown machine name is an error"),
+        "{violation:?}"
+    );
+    let site = violation.site.expect("the call is authored");
+    let text = fixture("tests/fixtures/fail/calls/unknown_machine_after_process_exit");
+    assert!(
+        text[site.span.start..site.span.end].starts_with("undeclared_machine"),
+        "{site:?}"
     );
 }
 
