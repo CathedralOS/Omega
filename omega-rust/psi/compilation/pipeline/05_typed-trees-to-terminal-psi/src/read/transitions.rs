@@ -115,6 +115,27 @@ impl Program<'_> {
                 Target::Crash(crash_cause(cause))
             }
         };
+        // How a warning about this arm names it: the value it tests, which
+        // stage 03 states as `subject == value`, or `_` for the arm that
+        // takes what the arms before it did not.
+        let label = match (&guard, patterns) {
+            (None, []) => Some(String::from("_")),
+            (Some(guard), [_]) => match &guard.kind {
+                ExpressionKind::Strict {
+                    operation: crate::body::Strict::Equal,
+                    right,
+                    ..
+                } => match right.kind {
+                    ExpressionKind::Boolean(value) => Some(value.to_string()),
+                    _ => None,
+                },
+                _ => None,
+            },
+            _ => None,
+        };
+        if let (Some(label), Some(names)) = (label, self.names.get_mut(id)) {
+            names.arms.push((transition.source_span, label));
+        }
         Ok((guard, target))
     }
 
