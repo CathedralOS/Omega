@@ -16,6 +16,7 @@ negative twin's weaker published contract, is its own package.
 | `reading_provider_weak_contract` | its 9 `invalid_*` twins | the same package, except that the requirement publishes `>= 999u64`; the twin shows a caller cannot rely on the provider's stronger body |
 | `qualified_call_lib` | the 18 places of `dependency_type_qualified_call`, through the alias `lib` | a data type with a machine attached under its name |
 | `scalar_lending_producer` | the 18 places of `component_scalar_lending`, through the alias `producer` | providers the sample selects as `CompositionMode::Independent` |
+| `semantic_schema_foreign` | the 10 places of `owned_semantic_schema`, through the alias `foreign` | a generic machine that returns the schema of the type it is applied to, so the schema crosses a package boundary |
 
 Both `reading_provider` packages declare the name `reading_provider`, which
 is the name their consumers import.
