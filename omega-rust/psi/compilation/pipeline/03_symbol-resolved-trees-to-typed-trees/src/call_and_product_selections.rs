@@ -1643,8 +1643,10 @@ pub(crate) mod construction_destinations {
     fn needs_destination(program: &TypedTrees, value: ExpressionHandle) -> bool {
         value.is_valid()
             && match program.expression_table.expression(value) {
-                ExpressionNode::Name(_)
-                | ExpressionNode::MachineValue(_)
+                ExpressionNode::Name(_) => {
+                    crate::runtime_callables::named_value_needs_destination(program, value)
+                }
+                ExpressionNode::MachineValue(_)
                 | ExpressionNode::StructLiteral(_)
                 | ExpressionNode::String(_)
                 | ExpressionNode::ArrayLiteral(_)
@@ -1916,6 +1918,239 @@ pub(crate) mod construction_destinations {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn ordinary_named_call_arguments_need_no_constructor_signature() {
+            use symbols::{
+                BuiltinFunction, SymbolKind, SymbolNameRef, SymbolTableBuilder,
+                builtin_function_symbols,
+            };
+            use typed_trees::expression::{TableCallExpression, TableNamePath};
+
+            let mut symbols = SymbolTableBuilder::default();
+            let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let declarations = symbols.insert_children(
+                root,
+                builtin_function_symbols().into_iter().chain([
+                    (SymbolKind::Parameter, SymbolNameRef::Static("parameter")),
+                    (SymbolKind::Local, SymbolNameRef::Static("local")),
+                    (SymbolKind::Field, SymbolNameRef::Static("field")),
+                ]),
+            );
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            let intrinsic = program
+                .symbols
+                .builtin_function_symbol(BuiltinFunction::IntegerEmbed)
+                .unwrap();
+            let mut arguments = Vec::new();
+            for (symbol, name) in declarations.handles().skip(BuiltinFunction::COUNT).zip([
+                "parameter",
+                "local",
+                "field",
+            ]) {
+                let mut members = Default::default();
+                program
+                    .expression_table
+                    .push_name_path_member(&mut members, name.into());
+                let value = program
+                    .expression_table
+                    .insert(ExpressionNode::Name(TableNamePath {
+                        members,
+                        symbol,
+                        head_symbol: symbol,
+                        ..Default::default()
+                    }));
+                arguments.push(value);
+                let operands = program.expression_table.insert_expression_handles([value]);
+                program
+                    .expression_table
+                    .insert(ExpressionNode::Call(TableCallExpression {
+                        target_symbol: intrinsic,
+                        arguments: operands,
+                        ..Default::default()
+                    }));
+            }
+            prepare(&mut program, 0, 0, &[])
+                .expect("ordinary values keep their identity without a constructor destination");
+            for argument in arguments {
+                assert!(matches!(
+                    program.expression_table.expression(argument),
+                    ExpressionNode::Name(_)
+                ));
+                assert!(
+                    !program
+                        .expression_table
+                        .construction_required_type_reference(argument)
+                        .is_valid()
+                );
+            }
+            // A real contextual production still needs an authored telescope;
+            // this pass cannot manufacture a builtin's expected argument type.
+            let literal = program
+                .expression_table
+                .insert(ExpressionNode::String(b"value".to_vec().into()));
+            let operands = program
+                .expression_table
+                .insert_expression_handles([literal]);
+            program
+                .expression_table
+                .insert(ExpressionNode::Call(TableCallExpression {
+                    target_symbol: intrinsic,
+                    arguments: operands,
+                    ..Default::default()
+                }));
+            let error = prepare(&mut program, 0, 0, &[]).unwrap_err();
+            assert!(
+                error.message.contains("selected call parameter types"),
+                "{error:?}"
+            );
+        }
+
+        #[test]
+        fn a_named_machine_argument_keeps_its_exact_callable_destination() {
+            use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+            use typed_trees::{
+                callable_values::RuntimeCallableContract,
+                expression::{TableCallExpression, TableNamePath},
+                machine::Machine,
+                signature::{StateParameter, StateSignature},
+                state::State,
+            };
+
+            let mut symbols = SymbolTableBuilder::default();
+            let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+            let machines = symbols.insert_children(
+                root,
+                [
+                    (SymbolKind::Machine, SymbolNameRef::Static("accept")),
+                    (SymbolKind::Machine, SymbolNameRef::Static("selected")),
+                ],
+            );
+            let (accept, selected) = (machines.handle_at(0), machines.handle_at(1));
+            let accept_children = symbols.insert_children(
+                accept,
+                [
+                    (SymbolKind::State, SymbolNameRef::Static("entry")),
+                    (SymbolKind::State, SymbolNameRef::Static("contract")),
+                ],
+            );
+            let selected_state = symbols
+                .insert_children(
+                    selected,
+                    [(SymbolKind::State, SymbolNameRef::Static("entry"))],
+                )
+                .handle_at(0);
+            let states = [accept_children.handle_at(0), selected_state];
+            let contract_symbol = accept_children.handle_at(1);
+            let parameter = symbols
+                .insert_children(
+                    states[0],
+                    [(SymbolKind::Parameter, SymbolNameRef::Static("step"))],
+                )
+                .handle_at(0);
+            let mut program = TypedTrees {
+                symbols: symbols.finish(),
+                ..Default::default()
+            };
+            let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+            let contract = program
+                .runtime_callable_contracts
+                .insert(RuntimeCallableContract {
+                    lexical_owner: accept,
+                    signature: StateSignature {
+                        symbol: contract_symbol,
+                        name: "contract".into(),
+                        return_type: unit,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                });
+            let expected = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Callable { contract });
+            let parameters = program.state_parameters.insert_many([StateParameter {
+                symbol: parameter,
+                name: "step".into(),
+                type_reference: expected,
+                ..Default::default()
+            }]);
+            for (position, machine) in [accept, selected].into_iter().enumerate() {
+                let state = program.machine_states.insert_many([State {
+                    symbol: states[position],
+                    name: "entry".into(),
+                    parameters: if position == 0 {
+                        parameters
+                    } else {
+                        Default::default()
+                    },
+                    return_type: unit,
+                    ..Default::default()
+                }]);
+                program.push_machine(Machine {
+                    symbol: machine,
+                    name: if position == 0 {
+                        "accept".into()
+                    } else {
+                        "selected".into()
+                    },
+                    states: state,
+                    ..Default::default()
+                });
+            }
+            let mut members = Default::default();
+            program
+                .expression_table
+                .push_name_path_member(&mut members, "selected".into());
+            let argument = program
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    members,
+                    symbol: selected,
+                    head_symbol: selected,
+                    ..Default::default()
+                }));
+            let operands = program
+                .expression_table
+                .insert_expression_handles([argument]);
+            program
+                .expression_table
+                .insert(ExpressionNode::Call(TableCallExpression {
+                    target_symbol: accept,
+                    arguments: operands,
+                    ..Default::default()
+                }));
+            prepare(&mut program, 0, 0, &[]).unwrap();
+            let ExpressionNode::MachineValue(value) = program.expression_table.expression(argument)
+            else {
+                panic!("named code lost its contextual callable construction");
+            };
+            assert_eq!(value.type_reference, expected);
+            assert_eq!(value.selected.symbol, states[1]);
+            assert_eq!(
+                program
+                    .expression_table
+                    .static_machine_application(value.application)
+                    .registration_operation,
+                selected
+            );
+            assert_eq!(
+                program
+                    .expression_table
+                    .construction_required_type_reference(argument),
+                expected
+            );
+            assert_eq!(
+                program
+                    .runtime_callable_contracts
+                    .get(contract)
+                    .signature
+                    .symbol,
+                contract_symbol
+            );
+        }
 
         #[test]
         fn assignment_receivers_preserve_declared_types_without_inventing_unknown_types() {

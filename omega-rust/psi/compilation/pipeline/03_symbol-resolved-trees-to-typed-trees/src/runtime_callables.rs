@@ -111,6 +111,45 @@ pub(crate) fn callee_is_value(
     })
 }
 
+enum NamedValueSource<'a> {
+    Implementation(&'a typed::trait_definition::Conformance),
+    Machine(symbols::SymbolHandle),
+}
+
+fn named_value_source<'a>(
+    program: &'a typed::TypedTrees,
+    path: &typed::expression::TableNamePath,
+) -> Option<NamedValueSource<'a>> {
+    let nodes = program.symbols.symbols().nodes();
+    if nodes.is_valid(path.head_symbol)
+        && let Some(conformance) = program.conformance_by_symbol(path.head_symbol)
+    {
+        return Some(NamedValueSource::Implementation(conformance));
+    }
+    (nodes.is_valid(path.symbol)
+        && matches!(
+            program.symbols.get(path.symbol).kind,
+            symbols::SymbolKind::Machine | symbols::SymbolKind::State
+        ))
+    .then_some(NamedValueSource::Machine(path.symbol))
+}
+
+/// Named code needs a callable destination to construct its descriptor. A
+/// name that already holds a value needs no such construction or signature
+/// query; its receiving checks belong to the lowered call.
+pub(crate) fn named_value_needs_destination(
+    program: &typed::TypedTrees,
+    value: typed::expression::ExpressionHandle,
+) -> bool {
+    program.expression_table.expression_is_valid(value)
+        && match program.expression_table.expression(value) {
+            typed::expression::ExpressionNode::Name(path) => {
+                named_value_source(program, path).is_some()
+            }
+            _ => false,
+        }
+}
+
 /// Expected callable types select code once, before ordinary flow checking.
 /// Other callable values keep their descriptor and are checked as assignments.
 pub(crate) fn prepare_named_value(
@@ -136,43 +175,34 @@ pub(crate) fn prepare_named_value(
         .expression_table
         .name_path_members(path.members)
         .to_vec();
-    let bound_kind = path
-        .symbol
-        .is_valid()
-        .then(|| program.symbols.get(path.symbol).kind);
-    let namespace = path.head_symbol;
-    let conformance = program.conformance_by_symbol(namespace);
-    let (selected, conformance, requirement) = if let Some(conformance) = conformance {
-        let machine = program
-            .machine_by_own_or_state_symbol(path.symbol)
-            .map(|machine| machine.symbol);
-        let mut rows = conformance.rows.iter().filter(|row| {
-            row.requirement == path.symbol || machine == Some(row.realization_machine)
-        });
-        let Some(row) = rows.next() else {
-            return Err(Diagnostic::error(
-                "named machine value lost its exact implementation requirement row",
-            )
-            .with_source_span(program.expression_table.source_span(value)));
-        };
-        if rows.next().is_some() {
-            return Err(Diagnostic::error(
-                "named machine value has ambiguous implementation requirement rows",
-            )
-            .with_source_span(program.expression_table.source_span(value)));
+    let (selected, conformance, requirement) = match named_value_source(program, &path) {
+        Some(NamedValueSource::Implementation(conformance)) => {
+            let machine = program
+                .machine_by_own_or_state_symbol(path.symbol)
+                .map(|machine| machine.symbol);
+            let mut rows = conformance.rows.iter().filter(|row| {
+                row.requirement == path.symbol || machine == Some(row.realization_machine)
+            });
+            let Some(row) = rows.next() else {
+                return Err(Diagnostic::error(
+                    "named machine value lost its exact implementation requirement row",
+                )
+                .with_source_span(program.expression_table.source_span(value)));
+            };
+            if rows.next().is_some() {
+                return Err(Diagnostic::error(
+                    "named machine value has ambiguous implementation requirement rows",
+                )
+                .with_source_span(program.expression_table.source_span(value)));
+            }
+            (row.realization_machine, conformance.symbol, row.requirement)
         }
-        (row.realization_machine, conformance.symbol, row.requirement)
-    } else if matches!(
-        bound_kind,
-        Some(symbols::SymbolKind::Machine | symbols::SymbolKind::State)
-    ) {
-        (
-            path.symbol,
+        Some(NamedValueSource::Machine(symbol)) => (
+            symbol,
             symbols::SymbolHandle::invalid(),
             symbols::SymbolHandle::invalid(),
-        )
-    } else {
-        return Ok(false);
+        ),
+        None => return Ok(false),
     };
     let machine = program
         .machine_by_own_or_state_symbol(selected)

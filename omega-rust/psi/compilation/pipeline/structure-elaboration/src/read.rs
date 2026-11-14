@@ -131,12 +131,10 @@ pub(crate) struct Program<'t> {
     /// The data declarations being resolved, outermost first: a declaration
     /// reached again while on this stack contains itself.
     resolving: Vec<(SymbolHandle, Option<typed_trees::SourceTypeApplication>)>,
-    /// The data declaration whose members are being read, which is the
-    /// lexical owner of the lifetimes their types name. Invalid while a
-    /// machine is read: a machine that declares lifetime parameters is
-    /// refused before its formals are (`machine_shape`), so there a type
-    /// may name only lifetimes the typed trees retained an owner for
-    /// (`types`, `value_type`).
+    /// The declaration being read, which is the lexical owner of the
+    /// lifetimes its types name when the typed trees retained none for an
+    /// occurrence: the data declaration whose members are read, or the
+    /// machine whose signature or body is (`types`, `value_type`).
     lifetime_owner: SymbolHandle,
     /// How many `StructuralFieldId`s the records above hold.
     fields_minted: u64,

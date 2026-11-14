@@ -93,20 +93,42 @@ impl Program<'_> {
     }
 
     /// Authorizes a partial write through `place`, a slot or a path of
-    /// fields and elements beneath one: each value the path goes through is
-    /// changed in part.
+    /// fields, elements and case payloads beneath one: each value the path
+    /// goes through is changed in part. A subject a match saved is the
+    /// place the match captured, so the path continues through it.
     pub(super) fn written_through(&self, id: MachineId, place: &Expression) -> Checked<()> {
         let mut at = place;
-        while let ExpressionKind::Field { base, .. }
-        | ExpressionKind::Index { base, .. }
-        | ExpressionKind::Payload { base, .. } = &at.kind
-        {
-            if let Some(value_type) = base.result {
-                self.authorized(id, value_type, Access::Write)?;
-            }
-            at = base;
+        let mut followed = 0;
+        loop {
+            at = match &at.kind {
+                ExpressionKind::Field { base, .. }
+                | ExpressionKind::Index { base, .. }
+                | ExpressionKind::Payload { base, .. } => {
+                    if let Some(value_type) = base.result {
+                        self.authorized(id, value_type, Access::Write)?;
+                    }
+                    base
+                }
+                ExpressionKind::SavedSubject(capture) => {
+                    followed += 1;
+                    let subject = self
+                        .captures
+                        .iter()
+                        .rev()
+                        .find(|(known, _)| known == capture)
+                        .filter(|_| followed <= self.captures.len());
+                    let Some((_, subject)) = subject else {
+                        return Err(refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Call("saved subject outside its match capture"),
+                        ));
+                    };
+                    subject
+                }
+                _ => return Ok(()),
+            };
         }
-        Ok(())
     }
 
     /// Refuses a zero-established value of `value_type` when the zero

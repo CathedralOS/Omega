@@ -1314,6 +1314,10 @@ mod tests {
             .builtin_function_symbol(BuiltinFunction::IntegerEmbed)
             .unwrap();
         let targets = DeclaredCallTargets::new(&program);
+        assert!(
+            call_target_parameters(&program, embed).is_err(),
+            "a builtin has no authored parameter telescope to substitute"
+        );
         // A mathematical definition is applied by name, bare or qualified by
         // a module, and only where the program declares it.
         assert!(targets.declares(identity, None));
@@ -1419,6 +1423,12 @@ mod tests {
             Vec::new(),
             "the retained requirement is a declared target"
         );
+        assert!(
+            call_target_parameters(&program, requirement)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(call_target_parameters(&program, missing).is_err());
         let ExpressionNode::Call(call) = program.expression_table.expression_mut(expression) else {
             panic!("call expression")
         };

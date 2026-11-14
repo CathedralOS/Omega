@@ -1105,8 +1105,9 @@ Counts use `u32`; identity references and strings use their ordinary encodings.
 
 A program entry row carries target text, the actual entry machine id, schema
 declaration/application indices, and the established 32-byte physical-source
-commitment. A selected provider row carries target text and those schema indices,
-then distinct provider nominal declaration and semantic identity indices,
+commitment. A selected provider row carries target text, a `u8` composition
+mode (`1` fused, `2` independent), and those schema indices, then distinct
+provider nominal declaration and semantic identity indices,
 optional full application, optional package, and declaration custody. They
 refer to exactly one normalized schema application. Duplicate choices, absent
 identities and inconsistent package custody reject. These rows describe the

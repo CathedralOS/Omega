@@ -72,7 +72,7 @@ fn typed(supplied: &str, program: &str) -> Fixture {
                 )
             }
             Some(syntax) => {
-                tokens_to_syntax_trees::parse(syntax, id, &tokens).expect("parse source")
+                tokens_to_syntax_trees::parse(syntax, id, &tokens).expect("parse source");
             }
         }
     }
@@ -318,9 +318,7 @@ fn a_reached_requirement_with_no_provider_is_rejected() {
     let fixture = typed(SLOT, REACHES);
     let choices = prepare(&fixture, &[], fixture.defaults.clone()).unwrap();
     let accepted = judge(&fixture, &choices);
-    let refusal = execution(&accepted)
-        .err()
-        .expect("a reached requirement needs chosen supply");
+    let refusal = execution(&accepted).expect_err("a reached requirement needs chosen supply");
     assert!(
         refusal.contains("no normalized chosen provider"),
         "{refusal}"

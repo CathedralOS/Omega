@@ -145,9 +145,25 @@ impl Capture<'_> {
         }
     }
 
-    fn valid_symbol(&mut self, symbol: SymbolHandle) -> bool {
+    fn valid_symbol(&mut self, symbol: SymbolHandle, role: &str) -> bool {
         if !symbol.is_valid() || !self.typed.symbols.symbols().nodes().is_valid(symbol) {
-            self.fail("source selection has a missing or stale declaration coordinate");
+            let expression = self.expressions.last().map(|scope| scope.expression);
+            let span = expression
+                .map(|expression| self.typed.expression_table.source_span(expression))
+                .or_else(|| {
+                    self.typed
+                        .symbols
+                        .symbols()
+                        .nodes()
+                        .is_valid(self.owner)
+                        .then(|| self.typed.symbols.symbol_source_span(self.owner))
+                        .flatten()
+                });
+            self.fail(format!(
+                "source selection {role} has a missing or stale declaration coordinate {symbol:?}; \
+                 lexical owner {:?}, expression {expression:?}, statement {:?}, source {span:?}",
+                self.owner, self.statement,
+            ));
             false
         } else {
             true
@@ -160,7 +176,9 @@ impl Capture<'_> {
         role: RawSelectionRole,
         kind: RawDependencyKind,
     ) {
-        if !self.valid_symbol(self.owner) || !self.valid_symbol(target) {
+        if !self.valid_symbol(self.owner, "dependency owner")
+            || !self.valid_symbol(target, "referenced declaration")
+        {
             return;
         }
         let row = RawSelectionDependency {
@@ -178,7 +196,7 @@ impl Capture<'_> {
     }
 
     fn target(&mut self, symbol: SymbolHandle) -> Option<RawSelectionTarget> {
-        if !self.valid_symbol(symbol) {
+        if !self.valid_symbol(symbol, "authored target") {
             return None;
         }
         let row = self.typed.symbols.get(symbol);
@@ -488,7 +506,7 @@ impl TypedReferences for Capture<'_> {
         if !self.admitted.contains(symbol) {
             return false;
         }
-        if !self.valid_symbol(symbol) {
+        if !self.valid_symbol(symbol, "visited declaration") {
             return false;
         }
         self.owner = symbol;
@@ -504,7 +522,7 @@ impl TypedReferences for Capture<'_> {
     }
     fn enter_lexical_scope(&mut self, owner: SymbolHandle) {
         self.scopes.push(self.owner);
-        if self.valid_symbol(owner) {
+        if self.valid_symbol(owner, "lexical scope owner") {
             self.owner = owner;
         }
     }
@@ -625,7 +643,7 @@ impl TypedReferences for Capture<'_> {
             self.fail("admitted source retains an unknown authored selection occurrence");
             return;
         };
-        if !self.valid_symbol(self.owner) {
+        if !self.valid_symbol(self.owner, "authored selection owner") {
             return;
         }
         let designation = self.expressions.last().and_then(|scope| {

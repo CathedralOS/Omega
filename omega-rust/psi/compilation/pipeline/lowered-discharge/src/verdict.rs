@@ -766,7 +766,7 @@ fn examine(
             RefusalReason::Unsupported,
             first,
             Construct::Machine,
-            "machine generic parameters",
+            "machine generic machines not judged as their own check forms",
         ))));
     }
     // Likewise the rows of the subject's implementations, each judged as

@@ -820,8 +820,8 @@ fn each_kind_of_unused_subject_declaration_is_judged_or_handed_back() {
         Verdict::Accepted(1),
         Verdict::Accepted(1),
         Verdict::Accepted(1),
-        falls_back("machine generic parameters"),
-        falls_back("machine generic parameters"),
+        falls_back("machine generic machines not judged as their own check forms"),
+        falls_back("machine generic machines not judged as their own check forms"),
         falls_back("declaration const"),
         // A tag-only domain is passed over; one with a predicate is not
         // judged yet.

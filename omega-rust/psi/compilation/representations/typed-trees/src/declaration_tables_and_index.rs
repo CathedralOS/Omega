@@ -2804,6 +2804,22 @@ pub(crate) mod declaration_tables {
             &self.tables.authored_declaration_selections
         }
 
+        /// Complete the existing source occurrence; this neither creates a
+        /// declaration selection nor supplies dependency or access authority.
+        pub fn finalize_authored_declaration_selection(
+            &mut self,
+            occurrence: language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+            expected_binding: language_semantics::declaration_selection::AuthoredDeclarationSelectionLateBinding,
+            selected_symbol: symbols::SymbolHandle,
+        ) -> Result<
+            (),
+            language_semantics::declaration_selection::AuthoredDeclarationSelectionFinalizationError,
+        >{
+            self.tables
+                .authored_declaration_selections
+                .finalize_late_bound(occurrence, expected_binding, selected_symbol)
+        }
+
         pub fn const_declaration_by_symbol(
             &self,
             symbol: symbols::SymbolHandle,

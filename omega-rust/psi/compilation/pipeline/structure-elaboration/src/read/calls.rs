@@ -1159,7 +1159,11 @@ impl<'t> Program<'t> {
                 self.expression(id, slots, *argument, Some(*formal))?
             });
         }
-        lent_storage_is_untouched(id, &read, &self.captures)?;
+        lent_storage_is_untouched(id, &read, &self.captures, |place| {
+            place
+                .result
+                .is_some_and(|held| self.view_region(held).is_some())
+        })?;
         if let Some(span) = source.span()
             && let Some(names) = self.names.get_mut(id)
         {
@@ -1167,22 +1171,19 @@ impl<'t> Program<'t> {
                 names.loans.push((span, position, lender));
             }
         }
-        if signature.parameters.len() != read.len()
-            || signature
-                .parameters
-                .iter()
-                .zip(&read)
-                .any(|(formal, actual)| actual.result != Some(*formal))
-        {
+        if signature.parameters.len() != read.len() {
             return Err(refuse(
                 id,
                 Construct::Machine,
                 Unserved::Typing("argument types"),
             ));
         }
+        let result = signature.result;
+        let formals: Vec<ValueType> = signature.parameters.clone();
+        let result = self.view_regions(id, &formals, &read, result)?;
         // A value a call returns is the result of an operation, and no
         // operation of the lowered form has a result of a rigid type.
-        if matches!(signature.result, Some(crate::body::ValueType::Rigid(_))) {
+        if matches!(result, Some(crate::body::ValueType::Rigid(_))) {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -1195,9 +1196,113 @@ impl<'t> Program<'t> {
                 arguments: read,
                 designated: None,
             },
-            result: signature.result,
+            result,
             source,
         })
+    }
+
+    /// Holds a call's arguments to its callee's formal types and gives the
+    /// call's result type.
+    ///
+    /// Every type but a byte view's is the formal's exactly. A view's type
+    /// names a region, and a region a callee's signature names is the
+    /// callee's own: a lifetime parameter it declares, or a lifetime it
+    /// left out. lifetimes.md: "Lifetime arguments are erased regions", so
+    /// the callee is one machine, judged once with each as a region it
+    /// knows nothing else about, and the call stands a region of the caller
+    /// in for it: the region of the view the caller passes. One parameter
+    /// stands for one region, so two views passed for it are views of the
+    /// same one; there are no "general authored outlives bounds" to relate
+    /// two.
+    ///
+    /// The result is read back the same way. "An explicit result lifetime
+    /// relates its reference leaves to the corresponding input lifetime":
+    /// a result view of a parameter is a view of the region the call gave
+    /// that parameter. "For an elided output, one unambiguous reference
+    /// input supplies the relation": the callee's body may return any view
+    /// it was passed without a lifetime, so the result is a view of the one
+    /// region all of those are views of, and a call that passes two is
+    /// refused. A literal is within every region and decides none.
+    fn view_regions(
+        &self,
+        id: MachineId,
+        formals: &[ValueType],
+        actuals: &[Expression],
+        result: Option<ValueType>,
+    ) -> Checked<Option<ValueType>> {
+        use super::bytes::ViewRegion;
+        let typing = |what| Err(refuse(id, Construct::Machine, Unserved::Typing(what)));
+        // What each lifetime parameter of the callee stands for at this
+        // call, and the views passed for formals without a lifetime.
+        let mut named: Vec<(ViewRegion, ValueType)> = Vec::new();
+        let mut unnamed: Vec<ValueType> = Vec::new();
+        for (formal, actual) in formals.iter().zip(actuals) {
+            // A lifetime a data declaration binds is not the callee's to
+            // be given a region for: such a view is passed only as itself.
+            let region = self.view_region(*formal).filter(|region| match region {
+                ViewRegion::Parameter(parameter) => {
+                    self.data_declaration(parameter.declaration).is_none()
+                }
+                ViewRegion::Elided | ViewRegion::Literal => true,
+            });
+            let Some(region) = region else {
+                if actual.result != Some(*formal) {
+                    return typing("argument types");
+                }
+                continue;
+            };
+            // A literal is read at the formal's own type (`byte_literal`).
+            if matches!(
+                &actual.kind,
+                ExpressionKind::Borrow { place, .. }
+                    if matches!(place.kind, ExpressionKind::ByteLiteral(_))
+            ) {
+                if actual.result != Some(*formal) {
+                    return typing("argument types");
+                }
+                continue;
+            }
+            let (ValueType::Record(formal_row, formal_domains), Some(passed)) =
+                (*formal, actual.result)
+            else {
+                return typing("argument types");
+            };
+            let ValueType::Record(row, domains) = passed else {
+                return typing("argument types");
+            };
+            if self.view_region(passed).is_none()
+                || domains != formal_domains
+                || self.data_type(id, row)?.shape != self.data_type(id, formal_row)?.shape
+            {
+                return typing("argument types");
+            }
+            match region {
+                ViewRegion::Elided | ViewRegion::Literal => unnamed.push(passed),
+                ViewRegion::Parameter(_) => {
+                    match named.iter().find(|(parameter, _)| *parameter == region) {
+                        Some((_, earlier)) if *earlier != passed => {
+                            return typing("views of two regions passed for one lifetime");
+                        }
+                        Some(_) => {}
+                        None => named.push((region, passed)),
+                    }
+                }
+            }
+        }
+        match result.and_then(|result| self.view_region(result)) {
+            None | Some(ViewRegion::Literal) => Ok(result),
+            Some(ViewRegion::Elided) => match unnamed.split_first() {
+                None => Ok(result),
+                Some((first, rest)) if rest.iter().all(|other| other == first) => Ok(Some(*first)),
+                Some(_) => {
+                    typing("result without a lifetime of a call passed views of two regions")
+                }
+            },
+            Some(region) => match named.iter().find(|(parameter, _)| *parameter == region) {
+                Some((_, stood)) => Ok(Some(*stood)),
+                None => typing("result lifetime that no argument is a view of"),
+            },
+        }
     }
 
     /// The argument for a borrowed formal: `&place` or `&mut place`, or a
@@ -1236,15 +1341,22 @@ impl<'t> Program<'t> {
                 self.typed.expression_table.display_name(argument),
             ));
         }
+        // A byte view is itself the borrow: a place that holds one, a
+        // binding or a field, is passed as it stands, shared.
+        let view = formal.access == ReferenceAccess::Shared && self.view_region(expected).is_some();
         let (target, access) = match self.node(id, argument)? {
             ExpressionNode::Borrow(borrow) => (borrow.target, borrow.access),
             ExpressionNode::Name(path) => {
                 let slot = self.slot_of(id, slots, path)?;
                 match slots[slot].borrowed {
                     Some(_) => (argument, formal.access),
+                    None if view && self.view_region(slots[slot].value_type).is_some() => {
+                        (argument, formal.access)
+                    }
                     None => return unserved("argument for a borrowed formal that is not a borrow"),
                 }
             }
+            ExpressionNode::Member(_) if view => (argument, formal.access),
             _ => return unserved("argument for a borrowed formal that is not a borrow"),
         };
         if access != formal.access {
@@ -1261,15 +1373,15 @@ impl<'t> Program<'t> {
         if !names_storage(&place) {
             return unserved("borrow of a value that is not a place");
         }
-        let mut at = &place;
-        let slot = loop {
-            match &at.kind {
-                ExpressionKind::Slot(slot) => break *slot,
-                ExpressionKind::Field { base, .. } | ExpressionKind::Index { base, .. } => {
-                    at = base
-                }
-                _ => return unserved("borrow of a case payload"),
-            }
+        // The binding whose storage the place is in: through fields,
+        // elements, case payloads and the subject a match saved.
+        let captures: Vec<_> = self
+            .captures
+            .iter()
+            .map(|(capture, subject)| (*capture, subject))
+            .collect();
+        let Some(slot) = root_slot(id, &place, &captures)? else {
+            return unserved("borrow of a value that is not a place");
         };
         // A binding's mutability is a source rule the lowered form does not
         // keep, so it is decided here; a reborrow's access against its
@@ -1385,6 +1497,11 @@ fn root_slot<'a>(
 /// the call. Conservatively refuse any argument read or newly evaluated
 /// selector of a root this call lends, including reads before a loan. This
 /// preserves the existing restriction until loan timing is represented.
+///
+/// A place that holds a byte view lends none of its binding's storage: the
+/// callee is given the view, whose bytes are elsewhere. lifetimes.md: "The
+/// result carries loans into the original backing, not a borrow of the
+/// caller's private carrier storage." `holds_view` says which places do.
 fn lent_storage_is_untouched<'a>(
     id: MachineId,
     arguments: &'a [Expression],
@@ -1392,6 +1509,7 @@ fn lent_storage_is_untouched<'a>(
         arena::Handle<typed_trees::expression::CompletedValueCapture>,
         Expression,
     )],
+    holds_view: impl Fn(&Expression) -> bool,
 ) -> Checked<()> {
     let mut captures: Vec<_> = captures
         .iter()
@@ -1400,6 +1518,7 @@ fn lent_storage_is_untouched<'a>(
     let mut lent = Vec::new();
     for argument in arguments {
         if let ExpressionKind::Borrow { place, .. } = &argument.kind
+            && !holds_view(place)
             && let Some(slot) = root_slot(id, place, &captures)?
         {
             lent.push(slot);
@@ -1622,32 +1741,48 @@ mod tests {
         // The payload aliases the original array, but its selector was read
         // before the call. Lending that selector's slot must not replay it.
         let overlapping =
-            lent_storage_is_untouched(id, &[borrow(slot(0)), payload(capture)], &captures)
-                .unwrap_err();
+            lent_storage_is_untouched(id, &[borrow(slot(0)), payload(capture)], &captures, |_| {
+                false
+            })
+            .unwrap_err();
         assert!(
             overlapping
                 .detail
                 .contains("argument that names storage another argument lends")
         );
         assert!(
-            lent_storage_is_untouched(id, &[borrow(slot(1)), payload(capture)], &captures).is_ok()
+            lent_storage_is_untouched(id, &[borrow(slot(1)), payload(capture)], &captures, |_| {
+                false
+            })
+            .is_ok()
         );
         assert!(
-            lent_storage_is_untouched(id, &[borrow(slot(2)), payload(capture)], &captures).is_ok()
+            lent_storage_is_untouched(id, &[borrow(slot(2)), payload(capture)], &captures, |_| {
+                false
+            })
+            .is_ok()
         );
         let refused =
-            lent_storage_is_untouched(id, &[borrow(slot(0)), payload(foreign)], &captures)
-                .unwrap_err();
+            lent_storage_is_untouched(id, &[borrow(slot(0)), payload(foreign)], &captures, |_| {
+                false
+            })
+            .unwrap_err();
         assert!(refused.detail.contains("outside its match capture"));
         assert!(
-            lent_storage_is_untouched(id, &[borrow(saved(capture)), payload(capture)], &captures)
-                .is_err()
+            lent_storage_is_untouched(
+                id,
+                &[borrow(saved(capture)), payload(capture)],
+                &captures,
+                |_| false
+            )
+            .is_err()
         );
         assert!(
             lent_storage_is_untouched(
                 id,
                 &[borrow(slot(2)), payload(capture)],
-                &[(capture, saved(capture))]
+                &[(capture, saved(capture))],
+                |_| false
             )
             .is_err()
         );

@@ -1057,6 +1057,10 @@ pub(crate) mod expression {
                         lowered,
                         authored_selection_occurrences,
                     );
+                    super::member_binding::finalize_authored_member_selection(
+                        self.target_trees,
+                        lowered,
+                    )?;
                     self.lowered_expressions
                         .push((expression, self.fact_position, lowered));
                     let authored = self.source.materialization_source(expression);
@@ -2473,6 +2477,94 @@ pub(crate) mod expression {
             use resolved::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
             use resolved::types::TypeReference;
 
+            /// Member typing has selected an exact field, ordinary or under
+            /// a case. Finish that member's attached source question with the
+            /// same identity; access, case knowledge and permission remain
+            /// obligations of the reader and its receiving judgments.
+            pub(crate) fn finalize_authored_member_selection(
+                program: &mut typed_trees::TypedTrees,
+                expression: typed_trees::expression::ExpressionHandle,
+            ) -> Result<(), diagnostics::Diagnostic> {
+                use language_semantics::declaration_selection::{
+                    AuthoredDeclarationSelectionKind as Kind,
+                    AuthoredDeclarationSelectionLateBinding as Binding,
+                    AuthoredDeclarationSelectionTarget as Target,
+                };
+                if !program.expression_table.expression_is_valid(expression) {
+                    return Err(diagnostics::Diagnostic::error(format!(
+                        "authored member selection has a missing or stale expression {expression:?}"
+                    )));
+                }
+                let typed_trees::expression::ExpressionNode::Member(member) =
+                    program.expression_table.expression(expression)
+                else {
+                    return Ok(());
+                };
+                let selected = member.member_symbol;
+                let fail = |reason: &str| {
+                    diagnostics::Diagnostic::error(format!(
+                        "authored member selection on expression {expression:?}: {reason}"
+                    ))
+                    .with_source_span(program.expression_table.source_span(expression))
+                };
+                let mut occurrence = None;
+                for attached in program
+                    .expression_table
+                    .authored_selection_occurrences(expression)
+                {
+                    let row = program
+                        .authored_declaration_selections()
+                        .get(attached)
+                        .ok_or_else(|| fail("lost its retained occurrence"))?;
+                    if row.kind() != Kind::MemberAccess {
+                        continue;
+                    }
+                    if occurrence.replace(attached).is_some() {
+                        return Err(fail("retains multiple MemberAccess occurrences"));
+                    }
+                }
+                // Generated projections with no authored member carry no new
+                // authored selection. They retain their declared field identity.
+                let Some(occurrence) = occurrence else {
+                    return Ok(());
+                };
+                let row = *program
+                    .authored_declaration_selections()
+                    .get(occurrence)
+                    .ok_or_else(|| fail("lost its selected occurrence"))?;
+                let target = row.target();
+                match target {
+                    Target::LateBound(Binding::CheckedMember) | Target::Resolved(_) => {}
+                    Target::Intrinsic(_) if !selected.is_valid() => return Ok(()),
+                    _ => return Err(fail("retains a conflicting binding family")),
+                }
+                if !selected.is_valid() {
+                    // An unselected member stays late-bound. Its demanded
+                    // declaration still refuses; there is no inferred target.
+                    return match target {
+                        Target::LateBound(Binding::CheckedMember) => Ok(()),
+                        _ => Err(fail("lost its already-selected field")),
+                    };
+                }
+                if !program.symbols.symbols().nodes().is_valid(selected)
+                    || program.symbols.get(selected).kind != SymbolKind::Field
+                {
+                    return Err(fail("has a missing, stale or non-field declaration"));
+                }
+                if let Target::Resolved(previous) = target {
+                    return if previous.selected_symbol() == selected {
+                        Ok(())
+                    } else {
+                        Err(fail("changes its already-selected field"))
+                    };
+                }
+                program.finalize_authored_declaration_selection(
+                    occurrence, Binding::CheckedMember, selected,
+                ).map_err(|error| diagnostics::Diagnostic::error(format!(
+                    "authored member selection {occurrence:?} on expression {expression:?} could not be completed: {error:?}"
+                )))
+            }
+
             pub(crate) fn declared_receiver_method_target(
                 program: &resolved::SymbolResolvedTrees,
                 expressions: &resolved::expression::ExpressionTable,
@@ -2953,6 +3045,261 @@ pub(crate) mod expression {
                         None
                     }
                     _ => None,
+                }
+            }
+
+            #[cfg(test)]
+            mod member_selection_tests {
+                use super::finalize_authored_member_selection;
+                use language_semantics::declaration_selection::{
+                    AuthoredDeclarationSelectionExposure as Exposure,
+                    AuthoredDeclarationSelectionKind as Kind,
+                    AuthoredDeclarationSelectionLateBinding as Binding,
+                    AuthoredDeclarationSelectionOccurrenceId as Occurrence,
+                    AuthoredDeclarationSelectionTarget as Target,
+                };
+                use symbols::{SymbolHandle, SymbolKind, SymbolNameRef, SymbolTableBuilder};
+                use typed_trees::{
+                    TypedTrees,
+                    data::{DataDefinition, DataField, DataMember, DataVariant},
+                    expression::{ExpressionHandle, ExpressionNode, TableMemberExpression},
+                    types::TypeReferenceNode,
+                };
+
+                fn members() -> (
+                    TypedTrees,
+                    [ExpressionHandle; 2],
+                    [Occurrence; 2],
+                    [SymbolHandle; 3],
+                ) {
+                    let mut symbols = SymbolTableBuilder::default();
+                    let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+                    let owners = symbols.insert_children(
+                        root,
+                        [
+                            (SymbolKind::Data, SymbolNameRef::Static("Record")),
+                            (SymbolKind::Data, SymbolNameRef::Static("Sum")),
+                            (SymbolKind::Data, SymbolNameRef::Static("Other")),
+                        ],
+                    );
+                    let ordinary = symbols
+                        .insert_children(
+                            owners.handle_at(0),
+                            [(SymbolKind::Field, SymbolNameRef::Static("value"))],
+                        )
+                        .handle_at(0);
+                    let case = symbols
+                        .insert_children(
+                            owners.handle_at(1),
+                            [(SymbolKind::Variant, SymbolNameRef::Static("Item"))],
+                        )
+                        .handle_at(0);
+                    let payload = symbols
+                        .insert_children(
+                            case,
+                            [(SymbolKind::Field, SymbolNameRef::Static("value"))],
+                        )
+                        .handle_at(0);
+                    let foreign = symbols
+                        .insert_children(
+                            owners.handle_at(2),
+                            [(SymbolKind::Field, SymbolNameRef::Static("value"))],
+                        )
+                        .handle_at(0);
+                    let mut program = TypedTrees {
+                        symbols: symbols.finish(),
+                        ..Default::default()
+                    };
+                    let fields = [ordinary, payload, foreign];
+                    let unit = program.type_reference_table.insert(TypeReferenceNode::Unit);
+                    let field = |symbol| DataField {
+                        symbol,
+                        name: "value".into(),
+                        type_reference: unit,
+                        ..Default::default()
+                    };
+                    for (owner, name, symbol) in [
+                        (owners.handle_at(0), "Record", ordinary),
+                        (owners.handle_at(2), "Other", foreign),
+                    ] {
+                        let members = program
+                            .tables
+                            .data_members
+                            .insert_many([DataMember::Field(field(symbol))]);
+                        program.push_data_definition(DataDefinition {
+                            symbol: owner,
+                            name: name.into(),
+                            members,
+                            ..Default::default()
+                        });
+                    }
+                    let mut variant = DataVariant {
+                        symbol: case,
+                        name: "Item".into(),
+                        ..Default::default()
+                    };
+                    program.push_data_payload_field(&mut variant, field(payload));
+                    let members = program
+                        .tables
+                        .data_members
+                        .insert_many([DataMember::Variant(variant)]);
+                    program.push_data_definition(DataDefinition {
+                        symbol: owners.handle_at(1),
+                        name: "Sum".into(),
+                        members,
+                        ..Default::default()
+                    });
+                    let expressions = [
+                        (owners.handle_at(0), "Record", ordinary),
+                        (owners.handle_at(1), "Sum", payload),
+                    ]
+                    .map(|(owner, name, member_symbol)| {
+                        let reference =
+                            program
+                                .type_reference_table
+                                .insert(TypeReferenceNode::Named {
+                                    symbol: owner,
+                                    name: name.into(),
+                                });
+                        let receiver = program
+                            .expression_table
+                            .insert(ExpressionNode::ZeroValue(reference));
+                        program.expression_table.insert(ExpressionNode::Member(
+                            TableMemberExpression {
+                                receiver,
+                                member_symbol,
+                                member: "value".into(),
+                                case_variant: None,
+                            },
+                        ))
+                    });
+                    let occurrences = expressions.map(|expression| {
+                        let occurrence = program
+                            .record_late_bound_authored_declaration_selection(
+                                source::SourceSpan::default(),
+                                Exposure::PrivateImplementation,
+                                Kind::MemberAccess,
+                                Binding::CheckedMember,
+                            )
+                            .unwrap();
+                        program
+                            .expression_table
+                            .attach_authored_selection_occurrences(expression, [occurrence]);
+                        occurrence
+                    });
+                    (program, expressions, occurrences, fields)
+                }
+
+                #[test]
+                fn selected_fields_complete_their_own_occurrences_and_copies() {
+                    let (mut program, expressions, occurrences, fields) = members();
+                    let unresolved_source = program.authored_declaration_selections().clone();
+                    for ((expression, occurrence), selected) in
+                        expressions.into_iter().zip(occurrences).zip(fields)
+                    {
+                        let before = *program
+                            .authored_declaration_selections()
+                            .get(occurrence)
+                            .unwrap();
+                        finalize_authored_member_selection(&mut program, expression).unwrap();
+                        let after = *program
+                            .authored_declaration_selections()
+                            .get(occurrence)
+                            .unwrap();
+                        assert_eq!(after.occurrence_id(), before.occurrence_id());
+                        assert_eq!(after.source_span(), before.source_span());
+                        assert_eq!(after.exposure(), before.exposure());
+                        assert_eq!(after.compiler_partition(), before.compiler_partition());
+                        assert_eq!(after.kind(), before.kind());
+                        assert_eq!(
+                            after.target().as_resolved().unwrap().selected_symbol(),
+                            selected
+                        );
+                        let copy = program.expression_table.copy_graph(None, expression).root;
+                        assert_eq!(
+                            program
+                                .expression_table
+                                .authored_selection_occurrences(copy)
+                                .collect::<Vec<_>>(),
+                            [occurrence]
+                        );
+                        finalize_authored_member_selection(&mut program, copy).unwrap();
+                        assert_eq!(
+                            *program
+                                .authored_declaration_selections()
+                                .get(occurrence)
+                                .unwrap(),
+                            after
+                        );
+                    }
+                    let (continued, _) = unresolved_source
+                        .replace_prefix_and_rebase_suffix(
+                            occurrences.len(),
+                            program.authored_declaration_selections(),
+                        )
+                        .unwrap();
+                    assert_eq!(
+                        continued.as_slice(),
+                        program.authored_declaration_selections().as_slice()
+                    );
+                }
+
+                #[test]
+                fn changed_stale_and_unresolved_fields_cannot_complete_an_occurrence() {
+                    let (mut program, expressions, occurrences, fields) = members();
+                    let stale_expression = ExpressionHandle::from_parts(
+                        expressions[0].arena_index(),
+                        expressions[0].generation() + 1,
+                    );
+                    assert!(
+                        finalize_authored_member_selection(&mut program, stale_expression)
+                            .unwrap_err()
+                            .message
+                            .contains("stale expression")
+                    );
+                    finalize_authored_member_selection(&mut program, expressions[0]).unwrap();
+                    let ExpressionNode::Member(member) =
+                        program.expression_table.expression_mut(expressions[0])
+                    else {
+                        panic!("member")
+                    };
+                    member.member_symbol = fields[2];
+                    assert!(
+                        finalize_authored_member_selection(&mut program, expressions[0])
+                            .unwrap_err()
+                            .message
+                            .contains("changes its already-selected field")
+                    );
+                    let ExpressionNode::Member(member) =
+                        program.expression_table.expression_mut(expressions[0])
+                    else {
+                        panic!("member")
+                    };
+                    member.member_symbol = SymbolHandle::from_parts(
+                        fields[0].arena_index(),
+                        fields[0].generation() + 1,
+                    );
+                    assert!(
+                        finalize_authored_member_selection(&mut program, expressions[0])
+                            .unwrap_err()
+                            .message
+                            .contains("stale")
+                    );
+                    let ExpressionNode::Member(member) =
+                        program.expression_table.expression_mut(expressions[1])
+                    else {
+                        panic!("member")
+                    };
+                    member.member_symbol = SymbolHandle::invalid();
+                    finalize_authored_member_selection(&mut program, expressions[1]).unwrap();
+                    assert_eq!(
+                        program
+                            .authored_declaration_selections()
+                            .get(occurrences[1])
+                            .unwrap()
+                            .target(),
+                        Target::LateBound(Binding::CheckedMember)
+                    );
                 }
             }
         }

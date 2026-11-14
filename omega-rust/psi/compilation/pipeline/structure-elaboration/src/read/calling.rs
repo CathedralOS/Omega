@@ -388,13 +388,11 @@ fn selected_policy_implementation(
             };
             if source.argument_owner == scope.argument_owner
                 && source.same_application(typed, &scope)
-            {
-                if selected
+                && selected
                     .replace(candidate.application.declaration)
                     .is_some()
-                {
-                    return Err("Calling policy has competing exact implementation applications");
-                }
+            {
+                return Err("Calling policy has competing exact implementation applications");
             }
         }
     }

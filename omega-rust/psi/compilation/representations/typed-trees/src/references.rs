@@ -3655,7 +3655,11 @@ fn visit_statement(
                         visit_authored_selection(program, retained, *occurrence);
                     }
                     visit_symbol(retained, path.symbol);
-                    visit_symbol(retained, path.receiver_symbol);
+                    // A static transition has no receiver. Every present
+                    // coordinate still reaches validation, even if stale.
+                    if path.receiver_symbol != SymbolHandle::invalid() {
+                        visit_symbol(retained, path.receiver_symbol);
+                    }
                     visit_symbol(retained, path.head_symbol);
                 }
                 if let Some((name, reference)) =
@@ -4207,6 +4211,73 @@ mod declaration_description_tests {
     use crate::name::Identifier;
     use crate::types::TypeReferenceNode;
     use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+    #[test]
+    fn named_transitions_keep_required_and_present_receiver_coordinates() {
+        use crate::statement::{TableNamePath, TableTransition, TransitionTargetNode};
+
+        let mut symbols = SymbolTableBuilder::default();
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let declarations = symbols.insert_children(
+            root,
+            [
+                (SymbolKind::Machine, SymbolNameRef::Static("invoke")),
+                (SymbolKind::Data, SymbolNameRef::Static("Service")),
+                (SymbolKind::Parameter, SymbolNameRef::Static("receiver")),
+            ],
+        );
+        let callee = declarations.handle_at(0);
+        let head = declarations.handle_at(1);
+        let receiver = declarations.handle_at(2);
+        let symbols = symbols.finish();
+        let stale = SymbolHandle::from_parts(receiver.arena_index(), receiver.generation() + 1);
+        assert!(stale.is_valid());
+        assert!(!symbols.symbols().nodes().is_valid(stale));
+        let collect = |callee, head, receiver| {
+            let mut program = TypedTrees {
+                symbols: symbols.clone(),
+                ..Default::default()
+            };
+            let target =
+                program
+                    .statement_table
+                    .insert_transition_target(TransitionTargetNode::Named {
+                        path: TableNamePath {
+                            symbol: callee,
+                            head_symbol: head,
+                            receiver_symbol: receiver,
+                            ..Default::default()
+                        },
+                        static_machine_parameter: Default::default(),
+                        arguments: Default::default(),
+                        evidence_arguments: Box::default(),
+                        source_span: Default::default(),
+                        authored_call_selection: None,
+                        operational_acknowledgement: Default::default(),
+                    });
+            let mut retained = ReferenceCollector::default();
+            visit_statement(
+                &program,
+                &mut retained,
+                &StatementNode::Transition(TableTransition {
+                    target,
+                    ..Default::default()
+                }),
+            );
+            finish_references(retained).symbols
+        };
+        let absent = SymbolHandle::invalid();
+        let without_receiver = collect(callee, head, absent);
+        assert!(without_receiver.contains(&callee) && without_receiver.contains(&head));
+        assert!(!without_receiver.contains(&absent));
+        assert!(collect(callee, head, receiver).contains(&receiver));
+        assert!(collect(callee, head, stale).contains(&stale));
+        let malformed = SymbolHandle::from_parts(0, 1);
+        assert_ne!(malformed, absent);
+        assert!(collect(callee, head, malformed).contains(&malformed));
+        assert!(collect(absent, head, absent).contains(&absent));
+        assert!(collect(callee, absent, absent).contains(&absent));
+    }
 
     #[test]
     fn applied_description_retains_real_dependencies_without_executable_or_invalid_roots() {
