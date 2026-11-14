@@ -444,7 +444,9 @@ fn statement_homes<'b>(statement: &'b Statement, homes: &mut Vec<(ValueType, Opt
             expression_homes(destination, homes);
             expression_homes(value, homes);
         }
-        Statement::Declare { .. } | Statement::Witness { .. } => {}
+        Statement::Declare { .. }
+        | Statement::Witness { .. }
+        | Statement::CaptureReference { .. } => {}
         Statement::Dispatch {
             subject,
             arms,
@@ -1363,7 +1365,8 @@ impl<'a> Lowering<'a> {
     /// and where its authority comes from. loans.md: "Loan formation
     /// captures a place, not a live selector expression."
     ///
-    /// The place is a slot or a field path beneath one. A scalar local that
+    /// Case and field steps stay on the loan, so checking still requires
+    /// the selected case to be active. A scalar local that
     /// is an SSA value (`needs_home`) first gets a home holding its current
     /// value, the operation the current pipeline emits for a local it lends
     /// (structural_access.md: "`EstablishPrimitiveLocal` consumes an exactly
@@ -1396,12 +1399,6 @@ impl<'a> Lowering<'a> {
         };
         if actual != value_type {
             return Err(self.internal("a loan has another type than its captured place"));
-        }
-        if steps
-            .iter()
-            .any(|step| matches!(step, Step::Payload { .. }))
-        {
-            return Err(self.internal("a loan beneath a case payload"));
         }
         self.name_entry(root, exact, value_type)?;
         let lender = if self.borrowed_roots.contains(&root) {
@@ -1475,7 +1472,23 @@ impl<'a> Lowering<'a> {
                 steps.push(step);
                 (root, steps, exact, value_type)
             }
-            ExpressionKind::SavedSubject(_) | ExpressionKind::Payload { .. } => {
+            ExpressionKind::Payload { base, case, field } => {
+                let (root, mut steps, parent, ValueType::Record(owner, _)) =
+                    self.capture_place(base, None)?
+                else {
+                    return Err(self.internal("a payload place crosses scalar storage"));
+                };
+                let step = Step::Payload {
+                    owner,
+                    case: *case,
+                    field: *field,
+                };
+                let value_type = self.declared(step)?.value_type;
+                let exact = self.step(parent, step)?;
+                steps.push(step);
+                (root, steps, exact, value_type)
+            }
+            ExpressionKind::SavedSubject(_) => {
                 let at = self.located(expression)?;
                 if at.fresh {
                     return Err(self.internal("a capture names newly produced storage"));

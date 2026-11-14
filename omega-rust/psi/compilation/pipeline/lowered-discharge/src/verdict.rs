@@ -1151,36 +1151,35 @@ pub fn judge_compilation_for(
         }
         .map_err(CompilationRefusal::Elaboration)
     }));
-    // A witness's authored body can call another declared conformer. That
-    // callee still has its routed contract; its own authored body is a
-    // separate obligation. Close this exact declaration roster once, so a
-    // recursive named call neither exposes a direct entry nor queues an
-    // unbounded sequence of the same refinement.
+    // A witness reads the closure of the implementation it calls, so it
+    // meets the `satisfies` clauses of the machines there, the witnessed
+    // machine's own among them. Each is a row of this compilation, judged
+    // once: a row the list does not hold yet joins it.
     let mut next = 0;
     while next < rows.len() {
         let (declaring_trait, requirement, arguments, implementation) = rows[next].clone();
         next += 1;
-        let mut elaborated = structure_elaboration::elaborate_witness(
+        let mut witness = structure_elaboration::elaborate_witness(
             typed,
             declaring_trait,
             requirement,
             &arguments,
             implementation,
         );
-        if let Ok(witness) = &mut elaborated {
-            for declared in std::mem::take(&mut witness.conformance_witnesses) {
+        if let Ok(witness) = &mut witness {
+            for row in std::mem::take(&mut witness.conformance_witnesses) {
                 let row = (
-                    declared.declaring_trait,
-                    declared.requirement,
+                    row.declaring_trait,
+                    row.requirement,
                     Vec::new(),
-                    declared.implementation,
+                    row.implementation,
                 );
                 if !rows.contains(&row) {
                     rows.push(row);
                 }
             }
         }
-        verdicts.push(judge(elaborated).map_err(CompilationRefusal::Elaboration));
+        verdicts.push(judge(witness).map_err(CompilationRefusal::Elaboration));
     }
     verdicts
 }

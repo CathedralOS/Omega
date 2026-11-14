@@ -897,21 +897,52 @@ mod traversal {
                 for nested in &mut application.arguments {
                     self.assign_declaration_argument_symbols(nested);
                 }
-                self.assign_member_argument_symbols(application.member);
+                self.assign_member_argument_symbols(argument.symbol, application.member);
             }
         }
 
-        fn assign_member_argument_symbols(&mut self, handle: arena::Handle<StaticMachineArgument>) {
+        fn assign_member_argument_symbols(
+            &mut self,
+            owner: SymbolHandle,
+            handle: arena::Handle<StaticMachineArgument>,
+        ) {
             let Some(mut member) = self.expression_table.static_member(handle).cloned() else {
                 return;
             };
             // The member itself belongs to its applied owner, not the lexical
             // namespace. Its supplied arguments still have ordinary lexical scope.
+            // A known data declaration already owns its member identities;
+            // only their substituted types need the later application owner.
+            // Type-dependent selections remain deferred when no such owner exists.
+            if self.symbols.symbols().nodes().is_valid(owner)
+                && matches!(
+                    self.symbols.get(owner).kind,
+                    symbols::SymbolKind::Data | symbols::SymbolKind::Variant
+                )
+            {
+                let selected = crate::symbols::scoped_paths::resolve_path_members_from_head(
+                    self.symbols,
+                    owner,
+                    &member.path,
+                );
+                member.symbol = selected
+                    .last()
+                    .copied()
+                    .filter(|_| !member.path.is_empty())
+                    .filter(|_| selected.len() == member.path.len() + 1)
+                    .filter(|selected| {
+                        member.path.last().is_some_and(|name| {
+                            self.symbols
+                                .source_reference_may_select_symbol(name.source_span(), *selected)
+                        })
+                    })
+                    .unwrap_or_else(SymbolHandle::invalid);
+            }
             if let Some(application) = &mut member.application {
                 for argument in &mut application.arguments {
                     self.assign_declaration_argument_symbols(argument);
                 }
-                self.assign_member_argument_symbols(application.member);
+                self.assign_member_argument_symbols(member.symbol, application.member);
             }
             *self
                 .expression_table

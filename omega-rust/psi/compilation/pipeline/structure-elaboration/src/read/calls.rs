@@ -1342,15 +1342,15 @@ impl<'t> Program<'t> {
         if !names_storage(&place) {
             return unserved("borrow of a value that is not a place");
         }
-        let mut at = &place;
-        let slot = loop {
-            match &at.kind {
-                ExpressionKind::Slot(slot) => break *slot,
-                ExpressionKind::Field { base, .. } | ExpressionKind::Index { base, .. } => {
-                    at = base
-                }
-                _ => return unserved("borrow of a case payload"),
-            }
+        // The binding whose storage the place is in: through fields,
+        // elements, case payloads and the subject a match saved.
+        let captures: Vec<_> = self
+            .captures
+            .iter()
+            .map(|(capture, subject)| (*capture, subject))
+            .collect();
+        let Some(slot) = root_slot(id, &place, &captures)? else {
+            return unserved("borrow of a value that is not a place");
         };
         // A binding's mutability is a source rule the lowered form does not
         // keep, so it is decided here; a reborrow's access against its

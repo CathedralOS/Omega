@@ -20,15 +20,16 @@ Board tasks follow one flow:
 
 1. **An issue or capability gap is found** (a spec requirement, a customer
    blocker, or a construct that fails checking, lowering, or execution).
-2. **It is framed as an end-to-end sample outcome:** the task names the
-   executable sample witness (`samples/cli/facts/<fact>/` across the nine
-   transport places with fact-sensitive reject twins, or the named customer
-   program with its invalid controls) that demonstrates the requirement and
-   carries it through the entire pipeline—from source checking and proof
-   (`Psi 00–05`) through Terminal Psi lowering and interpretation (`Psi 06–08`)
-   to target realization, layout/calling plans, instruction selection, register
-   homes, encoding, and native image execution agreement (`Omega 00–09`,
-   `omega run --both`).
+2. **It is framed as an end-to-end outcome:** the task names the existing
+   executable sample or customer program, its invalid controls, and what must
+   work through the lowered-form checker, Terminal Psi, and native/Psi
+   execution (`omega run --both`). Use the current pipeline owners in
+   [AGENTS.md](../../../AGENTS.md#law-of-completion); never send repairs back
+   through the frozen checker. The nine-place, four-target matrix describes
+   capability completion, not a fixture-generation plan or a gate for every PR.
+   `samples/cli/facts/` is frozen. New regression programs belong beside the
+   changed code's test under `tests/fixtures/`, normally one focused
+   positive/negative pair, within the repository's per-PR file limit.
 3. **It is merged with similar tasks into one main agent loop:** related
    witnesses, caller families, and migration steps that share the same
    mechanism, representation, or subsystem context are folded into one cohesive
@@ -62,9 +63,9 @@ creates handoff loss, duplicate ramp-up, and competing partial fixes.
 
 - **Reframe stage-sliced or internal tasks around end-to-end samples.** If an
   item is phrased as an internal pass edit, intermediate representation change,
-  or single-stage obligation ("teach Psi 05 to...", "restore X in compile-time
-  evaluator", "wire Y into backend plan"), reframe it around the runnable sample
-  or `samples/cli/facts/<fact>/` row that proves the requirement end to end
+  or single-stage obligation ("restore X in compile-time evaluator", "wire Y
+  into backend plan"), reframe it around the existing runnable sample or
+  customer program that proves the requirement end to end
   through `omega run --both` and its reject twins. Keep internal symbols and
   stage owners as implementation context inside that outcome, not as the
   definition of done. Non-sample acceptance stays only for genuine
@@ -117,9 +118,11 @@ Each retained item states the capability requirement, its owning
 code/specification, real dependencies, a discrete list of one-per-line
 remaining sub-bullets (one unfinished witness or missing mechanism gap per
 bullet, with its current reproduction or decisive symbol/test link when it saves
-rediscovery), and the final `Acceptance:` gate. Tests and
-`samples/cli/facts/` own regression retention of
-already-passing witnesses; `TASKS.md` owns only the unbuilt or failing gap.
+rediscovery), and the final `Acceptance:` gate. Tests beside the changed code
+retain regressions; existing samples retain program witnesses. `TASKS.md` owns
+only the unbuilt or failing gap. A PR tests its repair and a small neighboring
+area, not the whole capability matrix; a failure calls for investigation of
+that failure, not a wider run or a replacement corpus.
 Structure remaining work as discrete bullets so an agent finishing one witness
 deletes that line outright instead of rewriting prose paragraphs or moving the
 witness into a `"preserving / retaining / keeping / now reserves / now passes"`

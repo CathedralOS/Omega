@@ -121,6 +121,7 @@ pub(crate) fn prepare_admitted_build(
                 purpose: source::DependencyScope::Build,
                 selected: &[],
                 bindings: &[],
+                supplies: &[],
             },
             terminal_codec::TerminalPublication::Invocation,
         )

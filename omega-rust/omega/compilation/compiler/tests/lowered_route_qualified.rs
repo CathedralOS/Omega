@@ -34,6 +34,7 @@ fn route_verdict(fixture: &str, entry: &str) -> RouteVerdict {
             purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
             bindings: &frontier.bindings,
+            supplies: &[],
         },
     ))
     .unwrap_or_else(|defect| panic!("{fixture}: the route must reach a verdict: {defect:?}"))

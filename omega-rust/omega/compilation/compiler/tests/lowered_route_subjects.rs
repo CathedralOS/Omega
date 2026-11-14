@@ -273,6 +273,7 @@ fn route_verdict(
             purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
             bindings: &frontier.bindings,
+            supplies: &[],
         },
     );
     let machines = elaborated
@@ -475,6 +476,7 @@ fn the_uncalled_machine_is_judged_because_it_belongs_to_the_subject() {
             purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
             bindings: &frontier.bindings,
+            supplies: &[],
         },
     ));
     let Ok(RouteVerdict::Accepted(accepted)) = as_dependency else {
@@ -508,6 +510,7 @@ fn a_declaration_the_build_selects_is_judged_or_handed_back() {
                 purpose: source::DependencyScope::Product,
                 selected: &[selected],
                 bindings: &frontier.bindings,
+                supplies: &[],
             },
         ))
     };
@@ -703,6 +706,7 @@ fn judged_parts(name: &str, declaration: &str) -> Vec<Verdict> {
             purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
             bindings: &frontier.bindings,
+            supplies: &[],
         },
     )
     .into_iter()

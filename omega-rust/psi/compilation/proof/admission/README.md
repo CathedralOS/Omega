@@ -19,6 +19,9 @@ denotation shared by primitive judgments and execution-time closed guard checks.
 It does not truncate to a runtime carrier or admit a new proof rule. Open values
 and undefined negative shift counts have no closed relation; resource refusal is
 a typed incomplete-evaluation error, never a false mathematical judgment.
+The same closed-relation judgment can establish `relation => Falsehood` when
+evaluation decides the relation false. Contradiction search retains that
+certificate and the exact value equalities used to close its operands.
 
 One invocation-owned evaluator shares limits across operands and repeated
 comparisons: 8,192 visited nodes, depth 128, 65,536 result bits, 262,144 cumulative

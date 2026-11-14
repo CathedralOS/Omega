@@ -73,6 +73,40 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Two proofs of "this machine refines that contract"
+- Category: zombie machinery
+- Where: `omega-rust/psi/compilation/pipeline/lowered-discharge/src/refinement.rs` (`prove_callable_refinement`) and `lowered-discharge/src/verdict.rs` (`judge_compilation_for`, which judges each `ConformanceWitness` row through `elaborate_witness`)
+- Saw: both build a witness machine that has the required contract and calls the supplied one. The first has no caller outside its own test and adds a ceiling check by hand; the second is what every implementation row, `satisfies` clause and chosen provider goes through
+- Cost: a rule added to one (a new ceiling axis, a new clause form) is missing from the other, and a reader cannot tell which one decides
+- Reported: 2026-11-13, Claude Code, while having chosen providers judged against the requirement they supply
+### A view passed from a place is lent as that place, so it conflicts with a loan of its holder
+- Category: one idea, several implementations
+- Where: `structure-elaboration/src/read/calls.rs` (`lent`, `lent_storage_is_untouched` with `holds_view`), `lower/calls.rs` (`arguments`, the `Borrow` arm), `lowered-discharge/src/places/loans.rs`
+- Saw: the reader says a place that holds a byte view "lends none of its binding's storage: the callee is given the view", and so allows `both(&mut session, session.name)`. Lowering then passes the view as a shared loan of the place `session.name`, and the checker rejects the call: "state `both` receives `session` as both mutable and read-only". The same holds for a view in a case payload. The reader and the lowered form disagree about what passing a view lends, and the checker's rejection of a program lifetimes.md allows ("not a borrow of the caller's private carrier storage") reads as the program's error
+- Cost: a correct program is rejected, not refused as unsupported, and the message blames the author. Passing a stored view needs a form that copies the descriptor out before the exclusive loan is formed
+- Reported: 2026-11-13, Claude Code, while lending case payloads
+
+### Four walks from a place to its root in the reader, each with its own list of steps
+- Category: one idea, several implementations
+- Where: `structure-elaboration/src/read/calls.rs` (`root_slot`), `read/statements.rs` (the assignment target loop), `read/authority.rs` (`written_through`), `read/expressions.rs` (`names_storage`)
+- Saw: `lent` had a fifth, which stopped at a case payload and at a saved match subject though `root_slot` beside it walked both; that was the whole of `call borrow of a case payload`. `written_through` stopped at a saved subject, so an exclusive loan of a payload of `match holder.field` authorized no write through `holder`
+- Cost: each new step kind (payload, saved subject) is taught to one walk at a time, and the ones that are missed either refuse a served program or skip an authority check
+- Reported: 2026-11-13, Claude Code, while lending case payloads
+
+### Whether a type is a scalar is decided twice, once by its spelling and once by its symbol
+- Category: one idea, several implementations
+- Where: `typed-trees/src/type_system.rs` (`TypeReferenceNode::primitive_type` calls `PrimitiveType::from_name(name)`; `type_symbol` returns no symbol when the name spells a primitive); `structure-elaboration/src/read/types.rs` (`atom_type` through `SymbolTable::builtin_type_atom`); `symbol-resolved-trees/src/type_system_and_names.rs` (a second `PrimitiveType` with its own `from_name`)
+- Saw: typing reads `u32` as an integer because the text of the name is `u32`, with `AtomicU32` and `AtomicU32#AccessField<` mapped to the same carrier by string prefix; the lowered-form checker reads it as an integer because its symbol sits in a compiler-installed root slot. Two enums named `PrimitiveType` restate the answer for the two tree representations
+- Cost: a package type spelled like a primitive and the width-indexed spellings (`u13`, `u<N>`) each have to be taught to both routes, and the two can disagree about one type reference
+- Reported: 2026-11-13, Claude Code, while replacing the eight integer names with a sign and a width
+
+### Three vocabularies still list eight integer widths by name
+- Category: branch per shape
+- Where: `language-semantics/src/numeric_intrinsics.rs` (`NumericType`, published in Terminal Psi); `numerics/src/float_semantics.rs` (the integer side of float conversions); `omega/packages/review-evidence` (`primitive_type_row`, one wire tag per width)
+- Saw: the front end now states an integer as a sign and a width, and these three convert that pair back into one of eight variants at their door, refusing the rest. Stage 02's const evaluator (`preparation_const_evaluation.rs`) keys carriers by type-name strings and folds in `i128`, so it serves widths to 64 bits for shifts and 127 for ranges
+- Cost: every width beyond the eight stops at whichever of these it meets first, and each is a published or cross-stage vocabulary that needs its own versioned change
+- Reported: 2026-11-13, Claude Code, while replacing the eight integer names with a sign and a width
+
 ### The lowered form drops declared domains, so only the reader knows a value's type
 - Category: a verdict with nothing behind it
 - Where: `structure-elaboration/src/lower.rs` and `policy.rs` (`qualifications: ScalarQualificationSetId::ZERO`); `terminal-psi/src/types_and_values.rs` (`ScalarQualificationCatalog`, `ScalarDomainDeclaration`, `ScalarQualificationCoercion`)
@@ -108,13 +142,6 @@ framework or a list of features that remain unimplemented.
 - Cost: the author is told the compiler cannot judge a program that the language forbids, and a test cannot tell a rule of the language from a gap in the checker
 - Reported: 2026-11-13, Claude Code, while reading suffixed operators in contracts
 
-### A crash route guard and a call cycle restate a clause with a substitution that knows two term forms
-- Category: one idea, several implementations
-- Where: `omega-rust/psi/compilation/pipeline/structure-elaboration/src/canonical.rs` (`substitute`, `substitute_term`); `terminal-psi/semantics/src/substitution.rs` (`substitute_proposition_values`)
-- Saw: Terminal semantics has the substitution of values in any proposition; the reader keeps one of its own for route guards and for a cycle member's `requires`, which accepts a formal or a literal and refuses every other term. A route guard over a field, a mathematical comparison or a suffixed operator is refused by name where a call restates it (`route guard term outside formals and literals`), while the same clause is served as a `requires` or an `ensures`
-- Cost: each new term a clause may hold is served in two clause kinds and refused in the third until someone widens the second substitution by hand
-- Reported: 2026-11-13, Claude Code, while reading suffixed operators in contracts
-
 ### `Console::exit_process` ends the process without publishing `reaches ProcessExit`
 - Category: a verdict with nothing behind it
 - Where: `source/library/std/console.omg:66` (the requirement, `reaches Console`) and `:96` (its provider); `omega-rust/psi/compilation/representations/typed-trees/src/declarations.rs` (`exact_process_exit_requirement` with `console_adapter`, `nominate_source_completion`)
@@ -128,13 +155,6 @@ framework or a list of features that remain unimplemented.
 - Saw: a type is a carrier and its domains, and about thirty sites match the carrier and discard the domains with `_`. The sites that take a value apart now call `authority::opened`, but the pattern still compiles anywhere, and two sites were typing a literal with whatever qualified type its context expected until this change (`arrays.rs` array literal, `places.rs` record literal). A store's destination is also read through the expression reader, so it asks read authority where only write authority is owed.
 - Cost: the next site that projects, compares or constructs a record with `_` silently ignores a domain's reader, writer or issuer rule, and no test fails until someone writes the twin for that exact site
 - Reported: 2026-11-13, Claude Code, while reading declared domains on data carriers
-
-### Constant operands are still read from a table keyed by spelling
-- Category: a verdict with nothing behind it
-- Where: `02_syntax-trees-to-symbol-resolved-trees/src/preparation_generic_data.rs` (`module_constants::lexical_integer_const_values`), built at five call sites in `preparation_const_evaluation.rs`, `preparation_generic_data.rs` and `preparation_machine_equations.rs` and handed to `evaluate_const_argument_expression` and the fact evaluators
-- Saw: the table maps every non-module constant's spelled name to its literal value over all root items of the forest, with no source scope; two packages that each keep a private `const LIMIT` leave one entry, so a const-generic argument, range fact or machine equation naming `LIMIT` can read the other package's value. The table also only holds constants written as integer literals, so a constant resolution now folds (`const B: u64 = A;`) is absent from it
-- Cost: the new closed-initializer fold selects operands through `ConstantSelection` and never reads this table, but the older evaluators beside it still do; a wrong value there is silent, and the fix is to give those evaluators the same source-scoped selection rather than to repair the table
-- Reported: 2026-11-13, Claude Code, while folding closed scalar constant initializers in resolution
 
 ### Interface ownership still changes some imported-service checks
 - Category: one idea, several implementations
@@ -190,13 +210,6 @@ framework or a list of features that remain unimplemented.
 - Where: `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/identity.rs:213` and `.../optimization-unit/src/ownership.rs:171`, `.../selected-instructions/src/effects/program/identity.rs:476`, `.../selected-instructions/src/plan_identity.rs:606`, `.../target-operations/legalized-operations/src/identity/structural_types.rs:208`
 - Saw: each file matches on all eight `StructuralPathSegment` variants and writes its own tag bytes; `RuntimeIndex` is 5 in three of them, 6 in the machine-effect identity and 4 in the selected plan identity, where `Field`, `FixedIndex`, `Referent` and `FixedRange` are also renumbered
 - Cost: a new path segment kind needs five encoders and at least two decoders (`register-homes/src/recovery/structural_declarations.rs:714`, `selected-instructions/src/effects/program/encoding.rs:1654`) edited by hand, and nothing says which numbering is the reference
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### Stage 01 builds its control-flow graph from two terminator kinds while every node already lists its successors
-- Category: one idea, several implementations
-- Where: `omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/control_flow_analyses.rs:303-323` and `:195`, `.../src/semantic_analyses.rs:2241-2249`, against `.../optimization-unit/semantics/src/candidates.rs:3224-3238`
-- Saw: the stage 01 graph and its value liveness add edges only for `Jump` and `Conditional` (`_ => {}` for the rest), so `StructuralCase` arms get no edge; the rewrite validator's dominators, the sparse constant pass (`semantic_analyses.rs:1838`) and the cycle graph (`ranked_cycles_validation.rs:737-763`) do follow case arms; a third dominator solver sits in `optimization-unit/src/dominance.rs:53`
-- Cost: the stage that proposes rewrites and the crate that validates them disagree on which blocks are reachable and dominated; whether a function with a `StructuralCase` reaches the two-kind graph was not traced
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### The Omega unit validator carries copies of two Terminal Psi codec checks
@@ -269,11 +282,11 @@ framework or a list of features that remain unimplemented.
 - Cost: a reader takes stage 03 as the owner of "every case is covered" when for these runs it decides nothing, and the question of who does is left to whoever next breaks it
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### A stale or invalid arena handle reads a default row, and a write through one changes the shared default
+### Unchecked arena lookups still conflate stale handles with the zero sentinel
 - Category: a verdict with nothing behind it
-- Where: `omega-rust/psi/foundation/arena/src/arena.rs:1023-1038`, `:1113`; `paged.rs:462-476`, `:1093-1095`
-- Saw: `get` returns the dummy row when the index or generation does not match; `get_mut` returns `&mut self.dummy`; `span_or_empty` turns a span it cannot resolve into an empty slice; the crate header (`lib.rs:20`) gives the reason for handle zero only, not for a stale generation
-- Cost: every table in the Psi half sits on these containers, so a dangling handle anywhere looks like an empty declaration, not an error, and the next reader of the dummy sees whatever was last written to it
+- Where: `omega-rust/psi/foundation/arena/src/arena.rs` (`get`, `get_mut`, `span_or_empty`); `paged.rs` (corresponding paged lookups)
+- Saw: unchecked lookups return the shared default or an empty slice for unresolved nonzero handles; mutable lookups can change that default. Handle zero deliberately names absence, including its shared default; generation checks alone cannot establish ownership between arenas using the same generation.
+- Cost: consumers without an owning-boundary validation can interpret a stale handle as a missing declaration or mutate the shared default. Those consumers need recoverable validation before using these infallible APIs, without changing legitimate zero-sentinel behavior.
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### The Terminal interpreter reports a failed run-time check as a malformed artifact, with one error for 1,329 sites
@@ -281,13 +294,6 @@ framework or a list of features that remain unimplemented.
 - Where: `omega-rust/psi/interpreter/terminal-interpreter/src/boundary_values.rs:696`; example at `engine_execution.rs:3691`
 - Saw: `malformed()` returns `VerifiedOperationMalformed` and is called 1,329 times across 15 files; an exact add, multiply or divide whose result does not fit ends in `.ok_or(malformed())?`; a program crash is built on only 7 lines (trapping integer, trapping float, crash terminator, host effect); no crate outside the interpreter names the variant
 - Cost: an overflow or zero divisor that native code would trap on shows up as "the verified artifact is malformed" with no reason, so a native and Psi disagreement reads as an interpreter failure and the cause must be found by hand
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### Windows x64 and UEFI x64 are the same `NativeTarget` value, so "UEFI only" checks also pass for Windows
-- Category: a verdict with nothing behind it
-- Where: `omega-rust/omega/compilation/backend/target/src/target_profile.rs:695-711`; checks at `.../images/image-emission/src/function_fragments.rs:1883`, `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/control_flow.rs:476`, `omega-rust/omega/compilation/realization/provider-admission/src/provider_admission/compiler_builtins.rs:176`, `.../isa-x86_64/src/semantic_unit_wrapper_encoding.rs:408`
-- Saw: `windows_x64()` and `uefi_x64()` return identical fields (x86-64, COFF, 8-byte pointers) and the type has no operating-system field; at least 8 non-test sites compare against `NativeTarget::uefi_x64()`, one with the message "image residence requires the selected UEFI image"
-- Cost: an agent reading those checks believes Windows is refused there; whether it is depends on a separate `TargetProfile` check somewhere else, which each site leaves unstated
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### A missing target profile is replaced by the build host at 16 places
@@ -368,14 +374,14 @@ framework or a list of features that remain unimplemented.
 - Reported: 2026-11-13, Claude Code, while getting the route probe through typing
 
 ### A generated machine is identified three ways and copied by a hand-kept list
-- Category: one idea built twice
+- Category: one idea, several implementations
 - Where: `typed-trees` (`MachineSpecialization` rows, `Symbol::generated_from`, `executable_application_template`); `structure-elaboration/src/lib.rs` (`template_of`), `read/calls.rs` (`applies_nothing`), `declare.rs`; `04_typed-trees-to-typed-trees/src/passes/specialization.rs` (`template`, `held_types`)
 - Saw: "this machine was generated from that generic machine" is read from the state symbol's `generated_from` in three places and from the `machine_specializations` row in a fourth, and nothing ties the two; the row also keeps eight string and commitment fields that only the deleted checker filled. Separately, an expression copy shares the types its nodes hold, so the pass lists by hand which node kinds hold a type (`held_types`) and which body constructs it cannot copy
 - Cost: a pass that sets one marker and not the other produces a machine the reader accepts and the declaration step refuses, or the reverse; a new expression node that holds a type is silently left pointing at the generic machine's type until someone adds it to the list
 - Reported: 2026-11-13, Claude Code, while rebuilding specialization as a typed preparation pass
 
 ### An implementation's refinement witness is built twice, and its dispatch row keeps fields nobody fills
-- Category: one idea built twice
+- Category: one idea, several implementations
 - Where: `lowered-discharge/src/verdict.rs` (`witnesses`, and the witness parts of `judge_compilation_for`); `typed-trees` (`StaticRequirementDispatch`); `04_typed-trees-to-typed-trees/src/passes/specialization.rs` (`selections`)
 - Saw: "this machine refines that requirement" is elaborated and discharged once to carry a generic form's proofs into a generated machine, where a failure is silently skipped, and a second time as the part that gives the verdict; the two share `elaborate_witness` and nothing else. Separately, the dispatch a generated call carries has an application fingerprint, a commitment, a selection application and a contract signature that only the deleted checker filled, so the pass writes four of nine fields
 - Cost: every selected implementation is proved twice per compilation, and a reader of the dispatch cannot tell an empty commitment from one that was never computed

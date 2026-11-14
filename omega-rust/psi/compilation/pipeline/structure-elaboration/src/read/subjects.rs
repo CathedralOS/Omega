@@ -122,8 +122,9 @@ impl Program<'_> {
     /// Makes every declaration the Build's selections name a root, whichever
     /// package declares it. A selected machine is read like an entry and a
     /// selected data type is resolved as a record. A selection of anything
-    /// else (a trait, a requirement, an operator family) is refused: the
-    /// route does not judge a provider against what it provides.
+    /// else (a trait, a requirement, an operator family) is refused here: a
+    /// provider is judged against what it provides as a `Supply`
+    /// (`supplied_slots`), never as a bare selected declaration.
     pub fn selected_declarations(
         &mut self,
         entry: MachineId,
@@ -142,6 +143,87 @@ impl Program<'_> {
                     Construct::Machine,
                     Unserved::Declaration("Build selection that is not a machine or a data type"),
                 ));
+            }
+        }
+        Ok(())
+    }
+
+    /// Claims each chosen provider for the slot it supplies. For every
+    /// requirement the slot names, the provider must give exactly one
+    /// machine: that machine becomes a root with its declared input
+    /// contract, and the statement that it refines the requirement is set
+    /// aside as a conformance witness, exactly as a subject implementation's
+    /// rows are. A supply the route cannot read this way is refused by name,
+    /// so a provider is never accepted without having been judged against
+    /// what it provides.
+    pub fn supplied_slots(&mut self, entry: MachineId, supplies: &[crate::Supply]) -> Checked<()> {
+        let typed = self.typed;
+        let unserved = |what| {
+            Err(refuse(
+                entry,
+                Construct::Machine,
+                Unserved::Declaration(what),
+            ))
+        };
+        for supply in supplies {
+            // The slot is a boundary trait, supplied whole, or one
+            // requirement of a boundary trait.
+            let (owner, requirements) = match typed.trait_definition_by_symbol(supply.slot) {
+                Some(owner) => (
+                    owner,
+                    typed
+                        .trait_machine_signatures(owner)
+                        .iter()
+                        .map(|requirement| requirement.symbol)
+                        .collect::<Vec<_>>(),
+                ),
+                None => match typed.trait_machine_signature(supply.slot) {
+                    Some((owner, requirement)) if requirement.symbol == supply.slot => {
+                        (owner, vec![supply.slot])
+                    }
+                    _ => {
+                        return unserved(
+                            "provider supply of a slot that is not a boundary trait or one of its requirements",
+                        );
+                    }
+                },
+            };
+            if !owner.is_boundary {
+                return unserved("provider supply of a trait that is not a boundary");
+            }
+            for requirement in requirements {
+                let mut realizing = typed.machines().iter().filter(|machine| {
+                    typed_trees::provider_declarations::satisfaction_provider_declaration(
+                        typed, machine,
+                    ) == Some(supply.provider)
+                        && (typed
+                            .machine_trait_conformances(machine)
+                            .iter()
+                            .any(|clause| clause.requirement_symbol == requirement)
+                            || typed
+                                .owned_conformance_realization(machine.symbol)
+                                .is_some_and(|(_, row)| row.requirement == requirement))
+                });
+                let (Some(machine), None) = (realizing.next(), realizing.next()) else {
+                    return unserved(
+                        "provider that does not give a supplied requirement exactly one machine",
+                    );
+                };
+                let witness = crate::ConformanceWitness {
+                    declaring_trait: owner.symbol,
+                    requirement,
+                    implementation: machine.symbol,
+                };
+                let root = self.provider(machine.symbol, owner.symbol, requirement)?;
+                if !self.fixed_inputs.contains(&root) {
+                    self.fixed_inputs.push(root);
+                }
+                // A machine that states `satisfies` already owes this row
+                // (`satisfied_requirements`), and two supplies may name one
+                // row; it is one obligation.
+                if !self.conformance_witnesses.contains(&witness) {
+                    self.conformance_witnesses.push(witness);
+                }
             }
         }
         Ok(())
@@ -362,11 +444,14 @@ impl<'t> Program<'t> {
                     return unserved("selection row cannot rebind a declared conformer");
                 }
             }
-            self.conformance_witnesses.push(crate::ConformanceWitness {
+            let witness = crate::ConformanceWitness {
                 declaring_trait: row.declaring_trait,
                 requirement: row.requirement,
                 implementation: row.realization_machine,
-            });
+            };
+            if !self.conformance_witnesses.contains(&witness) {
+                self.conformance_witnesses.push(witness);
+            }
         }
         Ok(())
     }

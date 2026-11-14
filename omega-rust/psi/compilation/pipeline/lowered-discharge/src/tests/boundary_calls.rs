@@ -46,6 +46,7 @@ fn invocation(typed: typed_trees::TypedTrees) -> Checked<structure_elaboration::
             purpose: source::DependencyScope::Product,
             selected: &[],
             bindings: &[],
+            supplies: &[],
         },
         terminal_codec::TerminalPublication::Invocation,
     )
@@ -155,6 +156,37 @@ machine entry() -> u32 crashes none {{ Probe::read({actual}) }}
     );
 }
 
+/// Both total carrier arithmetic and mathematical arithmetic are restated at
+/// the call, rather than rejected by a narrower crash-only term reader.
+#[test]
+fn source_crash_guards_substitute_total_operations_at_the_call() {
+    for guard in ["value +% 1 == 0", "embed(value) + 1 == 4294967296"] {
+        let call = |actual| {
+            invocation(typed(&format!(
+                r#"
+boundary trait Probe {{
+    machine read(value: u32) -> u32
+    reaches none
+    crashes Trap {guard};
+}}
+machine entry() -> u32 crashes none {{ Probe::read({actual}) }}
+"#
+            )))
+        };
+        let accepted = judge(call(1)).unwrap();
+        let RouteVerdict::Accepted(accepted) = accepted else {
+            panic!("{guard}: {accepted:?}");
+        };
+        accepted.publish_invocation().unwrap();
+        let rejected = judge(call(u32::MAX)).unwrap();
+        assert!(
+            matches!(rejected, RouteVerdict::Rejected { ref unproved, .. }
+            if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CrashCoverage { .. }))),
+            "{guard}: {rejected:?}"
+        );
+    }
+}
+
 /// A boundary requirement has no body to infer a crash ceiling from and no
 /// static selection to defer to, so one that writes no `crashes` clause is
 /// refused where it is called, and the same call with `crashes none` written
@@ -257,6 +289,7 @@ machine entry() crashes none {{}}
             purpose: source::DependencyScope::Product,
             selected: &[],
             bindings: &[],
+            supplies: &[],
         },
         terminal_codec::TerminalPublication::Invocation,
     );
@@ -364,6 +397,7 @@ fn declared_verdicts(text: &str) -> Vec<RouteVerdict> {
             purpose: source::DependencyScope::Product,
             selected: &[],
             bindings: &[],
+            supplies: &[],
         },
         terminal_codec::TerminalPublication::Invocation,
     );
@@ -500,6 +534,7 @@ fn a_boundary_conformer_is_not_a_named_direct_entry() {
             purpose: source::DependencyScope::Product,
             selected: &[],
             bindings: &[],
+            supplies: &[],
         },
         terminal_codec::TerminalPublication::Invocation,
     );
@@ -531,6 +566,7 @@ machine entry() -> u32 reaches none crashes none { chosen() }
             purpose: source::DependencyScope::Product,
             selected: &[],
             bindings: &[],
+            supplies: &[],
         },
         terminal_codec::TerminalPublication::Invocation,
     );
@@ -566,6 +602,7 @@ Rebound satisfies Other { Other::apply = previous; }
             purpose: source::DependencyScope::Product,
             selected: &[],
             bindings: &[],
+            supplies: &[],
         },
         terminal_codec::TerminalPublication::Invocation,
     );
@@ -622,5 +659,175 @@ fn an_own_progress_promise_does_not_change_a_silent_requirement_contract() {
     assert_eq!(
         published[0], published[1],
         "only the requirement's advertised progress belongs in the routed contract"
+    );
+}
+
+fn inline_parameter_prepared(actual: &str, guarantee: &str) -> typed_trees::FrozenTypedTrees {
+    let text = format!(
+        r#"
+trait Step {{
+    machine apply(value: u32) -> u32
+    requires value > 0 ensures result < value crashes none;
+}}
+Inline satisfies Step {{
+    machine apply(input: u32) -> u32
+    requires true ensures result == 0 crashes none {{ 0 }}
+}}
+machine relay<Chosen satisfies Step>() -> u32
+requires true
+{guarantee}
+crashes none
+{{ Chosen::apply({actual}) }}
+machine entry() -> u32 crashes none {{ relay<Inline>() }}
+"#
+    );
+    // Use the actual specialization pass, retaining the exact source
+    // parameter dispatch and selected realization it produces.
+    let (prepared, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        typed(&text),
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap();
+    prepared
+}
+
+fn inline_parameter_read(
+    prepared: &typed_trees::FrozenTypedTrees,
+    publication: terminal_codec::TerminalPublication,
+) -> Checked<structure_elaboration::Elaboration> {
+    let entry = entry(prepared);
+    structure_elaboration::elaborate_for(
+        prepared,
+        structure_elaboration::Compilation {
+            entries: &[entry],
+            subjects: &[None],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        publication,
+    )
+}
+
+fn inline_parameter_dispatch(actual: &str, guarantee: &str) -> structure_elaboration::Elaboration {
+    let prepared = inline_parameter_prepared(actual, guarantee);
+    let elaboration =
+        inline_parameter_read(&prepared, terminal_codec::TerminalPublication::Invocation).unwrap();
+    assert_eq!(
+        elaboration.selections.len(),
+        1,
+        "one genuinely prepared parameter dispatch"
+    );
+    let selected = &elaboration.selections[0];
+    assert!(
+        !elaboration.local_results.contains(&selected.implementation),
+        "the selected requirement does not expose private body summaries"
+    );
+    elaboration
+}
+
+#[test]
+fn an_owned_inline_parameter_dispatch_owes_the_requirement_inputs() {
+    for (actual, accepted) in [("7", true), ("0", false)] {
+        let mut elaboration = inline_parameter_dispatch(actual, "");
+        let caller = elaboration.selections[0].caller;
+        let found = discharge(&mut elaboration).unwrap();
+        let tables = elaboration.tables.machines.get(caller).unwrap();
+        let judgments = found.machines.get(caller).unwrap();
+        let calls: Vec<_> = tables
+            .obligations
+            .iter()
+            .filter(|(_, row)| matches!(row.kind, ObligationKind::CallRequirement { .. }))
+            .collect();
+        assert_eq!(
+            calls.len(),
+            1,
+            "own requires true must not erase the requirement input"
+        );
+        assert_eq!(
+            judgments.verdicts.get(calls[0].0).unwrap().is_ok(),
+            accepted
+        );
+    }
+}
+
+#[test]
+fn an_owned_inline_parameter_dispatch_exposes_only_the_requirement_guarantee() {
+    let mut elaboration = inline_parameter_dispatch("7", "ensures result == 0");
+    let caller = elaboration.selections[0].caller;
+    let found = discharge(&mut elaboration).unwrap();
+    let tables = elaboration.tables.machines.get(caller).unwrap();
+    let judgments = found.machines.get(caller).unwrap();
+    assert!(
+        tables.obligations.iter().any(|(obligation, row)| matches!(
+            row.kind,
+            ObligationKind::NormalGuarantee { .. }
+        ) && judgments
+            .verdicts
+            .get(obligation)
+            .is_some_and(Result::is_err)),
+        "the implementation's stronger result == 0 is not the routed guarantee"
+    );
+}
+
+#[test]
+fn an_anonymous_parameter_application_cannot_transfer_its_template_identity() {
+    let prepared = inline_parameter_prepared("7", "");
+    let first =
+        inline_parameter_read(&prepared, terminal_codec::TerminalPublication::Invocation).unwrap();
+    let second =
+        inline_parameter_read(&prepared, terminal_codec::TerminalPublication::Invocation).unwrap();
+    let template = |elaboration: &structure_elaboration::Elaboration| {
+        elaboration
+            .module
+            .machines
+            .iter()
+            .find_map(|machine| machine.declaration.as_ref()?.specialization.as_ref())
+            .unwrap()
+            .template
+            .clone()
+    };
+    let first_template = template(&first);
+    let second_template = template(&second);
+    assert!(
+        first
+            .module
+            .identities
+            .is_invocation_local(first_template.identity())
+    );
+    assert!(
+        !first_template.same_identity_as(
+            &first.module.identities,
+            &second_template,
+            &second.module.identities,
+        ),
+        "equal source bytes do not transfer an invocation's declaration authority"
+    );
+    let Err(refusal) =
+        inline_parameter_read(&prepared, terminal_codec::TerminalPublication::Portable)
+    else {
+        panic!("anonymous specialization must not acquire a hermetic package owner");
+    };
+    assert!(refusal.detail.contains("hermetic identity"), "{refusal:?}");
+}
+
+#[test]
+fn an_anonymous_parameter_application_rejects_a_foreign_template_handle() {
+    let mut prepared = inline_parameter_prepared("7", "").into_inner();
+    let template = prepared.machine_specializations[0].template;
+    prepared.machine_specializations[0].template =
+        symbols::SymbolHandle::from_parts(template.arena_index(), template.generation() + 1);
+    let prepared = prepared.into();
+    let Err(refusal) =
+        inline_parameter_read(&prepared, terminal_codec::TerminalPublication::Invocation)
+    else {
+        panic!("a foreign generation cannot supply the specialization's template");
+    };
+    assert!(
+        refusal
+            .detail
+            .contains("generic machine has no typed-tree declaration"),
+        "{refusal:?}"
     );
 }

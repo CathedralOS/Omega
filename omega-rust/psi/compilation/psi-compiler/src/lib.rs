@@ -353,5 +353,5 @@ pub use psi_terminal_production::{
     TerminalBuildRequestOperation, TerminalBuildRequests, TerminalBuildSelectionRequest,
     TerminalBuildValueCase, TerminalBuildValueField, TerminalBuildValueShape,
     TerminalCompositionRoots, TerminalMachineSelection, TerminalProductionCustody,
-    TerminalProgramRoots, TerminalSourceCompilation, UnmeasuredProduction,
+    TerminalProgramRoots, TerminalSourceCompilation, TerminalSourceSupply, UnmeasuredProduction,
 };

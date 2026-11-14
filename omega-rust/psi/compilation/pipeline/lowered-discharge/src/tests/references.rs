@@ -295,6 +295,70 @@ fn a_loan_of_a_local_is_formed_judged_and_published() {
 }
 
 #[test]
+fn a_build_dispatch_captures_a_reference_without_copying_its_referent() {
+    let program = |body: &str| {
+        format!(
+            r#"
+data Source {{
+    case Path(location: &[u8]);
+    case Empty;
+}}
+machine build_entry(source: &Source) {{ {body} }}
+machine consume(location: &[u8]) {{ }}
+machine done() {{ }}
+"#
+        )
+    };
+    let selected = program(
+        "transition source { Source::Path { location } -> consume(location) Source::Empty -> done() }",
+    );
+    let verdict = super::build_purpose::judge_build(&selected).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("the selected payload view must pass through the Build helper: {verdict:?}");
+    };
+    accepted.publish_invocation().unwrap();
+
+    let unselected = program("consume(source.location);");
+    let verdict = super::build_purpose::judge_build(&unselected).unwrap();
+    assert!(
+        matches!(&verdict, RouteVerdict::Rejected { unestablished, .. }
+            if unestablished.iter().any(|failure| failure.detail.contains("cannot prove selected case for payload access"))),
+        "the same source call without a selected case must reject: {verdict:?}"
+    );
+}
+
+#[test]
+fn a_captured_reference_keeps_the_original_storage_for_overlap_checks() {
+    let caller = Lending {
+        borrowed: vec![(0, ReferenceAccess::Mutable)],
+        locals: vec![pair()],
+        ..unit(
+            vec![pair()],
+            vec![
+                Statement::CaptureReference {
+                    slot: 1,
+                    original: 0,
+                },
+                invoke(
+                    2,
+                    vec![
+                        lend(ReferenceAccess::Mutable, named(0, pair()), false),
+                        lend(ReferenceAccess::Shared, named(1, pair()), false),
+                    ],
+                ),
+            ],
+        )
+    };
+    let callee = Lending {
+        borrowed: vec![(0, ReferenceAccess::Mutable), (1, ReferenceAccess::Shared)],
+        ..unit(vec![pair(), pair()], Vec::new())
+    };
+    let found = conflicts(vec![caller, callee]);
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].conflict, LoanConflict::ExclusiveAndShared);
+}
+
+#[test]
 fn a_call_that_breaks_the_requirement_of_a_borrowed_formal_is_rejected() {
     let main = Lending {
         locals: vec![u32_type().into()],

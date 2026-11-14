@@ -85,19 +85,39 @@ decided by the request, not by where source lives". The roots are, in
 `MachineId` order:
 
 1. the entries, the first being the module's entry;
-2. every machine the Build's selections name (a layout scope's entry, a
-   selected provider), whichever package declares it: the closure includes
-   "the obligations of the Build's selections";
-3. every machine declared in a subject source file, in declaration order,
+2. every machine the Build's selections name (a layout scope's entry),
+   whichever package declares it: the closure includes "the obligations of
+   the Build's selections";
+3. the machine each chosen provider gives each requirement of the slot it
+   supplies (`Compilation::supplies`), whichever package declares it;
+4. every machine declared in a subject source file, in declaration order,
    including a specialization instance, whose symbol derives from its
    template's declaration;
-4. every machine those call, in discovery order, whichever package declares
+5. every machine those call, in discovery order, whichever package declares
    it.
 
 A selected data type is resolved as a record. A selection of anything else
 (a trait, a requirement, an operator family) is refused as `declaration Build
-selection that is not a machine or a data type`: the route does not judge a
-provider against what it provides.
+selection that is not a machine or a data type`: a provider is judged
+against what it provides as a supply, never as a bare selected declaration.
+
+A supply (`Supply { slot, provider }`) names a boundary trait or one of its
+requirements and the provider chosen for it: a Build selection, or the supply
+settlement chose for a requirement the compilation reaches. For each
+requirement of the slot the provider must give exactly one machine. That
+machine is a root with its declared input contract, and the statement that
+it refines the requirement is a conformance witness beside those of the
+subject's implementations, so the checker proves the refinement (signature,
+`requires` and `ensures`, service reach, callback entries, crash routes)
+before the compilation is accepted. A slot that is not a boundary trait or
+requirement, and a provider with no machine or several for a requirement,
+are refused by name.
+
+A machine that states `satisfies Trait::requirement` owes the same witness
+wherever it is judged, as a supply, a subject declaration or a callee
+(`read/machine.rs`, `satisfied_requirements`). A clause of a trait with
+parameters, of an operator or a top-level requirement, or one that carries a
+native binding or an alias, refuses the machine by name.
 
 `read/subjects.rs` decides whose a declaration is from the source file of its
 symbol: a toolchain file or a file of another admitted package is a
@@ -338,7 +358,7 @@ Refused by name:
 
 ### Mathematical integers in a clause
 
-A machine's `requires` or `ensures` may compare mathematical integers:
+A machine's `requires`, `ensures` or crash guard may compare mathematical integers:
 `requires embed(rest) + embed(count) * 10 <= 99`. `embed` takes a runtime
 integer into the unbounded integers
 ([proof contracts](../../../../../wiki/spec/proofs/contracts.md#mathematical-values-and-quantification):
@@ -386,8 +406,14 @@ arguments.
 | a runtime value or typed literal that is not embedded, `embed(a) + b` or `embed(a) <= 99u8` | `contract runtime value in a mathematical term without embed`, `contract typed literal in a mathematical term without embed` |
 | a cast or a call inside a mathematical term, `embed(a) as Nat`, `integer::quotient(..)` | `contract cast in a mathematical term`, `contract call in a mathematical term` |
 | a literal past 64 bits, or an anonymous tree whose value is fractional | `contract mathematical literal beyond 64 bits`, `contract fractional anonymous value in a mathematical term` |
-| the comparison in a crash route guard or in a data `requires`, each restated by a substitution that knows only scalar comparisons | `contract mathematical comparison in a crash route guard`, `contract mathematical comparison in a data requires` |
-| the comparison in the `requires` of a member of a call cycle, which becomes a loop head's invariant | `contract mathematical comparison required on a call cycle` |
+| the comparison in a data `requires`, whose establishment goals do not yet serve mathematical comparisons | `contract mathematical comparison in a data requires` |
+
+Crash guards and cycle-head requirements use the same checked clause
+substitution as call requirements and guarantees. It retains mathematical
+arithmetic and total policy operations while replacing exact formal identities;
+an unbound name is refused, never retained as an accidental caller identity.
+Structural crash guards still require captured entry-storage observations before
+the source reader can admit them.
 
 ### Erased scalar bindings
 

@@ -149,87 +149,140 @@ pub(crate) fn substituted_routes(
     Ok(self::routes(alternatives))
 }
 
-/// A clause over a machine's formals with each formal replaced by the value
-/// at its position: formal `i` is the machine's value `i + 1`.
+/// Restate a clause with the same checked traversal used for call obligations.
+/// The bindings replace scalar formal identities simultaneously; they cannot
+/// resolve a structural observation without a captured entry value.
 pub(crate) fn substitute(
     proposition: &Proposition,
     actuals: &[ValueId],
     id: MachineId,
 ) -> Checked<Proposition> {
-    let term = |term: &ScalarTerm| substitute_term(term, actuals, id);
+    let substituted = terminal_semantics::substitution::clauses::substitute_clause(
+        proposition,
+        &mut ScalarFormals(actuals),
+    )
+    .map_err(|detail| refuse(id, Construct::Machine, Unserved::Contract(detail)))?;
+    canonical_clause(substituted, id)
+}
+
+/// Substitution can reverse equality order or make conjuncts identical. Restore
+/// the artifact's canonical form without changing the retained clause's meaning.
+fn canonical_clause(proposition: Proposition, id: MachineId) -> Checked<Proposition> {
     match proposition {
-        Proposition::Truth => Ok(Proposition::Truth),
-        Proposition::Falsehood => Ok(Proposition::Falsehood),
-        Proposition::Equal(left, right) => equal(term(left)?, term(right)?, id),
-        Proposition::LessThan(left, right) => Ok(Proposition::LessThan(term(left)?, term(right)?)),
-        Proposition::LessOrEqual(left, right) => {
-            Ok(Proposition::LessOrEqual(term(left)?, term(right)?))
+        Proposition::Equal(left, right) => equal(left, right, id),
+        Proposition::IntegerMathEqual(left, right) if left > right => {
+            Ok(Proposition::IntegerMathEqual(right, left))
         }
-        Proposition::Conjunction(conjuncts) => {
-            let mut substituted = Vec::with_capacity(conjuncts.len());
-            for conjunct in conjuncts {
-                substituted.push(substitute(conjunct, actuals, id)?);
-            }
-            conjunction(substituted, id)
+        Proposition::Conjunction(parts) => {
+            let parts = parts
+                .into_iter()
+                .map(|part| canonical_clause(part, id))
+                .collect::<Checked<Vec<_>>>()?;
+            conjunction(parts, id)
         }
-        // A machine's `requires` may compare mathematical integers, and a
-        // member of a call cycle has its `requires` restated here as its
-        // head's invariant. Restating one needs each formal's block
-        // parameter embedded where the formal was, and the checker's
-        // arrival goals to be stated the same way; neither is built.
-        Proposition::IntegerMathEqual(..)
-        | Proposition::IntegerMathLessThan(..)
-        | Proposition::IntegerMathLessOrEqual(..) => Err(refuse(
-            id,
-            Construct::Machine,
-            Unserved::Contract("mathematical comparison required on a call cycle"),
-        )),
-        // The reader builds route guards only from the forms above.
-        Proposition::Atom(_)
-        | Proposition::IeeeFloatComparison { .. }
-        | Proposition::ScalarIeeeFloatComparison { .. }
-        | Proposition::ByteSequenceEqual { .. }
-        | Proposition::StructuralIdentity { .. }
-        | Proposition::StructuralCaseMembership { .. }
-        | Proposition::Disjunction(_)
-        | Proposition::Implication { .. }
-        | Proposition::ContentConservation(_) => Err(refuse(
-            id,
-            Construct::Machine,
-            Unserved::Contract("route guard outside the scalar comparisons"),
-        )),
+        Proposition::Disjunction(parts) => {
+            let parts = parts
+                .into_iter()
+                .map(|part| canonical_clause(part, id))
+                .collect::<Checked<Vec<_>>>()?;
+            let mut parts = clauses(parts, Repeated::Merge, id)?;
+            Ok(match parts.len() {
+                0 => Proposition::Falsehood,
+                1 => parts.remove(0),
+                _ => Proposition::Disjunction(parts),
+            })
+        }
+        other => Ok(other),
     }
 }
 
-/// Formal `i` is the callee's value `i + 1` (`Signature::parameters`); a route
-/// guard names nothing else but literals.
-fn substitute_term(term: &ScalarTerm, actuals: &[ValueId], id: MachineId) -> Checked<ScalarTerm> {
-    match term {
-        ScalarTerm::Value {
-            id: formal,
-            scalar_type,
-        } => {
-            let actual = usize::try_from(formal.get())
-                .ok()
-                .and_then(|position| position.checked_sub(1))
-                .and_then(|position| actuals.get(position))
-                .ok_or_else(|| {
-                    refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Contract("route guard names a value that is not a formal"),
-                    )
-                })?;
-            Ok(ScalarTerm::Value {
-                id: *actual,
-                scalar_type: *scalar_type,
+struct ScalarFormals<'a>(&'a [ValueId]);
+
+impl terminal_semantics::substitution::clauses::ClauseBindings for ScalarFormals<'_> {
+    type Error = &'static str;
+
+    fn value(
+        &mut self,
+        formal: ValueId,
+        scalar_type: semantic_vocabulary::ScalarType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        let actual = usize::try_from(formal.get())
+            .ok()
+            .and_then(|position| position.checked_sub(1))
+            .and_then(|position| self.0.get(position))
+            .ok_or("clause names a value that is not a formal")?;
+        Ok(ScalarTerm::value(*actual, scalar_type))
+    }
+
+    fn field(
+        &mut self,
+        _: semantic_vocabulary::PlaceId,
+        _: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        _: semantic_vocabulary::ScalarType,
+    ) -> Result<ScalarTerm, Self::Error> {
+        Err("clause restatement has no captured structural entry value")
+    }
+
+    fn case(
+        &mut self,
+        _: semantic_vocabulary::PlaceId,
+        _: &[semantic_vocabulary::CanonicalStructuralPathSegment],
+        _: semantic_vocabulary::StructuralCaseId,
+    ) -> Result<bool, Self::Error> {
+        Err("clause restatement has no captured structural entry case")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::{IntegerMathTerm, IntegerSign, IntegerType, ScalarType};
+
+    #[test]
+    fn clause_substitution_preserves_nested_operations_and_actual_identity() {
+        let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+        let scalar = ScalarType::Integer(integer);
+        let value = |raw| ScalarTerm::value(ValueId::new(raw).unwrap(), scalar);
+        let clause = Proposition::IntegerMathLessThan(
+            IntegerMathTerm::embed(ScalarTerm::WrappingIntegerAdd {
+                scalar_type: integer,
+                left: Box::new(value(1)),
+                right: Box::new(value(2)),
             })
-        }
-        ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => Ok(term.clone()),
-        _ => Err(refuse(
-            id,
-            Construct::Machine,
-            Unserved::Contract("route guard term outside formals and literals"),
-        )),
+            .unwrap(),
+            IntegerMathTerm::embed(value(2)).unwrap(),
+        );
+        let actuals = [ValueId::new(8).unwrap(), ValueId::new(3).unwrap()];
+        let mut expected = clause.clone();
+        expected.remap_value_ids(|formal| actuals[(formal.get() - 1) as usize]);
+        assert_eq!(
+            substitute(&clause, &actuals, MachineId::new(1).unwrap()).unwrap(),
+            expected
+        );
+        assert!(substitute(&clause, &actuals[..1], MachineId::new(1).unwrap()).is_err());
+    }
+
+    #[test]
+    fn clause_substitution_reorders_equalities_without_rewriting_their_operands() {
+        let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+        let value = |raw| ScalarTerm::value(ValueId::new(raw).unwrap(), scalar);
+        let mathematical = |raw| IntegerMathTerm::embed(value(raw)).unwrap();
+        let clause = Proposition::Conjunction(vec![
+            Proposition::Equal(value(1), value(2)),
+            Proposition::IntegerMathEqual(mathematical(1), mathematical(2)),
+        ]);
+        let actuals = [ValueId::new(8).unwrap(), ValueId::new(3).unwrap()];
+        let machine = MachineId::new(1).unwrap();
+        assert_eq!(
+            substitute(&clause, &actuals, machine).unwrap(),
+            conjunction(
+                vec![
+                    equal(value(3), value(8), machine).unwrap(),
+                    Proposition::IntegerMathEqual(mathematical(3), mathematical(8)),
+                ],
+                machine,
+            )
+            .unwrap()
+        );
     }
 }

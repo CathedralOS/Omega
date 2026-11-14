@@ -405,7 +405,13 @@ pub(crate) fn validate_x86_64_resolved_semantic_unit_wrapper(
 fn validate_request(
     request: X86_64SemanticUnitWrapperEncodingRequest,
 ) -> Result<(), X86_64SemanticUnitWrapperEncodingError> {
-    if request.target != NativeTarget::uefi_x64() {
+    // This encoder checks machine geometry, not permission to enter firmware.
+    // The selected entry contract owns deployment-profile eligibility.
+    if request.target.architecture != target::Architecture::X86_64
+        || request.target.object_format != target::ObjectFormat::Coff
+        || request.target.pointer_size != 8
+        || request.target.pointer_alignment != 8
+    {
         return Err(X86_64SemanticUnitWrapperEncodingError::UnsupportedTarget);
     }
 
@@ -545,6 +551,16 @@ mod tests {
 
     fn request() -> X86_64SemanticUnitWrapperEncodingRequest {
         canonical_x86_64_semantic_unit_wrapper_encoding_request(NativeTarget::uefi_x64())
+    }
+
+    #[test]
+    fn wrapper_encoding_shares_geometry_without_granting_platform_eligibility() {
+        let windows =
+            canonical_x86_64_semantic_unit_wrapper_encoding_request(NativeTarget::windows_x64());
+        assert_eq!(
+            encode_x86_64_semantic_unit_wrapper_template(windows),
+            encode_x86_64_semantic_unit_wrapper_template(request()),
+        );
     }
 
     #[test]

@@ -92,6 +92,7 @@ fn judge(
             purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
             bindings: &frontier.bindings,
+            supplies: &[],
         },
     )
 }
@@ -651,5 +652,135 @@ fn a_machine_with_a_lifetime_returns_a_view_of_that_lifetime_only() {
     assert_eq!(
         verdicts("lifetime_other_view", &program("other")),
         ["not-supported"]
+    );
+}
+
+/// A case payload is a place that exists while its case is selected
+/// (`wiki/spec/language/patterns.md`: "The case fact belongs to the
+/// place"). A match arm lends the view its case holds, and a payload named
+/// directly is lent where the construction before it selected the case.
+/// The twin lends a payload of the other case and is rejected.
+#[test]
+fn a_case_payload_is_lent_only_where_its_case_is_selected() {
+    let program = |lent: &str| {
+        format!(
+            "data Source<'storage> {{\n\
+                 case Path(location: &'storage [u8]);\n\
+                 case Git(repository: &'storage [u8], revision: u32);\n\
+             }}\n\
+             machine measure(view: &[u8]) -> u32 {{ 1 }}\n\
+             machine route(source: Source) -> u32 {{\n\
+                 match source {{\n\
+                     Source::Path {{ location }} -> measure(location)\n\
+                     Source::Git {{ repository, revision }} -> measure(repository)\n\
+                 }}\n\
+             }}\n\
+             machine main() {{\n\
+                 let first: Source = Source::Path {{ location: \"here\" }};\n\
+                 let routed: u32 = route(first);\n\
+                 let held: Source = Source::Path {{ location: \"here\" }};\n\
+                 let direct: u32 = measure(held.{lent});\n\
+             }}\n"
+        )
+    };
+    assert_eq!(
+        verdicts("case_payload_lent", &program("location")),
+        ["accepted"]
+    );
+    assert_eq!(
+        verdicts("case_payload_other_case", &program("repository")),
+        ["rejected"]
+    );
+}
+
+/// A built-in integer name is a spelling of a sign and a width
+/// (`wiki/spec/language/numeric_values.md`, "Width-indexed integers": "the
+/// existing fixed-width names abbreviate those applications"), so the front
+/// end and the checker are told the carrier, never one of eight names. Each
+/// name is shown here as a parameter type, a result type and a literal
+/// suffix, and each is judged at its own range: "the unsigned range is
+/// `0 <= value < 2^N`; the signed range is `-2^(N-1) <= value < 2^(N-1)`".
+///
+/// For every name, `value + 1` is accepted when `requires` keeps `value`
+/// below that carrier's greatest value and rejected when it allows the
+/// greatest value itself; the two programs differ only in that bound. The
+/// suffixed literal has the parameter's carrier, so the Wrapping add of the
+/// two is accepted with nothing known about `value`.
+#[test]
+fn each_built_in_integer_name_is_judged_at_its_own_sign_and_width() {
+    let mut wrong = Vec::new();
+    for (carrier, greatest) in [
+        ("u8", "255"),
+        ("u16", "65535"),
+        ("u32", "4294967295"),
+        ("u64", "18446744073709551615"),
+        ("i8", "127"),
+        ("i16", "32767"),
+        ("i32", "2147483647"),
+        ("i64", "9223372036854775807"),
+    ] {
+        let bounded = |relation: &str| {
+            format!(
+                "machine next(value: {carrier}) -> {carrier} requires value {relation} {greatest} {{ value + 1 }}
+                 machine main() {{ }}
+"
+            )
+        };
+        let wrapped = format!(
+            "machine next(value: {carrier}) -> {carrier} {{ value +% 1{carrier} }}
+             machine main() {{ }}
+"
+        );
+        for (case, source, expected) in [
+            ("below_greatest", bounded("<"), "accepted"),
+            ("at_greatest", bounded("<="), "rejected"),
+            ("suffixed_literal", wrapped, "accepted"),
+        ] {
+            let name = format!("{carrier}_{case}");
+            let found = verdicts(&name, &source);
+            if found != [expected] {
+                wrong.push(format!("{name}: {found:?}, expected {expected}"));
+            }
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
+}
+
+/// A dispatch over an owned sum that is not `[copy]`. The `Root` arm names
+/// nothing of the subject, so the subject is discarded on that case's edge
+/// (`wiki/spec/terminal-psi/control_flow.md`: "Selected payload fields become
+/// scalar parameters on that case's edge before cleanup."); the `Named` arm
+/// keeps it for the view it lends. The twin hands the same owned sum to two
+/// calls and is rejected: it was moved by the first.
+#[test]
+fn an_owned_sum_is_dispatched_and_disposed_of_once() {
+    let program = |again: &str| {
+        format!(
+            "data Selection<'storage> {{\n\
+                 case Root;\n\
+                 case Named(package: &'storage [u8]);\n\
+             }}\n\
+             machine take(view: &[u8]) {{ }}\n\
+             machine select(view: &[u8], selection: Selection) {{\n\
+                 transition selection {{\n\
+                     Selection::Root -> take(view)\n\
+                     Selection::Named {{ package }} -> take(package)\n\
+                 }}\n\
+             }}\n\
+             machine main() {{\n\
+                 let chosen: Selection = Selection::Named {{ package: \"here\" }};\n\
+                 let other: Selection = Selection::Root;\n\
+                 select(\"first\", chosen);\n\
+                 select(\"second\", {again});\n\
+             }}\n"
+        )
+    };
+    assert_eq!(
+        verdicts("owned_sum_dispatched", &program("other")),
+        ["accepted"]
+    );
+    assert_eq!(
+        verdicts("owned_sum_moved_twice", &program("chosen")),
+        ["rejected"]
     );
 }

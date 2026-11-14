@@ -51,6 +51,7 @@ fn rejected(fixture: &str) -> (Vec<String>, RouteVerdict) {
             purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
             bindings: &frontier.bindings,
+            supplies: &[],
         },
     )
     .into_iter();

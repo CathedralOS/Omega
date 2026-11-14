@@ -252,7 +252,9 @@ pub mod boundary_completions {
         !parameter.is_const
             && !parameter.is_mutable
             && program.primitive_type_reference(parameter.type_reference)
-                == Some(PrimitiveType::I32)
+                == Some(PrimitiveType::Integer(
+                    numerics::integer_carrier::FixedInteger::signed(32),
+                ))
             && {
                 let mut current = return_type;
                 loop {
@@ -2656,16 +2658,24 @@ pub mod numeric_intrinsics {
         PrimitiveFloatBinaryOperation, PrimitiveIntegerComparisonOperation,
     };
 
+    /*
+        The numeric-intrinsic vocabulary still names eight integer widths
+        (it is published in Terminal Psi), so an integer of any other width
+        has no intrinsic type here and its intrinsic is not selected.
+    */
     pub const fn primitive_numeric_type(primitive: PrimitiveType) -> Option<NumericType> {
         Some(match primitive {
-            PrimitiveType::I8 => NumericType::I8,
-            PrimitiveType::I16 => NumericType::I16,
-            PrimitiveType::I32 => NumericType::I32,
-            PrimitiveType::I64 => NumericType::I64,
-            PrimitiveType::U8 => NumericType::U8,
-            PrimitiveType::U16 => NumericType::U16,
-            PrimitiveType::U32 => NumericType::U32,
-            PrimitiveType::U64 => NumericType::U64,
+            PrimitiveType::Integer(carrier) => match (carrier.is_signed(), carrier.width()) {
+                (true, 8) => NumericType::I8,
+                (true, 16) => NumericType::I16,
+                (true, 32) => NumericType::I32,
+                (true, 64) => NumericType::I64,
+                (false, 8) => NumericType::U8,
+                (false, 16) => NumericType::U16,
+                (false, 32) => NumericType::U32,
+                (false, 64) => NumericType::U64,
+                _ => return None,
+            },
             PrimitiveType::F32 => NumericType::F32,
             PrimitiveType::F64 => NumericType::F64,
             PrimitiveType::Bool | PrimitiveType::Addr | PrimitiveType::Selector => return None,
@@ -3466,22 +3476,14 @@ pub mod wire {
                     byte_size: 1,
                     zigzag: false,
                 }),
-                PrimitiveType::U32 => Some(Self {
-                    byte_size: 4,
-                    zigzag: false,
-                }),
-                PrimitiveType::U64 => Some(Self {
-                    byte_size: 8,
-                    zigzag: false,
-                }),
-                PrimitiveType::I32 => Some(Self {
-                    byte_size: 4,
-                    zigzag: true,
-                }),
-                PrimitiveType::I64 => Some(Self {
-                    byte_size: 8,
-                    zigzag: true,
-                }),
+                /* The variable-length wire form is defined for 32 and 64 bits only. */
+                PrimitiveType::Integer(carrier) => match carrier.width() {
+                    32 | 64 => Some(Self {
+                        byte_size: carrier.native_scalar_bytes()?,
+                        zigzag: carrier.is_signed(),
+                    }),
+                    _ => None,
+                },
                 _ => None,
             }
         }

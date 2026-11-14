@@ -424,6 +424,7 @@ pub(crate) fn legalize_target_operations(
         optimization_unit: unit.identity,
         work_schedule: unit.work_schedule,
         target: target.target,
+        profile: target.profile,
         entry: target.entry,
         scalar_functions: rosters.scalar_functions,
     };

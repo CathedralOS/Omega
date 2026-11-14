@@ -233,6 +233,7 @@ pub(crate) mod function {
     pub(super) fn lower_function(
         function: &AbstractFunction,
         target: NativeTarget,
+        profile: Option<target::TargetProfile>,
         functions: &BTreeMap<MachineId, &AbstractFunction>,
         dynamic_dispatch: &terminal_psi::TerminalDynamicDispatchCatalog,
         borrowed_reference_sources: super::control_flow::references::BorrowedSources,
@@ -262,6 +263,7 @@ pub(crate) mod function {
         super::control_flow::lower(
             function,
             target,
+            profile,
             functions,
             dynamic_dispatch,
             borrowed_reference_sources,

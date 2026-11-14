@@ -693,7 +693,8 @@ mod semantic_call {
             .semantic_calling_application()
             .ok_or("semantic-entry transport has no selected calling application")?;
         if entry.checked_entry().terminal_psi_identity() != artifact.manifest().semantic()
-            || entry.target() != target::NativeTarget::uefi_x64()
+            || entry.source().target_slot().owner != target::TargetProfile::UefiX64
+            || entry.target() != entry.source().target_slot().owner.native_target()
             || entry.physical_adapter().is_none()
             || entry.source().target_slot().schema
                 != target::ProgramEntrySchema::ProgramStorageApplication
