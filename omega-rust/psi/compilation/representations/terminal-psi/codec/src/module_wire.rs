@@ -2775,6 +2775,102 @@ pub(crate) mod float_meaning_wire {
         InputId: FloatProjectionInputId;
     }
 
+    use numerics::float_semantics::FloatSemanticOperationIdentity;
+    use numerics::integer_carrier::{FixedInteger, IntegerSign};
+
+    struct IntegerCarrier;
+    impl Field<FixedInteger> for IntegerCarrier {
+        fn write(writer: &mut Writer, value: &FixedInteger) -> Result<(), CodecError> {
+            writer.u8(u8::from(value.is_signed()));
+            writer.u64(value.width());
+            Ok(())
+        }
+        fn read(reader: &mut Reader<'_>) -> Result<FixedInteger, CodecError> {
+            let sign = match reader.u8()? {
+                0 => IntegerSign::Unsigned,
+                1 => IntegerSign::Signed,
+                tag => return Err(CodecError::InvalidTag("float semantic integer sign", tag)),
+            };
+            FixedInteger::new(sign, reader.u64()?).ok_or(CodecError::MalformedStructuralFoundation(
+                "float semantic integer width must be positive",
+            ))
+        }
+    }
+
+    wire_enum! {
+        SemanticOperation: FloatSemanticOperationIdentity, "FloatSemanticOperationIdentity" {
+            0 => Fixed(row: U8),
+            1 => FromInteger(carrier: IntegerCarrier),
+            2 => ToIntegerExact(carrier: IntegerCarrier),
+            3 => ToIntegerSaturating(carrier: IntegerCarrier),
+        }
+    }
+
+    #[cfg(test)]
+    mod float_conversion_identity_tests {
+        use super::*;
+        use numerics::float_semantics::{FloatSemanticOperation, FloatSemanticValueKind};
+
+        #[test]
+        fn width_parameterized_float_contracts_round_trip_without_source() {
+            for carrier in [
+                FixedInteger::signed(1),
+                FixedInteger::unsigned(13),
+                FixedInteger::signed(257),
+                FixedInteger::unsigned(u64::MAX),
+            ] {
+                let integer = FloatSemanticValueKind::Integer(carrier);
+                for (name, parameters, result) in [
+                    (
+                        "from_integer".to_owned(),
+                        vec![FloatSemanticValueKind::Format, integer],
+                        FloatSemanticValueKind::Meaning,
+                    ),
+                    (
+                        format!("to_{carrier}"),
+                        vec![FloatSemanticValueKind::Meaning],
+                        integer,
+                    ),
+                    (
+                        format!("to_{carrier}_saturating"),
+                        vec![FloatSemanticValueKind::Meaning],
+                        integer,
+                    ),
+                ] {
+                    let operation = FloatSemanticOperation::from_source_identity(
+                        "FloatSemantics",
+                        &name,
+                        &parameters,
+                        result,
+                    )
+                    .unwrap();
+                    let contract = operation.contract_identity();
+                    let mut writer = Writer::default();
+                    ApplicationContract::write(&mut writer, &contract).unwrap();
+                    let bytes = writer.finish();
+                    let decoded = ApplicationContract::read(&mut Reader::new(&bytes)).unwrap();
+                    assert_eq!(decoded, contract);
+                    assert_eq!(
+                        FloatSemanticOperation::for_contract_identity(&decoded),
+                        Some(operation)
+                    );
+                }
+            }
+        }
+
+        #[test]
+        fn width_parameterized_float_contracts_reject_invalid_carriers() {
+            for bytes in [
+                vec![1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                vec![2, 2, 13, 0, 0, 0, 0, 0, 0, 0],
+                vec![3, 0, 13],
+                vec![255],
+            ] {
+                assert!(SemanticOperation::read(&mut Reader::new(&bytes)).is_err());
+            }
+        }
+    }
+
     struct Format;
     impl Field<IeeeFloatFormat> for Format {
         fn write(writer: &mut Writer, value: &IeeeFloatFormat) -> Result<(), CodecError> {
@@ -2827,7 +2923,7 @@ pub(crate) mod float_meaning_wire {
             operands: List<ApplicationOperand>,
         }
         ApplicationContract: FloatSemanticContractIdentity {
-            row: U8,
+            operation: SemanticOperation,
             catalog_version: U16,
             commitment: Digest,
         }

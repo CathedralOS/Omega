@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 265`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 266`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -4762,13 +4762,15 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
+// Marker 266 retains the integer carrier in float semantic conversion identities.
+// A finite catalog ordinal from an earlier artifact cannot express that identity.
 // Marker 265 distinguishes entry field observations from current observations.
 // A 264 artifact cannot be read as that schema. Marker 264 retains each selected
 // call's public contract and closed application
 // separately from its executable body. Marker 263 operational ceilings and call
 // acknowledgements, 262 opaque contexts, 261 write summaries and the earlier
 // numeric and finite-family identities remain part of the same format.
-pub(crate) const FORMAT_MARKER: u16 = 265;
+pub(crate) const FORMAT_MARKER: u16 = 266;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -5715,8 +5717,9 @@ mod format_marker_tests {
         // Independent Id and interrupt layouts both used 252 (and earlier
         // independent Id and relocation layouts both used 251).
         // Neither body may be interpreted as the combined layout, regardless
-        // of which payload follows their shared legacy marker.
-        for legacy in [250u16, 251, 252, 256, 261, 264] {
+        // of which payload follows their shared legacy marker. Marker 260's finite
+        // float conversion ordinal also cannot supply the retained carrier identity.
+        for legacy in [250u16, 251, 252, 256, 260, 261, 264, 265] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();
                 bytes.extend_from_slice(&legacy.to_le_bytes());

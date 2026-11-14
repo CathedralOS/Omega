@@ -412,13 +412,19 @@ impl Lowering<'_> {
         terminal_check_tables::row(self.outcomes, callee, self.id, Construct::Machine)
     }
 
-    /// Whether a call of `callable` can return to its caller: a machine
-    /// when some path of its body does, a boundary requirement unless its
-    /// declaration completes externally.
+    /// Whether the caller may retain a normal continuation. Checked body
+    /// outcomes stay within their source visibility; an abstract requirement
+    /// cannot inherit its implementation's private non-return fact.
     fn completes_normally(
         &self,
         callable: semantic_vocabulary::TargetMachineCallable,
+        required_contract: Option<semantic_vocabulary::ContractId>,
     ) -> Checked<bool> {
+        // Requirement routing does not publish the chosen body's outcome.
+        // Keep the continuation governed by that declared contract.
+        if required_contract.is_some() {
+            return Ok(true);
+        }
         Ok(match callable {
             semantic_vocabulary::TargetMachineCallable::Machine(callee) => {
                 self.outcome(callee)?.completes_normally
@@ -683,7 +689,7 @@ impl Lowering<'_> {
         // (`invoke_no_normal`) and has no value: the path it lies on ends at
         // it, and so does the evaluation of whatever holds it
         // (the explicit Ended evaluation outcome).
-        if !self.completes_normally(callable)? {
+        if !self.completes_normally(callable, required_contract)? {
             if designated.is_some() {
                 return Err(self.internal("designated operands on a call that never returns"));
             }

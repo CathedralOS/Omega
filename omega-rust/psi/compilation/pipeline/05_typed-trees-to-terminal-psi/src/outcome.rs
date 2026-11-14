@@ -55,8 +55,9 @@ use crate::{Unserved, refuse};
 pub struct Outcome {
     /// Published suspension and blocking, independently bounded by the header.
     pub operational: [bool; 2],
-    /// Some path of the body reaches a normal return. When none does, a call
-    /// of the machine has no normal successor (`Terminator::InvokeNoNormal`).
+    /// A normal return is possible under what callers may know. A local
+    /// checked body can exclude it; an opaque contract cannot borrow the
+    /// selected body's stronger outcome.
     pub completes_normally: bool,
     /// The published crash routes in canonical form, over the formals.
     pub crash_routes: Vec<CrashRouteBucket>,
@@ -81,11 +82,27 @@ pub struct Outcome {
 ///
 /// A machine in `requirements` is a requirement's contract and has no body:
 /// its member may return, and it may crash only as its authored ceiling says.
+/// Source body summaries are restricted to `local_results`; all other rows
+/// retain a possible normal return while their actual bodies are still walked
+/// for service, crash and operational contributions.
 pub(crate) fn outcomes(
     bodies: &IdTable<MachineId, Body>,
     signatures: Signatures<'_>,
     requirements: &[MachineId],
+    local_results: Option<&[MachineId]>,
 ) -> Checked<IdTable<MachineId, Outcome>> {
+    // A closed-body input has no source-unit boundary. Source compilations
+    // supply the same actual private-body roster as result-summary checking.
+    let mut local = bodies.map(|_, _| local_results.is_none());
+    for &machine in local_results.unwrap_or_default() {
+        *local.get_mut(machine).ok_or_else(|| {
+            refuse(
+                machine,
+                Construct::Machine,
+                Unserved::Machine("local body summary outside the module"),
+            )
+        })? = true;
+    }
     let mut walk = Walk {
         signatures,
         requirements,
@@ -103,7 +120,10 @@ pub(crate) fn outcomes(
             let completes_normally = if requirements.contains(&machine) {
                 true
             } else {
-                walk.statements(machine, &body.statements)?
+                // Always walk the body for its other effects. Only its
+                // normal-completion inference is private to the unit.
+                let completes = walk.statements(machine, &body.statements)?;
+                completes || local.get(machine) != Some(&true)
             };
             let found = Reached {
                 operational: walk.operational,
@@ -472,8 +492,9 @@ impl Walk<'_> {
                     else {
                         return Ok(true);
                     };
-                    return Ok(self.signatures.completion(boundary, machine)?
-                        == semantic_vocabulary::BoundaryCompletion::NormalReturn);
+                    return Ok(required_contract.is_some()
+                        || self.signatures.completion(boundary, machine)?
+                            == semantic_vocabulary::BoundaryCompletion::NormalReturn);
                 };
                 // A caller sees the causes the callee publishes, as the
                 // table stands: its ceiling when it authors one, what its
@@ -486,7 +507,9 @@ impl Walk<'_> {
                         Unserved::Call("callee outside the module"),
                     )
                 })?;
-                let completes = reached.completes_normally;
+                // A routed requirement advertises its own contract, never
+                // the stronger private outcome of its chosen implementation.
+                let completes = required_contract.is_some() || reached.completes_normally;
                 let causes = reached.causes.clone();
                 let signature =
                     self.signatures

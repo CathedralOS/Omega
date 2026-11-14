@@ -21,7 +21,8 @@
 //! - `cargo xtask worktree clean` — reset idle `worker-N` slots and remove legacy
 //!   non-pool worktrees, orphaned directories, and stray log files in parallel. It
 //!   also prunes registrations whose checkout directory is gone; the other
-//!   subcommands skip those with a notice instead of failing.
+//!   subcommands skip prunable registrations with a notice. Locked archives keep
+//!   their registration and ownership even when their checkout is offline.
 //!
 //! Several sessions share this pool, and a reset (`checkout --detach origin/main` plus
 //! `clean -fd`) or a removal destroys whatever a worktree holds. So nothing is reset,
@@ -113,6 +114,45 @@ fn worktree_git_dir(worktree_path: &Path) -> Result<PathBuf, String> {
         ));
     }
     Ok(directory)
+}
+
+/// A locked archive can retain its registration while its checkout is offline.
+/// Read that registration instead of running Git in the absent directory; the
+/// lock, topic and slot reservation must still protect the archive from reuse.
+fn listed_worktree_git_dir(main_root: &Path, listed: &ListedWorktree) -> Result<PathBuf, String> {
+    if !listed.locked
+        || listed.path.join(".git").try_exists().map_err(|error| {
+            format!("cannot inspect checkout {}: {error}", listed.path.display())
+        })?
+    {
+        return worktree_git_dir(&listed.path);
+    }
+    let registrations = crate::repository::common_git_dir(main_root)?.join("worktrees");
+    let entries = fs::read_dir(&registrations).map_err(|error| {
+        format!(
+            "cannot list Git registrations {}: {error}",
+            registrations.display()
+        )
+    })?;
+    let expected = listed.path.join(".git");
+    for entry in entries {
+        let entry = entry.map_err(|error| format!("cannot read Git registration: {error}"))?;
+        let git_dir = entry.path();
+        let pointer = git_dir.join("gitdir");
+        let target = fs::read_to_string(&pointer).map_err(|error| {
+            format!(
+                "cannot read Git registration {}: {error}",
+                pointer.display()
+            )
+        })?;
+        if Path::new(target.trim_end_matches(['\r', '\n'])) == expected {
+            return Ok(git_dir);
+        }
+    }
+    Err(format!(
+        "no retained Git registration points to locked checkout {}",
+        listed.path.display()
+    ))
 }
 
 fn read_topic(git_dir: &Path) -> Result<Option<String>, String> {
@@ -551,7 +591,7 @@ fn list_worktrees(main_root: &Path) -> Result<Vec<WorktreeInfo>, String> {
             .to_owned();
         let slot_index = worker_slot_index(&name);
         // Git keeps this directory's name when the checkout is moved.
-        let git_dir = worktree_git_dir(&listed.path)?;
+        let git_dir = listed_worktree_git_dir(main_root, &listed)?;
         let topic = read_topic(&git_dir)?;
         let at_main = !listed.head.is_empty() && listed.head == main_oid;
         let open_pr = open_prs.contains(&listed.head);
@@ -1043,8 +1083,8 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 mod tests {
     use super::{
         ListedWorktree, acquire_base, cloud_session, fetch_published_head, has_unsaved_commits,
-        lock_pool_at, parse_worktree_list, published_build_commit, read_topic, reset_refusal,
-        worktree_git_dir, write_topic,
+        list_worktrees, lock_pool_at, parse_worktree_list, published_build_commit, read_topic,
+        reset_refusal, worktree_git_dir, write_topic,
     };
     use std::fs;
     use std::path::Path;
@@ -1155,7 +1195,7 @@ mod tests {
     }
 
     #[test]
-    fn ownership_follows_a_moved_linked_worktree() {
+    fn ownership_follows_moved_and_offline_locked_worktrees() {
         struct Scratch(std::path::PathBuf);
         impl Drop for Scratch {
             fn drop(&mut self) {
@@ -1245,10 +1285,54 @@ mod tests {
         assert_eq!(read_topic(&moved_git_dir).unwrap(), None);
         write_topic(&moved_git_dir, None).unwrap();
 
+        write_topic(&moved_git_dir, Some("tools-retained-archive")).unwrap();
+        git(
+            &repository,
+            &[
+                "worktree",
+                "lock",
+                moved.to_str().unwrap(),
+                "--reason",
+                "offline archive",
+            ],
+        );
+        // An archive's source is retained elsewhere while Git intentionally
+        // keeps the locked registration at its original restoration location.
+        let archive = scratch.0.join("offline-source");
+        fs::rename(&moved, &archive).unwrap();
+        assert!(
+            worktree_git_dir(&moved)
+                .unwrap_err()
+                .contains("cannot locate Git directory")
+        );
+        let registration_head = fs::read(moved_git_dir.join("HEAD")).unwrap();
+        let registration_lock = fs::read(moved_git_dir.join("locked")).unwrap();
+        let worktrees = list_worktrees(&repository).unwrap();
+        assert_eq!(worktrees.len(), 1);
+        let retained = &worktrees[0];
+        assert_eq!(retained.path, moved);
+        assert_eq!(retained.git_dir, fs::canonicalize(&moved_git_dir).unwrap());
+        assert_eq!(retained.slot_index, Some(1));
+        assert_eq!(retained.topic.as_deref(), Some("tools-retained-archive"));
+        assert!(retained.locked);
+        assert!(!moved.exists());
+        assert!(archive.join(".git").is_file());
+        assert_eq!(
+            fs::read(moved_git_dir.join("HEAD")).unwrap(),
+            registration_head
+        );
+        assert_eq!(
+            fs::read(moved_git_dir.join("locked")).unwrap(),
+            registration_lock
+        );
+        assert!(reset_refusal(retained.locked, false, false).is_some());
+
         // A filesystem failure must remain an error, never an unowned slot or a
         // successful assignment. A directory blocks both reading and writing.
+        write_topic(&moved_git_dir, None).unwrap();
         fs::create_dir(git_dir.join("topic")).unwrap();
         assert!(read_topic(&moved_git_dir).is_err());
+        assert!(list_worktrees(&repository).is_err());
         let error = write_topic(&moved_git_dir, Some("tools-refused")).unwrap_err();
         assert!(error.contains("cannot update worktree topic"));
     }

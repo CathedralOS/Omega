@@ -515,6 +515,40 @@ because the parameter expects `&mut [u8]`. The explicit-new-loan rule does not
 copy an exclusive reference or extend its lifetime. Bounds and loan obligations
 are unchanged, including for empty ranges.
 
+#### Views of a fixed array
+
+Named decision: `array-borrow-as-view`, ratified 2026-11-14. A reference to a
+fixed array never adapts to a view of its elements. `&bytes` and `&mut bytes`
+of a `[T; N]` have types `&[T; N]` and `&mut [T; N]` at every position, whatever
+type the position expects. An element view is formed explicitly, by range
+access or by a named adapter such as `ArrayAccess::as_slice` or `as_mut_slice`.
+
+```omega
+machine set_first(buffer: &mut [u8], value: u8)
+requires buffer.len > 0
+{
+    buffer[0] = value;
+}
+
+let mut bytes: [u8; 38];
+set_first(&mut bytes[..], 7); // A view of all 38 elements.
+set_first(&mut bytes, 7);     // Rejected: a reference to the array, not a view.
+```
+
+A full-array view covers elements `0..N` of the same array, with no copy or
+allocation, and establishes that its length is `N`. That fact can discharge the
+receiving machine's preconditions, as `buffer.len > 0` above. The view keeps the
+backing, access, lifetime and custody obligations of any borrowed range. A
+mutable view is formed directly under exclusive access, never by upgrading a
+shared view. A zero-length array gives an empty view and no element reference.
+
+The rule is the same for local initializers, assignments, call arguments, state
+transfers, returned values and constructed fields. Because nothing is inserted,
+overload selection and generic inference see the written type: given
+`machine length<T>(items: &[T]) -> u64`, the call `length(&bytes[..])` infers
+`T = u8` with no further rule. An existing view is forwarded as it is; only the
+step from array to elements is written.
+
 ### Range endpoints
 
 `a..b` is exclusive; `a..=b` is inclusive. Open forms are `a..`, `..b`, and `..`.
