@@ -93,7 +93,10 @@ machine select(view: &[u8], selection: Selection) {{
 "#
         )
     };
-    assert_eq!(verdict(&routing("select(repository, selection)")), "accepted");
+    assert_eq!(
+        verdict(&routing("select(repository, selection)")),
+        "accepted"
+    );
     assert_eq!(
         verdict(&routing("pair(selection, selection)")),
         "owned storage is used after its value was transferred or consumed"
@@ -135,8 +138,7 @@ fn a_dispatch_edge_disposes_of_exactly_what_the_schedule_says() {
 
     let edit = |change: &dyn Fn(&mut Vec<TerminalAffineCleanupAction>)| {
         let mut machine = machine.clone();
-        let Terminator::StructuralCase { cases, .. } = &mut machine.blocks[block].terminator
-        else {
+        let Terminator::StructuralCase { cases, .. } = &mut machine.blocks[block].terminator else {
             unreachable!()
         };
         change(&mut cases[0].cleanup_actions);
