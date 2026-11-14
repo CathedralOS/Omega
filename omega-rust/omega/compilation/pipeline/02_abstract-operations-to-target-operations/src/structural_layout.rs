@@ -30,7 +30,8 @@ fn geometry_error(
         Geometry::UnsupportedStructuralSum(identity) => {
             LoweringError::UnsupportedStructuralSum(identity)
         }
-        Geometry::UnclosedOpaqueRepresentation(_)
+        Geometry::UnclosedScalarType(_)
+        | Geometry::UnclosedOpaqueRepresentation(_)
         | Geometry::InvalidStorageGeometry(_)
         | Geometry::ReentrantLayoutQuery(_) => LoweringError::NativeStructuralLayout(error),
     }

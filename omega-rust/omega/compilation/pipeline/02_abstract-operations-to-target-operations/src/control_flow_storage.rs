@@ -249,6 +249,7 @@ pub(crate) mod aggregate_borrows {
                 runs,
                 function,
                 &super::scalar_sources::ScalarSources::from(live),
+                types,
             )?;
             (selected, shape, offset, indices)
         };
@@ -899,6 +900,7 @@ pub(crate) mod borrowed_windows {
             indices,
             function,
             &super::scalar_sources::ScalarSources::from(&*live),
+            types,
         )?;
         let (value_type, multiplicity) =
             super::aggregate_results::value_input(function, types, live, value)?;
@@ -1147,8 +1149,11 @@ pub(crate) mod byte_concatenation {
                             live.element_view_backings(),
                             source,
                         )?;
-                    let values =
-                        super::observations::scalar_values(live, &prepared.scalar_parameters)?;
+                    let values = super::observations::scalar_values(
+                        live,
+                        &prepared.scalar_parameters,
+                        types,
+                    )?;
                     if source.access != StructuralAccess::SharedBorrow
                         || !indices.is_empty()
                         || !types.get(selected).is_some_and(|declaration| {
@@ -1201,7 +1206,9 @@ pub(crate) mod byte_concatenation {
                 .get(&length)
                 .ok_or(LoweringError::unsupported_control_flow(function.machine))?
                 .scalar_type();
-            if scalar.sign() != IntegerSign::Unsigned || scalar.bits() != 64 || scalar.is_address()
+            if scalar.sign() != IntegerSign::Unsigned
+                || scalar.bits() != Some(64)
+                || scalar.is_address()
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
@@ -1620,7 +1627,7 @@ pub(crate) mod byte_write {
             (length_value.scalar_type(), 64),
         ] {
             if scalar_type.sign() != IntegerSign::Unsigned
-                || scalar_type.bits() != bits
+                || scalar_type.bits() != Some(bits)
                 || scalar_type.is_address()
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -1665,7 +1672,11 @@ pub(crate) mod byte_write {
         {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
-        let values = super::observations::scalar_values(live, &prepared.scalar_parameters)?;
+        let values = super::observations::scalar_values(
+            live,
+            &prepared.scalar_parameters,
+            structural_types,
+        )?;
         let (view, access) = crate::scalar::byte_views::resolve_byte_view(
             function,
             structural_types,
@@ -1692,7 +1703,7 @@ pub(crate) mod byte_write {
             (byte_value.scalar_type(), 8),
         ] {
             if scalar_type.sign() != semantic_vocabulary::IntegerSign::Unsigned
-                || scalar_type.bits() != bits
+                || scalar_type.bits() != Some(bits)
                 || scalar_type.is_address()
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -1740,7 +1751,8 @@ pub(crate) mod element_view_write {
         else {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         };
-        let values = observations::scalar_values(live, &prepared.scalar_parameters)?;
+        let values =
+            observations::scalar_values(live, &prepared.scalar_parameters, structural_types)?;
         if !observes_count(function, &values, *length, destination, false) {
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
@@ -1769,7 +1781,7 @@ pub(crate) mod element_view_write {
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
         let element_value = super::scalar_sources::source(*value, function, live)?;
         if index_value.scalar_type().sign() != IntegerSign::Unsigned
-            || index_value.scalar_type().bits() != 64
+            || index_value.scalar_type().bits() != Some(64)
             || index_value.scalar_type().is_address()
             || element_scalar != element_value.scalar_type()
         {
@@ -1957,6 +1969,7 @@ pub(crate) mod leaf_copy {
             indices,
             function,
             &super::scalar_sources::ScalarSources::from(&*live),
+            types,
         )?;
         let result_home = established_home(live, psi_operation, result, types, function.machine)?;
         if result_home.layout.shape() != shape {
@@ -2047,7 +2060,7 @@ pub(crate) mod observations {
         prepared: &crate::function_signature::PreparedFunctionSignature,
     ) -> Result<(), LoweringError> {
         let (function, structural_types, live, operations, provenance) = site.parts();
-        let mut values = scalar_values(live, &prepared.scalar_parameters)?;
+        let mut values = scalar_values(live, &prepared.scalar_parameters, structural_types)?;
 
         let lower_byte_observation = |operation, values, provenance_operations| {
             byte_views::lower_byte_observation_with_lengths(
@@ -2526,6 +2539,7 @@ pub(crate) mod observations {
     pub(crate) fn scalar_values(
         live: &LiveDefinitions,
         parameters: &[ScalarAbiValue],
+        types: &StructuralTypeLookup<'_>,
     ) -> Result<BTreeMap<ValueId, KnownScalar>, LoweringError> {
         let mut values = live
             .integers
@@ -2566,6 +2580,7 @@ pub(crate) mod observations {
                                     scalar_type: parameter.scalar_type,
                                 },
                                 &parameter.placement,
+                                types,
                             )?,
                         }
                     }
@@ -2599,6 +2614,7 @@ pub(crate) mod observations {
                                 scalar_type: parameter.scalar_type,
                             },
                             &parameter.placement,
+                            types,
                         )?,
                     }),
                 );
@@ -2692,7 +2708,7 @@ pub(crate) mod observations {
                     .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?
                     .scalar_type();
                 if scalar.sign() != IntegerSign::Unsigned
-                    || scalar.bits() != 64
+                    || scalar.bits() != Some(64)
                     || scalar.is_address()
                 {
                     return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -2847,7 +2863,8 @@ pub(crate) mod primitive_storage {
                 .map(|declaration| &declaration.shape),
             Some(StructuralTypeShape::ElementView { .. })
         ) {
-            let values = super::observations::scalar_values(live, &prepared.scalar_parameters)?;
+            let values =
+                super::observations::scalar_values(live, &prepared.scalar_parameters, types)?;
             let (_, resolved_type, access) = crate::scalar::element_views::resolve_element_view(
                 function,
                 types,
@@ -2894,6 +2911,7 @@ pub(crate) mod primitive_storage {
             runs,
             function,
             &super::scalar_sources::ScalarSources::from(live),
+            types,
         )
     }
 
@@ -3239,6 +3257,7 @@ pub(crate) mod primitive_storage {
                     runs,
                     function,
                     &super::scalar_sources::ScalarSources::from(&*live),
+                    types,
                 )?;
                 retain_result(*psi_operation, *result, live)?;
                 (
@@ -3288,6 +3307,7 @@ pub(crate) mod primitive_storage {
                     runs,
                     function,
                     &super::scalar_sources::ScalarSources::from(&*live),
+                    types,
                 )?;
                 retain_result(*psi_operation, *result, live)?;
                 (

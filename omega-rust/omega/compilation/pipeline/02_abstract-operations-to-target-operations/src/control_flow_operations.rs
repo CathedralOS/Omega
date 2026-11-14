@@ -855,7 +855,11 @@ pub(crate) mod operations {
                 destination,
                 ..
             } => {
-                let values = observations::scalar_values(site.live, &prepared.scalar_parameters)?;
+                let values = observations::scalar_values(
+                    site.live,
+                    &prepared.scalar_parameters,
+                    structural_types,
+                )?;
                 let (view, _, _) = crate::scalar::element_views::resolve_element_view(
                     function,
                     structural_types,
@@ -1226,6 +1230,7 @@ pub(crate) mod operations {
                     &mut site.live.integers,
                     site.operations,
                     site.provenance,
+                    structural_types,
                 )
             }
             _ => Err(LoweringError::unsupported_control_flow(function.machine)),
@@ -1410,11 +1415,12 @@ pub(crate) mod scalar_sources {
         runs: Vec<(ValueId, u32)>,
         function: &AbstractFunction,
         sources: &ScalarSources<'_>,
+        types: &crate::structural_type_lookup::StructuralTypeLookup<'_>,
     ) -> Result<Vec<TargetStructuralRuntimeIndex>, LoweringError> {
         runs.into_iter()
         .map(|(index, stride)| {
             let operand = resolved_source(index, function, sources)?;
-            if !matches!(operand.scalar_type(), semantic_vocabulary::ScalarType::Integer(integer)
+            if !matches!(types.closed_scalar(operand.scalar_type()), Some(semantic_vocabulary::ClosedScalarType::Integer(integer))
                 if integer.bits() <= 64)
             {
                 return Err(LoweringError::ValueTypeMismatch(index));
