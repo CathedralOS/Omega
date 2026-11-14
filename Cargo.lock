@@ -2253,7 +2253,6 @@ dependencies = [
  "source",
  "symbol-resolved-trees",
  "symbols",
- "syntax-trees-to-symbol-resolved-trees",
  "typed-trees",
 ]
 

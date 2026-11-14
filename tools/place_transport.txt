@@ -6,9 +6,10 @@
 # Written by `python tools/check_rules.py --update-place-transport`.
 1 omega-rust/psi/compilation/build-time-evaluation/src/evaluation_requests.rs
 1 omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/declarations.rs
-3 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs
+2 omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs
 1 omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/statement_lowering.rs
 1 omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places.rs
+1 omega-rust/psi/compilation/representations/symbol-resolved-trees/src/continuations.rs
 4 omega-rust/psi/compilation/representations/symbol-resolved-trees/src/control_flow_and_calls.rs
 7 omega-rust/psi/compilation/representations/symbol-resolved-trees/src/lib.rs
 1 omega-rust/psi/compilation/representations/syntax-trees/src/values_and_types.rs

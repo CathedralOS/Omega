@@ -73,13 +73,6 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
-### Typing imports the preceding resolution stage for retained handoffs
-- Category: stage ownership
-- Where: `03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs` and `call_and_product_selections.rs`, with a production Cargo dependency on stage 02
-- Saw: deferred frontier/completion carriers live in stage 02, and stage 03 calls its `resolve_signature_free_requirement` helper rather than consuming a representation-owned result
-- Cost: the earlier source stages cannot enforce the same adjacent-stage dependency ban as the numbered Terminal stages; one stage still reconstructs input meaning through its predecessor
-- Reported: 2026-11-13, Codex, while separating Psi 05/06 preparation and checking
-
 ### A view passed from a place is lent as that place, so it conflicts with a loan of its holder
 - Category: one idea, several implementations
 - Where: `05_typed-trees-to-terminal-psi/src/read/calls.rs:1453` (`lent_storage_is_untouched` with `holds_view`), `lower/calls.rs:65` (`arguments`, the `Borrow` arm), `lower/places.rs:1428` (`lend`), `06_terminal-psi-to-terminal-psi/src/places/loans.rs`
@@ -302,13 +295,6 @@ framework or a list of features that remain unimplemented.
 - Where: `omega-rust/psi/foundation/access-plans/src/placements.rs` (3,028 lines; `admit_access` at `:244`, `admit_owned_access` at `:264`, `adopt_owned_stable` at `:1754`), `primitive_access.rs` (1,251 lines), `plan_policy.rs:694`
 - Saw: no file outside the crate names `admit_access`, `admit_owned_access`, the three `adopt_owned_*` functions, `bind_schema_correspondence_to_access_plan`, `effect_footprints_conflict`, `PrimitiveAccessRequest`, `EstablishedOwnedAccess`, `SchemaCorrespondedAccessView` or `AccessAdmission`; inside the crate only `tests.rs` (7,168 lines, 109 tests) calls them; twelve crates depend on the crate for its validators
 - Cost: the crate header (`lib.rs:9-15`) says every stable, atomic or external access request is authorized before lowering, and a reader will believe a pipeline stage does that when none calls it
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### Public resolution entry points have no production callers
-- Category: zombie machinery
-- Where: `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation.rs` (`select_data_declarations`), `resolution.rs` (`resolve_numeric_probe`), and their re-exports in `lib.rs`
-- Saw: the old build-time evaluator exports are gone. `select_data_declarations` remains a definition, a doc mention and a re-export; `resolve_numeric_probe` is called only by its local test.
-- Cost: they read as the crates' public API, so the next agent wires a new caller to an entry the real driver never exercises, or keeps them compiling through a refactor for nobody
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### `pipeline.md` says the default compile runs no stage validators; two run, and one stage header misdescribes its own

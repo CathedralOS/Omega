@@ -284,9 +284,13 @@ pub fn forbidden_rules() -> Vec<Rule> {
             allowed: FIREWALL_ALLOWANCES.to_vec(),
         },
     ];
-    // The new Terminal stages have representation-owned handoffs. Earlier Psi
-    // stages still have a separately tracked 03 -> 02 deferred-frontier edge.
-    for (owners, stages) in [(&PSI_STAGES[5..], PSI_STAGES), (OMEGA_STAGES, OMEGA_STAGES)] {
+    // Typing and Terminal stages consume representation-owned handoffs; their
+    // drivers, not adjacent stages, coordinate deferred work.
+    for (owners, stages) in [
+        (&PSI_STAGES[3..4], PSI_STAGES),
+        (&PSI_STAGES[5..], PSI_STAGES),
+        (OMEGA_STAGES, OMEGA_STAGES),
+    ] {
         for &owner in owners {
             rules.push(Rule {
             owners: vec![owner],
@@ -700,6 +704,27 @@ mod tests {
                 permitted,
                 "{owner} -> {dependency}: {violations:?}"
             );
+        }
+    }
+
+    #[test]
+    fn typing_consumes_shared_data_not_its_resolution_producer() {
+        for (dependency, kind, permitted) in [
+            (PSI_STAGES[2], None, false),
+            (PSI_STAGES[2], Some("dev"), true),
+            (
+                "omega-rust/psi/compilation/representations/symbol-resolved-trees",
+                None,
+                true,
+            ),
+        ] {
+            let metadata = Metadata {
+                workspace_root: "/repo".to_owned(),
+                packages: vec![pkg("typing", PSI_STAGES[3], &[("input", dependency, kind)])],
+            };
+            let violations =
+                forbidden_dependency_violations(&metadata, &forbidden_rules()).unwrap();
+            assert_eq!(violations.is_empty(), permitted, "{violations:?}");
         }
     }
 

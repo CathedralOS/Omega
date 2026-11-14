@@ -571,6 +571,11 @@ source checkers or interpreters. Stages cannot call the coordinator or adjacent
 stages to reconstruct missing input facts. Enforce production dependency edges;
 independent representations and explicit test-only consumers remain legitimate.
 
+Psi 03 consumes resolved continuation records and prepared requirement selections
+from `symbol-resolved-trees`, not stage 02 APIs. The Psi driver pairs deferred
+resolver state with typing checkpoints; allocation and source-activation handoffs
+retain the exact predecessor, while pending syntax stays in resolution.
+
 Native code generation must keep the entry, selected functions and admitted
 callbacks associated with the same program and target. An immutable checked
 result carries that association through later stages.
