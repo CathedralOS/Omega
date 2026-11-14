@@ -18,9 +18,9 @@ not, stated in the predicate's scope (machine formals and the join's own
 parameters, control_flow.md):
 
 - for each parameter `p` and its argument `a` on that arrival, `p == a`,
-  with `a` replaced by its definition through the Boolean and literal
-  definitions available on the arrival edge (the same substitution
-  `ValueEqualityTransport` performs);
+  with `a` replaced by the exact scalar definitions available on the
+  arrival edge, through the same bounded substitution that
+  `ValueEqualityTransport` checks;
 - each fact available on the arrival edge but not at the join, transported
   through those definitions into its denotation;
 - each preceding join's predicate that names a value this edge fixes to a
@@ -48,7 +48,7 @@ bound by `DispatchBinding` rows, and lowering mints no arrival for it.
 Nothing here reads a name or text: values are compared by identity.
 */
 
-use proof_admission::check_value_equality_denotation;
+use proof_admission::{check_value_equality_denotation, check_value_equality_substitution};
 use semantic_vocabulary::{
     BlockId, EdgeId, MachineId, ObligationId, Proposition, PropositionContext, ScalarTerm,
     ScalarType, ValueId,
@@ -323,10 +323,11 @@ fn describe(
         let path = !graph.dominates(row.available_from, entry)?;
         available.push((row.justification, proposition, path));
     }
-    // The definitions transport substitutes: operation equations whose
-    // subject is Boolean, whose definition is a literal, or whose definition
-    // is what a formal's storage held at entry (a read that no store
-    // reaches: its result is that content, which the join can name).
+    // Operation equations name immutable scalar results, including computed
+    // integers. Storage-read equations come from the write log, so expanding
+    // one preserves its exact reaching version. The final scope projection
+    // still rejects branch-local values that cannot be restated at this join.
+    // Other carriers retain only what a formal's storage held at entry.
     let entry_content = |term: &ScalarTerm| {
         matches!(term, ScalarTerm::Value { id, .. }
         if matches!(
@@ -341,23 +342,21 @@ fn describe(
                 && matches!(
                     proposition,
                     Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition)
-                        if subject.scalar_type() == ScalarType::Boolean
-                            || matches!(
-                                definition,
-                                ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_)
-                            )
+                        if matches!(subject.scalar_type(), ScalarType::Boolean | ScalarType::Integer(_))
                             || entry_content(definition)
                 )
         })
         .map(|(_, proposition, _)| *proposition)
         .collect();
-    let definitions: Vec<(ValueId, &ScalarTerm)> = equations
+    let mut defined_values: Vec<ValueId> = equations
         .iter()
         .filter_map(|equation| match equation {
-            Proposition::Equal(ScalarTerm::Value { id, .. }, definition) => Some((*id, definition)),
+            Proposition::Equal(ScalarTerm::Value { id, .. }, _) => Some(*id),
             _ => None,
         })
         .collect();
+    defined_values.sort_unstable();
+    defined_values.dedup();
     // What this edge fixes: a value it knows equal to a literal and that no
     // operation defines, which is a preceding join's result under the guard
     // that chose this edge. A fact that names such a value says more here
@@ -372,7 +371,7 @@ fn describe(
                     Proposition::Equal(
                         ScalarTerm::Value { id, .. },
                         ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_)
-                    ) if !definitions.iter().any(|(subject, _)| subject == id)
+                    ) if defined_values.binary_search(id).is_err()
                 )
         })
         .map(|(_, proposition, _)| *proposition)
@@ -393,15 +392,18 @@ fn describe(
         .zip(join.parameters.iter().map(|parameter| parameter.id))
         .collect();
     for (parameter, argument) in join.parameters.iter().zip(arguments) {
-        let defined = unfold(
-            &ScalarTerm::value(*argument, parameter.scalar_type),
-            &definitions,
-            0,
-        );
-        parts.push(Proposition::Equal(
+        let binding = Proposition::Equal(
             ScalarTerm::value(parameter.id, parameter.scalar_type),
-            defined,
-        ));
+            ScalarTerm::value(*argument, parameter.scalar_type),
+        );
+        // Reuse the kernel's bounded definition traversal. Expanding an
+        // arithmetic DAG by recursive cloning here can grow exponentially.
+        // A failed or exhausted transport leaves the original binding for
+        // the ordinary scope filter to weaken, never an assumed relation.
+        let defined =
+            check_value_equality_substitution(context, &binding, equations.iter().copied())
+                .unwrap_or(binding);
+        parts.push(defined);
     }
     for (justification, proposition, path) in &available {
         if matches!(justification, Justification::OperationSemantics(_)) {
