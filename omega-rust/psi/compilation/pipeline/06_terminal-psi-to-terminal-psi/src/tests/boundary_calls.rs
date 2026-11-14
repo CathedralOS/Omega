@@ -487,17 +487,18 @@ fn declared_verdicts(text: &str) -> Vec<RouteVerdict> {
     let entry = entry(&typed);
     let verdicts = crate::judge_compilation(
         typed_trees_to_terminal_psi::prepare_compilation(
-        &typed,
-        typed_trees_to_terminal_psi::Compilation {
-            entries: &[entry],
-            subjects: &[],
-            purpose: source::DependencyScope::Product,
-            selected: &[],
-            bindings: &[],
-            supplies: &[],
-        },
-        terminal_codec::TerminalPublication::Invocation,
-        ).program,
+            &typed,
+            typed_trees_to_terminal_psi::Compilation {
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program,
     );
     assert_eq!(verdicts.len(), 2, "{verdicts:?}");
     verdicts.into_iter().map(Result::unwrap).collect()
@@ -626,17 +627,18 @@ fn a_boundary_conformer_is_not_a_named_direct_entry() {
     let entry = entry(&typed);
     let verdicts = crate::judge_compilation(
         typed_trees_to_terminal_psi::prepare_compilation(
-        &typed,
-        typed_trees_to_terminal_psi::Compilation {
-            entries: &[entry],
-            subjects: &[],
-            purpose: source::DependencyScope::Product,
-            selected: &[],
-            bindings: &[],
-            supplies: &[],
-        },
-        terminal_codec::TerminalPublication::Invocation,
-        ).program,
+            &typed,
+            typed_trees_to_terminal_psi::Compilation {
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program,
     );
     assert!(
         matches!(verdicts.as_slice(), [Ok(RouteVerdict::FallBack(refusal))]
@@ -660,17 +662,18 @@ machine entry() -> u32 reaches none crashes none { chosen() }
     let entry = entry(&typed);
     let verdicts = crate::judge_compilation(
         typed_trees_to_terminal_psi::prepare_compilation(
-        &typed,
-        typed_trees_to_terminal_psi::Compilation {
-            entries: &[entry],
-            subjects: &[],
-            purpose: source::DependencyScope::Product,
-            selected: &[],
-            bindings: &[],
-            supplies: &[],
-        },
-        terminal_codec::TerminalPublication::Invocation,
-        ).program,
+            &typed,
+            typed_trees_to_terminal_psi::Compilation {
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program,
     );
     assert!(
         matches!(&verdicts[0], Ok(RouteVerdict::Rejected { exceeded, .. })
@@ -698,17 +701,18 @@ Rebound satisfies Other { Other::apply = previous; }
     let entry = entry(&typed);
     let verdicts = crate::judge_compilation(
         typed_trees_to_terminal_psi::prepare_compilation(
-        &typed,
-        typed_trees_to_terminal_psi::Compilation {
-            entries: &[entry],
-            subjects: &[None],
-            purpose: source::DependencyScope::Product,
-            selected: &[],
-            bindings: &[],
-            supplies: &[],
-        },
-        terminal_codec::TerminalPublication::Invocation,
-        ).program,
+            &typed,
+            typed_trees_to_terminal_psi::Compilation {
+                entries: &[entry],
+                subjects: &[None],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program,
     );
     assert!(
         matches!(verdicts.as_slice(), [Ok(RouteVerdict::FallBack(refusal))]
@@ -814,7 +818,10 @@ fn inline_parameter_read(
     )
 }
 
-fn inline_parameter_dispatch(actual: &str, guarantee: &str) -> typed_trees_to_terminal_psi::Elaboration {
+fn inline_parameter_dispatch(
+    actual: &str,
+    guarantee: &str,
+) -> typed_trees_to_terminal_psi::Elaboration {
     let prepared = inline_parameter_prepared(actual, guarantee);
     let elaboration =
         inline_parameter_read(&prepared, terminal_codec::TerminalPublication::Invocation).unwrap();

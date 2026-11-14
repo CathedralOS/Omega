@@ -2529,6 +2529,7 @@ dependencies = [
  "language-core",
  "optimization",
  "proof-admission",
+ "psi-work",
  "semantic-vocabulary",
  "source",
  "source-files-to-tokens",
@@ -2537,11 +2538,13 @@ dependencies = [
  "syntax-trees-to-symbol-resolved-trees",
  "terminal-check-tables",
  "terminal-codec",
+ "terminal-interpreter",
  "terminal-psi",
  "terminal-semantics",
  "tokens-to-syntax-trees",
  "typed-trees",
  "typed-trees-to-terminal-psi",
+ "typed-trees-to-typed-trees",
 ]
 
 [[package]]

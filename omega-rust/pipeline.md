@@ -1615,8 +1615,8 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   the same representation; do not invent a `PreOptimized`/`PostOptimized` pair.
   The folders must expose the connected `X-to-Y`, `Y-to-Y`, `Y-to-Z` sequence,
   not merely name individually plausible calculations. See [optimization phases](../wiki/spec/build/optimizations.md#phase-and-product-boundaries).
-- Psi `compilation/pipeline/typed-trees-to-terminal-psi/` — typed structure to unsealed Terminal Psi.
-- Psi `compilation/pipeline/terminal-psi-to-terminal-psi/` — the compilation's only program verdict. It judges the unoptimized module and, when selected passes have run, their output, with no knowledge of which passes ran. A rejection of that output is a compiler defect, not a source diagnostic. Empty selection does not request the second judgment.
+- Psi `compilation/pipeline/05_typed-trees-to-terminal-psi/` — typed structure to unsealed Terminal Psi.
+- Psi `compilation/pipeline/06_terminal-psi-to-terminal-psi/` — the compilation's only program verdict. It judges the unoptimized module and, when selected passes have run, their output, with no knowledge of which passes ran. A rejection of that output is a compiler defect, not a source diagnostic. Empty selection does not request the second judgment.
 - Psi `compilation/pipeline/04_typed-trees-to-typed-trees/` — retained preparation
   metadata and an empty no-work boundary; nonempty work refuses.
 - Psi `compilation/proof/admission/` — the independent mathematical checker.

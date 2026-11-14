@@ -46,17 +46,18 @@ fn verdict(text: &str, roots: &[&str]) -> String {
     let frozen: typed_trees::FrozenTypedTrees = typed.into();
     let verdicts = crate::judge_compilation(
         typed_trees_to_terminal_psi::prepare_compilation(
-        &frozen,
-        typed_trees_to_terminal_psi::Compilation {
-            entries: &entries,
-            subjects: &[],
-            purpose: source::DependencyScope::Product,
-            selected: &[],
-            bindings: &[],
-            supplies: &[],
-        },
-        terminal_codec::TerminalPublication::Invocation,
-        ).program,
+            &frozen,
+            typed_trees_to_terminal_psi::Compilation {
+                entries: &entries,
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        )
+        .program,
     );
     let parts: Vec<String> = verdicts
         .into_iter()

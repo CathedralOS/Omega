@@ -309,17 +309,18 @@ fn a_supplied_body_has_no_cached_or_selected_named_entry() {
     }];
     let verdicts = crate::judge_compilation(
         typed_trees_to_terminal_psi::prepare_compilation(
-        &typed,
-        typed_trees_to_terminal_psi::Compilation {
-            entries: &[member],
-            subjects: &[],
-            purpose: source::DependencyScope::Product,
-            selected: &[],
-            bindings: &[],
-            supplies: &supplies,
-        },
-        terminal_codec::TerminalPublication::Portable,
-        ).program,
+            &typed,
+            typed_trees_to_terminal_psi::Compilation {
+                entries: &[member],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &supplies,
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .program,
     );
     assert!(
         matches!(verdicts.as_slice(), [Ok(RouteVerdict::FallBack(refusal))]

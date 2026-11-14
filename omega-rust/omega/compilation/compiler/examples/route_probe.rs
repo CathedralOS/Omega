@@ -112,17 +112,18 @@ fn probe(
     };
     let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
         typed_trees_to_terminal_psi::prepare_compilation(
-        &frontier.typed,
-        typed_trees_to_terminal_psi::Compilation {
-            entries: &frontier.entries,
-            subjects: &subjects,
-            purpose: source::DependencyScope::Product,
-            selected: &frontier.selected,
-            bindings: &frontier.bindings,
-            supplies: &[],
-        },
-        terminal_codec::TerminalPublication::Portable,
-        ).program,
+            &frontier.typed,
+            typed_trees_to_terminal_psi::Compilation {
+                entries: &frontier.entries,
+                subjects: &subjects,
+                purpose: source::DependencyScope::Product,
+                selected: &frontier.selected,
+                bindings: &frontier.bindings,
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .program,
     );
     let mut whole = "accepted";
     let mut worse = |verdict: &'static str| {
