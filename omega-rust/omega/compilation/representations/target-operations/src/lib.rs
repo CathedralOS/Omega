@@ -58,8 +58,9 @@ pub use calls::{
 };
 pub mod control_flow;
 pub use control_flow::{
-    TargetControlBlock, TargetControlCasePayload, TargetControlCaseSuccessor, TargetControlGraph,
-    TargetControlSuccessor, TargetControlTerminator, TargetFunction, TargetScalarBlockParameter,
+    TargetCasePointerSlot, TargetControlBlock, TargetControlCasePayload,
+    TargetControlCaseSuccessor, TargetControlGraph, TargetControlSuccessor,
+    TargetControlTerminator, TargetFunction, TargetScalarBlockParameter,
     TargetStructuralCaseSource, TargetStructuralReturnSource,
 };
 pub mod provenance;
