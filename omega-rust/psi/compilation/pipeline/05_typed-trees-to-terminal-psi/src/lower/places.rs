@@ -402,6 +402,47 @@ pub(crate) fn declare<'a>(
             .map_err(|reason| refuse(entry, Construct::Machine, Unserved::Type(reason)))?;
         primitives.push((value_type, home.clone(), id));
     }
+    // Scalar fields name a primitive contract, not a nominal storage row.
+    // Nominate the canonical existing plain declaration for that contract
+    // once, so a reference captures declared field storage rather than
+    // manufacturing a carrier from its receiving type.
+    let mut primitive_carriers = std::collections::BTreeMap::new();
+    for declaration in &structural_types {
+        if let StructuralTypeShape::PrimitiveScalar(scalar) = declaration.shape
+            && declaration.scalar_restriction.is_none()
+            && declaration.requires.is_empty()
+            && declaration.copyable
+            && !declaration.owns_linear_claim
+            && declaration.no_code_affine_cleanup
+            && declaration.descriptor_cleanup
+        {
+            primitive_carriers
+                .entry(scalar)
+                .and_modify(|known: &mut StructuralTypeId| *known = (*known).min(declaration.id))
+                .or_insert(declaration.id);
+        }
+    }
+    for declaration in &mut structural_types {
+        let (fields, cases): (
+            &mut [StructuralFieldDeclaration],
+            &mut [StructuralCaseDeclaration],
+        ) = match &mut declaration.shape {
+            StructuralTypeShape::Record { fields, .. } => (fields, &mut []),
+            StructuralTypeShape::Sum { cases } => (&mut [], cases),
+            StructuralTypeShape::Mixed { fields, cases, .. } => (fields, cases),
+            _ => continue,
+        };
+        for field in fields
+            .iter_mut()
+            .chain(cases.iter_mut().flat_map(|case| &mut case.fields))
+        {
+            if field.inline_carrier.is_none()
+                && let StructuralFieldType::Scalar(scalar) = field.field_type
+            {
+                field.inline_carrier = primitive_carriers.get(&scalar).copied();
+            }
+        }
+    }
     Ok(Declared {
         records: Records {
             types,
@@ -1111,7 +1152,15 @@ impl<'a> Lowering<'a> {
             },
             record,
         )?;
-        let multiplicity = self.records.multiplicity(record, self.id)?;
+        let type_multiplicity = self.records.multiplicity(record, self.id)?;
+        // The operation can create an owned permission independently of
+        // the type's copy permission. Keep that creation contract while
+        // ordinary value producers retain their type's multiplicity.
+        let multiplicity = terminal_semantics::StructuralEffectSemanticRow::for_tag(
+            terminal_semantics::OperationSemanticTag::for_operation(&kind),
+        )
+        .and_then(|row| row.schema().required_result_multiplicity())
+        .unwrap_or(type_multiplicity);
         self.draft()?.operations.push(Operation::unsuspended(
             operation,
             OperationResult::Structural(owned_result(place, record, multiplicity)),

@@ -3752,7 +3752,7 @@ pub(crate) mod structural_effect {
                         source.access,
                         terminal_psi::StructuralAccess::MutableBorrow
                             | terminal_psi::StructuralAccess::SharedBorrow
-                    ) || result.multiplicity != terminal_psi::StructuralMultiplicity::Affine
+                    ) || Some(result.multiplicity) != schema.required_result_multiplicity()
                         || !result.qualifications.is_empty()
                         || result.projected_qualifications.iter().any(|row| {
                             row.path.first() != Some(&terminal_psi::StructuralPathSegment::Referent)
@@ -4756,6 +4756,20 @@ pub(crate) mod structural_effect {
         pub const fn frontier(self) -> StructuralEffectFrontierPolicy {
             self.frontier
         }
+
+        /// A fresh permission carrier owns its loan lifecycle even when
+        /// its shared type permits later copies. Other creation policies
+        /// leave the carrier type's multiplicity unchanged.
+        pub const fn required_result_multiplicity(
+            self,
+        ) -> Option<terminal_psi::StructuralMultiplicity> {
+            match self.frontier {
+                StructuralEffectFrontierPolicy::CapturesLoanAndAddsReferenceCarrier => {
+                    Some(terminal_psi::StructuralMultiplicity::Affine)
+                }
+                _ => None,
+            }
+        }
     }
 
     const fn structural_effect_leaf(
@@ -4819,6 +4833,24 @@ pub(crate) mod structural_effect {
     macro_rules! structural_effect_rows {
         ($( $tag:ident => ($result:ident, $custody:ident, $action:ident, $external:ident, $frontier:ident) ),+ $(,)?) => {
             impl StructuralEffectSemanticRow {
+                /// Select the immutable lifecycle row directly; a producer
+                /// need not validate a supplied catalog for each operation.
+                pub const fn for_tag(tag: OperationSemanticTag) -> Option<Self> {
+                    match tag {
+                        $( OperationSemanticTag::$tag => Some(Self {
+                            tag,
+                            schema: structural_effect_leaf(
+                                StructuralEffectResultShape::$result,
+                                StructuralEffectCustody::$custody,
+                                StructuralEffectAction::$action,
+                                StructuralEffectExternalEffect::$external,
+                                StructuralEffectFrontierPolicy::$frontier,
+                            ),
+                        }), )+
+                        _ => None,
+                    }
+                }
+
                 pub const ALL: [Self; structural_effect_rows!(@count $( $tag )+)] = [
                     $( Self {
                         tag: OperationSemanticTag::$tag,
