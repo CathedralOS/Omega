@@ -39,6 +39,66 @@ fn refuse_parameters(
 }
 
 impl<'t> Program<'t> {
+    fn unapplied_map_body(&self, symbol: SymbolHandle) -> bool {
+        self.typed
+            .owned_conformance_realization(symbol)
+            .is_some_and(|(owner, _)| {
+                !owner.type_parameters.is_empty() || !owner.lifetime_parameters.is_empty()
+            })
+    }
+
+    pub(super) fn is_generic_template(&self, machine: &Machine) -> bool {
+        crate::is_generic_template(self.typed, machine)
+    }
+
+    fn generic_parameters(
+        &self,
+        id: MachineId,
+        machine: &'t Machine,
+    ) -> Checked<&'t [typed_trees::data::TypeParameter]> {
+        let own = self.typed.machine_type_parameters(machine);
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        if own.is_empty() != machine.type_parameters.is_empty() {
+            return Err(unserved("type parameter span"));
+        }
+        let Some((owner, _)) = self.typed.owned_conformance_realization(machine.symbol) else {
+            return Ok(own);
+        };
+        let enclosing = self.typed.conformance_type_parameters(owner);
+        if enclosing.is_empty() != owner.type_parameters.is_empty()
+            || !owner.lifetime_parameters.is_empty()
+            || enclosing.iter().any(|parameter| {
+                parameter.kind != typed_trees::data::TypeParameterKind::Type
+                    || parameter.bounds != typed_trees::data::DataProperties::default()
+            })
+            || (!enclosing.is_empty() && !own.is_empty())
+        {
+            return Err(unserved(
+                "generic map body needs its complete eligible telescope",
+            ));
+        }
+        Ok(if enclosing.is_empty() { own } else { enclosing })
+    }
+
+    fn generic_scope(
+        &self,
+        id: MachineId,
+        machine: &'t Machine,
+    ) -> Checked<Vec<(SymbolHandle, ValueType)>> {
+        Ok(self
+            .generic_parameters(id, machine)?
+            .iter()
+            .enumerate()
+            .filter(|(_, parameter)| parameter.kind == typed_trees::data::TypeParameterKind::Type)
+            .map(|(position, parameter)| {
+                (
+                    parameter.symbol,
+                    ValueType::Rigid(terminal_check_tables::values::RigidType(position as u32)),
+                )
+            })
+            .collect())
+    }
+
     /// A helper with no written input requirement can use what every caller
     /// guarantees. A written `requires true` must still support every input.
     /// Its declaration marker survives when normalization removes the literal
@@ -87,7 +147,10 @@ impl<'t> Program<'t> {
                 "contract span",
             )?;
             if !machine.is_public
-                && self.typed.owned_conformance_realization(*symbol).is_none()
+                && self
+                    .typed
+                    .owned_conformance_realization(self.typed.lifetime_declaration_owner(*symbol))
+                    .is_none()
                 && machine.satisfies.is_empty()
                 && !contracts.iter().any(|clause| {
                     clause.kind == SignatureContractKind::Requires
@@ -182,7 +245,10 @@ impl<'t> Program<'t> {
             };
             if !machine.is_public
                 && machine.satisfies.is_empty()
-                && self.typed.owned_conformance_realization(symbol).is_none()
+                && self
+                    .typed
+                    .owned_conformance_realization(self.typed.lifetime_declaration_owner(symbol))
+                    .is_none()
                 && crate::template_of(self.typed, symbol).is_none()
             {
                 local.push(id);
@@ -225,6 +291,13 @@ impl<'t> Program<'t> {
                 self.next_identity()?,
                 Construct::Machine,
                 Unserved::Declaration("machine admission after storage metadata"),
+            ));
+        }
+        if self.unapplied_map_body(symbol) && !(self.rigid && self.symbols.is_empty()) {
+            return Err(refuse(
+                self.next_identity()?,
+                Construct::Machine,
+                Unserved::Machine("generic map body needs its complete selected application"),
             ));
         }
         let diagnostic = self.next_identity()?;
@@ -360,6 +433,16 @@ impl<'t> Program<'t> {
                 Unserved::Declaration("machine admission after storage metadata"),
             ));
         }
+        if self.unapplied_map_body(symbol)
+            && !matches!(reading, Reading::GenericEntry)
+            && !(self.rigid && matches!(reading, Reading::Implementation))
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("generic map body needs its complete selected application"),
+            ));
+        }
         let outer = std::mem::take(&mut self.scope);
         let outer_widths = std::mem::take(&mut self.width_scope);
         // An elided lifetime in the signature is a fresh parameter of this
@@ -372,6 +455,33 @@ impl<'t> Program<'t> {
         let scope = std::mem::replace(&mut self.scope, outer);
         let widths = std::mem::replace(&mut self.width_scope, outer_widths);
         let (signature, names, value_parameters) = read?;
+        if matches!(reading, Reading::GenericEntry | Reading::Alternative(_))
+            || (self.rigid && matches!(reading, Reading::Implementation))
+        {
+            let (machine, _) = self.declaration(id, symbol)?;
+            let mut binders = self
+                .generic_parameters(id, machine)?
+                .iter()
+                .map(|parameter| parameter.symbol)
+                .collect::<Vec<_>>();
+            binders.extend(
+                self.typed
+                    .machine_callable_parameters(machine)
+                    .iter()
+                    .map(|parameter| parameter.symbol),
+            );
+            let mut known = self
+                .generic_binders
+                .iter()
+                .copied()
+                .map(|binder| (binder, ()))
+                .collect::<symbols::SymbolMap<_>>();
+            for binder in binders {
+                if known.insert(binder, ()).is_none() {
+                    self.generic_binders.push(binder);
+                }
+            }
+        }
         self.symbols.push(symbol);
         self.signatures.push(signature);
         self.names.push(names);
@@ -444,6 +554,19 @@ impl<'t> Program<'t> {
         implementation: SymbolHandle,
     ) -> Checked<MachineId> {
         let id = self.next_identity()?;
+        if self.rigid {
+            let machine = self
+                .typed
+                .machine_by_symbol(implementation)
+                .ok_or_else(|| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Machine("generic witness lost its actual body"),
+                    )
+                })?;
+            self.scope = self.generic_scope(id, machine)?;
+        }
         let mut declared = self.declared_requirement(id, declaring_trait, requirement)?;
         // An owning body's unique map is also the witness's application.
         // Recover that same prepared contract rather than checking a bare
@@ -487,7 +610,7 @@ impl<'t> Program<'t> {
         self.names.push(names);
         self.value_parameters.push(0);
         self.value_arguments.push(arguments.to_vec());
-        self.scopes.push(Vec::new());
+        self.scopes.push(self.scope.clone());
         self.width_scopes.push(Vec::new());
         Ok(id)
     }
@@ -770,9 +893,6 @@ impl<'t> Program<'t> {
         {
             return unserved("service reach bound by an installation");
         }
-        if machine.suspends || machine.blocks {
-            return unserved("suspends or blocks");
-        }
         // A lifetime parameter selects no type, layout or monomorphized
         // copy (lifetimes.md: "Lifetime arguments are erased regions,
         // separate from runtime generic arity"): the body is read once with
@@ -789,8 +909,13 @@ impl<'t> Program<'t> {
         // value of a known carrier, read as a formal no caller passes
         // (`value_binders`). A type parameter would put a value of a rigid
         // type into the lowered form, which has no row for one.
-        let parameters = self.typed.machine_type_parameters(machine);
-        if parameters.is_empty() != machine.type_parameters.is_empty() {
+        let own_parameters = self.typed.machine_type_parameters(machine);
+        let parameters = if matches!(reading, Reading::GenericEntry) {
+            self.generic_parameters(id, machine)?
+        } else {
+            own_parameters
+        };
+        if own_parameters.is_empty() != machine.type_parameters.is_empty() {
             return unserved("type parameter span");
         }
         // Each refusal says which rule the parameters broke and names the
@@ -1080,20 +1205,9 @@ impl<'t> Program<'t> {
         self.machine_shape(id, machine, reading)?;
         // What each type parameter stands for while this machine is read.
         self.scope = match reading {
+            Reading::Implementation if self.rigid => self.generic_scope(id, machine)?,
             Reading::Closed | Reading::Implementation | Reading::Provider => Vec::new(),
-            Reading::GenericEntry => self
-                .typed
-                .machine_type_parameters(machine)
-                .iter()
-                .enumerate()
-                .filter(|(_, parameter)| {
-                    parameter.kind == typed_trees::data::TypeParameterKind::Type
-                })
-                .map(|(position, parameter)| {
-                    let rigid = terminal_check_tables::values::RigidType(position as u32);
-                    (parameter.symbol, ValueType::Rigid(rigid))
-                })
-                .collect(),
+            Reading::GenericEntry => self.generic_scope(id, machine)?,
             Reading::Applied(arguments) | Reading::Alternative(arguments) => self
                 .typed
                 .machine_type_parameters(machine)
@@ -1153,6 +1267,21 @@ impl<'t> Program<'t> {
                 Unserved::Machine("dependent signature differs from its prepared input shapes"),
             ));
         }
+        // A private omission requests inference; public omission and an
+        // explicitly written false promise that the effect is absent.
+        let bound =
+            |allowed, written: bool| (machine.is_public || written || allowed).then_some(allowed);
+        signature.operational = crate::body::OperationalCeilings {
+            suspension: bound(
+                machine.suspends,
+                !machine.suspends_keyword_source_spans.is_empty(),
+            ),
+            blocking: bound(
+                machine.blocks,
+                !machine.blocks_keyword_source_spans.is_empty(),
+            ),
+        };
+
         signature.termination = self.termination(id, machine)?;
         self.inherit_requirement_contract(id, machine, &mut signature, &mut names)?;
         // A machine's header clauses belong to the machine declaration; its
@@ -1182,6 +1311,7 @@ impl<'t> Program<'t> {
                 signature.reaches = routed.reaches;
             }
             signature.invokes = routed.invokes;
+            signature.operational = routed.operational;
             signature.termination = routed.termination;
             if !matches!(routed.crashes, CrashCeiling::Inferred) {
                 signature.crashes = routed.crashes;
@@ -1211,27 +1341,44 @@ impl<'t> Program<'t> {
         let context = match self.declared_requirement_origin(id, machine)? {
             Some(context) => context,
             None => {
-                let Some((implementation, row)) =
-                    typed.owned_conformance_realization(machine.symbol)
-                else {
+                let authored = typed.lifetime_declaration_owner(machine.symbol);
+                let Some((_, row)) = typed.owned_conformance_realization(authored) else {
                     return Ok(None);
                 };
-                // The same exact map/row query closes named calls. Its
-                // prepared signature retains the complete trait application;
-                // the map's own open telescope remains unavailable.
-                let Some((owner, selected, requirement)) = typed
-                    .named_conformance_member(implementation.symbol, row.requirement)
+                // The typed capture, when present, fixes the owning map's
+                // exact application. The template's generic check instead
+                // retains its own lexical telescope as a rigid scope.
+                let scope = typed
+                    .machine_conformance_requirement_scope(
+                        machine.symbol,
+                        row.declaring_trait,
+                        row.requirement,
+                    )
                     .map_err(unserved)?
-                else {
-                    return Err(unserved("conformer lost its exact owning requirement"));
-                };
+                    .ok_or_else(|| unserved("conformer lost its exact owning application"))?;
+                let requirement = typed
+                    .applied_callable_signature(&scope, row.requirement)
+                    .or_else(|| {
+                        (scope.substitutions.is_empty()
+                            && scope.declaration.lifetime_parameters.is_empty())
+                        .then(|| {
+                            typed.trait_machine_signature_by_symbol(
+                                scope.declaration,
+                                row.requirement,
+                            )
+                        })
+                        .flatten()
+                    })
+                    .ok_or_else(|| unserved("conformer lost its prepared owning requirement"))?;
                 let [entry] = typed.machine_states(machine) else {
                     return Err(unserved("conformer without one owned entry state"));
                 };
-                if owner.symbol != implementation.symbol
-                    || selected != row
-                    || entry.symbol != row.realization_state
-                {
+                if !typed.instantiated_machine_state_matches(
+                    machine.symbol,
+                    authored,
+                    row.realization_state,
+                    entry.symbol,
+                ) {
                     return Err(unserved("conformer disagrees with its exact owning row"));
                 }
                 (row.declaring_trait, requirement)
@@ -1476,22 +1623,13 @@ impl<'t> Program<'t> {
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<(Signature, MachineNames)> {
         let (signature, names) = self.declared_requirement_signature(id, requirement, arguments)?;
-        // These callable and witness uses cannot yet carry operational proof.
-        // Do not treat declared suspension or blocking as absent.
-        if requirement.suspends || requirement.blocks {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Machine("suspends or blocks"),
-            ));
-        }
         Ok((signature, names))
     }
 
     /// Read the types, logical clauses and ceilings of a requirement.
     /// Boundary publication retains its suspension and blocking flags on the
     /// checked declaration, and an actual call still owes their proof. Other
-    /// consumers use `requirement_signature`, which refuses unsupported effects.
+    /// consumers use the same operational ceilings on their callable contract.
     pub(super) fn declared_requirement_signature(
         &mut self,
         id: MachineId,
@@ -1520,6 +1658,10 @@ impl<'t> Program<'t> {
             *count = (*count).max(previous_elisions.unwrap_or(0));
         }
         let (mut signature, names) = read?;
+        signature.operational = crate::body::OperationalCeilings {
+            suspension: Some(requirement.suspends),
+            blocking: Some(requirement.blocks),
+        };
         signature.termination = self.requirement_termination(id, requirement)?;
         Ok((signature, names))
     }
@@ -1910,6 +2052,7 @@ impl<'t> Program<'t> {
         };
         Ok((
             Signature {
+                operational: Default::default(),
                 parameters,
                 erased,
                 borrowed,

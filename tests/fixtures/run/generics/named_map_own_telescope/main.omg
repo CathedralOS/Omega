@@ -1,0 +1,13 @@
+trait Step<Value> {
+    machine apply(value: Value) -> Value reaches none crashes none;
+}
+Selected<Value, Unused> satisfies Step<Value> {
+    machine apply(input: Value) -> Value reaches none crashes none { input }
+}
+machine main() crashes Trap {
+    let first: u32 = Selected<u32, u64>::apply(3);
+    let second: u32 = Selected<u32, bool>::apply(7);
+    transition first == 3 && second == 7 { true -> done() false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

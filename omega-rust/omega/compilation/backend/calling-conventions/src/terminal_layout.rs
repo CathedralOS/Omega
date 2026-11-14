@@ -10,7 +10,8 @@ reports the first error reached from its queried root.
 
 use crate::ValueShape;
 use semantic_vocabulary::{
-    IdTable, IeeeFloatFormat, NonDenseIdentities, ScalarApplicationId, ScalarType, StructuralTypeId,
+    ClosedIntegerType, ClosedScalarType, IdTable, IeeeFloatFormat, NonDenseIdentities,
+    ScalarApplicationId, ScalarType, StructuralTypeId,
 };
 use std::cell::RefCell;
 use std::collections::BTreeSet;
@@ -28,6 +29,7 @@ pub enum TerminalLayoutError {
     UnsupportedStructuralSum(StructuralTypeId),
     InvalidStorageGeometry(StructuralTypeId),
     ReentrantLayoutQuery(StructuralTypeId),
+    UnclosedScalarType(ScalarType),
 }
 
 /// Borrows a declaration catalog together with its invocation-owned native
@@ -235,7 +237,7 @@ impl<'a> StructuralLayoutResolver<'a> {
         if let Some(scalar) = storage.stored_scalar() {
             return Ok(ValueShape {
                 alignment: 1,
-                ..scalar_shape(scalar)
+                ..scalar_shape(scalar)?
             });
         }
         let Some(stride) = storage.element_stride() else {
@@ -457,8 +459,8 @@ fn resolve_structural_shape(
                     8,
                 )))
             }
-            StructuralTypeShape::PrimitiveScalar(scalar) => Ok(Some(scalar_shape(*scalar))),
-            StructuralTypeShape::AtomicCell(cell) => Ok(Some(scalar_shape(cell.scalar_type()))),
+            StructuralTypeShape::PrimitiveScalar(scalar) => scalar_shape(*scalar).map(Some),
+            StructuralTypeShape::AtomicCell(cell) => scalar_shape(cell.scalar_type()).map(Some),
             StructuralTypeShape::ByteSequence(carrier) => {
                 byte_sequence_shape(*carrier, structural_type).map(Some)
             }
@@ -684,12 +686,12 @@ fn scalar_field_shape(
         | StructuralFieldType::Atomic(ScalarType::Boolean) => Ok(ValueShape::integer(1, 1)),
         StructuralFieldType::Scalar(ScalarType::Integer(integer))
         | StructuralFieldType::Atomic(ScalarType::Integer(integer)) => {
-            Ok(ValueShape::field_integer(*integer))
+            Ok(ValueShape::field_integer(closed_integer(*integer)?))
         }
         StructuralFieldType::BoundedInteger(bounds)
-        | StructuralFieldType::AtomicBoundedInteger(bounds) => {
-            Ok(ValueShape::field_integer(bounds.integer_type()))
-        }
+        | StructuralFieldType::AtomicBoundedInteger(bounds) => Ok(ValueShape::field_integer(
+            closed_integer(bounds.integer_type())?,
+        )),
         StructuralFieldType::Scalar(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32))
         | StructuralFieldType::Atomic(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32))
         | StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32) => Ok(ValueShape::float(4)),
@@ -736,13 +738,25 @@ pub fn checked_align_up_u32(value: u32, alignment: u32) -> Option<u32> {
     }
 }
 
-pub fn scalar_shape(scalar: ScalarType) -> ValueShape {
-    match scalar {
-        ScalarType::Boolean => ValueShape::integer(1, 1),
-        ScalarType::Integer(integer) => ValueShape::standalone_integer(integer),
-        ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => ValueShape::float(4),
-        ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => ValueShape::float(8),
-    }
+fn closed_integer(
+    integer: semantic_vocabulary::IntegerType,
+) -> Result<ClosedIntegerType, TerminalLayoutError> {
+    integer
+        .try_into()
+        .map_err(|_| TerminalLayoutError::UnclosedScalarType(ScalarType::Integer(integer)))
+}
+
+/// Foreign raw declarations cross one explicit geometry boundary. Native
+/// arithmetic below this point only receives concrete scalar descriptors.
+pub fn scalar_shape(scalar: ScalarType) -> Result<ValueShape, TerminalLayoutError> {
+    let closed = ClosedScalarType::try_from(scalar)
+        .map_err(|_| TerminalLayoutError::UnclosedScalarType(scalar))?;
+    Ok(match closed {
+        ClosedScalarType::Boolean => ValueShape::integer(1, 1),
+        ClosedScalarType::Integer(integer) => ValueShape::standalone_integer(integer),
+        ClosedScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => ValueShape::float(4),
+        ClosedScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => ValueShape::float(8),
+    })
 }
 
 fn empty_primitive_array(mut current: StructuralTypeId, declarations: &Declarations<'_>) -> bool {
@@ -766,4 +780,50 @@ fn empty_primitive_array(mut current: StructuralTypeId, declarations: &Declarati
         }
     }
     false
+}
+
+#[cfg(test)]
+mod width_closure_tests {
+    use super::*;
+    use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ValueId, WidthParameter};
+
+    #[test]
+    fn raw_scalar_and_field_geometry_refuse_a_symbolic_width() {
+        let scalar = ScalarType::Integer(IntegerType::parameterized(
+            IntegerSign::Unsigned,
+            WidthParameter {
+                owner: MachineId::new(1).unwrap(),
+                value: ValueId::new(1).unwrap(),
+            },
+        ));
+        assert_eq!(
+            scalar_shape(scalar),
+            Err(TerminalLayoutError::UnclosedScalarType(scalar))
+        );
+        assert_eq!(
+            scalar_field_shape(
+                &StructuralFieldType::Scalar(scalar),
+                StructuralTypeId::new(1).unwrap()
+            ),
+            Err(TerminalLayoutError::UnclosedScalarType(scalar)),
+        );
+    }
+
+    #[test]
+    fn closed_geometry_retains_non_byte_width_and_field_alignment() {
+        let u13 = IntegerType::new(IntegerSign::Unsigned, 13).unwrap();
+        assert_eq!(
+            scalar_shape(ScalarType::Integer(u13)).unwrap(),
+            ValueShape::integer(2, 2)
+        );
+        let u24 = IntegerType::new(IntegerSign::Unsigned, 24).unwrap();
+        assert_eq!(
+            scalar_field_shape(
+                &StructuralFieldType::Scalar(ScalarType::Integer(u24)),
+                StructuralTypeId::new(1).unwrap()
+            )
+            .unwrap(),
+            ValueShape::integer(3, 4),
+        );
+    }
 }

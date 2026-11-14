@@ -799,11 +799,13 @@ impl Program<'_> {
         Ok(
             match self.member_of(id, record, member.selection.field_symbol())? {
                 Member::Field(field) => Expression {
+                    call_context: None,
                     result: Some(self.field_type(id, record, regions, field)?),
                     kind: ExpressionKind::Field { base, field },
                     source,
                 },
                 Member::Payload { case, field } => Expression {
+                    call_context: None,
                     result: Some(self.payload_type(id, record, regions, case, field)?),
                     kind: ExpressionKind::Payload { base, case, field },
                     source,
@@ -979,6 +981,7 @@ impl Program<'_> {
             return Err(typing("record literal misses a field"));
         }
         Ok(Expression {
+            call_context: None,
             kind: match case {
                 None => ExpressionKind::Record { fields },
                 Some(case) => ExpressionKind::Case { case, fields },
@@ -1064,6 +1067,7 @@ impl Program<'_> {
         };
         let case = self.case_position(id, record, case)?;
         Ok(Expression {
+            call_context: None,
             kind: ExpressionKind::IsCase {
                 subject: Box::new(subject),
                 case,

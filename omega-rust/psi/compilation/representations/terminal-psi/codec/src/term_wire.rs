@@ -273,7 +273,7 @@ pub(crate) mod contract_wire {
     use super::machine_wire::{Claim, Declaration, MachineResult, ParameterKind, ReachApplication};
     use super::wire::{Reader, Writer};
     use super::wire_fields::{
-        ArgumentSubstitution, Arguments, CleanupAction, CrashRoutes, Field, Id, Ids, List,
+        ArgumentSubstitution, Arguments, CleanupAction, CrashRoutes, Field, Flag, Id, Ids, List,
         MachineDeclaration, Optional, ProofTerms, Proposition, ScalarTerms, Text, U32,
         delegated_fields, wire_enum, wire_record,
     };
@@ -300,6 +300,10 @@ pub(crate) mod contract_wire {
             declared_service_reach: Optional<Ids>,
             declared_synchronous_entries: Optional<Ids>,
             declared_crash_routes: Optional<CrashRoutes>,
+            declared_suspension: Optional<Flag>,
+            declared_blocking: Optional<Flag>,
+            published_may_suspend: Flag,
+            published_may_block: Flag,
             closed_reach_application: ReachApplication,
             published_service_ceiling: Ids,
             published_synchronous_entries: Ids,

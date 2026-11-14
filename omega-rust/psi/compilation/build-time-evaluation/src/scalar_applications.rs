@@ -1655,6 +1655,7 @@ mod tests {
             attachment: None,
             nominal_cleanup_subject: None,
             structural_places: Vec::new(),
+            call_formations: Vec::new(),
             block_entry_claims: Vec::new(),
             loan_completions: Vec::new(),
             entry: BlockId::new(1).unwrap(),

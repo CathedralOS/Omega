@@ -421,8 +421,10 @@ mod carrier_bounds {
                 let identity = ValueId::new(1).unwrap();
                 let value = ScalarTerm::value(identity, scalar);
                 let context = PropositionContext::from_value_types([(identity, scalar)]).unwrap();
-                let minimum = ScalarTerm::integer(integer, integer.minimum_value().unwrap()).unwrap();
-                let maximum = ScalarTerm::integer(integer, integer.maximum_value().unwrap()).unwrap();
+                let minimum =
+                    ScalarTerm::integer(integer, integer.minimum_value().unwrap()).unwrap();
+                let maximum =
+                    ScalarTerm::integer(integer, integer.maximum_value().unwrap()).unwrap();
                 for goal in [
                     Proposition::LessOrEqual(minimum.clone(), value.clone()),
                     Proposition::LessOrEqual(value.clone(), maximum.clone()),

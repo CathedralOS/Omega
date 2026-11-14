@@ -72,8 +72,11 @@ use typed_trees::{
     SymbolRebinding, TypedTreeTables, TypedTrees,
 };
 
+mod named_conformances;
+
 pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut generated = Vec::new();
+    let mut captures = typed_trees::NamedConformanceCaptureIndex::new(program);
     let mut instances = symbols::SymbolMap::default();
     let mut indexed = 0;
     // A generated machine is appended to the machines and read in its turn.
@@ -95,7 +98,15 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
                     .or_insert(Some(index));
             }
             indexed = program.machine_specializations.len();
-            match serve(program, site, &mut generated, &instances) {
+            let served =
+                named_conformances::serve(program, site, &mut captures).and_then(|handled| {
+                    if handled {
+                        Ok(())
+                    } else {
+                        serve(program, site, &mut generated, &instances)
+                    }
+                });
+            match served {
                 Ok(()) => {}
                 Err(Stop::Unserved) => {
                     let span = site.source_span(program);
@@ -1045,10 +1056,13 @@ fn copied_parts(
         && plan.checked_summary == language_semantics::TerminationGuarantee::NoGuarantee
         && plan.implementation_witness.is_none()
         && program.ranking_expression_custody_for(symbol).is_none()
-        && program
-            .authored_service_reach_rows_for(symbol)
-            .next()
-            .is_none()
+        && program.authored_service_reach_rows_for(symbol).all(|row| {
+            !row.installation_bound
+                && row
+                    .targets
+                    .iter()
+                    .all(|target| program.symbols.symbols().nodes().is_valid(target.service))
+        })
         && !program
             .proof_output_calls
             .iter()
@@ -1393,6 +1407,20 @@ fn copy_declarations(
             machine.name = Identifier::generated(root_name.clone());
         }
         machine.is_public = false;
+        // A written empty ceiling differs from an omitted one. Retain each
+        // authored row on its actual copied owner; never turn it into inference.
+        let reach_rows = program
+            .authored_service_reach_rows_for(source.symbol)
+            .cloned()
+            .map(|mut row| {
+                row.owner = machine.symbol;
+                for target in &mut row.targets {
+                    target.service = symbols.lookup(target.service).unwrap_or(target.service);
+                }
+                row
+            })
+            .collect::<Vec<_>>();
+        program.authored_service_reach_rows.extend(reach_rows);
         machine.type_parameters = HandleSpan::empty();
         machine.conformance_bounds.clear();
         machine.contracts = HandleSpan::empty();

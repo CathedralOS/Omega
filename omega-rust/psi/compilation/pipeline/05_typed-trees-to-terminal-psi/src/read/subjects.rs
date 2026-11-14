@@ -284,7 +284,7 @@ impl Program<'_> {
             // A generic machine is checked once as written, as its own check
             // form, not as a closed body (`Elaboration::generic_templates`).
             // One whose only parameters are implementations is generic too.
-            if !machine.has_specialization_parameters() {
+            if !self.is_generic_template(machine) {
                 let id = self.subject_machine(machine.symbol)?;
                 self.subject_machines.push(id);
             } else {
@@ -373,9 +373,17 @@ impl Program<'_> {
 /// Whether a trait is a list of requirements and nothing else: no
 /// parameter, bound, schema clause or refinement of another trait. A boundary
 /// declares contracts too; checking those contracts does not supply a provider.
-fn lists_requirements_only(declared: &typed_trees::trait_definition::TraitDefinition) -> bool {
+fn lists_requirements_only(
+    typed: &typed_trees::TypedTrees,
+    declared: &typed_trees::trait_definition::TraitDefinition,
+) -> bool {
+    let parameters = typed.trait_type_parameters(declared);
     declared.lifetime_parameters.is_empty()
-        && declared.type_parameters.is_empty()
+        && parameters.len() == declared.type_parameters.len()
+        && parameters.iter().all(|parameter| {
+            parameter.kind == typed_trees::data::TypeParameterKind::Type
+                && parameter.bounds == typed_trees::data::DataProperties::default()
+        })
         && declared.conformance_bounds.is_empty()
         && declared.requires.is_empty()
         && declared.refines.is_none()
@@ -392,13 +400,66 @@ impl<'t> Program<'t> {
         entry: MachineId,
         declared: &'t typed_trees::trait_definition::TraitDefinition,
     ) -> Checked<()> {
-        if !lists_requirements_only(declared) {
+        if !lists_requirements_only(self.typed, declared) {
             return Err(refuse(
                 entry,
                 Construct::Machine,
                 Unserved::Declaration("trait with parameters, schema clauses or a refinement"),
             ));
         }
+        if !declared.type_parameters.is_empty() {
+            self.generic_templates.push(declared.symbol);
+            return Ok(());
+        }
+        self.trait_signatures(entry, declared, false)
+    }
+
+    /// A schema's generic check has no executable entry. Its actual header
+    /// types remain rigid while each requirement contract is read.
+    pub(crate) fn generic_trait(
+        &mut self,
+        declared: &'t typed_trees::trait_definition::TraitDefinition,
+    ) -> Checked<()> {
+        let diagnostic = MachineId::new(1).expect("1 is nonzero");
+        if !lists_requirements_only(self.typed, declared) {
+            return Err(refuse(
+                diagnostic,
+                Construct::Machine,
+                Unserved::Declaration("generic trait with an unserved telescope or schema clause"),
+            ));
+        }
+        self.generic_binders.extend(
+            self.typed
+                .trait_type_parameters(declared)
+                .iter()
+                .map(|parameter| parameter.symbol),
+        );
+        let outer = std::mem::take(&mut self.scope);
+        self.scope = self
+            .typed
+            .trait_type_parameters(declared)
+            .iter()
+            .enumerate()
+            .map(|(position, parameter)| {
+                (
+                    parameter.symbol,
+                    crate::body::ValueType::Rigid(terminal_check_tables::values::RigidType(
+                        position as u32,
+                    )),
+                )
+            })
+            .collect();
+        let result = self.trait_signatures(diagnostic, declared, true);
+        self.scope = outer;
+        result
+    }
+
+    fn trait_signatures(
+        &mut self,
+        entry: MachineId,
+        declared: &'t typed_trees::trait_definition::TraitDefinition,
+        proof_form: bool,
+    ) -> Checked<()> {
         for requirement in self.typed.trait_machine_signatures(declared) {
             // A requirement with value parameters has one contract per tuple
             // of values (`requirement`), read where a call or a selected
@@ -412,6 +473,12 @@ impl<'t> Program<'t> {
                     Construct::Machine,
                     Unserved::Declaration("trait requirement with value parameters"),
                 ));
+            }
+            if proof_form {
+                // A genuine bodyless requirement stays abstract in this form;
+                // it has no executable entry and can never be published.
+                self.requirement(requirement, &[])?;
+                continue;
             }
             let (signature, _) = self.requirement_signature(entry, requirement, &[])?;
             let id = self.declaration_signatures.push(signature);
@@ -443,13 +510,19 @@ impl<'t> Program<'t> {
             ))
         };
         let typed = self.typed;
+        let parameters = typed.conformance_type_parameters(declared);
         let plain = declared.lifetime_parameters.is_empty()
-            && declared.type_parameters.is_empty()
             && declared.trait_lifetime_arguments.is_empty()
-            && declared.arguments.is_empty();
+            && parameters.len() == declared.type_parameters.len()
+            && parameters.iter().all(|parameter| {
+                parameter.kind == typed_trees::data::TypeParameterKind::Type
+                    && parameter.bounds == typed_trees::data::DataProperties::default()
+            })
+            && typed_trees::trait_definition::AppliedTraitScope::from_conformance(typed, declared)
+                .is_some();
         let Some(implemented) = typed
             .trait_definition_by_symbol(declared.trait_symbol)
-            .filter(|implemented| plain && lists_requirements_only(implemented))
+            .filter(|implemented| plain && lists_requirements_only(typed, implemented))
         else {
             return unserved("implementation with parameters or of a trait that has them");
         };
@@ -469,6 +542,9 @@ impl<'t> Program<'t> {
                 return unserved("implementation row of an inherited requirement");
             }
             if row.source == typed_trees::trait_definition::ConformanceRowSource::Reference {
+                if !parameters.is_empty() {
+                    return unserved("generic reference-row refinement");
+                }
                 let Some(realization) = typed.machine_by_symbol(row.realization_machine) else {
                     return unserved("selection row without an existing machine declaration");
                 };

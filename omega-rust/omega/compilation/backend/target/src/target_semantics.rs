@@ -176,7 +176,7 @@ impl std::error::Error for TargetSemanticObservationError {}
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TargetAddressModel {
     profile: TargetProfile,
-    carrier: semantic_vocabulary::IntegerType,
+    carrier: semantic_vocabulary::ClosedIntegerType,
     semantics_version: u32,
     commitment: [u8; 32],
 }
@@ -185,7 +185,7 @@ impl TargetAddressModel {
     pub const fn profile(&self) -> TargetProfile {
         self.profile
     }
-    pub const fn carrier(&self) -> semantic_vocabulary::IntegerType {
+    pub const fn carrier(&self) -> semantic_vocabulary::ClosedIntegerType {
         self.carrier
     }
     pub const fn semantics_version(&self) -> u32 {
@@ -201,7 +201,8 @@ pub struct TargetSemantics;
 impl TargetSemantics {
     pub fn close_address_model(profile: TargetProfile) -> Option<TargetAddressModel> {
         use sha2::{Digest, Sha256};
-        let carrier = profile.address_model()?;
+        let carrier =
+            semantic_vocabulary::ClosedIntegerType::try_from(profile.address_model()?).ok()?;
         let semantics_version = 1_u32;
         let mut commitment = Sha256::new();
         commitment.update(b"omega.target-semantics.default-address-model.v1");
@@ -320,6 +321,23 @@ mod tests {
         GUARANTEED_ENTRY_STACK_PROJECTION, TargetProfile, TargetSemantics, UEFI_X86_64_SUBJECT,
         UefiX86_64,
     };
+
+    #[test]
+    fn address_closure_retains_the_selected_profiles_exact_carrier() {
+        for profile in TargetProfile::ALL {
+            let expected = profile.address_model();
+            let closed = TargetSemantics::close_address_model(profile);
+            assert_eq!(closed.is_some(), expected.is_some());
+            if let Some(closed) = closed {
+                let raw = expected.unwrap();
+                assert_eq!(closed.profile(), profile);
+                assert_eq!(closed.carrier().as_checking(), raw);
+                assert!(closed.carrier().is_address());
+                assert_eq!(Some(closed.carrier().bits()), raw.bits());
+                assert_ne!(closed.commitment(), [0; 32]);
+            }
+        }
+    }
 
     #[test]
     fn exact_uefi_application_retains_projection_subject_version_and_profile() {

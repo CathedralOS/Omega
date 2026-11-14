@@ -2437,6 +2437,12 @@ pub(crate) mod program {
             &self.program.catalogs
         }
 
+        pub fn closed_module(
+            &self,
+        ) -> Result<&terminal_codec::ClosedTerminalModule, TerminalInterpretError> {
+            self.program.catalogs.closed_module()
+        }
+
         pub fn entry(&self) -> Result<TerminalProgramEntry<'_>, TerminalInterpretError> {
             self.describe_entry(self.program.resolve_entry(None)?)
         }

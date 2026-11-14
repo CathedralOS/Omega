@@ -5,7 +5,7 @@
 machine build(builder: &mut Build) {
     Build::application(builder, "build_optimization_requests");
     builder.freestanding = true;
-    builder.optimizations.selected[2] = 1;
-    builder.optimizations.selected[0] = 1;
-    builder.optimizations.human_report = 1;
+    builder.optimizations.selected[2] = 1 as +Saturating;
+    builder.optimizations.selected[0] = 1 as +Saturating;
+    builder.optimizations.human_report = 1 as +Saturating;
 }

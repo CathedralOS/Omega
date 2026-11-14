@@ -68,6 +68,7 @@ pub(crate) struct Program<'t> {
     pub publication: terminal_codec::TerminalPublication,
     pub declaration_metadata: Vec<SymbolHandle>,
     typed: &'t TypedTrees,
+    named_captures: crate::NamedCaptures,
     /// Irreversible storage-description phase, entered after the body closure.
     descriptor_storage: bool,
     /// The typed-tree machine of each discovered `MachineId`.
@@ -140,6 +141,7 @@ pub(crate) struct Program<'t> {
     /// `Elaboration::value_parameters` and `Elaboration::value_arguments`,
     /// pushed with each machine's signature.
     pub value_parameters: IdTable<MachineId, usize>,
+    pub generic_binders: Vec<SymbolHandle>,
     pub value_arguments: IdTable<MachineId, Vec<semantic_vocabulary::ScalarTerm>>,
     /// Every record type a formal, local, result, field or literal named, in
     /// discovery order; a nested record is discovered before its owner.
@@ -250,11 +252,21 @@ impl<'t> Program<'t> {
         Ok(())
     }
 
+    #[cfg(test)]
     pub fn new(typed: &'t TypedTrees, rigid: bool) -> Self {
+        Self::with_captures(typed, rigid, crate::named_captures(typed))
+    }
+
+    pub fn with_captures(
+        typed: &'t TypedTrees,
+        rigid: bool,
+        captures: crate::NamedCaptures,
+    ) -> Self {
         Self {
             publication: terminal_codec::TerminalPublication::Portable,
             declaration_metadata: Vec::new(),
             typed,
+            named_captures: captures,
             descriptor_storage: false,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
@@ -282,6 +294,7 @@ impl<'t> Program<'t> {
             alternative: None,
             static_truths: Vec::new(),
             value_parameters: IdTable::default(),
+            generic_binders: Vec::new(),
             value_arguments: IdTable::default(),
             records: IdTable::default(),
             record_sources: IdTable::default(),
@@ -388,7 +401,7 @@ mod tests {
                     target: invalid,
                     access: ReferenceAccess::Shared,
                 }),
-                "expression borrow",
+                "expression reference formation without its retained contextual type",
             ),
             (
                 ExpressionNode::Range(TableRangeExpression {
@@ -425,6 +438,19 @@ mod tests {
             .filter(|(found, expected)| found != expected)
             .collect();
         assert!(wrong.is_empty(), "{wrong:?}");
+    }
+
+    /// The record type the hand-built slots below name as type 1. A slot's
+    /// type is looked up before a place is read (a reference is written
+    /// through, not replaced), so the type must be a row of the program.
+    fn plain_record() -> RecordType {
+        RecordType {
+            owns_linear_claim: false,
+            copyable: false,
+            identity: String::from("point"),
+            shape: crate::StorageShape::Record(Vec::new()),
+            requires: Vec::new(),
+        }
     }
 
     fn unit_machines() -> (TypedTrees, [SymbolHandle; 2]) {
@@ -1378,6 +1404,7 @@ mod tests {
             borrowed_regions: crate::body::Regions::NONE,
         }];
         let mut program = Program::new(&typed, false);
+        program.records.push(plain_record());
         let mut assigned = |target| {
             program
                 .assignment(machine(), &slots, &TableAssignment { target, value })
@@ -1574,6 +1601,7 @@ mod tests {
             borrowed_regions: crate::body::Regions::NONE,
         }];
         let mut program = Program::new(&typed, false);
+        program.records.push(plain_record());
         program.record_sources.push(places::RecordSource {
             declaration: point,
             application: None,

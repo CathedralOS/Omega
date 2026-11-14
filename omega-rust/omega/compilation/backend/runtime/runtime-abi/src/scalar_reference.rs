@@ -8,7 +8,9 @@ the codec word at offset 8 untouched; consumers authenticate that codec against
 the new endpoint before reading or writing backing storage.
 */
 
-use semantic_vocabulary::{IeeeFloatFormat, IntegerCarrier, IntegerSign, ScalarType};
+use semantic_vocabulary::{
+    ClosedScalarType, IeeeFloatFormat, IntegerCarrier, IntegerSign, ScalarType,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ScalarReferenceLayout {
@@ -41,12 +43,18 @@ pub enum ScalarStorageCodec {
 
 impl ScalarStorageCodec {
     pub fn from_scalar(scalar: ScalarType) -> Option<Self> {
+        Self::from_closed_scalar(scalar.try_into().ok()?)
+    }
+
+    /// A codec describes concrete backing storage. Checking types cross the
+    /// fallible boundary above; a rigid width never supplies byte geometry.
+    pub fn from_closed_scalar(scalar: ClosedScalarType) -> Option<Self> {
         match scalar {
-            ScalarType::Boolean => Some(Self::Boolean),
-            ScalarType::Integer(integer) if integer.is_address() && integer.bits() == 64 => {
+            ClosedScalarType::Boolean => Some(Self::Boolean),
+            ClosedScalarType::Integer(integer) if integer.is_address() && integer.bits() == 64 => {
                 Some(Self::Address)
             }
-            ScalarType::Integer(integer)
+            ClosedScalarType::Integer(integer)
                 if integer.carrier() == IntegerCarrier::Fixed
                     && integer.bits() != 0
                     && integer.bits() <= 64
@@ -57,7 +65,7 @@ impl ScalarStorageCodec {
                     sign: integer.sign(),
                 })
             }
-            ScalarType::IeeeFloat(format) => Some(Self::IeeeFloat(format)),
+            ClosedScalarType::IeeeFloat(format) => Some(Self::IeeeFloat(format)),
             _ => None,
         }
     }
@@ -111,7 +119,66 @@ impl ScalarStorageCodec {
 #[cfg(test)]
 mod tests {
     use super::ScalarStorageCodec;
-    use semantic_vocabulary::IntegerSign;
+    use semantic_vocabulary::{
+        ClosedIntegerType, ClosedScalarType, IeeeFloatFormat, IntegerSign, IntegerType, MachineId,
+        ScalarType, ValueId, WidthParameter,
+    };
+
+    #[test]
+    fn backing_codecs_close_widths_without_extending_storage_support() {
+        let parameter = WidthParameter {
+            owner: MachineId::new(1).unwrap(),
+            value: ValueId::new(2).unwrap(),
+        };
+        for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+            assert_eq!(
+                ScalarStorageCodec::from_scalar(ScalarType::Integer(IntegerType::parameterized(
+                    sign, parameter,
+                ))),
+                None
+            );
+            for bits in [1, 8, 13, 16, 24, 32, 40, 48, 56, 64, 128] {
+                let integer = ClosedIntegerType::new(sign, bits).unwrap();
+                let scalar = ClosedScalarType::Integer(integer);
+                let expected = (bits % 8 == 0 && bits <= 64).then(|| ScalarStorageCodec::Integer {
+                    byte_size: u8::try_from(bits / 8).unwrap(),
+                    sign,
+                });
+                assert_eq!(ScalarStorageCodec::from_closed_scalar(scalar), expected);
+                assert_eq!(
+                    ScalarStorageCodec::from_scalar(scalar.as_checking()),
+                    expected
+                );
+            }
+        }
+        for bits in [24, 32, 64, 128] {
+            let address = ClosedScalarType::Integer(ClosedIntegerType::address(bits).unwrap());
+            assert_eq!(
+                ScalarStorageCodec::from_closed_scalar(address),
+                (bits == 64).then_some(ScalarStorageCodec::Address)
+            );
+        }
+        for (scalar, expected) in [
+            (ClosedScalarType::Boolean, ScalarStorageCodec::Boolean),
+            (
+                ClosedScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+                ScalarStorageCodec::IeeeFloat(IeeeFloatFormat::Binary32),
+            ),
+            (
+                ClosedScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+                ScalarStorageCodec::IeeeFloat(IeeeFloatFormat::Binary64),
+            ),
+        ] {
+            assert_eq!(
+                ScalarStorageCodec::from_closed_scalar(scalar),
+                Some(expected)
+            );
+            assert_eq!(
+                ScalarStorageCodec::from_scalar(scalar.as_checking()),
+                Some(expected)
+            );
+        }
+    }
 
     #[test]
     fn codec_preserves_every_byte_aligned_integer_width_and_sign() {

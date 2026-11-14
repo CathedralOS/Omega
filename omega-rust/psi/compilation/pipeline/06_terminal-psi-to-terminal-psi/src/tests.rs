@@ -46,6 +46,7 @@ mod lifetime_generics;
 mod machine_lifetimes;
 mod mathematical_clauses;
 mod mutable_formals;
+mod operational_effects;
 mod owned_dispatch;
 mod owned_match_results;
 mod proof_scope;
@@ -86,6 +87,7 @@ fn nowhere() -> SourceOrigin {
 
 fn expression(kind: ExpressionKind, result: Option<ScalarType>) -> Expression {
     Expression {
+        call_context: None,
         kind,
         result: result.map(ValueType::plain),
         source: nowhere(),
@@ -196,6 +198,7 @@ fn lower(machines: Vec<Machine>) -> Checked<typed_trees_to_terminal_psi::Elabora
             statements: machine.statements,
         });
         signatures.push(Signature {
+            operational: Default::default(),
             parameters,
             erased: machine.erased,
             borrowed: Vec::new(),
@@ -1355,6 +1358,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
 
 fn of_type(kind: ExpressionKind, result: ValueType) -> Expression {
     Expression {
+        call_context: None,
         kind,
         result: Some(result),
         source: nowhere(),
@@ -1890,6 +1894,7 @@ fn elaborate_over(
             statements: machine.statements,
         });
         signatures.push(Signature {
+            operational: Default::default(),
             parameters: machine.parameters,
             erased: Vec::new(),
             borrowed: Vec::new(),
@@ -2321,12 +2326,14 @@ fn sibling_fields_are_disjoint_and_ancestors_overlap() {
 
 fn store(slot: usize, path: &[usize], value: Expression) -> Statement {
     let mut destination = Expression {
+        call_context: None,
         kind: ExpressionKind::Slot(slot),
         result: None,
         source: nowhere(),
     };
     for field in path {
         destination = Expression {
+            call_context: None,
             kind: ExpressionKind::Field {
                 base: Box::new(destination),
                 field: *field,
@@ -6197,6 +6204,7 @@ mod generic_bodies {
                 statements: machine.statements,
             });
             signatures.push(Signature {
+                operational: Default::default(),
                 parameters,
                 erased: Vec::new(),
                 borrowed: Vec::new(),
@@ -6791,6 +6799,7 @@ fn crashing_below_ten(
         ],
     });
     signatures.push(Signature {
+        operational: Default::default(),
         parameters: vec![u32_type().into()],
         erased: Vec::new(),
         borrowed: Vec::new(),
@@ -6882,6 +6891,7 @@ fn crashing_at_zero(
         ],
     });
     signatures.push(Signature {
+        operational: Default::default(),
         parameters: vec![u32_type().into()],
         erased: Vec::new(),
         borrowed: Vec::new(),
@@ -6936,6 +6946,7 @@ fn calling_a_zero_route(
         statements: vec![returns(call(2, vec![slot(0, u32_type())]))],
     });
     signatures.push(Signature {
+        operational: Default::default(),
         parameters: vec![u32_type().into()],
         erased: Vec::new(),
         borrowed: Vec::new(),
@@ -6959,6 +6970,7 @@ fn calling_a_zero_route(
         ],
     });
     signatures.push(Signature {
+        operational: Default::default(),
         parameters: vec![u32_type().into()],
         erased: Vec::new(),
         borrowed: Vec::new(),
@@ -7060,6 +7072,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             statements: vec![returns(call(2, vec![slot(0, u32_type())]))],
         });
         signatures.push(Signature {
+            operational: Default::default(),
             parameters: vec![u32_type().into()],
             erased: Vec::new(),
             borrowed: Vec::new(),
@@ -7083,6 +7096,7 @@ fn a_call_that_may_crash_is_covered_by_its_callers_route() {
             ],
         });
         signatures.push(Signature {
+            operational: Default::default(),
             parameters: vec![u32_type().into()],
             erased: Vec::new(),
             borrowed: Vec::new(),
