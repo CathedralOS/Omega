@@ -576,7 +576,7 @@ impl<'t> Program<'t> {
                 id,
                 value.source,
                 super::rejections::Destination::MatchArm,
-                result.map(ValueType::plain),
+                *result,
                 value.result,
                 "match arm value type",
             ));

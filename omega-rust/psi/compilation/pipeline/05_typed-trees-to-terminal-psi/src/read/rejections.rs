@@ -193,14 +193,16 @@ fn scalar_named(scalar: ScalarType) -> String {
     match scalar {
         ScalarType::Boolean => "bool".to_owned(),
         ScalarType::Integer(integer) if integer.is_address() => "addr".to_owned(),
-        ScalarType::Integer(integer) => format!(
-            "{}{}",
-            match integer.sign() {
+        ScalarType::Integer(integer) => {
+            let sign = match integer.sign() {
                 IntegerSign::Signed => 'i',
                 IntegerSign::Unsigned => 'u',
-            },
-            integer.bits(),
-        ),
+            };
+            match integer.bits() {
+                Some(bits) => format!("{sign}{bits}"),
+                None => format!("{sign}<width parameter>"),
+            }
+        }
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary32) => "f32".to_owned(),
         ScalarType::IeeeFloat(IeeeFloatFormat::Binary64) => "f64".to_owned(),
     }
