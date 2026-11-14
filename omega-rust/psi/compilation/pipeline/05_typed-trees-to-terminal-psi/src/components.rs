@@ -83,22 +83,40 @@ pub(crate) fn components(
         calls.offsets.push(calls.sites.len());
     }
     let machines: Vec<_> = bodies.keys().collect();
-    let table = Components::discover(&calls, &machines);
+    let witnessed: Vec<bool> = machines
+        .iter()
+        .map(|machine| {
+            signatures
+                .get(*machine)
+                .is_some_and(|signature| matches!(signature.termination, Termination::Witnessed(_)))
+        })
+        .collect();
+    let table = Components::discover(&calls, &machines, &witnessed);
     for (machine, body) in bodies.iter() {
         let this = index(machine);
         let signature =
             terminal_check_tables::row(signatures, machine, machine, Construct::Machine)?;
         let members = table.members(machine)?;
         let unserved = |what| Err(refuse(machine, Construct::Machine, what));
-        // A witness is the component's ranking, and a promise must be
-        // checked against what the machine derives. Neither is read yet, so
-        // neither is accepted where it would have to be: a witness anywhere,
-        // a promise wherever a cycle is reached.
+        // A promise holds only when every cycle the machine lies on or
+        // calls into is ranked: termination.md, "A cyclic terminating body
+        // must supply its witness; inference never chooses its subjects or
+        // silently publishes a guarantee. Unknown progress dependencies
+        // prevent a checked guarantee." A cycle of one machine is ranked by
+        // that machine's own witness (`lower::ranking` writes its ranking
+        // and the checker compares every edge). A witness on a cycle of
+        // several machines is not ranked yet: the same page leaves "the
+        // exact source spelling for differently shaped mutual participants"
+        // undetermined, so that component is refused by name.
         match signature.termination {
             Termination::Silent => {}
-            Termination::Witnessed => return unserved(Unserved::Contract("ranking witness")),
-            Termination::Promised => {
-                if table.reaches_cycle(this) {
+            Termination::Witnessed(_) if members.len() > 1 => {
+                return unserved(Unserved::Contract(
+                    "ranking witness on a call cycle of several machines",
+                ));
+            }
+            Termination::Witnessed(_) | Termination::Promised => {
+                if table.reaches_unranked_cycle(this) {
                     return unserved(Unserved::Contract("termination promise over a call cycle"));
                 }
             }

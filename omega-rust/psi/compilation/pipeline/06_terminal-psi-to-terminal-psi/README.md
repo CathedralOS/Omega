@@ -36,6 +36,8 @@ explanations neither retry assumption subsets nor decide program obligations.
 [joins.rs](src/joins.rs) infers and checks join predicates;
 [crashes.rs](src/crashes.rs) states crash-site coverage;
 [arrivals.rs](src/arrivals.rs) admits a loop head's declared invariant.
+[ranking.rs](src/ranking.rs) admits a loop's ranking and states its
+comparisons.
 [prove/reach.rs](src/prove/reach.rs) says which unproved goals the integer
 rules could not have decided
 ([below](#what-the-integer-rules-do-not-reach)).
@@ -51,6 +53,8 @@ rules could not have decided
 | `PublishedGuarantee` | not proved: held when every return edge's `NormalGuarantee` for the clause is discharged | - |
 | `ArrivalInvariant` | the destination block's predicate (a loop head's declared invariant, its member's `requires`, or a join's inferred predicate), its parameters replaced by this edge's arguments (`Truth` when the join has none) | the same, on the arrival edge |
 | `CrashCoverage` | at a `Crash` terminator, its guard's clauses and the disjunction of this machine's published alternatives for the cause (`Falsehood` when it publishes none); at a call, the callee's route for the cause with the call's actuals implies that disjunction | the same, before the crashing terminator or call |
+| `RankComparison` | on an edge inside a ranked cycle, the rank the edge arrives with against the rank of the block it leaves: `<` where the edge claims strict descent, `<=` where it claims to keep the rank ([Rankings](#rankings)) | the same, on that edge |
+| `WellFoundedness` | the rank at a ranked cycle's first block is no less than the least value of the cycle's carrier | the same, at that block's entry |
 
 A `Loan` is not proved: it is judged by structure ([Loans](#loans)). Any
 other kind is refused as `Unsupported`.
@@ -222,8 +226,10 @@ already carries every identity:
 | `DataDomain` | counted by `Storage::owed_are_minted` from the writes the place walk finds | the point before the operation |
 | `CrashCoverage` | a `Crash` terminator owes one for its cause; an `InvokeNoNormal` terminator, or a `Call` or `CallUnit` with crash continuations, one per cause among them | the point before the terminator or the call |
 | `ArrivalInvariant` | a `Jump`, or a `Conditional` successor, that passes scalar arguments owes one for its edge | that edge |
+| `WellFoundedness` | each cycle of the machine's `ranked_scc` owes one, named by the identity of its edges | the entry of the cycle's first block |
+| `RankComparison` | each edge row of a ranked cycle owes one | that edge |
 
-A row of the first four kinds, or of the last two, that nothing owes is refused as well, and so is
+A row of the first four kinds, or of the last four, that nothing owes is refused as well, and so is
 a row owed twice. The point matters as much as the kind: it selects the
 knowledge a proof may use, so a row moved past a guard, or past its own call
 where the callee's `ensures` is already known, would be proved from facts
@@ -798,6 +804,53 @@ downstream obligations."). A single discharged obligation inside a loop is
 not evidence on its own while an arrival of its head is unproved.
 
 An unranked loop proves nothing about ending, and nothing here says it ends.
+
+## Rankings
+
+A machine that calls itself and writes `terminates by remaining` promises
+that its loop ends and names the value that shows it. Elaboration states
+that claim as the machine's `ranked_scc`
+([structure elaboration](../05_typed-trees-to-terminal-psi/README.md#rankings)):
+a rank for every block of the loop's cycle, and for every edge inside the
+cycle the rank it arrives with and whether that is a strict decrease.
+[ranking.rs](src/ranking.rs) judges the claim and trusts none of it
+([control flow](../../../../../wiki/spec/terminal-psi/control_flow.md#safety-and-progress):
+"Checking establishes well-foundedness and each comparison").
+
+The structure is admitted whole before anything is decided (`admit`, called
+from `prepare`), and a ranking that fails is a `ForeignIdentity` refusal of
+the machine:
+
+| Rule | Sentence of the specification |
+| --- | --- |
+| the ranked blocks are one cycle of the graph, recomputed here | "The verifier derives each strongly connected component (SCC) from the actual graph" |
+| the edge rows are exactly that cycle's internal edges, in edge order | "Missing, surplus, reordered, or substituted edge claims reject." |
+| every rank is one value of one fixed-width integer type | "A rank's carrier is any fixed-width integer type" |
+| a block's rank is a machine formal or a parameter of a block that dominates it | a rank must be a value in scope where it is compared |
+| an edge's successor rank is its target's rank as the edge binds it: the argument passed for a rank that is the target's own parameter, the same value otherwise | "Rank substitution follows the actual selected scalar and structural successor arguments." |
+| the edges that do not claim strict descent form no cycle | "Removing strict edges must leave an acyclic graph: every cycle encounters descent, not just the cycles selected by a traversal." |
+
+A rank of several values (a lexicographic rank) and a block rank that is no
+parameter in scope are refused by name as `Unsupported`. So is a machine
+whose contract publishes `Terminates` while its graph holds a cycle with no
+ranking (`contract termination promise over an unranked cycle`):
+[termination](../../../../../wiki/spec/language/termination.md#published-guarantees-and-private-witnesses),
+"A cyclic terminating body must supply its witness".
+
+The comparisons are goals for the one prover. A strict edge owes
+`successor_rank < source_rank` and a preserving edge `successor_rank <=
+source_rank`, decided on the edge, so the jump back of `count_down(remaining
+- 1)` is proved from the result equation of the subtraction (`a - d < a`
+when `0 < d`, `IntegerSubtractOrder`). The shared `WellFoundedness` question
+is the floor: the rank is no less than the least value of its carrier. With
+one carrier at every row and strict descent on every cycle, an execution
+cannot stay in the loop forever. A comparison with no derivation rejects the
+program like any unproved obligation, stated as what the call owes: "cannot
+prove the `terminates by` measure decreases at this call".
+
+What is not judged here is that the other machines a loop calls end.
+Elaboration refuses a promise that reaches a cycle no member ranks, and each
+ranked cycle is judged in its own machine.
 
 ## The prover
 

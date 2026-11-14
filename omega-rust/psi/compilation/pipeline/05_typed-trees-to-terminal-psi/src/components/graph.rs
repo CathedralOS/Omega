@@ -11,7 +11,7 @@ use crate::{Unserved, refuse};
 struct Component {
     members: std::ops::Range<usize>,
     cyclic: bool,
-    reaches_cycle: bool,
+    reaches_unranked_cycle: bool,
 }
 
 pub(crate) struct Components {
@@ -27,7 +27,7 @@ impl Components {
     /// operation. Both DFS passes are iterative, so a deep call chain needs no
     /// recursive host stack. Kosaraju's second pass numbers components in forward
     /// topological order; cycle reachability then propagates in reverse order.
-    pub(super) fn discover(calls: &CallGraph, machines: &[MachineId]) -> Self {
+    pub(super) fn discover(calls: &CallGraph, machines: &[MachineId], witnessed: &[bool]) -> Self {
         let count = machines.len();
         #[cfg(test)]
         let mut discovery_edge_visits = 0;
@@ -122,7 +122,7 @@ impl Components {
             components.push(Component {
                 members: start..start + size,
                 cyclic: size > 1,
-                reaches_cycle: false,
+                reaches_unranked_cycle: false,
             });
             start += size;
         }
@@ -144,7 +144,13 @@ impl Components {
             }
         }
         for component in (0..components.len()).rev() {
-            let mut reaches_cycle = components[component].cyclic;
+            // A cycle of one machine that supplies its ranking is judged where
+            // it is lowered (`lower::ranking`); every other cycle is unranked.
+            let ranked = matches!(
+                members[components[component].members.clone()],
+                [member] if witnessed.get(index(member)).copied().unwrap_or(false)
+            );
+            let mut reaches_cycle = components[component].cyclic && !ranked;
             for &member in &members[components[component].members.clone()] {
                 for site in calls.calls(index(member)) {
                     #[cfg(test)]
@@ -153,10 +159,10 @@ impl Components {
                     }
                     let callee_component = machine_components[index(site.callee)];
                     debug_assert!(callee_component >= component);
-                    reaches_cycle |= components[callee_component].reaches_cycle;
+                    reaches_cycle |= components[callee_component].reaches_unranked_cycle;
                 }
             }
-            components[component].reaches_cycle = reaches_cycle;
+            components[component].reaches_unranked_cycle = reaches_cycle;
         }
         Self {
             machine_components,
@@ -183,8 +189,11 @@ impl Components {
         })
     }
 
-    pub(super) fn reaches_cycle(&self, machine: usize) -> bool {
-        self.components[self.machine_components[machine]].reaches_cycle
+    /// Whether `machine` lies on, or calls into, a call cycle that no
+    /// member ranks: termination.md, "Unknown progress dependencies prevent
+    /// a checked guarantee."
+    pub(super) fn reaches_unranked_cycle(&self, machine: usize) -> bool {
+        self.components[self.machine_components[machine]].reaches_unranked_cycle
     }
 
     pub(super) fn same_component(&self, left: usize, right: usize) -> bool {
@@ -213,7 +222,7 @@ mod tests {
             }));
             calls.offsets.push(calls.sites.len());
         }
-        Components::discover(&calls, &machines)
+        Components::discover(&calls, &machines, &vec![false; machines.len()])
     }
 
     #[test]
@@ -249,7 +258,7 @@ mod tests {
                     "graph {edges}, caller {caller}"
                 );
                 assert_eq!(
-                    actual.reaches_cycle(caller),
+                    actual.reaches_unranked_cycle(caller),
                     (0..3).any(|callee| reachable[caller][callee] && reachable[callee][callee]),
                     "graph {edges}, caller {caller}"
                 );
@@ -279,7 +288,7 @@ mod tests {
                 assert_eq!(actual.machine_components.len(), count);
                 assert_eq!(actual.components.len(), if cyclic { 1 } else { count });
                 assert!(actual.discovery_edge_visits <= 6 * edges);
-                assert_eq!(actual.reaches_cycle(0), cyclic);
+                assert_eq!(actual.reaches_unranked_cycle(0), cyclic);
                 if cyclic {
                     assert!(std::ptr::eq(
                         actual.members(MachineId::new(1).unwrap()).unwrap(),
