@@ -682,7 +682,17 @@ impl Operand {
                     }
                     Scalar::Parameter(symbol) => Identity::Declaration(symbol),
                 };
-                (identity, StaticMachineBindingValue::Const(*type_reference))
+                let reference = if let Some(value) = &scalar {
+                    let expression = program.expression_table.insert(value.expression());
+                    program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::ConstExpression(expression))
+                } else {
+                    program
+                        .static_operand_type_reference(argument)
+                        .map_err(|_| Stop::Unserved(None))?
+                };
+                (identity, StaticMachineBindingValue::Const(reference))
             }
             // A runtime value, a machine and a proposition each need their
             // own reading of the argument; none is built yet.
@@ -768,41 +778,19 @@ enum Scalar {
 /// `true` or `false` and nothing else, for a parameter of type `bool`; or
 /// only the name of a parameter in scope. A literal that states another type
 /// than the parameter's is not the parameter's value. An argument that
-/// names a constant or would have to be evaluated is unserved: no machine
-/// runs here.
+/// names a completed constant uses its canonical value; no machine runs here.
 fn closed_scalar(
     program: &TypedTrees,
     parameter_type: TypeReferenceHandle,
     argument: &StaticMachineArgument,
 ) -> Served<Scalar> {
-    let primitive = program.primitive_type_reference(parameter_type);
-    if primitive == Some(typed_trees::types::PrimitiveType::Bool)
-        && let Some(value) = argument.closed_boolean()
+    if let Some(primitive) = program.primitive_type_reference(parameter_type)
+        && let Ok(value) = program.prepare_callable_scalar_argument(primitive, argument)
     {
-        return Ok(Scalar::Closed(Value::Boolean(value)));
-    }
-    if let Some(literal) = &argument.const_literal {
-        let only_a_literal = StaticMachineArgument {
-            const_literal: Some(literal.clone()),
-            ..StaticMachineArgument::default()
-        };
-        let landed_type =
-            primitive.and_then(typed_trees::types::PrimitiveType::landed_landing_fixed);
-        let (true, Some(landed_type)) = (*argument == only_a_literal, landed_type) else {
-            return Err(Stop::Unserved(None));
-        };
-        let landing = numerics::literals::IntegerLanding {
-            landed_type,
-            domain: numerics::arithmetic::ArithmeticDomain::Exact,
-        };
-        return match literal.landing() {
-            None => Ok(Scalar::Closed(Value::Integer(
-                literal.with_landing(landing),
-            ))),
-            Some(stated) if stated == landing => {
-                Ok(Scalar::Closed(Value::Integer(literal.clone())))
-            }
-            Some(_) => Err(Stop::Unserved(None)),
+        return match value {
+            ExpressionNode::Integer(literal) => Ok(Scalar::Closed(Value::Integer(literal))),
+            ExpressionNode::Boolean(value) => Ok(Scalar::Closed(Value::Boolean(value))),
+            _ => Err(Stop::Defect("prepared callable scalar is not a scalar")),
         };
     }
     let symbol = argument.symbol;

@@ -1916,6 +1916,125 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn callable_queries_use_the_same_landed_application_as_invocation() {
+        // The value exceeds i128, but its declared carrier admits it. Both
+        // selecting this declaration and invoking it must retain that value;
+        // another declaration's same-spelled N is not the same binder.
+        let source = with_reflection(
+            "use omega::language::core::reflect;
+            machine selected<const N: u128>() -> u32 { 7u32 }
+            machine other<const N: u128>() -> u32 { 9u32 }
+            machine answer() -> reflect::CallableInfo {
+                reflect::callable(selected<170141183460469231731687303715884105728>)
+            }
+            machine alternate() -> reflect::CallableInfo {
+                reflect::callable(other<170141183460469231731687303715884105728>)
+            }
+            machine used() -> u32 { selected<170141183460469231731687303715884105728>() }",
+        );
+        let program = PreparedBuildMachineProgram::prepare(&source, None).unwrap();
+        let mut descriptions = Vec::new();
+        for name in ["answer", "alternate"] {
+            let symbol = query_machine(&source, name);
+            let value = program
+                .entry(symbol, symbol, &[])
+                .unwrap()
+                .invoke(target(), &mut psi_work::WorkMeter::unbounded())
+                .unwrap();
+            descriptions.push(value);
+        }
+        assert_ne!(descriptions[0], descriptions[1]);
+        let used = query_machine(&source, "used");
+        assert_eq!(
+            program
+                .entry(used, used, &[])
+                .unwrap()
+                .invoke(target(), &mut psi_work::WorkMeter::unbounded())
+                .unwrap(),
+            BuildTimeValue::Int(7)
+        );
+        let (owner, call) = returned_source_call(&source, "answer");
+        let call = source.expression_table.call_node(call).unwrap();
+        let [operand] = source.expression_table.expression_handles(call.arguments) else {
+            panic!("one declaration operand")
+        };
+        let selected = source
+            .declaration_operand_from_expression(*operand)
+            .unwrap();
+        let original = typed_trees::reflection::construction::callable_description_identity(
+            &source, &selected, owner,
+        )
+        .unwrap();
+        let mut crossed = selected.clone();
+        crossed.symbol = query_machine(&source, "other");
+        assert!(
+            typed_trees::reflection::construction::callable_description_identity(
+                &source, &crossed, owner
+            )
+            .is_err()
+        );
+        assert!(!original.0);
+        let selected_machine = source.machine_by_symbol(selected.symbol).unwrap();
+        let other_machine = source.machine_by_symbol(crossed.symbol).unwrap();
+        let selected_binder = source.machine_type_parameters(selected_machine)[0].symbol;
+        let other_binder = source.machine_type_parameters(other_machine)[0].symbol;
+        assert_eq!(
+            source.symbols.name(selected_binder),
+            source.symbols.name(other_binder)
+        );
+        assert_ne!(selected_binder, other_binder);
+        let (_, used_call) = returned_source_call(&source, "used");
+        let application = source
+            .expression_table
+            .call_node(used_call)
+            .unwrap()
+            .authored_machine_application;
+        let [binding] = source
+            .expression_table
+            .static_machine_application_bindings(application)
+        else {
+            panic!("ordinary formation retains its exact binder")
+        };
+        assert_eq!(binding.parameter, selected_binder);
+        let source_application = typed_trees::expression::StaticMachineArgument {
+            symbol: selected.symbol,
+            application: Some(Box::new(typed_trees::expression::StaticSymbolApplication {
+                member: Default::default(),
+                lifetime_arguments: Box::default(),
+                arguments: source
+                    .expression_table
+                    .static_machine_application_arguments(application)
+                    .to_vec()
+                    .into_boxed_slice(),
+            })),
+            ..Default::default()
+        };
+        let invoked_identity = typed_trees::type_identity::portable_applied_index_identity(
+            &source,
+            typed_trees::type_identity::IndexIdentityArgument::StaticArgument(&source_application),
+            used,
+            &[],
+        )
+        .and_then(|identity| source.type_identity_text(identity))
+        .unwrap();
+        assert_eq!(original.1[1], invoked_identity.as_bytes());
+        let typed_trees::static_applications::StaticMachineBindingValue::Const(value) =
+            binding.value
+        else {
+            panic!("the binding retains its value, not its carrier")
+        };
+        assert_eq!(
+            source
+                .static_const_literal_from_type_reference(value)
+                .unwrap()
+                .value_bignum()
+                .unwrap()
+                .to_string(),
+            "170141183460469231731687303715884105728"
+        );
+    }
+
+    #[test]
     fn source_call_requests_keep_their_authored_operand_and_owner() {
         let source = with_reflection(
             "use omega::language::core::reflect;
