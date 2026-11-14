@@ -1,6 +1,104 @@
 //! The selected Build entry joins the actual accepted publication, rather than
 //! selecting an ambient `main` or publishing a second judgment.
 #[test]
+fn trait_implementation_nomination_uses_the_exact_binder_and_nominal_bound() {
+    let source_text = "trait A {}\ntrait B {}\nGood satisfies A {}\nWrong satisfies B {}\ntrait Holder<Policy satisfies A> {}\ntrait OtherHolder<Policy satisfies B> {}\nboundary trait Chosen: Holder<Good> {}\nboundary trait Other: OtherHolder<Wrong> {}\n";
+    let mut sources = source::SourceMap::default();
+    let source_id = sources
+        .add_checked_instance(
+            "source/main.omg".into(),
+            source_text,
+            "source".into(),
+            Some(semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]).unwrap()),
+            source::SourceOrigin::User,
+            source::SourceResolutionStratum::Base,
+            source::DependencyScope::Product,
+        )
+        .source_id;
+    let tokens = source_files_to_tokens::Lexer::new(source_text)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+    let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
+    request.sources = Some(std::sync::Arc::new(sources));
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
+    let typed =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+    let declaration = |name: &str| {
+        typed
+            .traits()
+            .iter()
+            .find(|row| row.name.as_str() == name)
+            .unwrap()
+    };
+    let scope = |name: &str| {
+        typed_trees::trait_definition::AppliedTraitScope::new(
+            &typed,
+            declaration(name),
+            typed_trees::trait_definition::TraitApplicationArguments {
+                lexical_owner: declaration(name).symbol,
+                enclosing_data_applications: &[],
+                arguments: &[],
+                lifetimes: &[],
+            },
+        )
+        .unwrap()
+    };
+    let chosen = scope("Chosen")
+        .declaring_scope(&typed, declaration("Holder").symbol)
+        .unwrap();
+    let other = scope("Other")
+        .declaring_scope(&typed, declaration("OtherHolder").symbol)
+        .unwrap();
+    let parameter = typed.trait_type_parameters(declaration("Holder"))[0].symbol;
+    let foreign_parameter = typed.trait_type_parameters(declaration("OtherHolder"))[0].symbol;
+    let selected = chosen
+        .named_implementation_argument(&typed, parameter)
+        .unwrap();
+    assert_eq!(
+        selected.symbol,
+        typed
+            .conformances()
+            .iter()
+            .find(|row| row
+                .alias
+                .as_ref()
+                .is_some_and(|name| name.as_str() == "Good"))
+            .unwrap()
+            .symbol
+    );
+    assert_eq!(selected.trait_symbol, declaration("A").symbol);
+    assert!(
+        chosen
+            .named_implementation_argument(&typed, foreign_parameter)
+            .unwrap_err()
+            .contains("not declared"),
+        "same-spelled Policy from another owner cannot bind this application"
+    );
+    let mut wrong = chosen.environment().scope(&typed).unwrap();
+    let reference = other.parameter_argument(&typed, foreign_parameter);
+    wrong
+        .substitutions
+        .iter_mut()
+        .find(|(owner, _)| *owner == parameter)
+        .unwrap()
+        .1 = reference;
+    assert!(
+        wrong
+            .named_implementation_argument(&typed, parameter)
+            .unwrap_err()
+            .contains("another nominal trait")
+    );
+    let mut open = chosen.environment().scope(&typed).unwrap();
+    open.substitutions.retain(|(owner, _)| *owner != parameter);
+    assert!(
+        open.named_implementation_argument(&typed, parameter)
+            .unwrap_err()
+            .contains("not closed")
+    );
+}
+
+#[test]
 fn selected_entry_receipt_keeps_the_accepted_artifact_and_rejects_other_owners() {
     std::thread::scope(|scope| {
         compiler::checked::spawn_compile_worker(scope, || {
