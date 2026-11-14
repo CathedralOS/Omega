@@ -7072,6 +7072,7 @@ pub(crate) fn select_function(
     };
     let class = operand.class;
     let mut builder = Builder {
+        native_input: source,
         environment,
         backings,
         installed_interrupts,
@@ -7597,6 +7598,7 @@ pub(crate) fn next_index(len: usize) -> Result<u32, SelectedInstructionError> {
 }
 
 pub(crate) struct Builder<'a> {
+    native_input: &'a crate::native_geometry::NativeFunction<'a>,
     pub(crate) installed_entry_execution:
         Option<&'a provider_admission::AdmittedInstalledEntryExecution>,
     pub(crate) installed_interrupts: &'a provider_admission::AdmittedInstalledInterruptCohort,
@@ -7623,6 +7625,20 @@ pub(crate) struct Builder<'a> {
 }
 
 impl Builder<'_> {
+    pub(crate) fn closed_scalar(
+        &self,
+        scalar: ScalarType,
+    ) -> Option<semantic_vocabulary::ClosedScalarType> {
+        self.native_input.closed_scalar(scalar)
+    }
+
+    pub(crate) fn closed_integer(
+        &self,
+        integer: semantic_vocabulary::IntegerType,
+    ) -> Option<semantic_vocabulary::ClosedIntegerType> {
+        self.native_input.closed_integer(integer)
+    }
+
     pub(crate) fn crash_form(
         &self,
     ) -> Result<(SelectedInstructionKind, RegisterConstraintKey), SelectedInstructionError> {
