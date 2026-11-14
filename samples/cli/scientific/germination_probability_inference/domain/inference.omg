@@ -3,7 +3,7 @@
 // For integer shapes, I_x(a,b)=P(Binomial(a+b-1,x)>=a). Reflection keeps
 // x <= 0.5: the initial mass is >=2^-439, so neither underflow nor factorial
 // overflow enters the summation. Positive terms avoid cancellation in the tail.
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i32;
 
 public data Posterior [copy] { alpha: i32 in Wrapping; beta: i32 in Wrapping; mean: f64; variance: f64; lower: f64; upper: f64; above_half: f64; }
 machine tail(alpha: i32 in Wrapping, beta: i32 in Wrapping, value: f64) -> f64 {

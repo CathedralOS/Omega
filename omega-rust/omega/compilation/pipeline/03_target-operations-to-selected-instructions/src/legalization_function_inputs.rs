@@ -134,7 +134,7 @@ impl<'function> FunctionInputs<'function> {
     pub(crate) fn address_join_parameter(
         &self,
         place: PlaceId,
-        plan: &abstract_operations::AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
     ) -> Option<(BlockId, &'function StructuralParameterDeclaration)> {
         let first = self.block_arrivals.partition_point(|row| row.0 < place);
         let declarations = self.declarations.partition_point(|row| row.id < place);

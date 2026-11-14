@@ -15,7 +15,9 @@ module audio_playback;
 // call blocks until playback finishes; 0 reports completion and a negative
 // result is the provider's failure code — no error state. Providers that
 // cannot play the PCM view may use the whole image instead.
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_i64_to_i32_wrapping;
+use omega::language::core::narrow_u32_to_u8_wrapping;
+use omega::language::core::widen_u32_to_u64;
 
 public boundary trait AudioPlayback {
     machine play(image: &u8, image_length: u32, pcm: &u8, frames: u32) -> i32

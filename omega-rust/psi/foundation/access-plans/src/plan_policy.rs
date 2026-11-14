@@ -688,26 +688,8 @@ pub(crate) mod authorization {
 
     use crate::{
         AccessOperation, AccessPlanDiagnostic, AtomicAccessOperation, BorrowPolarity,
-        EffectFootprint, FieldAccessDescriptor, ObservationModel,
+        FieldAccessDescriptor, ObservationModel,
     };
-
-    pub const fn effect_footprints_conflict(
-        left: EffectFootprint,
-        left_operation: AccessOperation,
-        right: EffectFootprint,
-        right_operation: AccessOperation,
-    ) -> bool {
-        if !left.overlaps(right) {
-            return false;
-        }
-        match (left_operation, right_operation) {
-            (AccessOperation::Read, AccessOperation::Read) => false,
-            (AccessOperation::Atomic(_), AccessOperation::Atomic(_)) => {
-                left.address != right.address || left.length_bytes != right.length_bytes
-            }
-            _ => true,
-        }
-    }
 
     pub(crate) fn authorize_descriptor(
         descriptor: &FieldAccessDescriptor,
@@ -997,7 +979,7 @@ pub(crate) mod normalized_identities {
     }
 
     pub(crate) fn authoritative_access_interpretation(
-        plan: &crate::placements::access_plan::ValidatedAccessPlan,
+        plan: &crate::ValidatedAccessPlan,
     ) -> ExtentContentInterpretation {
         let mut digest = crate::digest_encoder::DomainDigestEncoder::new(
             b"omega.placement-plan.authoritative.v1\0",

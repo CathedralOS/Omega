@@ -262,18 +262,20 @@ pub(crate) mod content_wire {
 
 pub(crate) mod contract_wire {
 
+    use semantic_vocabulary::Termination as TerminationPromise;
+
     use terminal_psi::{
         ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
         MachineContract, OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificGuard,
         SuccessorEdge,
     };
 
-    use super::machine_wire::Declaration;
+    use super::machine_wire::{Claim, Declaration, MachineResult, ParameterKind, ReachApplication};
     use super::wire::{Reader, Writer};
     use super::wire_fields::{
         ArgumentSubstitution, Arguments, CleanupAction, CrashRoutes, Field, Id, Ids, List,
-        Optional, ProofTerms, Proposition, ScalarTerms, Text, U32, delegated_fields, wire_enum,
-        wire_record,
+        MachineDeclaration, Optional, ProofTerms, Proposition, ScalarTerms, Text, U32,
+        delegated_fields, wire_enum, wire_record,
     };
     use super::{CodecError, decode_proposition, encode_proposition};
 
@@ -289,6 +291,20 @@ pub(crate) mod contract_wire {
         }
         Contract: MachineContract {
             id: Id,
+            declaration: Optional<MachineDeclaration>,
+            parameters: List<Declaration>,
+            parameter_order: List<ParameterKind>,
+            structural_parameters: List<super::structural_signature_wire::StructuralParameter>,
+            result: MachineResult,
+            entry_claims: List<Claim>,
+            declared_service_reach: Optional<Ids>,
+            declared_synchronous_entries: Optional<Ids>,
+            declared_crash_routes: Optional<CrashRoutes>,
+            closed_reach_application: ReachApplication,
+            published_service_ceiling: Ids,
+            published_synchronous_entries: Ids,
+            termination: Termination,
+            content_entry_claims: List<super::content_wire::EntryClaim>,
             crash_routes: CrashRoutes,
             erased_scalar_formals: List<Declaration>,
             erased_proof_formals: ProofFormals,
@@ -315,6 +331,10 @@ pub(crate) mod contract_wire {
     }
 
     wire_enum! {
+        Termination: TerminationPromise, "termination guarantee" {
+            0 => NoGuarantee,
+            1 => Terminates,
+        }
         Cause: CrashCause, "CrashCause" { 1 => Trap, 2 => Abort }
         RouteGuard: CrashRouteGuard, "CrashRouteGuard" {
             0 => Truth,

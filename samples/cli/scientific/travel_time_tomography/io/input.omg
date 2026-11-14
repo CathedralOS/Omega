@@ -2,7 +2,6 @@
 // Consume at most 256 bytes, including trailing whitespace. No decimal syntax,
 // signs, partial records, extra tokens, or silent buffer truncation.
 use omega_language_std::console;
-use omega::language::core::float_operations;
 use domain::model;
 
 public data Input { tokens: [i32; 13]; valid: bool; }

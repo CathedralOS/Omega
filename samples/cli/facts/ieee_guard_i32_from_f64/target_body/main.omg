@@ -1,6 +1,6 @@
 // Checked IEEE guard value == value && value >= 0.0 && value < 1000000000.0 proves I32::from_f64(value) is finite and in range.
 // Expected exit: 0
-use omega::language::core::float_operations;
+use omega::language::core::I32::from_f64;
 boundary trait SelectedBodyCheck {
     machine require_tag(tag: u64) reaches crashes Trap;
 }

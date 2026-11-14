@@ -53,6 +53,14 @@ so a rejection carries the two lists side by side. One such use makes the
 verdict `Rejected` even when every unproved obligation is merely incomplete:
 the program fails a checking rule whatever the prover could or could not do.
 
+A rule of the language that the source form breaks
+(`RefusalReason::Violation`: a value whose type carries other domains than its
+destination declares, a cast that adds a routed domain outside its routes) is
+found by the reader of the typed trees, which refuses the closure with it.
+`fall_back_or_defect` is the one place a refusal becomes a verdict, so that
+refusal is a rejection with its own list, `violations`, and the same standing
+as the others; only `RefusalReason::Unsupported` says "not supported yet".
+
 A loan that may not be formed (`RefusalReason::Conflict`: two loans of one
 call that may share storage with one of them exclusive, or an exclusive
 reborrow of storage held shared) has the same standing, and is listed beside
@@ -85,6 +93,9 @@ pub enum RouteVerdict {
     Rejected {
         /// Calling-shape failures known before any body is elaborated.
         formations: Vec<crate::CallableFormationFailure>,
+        /// One per rule of the language the program breaks as written,
+        /// found while its typed trees were read.
+        violations: Vec<RuleViolation>,
         unproved: Vec<UnprovedObligation>,
         unestablished: Vec<UnestablishedUse>,
         /// One per loan that may not be formed where it is.
@@ -109,6 +120,39 @@ pub struct AcceptedClosure {
     pub elaboration: Elaboration,
     pub discharge: Discharge,
     pub seals: Vec<ObligationEvidenceSeal>,
+}
+
+impl AcceptedClosure {
+    /// The advisory diagnostics of this accepted closure, in machine order.
+    /// An advisory is information about a program the route accepted: it is
+    /// no part of the verdict, and nothing is proved or pruned because of
+    /// it (`wiki/spec/language/state_contracts.md`, "Unreachable branches":
+    /// "This is an advisory diagnostic, not an inherent language error").
+    ///
+    /// Each statement after a call that never returns is one warning at the
+    /// first such statement, followed by one note at the call
+    /// (state_contracts.md, "Statements after a call that never returns").
+    pub fn advisories(&self) -> Vec<Diagnostic> {
+        let located = |diagnostic: Diagnostic, origin: SourceOrigin| match origin {
+            SourceOrigin::Authored(span) => diagnostic.with_source_span(span),
+            SourceOrigin::Unpositioned(_) => diagnostic,
+        };
+        let mut advisories = Vec::new();
+        for (machine, unreachable) in self.elaboration.unreachable_statements() {
+            let owner = describe::owner(self.elaboration.names.get(machine), unreachable.call);
+            advisories.push(located(
+                Diagnostic::warning(format!(
+                    "unreachable statement in {owner}: the call before it never returns, so this statement and every statement after it never execute"
+                )),
+                unreachable.statement,
+            ));
+            advisories.push(located(
+                Diagnostic::note("this call never returns"),
+                unreachable.call,
+            ));
+        }
+        advisories
+    }
 }
 
 /// An accepted closure published as Terminal Psi: the canonical artifact of
@@ -448,6 +492,37 @@ impl UnestablishedUse {
         match self.site {
             Some(SourceOrigin::Authored(span)) => diagnostic.with_source_span(span),
             Some(SourceOrigin::Unpositioned(_)) | None => diagnostic,
+        }
+    }
+}
+
+/// One rule of the language the program breaks as written. The reader of the
+/// typed trees found it before any construct was lowered, so it has no
+/// obligation and no lowered construct: it is the source position and the
+/// rule. `wiki/spec/build/compiler_request.md`, "Outcomes": "Diagnostics
+/// distinguish failed source checking, invalid proof, unavailable evidence
+/// and receiving-policy refusal"; this is failed source checking.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuleViolation {
+    pub machine: MachineId,
+    /// Where the program breaks the rule; `None` when the authored node
+    /// carries no span. A position is never guessed.
+    pub site: Option<source::SourceSpan>,
+    /// The rule and how the program breaks it. Diagnostic text only.
+    pub statement: String,
+}
+
+impl RuleViolation {
+    pub fn message(&self) -> String {
+        self.statement.clone()
+    }
+
+    /// The `Reject` diagnostic.
+    pub fn reject_diagnostic(&self) -> Diagnostic {
+        let diagnostic = Diagnostic::error(self.message());
+        match self.site {
+            Some(span) => diagnostic.with_source_span(span),
+            None => diagnostic,
         }
     }
 }
@@ -911,6 +986,7 @@ fn conclude(examined: Examined, applied: AppliedContracts) -> Checked<RouteVerdi
                 RefusalReason::Unsupported
                 | RefusalReason::NotConserved
                 | RefusalReason::Conflict
+                | RefusalReason::Violation(_)
                 | RefusalReason::ForeignIdentity => return fall_back_or_defect(refused.clone()),
             };
             let concerns = Construct::Obligation(consumed.opened_by);
@@ -996,6 +1072,7 @@ fn conclude(examined: Examined, applied: AppliedContracts) -> Checked<RouteVerdi
     if !unestablished.is_empty() || !conflicts.is_empty() || !exceeded.is_empty() {
         return Ok(RouteVerdict::Rejected {
             formations: Vec::new(),
+            violations: Vec::new(),
             unproved: without_restated_clauses(unproved),
             unestablished,
             conflicts,
@@ -1013,6 +1090,7 @@ fn conclude(examined: Examined, applied: AppliedContracts) -> Checked<RouteVerdi
             } else {
                 RouteVerdict::Rejected {
                     formations: Vec::new(),
+                    violations: Vec::new(),
                     unproved,
                     unestablished: Vec::new(),
                     conflicts: Vec::new(),
@@ -1054,6 +1132,7 @@ pub fn judge_compilation(
         TerminalCompilation::FormationFailures(formations) => {
             return vec![Ok(RouteVerdict::Rejected {
                 formations,
+                violations: Vec::new(),
                 unproved: Vec::new(),
                 unestablished: Vec::new(),
                 conflicts: Vec::new(),
@@ -1066,6 +1145,14 @@ pub fn judge_compilation(
         TerminalCompilation::Prepared(prepared) => prepared,
     };
     let forms = examine_generic_forms(prepared.forms);
+    // A selection borrows the same discharge that later decides its witness's
+    // verdict. Several selections may name one witness; none owns a second
+    // copy to prove independently.
+    let examined_witnesses: Vec<_> = prepared
+        .witnesses
+        .into_iter()
+        .map(|witness| examine(witness, &[]))
+        .collect();
     let closure_verdict = match prepared.closure {
         Ok(closure) => {
             let witnesses = witnesses(
@@ -1073,7 +1160,7 @@ pub fn judge_compilation(
                 &forms,
                 &prepared.specializations,
                 &prepared.selection_witnesses,
-                &prepared.witnesses,
+                &examined_witnesses,
             );
             let carried = carried(&closure, &forms, &witnesses, &prepared.specializations);
             match examine(Ok(closure), &carried) {
@@ -1093,12 +1180,13 @@ pub fn judge_compilation(
         }
         .map_err(CompilationRefusal::Elaboration)
     }));
-    verdicts.extend(
-        prepared
-            .witnesses
-            .into_iter()
-            .map(|witness| judge(witness).map_err(CompilationRefusal::Elaboration)),
-    );
+    verdicts.extend(examined_witnesses.into_iter().map(|witness| {
+        match witness {
+            Ok(examined) => conclude(examined, AppliedContracts::Undecided),
+            Err(decided) => decided,
+        }
+        .map_err(CompilationRefusal::Elaboration)
+    }));
     verdicts
 }
 
@@ -1119,24 +1207,23 @@ enum GenericForm {
 /// witness and the witness's discharge: the proof that the selected
 /// implementation refines the requirement (`typed_trees_to_terminal_psi::
 /// elaborate_witness`).
-struct Witnessed {
+struct Witnessed<'a> {
     selection: usize,
-    witness: Elaboration,
-    refinement: Discharge,
+    examined: &'a Examined,
 }
 
 /// The conformance witness of each selection a machine of `closure` makes
 /// when that machine was generated from a generic machine with a discharged
 /// form. A selection whose witness the route does not lower has none, and
 /// the obligations that would cite it are decided as in any closed machine.
-fn witnesses(
+fn witnesses<'a>(
     closure: &Elaboration,
     forms: &[GenericForm],
     specializations: &semantic_vocabulary::IdTable<MachineId, Option<symbols::SymbolHandle>>,
     selections: &[(usize, usize)],
-    prepared: &[Checked<Elaboration>],
-) -> Vec<Witnessed> {
-    let mut witnessed = Vec::new();
+    examined: &'a [Result<Examined, Checked<RouteVerdict>>],
+) -> Vec<Witnessed<'a>> {
+    let mut witnessed = Vec::with_capacity(selections.len());
     for &(selection, witness) in selections {
         let Some(selected) = closure.selections.get(selection) else {
             continue;
@@ -1149,17 +1236,12 @@ fn witnesses(
         {
             continue;
         }
-        let Some(Ok(witness)) = prepared.get(witness) else {
-            continue;
-        };
-        let mut witness = witness.clone();
-        let Ok(refinement) = crate::discharge(&mut witness) else {
+        let Some(Ok(examined)) = examined.get(witness) else {
             continue;
         };
         witnessed.push(Witnessed {
             selection,
-            witness,
-            refinement,
+            examined,
         });
     }
     witnessed
@@ -1178,7 +1260,7 @@ fn has_form(forms: &[GenericForm], template: symbols::SymbolHandle) -> bool {
 fn carried<'a>(
     closure: &Elaboration,
     forms: &'a [GenericForm],
-    witnesses: &'a [Witnessed],
+    witnesses: &'a [Witnessed<'a>],
     specializations: &semantic_vocabulary::IdTable<MachineId, Option<symbols::SymbolHandle>>,
 ) -> Vec<crate::Carried<'a>> {
     let mut carried = Vec::new();
@@ -1215,8 +1297,8 @@ fn carried<'a>(
                 if let Some((requirement, _)) = requirement {
                     selections.push(crate::Selection {
                         requirement,
-                        witness: &witnessed.witness,
-                        refinement: &witnessed.refinement,
+                        witness: &witnessed.examined.elaboration,
+                        refinement: &witnessed.examined.discharged,
                     });
                 }
             }
@@ -1354,6 +1436,7 @@ fn fall_back_or_defect(refused: Refusal) -> Checked<RouteVerdict> {
         // source correspondence to look its construct up in.
         RefusalReason::Unestablished => Ok(RouteVerdict::Rejected {
             formations: Vec::new(),
+            violations: Vec::new(),
             unproved: Vec::new(),
             unestablished: vec![UnestablishedUse {
                 machine: refused.machine,
@@ -1362,6 +1445,20 @@ fn fall_back_or_defect(refused: Refusal) -> Checked<RouteVerdict> {
                 detail: refused.detail,
                 declared: None,
             }],
+            conflicts: Vec::new(),
+            exceeded: Vec::new(),
+        }),
+        // A rule the source form breaks, whoever found it: the reader of
+        // the typed trees, before anything was lowered.
+        RefusalReason::Violation(site) => Ok(RouteVerdict::Rejected {
+            formations: Vec::new(),
+            violations: vec![RuleViolation {
+                machine: refused.machine,
+                site,
+                statement: refused.detail,
+            }],
+            unproved: Vec::new(),
+            unestablished: Vec::new(),
             conflicts: Vec::new(),
             exceeded: Vec::new(),
         }),

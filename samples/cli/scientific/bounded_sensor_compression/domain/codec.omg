@@ -1,5 +1,7 @@
 module domain::codec;
-use omega::language::core::math;
+use omega::language::core::abs_i32;
+use omega::language::core::max_i32;
+use omega::language::core::min_i32;
 use domain::model::SensorBlock;
 use domain::model::SensorStream;
 use domain::model::InputBuffer;

@@ -7214,6 +7214,7 @@ mod source {
             struct Homes<'a> {
                 target: &'a TargetFunction,
                 selected: &'a SelectedFunction,
+                geometry: calling_conventions::terminal_layout::NativeGeometry<'a>,
             }
             impl Homes<'_> {
                 fn root(&self, place: PlaceId) -> Result<(StructuralTypeId, Expr), Error> {
@@ -7245,7 +7246,7 @@ mod source {
                         target_operations_to_selected_instructions::reference_formation_geometry(
                             root,
                             &argument.path,
-                            &self.target.graph.structural_types,
+                            &self.geometry,
                         )
                         .ok_or(Error::Mismatch(
                             "installation operand lost target reference geometry",
@@ -7358,7 +7359,17 @@ mod source {
                     selected: &SelectedFunction,
                     arguments: &[StructuralArgument; 6],
                 ) -> Result<Self, Error> {
-                    let homes = Homes { target, selected };
+                    let geometry = calling_conventions::terminal_layout::NativeGeometry::new(
+                        &target.graph.structural_types,
+                    )
+                    .map_err(|_| {
+                        Error::Mismatch("installation catalog repeats a structural identity")
+                    })?;
+                    let homes = Homes {
+                        target,
+                        selected,
+                        geometry,
+                    };
                     let mut values = Vec::with_capacity(6);
                     let mut types = Vec::with_capacity(6);
                     let mut lengths = Vec::with_capacity(2);
@@ -7382,7 +7393,7 @@ mod source {
                         .map_err(|_| Error::Mismatch("installation type roster changed"))?;
                     let layout =
                         target_operations_to_selected_instructions::InstalledInterruptOperandLayout::derive(
-                            &target.graph.structural_types,
+                            &homes.geometry,
                             types,
                         )
                         .map_err(Error::Mismatch)?;
@@ -10637,6 +10648,9 @@ mod source {
             operations: &[target_operations::TargetUnitOperation],
             structural_types: &[terminal_psi::StructuralTypeDeclaration],
         ) -> bool {
+            let Ok(mut layouts) = crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay::new(structural_types) else {
+                return false;
+            };
             let expected = source
                 .cleanup_rosters()
                 .map(|(_, actions)| {
@@ -10650,7 +10664,7 @@ mod source {
                 .sum::<usize>();
             expected == operations.iter().filter(|operation| matches!(operation, target_operations::TargetUnitOperation::CleanupCall { .. })).count()
                 && source.cleanup_rosters().all(|(edge, actions)| edge_cleanup_calls_match(actions, operations.iter().filter(|operation|
-                    matches!(operation, target_operations::TargetUnitOperation::CleanupCall { owner, .. } if owner.edge() == Some(edge))), structural_types, edge))
+                    matches!(operation, target_operations::TargetUnitOperation::CleanupCall { owner, .. } if owner.edge() == Some(edge))), &mut layouts, edge))
         }
 
         pub(super) fn return_cleanup_calls_match(
@@ -10659,13 +10673,16 @@ mod source {
             structural_types: &[terminal_psi::StructuralTypeDeclaration],
             edge: semantic_vocabulary::EdgeId,
         ) -> bool {
-            edge_cleanup_calls_match(actions, operations.iter(), structural_types, edge)
+            let Ok(mut layouts) = crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay::new(structural_types) else {
+                return false;
+            };
+            edge_cleanup_calls_match(actions, operations.iter(), &mut layouts, edge)
         }
 
         fn edge_cleanup_calls_match<'a>(
             actions: &[TerminalAffineCleanupAction],
             operations: impl Iterator<Item = &'a target_operations::TargetUnitOperation>,
-            structural_types: &[terminal_psi::StructuralTypeDeclaration],
+            layouts: &mut crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay<'_>,
             edge: semantic_vocabulary::EdgeId,
         ) -> bool {
             let mut calls = operations.filter_map(|operation| match operation {
@@ -10705,15 +10722,12 @@ mod source {
                         .zip(&call_plan.parameters)
                         .any(|(argument, placement)| {
                             let projection = if argument.path.is_empty() {
-                                crate::object::object_artifact::replay::structural::condition_layout::replay_structural_value_shape(
-                                    argument.root_structural_type,
-                                    structural_types,
-                                ).map(|shape| (argument.root_structural_type, shape, 0, Vec::new()))
+                                layouts.value_shape(argument.root_structural_type)
+                                    .map(|shape| (argument.root_structural_type, shape, 0, Vec::new()))
                             } else {
-                                crate::object::object_artifact::replay::structural::condition_layout::replay_runtime_projection(
+                                layouts.runtime_projection(
                                     argument.root_structural_type,
                                     &argument.path,
-                                    structural_types,
                                 )
                             };
                             argument.place != nominal.place
@@ -12884,6 +12898,7 @@ mod source {
             selected: &'a SelectedFunction,
             inputs: Option<AddressInputs<'a>>,
             spills: Option<super::spill_values::SpillValues<'a>>,
+            layouts: Option<Result<crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay<'a>, semantic_vocabulary::NonDenseIdentities>>,
             failure: Option<&'static str>,
         }
         impl<'a> AddressReplay<'a> {
@@ -12893,6 +12908,7 @@ mod source {
                     selected,
                     inputs: None,
                     spills: None,
+                    layouts: None,
                     failure: None,
                 }
             }
@@ -12901,6 +12917,18 @@ mod source {
                 let selected = self.selected;
                 self.inputs
                     .get_or_insert_with(|| AddressInputs::new(target, selected))
+            }
+
+            fn layouts(&mut self) -> Option<&mut crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay<'a>>{
+                self.layouts.get_or_insert_with(|| {
+                    crate::object::object_artifact::replay::structural::condition_layout::StructuralReplay::new(&self.target.graph.structural_types)
+                }).as_mut().ok()
+            }
+
+            pub(super) fn geometry(
+                &mut self,
+            ) -> Option<&calling_conventions::terminal_layout::NativeGeometry<'a>> {
+                Some(self.layouts()?.geometry())
             }
 
             pub(super) fn operation_instructions(
@@ -13134,7 +13162,7 @@ mod source {
             let native = target_operations_to_selected_instructions::reference_formation_geometry(
                 root,
                 &address_source.path,
-                types.as_slice(),
+                addresses.geometry()?,
             )?;
             if correspondence.resident_source().is_none()
                 && native.selected.as_structural() != Some(correspondence.schema())
@@ -13399,13 +13427,12 @@ mod source {
             else {
                 return None;
             };
-            let target = addresses.target;
             let (base, root) = address_root(&addresses.inputs().homes, place)?;
             let geometry =
                 target_operations_to_selected_instructions::reference_formation_geometry(
                     root,
                     path,
-                    &target.graph.structural_types,
+                    addresses.geometry()?,
                 )?;
             if !geometry.readable
                 || geometry.byte_offset != byte_offset
@@ -13416,10 +13443,9 @@ mod source {
             {
                 return None;
             }
-            let layout = crate::object::object_artifact::replay::structural::condition_layout::replay_structural_sum_layout(
-                geometry.selected.as_structural()?,
-                &target.graph.structural_types,
-            )?;
+            let layout = addresses
+                .layouts()?
+                .sum_layout(geometry.selected.as_structural()?)?;
             if layout.tag_byte_offset != 0
                 || layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
             {
@@ -13449,7 +13475,9 @@ mod source {
             let native = target_operations_to_selected_instructions::reference_formation_geometry(
                 root,
                 &source.path,
-                &target.graph.structural_types,
+                addresses.geometry().ok_or_else(|| {
+                    "borrowed pointer catalog repeats a structural identity".to_owned()
+                })?,
             )
             .ok_or_else(|| {
                 format!(
@@ -16465,10 +16493,15 @@ mod source {
                         accepted_fact: optimization_core::AcceptedObligationFactIdentity::from_canonical_bytes(b"byte bound"),
                     }),
                 ];
+                let native_geometry = calling_conventions::terminal_layout::NativeGeometry::new(
+                    &target.graph.structural_types,
+                )
+                .unwrap();
                 let retains = |accesses: &[SelectedMemoryAccess]| {
                     indexed_read_footprint_retained(
                         &function,
                         &target,
+                        &native_geometry,
                         &function.operations[0],
                         accesses,
                     )
@@ -17217,6 +17250,7 @@ mod source {
         pub(super) fn indexed_read_footprint_retained(
             function: &AbstractFunction,
             target: &TargetFunction,
+            native_geometry: &calling_conventions::terminal_layout::NativeGeometry<'_>,
             operation: &AbstractOperation,
             accesses: &[selected_instructions::SelectedMemoryAccess],
         ) -> bool {
@@ -17243,7 +17277,7 @@ mod source {
                 root,
                 path,
                 *field,
-                &target.graph.structural_types,
+                native_geometry,
             ) else {
                 return false;
             };
@@ -18824,12 +18858,13 @@ mod source {
                     }
                     AbstractOperation::StructuralByteSequenceFieldRead { .. } => {
                         structural_fields::indexed_read_retained(abstracted, operation, targeted)
-                            && structural_fields::indexed_read_footprint_retained(
+                            && addresses.geometry().is_some_and(|native_geometry| structural_fields::indexed_read_footprint_retained(
                                 abstracted,
                                 targeted,
+                                native_geometry,
                                 operation,
                                 &selected.memory_accesses,
-                            )
+                            ))
                     }
                     AbstractOperation::StructuralByteViewFieldStore { .. } => {
                         structural_fields::view_replacement_retained(abstracted, operation, targeted)
@@ -23481,6 +23516,33 @@ mod structural {
                         alignment: 8,
                     }],
                 };
+                assert_eq!(
+                    super::super::incoming_location(StructuralAccess::Owned, &placement).unwrap(),
+                    StructuralSourceLocation::IncomingIndirectPointer { register }
+                );
+                let mut stack = placement.clone();
+                let [ValueLocation::Indirect { pointer, .. }] = stack.locations.as_mut_slice()
+                else {
+                    panic!("one indirect parameter");
+                };
+                *pointer = IndirectPointerLocation::Stack {
+                    stack_byte_offset: 32,
+                    alignment: 8,
+                };
+                let location = super::super::incoming_location(StructuralAccess::Owned, &stack)
+                    .expect("owned stack pointer retains its residence");
+                assert_eq!(
+                    location,
+                    StructuralSourceLocation::IncomingIndirectStackPointer {
+                        stack_byte_offset: 32,
+                        alignment: 8,
+                    }
+                );
+                assert!(
+                    validate_incoming_location(StructuralAccess::Owned, &stack, location).is_ok()
+                );
+                stack.shape = ValueShape::integer(8, 8);
+                assert!(super::super::incoming_location(StructuralAccess::Owned, &stack).is_err());
                 assert!(
                     validate_incoming_location(
                         StructuralAccess::Owned,
@@ -23715,9 +23777,20 @@ mod structural {
                     "owned incoming home differs from value shape",
                 ));
             }
-            return Ok(
-                crate::installation_record::graph_structural::indirect_source_location(pointer),
-            );
+            return Ok(match pointer {
+                IndirectPointerLocation::Register(register) => {
+                    StructuralSourceLocation::IncomingIndirectPointer {
+                        register: *register,
+                    }
+                }
+                IndirectPointerLocation::Stack {
+                    stack_byte_offset,
+                    alignment,
+                } => StructuralSourceLocation::IncomingIndirectStackPointer {
+                    stack_byte_offset: *stack_byte_offset,
+                    alignment: *alignment,
+                },
+            });
         }
         let scalar_descriptor =
             placement.shape.class == calling_conventions::ValueClass::BorrowedScalarReference;

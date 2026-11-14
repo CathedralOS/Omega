@@ -3,7 +3,6 @@ module model::stages;
 // Two affine trials solve the cold far-boundary condition, then a third pass
 // retains every stage. This is application-private and uses no numerics package.
 use io::input;
-use omega::language::core::float_operations;
 
 public data Pair { hot: f64; cold: f64; }
 public data Solution { hot: [f64; 9]; cold: [f64; 9]; heat: [f64; 8]; total: f64; }

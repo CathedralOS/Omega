@@ -567,52 +567,17 @@ pub(crate) mod tests {
     }
 
     fn with_reflection(source: &str) -> TypedTrees {
-        let core_root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../../../source/library/core");
-        let reflection = include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../../../source/library/core/reflect.omg"
-        ));
-        let mut sources = source::SourceMap::default();
-        let core = sources
-            .add_with_metadata(
-                core_root.join("reflect.omg"),
-                reflection.into(),
-                core_root,
-                None,
-                source::SourceOrigin::Toolchain,
-            )
-            .source_id;
-        let author = sources
-            .add_with_metadata(
-                "/job/policy.omg".into(),
-                source.into(),
-                "/job".into(),
-                semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]),
-                source::SourceOrigin::User,
-            )
-            .source_id;
-        let mut syntax = syntax_trees::SyntaxTrees::new(author);
-        for (id, text) in [(core, reflection), (author, source)] {
-            let tokens = source_files_to_tokens::Lexer::new(text)
-                .tokenize()
-                .expect("lex source");
-            tokens_to_syntax_trees::parse(&mut syntax, id, &tokens).expect("parse source");
-        }
-        let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
-        request.sources = Some(Arc::new(sources));
-        request.top_level_bindings.push(
-            symbols::SourceScopedTopLevelBinding::logical_module_import(
-                author,
-                core,
-                "omega::language::core::reflect",
-                3,
-            ),
-        );
-        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request)
-            .expect("resolve exact core and author");
-        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
-            .expect("type exact core and author")
+        // Reflection imports ordinary core declarations. Keep its complete
+        // real source closure and the same test author's package identity.
+        let library =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../source/library");
+        super::schema_customer_source::actual_library_source(
+            &library,
+            source,
+            semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32])
+                .expect("the existing reflection author package"),
+        )
+        .expect("resolve and type the actual core source and author")
     }
 
     fn returned_source_call(
@@ -636,6 +601,124 @@ pub(crate) mod tests {
             panic!("the returned value is the authored call")
         };
         (machine.symbol, *expression)
+    }
+
+    #[test]
+    fn subject_requirements_keep_their_full_headers_without_becoming_bodies() {
+        let source = typed(
+            "trait Description {
+                machine closed(value: u64) -> u64
+                    requires value > 0u64
+                    ensures result >= value
+                    reaches none crashes none terminates;
+                machine open(value: u64) -> u64;
+            }
+            machine answer() -> u64 { 17u64 }",
+        );
+        let entry = source.realized_machine_named("answer").unwrap().symbol;
+        let package = source.symbols.symbol_package_identity(entry).unwrap();
+        let (source, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            source,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .expect("prepare the actual source declarations");
+        let accepted = psi_terminal_production::AcceptedTerminalSource::judge(
+            Arc::new(source),
+            psi_terminal_production::TerminalSourceCompilation {
+                entries: &[entry],
+                subjects: &[Some(package)],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .expect("requirements publish contracts, not executable obligations");
+        let module = accepted.module();
+        assert_eq!(
+            module.machines.len(),
+            1,
+            "only the actual source body is executable"
+        );
+        let [closed, open] = module.declaration_contracts.as_slice() else {
+            panic!(
+                "both authored requirements must survive: {:?}",
+                module.declaration_contracts
+            );
+        };
+        let [owner] = accepted.source().traits() else {
+            panic!("one actual source trait")
+        };
+        let requirements = accepted.source().trait_machine_signatures(owner);
+        assert_eq!(requirements.len(), 2);
+        for (contract, requirement) in [closed, open].into_iter().zip(requirements) {
+            assert_eq!(contract.parameters.len(), 1);
+            assert_eq!(
+                contract.parameter_order,
+                [terminal_psi::BoundaryParameterKind::Scalar]
+            );
+            assert!(contract.result.scalar_ref().is_some());
+            let declaration = contract
+                .declaration
+                .as_ref()
+                .expect("exact source declaration");
+            assert_eq!(declaration.parameter_types.len(), 1);
+            assert_ne!(declaration.contract, [0; 32]);
+            assert_eq!(
+                module.identities.text(declaration.semantic_declaration),
+                Some(
+                    accepted
+                        .source()
+                        .normalized_hermetic_symbol_identity(requirement.symbol)
+                        .unwrap()
+                        .as_str(),
+                )
+            );
+            assert_eq!(
+                module.identities.text(declaration.callable),
+                Some(
+                    accepted
+                        .source()
+                        .trait_requirement_callable_identity_text(owner, requirement)
+                        .as_str(),
+                )
+            );
+        }
+        assert_eq!(closed.declared_service_reach, Some(Vec::new()));
+        assert_eq!(closed.declared_crash_routes, Some(Vec::new()));
+        assert_eq!(
+            closed.termination,
+            semantic_vocabulary::Termination::Terminates
+        );
+        assert_eq!(closed.requires.len(), 1);
+        assert_eq!(closed.ensures.len(), 1);
+        assert_eq!(open.declared_service_reach, None);
+        assert_eq!(open.declared_crash_routes, None);
+        assert_eq!(
+            open.termination,
+            semantic_vocabulary::Termination::NoGuarantee
+        );
+        assert_ne!(
+            closed.declaration.as_ref().unwrap().contract,
+            open.declaration.as_ref().unwrap().contract
+        );
+        let bytes = terminal_codec::encode_module(module).expect("encode checked declarations");
+        assert_eq!(terminal_codec::decode_module(&bytes).unwrap(), *module);
+        let mut forged = module.clone();
+        forged.machines[0].contract.id = closed.id;
+        assert!(
+            terminal_codec::decode_module(&terminal_codec::encode_module(&forged).unwrap())
+                .is_err(),
+            "a body cannot adopt a bodyless contract coordinate"
+        );
+        let mut forged = module.clone();
+        forged.declaration_contracts[0].declaration = None;
+        assert!(
+            terminal_codec::decode_module(&terminal_codec::encode_module(&forged).unwrap())
+                .is_err(),
+            "a public contract needs its own source declaration"
+        );
     }
 
     #[test]
@@ -1737,6 +1820,14 @@ pub(crate) mod tests {
         assert_eq!(receipt.admission().target(), target().name);
     }
 }
+
+#[cfg(test)]
+#[path = "source_jobs/schema_customer_source.rs"]
+mod schema_customer_source;
+
+#[cfg(test)]
+#[path = "source_jobs/access_plan_construction.rs"]
+mod access_plan_construction;
 
 #[cfg(test)]
 #[path = "source_jobs/sequence_values.rs"]

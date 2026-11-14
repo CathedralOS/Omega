@@ -210,7 +210,7 @@ machine main() { }",
         (
             "ensures_trapping_sum",
             pair("ensures result == left +! right", "left +% right"),
-            "contract Trapping policy operator in a clause, where an operation that can crash forms no term",
+            "rejected",
         ),
         (
             "ensures_wrapping_quotient",
@@ -638,12 +638,110 @@ fn a_call_that_never_returns_may_not_be_lent_one_place_twice() {
     );
 }
 
+/// A statement written after `ProcessExit::exit_process` is unreachable, not
+/// an error (`wiki/spec/language/state_contracts.md`, "Statements after a
+/// call that never returns"). The kept program's `let next: i32 = root.count
+/// + 1;` after the exit is not lowered: `main` ends in the exit with no
+/// addition before it, so the range the addition would owe is owed by
+/// nobody and the program is accepted. The accepted closure carries one
+/// warning at the `let` and one note at the call.
+#[test]
+fn a_statement_after_a_call_that_never_returns_is_accepted_with_one_warning() {
+    let _compilation = COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let frontier = unbuilt_frontier::frontier(
+        &unbuilt_frontier::repository("tests/fixtures/run/calls/statement_after_process_exit")
+            .join("main.omg"),
+        Some("entry_start"),
+        &[],
+    )
+    .unwrap_or_else(|stopped| panic!("Psi 00 through 04 must complete: {stopped:?}"));
+    let parts = judge(&frontier);
+    let [Ok(RouteVerdict::Accepted(closure))] = &parts[..] else {
+        panic!("the entry closure accepted: {parts:?}");
+    };
+    let operations = closure
+        .elaboration
+        .module
+        .machines
+        .iter()
+        .flat_map(|machine| &machine.blocks)
+        .flat_map(|block| &block.operations);
+    assert!(
+        operations.clone().all(|operation| !matches!(
+            operation.kind,
+            terminal_psi::OperationKind::ExactIntegerAdd { .. }
+        )),
+        "the addition after the exit is not lowered"
+    );
+    let advisories = closure.advisories();
+    let [warning, note] = &advisories[..] else {
+        panic!("one warning and its note: {advisories:?}");
+    };
+    assert_eq!(warning.severity, diagnostics::DiagnosticSeverity::Warning);
+    assert!(
+        warning
+            .message
+            .starts_with("unreachable statement in machine `main` state `"),
+        "{}",
+        warning.message
+    );
+    assert_eq!(note.severity, diagnostics::DiagnosticSeverity::Note);
+    assert_eq!(note.message, "this call never returns");
+    // The warning is at the `let` and the note at the call before it.
+    let (statement, call) = (
+        warning.source_span.expect("the statement is authored"),
+        note.source_span.expect("the call is authored"),
+    );
+    assert!(
+        call.span.end <= statement.span.start,
+        "{call:?} {statement:?}"
+    );
+}
+
+/// Its twin calls a helper that exits on one arm and returns on the other.
+/// "The call can return on some paths: the continuation is checked on those
+/// returning paths", so the same `let` is lowered, its addition owes its
+/// range, nothing bounds `root.count`, and the program is rejected. Nothing
+/// is reported as unreachable.
+#[test]
+fn a_statement_after_a_call_that_may_return_is_checked() {
+    assert_eq!(
+        exit_verdicts("tests/fixtures/fail/calls/statement_after_conditional_exit"),
+        ["rejected"]
+    );
+}
+
+/// Its other twin names a machine nothing declares in the statement after
+/// the exit. "Unreachable statements are still source": leaving the
+/// statement out of the lowered form does not excuse the name, and the
+/// program is not accepted. It is refused where an unknown call name is
+/// refused anywhere today: the reader raises the row typing left on the
+/// declaration that holds the call (`typed_trees::deferred_refusals`).
+#[test]
+fn an_unknown_machine_after_a_call_that_never_returns_is_not_accepted() {
+    let parts = judged_with_dependencies(
+        "tests/fixtures/fail/calls/unknown_machine_after_process_exit",
+        "entry_start",
+        &[],
+    )
+    .unwrap_or_else(|stopped| panic!("Psi 00 through 04 must complete: {stopped:?}"));
+    let [Ok(RouteVerdict::FallBack(refusal))] = &parts[..] else {
+        panic!("the unknown name refuses the program: {parts:?}");
+    };
+    assert_eq!(
+        refusal.detail,
+        "declaration holding a call whose name resolves to no declaration"
+    );
+}
+
 /// A machine that declares a lifetime is one machine, judged once
 /// (`wiki/spec/language/lifetimes.md`: "Lifetime arguments are erased
 /// regions"): it may return the view it was given for the lifetime its
 /// result names, and a call gives that lifetime the region of the view it
 /// passes. The twin returns the view of the other lifetime ("A signature
-/// does not authorize returning unrelated storage") and is not accepted.
+/// does not authorize returning unrelated storage") and is rejected.
 #[test]
 fn a_machine_with_a_lifetime_returns_a_view_of_that_lifetime_only() {
     let program = |returned: &str| {
@@ -656,7 +754,7 @@ fn a_machine_with_a_lifetime_returns_a_view_of_that_lifetime_only() {
     assert_eq!(verdicts("lifetime_view", &program("view")), ["accepted"]);
     assert_eq!(
         verdicts("lifetime_other_view", &program("other")),
-        ["not-supported"]
+        ["rejected"]
     );
 }
 

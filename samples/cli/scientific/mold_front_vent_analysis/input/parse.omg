@@ -1,4 +1,4 @@
-use omega::language::core::numeric_conversion;
+use omega::language::core::widen_u8_to_i32;
 use model::fill;
 
 // Fixed grammar: WWWW GGGG VVVV BB, with hex masks and decimal cell budget.

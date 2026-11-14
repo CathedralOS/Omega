@@ -603,13 +603,12 @@ pub(crate) mod expression {
                     ) -> Result<typed::expression::ExpressionHandle, Diagnostic>
                     {
                         let subject = self.lower_value(dispatch.subject)?;
-                        let capture = if dispatch.capture.is_valid() {
-                            self.target().insert_match_subject(subject)
-                        } else {
-                            Handle::invalid()
-                        };
+                        // Even a fieldless case match owns one completed
+                        // subject for dispatch and cleanup. Resolution needs a
+                        // saved-subject name only when an arm refers to it.
+                        let capture = self.target().insert_match_subject(subject);
                         let outer_captures = self.match_captures.len();
-                        if capture.is_valid() {
+                        if dispatch.capture.is_valid() {
                             self.match_captures.push((dispatch.capture, capture));
                         }
                         let lowered = (|| {
@@ -956,6 +955,39 @@ pub(crate) mod expression {
                     );
                 }
 
+                pub(super) fn finalize_generated_call_selection(
+                    &mut self,
+                    expression: resolved::expression::ExpressionHandle,
+                    selected_target: symbols::SymbolHandle,
+                ) -> Result<(), Diagnostic> {
+                    let occurrences = self
+            .source
+            .authored_selection_occurrences(expression)
+            .filter(|occurrence| {
+                self.target_trees
+                    .authored_declaration_selections()
+                    .get(*occurrence)
+                    .is_some_and(|selection| {
+                        selection.kind()
+                            == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call
+                    })
+            })
+            .collect::<Vec<_>>();
+                    let [occurrence] = occurrences.as_slice() else {
+                        return Err(Diagnostic::error(format!(
+                            "rewritten call retains {} call selections; expected one",
+                            occurrences.len()
+                        )));
+                    };
+
+                    crate::call_and_product_selections::bind_generated_call_selection(
+                        self.target_trees,
+                        *occurrence,
+                        selected_target,
+                    )?;
+                    Ok(())
+                }
+
                 pub(crate) fn lower(
                     &mut self,
                     expression: resolved::expression::ExpressionHandle,
@@ -1003,6 +1035,18 @@ pub(crate) mod expression {
                                 .with_source_span(source_call.target.source_span()));
                             }
                             own = Some(occurrence);
+                        }
+                        if let Some(occurrence) = own
+                            && let typed::expression::ExpressionNode::Call(call) =
+                                self.target().expression(lowered)
+                            && call.build_selection.is_valid()
+                        {
+                            let selected = call.target_symbol;
+                            crate::call_and_product_selections::bind_generated_call_selection(
+                                self.target_trees,
+                                occurrence,
+                                selected,
+                            )?;
                         }
                         if let typed::expression::ExpressionNode::Call(call) =
                             self.target().expression_mut(lowered)
@@ -1334,14 +1378,17 @@ pub(crate) mod expression {
                                         .into_iter()
                                         .map(|argument| self.lower_value(argument))
                                         .collect::<Result<Vec<_>, Diagnostic>>()?;
-                                    return crate::expressions::product_queries::lower(
+                                    let selected = operation.target;
+                                    let query = crate::expressions::product_queries::lower(
                                         program,
                                         self.target_trees,
                                         operation,
                                         arguments,
                                         self.source.source_span(expression),
                                         call.operational_acknowledgement,
-                                    );
+                                    )?;
+                                    self.finalize_generated_call_selection(expression, selected)?;
+                                    return Ok(query);
                                 }
                                 if let Some(request) =
                                     crate::expressions::product_selections::request(
@@ -2959,10 +3006,7 @@ pub(crate) mod expression {
                             return Ok(None);
                         }
                     }
-                    self.finalize_synthesized_equatable_call_selection(
-                        expression,
-                        call.target_symbol,
-                    )?;
+                    self.finalize_generated_call_selection(expression, call.target_symbol)?;
                     let observed_operand = |operand| match self.source.expression(operand) {
                         resolved::expression::ExpressionNode::Borrow(borrow)
                             if borrow.access == language_semantics::ReferenceAccess::Shared =>
@@ -2995,66 +3039,6 @@ pub(crate) mod expression {
                             },
                         ),
                     )))
-                }
-
-                fn finalize_synthesized_equatable_call_selection(
-                    &mut self,
-                    expression: resolved::expression::ExpressionHandle,
-                    synthesized_target: symbols::SymbolHandle,
-                ) -> Result<(), Diagnostic> {
-                    let occurrences = self
-            .source
-            .authored_selection_occurrences(expression)
-            .filter(|occurrence| {
-                self.target_trees
-                    .authored_declaration_selections()
-                    .get(*occurrence)
-                    .is_some_and(|selection| {
-                        selection.kind()
-                            == language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call
-                    })
-            })
-            .collect::<Vec<_>>();
-                    let [occurrence] = occurrences.as_slice() else {
-                        return Err(Diagnostic::error(format!(
-                            "authored synthesized equality call retains {} call selections; expected one",
-                            occurrences.len()
-                        )));
-                    };
-
-                    let mut selections =
-                        self.target_trees.authored_declaration_selections().clone();
-                    let selection = selections.get(*occurrence).ok_or_else(|| {
-                        Diagnostic::error(
-                            "authored synthesized equality call lost its selection custody",
-                        )
-                    })?;
-                    match selection.target() {
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::LateBound(
-                language_semantics::declaration_selection::AuthoredDeclarationSelectionLateBinding::CheckedCall,
-            ) => selections
-                .finalize_late_bound(
-                    *occurrence,
-                    language_semantics::declaration_selection::AuthoredDeclarationSelectionLateBinding::CheckedCall,
-                    synthesized_target,
-                )
-                .map_err(|error| {
-                    Diagnostic::error(format!(
-                        "failed to bind authored synthesized equality call: {error:?}"
-                    ))
-                })?,
-            language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(
-                target,
-            ) if target.selected_symbol() == synthesized_target => {}
-            _ => {
-                return Err(Diagnostic::error(
-                    "authored synthesized equality call retains contradictory selection custody",
-                ));
-            }
-                    }
-                    self.target_trees
-                        .retain_authored_declaration_selections(selections);
-                    Ok(())
                 }
 
                 pub(crate) fn try_lower_structural_equality(

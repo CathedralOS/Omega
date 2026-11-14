@@ -1235,6 +1235,22 @@ impl<'t> Program<'t> {
     ) -> Checked<(Signature, MachineNames)> {
         self.served(id, requirement.symbol)?;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
+        // Closing a signature substitutes its types; it does not prove the
+        // original binders' storage or copying requirements.
+        if self
+            .typed
+            .closed_requirement_application(requirement.symbol)
+            .is_some_and(|closed| {
+                closed
+                    .invocation_contract_parameters
+                    .iter()
+                    .any(|parameter| {
+                        parameter.bounds != typed_trees::data::DataProperties::default()
+                    })
+            })
+        {
+            return unserved("closed requirement parameter eligibility");
+        }
         if requirement.spelling.is_some() {
             return unserved("operator spelling");
         }
@@ -1420,12 +1436,12 @@ impl<'t> Program<'t> {
                 Some(ValueType::Scalar(..)) => {
                     ResultTerm::Absent("result that carries a declared domain")
                 }
-                // A clause over a record result projects it
-                // (`result.field`), which a later slice serves from the
-                // result place.
-                Some(ValueType::Record(_, _, _)) => {
-                    ResultTerm::Absent("result of a record machine")
-                }
+                // A returned field belongs to the declared result root,
+                // allocated after the structural formals by lowering.
+                Some(value_type @ ValueType::Record(_, _, _)) => ResultTerm::Structural(
+                    super::contracts::formal_place(id, &slots, slots.len())?,
+                    value_type,
+                ),
                 Some(ValueType::Rigid(_)) => ResultTerm::Absent("result of a rigid type"),
                 None => ResultTerm::Absent("result of a Unit machine"),
             },
@@ -2045,10 +2061,13 @@ impl<'t> Program<'t> {
                     match (last, signature.result) {
                         (true, Some(result)) => {
                             if !self.agrees(expression.result, result) {
-                                return Err(refuse(
+                                return Err(self.mistyped(
                                     id,
-                                    Construct::Machine,
-                                    Unserved::Typing("final value type"),
+                                    expression.source,
+                                    super::rejections::Destination::Result,
+                                    Some(result),
+                                    expression.result,
+                                    "final value type",
                                 ));
                             }
                             completed = true;

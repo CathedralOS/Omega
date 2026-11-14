@@ -1313,7 +1313,7 @@ pub use commitments::{
     ClosedConformanceApplicationCommitment, ClosedConformanceApplicationSite,
     ClosedConformanceConstArgument, ClosedConformanceRowIdentity, DataImplementationApplication,
     MachineSpecialization, MachineSpecializationCommitment, MachineTemplateCommitment,
-    StaticRequirementDispatch, TraitImplementationApplication, closed_conformance_applications_of,
+    StaticRequirementDispatch, TraitImplementationApplication,
     machine_specialization_matches_template_identity,
 };
 

@@ -166,6 +166,7 @@ impl CoverageForm {
 pub enum DiagnosticSeverity {
     Error,
     Warning, // Surfaced to the user without failing the build (Decision-12 relaxation for non-proof deadness).
+    Note, // A second location of the diagnostic before it (the call an unreachable statement follows); never fails the build.
 }
 
 impl Diagnostic {
@@ -193,6 +194,14 @@ impl Diagnostic {
         }
     }
 
+    /// A further location of the diagnostic listed just before this one.
+    pub fn note(message: impl Into<String>) -> Self {
+        Self {
+            severity: DiagnosticSeverity::Note,
+            ..Self::error(message)
+        }
+    }
+
     pub fn with_source_span(mut self, source_span: SourceSpan) -> Self {
         self.source_span = Some(source_span);
         self
@@ -208,6 +217,7 @@ impl fmt::Display for Diagnostic {
         match self.severity {
             DiagnosticSeverity::Error => write!(formatter, "error: {}", self.message),
             DiagnosticSeverity::Warning => write!(formatter, "warning: {}", self.message),
+            DiagnosticSeverity::Note => write!(formatter, "note: {}", self.message),
         }
     }
 }
@@ -254,6 +264,7 @@ pub fn write_bounded_diagnostics(
         let severity = match diagnostic.severity {
             DiagnosticSeverity::Error => "error",
             DiagnosticSeverity::Warning => "warning",
+            DiagnosticSeverity::Note => "note",
         };
         write!(formatter, "\n  {severity}: ")?;
         let bytes = diagnostic.message.as_bytes();

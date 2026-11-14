@@ -4,8 +4,9 @@ module model::courant;
 // powers affecting length, so neither integer overflow nor f64 rounding can
 // admit an unstable request or reject an exact CFL-one boundary.
 use io::input;
-use omega::language::core::numeric_conversion;
-use omega::language::core::float_operations;
+use omega::language::core::narrow_i32_to_u32_saturating;
+use omega::language::core::narrow_u32_to_i32_saturating;
+use omega::language::core::F64::from_u64;
 public data Digits { values:[u64 in Wrapping;36]; length:u32 in Saturating; }
 machine digits(coefficient:u64 in Wrapping,result:&mut Digits) {
  result.length=0;

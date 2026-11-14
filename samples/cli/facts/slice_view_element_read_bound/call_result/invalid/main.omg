@@ -2,7 +2,6 @@
 // Place: call result (invalid twin). Reading index 3 exceeds the guarded length bound of 3 elements.
 // Expected diagnostic: slice index out of bounds
 
-use omega::language::core::slice;
 
 machine borrow_items(items: &[u64; 4]) -> &[u64]
     ensures result.len >= 3

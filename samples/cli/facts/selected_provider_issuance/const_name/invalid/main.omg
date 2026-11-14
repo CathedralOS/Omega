@@ -2,7 +2,8 @@
 // Only an admitted selected InitialSupply call establishes fresh Count1 ownership, preserved with exact backing through submit/complete and release.
 // The initial account enters only through the selected admitted InitialSupply
 // invocation after its provider has obtained a successful fresh allocation.
-use omega::language::core::content;
+use omega::language::core::Content;
+use omega::language::core::CountedQuantity;
 
 const ALLOCATION_COUNT: u64 = 1;
 const ALLOCATION_WIDTH: u64 = 1;

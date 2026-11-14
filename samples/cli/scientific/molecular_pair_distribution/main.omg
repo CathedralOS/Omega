@@ -1,7 +1,6 @@
 // Expected exit: 0.
 // Expected output contains: molecular_pair_distribution
 use omega_language_std::console;
-use omega::language::core::numeric_conversion;
 use io::input;
 use io::output;
 use domain::model;

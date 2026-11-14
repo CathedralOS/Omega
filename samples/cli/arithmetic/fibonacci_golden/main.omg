@@ -9,7 +9,8 @@
 // truncated back. Each iteration computes its next term locally and passes the
 // next pair to the loop head. Float intermediates exist only in the final state.
 
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i32;
+use omega::language::core::I32::from_f64;
 use omega_language_std::console;
 
 data Main { }

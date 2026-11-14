@@ -12,7 +12,8 @@ use omega::language::core::float_accuracy::classify_f32;
 use omega::language::core::float_accuracy::classify_f64;
 use omega::language::core::float_accuracy::compare_reference_additive_f32;
 use omega::language::core::float_accuracy::compare_reference_additive_f64;
-use omega::language::core::float_operations;
+use omega::language::core::F32::negate;
+use omega::language::core::F64::negate;
 
 machine main() crashes Trap {
     let additive_exact32: ReferenceAdditiveTolerance32 = ReferenceAdditiveTolerance32 { atol: 0.0f32, rtol: 0.0f32 };

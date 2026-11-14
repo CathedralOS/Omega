@@ -1,5 +1,4 @@
 use domain::shockley;
-use omega::language::core::float_operations;
 
 // status: 1 converged, 2 iteration limit, 3 no sign bracket in the requested
 // interval. Monotonicity follows from R, Is and thermal being positive.

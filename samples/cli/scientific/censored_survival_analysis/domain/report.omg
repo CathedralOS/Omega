@@ -1,8 +1,9 @@
 use domain::input;
 use domain::model;
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_i32_to_u32_wrapping;
+use omega::language::core::narrow_i64_to_i32_wrapping;
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::I64::from_f64;
 
 // The measured extent is supplied by a checked contract, independently of the
 // array's capacity. This reusable view accessor also accepts empty slices.

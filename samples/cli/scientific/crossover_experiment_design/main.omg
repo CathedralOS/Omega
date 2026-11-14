@@ -4,7 +4,7 @@
 // One finite request: treatments,subjects,carryover-cap,forbidden-edge + LF.
 // Every result is an actual allocation or exhaustive bounded infeasibility.
 use omega_language_std::console;
-use omega::language::core::numeric_conversion;
+use omega::language::core::widen_u8_to_i32;
 use design::model;
 use design::search;
 use design::certificate;

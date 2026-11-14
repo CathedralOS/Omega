@@ -162,7 +162,17 @@ machine entry() {{ let reply: u32 = Service::go(3); }}
         ("reaches Output crashes none", "synchronous invocation"),
     ] {
         let rejection = supplied(&program(required), "Service::go").unwrap_err();
-        assert!(rejection.starts_with("part 0 rejected"), "{rejection}");
+        // The selected provider may be checked in the main closure before its
+        // separate refinement witness. Pin the rejected operation, not that order.
+        assert!(
+            rejection.contains("rejected: machine `Native::go`"),
+            "{rejection}"
+        );
+        assert!(rejection.contains("Console::write"), "{rejection}");
+        assert!(
+            rejection.contains(if axis == "reach" { "Output" } else { "Handler" }),
+            "{rejection}"
+        );
         assert!(rejection.contains(axis), "{rejection}");
     }
 }

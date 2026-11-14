@@ -14,7 +14,7 @@ trap 'rm -rf -- "$ADMISSION_TMP"' EXIT HUP INT TERM
 # bound diagnostic prefix entry packs on top of those bound members.
 require_derivation_checker_identity
 require_derivation_admission_entry_identity
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+bootstrap_xtask source-closure \
     "$OMEGA_PATH_DERIVATION_CHECKER_SOURCES" \
     "$ADMISSION_TMP/diagnostic.gamma" --prefix "$GATE_DIR/main.gamma"
 materialize_gamma_evaluator "$ADMISSION_TMP/evaluator" >/dev/null

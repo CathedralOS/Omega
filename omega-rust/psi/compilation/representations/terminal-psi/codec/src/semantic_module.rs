@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 257`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 258`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -638,9 +638,22 @@ pub(crate) mod canonical_order {
                 .map(|lane| (lane.machine, lane.kind, lane.position)),
             "evidence contract lanes by machine, kind, and position",
         )?;
+        require_increasing(
+            module
+                .declaration_contracts
+                .iter()
+                .map(|contract| contract.id),
+            "declaration contracts by ContractId",
+        )?;
+        for contract in module
+            .declaration_contracts
+            .iter()
+            .chain(module.machines.iter().map(|machine| &machine.contract))
+        {
+            validate_contract_order(contract)?;
+        }
         r!(module.machines.iter().map(|machine| machine.id) => "machines by MachineId")?;
         for machine in &module.machines {
-            validate_parameter_order(&machine.structural_parameters)?;
             for block in &machine.blocks {
                 if let Some(invocation) = block.terminator.module_invocation() {
                     require_increasing(
@@ -664,7 +677,7 @@ pub(crate) mod canonical_order {
                 }
                 validate_parameter_order(&block.structural_parameters)?;
             }
-            r!(machine.entry_claims.iter().map(|claim| claim.claim) => "entry claims by ClaimId")?;
+
             require_increasing(
                 machine.block_entry_claims.iter().map(|claim| claim.claim),
                 "block entry claims by ClaimId",
@@ -682,18 +695,6 @@ pub(crate) mod canonical_order {
                     "loan completion claims by ClaimId",
                 )?;
             }
-            require_increasing(
-                machine.published_service_ceiling.iter().copied(),
-                "machine published service ceiling by ServiceId",
-            )?;
-            require_increasing(
-                machine.published_synchronous_entries.iter().copied(),
-                "machine published synchronous entries by ServiceId",
-            )?;
-            if !crash_routes_are_canonical(&machine.contract.crash_routes) {
-                return Err(noncanonical!("crash route buckets"));
-            }
-            validate_crash_route_predicates(&machine.contract.crash_routes)?;
             r!(machine.blocks.iter().map(|block| block.id) => "blocks by BlockId")?;
             for operation in machine.operations() {
                 if let Some(result) = operation.result.as_structural() {
@@ -813,22 +814,6 @@ pub(crate) mod canonical_order {
                 machine.structural_places.iter().map(|place| place.id),
                 "structural places by PlaceId",
             )?;
-            require_increasing(
-                machine
-                    .content_entry_claims
-                    .iter()
-                    .map(|binding| binding.claim),
-                "content entry claims by ClaimId",
-            )?;
-            if machine
-                .content_entry_claims
-                .iter()
-                .any(|binding| !strictly_increasing(binding.projections.iter()))
-            {
-                return Err(noncanonical!(
-                    "entry-claim content projections by identity and algebra"
-                ));
-            }
             validate_identity_reshuffles(&machine.content_identity_reshuffles)?;
             r!(machine.content_partition_compositions.iter() => "content partition compositions")?;
             for composition in &machine.content_partition_compositions {
@@ -842,36 +827,76 @@ pub(crate) mod canonical_order {
                 r!(composition.input_claims.iter().copied() => "partition input claims by ClaimId")?;
                 r!(composition.substitutions.iter() => "partition place substitutions")?;
             }
-            require_increasing(
-                machine
-                    .contract
-                    .ensures
-                    .iter()
-                    .map(|clause| clause.obligation),
-                "ensures by ObligationId",
-            )?;
-            let propositions = machine
-                .contract
-                .requires
+        }
+        Ok(())
+    }
+
+    // A requirement and a body publish the same formal and obligation
+    // language. Canonical ordering must not depend on whether code exists.
+    fn validate_contract_order(contract: &terminal_psi::MachineContract) -> Result<(), CodecError> {
+        validate_parameter_order(&contract.structural_parameters)?;
+        for row in [
+            contract.declared_service_reach.as_deref(),
+            contract.declared_synchronous_entries.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            require_increasing(row.iter().copied(), "authored effect ceiling by ServiceId")?;
+        }
+        if let Some(routes) = &contract.declared_crash_routes {
+            if !crash_routes_are_canonical(routes) {
+                return Err(noncanonical!("authored crash route buckets"));
+            }
+            validate_crash_route_predicates(routes)?;
+        }
+
+        r!(contract.entry_claims.iter().map(|claim| claim.claim) => "entry claims by ClaimId")?;
+        require_increasing(
+            contract.published_service_ceiling.iter().copied(),
+            "machine published service ceiling by ServiceId",
+        )?;
+        require_increasing(
+            contract.published_synchronous_entries.iter().copied(),
+            "machine published synchronous entries by ServiceId",
+        )?;
+        if !crash_routes_are_canonical(&contract.crash_routes) {
+            return Err(noncanonical!("crash route buckets"));
+        }
+        validate_crash_route_predicates(&contract.crash_routes)?;
+        require_increasing(
+            contract
+                .content_entry_claims
                 .iter()
-                .chain(machine.contract.source_checked_requires.iter())
-                .chain(
-                    machine
-                        .contract
-                        .ensures
-                        .iter()
-                        .map(|clause| &clause.proposition),
-                );
-            for proposition in propositions {
-                validate_canonical_proposition(proposition)?;
-            }
-            if !canonical_propositions_strictly_increase(&machine.contract.requires)? {
-                return Err(noncanonical!("requires propositions"));
-            }
-            if !canonical_propositions_strictly_increase(&machine.contract.source_checked_requires)?
-            {
-                return Err(noncanonical!("source-checked requires propositions"));
-            }
+                .map(|binding| binding.claim),
+            "content entry claims by ClaimId",
+        )?;
+        if contract
+            .content_entry_claims
+            .iter()
+            .any(|binding| !strictly_increasing(binding.projections.iter()))
+        {
+            return Err(noncanonical!(
+                "entry-claim content projections by identity and algebra"
+            ));
+        }
+        require_increasing(
+            contract.ensures.iter().map(|clause| clause.obligation),
+            "ensures by ObligationId",
+        )?;
+        let propositions = contract
+            .requires
+            .iter()
+            .chain(contract.source_checked_requires.iter())
+            .chain(contract.ensures.iter().map(|clause| &clause.proposition));
+        for proposition in propositions {
+            validate_canonical_proposition(proposition)?;
+        }
+        if !canonical_propositions_strictly_increase(&contract.requires)? {
+            return Err(noncanonical!("requires propositions"));
+        }
+        if !canonical_propositions_strictly_increase(&contract.source_checked_requires)? {
+            return Err(noncanonical!("source-checked requires propositions"));
         }
         Ok(())
     }
@@ -1766,11 +1791,10 @@ pub(crate) mod machine_wire {
         decode_structural_place_kind, encode_structural_place_kind,
     };
     use super::structural_result_wire::{decode_function_result, encode_function_result};
-    use super::structural_signature_wire::StructuralParameter;
     use super::wire::{Reader, Writer};
     use super::wire_fields::{
-        ClaimBinding, Field, Id, Ids, List, MachineDeclaration, Multiplicity, Optional, OptionalId,
-        Path, QualificationSet, Scalar, delegated_fields, wire_enum, wire_record,
+        ClaimBinding, Field, Id, List, Multiplicity, OptionalId, Path, QualificationSet, Scalar,
+        delegated_fields, wire_enum, wire_record,
     };
     use crate::sections::semantic_module::wire::decode_counted;
 
@@ -1778,23 +1802,12 @@ pub(crate) mod machine_wire {
         Machine: TerminalMachine {
             id: Id,
             assembly_target_requirement: AssemblyTarget,
-            declaration: Optional<MachineDeclaration>,
             attachment: OptionalId,
             nominal_cleanup_subject: OptionalId,
-            parameters: List<Declaration>,
-            parameter_order: List<ParameterKind>,
-            structural_parameters: List<StructuralParameter>,
             ranked_scc: RankedScc,
-            result: MachineResult,
             structural_places: List<Place>,
-            entry_claims: List<Claim>,
             block_entry_claims: List<Claim>,
             loan_completions: List<LoanCompletionRow>,
-            declared_service_reach: Ids,
-            published_service_ceiling: Ids,
-            closed_reach_application: ReachApplication,
-            published_synchronous_entries: Ids,
-            content_entry_claims: List<super::content_wire::EntryClaim>,
             content_identity_reshuffles: List<super::content_wire::Reshuffle>,
             content_partition_compositions: List<super::content_wire::PartitionComposition>,
             entry: Id,
@@ -1871,7 +1884,7 @@ pub(crate) mod machine_wire {
         }
     }
 
-    struct ReachApplication;
+    pub(crate) struct ReachApplication;
     impl Field<Option<terminal_psi::ClosedReachApplication>> for ReachApplication {
         fn write(
             writer: &mut Writer,
@@ -3899,6 +3912,156 @@ mod routed_scalar_tests {
     }
 
     #[test]
+    fn declaration_contract_roundtrip_keeps_public_promises_separate_from_body() {
+        let mut module = module();
+        let required = semantic_vocabulary::ContractId::new(2).unwrap();
+        let mut public = module.machines[0].contract.clone();
+        public.id = required;
+        public.declaration.as_mut().unwrap().parameter_types = vec![TerminalIdentityIndex(3)];
+        public.declaration.as_mut().unwrap().result_type = TerminalIdentityIndex(3);
+        public.requires = vec![Proposition::Truth];
+        public.ensures.clear();
+        public.termination = semantic_vocabulary::Termination::Terminates;
+        module.declaration_contracts.push(public);
+        let decoded = decode_module(&encode_module(&module).unwrap()).unwrap();
+        assert_eq!(decoded, module);
+        assert_eq!(
+            decoded.declaration_contract(required).unwrap().requires,
+            [Proposition::Truth]
+        );
+        assert!(
+            decoded
+                .declaration_contract(required)
+                .unwrap()
+                .ensures
+                .is_empty()
+        );
+        assert_eq!(decoded.machines[0].contract.ensures.len(), 1);
+        assert_eq!(
+            decoded.declaration_contract(required).unwrap().termination,
+            semantic_vocabulary::Termination::Terminates
+        );
+
+        let mut executable_requirement = module.clone();
+        let body = &mut executable_requirement.machines[0];
+        let operation = body
+            .operations()
+            .map(|operation| operation.id.get())
+            .max()
+            .unwrap_or(0)
+            + 1;
+        body.blocks[0]
+            .operations
+            .push(terminal_psi::Operation::unsuspended(
+                semantic_vocabulary::OperationId::new(operation).unwrap(),
+                terminal_psi::OperationResult::Unit,
+                terminal_psi::OperationKind::CallUnit {
+                    callee: semantic_vocabulary::MachineId::new(required.get()).unwrap(),
+                    arguments: Vec::new(),
+                    erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
+                    structural_arguments: Vec::new(),
+                    claim_transfers: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            ));
+        assert!(
+            decode_module(&encode_raw(&executable_requirement).unwrap()).is_err(),
+            "a declaration-only contract cannot supply an executable machine"
+        );
+
+        // Fixed model commitments isolate artifact reference integrity. They
+        // establish no source application, selection or refinement proof.
+        let mut captured = module.clone();
+        captured.declaration_contracts[0]
+            .declaration
+            .as_mut()
+            .unwrap()
+            .specialization = Some(CheckedMachineSpecialization {
+            template: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
+            template_callable: TerminalIdentityIndex(3),
+            template_semantic_declaration: TerminalIdentityIndex(1),
+            commitment: [9; 32],
+            capture: Some(terminal_psi::CheckedMachineCapture {
+                template_identity: TerminalIdentityIndex(1),
+                template_commitment: [7; 32],
+                specialization_commitment: [8; 32],
+            }),
+        });
+        assert_eq!(
+            decode_module(&encode_raw(&captured).unwrap()).unwrap(),
+            captured
+        );
+        captured.declaration_contracts[0]
+            .declaration
+            .as_mut()
+            .unwrap()
+            .specialization
+            .as_mut()
+            .unwrap()
+            .capture
+            .as_mut()
+            .unwrap()
+            .template_identity = TerminalIdentityIndex(99);
+        assert!(
+            decode_module(&encode_raw(&captured).unwrap()).is_err(),
+            "a nonempty capture identity still needs its actual declaration reference"
+        );
+
+        for mutation in 0..4 {
+            let mut malformed = module.clone();
+            let contract = &mut malformed.declaration_contracts[0];
+            match mutation {
+                0 => contract.id = malformed.machines[0].contract.id,
+                1 => contract
+                    .declaration
+                    .as_mut()
+                    .unwrap()
+                    .parameter_types
+                    .clear(),
+                2 => contract.parameter_order.clear(),
+                _ => {
+                    contract.requires = vec![Proposition::Equal(
+                        ScalarTerm::Value {
+                            id: ValueId::new(99).unwrap(),
+                            scalar_type: contract.parameters[0].scalar_type,
+                        },
+                        ScalarTerm::Value {
+                            id: ValueId::new(99).unwrap(),
+                            scalar_type: contract.parameters[0].scalar_type,
+                        },
+                    )]
+                }
+            }
+            assert!(
+                decode_module(&encode_raw(&malformed).unwrap()).is_err(),
+                "mutation {mutation}"
+            );
+        }
+    }
+
+    #[test]
+    fn previous_issuer_choice_format_refuses_before_decoding() {
+        let mut bytes = b"PSITERM\0".to_vec();
+        bytes.extend_from_slice(&257_u16.to_le_bytes());
+        assert_eq!(
+            decode_module(&bytes),
+            Err(crate::CodecError::UnsupportedFormatMarker(257))
+        );
+    }
+
+    #[test]
+    fn previous_body_owned_signature_format_refuses_before_decoding() {
+        let mut bytes = b"PSITERM\0".to_vec();
+        bytes.extend_from_slice(&256_u16.to_le_bytes());
+        assert_eq!(
+            decode_module(&bytes),
+            Err(crate::CodecError::UnsupportedFormatMarker(256))
+        );
+    }
+
+    #[test]
     fn previous_callback_contract_format_refuses_before_decoding() {
         let mut bytes = b"PSITERM\0".to_vec();
         bytes.extend_from_slice(&253_u16.to_le_bytes());
@@ -4321,33 +4484,11 @@ pub(crate) mod target_family_tests {
             assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
             id: machine,
             attachment: None,
-            declaration: Some(terminal_psi::CheckedMachineDeclaration {
-                semantic_declaration: Default::default(),
-                parameter_types: Vec::new(),
-                callable: Default::default(),
-                result_type: Default::default(),
-                machine: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
-                state: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(2)),
-                contract: [7; 32],
-                published_may_suspend: false,
-                published_may_block: false,
-                specialization: None,
-            }),
             nominal_cleanup_subject: None,
-            parameters: Vec::new(),
-            parameter_order: Vec::new(),
-            structural_parameters: Vec::new(),
             ranked_scc: None,
-            result: TerminalMachineResult::Unit,
             structural_places: Vec::new(),
-            entry_claims: Vec::new(),
             block_entry_claims: Vec::new(),
             loan_completions: Vec::new(),
-            declared_service_reach: Vec::new(),
-            closed_reach_application: None,
-            published_synchronous_entries: Vec::new(),
-            published_service_ceiling: Vec::new(),
-            content_entry_claims: Vec::new(),
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
             entry: block,
@@ -4363,7 +4504,33 @@ pub(crate) mod target_family_tests {
                     cleanup_actions: Vec::new(),
                 },
             }],
-            contract: terminal_psi::MachineContract::empty(ContractId::new(1).unwrap()),
+            contract: terminal_psi::MachineContract {
+                declaration: Some(terminal_psi::CheckedMachineDeclaration {
+                    semantic_declaration: Default::default(),
+                    parameter_types: Vec::new(),
+                    callable: Default::default(),
+                    result_type: Default::default(),
+                    machine: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(
+                        1,
+                    )),
+                    state: terminal_psi::NominalDeclarationIdentity::new(TerminalIdentityIndex(2)),
+                    contract: [7; 32],
+                    published_may_suspend: false,
+                    published_may_block: false,
+                    specialization: None,
+                }),
+                parameters: Vec::new(),
+                parameter_order: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: TerminalMachineResult::Unit,
+                entry_claims: Vec::new(),
+                declared_service_reach: None,
+                closed_reach_application: None,
+                published_synchronous_entries: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                ..terminal_psi::MachineContract::empty(ContractId::new(1).unwrap())
+            },
         }
     }
 
@@ -4523,12 +4690,11 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 257 preserves the domain issuer choice explicitly: an absent route
-// set is unrestricted, while a present empty set permits nobody. Marker 256
-// stored only a route list and cannot distinguish those meanings. Its layout,
-// including the synchronous-entry rows added in 256, and every earlier layout
-// is incompatible with this format.
-pub(crate) const FORMAT_MARKER: u16 = 257;
+// Marker 258 stores complete signatures and authored effect clauses in the
+// existing declaration contract, and adds bodyless requirement declarations.
+// Marker 257's explicit issuer choice remains unchanged, but its signatures
+// live in machine rows. That layout and every earlier marker are incompatible.
+pub(crate) const FORMAT_MARKER: u16 = 258;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -5035,7 +5201,10 @@ mod global_descriptor_table_tests {
             id: place,
             kind: StructuralPlaceKind::Parameter { position: 0 },
         });
-        machine.declared_service_reach.push(service);
+        machine
+            .declared_service_reach
+            .get_or_insert_with(Vec::new)
+            .push(service);
         machine.blocks[0].operations.push(Operation::unsuspended(
             OperationId::new(1).unwrap(),
             OperationResult::Unit,
@@ -5191,7 +5360,10 @@ mod descriptor_operation_tests {
             qualifications: Default::default(),
         });
         machine.parameter_order.push(BoundaryParameterKind::Scalar);
-        machine.declared_service_reach.push(service);
+        machine
+            .declared_service_reach
+            .get_or_insert_with(Vec::new)
+            .push(service);
         machine.blocks[0].operations.push(Operation::unsuspended(
             OperationId::new(1).unwrap(),
             OperationResult::Scalar(ValueDeclaration {

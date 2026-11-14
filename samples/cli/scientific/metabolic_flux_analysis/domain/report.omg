@@ -1,7 +1,8 @@
 use domain::input;
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_i64_to_i32_wrapping;
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i64;
+use omega::language::core::I64::from_f64;
 
 // Decimal byte output avoids imposing a text-domain proof on dynamic numbers.
 public machine integer(reader: &mut Reader, value: i64)

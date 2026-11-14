@@ -1,5 +1,4 @@
 use domain::math;
-use omega::language::core::float_operations;
 
 data Study {
     groups: [i32; 6]; counts: [f64; 48]; factors: [f64; 6];

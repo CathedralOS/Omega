@@ -33,6 +33,7 @@ fn unavailable_judgment(construct: &str) -> diagnostics::Diagnostic {
 }
 
 mod call_and_product_selections;
+mod constructor_applications;
 mod contracts_and_signatures;
 mod declarations;
 mod domain_cast_accounting;

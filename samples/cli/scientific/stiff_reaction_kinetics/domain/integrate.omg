@@ -2,7 +2,6 @@
 // Only accepted two-half-step values update committed state. Rejection halves
 // h without changing time/y. The order-two local error estimate divides the
 // full versus fine difference by three; stage positivity is checked, never clipped.
-use omega::language::core::float_operations;
 use domain::model;
 use domain::rates;
 use domain::newton;

@@ -52,12 +52,12 @@ trap 'rm -rf -- "$ENCODING_TMP"' EXIT HUP INT TERM
 # derivation-checking diagnostic entry — pack on top of those bound members.
 require_beta_encoding_theory_identity
 require_beta_encoding_producer_entry_identity
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+bootstrap_xtask source-closure \
     "$OMEGA_PATH_BETA_ENCODING_SOURCES" \
     "$ENCODING_TMP/producer.gamma" --prefix "$GATE_DIR/main.gamma"
 require_derivation_checker_identity
 require_derivation_checking_entry_identity
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+bootstrap_xtask source-closure \
     "$OMEGA_PATH_DERIVATION_CHECKER_SOURCES" \
     "$ENCODING_TMP/checker.gamma" \
     --prefix "$OMEGA_PATH_DERIVATION_CHECKING_ENTRY"

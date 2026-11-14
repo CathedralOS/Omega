@@ -1,7 +1,7 @@
 // Expected exit: 0. Restoring caller storage keeps the original loan and ends
 // the temporary second loan; completion observes 37 and the second backing is writable.
-use omega::language::core::content;
-use omega::language::core::drop;
+use omega::language::core::Content;
+use omega::language::core::CountedQuantity;
 public data ByteUnit {}
 public data Buffer [linear] dropped by drop_buffer { value: u64; }
 machine drop_buffer(buffer: &mut Buffer) {}

@@ -165,7 +165,10 @@ pub(crate) fn declare(typed: &TypedTrees, elaboration: &mut Elaboration) -> Chec
             if let Some(reason) = unavailable {
                 return Err(reason);
             }
-            if !machine.declared_service_reach.is_empty()
+            if machine
+                .declared_service_reach
+                .as_ref()
+                .is_some_and(|reach| !reach.is_empty())
                 || !machine.published_service_ceiling.is_empty()
                 || machine.closed_reach_application.is_some()
             {

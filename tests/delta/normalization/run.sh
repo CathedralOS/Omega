@@ -18,7 +18,7 @@ trap 'rm -rf -- "$NORMALIZATION_TMP"' EXIT HUP INT TERM
 materialize_delta_compiler "$NORMALIZATION_TMP/canonical.gamma"
 # The bound member closure is checked against its audited record; the gate's
 # own driver entry packs on top of those bound members.
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+bootstrap_xtask source-closure \
     "$OMEGA_PATH_DELTA_COMPILER_SOURCES" "$NORMALIZATION_TMP/diagnostic.gamma" \
     --prefix "$GATE_DIR/normalization_driver.gamma"
 materialize_delta_support "$NORMALIZATION_TMP/support.bin"

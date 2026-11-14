@@ -13,6 +13,7 @@ use typed_trees::expression::{
 };
 
 use super::authority::Access;
+use super::storage_path::names_storage;
 use super::{Program, Slot, symbol_kind};
 use crate::body::{Expression, ExpressionKind, Policy, Strict, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
@@ -440,7 +441,45 @@ impl<'t> Program<'t> {
             }
             let case = match &arm.pattern {
                 MatchPattern::Wildcard => None,
-                MatchPattern::Value(_) => return Err(unserved("match arm on a value pattern")),
+                MatchPattern::Value(head) => {
+                    if !self.typed.expression_table.expression_is_valid(*head) {
+                        return Err(unserved("match value pattern has no retained head"));
+                    }
+                    // A payload-free case value tests exactly that case.
+                    // The shared pattern reader verifies its nominal owner
+                    // and refuses a case whose payload would be omitted.
+                    let application_type = match self.typed.expression_table.expression(*head) {
+                        ExpressionNode::StructLiteral(literal)
+                            if literal.application_type.is_valid() =>
+                        {
+                            let plain = matches!(self.typed.type_reference_table.type_reference(literal.application_type),
+                                typed_trees::types::TypeReferenceNode::Named { symbol, .. } if *symbol == literal.type_symbol)
+                                && self
+                                    .typed
+                                    .unique_data_definition_by_symbol(literal.type_symbol)
+                                    .is_some_and(|data| {
+                                        data.type_parameters.is_empty()
+                                            && data.lifetime_parameters.is_empty()
+                                            && data.generic_instance.is_none()
+                                    });
+                            if plain {
+                                Default::default()
+                            } else {
+                                literal.application_type
+                            }
+                        }
+                        _ => Default::default(),
+                    };
+                    Some(self.case_pattern(
+                        id,
+                        record,
+                        &typed_trees::expression::TableDestructurePattern {
+                            application_type,
+                            head: *head,
+                            ..Default::default()
+                        },
+                    )?)
+                }
                 MatchPattern::Destructure(pattern) => {
                     let case = self.case_pattern(id, record, pattern)?;
                     // Stage 03 keeps the arm's test as the pattern's
@@ -455,12 +494,12 @@ impl<'t> Program<'t> {
                     if !same_computation(&condition, &case_condition(subject, case)) {
                         return Err(unserved("match arm whose condition is not its case test"));
                     }
-                    if arms.iter().any(|(earlier, _)| *earlier == case) {
-                        return Err(unserved("match arm for a case an earlier arm selects"));
-                    }
                     Some(case)
                 }
             };
+            if case.is_some_and(|case| arms.iter().any(|(earlier, _)| *earlier == case)) {
+                return Err(unserved("match arm for a case an earlier arm selects"));
+            }
             let value = self.expression(id, slots, arm.value, result.map(ValueType::plain))?;
             let value_type = match value.result {
                 Some(ValueType::Scalar(scalar_type, Qualification::NONE)) => scalar_type,
@@ -490,36 +529,6 @@ impl<'t> Program<'t> {
         }
         let result = result.ok_or_else(|| unserved("match without an arm"))?;
         Ok((arms, default, result))
-    }
-}
-
-/// Whether a data-typed expression names storage that exists before it is
-/// read: a slot, or a field or payload path beneath one. Reading it again
-/// names the same place and evaluates nothing.
-pub(super) fn names_storage(expression: &Expression) -> bool {
-    match &expression.kind {
-        ExpressionKind::Slot(_) | ExpressionKind::SavedSubject(_) => true,
-        ExpressionKind::Field { base, .. }
-        | ExpressionKind::Payload { base, .. }
-        | ExpressionKind::Index { base, .. } => names_storage(base),
-        ExpressionKind::Borrow { .. }
-        | ExpressionKind::Integer(_)
-        | ExpressionKind::ByteLiteral(_)
-        | ExpressionKind::CollectionMeasure { .. }
-        | ExpressionKind::Boolean(_)
-        | ExpressionKind::Array { .. }
-        | ExpressionKind::Record { .. }
-        | ExpressionKind::Case { .. }
-        | ExpressionKind::IsCase { .. }
-        | ExpressionKind::Match { .. }
-        | ExpressionKind::Strict { .. }
-        | ExpressionKind::Not(_)
-        | ExpressionKind::BitwiseNot(_)
-        | ExpressionKind::Cast(_)
-        | ExpressionKind::Requalify(_)
-        | ExpressionKind::Establish { .. }
-        | ExpressionKind::ShortCircuit { .. }
-        | ExpressionKind::Call { .. } => false,
     }
 }
 

@@ -878,25 +878,6 @@ pub mod declaration_index {
         }
 
         impl crate::TypedTrees {
-            /// Borrow one call's producer-maintained rows in their original order.
-            /// Full application and caller identities select the group; the
-            /// consuming query still checks every target and binding predicate.
-            pub(crate) fn find_requirement_invocation(
-                &self,
-                application: crate::static_applications::StaticMachineApplicationHandle,
-                lexical_owner: SymbolHandle,
-                mut matches: impl FnMut(&AppliedCallableSignature) -> bool,
-            ) -> Option<&AppliedCallableSignature> {
-                // Original matching rows required a valid application. Skipping this
-                // impossible group leaves the caller's outer/closed fallbacks intact.
-                if !application.is_valid() {
-                    return None;
-                }
-                self.applied_callable_signatures
-                    .requirement_rows(application, lexical_owner)
-                    .find_map(|(_, row)| matches(row).then_some(row))
-            }
-
             pub(crate) fn with_requirement_application_index<R>(
                 &self,
                 run: impl FnOnce(&RequirementApplicationIndex) -> R,
@@ -2422,104 +2403,6 @@ pub(crate) mod declaration_tables {
             bindings.next().is_none().then_some(&selected.value)
         }
 
-        pub fn selected_conformance_applications(
-            &self,
-            owner: symbols::SymbolHandle,
-            selection_application: StaticMachineApplicationHandle,
-            evidence_parameter: symbols::SymbolHandle,
-            requirement: symbols::SymbolHandle,
-            report_fingerprint: u64,
-            commitment: crate::ClosedConformanceApplicationCommitment,
-        ) -> Vec<&crate::ClosedConformanceApplication> {
-            if selection_application.is_valid() {
-                if evidence_parameter.is_valid() {
-                    return Vec::new();
-                }
-                let source = self.static_machine_application(selection_application);
-                // A constant has no body of its own: its initializer runs in an
-                // evaluation entry generated from the constant, which wraps the
-                // same call. The call's application still names the constant as
-                // the scope it was written in, and that is the same owner.
-                let owned_by_caller = source.lexical_owner == owner
-                    || (self.symbols.get(source.lexical_owner).kind == symbols::SymbolKind::Const
-                        && self.symbols.get(owner).kind == symbols::SymbolKind::Machine
-                        && self.symbols.get(owner).generated_from == source.lexical_owner);
-                if !owned_by_caller || source.registration_operation != requirement {
-                    return Vec::new();
-                }
-                let Some(selection) = &source.conformance_selection else {
-                    return Vec::new();
-                };
-                let Some(application) = selection.application.as_deref() else {
-                    return Vec::new();
-                };
-                let Some(operand) = self
-                    .static_machine_application_arguments(selection_application)
-                    .get(selection.operand_ordinal as usize)
-                else {
-                    return Vec::new();
-                };
-                let raw_arguments = operand
-                    .application
-                    .as_ref()
-                    .map_or(&[][..], |a| a.arguments.as_ref());
-                let raw_lifetimes = operand
-                    .application
-                    .as_ref()
-                    .map_or(&[][..], |a| a.lifetime_arguments.as_ref());
-                if raw_arguments != application.arguments.as_ref()
-                    || raw_lifetimes.len() != application.lifetime_arguments.len()
-                    || raw_lifetimes
-                        .iter()
-                        .zip(&application.lifetime_arguments)
-                        .any(|(raw, actual)| raw.as_str() != actual)
-                    || operand.symbol != application.declaration
-                    || application.commitment != commitment
-                    || application.report_fingerprint != report_fingerprint
-                {
-                    return Vec::new();
-                }
-                return vec![application];
-            }
-            if evidence_parameter.is_valid() {
-                let mut selected = Vec::new();
-                for specialization in self
-                    .machine_specializations
-                    .iter()
-                    .filter(|specialization| specialization.instance == owner)
-                {
-                    let bindings = self
-                        .static_machine_application_bindings(specialization.binding_application)
-                        .iter()
-                        .filter(|binding| {
-                            matches!(binding.value, StaticMachineBindingValue::Conformance(_))
-                        });
-                    if bindings.clone().count() != specialization.conformance_applications.len() {
-                        return Vec::new();
-                    }
-                    for (binding, application) in
-                        bindings.zip(&specialization.conformance_applications)
-                    {
-                        if binding.parameter == evidence_parameter {
-                            if application.report_fingerprint != report_fingerprint
-                                || application.commitment != commitment
-                            {
-                                return Vec::new();
-                            }
-                            selected.push(application);
-                        }
-                    }
-                }
-                return selected;
-            }
-            crate::closed_conformance_applications_of(
-                &self.machine_specializations,
-                owner,
-                report_fingerprint,
-                commitment,
-            )
-        }
-
         pub fn callable_body_has_open_parameters(&self, machine: &Machine) -> bool {
             machine.has_specialization_parameters()
                 || self.conformances().iter().any(|conformance| {
@@ -2795,6 +2678,19 @@ pub(crate) mod declaration_tables {
             selections: language_semantics::declaration_selection::AuthoredDeclarationSelections,
         ) {
             self.tables.authored_declaration_selections = selections;
+        }
+
+        /// Retain one resolved source selection without copying the program's
+        /// complete selection table. A failed finalization changes no row.
+        pub fn finalize_authored_declaration_selection(
+            &mut self,
+            occurrence: language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+            binding: language_semantics::declaration_selection::AuthoredDeclarationSelectionLateBinding,
+            selected: symbols::SymbolHandle,
+        ) -> Result<(), language_semantics::declaration_selection::AuthoredDeclarationSelectionFinalizationError>{
+            self.tables
+                .authored_declaration_selections
+                .finalize_late_bound(occurrence, binding, selected)
         }
 
         pub fn authored_declaration_selections(

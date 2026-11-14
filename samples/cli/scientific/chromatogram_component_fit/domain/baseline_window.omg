@@ -1,5 +1,4 @@
-use omega::language::core::float_operations;
-use omega::language::core::numeric_conversion;
+use omega::language::core::I32::from_f64;
 
 // A four-sample detector scratch splits into a leading baseline window and a
 // trailing peak window. Both arms have length 2. The record carries that

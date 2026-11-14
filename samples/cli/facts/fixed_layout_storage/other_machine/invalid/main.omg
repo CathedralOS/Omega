@@ -1,6 +1,12 @@
 // Fact: An ordinary FixedLayout<Pair> application preserves the established Delivered fact on Pair.lo, so reading lo and subtracting 42u64 remains justified through each storage transport and execution uses the authored lo-at-8 representation.
 // Expected exit: 0
-use omega::language::core::layout;
+use omega::language::core::FieldEntry;
+use omega::language::core::FieldPlan;
+use omega::language::core::FixedLayout;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutStorage;
+use omega::language::core::LayoutTarget;
+use omega::language::core::Schema;
 public domain u64::Delivered requires self >= 42u64 && self <= 42u64;
 public data Pair [copy] { lo: u64 in Delivered; hi: u64; }
 PairLayout satisfies FixedLayout<Pair> {

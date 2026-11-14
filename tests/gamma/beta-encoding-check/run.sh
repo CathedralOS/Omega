@@ -24,12 +24,12 @@ trap 'rm -rf -- "$CHECK_TMP"' EXIT HUP INT TERM
 # bound explicit diagnostic entry.
 require_beta_encoding_theory_identity
 require_beta_encoding_producer_entry_identity
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+bootstrap_xtask source-closure \
     "$OMEGA_PATH_BETA_ENCODING_SOURCES" \
     "$CHECK_TMP/producer.gamma" --prefix "$OMEGA_PATH_BETA_ENCODING_PRODUCER_ENTRY"
 require_derivation_checker_identity
 require_derivation_checking_entry_identity
-python3 "$OMEGA_REPO_ROOT/tools/bootstrap/source_closure.py" \
+bootstrap_xtask source-closure \
     "$OMEGA_PATH_DERIVATION_CHECKER_SOURCES" \
     "$CHECK_TMP/checker.gamma" \
     --prefix "$OMEGA_PATH_DERIVATION_CHECKING_ENTRY"

@@ -1,7 +1,6 @@
 // NEW034: runtime-configured discrete rail-limited feedback amplifier.
 // Only this project owns its model, bounded parser and report implementation.
 use omega_language_std::console;
-use omega::language::core::float_operations;
 use domain::model;
 use io::input;
 use io::output;

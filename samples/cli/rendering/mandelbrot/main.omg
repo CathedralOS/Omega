@@ -7,7 +7,7 @@
 //   set body -> '#', exterior fades to ' '.
 // Expected exit: 0.
 // Expected output contains: #
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i32;
 use omega_language_std::console;
 
 domain [u8]::Utf8

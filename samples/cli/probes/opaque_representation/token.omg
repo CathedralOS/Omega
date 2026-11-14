@@ -2,7 +2,7 @@
 // boundary data carrier whose byte-level view is
 // TokenBytes, authorized by the named satisfies.
 
-use omega::language::core::representation;
+use omega::language::core::OpaqueRepresentation;
 
 public boundary data Token;
 

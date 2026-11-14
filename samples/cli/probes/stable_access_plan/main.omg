@@ -1,4 +1,13 @@
-use omega::language::core::layout;
+use omega::language::core::Access;
+use omega::language::core::AccessPlan;
+use omega::language::core::AccessPlan::inaccessible;
+use omega::language::core::AccessPlan::with;
+use omega::language::core::Exposure;
+use omega::language::core::FieldAccess;
+use omega::language::core::LayoutPlan;
+use omega::language::core::Schema;
+use omega::language::core::read;
+use omega::language::core::write;
 // `FieldAccess::Stable { read, write, exposure }` — a plain bool-grant
 // access row beside the External materialization kind.
 public data Pair { readable: u32; hidden: u32; }

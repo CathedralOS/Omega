@@ -73,26 +73,12 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
-### Typing imports the preceding resolution stage for retained handoffs
-- Category: stage ownership
-- Where: `03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs` and `call_and_product_selections.rs`, with a production Cargo dependency on stage 02
-- Saw: deferred frontier/completion carriers live in stage 02, and stage 03 calls its `resolve_signature_free_requirement` helper rather than consuming a representation-owned result
-- Cost: the earlier source stages cannot enforce the same adjacent-stage dependency ban as the numbered Terminal stages; one stage still reconstructs input meaning through its predecessor
-- Reported: 2026-11-13, Codex, while separating Psi 05/06 preparation and checking
-
 ### A view passed from a place is lent as that place, so it conflicts with a loan of its holder
 - Category: one idea, several implementations
-- Where: `05_typed-trees-to-terminal-psi/src/read/calls.rs` (`lent`, `lent_storage_is_untouched` with `holds_view`), `lower/calls.rs` (`arguments`, the `Borrow` arm), `06_terminal-psi-to-terminal-psi/src/places/loans.rs`
-- Saw: the reader says a place that holds a byte view "lends none of its binding's storage: the callee is given the view", and so allows `both(&mut session, session.name)`. Lowering then passes the view as a shared loan of the place `session.name`, and the checker rejects the call: "state `both` receives `session` as both mutable and read-only". The same holds for a view in a case payload. The reader and the lowered form disagree about what passing a view lends, and the checker's rejection of a program lifetimes.md allows ("not a borrow of the caller's private carrier storage") reads as the program's error
-- Cost: a correct program is rejected, not refused as unsupported, and the message blames the author. Passing a stored view needs a form that copies the descriptor out before the exclusive loan is formed
-- Reported: 2026-11-13, Claude Code, while lending case payloads
-
-### Four walks from a place to its root in the reader, each with its own list of steps
-- Category: one idea, several implementations
-- Where: `05_typed-trees-to-terminal-psi/src/read/calls.rs` (`root_slot`), `read/statements.rs` (the assignment target loop), `read/authority.rs` (`written_through`), `read/expressions.rs` (`names_storage`)
-- Saw: `lent` had a fifth, which stopped at a case payload and at a saved match subject though `root_slot` beside it walked both; that was the whole of `call borrow of a case payload`. `written_through` stopped at a saved subject, so an exclusive loan of a payload of `match holder.field` authorized no write through `holder`
-- Cost: each new step kind (payload, saved subject) is taught to one walk at a time, and the ones that are missed either refuse a served program or skip an authority check
-- Reported: 2026-11-13, Claude Code, while lending case payloads
+- Where: `05_typed-trees-to-terminal-psi/src/read/calls.rs:1453` (`lent_storage_is_untouched` with `holds_view`), `lower/calls.rs:65` (`arguments`, the `Borrow` arm), `lower/places.rs:1428` (`lend`), `06_terminal-psi-to-terminal-psi/src/places/loans.rs`
+- Saw: the reader says a place that holds a byte view "lends none of its binding's storage: the callee is given the view", and so allows `both(&mut session, session.name)`. Lowering then passes the view as a shared loan of the place `session.name`, and the checker rejects the call: "state `both` receives `session` as both mutable and read-only". The same holds for a view in a case payload. A source audit at `f9bbfeac3f5` also finds that `lend` retains the descriptor slot's root/path without materializing its value before later arguments. [Evaluation order](wiki/spec/language/expressions.md#evaluation-schedule) and [descriptor loans](wiki/spec/terminal-psi/structural_access.md#store-vocabulary) require the captured backing, rather than a loan of the carrier slot. No runtime misbehavior from later-argument replacement has been demonstrated.
+- Cost: a correct program is rejected, not refused as unsupported, and the message blames the author. The shared argument producer must capture the descriptor at its evaluation point; weakening overlap checks or reading its source slot only at the eventual call would not preserve that value.
+- Reported: 2026-11-13, Claude Code, while lending case payloads; extended 2026-11-14, Codex, while binding view-length call requirements
 
 ### Whether a type is a scalar is decided twice, once by its spelling and once by its symbol
 - Category: one idea, several implementations
@@ -199,20 +185,6 @@ framework or a list of features that remain unimplemented.
 - Cost: the surviving producer and consumers agree by spelling rather than a shared typed value; a reader that misses the form fails only at run time (`None`, or "dynamic family tuple identity is not an integer constant").
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Structural size and alignment is computed three times, and each copy aligns a wide integer to 8 alone but 16 as a field
-- Category: one idea, several implementations
-- Where: `omega-rust/omega/compilation/backend/calling-conventions/src/terminal_layout.rs:398`, `:407`, `:458`; `.../calling-conventions/src/structural_shapes.rs:478`, `:487`, `:534`; `omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact.rs:4568`, `:4954`, `:4962`
-- Saw: three hand-written walks over the same structural type declarations in two crates; in all three a standalone integer scalar gets `next_power_of_two().min(8)` and the same integer as a record field gets `.min(16)`
-- Cost: a layout fix has to be made three times, and the 8 or 16 answer depends on which function is asked, so the copies agree with each other while possibly disagreeing with the ABI
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### A structural path segment has five hand-written byte encoders with three different numberings
-- Category: one idea, several implementations
-- Where: `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/identity.rs:213` and `.../optimization-unit/src/ownership.rs:171`, `.../selected-instructions/src/effects/program/identity.rs:476`, `.../selected-instructions/src/plan_identity.rs:606`, `.../target-operations/legalized-operations/src/identity/structural_types.rs:208`
-- Saw: each file matches on all eight `StructuralPathSegment` variants and writes its own tag bytes; `RuntimeIndex` is 5 in three of them, 6 in the machine-effect identity and 4 in the selected plan identity, where `Field`, `FixedIndex`, `Referent` and `FixedRange` are also renumbered
-- Cost: a new path segment kind needs five encoders and at least two decoders (`register-homes/src/recovery/structural_declarations.rs:714`, `selected-instructions/src/effects/program/encoding.rs:1654`) edited by hand, and nothing says which numbering is the reference
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### The Omega unit validator carries copies of two Terminal Psi codec checks
 - Category: one idea, several implementations
 - Where: `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs:17909` and `:17846`, against `omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs:8566` and `:11744`
@@ -241,12 +213,12 @@ framework or a list of features that remain unimplemented.
 - Cost: a new instruction kind that misses the effect table is declared effect-free and passes validation by construction; "validated catalog" reads as an independent check and is not one
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Every obligation becomes an "accepted" fact, and no later stage can tell a proven one from an unproven one
+### Native lowering accepts module bytes without artifact-bound host producer trust
 - Category: a verdict with nothing behind it
-- Where: `omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/verified_unit.rs:194-400` and `:412-425`; readers at `.../01_.../src/rules.rs`, `.../03_target-operations-to-selected-instructions/src/legalization.rs:234-244`
-- Saw: `source_checked_obligation_facts` pushes one `AcceptedObligationFact` per obligation reference; the proof fingerprint is 32 zero bytes unless a seal names it, and the comment says no module the current pipeline produces has seals; the only readers of the fingerprint are a measurement printout, the identity hash and one equality against a proof question; stage 03 takes the first matching fact and needs only that it exists
-- Cost: the names "accepted" and "source checked" read as proof; stages 01 and 03 remove or omit runtime checks on the strength of a fact that only records that an obligation was stated
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
+- Where: `00_terminal-psi-to-abstract-operations/src/artifact_admission.rs` (`lower_artifact`), `abstract-operations/verified-input/src/lib.rs` (`VerifiedPsiOptimizationInput::lowered`), and `01_abstract-operations-to-abstract-operations/src/verified_unit.rs` (`source_checked_obligation_facts`)
+- Saw: the public byte-lowering route canonically decodes a module and can produce accepted obligation facts without an artifact-bound host producer-trust witness. Zero proof fingerprints are not themselves the defect: `product.md#publication-and-separate-consumption` permits reuse of a trusted producer's judgments without transported derivations.
+- Cost: an embedding caller can reach native optimization with asserted obligations but no explicit authorization of their producer; repair the ingress trust boundary under `PSI-CLAIM-ADMISSION`, not by replaying proofs on every trusted internal stage handoff.
+- Reported: 2026-11-12, Claude Code; narrowed against the ratified execution-admission contract by Codex on 2026-11-13 while auditing accepted facts
 
 ### A default compile seals the native artifact without running the replay, and a failed replay under `--both` is reported as declined
 - Category: a verdict with nothing behind it
@@ -304,27 +276,6 @@ framework or a list of features that remain unimplemented.
 - Cost: the artifact identity and validation chain carry an evidence slot that is always empty; an agent fixing custody code there is fixing code no shipped compile runs
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### The installed-code path is types and plans with no producer and no caller
-- Category: zombie machinery
-- Where: `omega-rust/omega/compilation/backend/runtime/executable-installation/` (1,062 lines), `omega-rust/omega/compilation/backend/plans/program-entry-plan/Cargo.toml:13` and `src/lib.rs:28`, `:41-47`, `omega-rust/omega/compilation/backend/images/image-emission/src/installation_record.rs:36`
-- Saw: no struct literal anywhere builds `InstalledCode`, `CodePlacement`, `FrozenPlacement`, `ValidatedPlacement`, `AdmittedArtifact` or `ArtifactRecord`; the feature `installed-writer` that compiles the 330-line `post_handoff_writer.rs` is enabled by no manifest in the repository; the three exported entry points of `optimized_semantic_entry.rs` and `optimized_semantic_wrapper.rs` (1,183 lines) have no caller beyond their re-export; `InstallationError` in image-emission has no constructor
-- Cost: about 2,500 lines look like a working installation pipeline and are compiled, linted and kept in step by hand, some of it not even built by default
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### The placement and primitive-request half of `access-plans` is called only by its own tests
-- Category: zombie machinery
-- Where: `omega-rust/psi/foundation/access-plans/src/placements.rs` (3,028 lines; `admit_access` at `:244`, `admit_owned_access` at `:264`, `adopt_owned_stable` at `:1754`), `primitive_access.rs` (1,251 lines), `plan_policy.rs:694`
-- Saw: no file outside the crate names `admit_access`, `admit_owned_access`, the three `adopt_owned_*` functions, `bind_schema_correspondence_to_access_plan`, `effect_footprints_conflict`, `PrimitiveAccessRequest`, `EstablishedOwnedAccess`, `SchemaCorrespondedAccessView` or `AccessAdmission`; inside the crate only `tests.rs` (7,168 lines, 109 tests) calls them; twelve crates depend on the crate for its validators
-- Cost: the crate header (`lib.rs:9-15`) says every stable, atomic or external access request is authorized before lowering, and a reader will believe a pipeline stage does that when none calls it
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### Public resolution entry points have no production callers
-- Category: zombie machinery
-- Where: `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation.rs` (`select_data_declarations`), `resolution.rs` (`resolve_numeric_probe`), and their re-exports in `lib.rs`
-- Saw: the old build-time evaluator exports are gone. `select_data_declarations` remains a definition, a doc mention and a re-export; `resolve_numeric_probe` is called only by its local test.
-- Cost: they read as the crates' public API, so the next agent wires a new caller to an entry the real driver never exercises, or keeps them compiling through a refactor for nobody
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### `pipeline.md` says the default compile runs no stage validators; two run, and one stage header misdescribes its own
 - Category: the documents disagree
 - Where: `omega-rust/pipeline.md:66-68` and `:91-93`; `omega-rust/omega/compilation/backend/machine-emission/src/exit_contract.rs:153` and `:205-222`; `omega-rust/omega/compilation/pipeline/07_post-allocation-machine-to-selected-form-encoding/src/lib.rs:45-47` against `.../src/validation.rs:630`, `:639` and `.../src/row_encoding.rs:661`, `:670`
@@ -339,13 +290,6 @@ framework or a list of features that remain unimplemented.
 - Cost: a reader cannot tell a typing rule that was not rebuilt from a proof the checker must supply, so each stop is investigated from scratch and the wording invites routing typing work to the checker
 - Reported: 2026-11-13, Claude Code, while getting the route probe through typing
 
-### An `invokes` row that names an ordinary trait is dropped without a word
-- Category: a verdict with nothing behind it
-- Where: `typed-trees/src/declarations.rs` (`declared_targets`, consumed by `declared_machine_invocations`)
-- Saw: `declared_targets` keeps an `invokes` target only when it is a boundary trait or a parameter of boundary type and silently discards any other, so `invokes Handler` over an ordinary trait reads as no target to its consumers. Conformance refinement is now judged by `06_terminal-psi-to-terminal-psi/src/verdict.rs`; that no longer explains the loss.
-- Cost: a written entry ceiling can vanish before the checker sees it. Preserve or explicitly reject the authored target instead of silently narrowing the request during extraction.
-- Reported: 2026-11-13, Claude Code, while putting `invokes` on the lowered-form checker
-
 ### A whole-program stage refuses every program for a library construct nobody calls
 - Category: a verdict with nothing behind it
 - Where: `03_symbol-resolved-trees-to-typed-trees` (the remaining `unavailable_judgment` callers, such as "mathematical call receiving types" and "selected call parameter types" in `call_and_product_selections.rs` and `typing_queries.rs`); `build-time-evaluation/src/source_frontier.rs` (`source_jobs`: the side tables it still refuses whole, such as constant recipes and wire plans); any by-name refusal added to `04_typed-trees-to-typed-trees`
@@ -359,13 +303,6 @@ framework or a list of features that remain unimplemented.
 - Saw: "this machine was generated from that generic machine" is read from the state symbol's `generated_from` in three places and from the `machine_specializations` row in a fourth, and nothing ties the two; the row also keeps eight string and commitment fields that only the deleted checker filled. Separately, an expression copy shares the types its nodes hold, so the pass lists by hand which node kinds hold a type (`held_types`) and which body constructs it cannot copy
 - Cost: a pass that sets one marker and not the other produces a machine the reader accepts and the declaration step refuses, or the reverse; a new expression node that holds a type is silently left pointing at the generic machine's type until someone adds it to the list
 - Reported: 2026-11-13, Claude Code, while rebuilding specialization as a typed preparation pass
-
-### A selected refinement witness is discharged twice, and its dispatch row keeps unused fields
-- Category: one idea, several implementations
-- Where: `06_terminal-psi-to-terminal-psi/src/verdict.rs` (`witnesses`, and the witness parts of `judge_compilation`); `typed-trees` (`StaticRequirementDispatch`); `04_typed-trees-to-typed-trees/src/passes/specialization.rs` (`selections`)
-- Saw: preparation emits each conformance witness once, but checking clones and discharges a selected witness for generic-proof reuse before judging the original witness for the compilation verdict. Separately, the dispatch a generated call carries has an application fingerprint, a commitment, a selection application and a contract signature that only the deleted checker filled, so the pass writes four of nine fields
-- Cost: every selected implementation is proved twice per compilation, and a reader of the dispatch cannot tell an empty commitment from one that was never computed
-- Reported: 2026-11-13, Claude Code, while serving implementation parameters in the specialization pass
 
 ### A typing unit test is red on `main` and nothing runs it before merge
 - Category: a test that pins nothing while it is red
@@ -382,10 +319,10 @@ framework or a list of features that remain unimplemented.
 - Reported: 2026-11-13, Claude Code, while writing the bundled library's crash ceilings
 
 ### Typing lets a bare literal be stored into a field declared in a domain
-- Category: a verdict with nothing behind it
-- Where: `03_symbol-resolved-trees-to-typed-trees` (assignment typing); `05_typed-trees-to-terminal-psi/src/read/authority.rs` (`Access::Replace`); `compiler/tests/build_value_protection.rs` (`replacing_the_seal_is_not_accepted`)
-- Saw: `Sealed { seal: Seal { } }` is refused by typing ("record literal field type") because a literal is the bare carrier, but `builder.seal = BuildSeal { };` passes typing. The program is stopped only because the lowered-form checker refuses every replacement of a policy-governed value. For a domain with no policy the store of a bare carrier into a qualified field would reach the checker with nothing refusing it
-- Cost: the rule "the supplied expression's static type must carry exactly the domains the destination declares" has two owners for construction and one accidental owner for assignment; when plans are evaluated and a writer is admitted, the assignment form loses its only guard
+- Category: one idea built twice
+- Where: `03_symbol-resolved-trees-to-typed-trees` (assignment typing); `05_typed-trees-to-terminal-psi/src/read/rejections.rs` (`mistyped`)
+- Saw: `Sealed { seal: Seal { } }` is refused by typing ("record literal field type") because a literal is the bare carrier, but `builder.seal = BuildSeal { };`, a plain argument for a qualified parameter and a plain value for a qualified result all pass typing. The lowered-form reader now rejects each by the rule (one carrier, two domain sets), so nothing is accepted, but typing checks the rule for one form and the reader for all of them
+- Cost: "the supplied expression's static type must carry exactly the domains the destination declares" has two owners with different coverage and different wording, so the same mistake reads differently by where it is written
 - Reported: 2026-11-13, Claude Code, while declaring the seal that protects the compiler-owned `Build`
 
 ### Build selection calls are found and published by the spelling of their protocol operation
@@ -395,9 +332,9 @@ framework or a list of features that remain unimplemented.
 - Cost: the host row's operation is decided twice from text, and the native binding cannot be closed at its locator type by the pass that closes every other application until typing records that application on the call
 - Reported: 2026-11-13, Claude Code, while closing boundary requirements at the types their calls apply
 
-### A reused xtask binary audits the checkout that built it
-- Category: a verdict about the wrong source
-- Where: `tools/xtask/src/main.rs:37` (`repo_root`), consumed by rules, formatting and boundary checks
-- Saw: `repo_root()` uses build-time `CARGO_MANIFEST_DIR`; invoking worker-21's binary from worker-20 reported worker-21's uncommitted geometry changes rather than inspecting worker-20
-- Cost: reused tooling can silently validate another checkout. Resolve an explicit workspace or invocation directory at the command boundary; retain executable-relative locations only for resources that actually belong to the executable
-- Reported: 2026-11-13, Codex, while validating explicit targetless scalar evaluation; final checks use a binary built in the affected worktree
+### A call of a machine nothing declares is refused as "not supported yet", not as an error
+- Category: a verdict with nothing behind it
+- Where: `typed-trees/src/deferred_refusals.rs` (`DeferredRequest::UnresolvedCallTarget`); `05_typed-trees-to-terminal-psi/src/read.rs` (raises the row as `RefusalReason::Unsupported`); `compiler/tests/route_probe.rs` (`an_unknown_machine_after_a_call_that_never_returns_is_not_accepted`)
+- Saw: typing records a call whose name no declaration answers as a deferred row beside rows for constructs no pass serves yet, and the reader raises every row the same way. `undeclared_machine(x);` in a program's own machine therefore reaches the user as "not supported yet ... with no claim that it is wrong" and never as a rejection
+- Cost: a misspelled machine name reads as a compiler limitation; state_contracts.md ("an unknown machine name or malformed type is an error wherever it appears") is met only in that the program is not accepted, and the outcome word is `not-supported` where it should be `rejected`
+- Reported: 2026-11-13, Claude Code, while accepting statements after a call that never returns

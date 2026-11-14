@@ -383,6 +383,19 @@ pub mod expression {
                 {
                     argument.symbol = *replacement;
                 }
+                if let Some(Ok(selected)) = &mut argument.signature_free_requirement {
+                    for symbol in [
+                        &mut selected.trait_definition,
+                        &mut selected.declaring_trait,
+                        &mut selected.requirement,
+                    ] {
+                        if let Some((_, replacement)) =
+                            symbols.iter().find(|(source, _)| *source == *symbol)
+                        {
+                            *symbol = *replacement;
+                        }
+                    }
+                }
                 if let Some(application) = &mut argument.application {
                     for argument in application.arguments.iter_mut() {
                         self.remap_static_argument_symbols(argument, symbols);
@@ -951,6 +964,11 @@ pub mod expression {
             fn static_argument(&mut self, argument: &mut StaticMachineArgument) {
                 argument.type_reference = self.type_reference(argument.type_reference);
                 argument.symbol = self.symbol(argument.symbol);
+                if let Some(Ok(selected)) = &mut argument.signature_free_requirement {
+                    selected.trait_definition = self.symbol(selected.trait_definition);
+                    selected.declaring_trait = self.symbol(selected.declaring_trait);
+                    selected.requirement = self.symbol(selected.requirement);
+                }
                 if let Some(application) = &mut argument.application {
                     for child in application.arguments.iter_mut() {
                         self.static_argument(child);
@@ -1401,6 +1419,13 @@ pub mod expression {
                     const_literal: None,
                     evidence_projection: None,
                     symbol: original,
+                    signature_free_requirement: Some(Ok(
+                        crate::expression::ResolvedSignatureFreeRequirement {
+                            trait_definition: original,
+                            declaring_trait: original,
+                            requirement: original,
+                        },
+                    )),
                 };
                 let source = program.expression_table_mut().insert(ExpressionNode::Call(
                     TableCallExpression {
@@ -1440,6 +1465,14 @@ pub mod expression {
                 assert!(!call.receiver.is_valid());
                 assert!(!call.machine_arguments[0].type_reference.is_valid());
                 assert_eq!(call.machine_arguments[0].symbol, replacement);
+                assert_eq!(
+                    call.machine_arguments[0].signature_free_requirement,
+                    Some(Ok(crate::expression::ResolvedSignatureFreeRequirement {
+                        trait_definition: replacement,
+                        declaring_trait: replacement,
+                        requirement: replacement,
+                    }))
+                );
                 assert_eq!(
                     call.machine_arguments[0]
                         .application
@@ -3555,6 +3588,20 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
         pub operational_acknowledgement: language_semantics::CallOperationalAcknowledgement,
     }
 
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+    pub enum SignatureFreeRequirementResolutionError {
+        InvalidPath,
+        TraitNotUnique,
+        RequirementNotUnique,
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+    pub struct ResolvedSignatureFreeRequirement {
+        pub trait_definition: SymbolHandle,
+        pub declaring_trait: SymbolHandle,
+        pub requirement: SymbolHandle,
+    }
+
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct StaticMachineArgument {
         pub type_reference: arena::Handle<crate::types::TypeReference>,
@@ -3563,6 +3610,11 @@ arm #6 = TableMatchArm { pattern: Wildcard, value: #53, source_span: SourceSpan 
         pub const_literal: Option<numerics::literals::IntegerLiteral>,
         pub evidence_projection: Option<EvidenceProjection>,
         pub symbol: SymbolHandle,
+        /// Resolution records the whole qualified operand's requirement lookup.
+        /// A refusal is retained too: typing must not retry with a call signature.
+        pub signature_free_requirement: Option<
+            Result<ResolvedSignatureFreeRequirement, SignatureFreeRequirementResolutionError>,
+        >,
     }
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]

@@ -2,7 +2,6 @@
 // This check makes Terminal exit agreement exercise all calculated values, even
 // though the supported CLI compares termination rather than captured stdout.
 use mechanics::model;
-use omega::language::core::float_operations;
 data Expected { values: [f64;81]; }
 public machine matches(actual: &Laminate,mode: u8) -> bool {
     let mut computed: [f64;81];

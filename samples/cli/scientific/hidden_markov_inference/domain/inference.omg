@@ -1,4 +1,4 @@
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i64;
 data Model { probabilities: [f64; 10]; units: [u64; 10]; observations: [u64; 16]; count: u64; }
 data Inference { forward: [f64; 32]; backward: [f64; 32]; scales: [f64; 16]; log_likelihood: f64; path: u64; }
 // Range reduction bounds the atanh argument to 1/3. Twenty-four terms

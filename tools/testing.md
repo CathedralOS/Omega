@@ -10,6 +10,14 @@ selection, execution evidence and platform details. The
 work; [.github/workflows/](../.github/workflows/) defines what is implemented.
 Older qualification procedures below do not reinstate retired checks.
 
+Repository-dependent `xtask` commands default to the nearest Omega workspace
+containing their invocation directory, even when the binary was built elsewhere.
+Run them inside the checkout you intend to inspect; outside one, commands needing a
+repository refuse instead of falling back to the build checkout. Existing
+command-specific paths such as `fmt --repository` and
+`rust-producer-omission --root` still select their explicit inputs. `fmt` already
+uses its invocation directory by default and keeps that behavior.
+
 ## Validation scope
 
 Prove the thing you built with tests on the changed code, then a very small
@@ -387,7 +395,12 @@ reporting the host.
 ## Bootstrap gates
 
 Bootstrap gates are `sh` scripts, not Cargo tests, and skip on a host that
-cannot run them:
+cannot run them. Source-closure packing, the Alpha Windows listing forge, and
+Gamma evaluator invocation are `mbx xtask` commands and need the built `xtask`
+binary (`mbx build -p xtask`). The topology gate fails when that binary is
+absent. Admission does not run the gate: a pull request checks rules and
+formatting, and the workflow builds xtask only when pushing the xtask sources
+to `main`.
 
 ```bash
 sh tools/bootstrap/check-chain-hygiene.sh

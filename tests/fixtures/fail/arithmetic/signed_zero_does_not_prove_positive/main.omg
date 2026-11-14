@@ -1,3 +1,6 @@
 machine need(value: i32) requires value > 0 {}
-machine check(value: i32) { transition { value != 0 -> need(value) _ -> {} } }
+// `requires true` insists on every i32: without it, private entry inference
+// would give `check` the bound `value > 0` from its one caller, and the guard
+// `value != 0` would no longer be what decides the call.
+machine check(value: i32) requires true { transition { value != 0 -> need(value) _ -> {} } }
 machine main() { check(2); }

@@ -392,7 +392,7 @@ byte limit. Any tag value absent from a closed-sum table rejects.
 | IEEE float format | `u8`: 1 binary32; 2 binary64 |
 | IEEE float relation | `u8`: 0 Equal, 1 NotEqual, 2 Less, 3 LessOrEqual, 4 Greater, 5 GreaterOrEqual |
 | IEEE float comparison kind | `u8`: 1 Equal, 2 NotEqual; propositions only — a distinct space from the relation byte |
-| structural path | counted segments, each `u8`: 1 + `u32` interned field identity; 2 + `u64` fixed index; 3 referent; 4 + `u64` start + `u64` end for a fixed byte range; 6 + value id + obligation id for a runtime index; 7 + case id; 8 + structural type id + `bool` scalar-codec presence + optional scalar type for a representation view; retired tag 5 rejects |
+| structural path | counted segments, each `u8`: 1 + `u32` interned field identity; 2 + `u64` fixed index; 3 referent; 4 + `u64` start + `u64` end for a fixed byte range; 6 + value id + obligation id for a runtime index; 7 + case id; 8 + structural type id + `bool` scalar-codec presence + optional scalar type for a representation view; 10 all elements (qualification paths only); retired tag 5 rejects |
 | canonical path segment | `u8`: 1 + field id; 2 + `u64` fixed index; 3 + case id; 4 referent |
 | canonical structural field | root place id + counted canonical path segments |
 | scalar field carrier path | counted segments, each `u8`: 1 + field id; 2 + `u64` fixed index; 3 + case id; 4 referent; declared types and readable access validate every step |

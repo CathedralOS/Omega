@@ -1,4 +1,5 @@
-use omega::language::core::matrix_layout;
+use omega::language::core::Layout2;
+use omega::language::core::read_checked;
 
 // This descriptor's last coordinate is outside the six-element backing.
 // The explicit arrival facts isolate the intended bounds violation from

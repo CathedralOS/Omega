@@ -5,8 +5,7 @@
 // round half away from zero. No passing sample executes this combination.
 module zero_float_case_round;
 use omega_language_std::console;
-use omega::language::core::numeric_conversion;
-use omega::language::core::float_operations;
+use omega::language::core::I32::from_f64;
 
 public data Reading [copy] {
     case Value(amount: f64);

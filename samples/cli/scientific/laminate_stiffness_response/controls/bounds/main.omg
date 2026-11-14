@@ -1,5 +1,4 @@
 // Intended invalid: fixed array index 4 is outside [f64;4].
-use omega::language::core::float_operations;
 use omega_language_std::console;
 data Main { values: [f64;4]; }
 machine Main::main(main: &mut Main) reaches Console {

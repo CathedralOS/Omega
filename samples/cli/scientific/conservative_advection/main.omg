@@ -5,7 +5,7 @@ use omega_language_std::console;
 use io::input;
 use io::report;
 use io::decimal;
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_u64_to_i64_saturating;
 use model::transport;
 data Main {}
 

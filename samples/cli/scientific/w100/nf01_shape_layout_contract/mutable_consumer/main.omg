@@ -1,5 +1,8 @@
 // Expected exit: 73
-use omega::language::core::matrix_layout;
+use omega::language::core::Layout2;
+use omega::language::core::try_write;
+use omega::language::core::valid_mutable;
+use omega::language::core::valid_readonly;
 use omega_language_std::console;
 data Main { }
 machine Main::main(context: &mut Main) reaches Console {

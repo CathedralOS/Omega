@@ -3,7 +3,14 @@
 const POLICY: u64 = 7u64;
 const FIELD_VALUE: u64 = 7u64;
 const POINTEE_VALUE: u64 = 43u64;
-use omega::language::core::layout;
+use omega::language::core::FieldEntry;
+use omega::language::core::FieldPlan;
+use omega::language::core::FixedLayout;
+use omega::language::core::IntegerInterpretation;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutStorage;
+use omega::language::core::LayoutTarget;
+use omega::language::core::Schema;
 data Payload [copy] { value: u64; }
 PayloadLayout<const Marker: u64> satisfies FixedLayout<Payload> {
     machine plan(schema: Schema, target: LayoutTarget) -> LayoutPlan reaches terminates {

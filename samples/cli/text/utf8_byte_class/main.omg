@@ -14,7 +14,7 @@
 // Expected exit: 3.
 
 use omega_language_std::console;
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_u8_to_i8_wrapping;
 
 data Main {
     byte: u8 in Wrapping;

@@ -20,7 +20,7 @@ use typed_trees::expression::TableCastExpression;
 
 use super::{Program, Slot};
 use crate::body::{Expression, ExpressionKind, Policy, Qualification, ValueType};
-use crate::{SourceOrigin, Unserved, refuse};
+use crate::{SourceOrigin, Unserved, refuse, reject};
 
 impl Program<'_> {
     pub(super) fn cast(
@@ -96,12 +96,21 @@ impl Program<'_> {
         // qualified value". A declared domain is added and removed by an
         // entry (`domain_entry`), never by this cast.
         if !source_type.qualification().domains.is_empty()
-            || !target.qualification().domains.is_empty()
+            || (source_type.policy().is_some() && source_type.scalar() != target.scalar())
         {
-            return unserved("carrier cast of or into a type that carries a declared domain");
+            return Err(reject(
+                id,
+                source,
+                format!(
+                    "this cast names a carrier and its operand's type carries {}: the operand \
+                     of a carrier cast carries no domain, so each domain is removed by name \
+                     first (`value as -D as T`)",
+                    self.domains_named(source_type.qualification()),
+                ),
+            ));
         }
-        if source_type.policy().is_some() && source_type.scalar() != target.scalar() {
-            return unserved("cast that changes the carrier of a policy-qualified integer");
+        if !target.qualification().domains.is_empty() {
+            return unserved("carrier cast into a type that carries a declared domain");
         }
         let (Some(ScalarType::Integer(from)), Some(carrier @ ScalarType::Integer(to))) =
             (source_type.scalar(), target.scalar())
@@ -225,7 +234,7 @@ impl Program<'_> {
                     if cast.semantic_domain_symbol != domain {
                         return mistyped("added domain that is not the one the entry selected");
                     }
-                    self.issue(id, domain)?;
+                    self.issue(id, domain, source)?;
                     // "Has predicates | Prove them for this value."
                     let (clauses, stated) = match (
                         result,
@@ -346,16 +355,21 @@ impl Program<'_> {
     /// A route names "an exact trait requirement or concrete machine as an
     /// alternative authorized origin", and "An exact machine is authorized
     /// during its invocation": the machine whose body holds the cast is one
-    /// of the routes, or the cast is refused. A requirement route
+    /// of the routes, or the cast is rejected. A requirement route
     /// authorizes "the invocation through that requirement and its selected
-    /// implementation", which this reader does not follow, so it admits no
-    /// machine here. A policy states its issuers in its plan, which no pass
-    /// evaluates (`DomainIssuance::Planned`): nobody is shown to be one.
+    /// implementation": the machine that declares that requirement's edge.
+    /// A policy states its issuers in its plan, which no pass evaluates
+    /// (`DomainIssuance::Planned`): nobody is shown to be one.
     ///
     /// Authorization proves no predicate ("Policy authorization cannot
     /// prove those predicates"): the cast owes the domain's predicates of
     /// its operand whoever issues it (`domain_entry`, `predicates`).
-    fn issue(&mut self, id: MachineId, domain: symbols::SymbolHandle) -> Checked<()> {
+    fn issue(
+        &mut self,
+        id: MachineId,
+        domain: symbols::SymbolHandle,
+        source: SourceOrigin,
+    ) -> Checked<()> {
         use language_semantics::DomainEstablishmentRoute;
         use typed_trees::domain::DomainIssuance;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Expression(what)));
@@ -367,10 +381,65 @@ impl Program<'_> {
             DomainIssuance::Only(routes) => {
                 let machine =
                     *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
-                let routed = routes.iter().any(|route| {
-                    matches!(route, DomainEstablishmentRoute::ExactMachine { machine: origin }
-                        if *origin == machine)
+                // authority.md, "Requirement and exact-machine routes":
+                //
+                // | Trait requirement | An exact invocation through that
+                //   requirement and a valid selected conformance. This
+                //   includes a call by name to a machine that declares that
+                //   edge ... |
+                // | Plain machine declaration | That exact machine's direct
+                //   invocation. |
+                //
+                // A machine that declares the edge (`machine issue(..)
+                // satisfies Issues::issue`, or an inline member of a
+                // `satisfies` block) "has no separately callable direct
+                // entry" (conformances.md, "A conformer's name is its routed
+                // entry"), so every invocation of its body is through the
+                // requirement and the cast in it is authorized. A plain
+                // machine bound by a selection row or binding expression
+                // declares no edge and gets none: "its body was checked
+                // without that authority, and a machine that relies on it
+                // rejects at its own declaration".
+                let edges = match self.typed.machine_by_symbol(machine) {
+                    Some(declared) => self.typed.machine_trait_conformances(declared),
+                    None => &[],
+                };
+                let routed = routes.iter().any(|route| match route {
+                    DomainEstablishmentRoute::ExactMachine { machine: origin } => {
+                        *origin == machine
+                    }
+                    DomainEstablishmentRoute::CheckedRequirement {
+                        trait_definition,
+                        requirement,
+                    } => edges.iter().any(|edge| {
+                        edge.symbol == *trait_definition && edge.requirement_symbol == *requirement
+                    }),
+                    // A boundary requirement "additionally requires provider
+                    // selection and admission", which is not followed here.
+                    DomainEstablishmentRoute::BoundaryRequirement { .. } => false,
                 });
+                // "Naming a machine is neither trait sealing nor an implicit
+                // grant to other machines in its package." So when no route
+                // is a boundary requirement and none admits this machine,
+                // the cast is wrong in every program: "a cast cannot mint
+                // it". With a boundary route the machine may yet be an
+                // admitted provider, so that stays a refusal.
+                let exact = !routes.iter().any(|route| {
+                    matches!(route, DomainEstablishmentRoute::BoundaryRequirement { .. })
+                });
+                if !routed && exact {
+                    return Err(reject(
+                        id,
+                        source,
+                        format!(
+                            "this cast adds {} in a machine that is not one of the domain's \
+                             establishment routes: a domain with routes is added only inside a \
+                             machine its declaration names, and a cast anywhere else cannot \
+                             mint that evidence",
+                            self.domain_named(domain),
+                        ),
+                    ));
+                }
                 if !routed {
                     return unserved("cast that adds a domain outside its establishment routes");
                 }

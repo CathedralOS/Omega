@@ -1,6 +1,6 @@
 // Mass-action source and analytic derivatives retain zero-concentration terms.
 // Three species and reactions are a bounded storage contract, not named models.
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_u64;
 use domain::model;
 public data Field [copy] { a: f64; b: f64; c: f64; aa: f64; ab: f64; ac: f64; ba: f64; bb: f64; bc: f64; ca: f64; cb: f64; cc: f64; }
 public machine magnitude(value: f64) -> f64 {
