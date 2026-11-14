@@ -70,7 +70,6 @@ pub fn reconstruct_psi_optimization_unit_seed(
         provider_candidates: plan.provider_candidates.clone(),
         dynamic_dispatch: plan.dynamic_dispatch.clone(),
         accepted_obligation_facts: Vec::new(),
-        proof_questions: Vec::new(),
         ownership_frontier_facts: Vec::new(),
         pruned_machines: Vec::new(),
         identities: plan.identities.clone(),

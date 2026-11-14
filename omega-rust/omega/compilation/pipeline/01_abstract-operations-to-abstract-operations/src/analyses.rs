@@ -159,9 +159,7 @@ pub(crate) use control_flow::{
     analyze_counted_loops,
 };
 #[cfg(any(test, feature = "test-support"))]
-pub use optimization_unit::{
-    ValueRangeFact, ValueRangeScope, ValueRangeSupport, value_range_fact_identity,
-};
+pub use optimization_unit::{ValueRangeFact, ValueRangeSupport, value_range_fact_identity};
 pub use revision::AnalysisRevision;
 pub(crate) use revision::{AnalysisError, analysis_index};
 pub(crate) use semantic::{
