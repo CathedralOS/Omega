@@ -752,6 +752,16 @@ mod module_namespaces {
                 );
             }
             assert_eq!(
+                symbols.domain_name_reaches(declarations[2], "Far", reference(0)),
+                path == "dependency::units",
+                "a module import exposes its direct domain's semantic leaf"
+            );
+            assert_eq!(
+                symbols.domain_name_reaches(declarations[1], "Near", reference(0)),
+                path != "dependency::units::Item"
+            );
+            assert!(!symbols.domain_name_reaches(declarations[3], "Child", reference(0)));
+            assert_eq!(
                 domain_reference(&symbols, 0, "dependency::units::u64::Far"),
                 Some(declarations[2])
             );
