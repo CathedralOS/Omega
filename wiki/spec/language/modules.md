@@ -127,6 +127,49 @@ introduce a collision in a broad import.
 Narrow imports avoid exposure to unrelated additions. Diagnostics retain both
 declaration owners, the exact carrier, and the imports exposing the conflict.
 
+### Builtin type names
+
+Named decision: `role-separated-builtin-type-names`, ratified 2026-11-13.
+
+Compiler-defined type names, such as `bool`, `f32`, `f64`, `addr` and the
+integer family, exist only in the type role. The integer family is open-ended:
+`i`, `u`, and every `i` or `u` followed by decimal digits, whether or not the
+digits form a valid width. `u0` is a family spelling and an invalid type. A
+value binding with the same spelling never hides one, and no declaration may
+redefine one. What is decided is the kind of name being introduced, not its
+letters:
+
+| Introduced name | May use a builtin type spelling |
+| --- | --- |
+| Local, machine or state parameter, field, pattern binding, value constant, generic value binder, value import alias | Yes. It introduces a value or field name and does not affect type lookup. |
+| Data declaration, type alias, generic type binder, type or namespace import alias | No. It would compete with the builtin type, and rejects where it is introduced. |
+
+Each use resolves by its role, determined before any operation is chosen:
+
+- A type annotation, cast target or type-qualified path reads the builtin
+  type. A literal suffix such as `7u32` is lexical and unaffected by bindings.
+- An expression operand reads a value binding. A builtin type never stands in
+  for a missing value.
+- A generic argument takes its role from the selected declaration's binder: a
+  type binder reads a type and `const N: u64` reads a value. Lookup never tries
+  both roles to find one that checks.
+- Where an operand could be either, as in a type equality, a value binding
+  takes the value role and a type/value mixture rejects. With a parameter
+  named `i32` in scope, `requires T == i32` rejects; the diagnostic names both
+  meanings and suggests renaming the parameter or using a type alias.
+- A `::` prefix that could name both a builtin type and a same-spelled static
+  value rejects as ambiguous, without searching both for the member.
+
+```omega
+machine scaled(i: u32, u8: u16) -> u32 {
+    let i1: u64 = 1;          // A value named i1; the type i1 is unaffected.
+    let wide: u32 = u8 as u32; // The value u8, cast to the type u32.
+    i + wide
+}
+
+data u7 { value: u32; }        // Rejected: redefines a builtin type.
+```
+
 ## Visibility
 
 Named decision: `public-visibility-spelling`, settled 2026-10-19.

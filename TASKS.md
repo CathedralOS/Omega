@@ -142,6 +142,9 @@ Write each item so any agent can start from it alone: current state, files and e
   - Retire `Console::exit_process` and move its callers to `ProcessExit::exit_process`, which [process exit](wiki/spec/language/process_exit.md#canonical-boundary-and-authority) already requires.
   Acceptance: a separately checked caller relies on `-> Never` and on `ensures false`, and does not recover an unpublished body fact; `ensures !fatal` called with `fatal == true` excludes the continuation; for a `-> u32 ensures false` callee, `let n: u32 = stop()` accepts and `let b: bool = stop()` rejects; a stronger implementation behind a returning requirement grants nothing; the spec's `quit` (a bare statement call with no `_ =`), `checked_value` and `take_value` check through native/Psi agreement; `-> Never terminates` machines recursing directly or mutually without descent reject; zero-filled, `..`-omitted, reflected, recast and foreign-supplied `Never` values and an `Outcome<u32, Never>::Err` construction reject.
 
+- **ROLE-SEPARATED-BUILTIN-TYPE-NAMES.** Implement [builtin type names](wiki/spec/language/modules.md#builtin-type-names): reject a data declaration, type alias, generic type binder or type/namespace import alias spelled like a builtin type where it is introduced, and resolve every other use by its role without letting a value binding hide a type.
+  Acceptance: `core::reflect`'s `i1`-`i7` locals, `let i: u32`, `let u8: u16` and `identity<i>(7i)` check; `data u7`, a type alias `u32`, a generic type binder `u32` and `data u0` reject at their declarations; `requires T == i32` with a parameter `i32` in scope rejects naming both meanings; a `::` prefix shared by a builtin type and a static value rejects as ambiguous.
+
 - **TYPED-STATIC-PARAMETERS.** Implement and migrate to [typed static parameters](wiki/drafts/designs/typed_static_parameters.md).
 
 - **ACTIVATION-STORAGE-PLANS.** Implement [storage plans](wiki/drafts/designs/activation_storage_plans.md).

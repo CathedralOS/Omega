@@ -411,7 +411,9 @@ that `E` is uninhabited; a caller's choice of `Never` does not exempt it.
 ## Lexical profile
 
 Source is valid UTF-8, with ASCII syntax. Identifiers match
-`[A-Za-z_][A-Za-z0-9_]*` and compare by exact bytes. Syntactic whitespace is only
+`[A-Za-z_][A-Za-z0-9_]*` and compare by exact bytes. No identifier is reserved
+for builtin types; [builtin type names](modules.md#builtin-type-names) decides
+which declarations may share a type's spelling. Syntactic whitespace is only
 space, tab, carriage return, and line feed. Punctuation, operators, keywords, and
 numeric spellings use ASCII; non-ASCII bytes occur only in comments and literal
 bodies. Other Unicode whitespace rejects. Host Unicode tables, normalization,
