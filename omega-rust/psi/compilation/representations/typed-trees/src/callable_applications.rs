@@ -706,10 +706,7 @@ pub(crate) mod conformance_scopes {
             application: &crate::ClosedConformanceApplication,
             supplying_application: crate::static_applications::StaticMachineApplicationHandle,
         ) -> Option<crate::type_identity::NormalizedTypeIdentity> {
-            if !self
-                .expression_table
-                .static_machine_application_is_valid(supplying_application)
-            {
+            if !supplying_application.is_valid() {
                 return None;
             }
             let source = self.static_machine_application(supplying_application);
@@ -778,139 +775,6 @@ pub(crate) mod conformance_scopes {
             left_identity.is_some()
                 && left_identity
                     == self.portable_conformance_application_identity_in_owner(right, owner)
-        }
-
-        /// Retain the actual operation roster of an unapplied implementation
-        /// operand. This describes the selection only; its public contracts
-        /// still require the normal independent refinement judgments.
-        pub fn prepare_plain_conformance_application(
-            &mut self,
-            supplying: StaticMachineApplicationHandle,
-            operand: &crate::expression::StaticMachineArgument,
-        ) -> Result<ClosedConformanceApplication, &'static str> {
-            use language_semantics::conformance_identity::{
-                ConformanceIdentityDescription, ConformanceRowIdentity,
-            };
-            if !self
-                .expression_table
-                .static_machine_application_is_valid(supplying)
-            {
-                return Err("implementation operand has a stale supplying application");
-            }
-            if operand.application.is_some()
-                || operand.const_literal.is_some()
-                || operand.evidence_projection.is_some()
-                || !self.symbols.symbols().nodes().is_valid(operand.symbol)
-            {
-                return Err("implementation operand needs its complete applied argument list");
-            }
-            let declared = self
-                .conformance_by_symbol(operand.symbol)
-                .ok_or("implementation operand has no retained declaration")?
-                .clone();
-            if !self.conformance_type_parameters(&declared).is_empty()
-                || !declared.lifetime_parameters.is_empty()
-                || !declared.arguments.is_empty()
-                || !declared.trait_lifetime_arguments.is_empty()
-            {
-                return Err("implementation operand needs its complete applied trait scope");
-            }
-            let owner = self.static_machine_application(supplying).lexical_owner;
-            if !self.symbols.symbols().nodes().is_valid(owner) {
-                return Err("implementation operand lost its actual supplying declaration");
-            }
-            let environment =
-                crate::trait_definition::AppliedTraitScope::from_conformance(self, &declared)
-                    .ok_or("implementation operand has no complete declared trait scope")?
-                    .environment();
-            let retained = environment.retain(self)?;
-            let mut rows = Vec::with_capacity(declared.rows.len());
-            let mut identities = Vec::with_capacity(declared.rows.len());
-            for row in &declared.rows {
-                let (trait_owner, required) = self
-                    .trait_machine_signature(row.requirement)
-                    .filter(|(trait_owner, _)| trait_owner.symbol == row.declaring_trait)
-                    .ok_or("implementation row lost its exact public requirement")?;
-                if !self
-                    .symbols
-                    .symbols()
-                    .nodes()
-                    .is_valid(row.realization_machine)
-                    || !self
-                        .symbols
-                        .symbols()
-                        .nodes()
-                        .is_valid(row.realization_state)
-                    || self.symbols.get(row.realization_state).parent != row.realization_machine
-                {
-                    return Err("implementation row lost its exact realizing machine and state");
-                }
-                let public = self.trait_requirement_callable_identity_text(trait_owner, required);
-                if public.is_empty() {
-                    return Err("implementation row has no complete public signature identity");
-                }
-                identities.push((
-                    self.normalized_hermetic_symbol_identity(row.declaring_trait)
-                        .map_err(|_| "implementation row has no exact declaring trait identity")?,
-                    self.normalized_hermetic_symbol_identity(row.requirement)
-                        .map_err(|_| "implementation row has no exact requirement identity")?,
-                    self.normalized_hermetic_symbol_identity(row.realization_machine)
-                        .map_err(|_| "implementation row has no exact realization identity")?,
-                    public.into_bytes(),
-                ));
-                rows.push(crate::ClosedConformanceRowIdentity {
-                    declaring_trait: row.declaring_trait,
-                    requirement: row.requirement,
-                    realization_machine: row.realization_machine,
-                    realization_state: row.realization_state,
-                });
-            }
-            let declaration = self
-                .normalized_hermetic_symbol_identity(declared.symbol)
-                .map_err(|_| "implementation operand has no exact declaration identity")?;
-            let trait_name = self
-                .normalized_hermetic_symbol_identity(declared.trait_symbol)
-                .map_err(|_| "implementation operand has no exact trait identity")?;
-            let description = ConformanceIdentityDescription {
-                declaration: &declaration,
-                trait_name: &trait_name,
-                rows: identities
-                    .iter()
-                    .map(|(declaring_trait, requirement, realization, signature)| {
-                        ConformanceRowIdentity {
-                            declaring_trait,
-                            requirement,
-                            realization,
-                            requirement_signature: Some(signature.clone()),
-                        }
-                    })
-                    .collect(),
-                ..Default::default()
-            };
-            let encoding = description.encoded_bytes();
-            let (report_fingerprint, commitment) =
-                language_semantics::conformance_identity::source_identity_commitments(&encoding);
-            let callable_application = self.expression_table.retain_static_machine_application(
-                declared.symbol,
-                Default::default(),
-                &[],
-            );
-            self.expression_table
-                .static_machine_application_mut(callable_application)
-                .lexical_owner = owner;
-            let application = ClosedConformanceApplication {
-                declaration: declared.symbol,
-                trait_definition: declared.trait_symbol,
-                trait_scope: retained,
-                callable_application,
-                rows,
-                report_fingerprint,
-                commitment: crate::ClosedConformanceApplicationCommitment::from_digest(commitment),
-                identity_encoding: encoding.into(),
-                ..Default::default()
-            };
-            self.prepare_realization_contracts(&application, owner, retained)?;
-            Ok(application)
         }
 
         pub fn prepare_closed_conformance_scopes(&mut self) -> Result<(), String> {
@@ -3060,24 +2924,46 @@ pub(crate) mod namespaces {
             let Some(receiver) = self.expression_table.name_path_node(call.receiver) else {
                 return Ok(None);
             };
-            let Some(selected) = self.conformance_by_symbol(receiver.symbol) else {
-                return if receiver.symbol.is_valid()
-                    && self.symbols.get(receiver.symbol).kind == SymbolKind::Conformance
-                {
-                    Err("named public view lost its selected implementation")
-                } else {
-                    Ok(None)
-                };
-            };
+            self.named_conformance_member(receiver.symbol, call.target_symbol)
+                .map(|member| member.map(|(_, _, signature)| signature))
+        }
+
+        /// The named operation record, its unique requirement row and that
+        /// row's public signature at the retained application. This identifies
+        /// a choice; body validity and invocation authority remain separate.
+        pub fn named_conformance_member(
+            &self,
+            namespace: SymbolHandle,
+            requirement: SymbolHandle,
+        ) -> Result<
+            Option<(
+                &crate::trait_definition::Conformance,
+                &crate::trait_definition::ConformanceRow,
+                &signature::StateSignature,
+            )>,
+            &'static str,
+        > {
+            if !namespace.is_valid() {
+                return Ok(None);
+            }
+            if !self.symbols.symbols().nodes().is_valid(namespace) {
+                return Err("named public view has a foreign namespace");
+            }
+            if self.symbols.get(namespace).kind != SymbolKind::Conformance {
+                return Ok(None);
+            }
+            let selected = self
+                .conformance_by_symbol(namespace)
+                .ok_or("named public view lost its selected implementation")?;
             // Applied generic maps retain their independently supplied tuple in
             // the ordinary dispatch path above; a bare declaration cannot supply it.
             if !selected.type_parameters.is_empty() || !selected.lifetime_parameters.is_empty() {
                 return Err("named public view has no complete selected application");
             }
-            let closed = self.closed_requirement_application(call.target_symbol);
+            let closed = self.closed_requirement_application(requirement);
             let template = closed
                 .as_ref()
-                .map_or(call.target_symbol, |selected| selected.template);
+                .map_or(requirement, |selected| selected.template);
             let mut rows = selected
                 .rows
                 .iter()
@@ -3092,8 +2978,7 @@ pub(crate) mod namespaces {
                 .ok_or("named public view lost its complete trait application")?
                 .declaring_scope(self, row.declaring_trait)
                 .ok_or("named public view lost its declaring trait scope")?;
-            if closed.is_some()
-                && !self.requirement_application_matches_scope(call.target_symbol, &scope)
+            if closed.is_some() && !self.requirement_application_matches_scope(requirement, &scope)
             {
                 return Err("named public view disagrees with its selected trait application");
             }
@@ -3104,7 +2989,7 @@ pub(crate) mod namespaces {
                     .then(|| self.trait_machine_signature_by_symbol(scope.declaration, template))
                     .flatten()
                 })
-                .map(Some)
+                .map(|signature| Some((selected, row, signature)))
                 .ok_or("named public view has no prepared applied signature")
         }
     }
@@ -3941,41 +3826,6 @@ pub(crate) mod realization_scopes {
                     });
             }
             Ok(())
-        }
-
-        pub fn realization_call_signature(
-            &self,
-            lexical_owner: SymbolHandle,
-            call: &crate::expression::TableCallExpression,
-        ) -> Option<&signature::StateSignature> {
-            let dispatch = call.static_requirement_dispatch.as_ref()?;
-            if call.target_symbol != dispatch.realization_state {
-                return None;
-            }
-            let selections = self.selected_conformance_applications(
-                lexical_owner,
-                dispatch.selection_application,
-                dispatch.evidence_parameter,
-                dispatch.requirement,
-                dispatch.application_report_fingerprint,
-                dispatch.application_commitment,
-            );
-            let [selection] = selections.as_slice() else {
-                return None;
-            };
-            let application =
-                self.portable_conformance_application_identity_in_owner(selection, lexical_owner)?;
-            let owner = AppliedCallableOwner::Realization {
-                declaration: selection.declaration,
-                application,
-                lexical_owner,
-            };
-            self.applied_callable_signatures
-                .iter()
-                .find_map(|(_, prepared)| {
-                    (prepared.owner == owner && prepared.signature.symbol == call.target_symbol)
-                        .then_some(&prepared.signature)
-                })
         }
     }
 }
@@ -6140,18 +5990,6 @@ pub(crate) mod table {
             self.arena.free(handle)
         }
 
-        pub(crate) fn replace_signature(
-            &mut self,
-            handle: CallableRow,
-            signature: StateSignature,
-        ) -> Result<(), &'static str> {
-            if !self.arena.is_valid(handle) {
-                return Err("applied callable signature replacement names a retired row");
-            }
-            self.arena.get_mut(handle).signature = signature;
-            Ok(())
-        }
-
         pub(crate) fn set_required(
             &mut self,
             handle: CallableRow,
@@ -6291,14 +6129,6 @@ pub(crate) mod table {
             invocation: StaticMachineApplicationHandle,
         ) -> impl Iterator<Item = (CallableRow, &AppliedCallableSignature)> {
             self.invocation_rows(invocation, InvocationPurpose::MachineSelection)
-        }
-
-        pub(crate) fn requirement_rows(
-            &self,
-            invocation: StaticMachineApplicationHandle,
-            lexical_owner: SymbolHandle,
-        ) -> impl Iterator<Item = (CallableRow, &AppliedCallableSignature)> {
-            self.invocation_rows(invocation, InvocationPurpose::Requirement(lexical_owner))
         }
 
         fn invocation_rows(
@@ -6493,7 +6323,7 @@ pub(crate) mod table {
             };
             let requirement_rows = |table: &AppliedCallableTable, application, lexical_owner| {
                 table
-                    .requirement_rows(application, lexical_owner)
+                    .invocation_rows(application, InvocationPurpose::Requirement(lexical_owner))
                     .map(|(handle, _)| handle)
                     .collect::<Vec<_>>()
             };
@@ -6528,7 +6358,7 @@ pub(crate) mod table {
         }
 
         #[test]
-        fn signature_and_requirement_updates_cannot_change_invocation_ownership() {
+        fn signature_replacement_and_requirement_updates_preserve_invocation_ownership() {
             let invocation = StaticMachineApplicationHandle::from_parts(1, 1);
             let other = StaticMachineApplicationHandle::from_parts(1, 2);
             let mut table = AppliedCallableTable::default();
@@ -6537,7 +6367,9 @@ pub(crate) mod table {
                 symbol: symbols::SymbolHandle::from_arena_index(9),
                 ..Default::default()
             };
-            table.replace_signature(handle, signature.clone()).unwrap();
+            let mut replacement = table.get(handle).clone();
+            replacement.signature = signature.clone();
+            table.replace(handle, replacement).unwrap();
             table.set_required(handle, signature.clone()).unwrap();
             assert_eq!(rows(&table, invocation), [handle]);
             assert!(rows(&table, other).is_empty());
@@ -6643,554 +6475,6 @@ pub(crate) mod trait_scopes {
     use symbols::SymbolHandle;
 
     impl TypedTrees {
-        /// A named selection owns its arguments at the call; an evidence
-        /// parameter owns them at the supplying specialization. Use that same
-        /// retained owner when identifying either form of selected map.
-        pub fn selected_conformance_application_identity(
-            &self,
-            owner: SymbolHandle,
-            dispatch: &crate::StaticRequirementDispatch,
-        ) -> Result<crate::type_identity::NormalizedTypeIdentity, &'static str> {
-            self.selected_requirement_contract_scope(owner, dispatch)?;
-            let applications = self.selected_conformance_applications(
-                owner,
-                dispatch.selection_application,
-                dispatch.evidence_parameter,
-                dispatch.requirement,
-                dispatch.application_report_fingerprint,
-                dispatch.application_commitment,
-            );
-            let [application] = applications.as_slice() else {
-                return Err("selected identity has no unique supplying map application");
-            };
-            let supplying = if dispatch.selection_application.is_valid() {
-                dispatch.selection_application
-            } else {
-                let mut receipts = self
-                    .machine_specializations
-                    .iter()
-                    .filter(|receipt| receipt.instance == owner);
-                let receipt = receipts
-                    .next()
-                    .ok_or("selected identity lost its supplying specialization")?;
-                if receipts.next().is_some() {
-                    return Err("selected identity has an ambiguous supplying specialization");
-                }
-                receipt.binding_application
-            };
-            self.portable_conformance_application_identity(application, supplying)
-                .ok_or("selected application has no complete argument identity")
-        }
-
-        /// The selected map authenticates execution; the caller's evidence
-        /// bound supplies the public contract, including its refinements.
-        pub fn selected_requirement_contract_scope<'program>(
-            &'program self,
-            owner: SymbolHandle,
-            dispatch: &crate::StaticRequirementDispatch,
-        ) -> Result<AppliedTraitScope<'program>, &'static str> {
-            use crate::static_applications::StaticMachineBindingValue;
-            use crate::trait_definition::TraitApplicationArguments;
-
-            if dispatch.selection_application.is_valid()
-                && !self
-                    .expression_table
-                    .static_machine_application_is_valid(dispatch.selection_application)
-            {
-                return Err("selected contract has a stale source application");
-            }
-            let applications = self.selected_conformance_applications(
-                owner,
-                dispatch.selection_application,
-                dispatch.evidence_parameter,
-                dispatch.requirement,
-                dispatch.application_report_fingerprint,
-                dispatch.application_commitment,
-            );
-            let [application] = applications.as_slice() else {
-                return Err("selected contract has no unique supplying map application");
-            };
-            let selected = application
-                .trait_scope
-                .scope(self)
-                .and_then(|scope| scope.declaring_scope(self, dispatch.declaring_trait))
-                .ok_or("selected contract lost its declaring map scope")?;
-            if !dispatch.evidence_parameter.is_valid() {
-                return Ok(selected);
-            }
-            let mut receipts = self
-                .machine_specializations
-                .iter()
-                .filter(|receipt| receipt.instance == owner);
-            let receipt = receipts
-                .next()
-                .ok_or("selected contract lost its supplying specialization")?;
-            if receipts.next().is_some()
-                || !self
-                    .expression_table
-                    .static_machine_application_is_valid(receipt.binding_application)
-            {
-                return Err("selected contract has an ambiguous or stale supplying specialization");
-            }
-            let source = self.static_machine_application(receipt.binding_application);
-            if source.binding_declaration != receipt.template {
-                return Err("selected contract changed its supplying declaration");
-            }
-            let mut bounds = self
-                .callable_conformance_bounds(receipt.template)
-                .ok_or("selected contract lost its authored evidence bounds")?
-                .iter()
-                .filter(|bound| bound.binder == dispatch.evidence_parameter);
-            let bound = bounds
-                .next()
-                .ok_or("selected contract lost its exact evidence binder")?;
-            if bounds.next().is_some()
-                || !matches!(
-                    self.specialization_binding(receipt, bound.binder),
-                    Some(StaticMachineBindingValue::Conformance(_))
-                )
-            {
-                return Err("selected contract has no unique implementation binding");
-            }
-            let declaration = self
-                .trait_definition_by_symbol(bound.trait_symbol)
-                .ok_or("selected contract lost its bound declaration")?;
-            let root = AppliedTraitScope::new(
-                self,
-                declaration,
-                TraitApplicationArguments {
-                    lexical_owner: receipt.template,
-                    enclosing_data_applications: &[],
-                    arguments: &bound.arguments,
-                    lifetimes: &bound.lifetime_arguments,
-                },
-            )
-            .ok_or("selected contract cannot form its complete evidence bound")?;
-            let arguments = self
-                .static_machine_application_bindings(receipt.binding_application)
-                .iter()
-                .filter_map(|binding| {
-                    let reference = match &binding.value {
-                        StaticMachineBindingValue::Type(reference)
-                        | StaticMachineBindingValue::Const(reference) => *reference,
-                        StaticMachineBindingValue::Machine(argument)
-                        | StaticMachineBindingValue::Conformance(argument) => {
-                            argument.type_reference
-                        }
-                        StaticMachineBindingValue::RuntimeValue { .. } => return None,
-                    };
-                    Some((binding.parameter, reference))
-                })
-                .collect::<Vec<_>>();
-            let lifetimes = self.static_application_lifetimes_for_declaration(
-                receipt.binding_application,
-                receipt.template,
-            )?;
-            let required = root
-                .under_invocation(
-                    self,
-                    receipt.template,
-                    source.lexical_owner,
-                    &arguments,
-                    &lifetimes,
-                )
-                .and_then(|scope| scope.declaring_scope(self, dispatch.declaring_trait))
-                .ok_or("selected contract lost its complete invocation scope")?;
-            if !required.same_application(self, &selected) {
-                return Err("selected map disagrees with its supplying evidence bound");
-            }
-            Ok(required)
-        }
-
-        pub fn requirement_call_signature(
-            &self,
-            lexical_owner: SymbolHandle,
-            call: &crate::expression::TableCallExpression,
-        ) -> Option<&signature::StateSignature> {
-            self.resolve_requirement_call_signature(lexical_owner, call)
-                .ok()
-        }
-
-        /// Copied contracts retain the full outer application even though their
-        /// logical owner and bare sibling targets keep the declaration symbols.
-        /// Explicit selections still own their result; only an implicit sibling
-        /// may use the exact supplying scope, including inherited/nullary members.
-        pub fn requirement_call_signature_in_scope(
-            &self,
-            lexical_owner: SymbolHandle,
-            call: &crate::expression::TableCallExpression,
-            supplying_scope: crate::trait_definition::RetainedTraitScope,
-        ) -> Option<&signature::StateSignature> {
-            if let Some(signature) = self.resolve_named_conformance_call_signature(call).ok()? {
-                return Some(signature);
-            }
-            if !call.is_ordinary_positional_call()
-                || call.requirement_application.is_valid()
-                || call.exact_coercion_target.is_valid()
-                || call.build_selection.is_valid()
-                || call.operational_acknowledgement.acknowledges_suspend
-                || call.operational_acknowledgement.acknowledges_block
-                || self
-                    .closed_requirement_application(call.target_symbol)
-                    .is_some_and(|application| !application.local_arguments.is_empty())
-            {
-                return self.requirement_call_signature(lexical_owner, call);
-            }
-            let requirement = self
-                .closed_requirement_application(call.target_symbol)
-                .map_or(call.target_symbol, |application| application.template);
-            let Some((declaration, declared)) = self.trait_machine_signature(requirement) else {
-                return self.requirement_call_signature(lexical_owner, call);
-            };
-            let Some(scope) = supplying_scope
-                .scope(self)?
-                .declaring_scope(self, declaration.symbol)
-            else {
-                return self.requirement_call_signature(lexical_owner, call);
-            };
-            // A copied call can still name the original member. Use the contract
-            // and result type from the trait application supplying it. The member
-            // keeps its declared lifetimes for ordinary call checking.
-            self.applied_callable_signature(&scope, declared.symbol)
-                .filter(|signature| signature.type_parameters.is_empty())
-        }
-
-        /// The same logical view with the reason its exact source cannot supply it.
-        /// Optional queries above keep their existing refusal behavior.
-        pub fn resolve_requirement_call_signature(
-            &self,
-            lexical_owner: SymbolHandle,
-            call: &crate::expression::TableCallExpression,
-        ) -> Result<&signature::StateSignature, &'static str> {
-            self.requirement_invocation_signature(
-                lexical_owner,
-                call.target_symbol,
-                call.static_requirement_dispatch.as_ref(),
-                call.requirement_application,
-                call.authored_machine_application,
-            )
-            .or_else(|reason| self.named_conformance_call_signature(call).ok_or(reason))
-        }
-
-        pub fn resolve_requirement_static_call_signature(
-            &self,
-            lexical_owner: SymbolHandle,
-            call: crate::references::StaticArgumentCall<'_>,
-        ) -> Result<&signature::StateSignature, &'static str> {
-            match call {
-                crate::references::StaticArgumentCall::Expression(_, call) => {
-                    self.resolve_requirement_call_signature(lexical_owner, call)
-                }
-                crate::references::StaticArgumentCall::Statement(call) => self
-                    .requirement_invocation_signature(
-                        lexical_owner,
-                        call.target_symbol,
-                        call.static_requirement_dispatch.as_ref(),
-                        Default::default(),
-                        call.authored_machine_application,
-                    ),
-            }
-        }
-
-        pub fn requirement_statement_call_signature(
-            &self,
-            lexical_owner: SymbolHandle,
-            call: &crate::statement::TableCall,
-        ) -> Option<&signature::StateSignature> {
-            self.requirement_invocation_signature(
-                lexical_owner,
-                call.target_symbol,
-                call.static_requirement_dispatch.as_ref(),
-                Default::default(),
-                call.authored_machine_application,
-            )
-            .ok()
-        }
-
-        fn requirement_invocation_signature(
-            &self,
-            lexical_owner: SymbolHandle,
-            target: SymbolHandle,
-            dispatch: Option<&crate::StaticRequirementDispatch>,
-            requirement_application: crate::types::TypeReferenceHandle,
-            authored_application: crate::static_applications::StaticMachineApplicationHandle,
-        ) -> Result<&signature::StateSignature, &'static str> {
-            let target = dispatch.map_or(target, |dispatch| dispatch.contract_symbol());
-            if let Some(closed) = self.closed_requirement_application(target) {
-                if dispatch.is_none() && authored_application.is_valid() {
-                    let source = self.static_machine_application(authored_application);
-                    let original = source.registration_operation;
-                    let binder = if original.is_valid() {
-                        self.symbols.get(original).parent
-                    } else {
-                        SymbolHandle::invalid()
-                    };
-                    if source.lexical_owner == lexical_owner
-                        && binder.is_valid()
-                        && self.symbols.get(binder).kind
-                            == symbols::SymbolKind::ConformanceParameter
-                    {
-                        let mut owner = lexical_owner;
-                        let mut visited = Vec::new();
-                        while owner.is_valid() && !visited.contains(&owner) {
-                            visited.push(owner);
-                            if let Some(bound) = self
-                                .evidence_bound_requirement(owner, binder, target)
-                                .map_err(|_| "closed public view has unresolved source evidence")?
-                            {
-                                if bound
-                                    .application
-                                    .callable_refinement_clauses(
-                                        self,
-                                        bound.signature.name.as_str(),
-                                    )
-                                    .is_empty()
-                                {
-                                    break;
-                                }
-                                if let Some(signature) = self.applied_callable_signature(
-                                    &bound.application,
-                                    bound.signature.symbol,
-                                ) && signature.type_parameters.is_empty()
-                                    && signature.lifetime_parameters.is_empty()
-                                {
-                                    return Ok(signature);
-                                }
-                                break;
-                            }
-                            owner = self.declaration_scope_parent(owner);
-                        }
-                    }
-                }
-                if requirement_application.is_valid() {
-                    let scope = self
-                        .applied_requirement_scope(lexical_owner, requirement_application)
-                        .ok_or("closed public view has no exact source application scope")?;
-                    if !self.requirement_application_matches_scope(target, &scope) {
-                        return Err("closed public view does not match its source application");
-                    }
-                }
-                return Ok(closed.signature);
-            }
-            if let Some(prepared) = self.find_requirement_invocation(
-                authored_application,
-                lexical_owner,
-                |prepared| {
-                        matches!(prepared.owner, AppliedCallableOwner::RequirementInvocation {
-                    application,
-                    lexical_owner: owner,
-                    ..
-                } if application == authored_application
-                    && application.is_valid()
-                    && owner == lexical_owner
-                    && (prepared.signature.symbol == target
-                        || {
-                            let source = self.expression_table.static_machine_application(application);
-                            source.lexical_owner == lexical_owner
-                                && source.registration_operation == target
-                                && source.binding_declaration == prepared.signature.symbol
-                        }))
-                },
-            ) {
-                return Ok(&prepared.signature);
-            }
-            let outer = self.requirement_outer_signature(
-                lexical_owner,
-                target,
-                dispatch,
-                requirement_application,
-            )?;
-            (dispatch.is_none() || outer.type_parameters.is_empty())
-                .then_some(outer)
-                .ok_or("selected public view still has an unbound member telescope")
-        }
-
-        fn requirement_outer_signature(
-            &self,
-            lexical_owner: SymbolHandle,
-            target: SymbolHandle,
-            dispatch: Option<&crate::StaticRequirementDispatch>,
-            requirement_application: crate::types::TypeReferenceHandle,
-        ) -> Result<&signature::StateSignature, &'static str> {
-            let binder = self.symbols.get(target).parent;
-            let mut owner = lexical_owner;
-            let mut visited = Vec::new();
-            let bound = loop {
-                if !owner.is_valid() || visited.contains(&owner) {
-                    break None;
-                }
-                visited.push(owner);
-                if let Some(bound) = self
-                    .evidence_bound_requirement(owner, binder, target)
-                    .map_err(|_| "public view has unresolved source evidence")?
-                {
-                    break Some(bound);
-                }
-                owner = self.declaration_scope_parent(owner);
-            };
-            if let Some(bound) = bound {
-                if requirement_application.is_valid() {
-                    let written = self
-                        .applied_requirement_scope(lexical_owner, requirement_application)
-                        .ok_or("evidence public view has no exact written application scope")?
-                        .declaring_scope(self, bound.application.declaration.symbol)
-                        .ok_or("evidence public view has no declaring trait scope")?;
-                    if !bound.application.same_application(self, &written) {
-                        return Err("evidence public view disagrees with its written application");
-                    }
-                }
-                return self
-                    .applied_callable_signature(&bound.application, bound.signature.symbol)
-                    .or_else(|| {
-                        (bound.application.substitutions.is_empty()
-                            && bound.application.declaration.lifetime_parameters.is_empty())
-                        .then_some(bound.signature)
-                    })
-                    .ok_or("evidence public view has no prepared applied signature");
-            }
-            let (declaration, signature) = self
-                .trait_machine_signature(target)
-                .ok_or("public view has no source requirement declaration")?;
-            if let Some(dispatch) = dispatch {
-                let scope = self
-                    .selected_requirement_contract_scope(lexical_owner, dispatch)?
-                    .declaring_scope(self, declaration.symbol)
-                    .ok_or("selected public view has no declaring trait scope")?;
-                return self
-                    .applied_callable_signature(&scope, signature.symbol)
-                    .or_else(|| scope.keeps_declared_signatures(self).then_some(signature))
-                    .ok_or("selected public view has no prepared applied signature");
-            }
-            if requirement_application.is_valid() {
-                let scope = self
-                    .applied_requirement_scope(lexical_owner, requirement_application)
-                    .ok_or("public view has no exact written application scope")?
-                    .declaring_scope(self, declaration.symbol)
-                    .ok_or("public view has no declaring trait scope")?;
-                return self
-                    .applied_callable_signature(&scope, signature.symbol)
-                    .ok_or("public view has no prepared applied signature");
-            }
-            (declaration.type_parameters.is_empty() && declaration.lifetime_parameters.is_empty())
-                .then_some(signature)
-                .ok_or("public view has no complete outer application")
-        }
-
-        pub fn prepare_requirement_invocation(
-            &mut self,
-            lexical_owner: SymbolHandle,
-            call: &crate::expression::TableCallExpression,
-            bindings: &[crate::static_applications::StaticMachineBinding],
-            selected: &signature::StateSignature,
-        ) -> Result<Option<signature::StateSignature>, &'static str> {
-            let target = call
-                .static_requirement_dispatch
-                .as_ref()
-                .map_or(call.target_symbol, |dispatch| dispatch.contract_symbol());
-            self.prepare_requirement_invocation_application(
-                lexical_owner,
-                target,
-                call.authored_machine_application,
-                bindings,
-                selected,
-            )
-        }
-
-        pub fn prepare_requirement_statement_invocation(
-            &mut self,
-            lexical_owner: SymbolHandle,
-            call: &crate::statement::TableCall,
-            bindings: &[crate::static_applications::StaticMachineBinding],
-            selected: &signature::StateSignature,
-        ) -> Result<Option<signature::StateSignature>, &'static str> {
-            let target = call
-                .static_requirement_dispatch
-                .as_ref()
-                .map_or(call.target_symbol, |dispatch| dispatch.contract_symbol());
-            self.prepare_requirement_invocation_application(
-                lexical_owner,
-                target,
-                call.authored_machine_application,
-                bindings,
-                selected,
-            )
-        }
-
-        fn prepare_requirement_invocation_application(
-            &mut self,
-            lexical_owner: SymbolHandle,
-            target: SymbolHandle,
-            authored_application: crate::static_applications::StaticMachineApplicationHandle,
-            bindings: &[crate::static_applications::StaticMachineBinding],
-            selected: &signature::StateSignature,
-        ) -> Result<Option<signature::StateSignature>, &'static str> {
-            if self.closed_requirement_application(target).is_some()
-                || !authored_application.is_valid()
-            {
-                return Ok(None);
-            }
-            let Some((declaration, declared)) = self.trait_machine_signature(selected.symbol)
-            else {
-                return Ok(None);
-            };
-            if declared.type_parameters.is_empty() {
-                return Ok(None);
-            }
-            let declaration = declaration.symbol;
-            let declared = declared.clone();
-            let mut application = CallableApplication {
-                region_scope: lexical_owner,
-                static_argument_owner: lexical_owner,
-                ..CallableApplication::default()
-            };
-            for binding in bindings {
-                let Some(parameter) =
-                    self.applied_signature_parameter(&declared, selected, binding.parameter)
-                else {
-                    return Err("requirement invocation lost its prepared member binder");
-                };
-                match &binding.value {
-                    crate::static_applications::StaticMachineBindingValue::Type(actual)
-                    | crate::static_applications::StaticMachineBindingValue::Const(actual) => {
-                        application.types.push((parameter, *actual));
-                    }
-                    crate::static_applications::StaticMachineBindingValue::Machine(actual)
-                    | crate::static_applications::StaticMachineBindingValue::Conformance(actual) => {
-                        application
-                            .static_arguments
-                            .push((parameter, actual.clone()));
-                    }
-                    crate::static_applications::StaticMachineBindingValue::RuntimeValue {
-                        ..
-                    } => {}
-                }
-            }
-            let signature = application.signature(self, selected)?;
-            let owner = AppliedCallableOwner::RequirementInvocation {
-                declaration,
-                application: authored_application,
-                lexical_owner,
-            };
-            let previous =
-                self.applied_callable_signatures
-                    .iter()
-                    .find_map(|(handle, previous)| {
-                        (previous.owner == owner && previous.signature.symbol == signature.symbol)
-                            .then_some(handle)
-                    });
-            if let Some(previous) = previous {
-                self.applied_callable_signatures
-                    .replace_signature(previous, signature.clone())?;
-            } else {
-                self.applied_callable_signatures
-                    .insert(AppliedCallableSignature {
-                        owner,
-                        signature: signature.clone(),
-                    });
-            }
-            Ok(Some(signature))
-        }
-
         pub fn applied_callable_signature(
             &self,
             application: &AppliedTraitScope<'_>,

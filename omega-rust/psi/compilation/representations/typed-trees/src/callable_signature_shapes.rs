@@ -51,37 +51,58 @@ impl<'source> CallableDeclaration<'source> {
         }
     }
 
-    pub fn shape(self, program: &'source crate::TypedTrees) -> Result<CallableSignatureShape<'source>, &'static str> {
+    pub fn shape(
+        self,
+        program: &'source crate::TypedTrees,
+    ) -> Result<CallableSignatureShape<'source>, &'static str> {
         let (parameters, return_type, generic_arity) = match self {
             Self::Signature(signature) => (
-                program.state_signature_parameters(signature), signature.return_type,
+                program.state_signature_parameters(signature),
+                signature.return_type,
                 program.state_signature_type_parameters(signature).len(),
             ),
             Self::Machine(symbol) => {
-                let machine = program.machine_by_symbol(symbol)
+                let machine = program
+                    .machine_by_symbol(symbol)
                     .ok_or("callable declaration lost its exact machine")?;
                 let [state] = program.machine_states(machine) else {
                     return Err("callable declaration has no unique entry state");
                 };
-                (program.state_parameters(state), state.return_type, program.machine_type_parameters(machine).len())
+                (
+                    program.state_parameters(state),
+                    state.return_type,
+                    program.machine_type_parameters(machine).len(),
+                )
             }
         };
-        Ok(CallableSignatureShape { generic_arity, parameters, return_type })
+        Ok(CallableSignatureShape {
+            generic_arity,
+            parameters,
+            return_type,
+        })
     }
 
-    pub fn static_parameters(self, program: &'source crate::TypedTrees) -> Result<&'source [crate::data::TypeParameter], &'static str> {
+    pub fn static_parameters(
+        self,
+        program: &'source crate::TypedTrees,
+    ) -> Result<&'source [crate::data::TypeParameter], &'static str> {
         match self {
             Self::Signature(signature) => Ok(program.state_signature_type_parameters(signature)),
-            Self::Machine(symbol) => program.machine_by_symbol(symbol)
+            Self::Machine(symbol) => program
+                .machine_by_symbol(symbol)
                 .map(|machine| program.machine_type_parameters(machine))
                 .ok_or("callable declaration lost its exact machine"),
         }
     }
 
-    pub fn has_lifetime_parameters(self, program: &crate::TypedTrees) -> Result<bool, &'static str> {
+    pub fn has_lifetime_parameters(
+        self,
+        program: &crate::TypedTrees,
+    ) -> Result<bool, &'static str> {
         match self {
             Self::Signature(signature) => Ok(!signature.lifetime_parameters.is_empty()),
-            Self::Machine(symbol) => program.machine_by_symbol(symbol)
+            Self::Machine(symbol) => program
+                .machine_by_symbol(symbol)
                 .map(|machine| !machine.lifetime_parameters.is_empty())
                 .ok_or("callable declaration lost its exact machine"),
         }
@@ -89,31 +110,177 @@ impl<'source> CallableDeclaration<'source> {
 }
 
 impl crate::TypedTrees {
+    /// Borrow the operand actually bound to this parameter, with the owner
+    /// that supplied it. The specialization and source application must agree;
+    /// this query describes the input and does not prove its conformance.
+    pub fn selected_implementation_operand(
+        &self,
+        instance: SymbolHandle,
+        parameter: SymbolHandle,
+    ) -> Result<(&crate::expression::StaticMachineArgument, SymbolHandle), &'static str> {
+        use crate::static_applications::StaticMachineBindingValue;
+        let mut receipts = self
+            .machine_specializations
+            .iter()
+            .filter(|receipt| receipt.instance == instance);
+        let receipt = receipts
+            .next()
+            .ok_or("selected parameter has no supplying specialization")?;
+        if receipts.next().is_some()
+            || !self
+                .expression_table
+                .static_machine_application_is_valid(receipt.binding_application)
+        {
+            return Err("selected parameter has an ambiguous or stale supplying application");
+        }
+        let source = self.static_machine_application(receipt.binding_application);
+        if source.binding_declaration != receipt.template
+            || !self
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(source.lexical_owner)
+        {
+            return Err("selected parameter lost its exact source declaration");
+        }
+        let StaticMachineBindingValue::Conformance(operand) = self
+            .specialization_binding(receipt, parameter)
+            .ok_or("selected parameter has no unique retained binding")?
+        else {
+            return Err("selected parameter was not bound to an implementation operand");
+        };
+        Ok((operand, source.lexical_owner))
+    }
+
+    /// Read the public requirement chosen by the existing named-member or
+    /// implementation-parameter owner, before asking for an executable body.
+    pub fn source_call_requirement_signature<'source>(
+        &'source self,
+        owner: SymbolHandle,
+        call: crate::references::StaticArgumentCall<'_>,
+    ) -> Result<&'source crate::signature::StateSignature, String> {
+        for application in call.applications() {
+            if !self
+                .expression_table
+                .static_machine_application_is_valid(application)
+            {
+                return Err("public call has a stale source application".into());
+            }
+        }
+        let (target, namespace, dispatch, authored_binding) = match call {
+            crate::references::StaticArgumentCall::Expression(_, call) => (
+                call.target_symbol,
+                self.expression_table
+                    .name_path_node(call.receiver)
+                    .map(|path| path.symbol)
+                    .unwrap_or_default(),
+                call.static_requirement_dispatch.as_ref(),
+                call.authored_call_binding,
+            ),
+            crate::references::StaticArgumentCall::Statement(call) => (
+                call.target_symbol,
+                call.receiver_symbol,
+                call.static_requirement_dispatch.as_ref(),
+                None,
+            ),
+        };
+        if let Some(dispatch) = dispatch {
+            self.selected_implementation_operand(owner, dispatch.evidence_parameter)?;
+            let mut receipts = self
+                .machine_specializations
+                .iter()
+                .filter(|receipt| receipt.instance == owner);
+            let receipt = receipts
+                .next()
+                .ok_or("public call lost its supplying specialization")?;
+            if receipts.next().is_some() {
+                return Err("public call has several supplying specializations".into());
+            }
+            let original = authored_binding
+                .map(|binding| binding.original)
+                .unwrap_or_else(|| call.registration_operation(self));
+            if !self.symbols.symbols().nodes().is_valid(original)
+                || self.symbols.get(original).parent != dispatch.evidence_parameter
+            {
+                return Err("public call lost its exact authored parameter member".into());
+            }
+            let bound = self
+                .evidence_bound_requirement(
+                    receipt.template,
+                    dispatch.evidence_parameter,
+                    original,
+                )?
+                .ok_or("public call lost its exact authored requirement bound")?;
+            if bound.signature.symbol != dispatch.requirement
+                || bound.application.declaration.symbol != dispatch.declaring_trait
+            {
+                return Err("public call changed its declaring trait or requirement".into());
+            }
+            return self
+                .applied_callable_signature(&bound.application, bound.signature.symbol)
+                .or_else(|| {
+                    bound
+                        .application
+                        .keeps_declared_signatures(self)
+                        .then_some(bound.signature)
+                })
+                .ok_or_else(|| "public call has no complete applied requirement signature".into());
+        }
+        if let Some((_, _, signature)) = self.named_conformance_member(namespace, target)? {
+            return Ok(signature);
+        }
+        if let Some(application) = self.closed_requirement_application(target) {
+            return Ok(application.signature);
+        }
+        let (declaration, signature) = self
+            .trait_machine_signature(target)
+            .ok_or("public call has no exact retained requirement declaration")?;
+        if !declaration.type_parameters.is_empty() || !declaration.lifetime_parameters.is_empty() {
+            return Err("public call needs its complete applied declaring trait".into());
+        }
+        Ok(signature)
+    }
+
     pub fn source_call_declaration<'source>(
         &'source self,
         owner: SymbolHandle,
         call: crate::references::StaticArgumentCall<'_>,
-    ) -> Result<CallableDeclaration<'source>, &'static str> {
+    ) -> Result<CallableDeclaration<'source>, String> {
         for application in call.applications() {
-            if !self.expression_table.static_machine_application_is_valid(application) {
-                return Err("callable declaration has a stale source application");
+            if !self
+                .expression_table
+                .static_machine_application_is_valid(application)
+            {
+                return Err("callable declaration has a stale source application".into());
             }
         }
         let (target, dispatch) = match call {
-            crate::references::StaticArgumentCall::Expression(_, call) => (call.target_symbol, call.static_requirement_dispatch.is_some()),
-            crate::references::StaticArgumentCall::Statement(call) => (call.target_symbol, call.static_requirement_dispatch.is_some()),
+            crate::references::StaticArgumentCall::Expression(_, call) => (
+                call.target_symbol,
+                call.static_requirement_dispatch.is_some(),
+            ),
+            crate::references::StaticArgumentCall::Statement(call) => (
+                call.target_symbol,
+                call.static_requirement_dispatch.is_some(),
+            ),
         };
+        if !self.symbols.symbols().nodes().is_valid(target) {
+            return Err("source call has a stale callable declaration".into());
+        }
         if dispatch || self.trait_machine_signature(target).is_some() {
-            return self.resolve_requirement_static_call_signature(owner, call)
+            return self
+                .source_call_requirement_signature(owner, call)
                 .map(CallableDeclaration::Signature);
         }
-        let machine = self.machine_by_symbol(target).or_else(|| self.machine_holding_state(target))
+        let machine = self
+            .machine_by_symbol(target)
+            .or_else(|| self.machine_holding_state(target))
             .ok_or("source call has no retained callable declaration")?;
         let [state] = self.machine_states(machine) else {
-            return Err("source call has no unique declared entry state");
+            return Err("source call has no unique declared entry state".into());
         };
         if target != machine.symbol && target != state.symbol {
-            return Err("source call does not name its declared entry state");
+            return Err("source call does not name its declared entry state".into());
         }
         Ok(CallableDeclaration::Machine(machine.symbol))
     }

@@ -453,13 +453,6 @@ impl<'t> Program<'t> {
         Ok(id)
     }
 
-    /// Refuses a demanded declaration that holds a request no pass served
-    /// (`typed_trees::deferred_refusals`). Typing and typed preparation see
-    /// the whole program with every library and record such a request on its
-    /// declaration instead of refusing programs that never reach it; this is
-    /// where it is raised. Every machine read passes here, as an entry, a
-    /// Build selection, a subject declaration or a callee, so a declaration
-    /// with a row is never read through.
     /// Whether every contract on `state` only restates a domain one of its
     /// formals' declared types carries: `requires distance in Km` for
     /// `distance: i32 in Km`, which typing writes on the state for each
@@ -541,9 +534,33 @@ impl<'t> Program<'t> {
         })
     }
 
+    /// Where `declaration` is written, for a rule it breaks as a whole.
+    pub(super) fn declared_at(&self, declaration: SymbolHandle) -> crate::SourceOrigin {
+        self.typed.symbols.symbol_source_span(declaration).map_or(
+            crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
+            crate::SourceOrigin::of,
+        )
+    }
+
+    /// Refuses a demanded declaration that holds a request no pass served,
+    /// or rejects one that holds a violation (`typed_trees::deferred_refusals`).
+    /// Typing and typed preparation see the whole program with every library
+    /// and record such a row on its declaration instead of refusing programs
+    /// that never reach it; this is where it is raised. Every machine read
+    /// passes here, as an entry, a Build selection, a subject declaration or
+    /// a callee, so a declaration with a row is never read through.
     pub(super) fn served(&self, id: MachineId, declaration: SymbolHandle) -> Checked<()> {
         match self.typed.deferred_refusal(declaration) {
             None => Ok(()),
+            // A form that is an error in every program, found while typing
+            // saw the whole program, is raised here as a rejection. The
+            // statement holding it may never be lowered (one after a call
+            // that never returns), so this is the only place it is seen.
+            Some(row) if row.request.is_violation() => Err(crate::reject(
+                id,
+                crate::SourceOrigin::of(row.source_span),
+                row.request.construct(),
+            )),
             Some(row) => Err(refuse(
                 id,
                 Construct::Machine,
@@ -637,17 +654,19 @@ impl<'t> Program<'t> {
         if machine.spelling.is_some() {
             return unserved("operator spelling");
         }
-        if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
-            return unserved("supply mode other than a checked body");
-        }
-        if machine.purpose != MachinePurpose::Runtime {
-            return unserved("provider-default purpose");
-        }
+        // An unselected target family is also a boundary. Report the missing
+        // target decision before the generic boundary-body refusal.
         if machine.target.is_some()
             || machine.authored_target.is_some()
             || machine.target_family_interface
         {
             return unserved("target selection");
+        }
+        if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody {
+            return unserved("supply mode other than a checked body");
+        }
+        if machine.purpose != MachinePurpose::Runtime {
+            return unserved("provider-default purpose");
         }
         if !machine.body_is_present || machine.body_status != MachineBodyStatus::Complete {
             return unserved("no complete body");
@@ -675,7 +694,11 @@ impl<'t> Program<'t> {
         // each parameter as a region of its own, and a call instantiates them
         // with the caller's (`regions`, `call_of`). Its binders are checked
         // as a data declaration's are.
-        super::places::lifetime_binders(id, &machine.lifetime_parameters)?;
+        super::places::lifetime_binders(
+            id,
+            &machine.lifetime_parameters,
+            self.declared_at(machine.symbol),
+        )?;
         // An implementation parameter binds no type and no value: the body
         // only calls through it. A value parameter (`const Units: u64`) is a
         // value of a known carrier, read as a formal no caller passes

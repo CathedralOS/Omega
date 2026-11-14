@@ -228,9 +228,20 @@ fn selected_signature<'source>(
                     "source call has no unique expression or statement coordinate",
                 ));
             };
+            let lexical_owner = call.lexical_owner(typed);
+            let owner = if lexical_owner.is_valid() {
+                lexical_owner
+            } else {
+                owner
+            };
             let applied = typed
-                .resolve_requirement_static_call_signature(owner, call)
-                .map_err(unavailable)?;
+                .source_call_requirement_signature(owner, call)
+                .map_err(|reason| {
+                    let mut refusal = unavailable("applied public requirement");
+                    refusal.detail.push_str(": ");
+                    refusal.detail.push_str(&reason);
+                    refusal
+                })?;
             let (declaring, _) = typed
                 .trait_machine_signature(applied.symbol)
                 .ok_or_else(|| unavailable("selected witness lost its exact declaring trait"))?;

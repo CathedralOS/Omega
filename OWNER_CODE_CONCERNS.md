@@ -73,12 +73,12 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
-### A view passed from a place is lent as that place, so it conflicts with a loan of its holder
+### Compiler operations are recognized by their bare spelling, and no declaration answers them
 - Category: one idea, several implementations
-- Where: `05_typed-trees-to-terminal-psi/src/read/calls.rs:1453` (`lent_storage_is_untouched` with `holds_view`), `lower/calls.rs:65` (`arguments`, the `Borrow` arm), `lower/places.rs:1428` (`lend`), `06_terminal-psi-to-terminal-psi/src/places/loans.rs`
-- Saw: the reader says a place that holds a byte view "lends none of its binding's storage: the callee is given the view", and so allows `both(&mut session, session.name)`. Lowering then passes the view as a shared loan of the place `session.name`, and the checker rejects the call: "state `both` receives `session` as both mutable and read-only". The same holds for a view in a case payload. A source audit at `f9bbfeac3f5` also finds that `lend` retains the descriptor slot's root/path without materializing its value before later arguments. [Evaluation order](wiki/spec/language/expressions.md#evaluation-schedule) and [descriptor loans](wiki/spec/terminal-psi/structural_access.md#store-vocabulary) require the captured backing, rather than a loan of the carrier slot. No runtime misbehavior from later-argument replacement has been demonstrated.
-- Cost: a correct program is rejected, not refused as unsupported, and the message blames the author. The shared argument producer must capture the descriptor at its evaluation point; weakening overlap checks or reading its source slot only at the eventual call would not preserve that value.
-- Reported: 2026-11-13, Claude Code, while lending case payloads; extended 2026-11-14, Codex, while binding view-length call requirements
+- Where: `"code_layout"` in stage 02 `constant.rs:2063,2362`, `selection_authored.rs:392,1265` and stage 03 `statement_lowering.rs:1336`, `expression_lowering.rs:1445`; `"address_of"` in `expression_lowering.rs:1076`; `Quotient::lift`/`define` and `LayoutPlan::place_private` by namespace spelling in `expression_lowering.rs`
+- Saw: each stage compares the written name to a string literal, and resolution leaves the call with no target symbol, so the call is unbound in the same way a misspelled name is; telling "unknown name" from "compiler operation" needs a third copy of the list (stage 03 `typing_queries.rs` `COMPILER_CALL_SPELLINGS`)
+- Cost: a new compiler operation added in one place and missed in the list would be rejected as an unknown name; one declaration per operation (as `BuiltinFunction` symbols are) would let resolution answer it once
+- Reported: 2026-11-14, Claude Code (worker-14), while making a call of an undeclared name a rejection
 
 ### Whether a type is a scalar is decided twice, once by its spelling and once by its symbol
 - Category: one idea, several implementations
@@ -185,13 +185,6 @@ framework or a list of features that remain unimplemented.
 - Cost: the surviving producer and consumers agree by spelling rather than a shared typed value; a reader that misses the form fails only at run time (`None`, or "dynamic family tuple identity is not an integer constant").
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### The Omega unit validator carries copies of two Terminal Psi codec checks
-- Category: one idea, several implementations
-- Where: `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs:17909` and `:17846`, against `omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs:8566` and `:11744`
-- Saw: `attachment_storage_types` differs between the two files in two lines (visibility and one `use`); `validate_structural_type_graph` is the same walk with a different error type and lookup
-- Cost: the type-graph rules live once on each side of the Psi/Omega boundary, so a fix on one side leaves the other accepting or rejecting something different, with no test found tying them together
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### The default ranking view is derived differently in resolution and typing
 - Category: re-deriving
 - Where: `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering_machine.rs` (`elaborate_single_subject_default`); `03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs` (`pending_ranking_default`)
@@ -290,13 +283,6 @@ framework or a list of features that remain unimplemented.
 - Cost: a reader cannot tell a typing rule that was not rebuilt from a proof the checker must supply, so each stop is investigated from scratch and the wording invites routing typing work to the checker
 - Reported: 2026-11-13, Claude Code, while getting the route probe through typing
 
-### An `invokes` row that names an ordinary trait is dropped without a word
-- Category: a verdict with nothing behind it
-- Where: `typed-trees/src/declarations.rs` (`declared_targets`, consumed by `declared_machine_invocations`)
-- Saw: `declared_targets` keeps an `invokes` target only when it is a boundary trait or a parameter of boundary type and silently discards any other, so `invokes Handler` over an ordinary trait reads as no target to its consumers. Conformance refinement is now judged by `06_terminal-psi-to-terminal-psi/src/verdict.rs`; that no longer explains the loss.
-- Cost: a written entry ceiling can vanish before the checker sees it. Preserve or explicitly reject the authored target instead of silently narrowing the request during extraction.
-- Reported: 2026-11-13, Claude Code, while putting `invokes` on the lowered-form checker
-
 ### A whole-program stage refuses every program for a library construct nobody calls
 - Category: a verdict with nothing behind it
 - Where: `03_symbol-resolved-trees-to-typed-trees` (the remaining `unavailable_judgment` callers, such as "mathematical call receiving types" and "selected call parameter types" in `call_and_product_selections.rs` and `typing_queries.rs`); `build-time-evaluation/src/source_frontier.rs` (`source_jobs`: the side tables it still refuses whole, such as constant recipes and wire plans); any by-name refusal added to `04_typed-trees-to-typed-trees`
@@ -310,13 +296,6 @@ framework or a list of features that remain unimplemented.
 - Saw: "this machine was generated from that generic machine" is read from the state symbol's `generated_from` in three places and from the `machine_specializations` row in a fourth, and nothing ties the two; the row also keeps eight string and commitment fields that only the deleted checker filled. Separately, an expression copy shares the types its nodes hold, so the pass lists by hand which node kinds hold a type (`held_types`) and which body constructs it cannot copy
 - Cost: a pass that sets one marker and not the other produces a machine the reader accepts and the declaration step refuses, or the reverse; a new expression node that holds a type is silently left pointing at the generic machine's type until someone adds it to the list
 - Reported: 2026-11-13, Claude Code, while rebuilding specialization as a typed preparation pass
-
-### Static requirement dispatch retains fields its producer never fills
-- Category: stale representation and consumers
-- Where: `typed-trees` (`StaticRequirementDispatch`, `selected_conformance_applications`); `04_typed-trees-to-typed-trees/src/passes/specialization.rs` (`selections`)
-- Saw: the dispatch producer writes five of nine fields; application fingerprint, commitment, selection application and contract signature stay at their defaults, but copy walks and conformance-signature lookup still consume them
-- Cost: readers cannot distinguish an empty commitment from an uncomputed one; retirement needs to reconcile those consumers with the actual specialization evidence, not substitute unchecked defaults
-- Reported: 2026-11-13, Claude Code, while serving implementation parameters in the specialization pass
 
 ### A typing unit test is red on `main` and nothing runs it before merge
 - Category: a test that pins nothing while it is red
@@ -352,3 +331,10 @@ framework or a list of features that remain unimplemented.
 - Saw: typing records a call whose name no declaration answers as a deferred row beside rows for constructs no pass serves yet, and the reader raises every row the same way. `undeclared_machine(x);` in a program's own machine therefore reaches the user as "not supported yet ... with no claim that it is wrong" and never as a rejection
 - Cost: a misspelled machine name reads as a compiler limitation; state_contracts.md ("an unknown machine name or malformed type is an error wherever it appears") is met only in that the program is not accepted, and the outcome word is `not-supported` where it should be `rejected`
 - Reported: 2026-11-13, Claude Code, while accepting statements after a call that never returns
+
+### Lowering signals "this path ended" through the refusal channel
+- Category: a verdict with nothing behind it
+- Where: `05_typed-trees-to-terminal-psi/src/lower.rs` (`Lowering::end_path`, `Lowering::reached`); taken in `body`, `lower/control.rs` (`complete`, `short_circuit`, `match_value`)
+- Saw: a call that never returns, written inside an expression, ends the evaluation that holds it by returning a `Refusal` up through every `?`, and the construct whose path ended recognizes it by a side field and the refusal's text. Expression lowering returns `Checked<Value>` with no way to say "no value: control left", so the signal borrows the error type
+- Cost: any lowering step that swallows a refusal (`.ok()`, `if let Ok`) between the call and its taker would turn a divergence into an internal refusal later; the honest shape is a `Value::Ended(call)` result that every operand consumer handles, which touches each of the ~25 `scalar`/`record` call sites in `lower/`
+- Reported: 2026-11-14, Claude Code, while lowering calls that never return inside expressions

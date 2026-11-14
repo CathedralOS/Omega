@@ -16,7 +16,7 @@ use terminal_check_tables::{Checked, Construct, ProgramPoint, Refusal, RefusalRe
 use terminal_psi::{CrashPredicateTerm, Terminator};
 
 use super::places::Bound;
-use super::{Draft, Lowering, Value, declaration, successor};
+use super::{Draft, Lowering, Reached, Value, declaration, successor};
 use crate::body::{Expression, ExpressionKind, Statement, Target, ValueType};
 use crate::canonical;
 use crate::{SourceOrigin, Unpositioned, Unserved, refuse};
@@ -159,7 +159,6 @@ impl Lowering<'_> {
             ExpressionKind::Call {
                 callee: semantic_vocabulary::TargetMachineCallable::Machine(callee),
                 arguments,
-                required_contract: None,
                 ..
             } if self.heads.iter().any(|head| head.member == *callee) => Some((*callee, arguments)),
             _ => None,
@@ -283,22 +282,34 @@ impl Lowering<'_> {
                 }
                 Ok(())
             }
-            Statement::Evaluate(expression) => match self.no_normal(expression)? {
-                Some((callee, required_contract, source_call, arguments)) => {
-                    self.invoke_no_normal(callee, required_contract, source_call, arguments, expression.source)
-                }
-                None => self.expression(expression).map(drop),
-            },
+            Statement::Evaluate(expression) => self.expression(expression).map(drop),
             Statement::Arm {
                 guard: Some(guard),
                 target,
                 source,
             } => {
                 let condition = self.scalar(guard)?;
+                let decided_in = self.current()?;
                 let arm = self.block(*source);
                 let rest = self.block(SourceOrigin::Unpositioned(
                     Unpositioned::DispatchContinuation,
                 ));
+                // Each arm only some arrivals take is a row the checker asks
+                // whether any arrival can take (`MachineSources::branches`):
+                // this arm, and the arm after it when that one takes
+                // whatever this guard turned away.
+                self.sources.branches.push(crate::Branch {
+                    block: arm,
+                    decided_in,
+                    arm: *source,
+                    condition: guard.source,
+                });
+                self.fallthrough = Some(crate::Branch {
+                    block: rest,
+                    decided_in,
+                    arm: *source,
+                    condition: guard.source,
+                });
                 self.branch(
                     condition,
                     (arm, Vec::new()),
@@ -323,7 +334,17 @@ impl Lowering<'_> {
                 guard: None,
                 target,
                 source,
-            } => self.complete(target, *source),
+            } => {
+                if let Some(fallthrough) = self.fallthrough.take()
+                    && self.point == Some(ProgramPoint::BlockEntry(fallthrough.block))
+                {
+                    self.sources.branches.push(crate::Branch {
+                        arm: *source,
+                        ..fallthrough
+                    });
+                }
+                self.complete(target, *source)
+            }
         }
     }
 
@@ -331,25 +352,30 @@ impl Lowering<'_> {
         match target {
             Target::Unit => self.return_unit(source),
             Target::Crash(cause) => self.crash(*cause, source),
-            Target::Value(expression) => match self.no_normal(expression)? {
-                // A member's arguments are scalars, evaluated left to right
-                // like any call's, and the edge carries them.
-                _ if let Some((member, arguments)) = self.loops(expression) => {
-                    let mut values = Vec::with_capacity(arguments.len());
-                    for argument in arguments {
-                        values.push(self.scalar(argument)?);
+            // A member's arguments are scalars, evaluated left to right like
+            // any call's, and the edge carries them.
+            Target::Value(expression) if let Some((member, arguments)) = self.loops(expression) => {
+                let mut values = Vec::with_capacity(arguments.len());
+                for argument in arguments {
+                    values.push(self.scalar(argument)?);
+                }
+                self.arrive(member, values, expression.source)
+            }
+            // An arm whose every path ends at a call that never returns is
+            // complete there.
+            Target::Value(expression) => {
+                let value = self.expression(expression);
+                match self.reached(value)? {
+                    Reached::Ended(_) => Ok(()),
+                    Reached::Value(Value::Scalar(value)) => {
+                        self.return_value(value, expression.source)
                     }
-                    self.arrive(member, values, expression.source)
+                    Reached::Value(Value::Record(root)) => {
+                        self.return_record(root, expression.source)
+                    }
+                    Reached::Value(Value::Unit) => self.return_unit(expression.source),
                 }
-                Some((callee, required_contract, source_call, arguments)) => {
-                    self.invoke_no_normal(callee, required_contract, source_call, arguments, expression.source)
-                }
-                None => match self.expression(expression)? {
-                    Value::Scalar(value) => self.return_value(value, expression.source),
-                    Value::Record(root) => self.return_record(root, expression.source),
-                    Value::Unit => self.return_unit(expression.source),
-                },
-            },
+            }
         }
     }
 
@@ -465,6 +491,33 @@ impl Lowering<'_> {
     ) -> Checked<Value> {
         let cases: Vec<usize> = arms.iter().map(|(case, _)| *case).collect();
         let (blocks, rest) = self.select(subject, &cases, default.is_some(), source, capture)?;
+        let bodies = arms
+            .iter()
+            .map(|(_, value)| value)
+            .zip(blocks)
+            .chain(default.zip(rest));
+        // An arm whose every path ends at a call that never returns ends
+        // there and does not arrive at the join. The join is made once the
+        // arms are lowered, so a `match` none of whose arms arrives has no
+        // join: its every path ended, at the last arm's call.
+        let mut arrivals = Vec::new();
+        let mut ended = None;
+        for (value, (block, chosen)) in bodies {
+            self.enter(block);
+            self.selected.push(chosen);
+            self.joining += 1;
+            let value = self.scalar(value);
+            self.joining -= 1;
+            self.selected.pop();
+            match self.reached(value)? {
+                Reached::Value(value) => arrivals.push((self.current()?, self.here()?, value)),
+                Reached::Ended(call) => ended = Some(call),
+            }
+        }
+        if arrivals.is_empty() {
+            let call = ended.ok_or_else(|| self.internal("a match with no arm"))?;
+            return Err(self.end_path(call));
+        }
         let join = self.block(SourceOrigin::Unpositioned(Unpositioned::MatchJoin));
         let result = self.value(
             scalar_type,
@@ -474,19 +527,9 @@ impl Lowering<'_> {
             },
         );
         self.parameter(join, result, scalar_type)?;
-        let bodies = arms
-            .iter()
-            .map(|(_, value)| value)
-            .zip(blocks)
-            .chain(default.zip(rest));
-        for (value, (block, chosen)) in bodies {
-            self.enter(block);
-            self.selected.push(chosen);
-            self.joining += 1;
-            let value = self.scalar(value);
-            self.joining -= 1;
-            let value = value?;
-            self.selected.pop();
+        for (block, point, value) in arrivals {
+            self.current = Some(block);
+            self.point = Some(point);
             self.jump(
                 join,
                 vec![value],
@@ -596,12 +639,15 @@ impl Lowering<'_> {
         self.joining += 1;
         let right_value = self.scalar(right);
         self.joining -= 1;
-        let right_value = right_value?;
-        self.jump(
-            join,
-            vec![right_value],
-            SourceOrigin::Unpositioned(Unpositioned::ShortCircuitJoin),
-        )?;
+        // A right operand whose every path ends at a call that never returns
+        // ends that branch only: the join has the left operand's arrival.
+        if let Reached::Value(right_value) = self.reached(right_value)? {
+            self.jump(
+                join,
+                vec![right_value],
+                SourceOrigin::Unpositioned(Unpositioned::ShortCircuitJoin),
+            )?;
+        }
         self.enter(join);
         Ok(Value::Scalar(result))
     }

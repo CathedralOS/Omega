@@ -134,7 +134,7 @@ pub struct Supply {
 }
 
 pub use terminal_check_tables::program::{
-    ConformanceWitness, Elaboration, MachineSources, Selected, SourceOrigin, Unpositioned,
+    Branch, ConformanceWitness, Elaboration, MachineSources, Selected, SourceOrigin, Unpositioned,
     Unreachable,
 };
 
@@ -722,7 +722,7 @@ fn lower_generic_for(
                     source
                         .declaration_selections
                         .get(*original)
-                        .and_then(|selected| selected.as_ref().map(|(_, body, _)| *body)),
+                        .and_then(|selected| selected.as_ref().map(|(_, body, _, _, _)| *body)),
                     signatures,
                     &outcomes,
                     &declared.records,

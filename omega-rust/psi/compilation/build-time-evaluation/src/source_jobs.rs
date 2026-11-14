@@ -6,7 +6,12 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
 mod build_activation;
+mod constant_jobs;
 mod invocation;
+
+pub use constant_jobs::{
+    evaluate as evaluate_constant_initializers, validate_constant_evaluations,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedLayoutTargetScope {
@@ -87,6 +92,10 @@ impl PreparedBuildMachineEntry {
 
     pub fn source(&self) -> &TypedTrees {
         &self.source
+    }
+
+    pub(crate) fn retained_source(&self) -> Arc<TypedTrees> {
+        Arc::clone(&self.source)
     }
 
     /// The actual caller and its arguments have already been judged together.
@@ -180,6 +189,13 @@ impl PreparedBuildMachineEntry {
         produced: &psi_terminal_production::ProducedTerminalProgram,
         target: crate::InvocationTarget<'_>,
     ) -> Result<terminal_installation::AdmittedCompilerEvaluation, String> {
+        if target.name.is_none()
+            && (target.layout_target.is_some()
+                || target.carrier_layout.is_some()
+                || target.address_model.is_some())
+        {
+            return Err("target-independent evaluation cannot carry target observations".into());
+        }
         use terminal_interpreter::TerminalProgram;
         let program = TerminalProgram::borrow(produced.view());
         let requirements = program
@@ -376,53 +392,104 @@ impl PreparedBuildMachineProgram {
             .call_node(call)
             .cloned()
             .ok_or("source invocation lost its accepted call")?;
-        let physical = accepted
-            .source()
-            .machine_by_symbol(actual_call.target_symbol)
-            .or_else(|| {
-                accepted
-                    .source()
-                    .machine_holding_state(actual_call.target_symbol)
-            })
-            .ok_or("source invocation has no accepted concrete body")?;
-        match declaration {
+        let physical = match declaration {
             typed_trees::callable_signature_shapes::CallableDeclaration::Machine(required) => {
-                if physical.symbol != required {
-                    return Err("source invocation changed its required concrete declaration".into());
+                let physical = accepted
+                    .source()
+                    .machine_by_symbol(actual_call.target_symbol)
+                    .or_else(|| {
+                        accepted
+                            .source()
+                            .machine_holding_state(actual_call.target_symbol)
+                    })
+                    .ok_or("source invocation has no accepted concrete body")?;
+                if physical.symbol != required
+                    && accepted
+                        .source()
+                        .machine_instantiation_path(physical.symbol, required)
+                        .is_none()
+                {
+                    return Err(
+                        "source invocation changed its required concrete declaration".into(),
+                    );
                 }
+                physical.symbol
             }
             typed_trees::callable_signature_shapes::CallableDeclaration::Signature(required) => {
-                let dispatch = actual_call.static_requirement_dispatch.as_ref()
-                    .ok_or("selected source invocation has no retained requirement dispatch")?;
-                let original = self.source.closed_requirement_application(required.symbol)
+                let original = self
+                    .source
+                    .closed_requirement_application(required.symbol)
                     .map_or(required.symbol, |application| application.template);
-                if dispatch.requirement != original {
+                let actual_required = actual_call
+                    .static_requirement_dispatch
+                    .as_ref()
+                    .map(|dispatch| dispatch.requirement)
+                    .or_else(|| {
+                        accepted
+                            .source()
+                            .closed_requirement_application(actual_call.target_symbol)
+                            .map(|application| application.template)
+                    })
+                    .unwrap_or(actual_call.target_symbol);
+                if actual_required != original {
                     return Err("selected source invocation changed its public requirement".into());
                 }
                 let mut sites = accepted.source_call_sites(caller, call);
-                let (canonical_caller, site) = sites.next()
+                let (canonical_caller, site) = sites
+                    .next()
                     .ok_or("selected source invocation has no exact emitted call site")?;
                 if sites.next().is_some() {
                     return Err("selected source invocation has multiple emitted call sites".into());
                 }
                 let module = &accepted.closure().elaboration.module;
-                let invocation = module.machine(canonical_caller)
-                    .and_then(|machine| machine.module_invocations().find(|invocation| invocation.site == site))
+                let invocation = module
+                    .machine(canonical_caller)
+                    .and_then(|machine| {
+                        machine
+                            .module_invocations()
+                            .find(|invocation| invocation.site == site)
+                    })
                     .ok_or("selected source invocation lost its canonical operation")?;
-                let required_contract = invocation.inputs.required_contract
+                let required_contract = invocation
+                    .inputs
+                    .required_contract
                     .ok_or("selected source invocation lost its public contract")?;
-                let contract = module.invocation_machine_contract(invocation.inputs.callee, Some(required_contract))
+                let contract = module
+                    .invocation_machine_contract(invocation.inputs.callee, Some(required_contract))
                     .ok_or("selected source invocation has no exact public contract and body")?;
-                if accepted.closure().elaboration.machines.get(invocation.inputs.callee) != Some(&physical.symbol)
+                let applied = accepted.source().source_call_requirement_signature(
+                    caller,
+                    typed_trees::references::StaticArgumentCall::Expression(call, &actual_call),
+                )?;
+                let (owner, _) = accepted
+                    .source()
+                    .trait_machine_signature(applied.symbol)
+                    .ok_or("selected source invocation lost its public declaring trait")?;
+                let identity = accepted
+                    .source()
+                    .trait_requirement_callable_identity_text(owner, applied);
+                if contract
+                    .declaration
+                    .as_ref()
+                    .and_then(|declaration| module.identities.text(declaration.callable))
+                    != Some(identity.as_str())
                     || contract.selected_application.is_none()
                 {
-                    return Err("selected source invocation changed its actual implementation".into());
+                    return Err(
+                        "selected source invocation changed its applied public signature".into(),
+                    );
                 }
+                *accepted
+                    .closure()
+                    .elaboration
+                    .machines
+                    .get(invocation.inputs.callee)
+                    .ok_or("selected source invocation lost its actual body source")?
             }
-        }
+        };
         Ok(PreparedBuildMachineEntry {
             source: Arc::clone(&self.source),
-            symbol: physical.symbol,
+            symbol: physical,
             requester,
             call: actual_call,
             call_source: call,
@@ -483,10 +550,19 @@ impl PreparedBuildMachineProgram {
             return Err("source job call has another requesting declaration".into());
         }
         let declaration = self.source.source_call_declaration(
-            requester, typed_trees::references::StaticArgumentCall::Expression(expression, call),
-        ).map_err(str::to_owned)?;
-        if self.source.expression_table.expression_handles(call.arguments).len()
-            != declaration.shape(&self.source).map_err(str::to_owned)?.parameters.len()
+            requester,
+            typed_trees::references::StaticArgumentCall::Expression(expression, call),
+        )?;
+        if self
+            .source
+            .expression_table
+            .expression_handles(call.arguments)
+            .len()
+            != declaration
+                .shape(&self.source)
+                .map_err(str::to_owned)?
+                .parameters
+                .len()
         {
             return Err("source job call lost its complete argument list".into());
         }
@@ -530,7 +606,7 @@ pub(crate) mod tests {
 
     fn target() -> crate::InvocationTarget<'static> {
         crate::InvocationTarget {
-            name: "linux_x86_64",
+            name: Some("linux_x86_64"),
             layout_target: None,
             carrier_layout: None,
             address_model: None,

@@ -16157,8 +16157,7 @@ pub(crate) mod structural_catalog {
         use crate::OptimizationUnitValidationError;
         use crate::unit_validation::structural_catalog::content_projection::validate_structural_content_projection;
         use crate::unit_validation::structural_catalog::type_declarations::{
-            attachment_storage_types, validate_structural_cases, validate_structural_fields,
-            validate_structural_type_graph,
+            storage_graph_error, validate_structural_cases, validate_structural_fields,
         };
         use optimization_unit::PsiOptimizationUnit;
         use semantic_vocabulary::{StructuralDomainId, StructuralTypeId};
@@ -16215,12 +16214,17 @@ pub(crate) mod structural_catalog {
             {
                 return Err(OptimizationUnitValidationError::NonCanonicalStructuralTypeOrder);
             }
-            let attachment_storage = attachment_storage_types(
-                &types,
-                unit.functions
-                    .iter()
-                    .filter_map(|function| function.attachment),
-            );
+            let storage_graph = terminal_semantics::storage::type_graph::StorageTypeGraph::new(
+                unit.structural_types.iter(),
+            )
+            .map_err(storage_graph_error)?;
+            let attachment_storage = storage_graph
+                .storage_reachable_from(
+                    unit.functions
+                        .iter()
+                        .filter_map(|function| function.attachment),
+                )
+                .map_err(storage_graph_error)?;
             let mut referent_ids = BTreeSet::new();
             for referent in unit.structural_types.referents() {
                 if types.contains_key(&referent.id) || !referent_ids.insert(referent.id) {
@@ -16269,7 +16273,7 @@ pub(crate) mod structural_catalog {
                             declaration.id,
                             None,
                             fields,
-                            attachment_storage.contains(&declaration.id),
+                            attachment_storage.binary_search(&declaration.id).is_ok(),
                         )?;
                     }
                     terminal_psi::StructuralTypeShape::Sum { cases } => {
@@ -16350,7 +16354,9 @@ pub(crate) mod structural_catalog {
                     }
                 }
             }
-            validate_structural_type_graph(&types)?;
+            storage_graph
+                .validate_acyclic()
+                .map_err(storage_graph_error)?;
             for declaration in &unit.structural_types {
                 if let terminal_psi::StructuralTypeShape::ElementView { element, .. } =
                     declaration.shape
@@ -17715,7 +17721,7 @@ pub(crate) mod structural_catalog {
     mod type_declarations {
         use crate::OptimizationUnitValidationError;
         use semantic_vocabulary::StructuralTypeId;
-        use std::collections::{BTreeMap, BTreeSet};
+        use std::collections::BTreeSet;
 
         pub(crate) fn validate_structural_fields(
             structural_type: StructuralTypeId,
@@ -17853,108 +17859,43 @@ pub(crate) mod structural_catalog {
             Ok(())
         }
 
-        pub(crate) fn validate_structural_type_graph(
-            types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-        ) -> Result<(), OptimizationUnitValidationError> {
-            fn visit(
-                id: StructuralTypeId,
-                types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-                active: &mut BTreeSet<StructuralTypeId>,
-                complete: &mut BTreeSet<StructuralTypeId>,
-            ) -> Result<(), OptimizationUnitValidationError> {
-                if complete.contains(&id) {
-                    return Ok(());
+        pub(super) fn storage_graph_error(
+            error: terminal_semantics::storage::type_graph::StorageGraphError,
+        ) -> OptimizationUnitValidationError {
+            use terminal_semantics::storage::type_graph::StorageGraphError;
+            match error {
+                StorageGraphError::MissingType(id) => {
+                    OptimizationUnitValidationError::UnknownStructuralType(id)
                 }
-                if !active.insert(id) {
-                    return Err(OptimizationUnitValidationError::RecursiveStructuralType(id));
+                StorageGraphError::DuplicateType(id) => {
+                    OptimizationUnitValidationError::DuplicateStructuralType(id)
                 }
-                let declaration = types[&id];
-                match &declaration.shape {
-                    terminal_psi::StructuralTypeShape::Reference { .. }
-                    | terminal_psi::StructuralTypeShape::ElementView { .. }
-                    | terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
-                    | terminal_psi::StructuralTypeShape::AtomicCell(_) => {}
-                    terminal_psi::StructuralTypeShape::ByteSequence(_) => {}
-                    terminal_psi::StructuralTypeShape::Record { fields, .. } => {
-                        for field in fields {
-                            if let Some(target) = field.field_type.as_structural() {
-                                visit(target, types, active, complete)?;
-                            }
-                        }
-                    }
-                    terminal_psi::StructuralTypeShape::FixedArray { element, .. } => {
-                        visit(*element, types, active, complete)?;
-                    }
-                    terminal_psi::StructuralTypeShape::Sum { cases } => {
-                        for field in cases.iter().flat_map(|case| &case.fields) {
-                            if let Some(target) = field.field_type.as_structural() {
-                                visit(target, types, active, complete)?;
-                            }
-                        }
-                    }
-                    terminal_psi::StructuralTypeShape::Mixed { fields, cases } => {
-                        for field in fields
-                            .iter()
-                            .chain(cases.iter().flat_map(|case| &case.fields))
-                        {
-                            if let Some(target) = field.field_type.as_structural() {
-                                visit(target, types, active, complete)?;
-                            }
-                        }
-                    }
+                StorageGraphError::Cycle(id) => {
+                    OptimizationUnitValidationError::RecursiveStructuralType(id)
                 }
-                active.remove(&id);
-                complete.insert(id);
-                Ok(())
             }
-
-            let mut active = BTreeSet::new();
-            let mut complete = BTreeSet::new();
-            for id in types.keys().copied() {
-                visit(id, types, &mut active, &mut complete)?;
-            }
-            Ok(())
         }
 
-        pub(super) fn attachment_storage_types(
-            types: &BTreeMap<StructuralTypeId, &terminal_psi::StructuralTypeDeclaration>,
-            attachments: impl Iterator<Item = StructuralTypeId>,
-        ) -> BTreeSet<StructuralTypeId> {
-            use terminal_psi::{StructuralTypeShape, structural_children};
-            let mut pending: Vec<_> = attachments.collect();
-            let mut storage = BTreeSet::new();
-            while let Some(identity) = pending.pop() {
-                if !storage.insert(identity) {
-                    continue;
-                }
-                let Some(declaration) = types.get(&identity) else {
-                    continue;
-                };
-                let mut retain_fields = |fields: &[terminal_psi::StructuralFieldDeclaration]| {
-                    pending.extend(structural_children(fields));
-                };
-                match &declaration.shape {
-                    StructuralTypeShape::Record { fields, .. } => retain_fields(fields),
-                    StructuralTypeShape::Mixed { fields, cases } => {
-                        retain_fields(fields);
-                        for case in cases {
-                            retain_fields(&case.fields);
-                        }
-                    }
-                    StructuralTypeShape::Sum { cases } => {
-                        for case in cases {
-                            retain_fields(&case.fields);
-                        }
-                    }
-                    StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
-                    StructuralTypeShape::PrimitiveScalar(_)
-                    | StructuralTypeShape::AtomicCell(_)
-                    | StructuralTypeShape::ByteSequence(_)
-                    | StructuralTypeShape::Reference { .. }
-                    | StructuralTypeShape::ElementView { .. } => {}
-                }
+        #[test]
+        fn shared_storage_graph_preserves_native_error_identities() {
+            use terminal_semantics::storage::type_graph::StorageGraphError;
+            let id = StructuralTypeId::new(29).unwrap();
+            for (source, expected) in [
+                (
+                    StorageGraphError::MissingType(id),
+                    OptimizationUnitValidationError::UnknownStructuralType(id),
+                ),
+                (
+                    StorageGraphError::DuplicateType(id),
+                    OptimizationUnitValidationError::DuplicateStructuralType(id),
+                ),
+                (
+                    StorageGraphError::Cycle(id),
+                    OptimizationUnitValidationError::RecursiveStructuralType(id),
+                ),
+            ] {
+                assert_eq!(storage_graph_error(source), expected);
             }
-            storage
         }
     }
     mod witnesses {

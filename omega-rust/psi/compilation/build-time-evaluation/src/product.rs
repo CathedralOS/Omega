@@ -1,16 +1,23 @@
-//! Actual Build selection data survives without the source-checking producers.
+//! Carry Build's completed choices into application compilation.
 //!
-//! A finished Build hands the Product its requests: each names one
-//! `BuildOperation`, and each operation has one admission here that turns
-//! its requests into Product policy. None of these admissions has a producer
-//! on the lowered-form route yet. An admission therefore refuses a Build
-//! that authored or executed a request of its own operations, and answers
-//! "none" to a Build that made no such request: that Build asked it for
-//! nothing, whatever else it selected. A request is never dropped.
+//! Provider choices must match their authored declaration requests before they
+//! become selection intent. Other policies still lack their producers and
+//! refuse requests for their own operations. An absent request needs no policy;
+//! an unimplemented one cannot disappear into an empty result.
 
 use language_semantics::declaration_selection::{
     BuildOperation, ExecutedProductSelection, ProductDeclarationRequest,
 };
+
+#[path = "product/provider_selections.rs"]
+mod provider_selection_requests;
+
+#[path = "product/retained_provider_selections.rs"]
+mod retained_provider_selections;
+
+#[cfg(test)]
+#[path = "product/provider_selection_tests.rs"]
+mod provider_selection_tests;
 
 /// Whether a Build asked for one of `operations`: it authored such a
 /// request (`declared`, executed or not) or executed one. Every admission
@@ -49,82 +56,8 @@ pub mod test_groups {
 pub mod assumed_bindings {
     pub use language_semantics::declaration_selection::AssumedBindingContract;
 }
-pub mod native_bindings {
-    use diagnostics::Diagnostic;
-    use language_semantics::declaration_selection::{
-        BuildOperation, ExecutedNativeBinding, ProductDeclarationRequest,
-    };
-    use symbols::SymbolHandle;
-    use typed_trees::TypedTrees;
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct NativeBindingSelection {
-        pub application:
-            Option<arena::Handle<typed_trees::product_operand::ProductOperandApplication>>,
-        pub subject: SymbolHandle,
-        pub requirement: SymbolHandle,
-        pub target: language_semantics::declaration_selection::ProductTarget,
-        pub locator: semantic_vocabulary::NativeBindingLocator,
-        pub producer: language_semantics::declaration_selection::NativeBindingProducer,
-        pub source_occurrence_digest: [u8; 32],
-        pub supplier_package: semantic_vocabulary::PackageKeyIdentity,
-        pub source_span: source::SourceSpan,
-    }
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    pub struct CapturedNativeDeclaration {
-        pub application: Option<crate::provider_declarations::RetainedProductApplication>,
-        pub source: language_semantics::declaration_selection::NativeBindingSource,
-        pub requirement: symbols::RetainedDeclaration,
-        pub requirement_identity: String,
-        pub dependency_alias: Option<String>,
-    }
-    pub fn collect(
-        _typed: &TypedTrees,
-        _activation: Option<SymbolHandle>,
-        declared: &[std::sync::Arc<ProductDeclarationRequest>],
-        executed: &[ExecutedNativeBinding],
-    ) -> Result<Vec<NativeBindingSelection>, Vec<Diagnostic>> {
-        // An executed native binding is its own row kind; every one counts.
-        if super::build_requests_any(declared, &[], &[BuildOperation::NativeBinding])
-            || !executed.is_empty()
-        {
-            return Err(vec![Diagnostic::error(
-                "no product route yet: native binding admission",
-            )]);
-        }
-        Ok(Vec::new())
-    }
-    pub fn capture_package_intents(
-        _typed: &typed_trees::TypedTrees,
-        _package: semantic_vocabulary::PackageKeyIdentity,
-        formations: &[language_semantics::declaration_selection::NativeBindingFormation],
-        executed: &[language_semantics::declaration_selection::ExecutedNativeBinding],
-    ) -> Result<
-        (
-            Vec<CapturedNativeDeclaration>,
-            Vec<language_semantics::declaration_selection::CapturedNativeIntent>,
-        ),
-        Vec<Diagnostic>,
-    > {
-        if !formations.is_empty() || !executed.is_empty() {
-            return Err(vec![Diagnostic::error(
-                "no product route yet: native binding intent capture",
-            )]);
-        }
-        Ok((Vec::new(), Vec::new()))
-    }
-    pub fn collect_captured(
-        _typed: &mut TypedTrees,
-        declarations: &[CapturedNativeDeclaration],
-        intents: &[language_semantics::declaration_selection::CapturedNativeIntent],
-    ) -> Result<Vec<NativeBindingSelection>, Vec<Diagnostic>> {
-        if !declarations.is_empty() || !intents.is_empty() {
-            return Err(vec![Diagnostic::error(
-                "no product route yet: captured native binding admission",
-            )]);
-        }
-        Ok(Vec::new())
-    }
-}
+#[path = "product/native_bindings.rs"]
+pub mod native_bindings;
 pub mod product_declarations {
     use crate::product::assumed_bindings::AssumedBindingContract;
     use crate::product::test_groups::TestGroupRegistration;
@@ -224,7 +157,6 @@ pub mod provider_declarations {
     use std::sync::Arc;
     use symbols::RetainedDeclaration;
     use symbols::SymbolHandle;
-    use typed_trees::TypedTrees;
     pub use typed_trees::provider_declarations::ProviderPlanningContext;
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct RetainedProductApplication {
@@ -393,35 +325,13 @@ pub mod provider_declarations {
             }
         }
     }
-    impl RetainedProviderSelection {
-        pub fn rejoin(
-            &self,
-            _program: &mut TypedTrees,
-            _scope: source::DependencyScope,
-            _previous: &[ProviderSelection],
-            _candidates: &mut symbols::SourceSpanCandidates,
-        ) -> Result<ProviderSelection, Diagnostic> {
-            Err(Diagnostic::error(
-                "no product route yet: retained source provider selection",
-            ))
-        }
-    }
     pub fn collect_product_provider_selections(
-        _context: ProviderPlanningContext<'_>,
-        _activation: Option<SymbolHandle>,
+        context: ProviderPlanningContext<'_>,
+        activation: Option<SymbolHandle>,
         declared: &[Arc<language_semantics::declaration_selection::ProductDeclarationRequest>],
         executed: &[language_semantics::declaration_selection::ExecutedProductSelection],
     ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
-        if super::build_requests_any(
-            declared,
-            executed,
-            &[language_semantics::declaration_selection::BuildOperation::ProviderSelection],
-        ) {
-            return Err(vec![Diagnostic::error(
-                "no product route yet: source provider selection admission",
-            )]);
-        }
-        Ok(Vec::new())
+        super::provider_selection_requests::collect(context, activation, declared, executed)
     }
     /// The provider defaults a program declares, one row per target.
     ///
@@ -473,14 +383,12 @@ pub mod provider_declarations {
     /// slot. A skipped statement would be a default the Product silently
     /// does without.
     mod defaults {
-        use super::{
-            CompositionMode, ProviderPlanningContext, ProviderSelection, ProviderSelectionIdentity,
-            ProviderSelectionSubject,
-        };
+        use super::{CompositionMode, ProviderPlanningContext, ProviderSelection, form, identity};
         use diagnostics::Diagnostic;
-        use symbols::SymbolKind;
+        use symbols::JoinedPath;
         use typed_trees::expression::{ExpressionNode, StaticMachineArgument};
         use typed_trees::machine::Machine;
+        use typed_trees::product_operand::{ProductOperandKind, resolve_product_operand};
         use typed_trees::statement::StatementNode;
 
         /// One `select_provider` call as its statement holds it.
@@ -579,10 +487,45 @@ pub mod provider_declarations {
                             call.source_span,
                         ));
                     }
-                    let selection = form(context, machine, slot, provider, call.source_span)
-                        .map_err(|diagnostic| {
-                            vec![diagnostic.with_source_span(call.source_span)]
-                        })?;
+                    let origin = super::BuildSelectionOrigin::capture(
+                        &typed.symbols,
+                        machine.symbol,
+                        machine.symbol,
+                        call.source_span,
+                        None,
+                    )
+                    .map_err(|reason| refuse(reason, call.source_span))?;
+                    let slot_symbol = resolve_product_operand(
+                        typed,
+                        slot,
+                        call.source_span,
+                        ProductOperandKind::BoundarySubject,
+                    )
+                    .ok_or_else(|| refuse(&format!(
+                        "subject `{}` does not resolve to an exact boundary trait or requirement visible here",
+                        slot.path.joined_path(),
+                    ), call.source_span))?;
+                    let provider_symbol = resolve_product_operand(
+                        typed,
+                        provider,
+                        call.source_span,
+                        ProductOperandKind::Provider,
+                    )
+                    .ok_or_else(|| refuse(&format!(
+                        "provider `{}` does not resolve to an exact declaration visible here",
+                        provider.path.joined_path(),
+                    ), call.source_span))?;
+                    let slot = identity(context, slot_symbol, &slot.path.joined_path());
+                    let provider = identity(context, provider_symbol, &provider.path.joined_path());
+                    let selection = form(
+                        context,
+                        slot,
+                        provider,
+                        origin,
+                        None,
+                        CompositionMode::Fused,
+                    )
+                    .map_err(|diagnostic| vec![diagnostic.with_source_span(call.source_span)])?;
                     if let Some(existing) = selections
                         .iter()
                         .find(|existing| existing.subject.same_declaration_as(&selection.subject))
@@ -603,141 +546,142 @@ pub mod provider_declarations {
             }
             Ok(selections)
         }
+    }
 
-        fn identity(
-            context: ProviderPlanningContext<'_>,
-            argument: &StaticMachineArgument,
-        ) -> ProviderSelectionIdentity {
-            let symbols = &context.typed.symbols;
-            ProviderSelectionIdentity {
-                symbol: argument.symbol,
-                application: Default::default(),
-                applied: false,
-                application_identity: None,
-                package: symbols.symbol_package_identity(argument.symbol),
-                canonical_path: symbols.display_path(argument.symbol, "::"),
-                authored_path: argument
-                    .path
-                    .iter()
-                    .map(|segment| segment.as_str())
-                    .collect::<Vec<_>>()
-                    .join("::"),
-            }
+    pub(super) fn identity(
+        context: ProviderPlanningContext<'_>,
+        symbol: symbols::SymbolHandle,
+        authored_path: &str,
+    ) -> ProviderSelectionIdentity {
+        let symbols = &context.typed.symbols;
+        ProviderSelectionIdentity {
+            symbol,
+            application: Default::default(),
+            applied: false,
+            application_identity: None,
+            package: symbols.symbol_package_identity(symbol),
+            canonical_path: symbols.display_path(symbol, "::"),
+            authored_path: authored_path.to_owned(),
         }
+    }
 
-        /// Classifies the slot, checks the provider is a declaration that can
-        /// provide, and states the selection with its authored origin.
-        fn form(
-            context: ProviderPlanningContext<'_>,
-            machine: &Machine,
-            slot: &StaticMachineArgument,
-            provider: &StaticMachineArgument,
-            source_span: source::SourceSpan,
-        ) -> Result<ProviderSelection, Diagnostic> {
-            let typed = context.typed;
-            let slot = identity(context, slot);
-            let provider = identity(context, provider);
-            if !slot.symbol.is_valid() || !provider.symbol.is_valid() {
-                return Err(Diagnostic::error(format!(
-                    "provider default `{}` for `{}` does not resolve to declarations",
-                    provider.authored_path, slot.authored_path
-                )));
-            }
-            if !context.contains(slot.symbol) || !context.contains(provider.symbol) {
-                return Err(Diagnostic::error(format!(
-                    "provider selection subject or provider is outside the {:?} planning context",
-                    context.scope
-                )));
-            }
-            let slot_kind = typed.symbols.get(slot.symbol).kind;
-            let subject = if slot_kind == SymbolKind::Trait
-                && typed
-                    .traits()
-                    .iter()
-                    .any(|definition| definition.symbol == slot.symbol && definition.is_boundary)
-            {
-                ProviderSelectionSubject::BoundaryTrait(slot)
-            } else if slot_kind == SymbolKind::Machine
-                && typed.machines().iter().any(|requirement| {
-                    requirement.symbol == slot.symbol
-                        && requirement.spelling.is_none()
-                        && requirement.supply_mode
-                            == language_semantics::MachineSupplyMode::TopLevelRequirement
-                })
-            {
-                ProviderSelectionSubject::BoundaryRequirement(slot)
-            } else if slot_kind == SymbolKind::Operator
-                || typed
-                    .machine_token_bindings()
-                    .iter()
-                    .any(|binding| binding.is_boundary && binding.symbol == slot.symbol)
-            {
-                return Err(Diagnostic::error(format!(
-                    "no product route yet: source provider defaults: slot `{}` is a boundary-operator family",
-                    slot.authored_path
-                )));
-            } else {
-                return Err(Diagnostic::error(format!(
-                    "provider selection subject `{}` does not resolve to an exact boundary trait, top-level boundary requirement, or boundary-operator family",
-                    slot.authored_path
-                )));
-            };
-            let implementation = typed
-                .conformances()
+    /// Classifies the slot, checks the provider is a declaration that can
+    /// provide, and states the selection with its authored origin.
+    pub(super) fn form(
+        context: ProviderPlanningContext<'_>,
+        slot: ProviderSelectionIdentity,
+        provider: ProviderSelectionIdentity,
+        origin: BuildSelectionOrigin,
+        target: Option<ProductTarget>,
+        composition_mode: CompositionMode,
+    ) -> Result<ProviderSelection, Diagnostic> {
+        use symbols::SymbolKind;
+        let typed = context.typed;
+        if !slot.symbol.is_valid() || !provider.symbol.is_valid() {
+            return Err(Diagnostic::error(format!(
+                "provider selection `{}` for `{}` does not resolve to declarations",
+                provider.authored_path, slot.authored_path
+            )));
+        }
+        if !context.contains(slot.symbol) || !context.contains(provider.symbol) {
+            return Err(Diagnostic::error(format!(
+                "provider selection subject or provider is outside the {:?} planning context",
+                context.scope
+            )));
+        }
+        let slot_kind = typed.symbols.get(slot.symbol).kind;
+        if typed
+            .trait_definition_by_symbol(slot.symbol)
+            .is_some_and(|definition| !definition.type_parameters.is_empty())
+        {
+            return Err(Diagnostic::error(format!(
+                "no product route yet: provider slot `{}` requires its complete static application",
+                slot.authored_path,
+            )));
+        }
+        let subject = if slot_kind == SymbolKind::Trait
+            && typed
+                .traits()
                 .iter()
-                .find(|definition| definition.symbol == provider.symbol);
-            if typed.symbols.get(provider.symbol).kind != SymbolKind::Data
-                && implementation.is_none()
-            {
-                return Err(Diagnostic::error(format!(
-                    "provider selection type `{}` does not resolve to an exact provider data declaration or named implementation",
-                    provider.authored_path
-                )));
-            }
-            // A named implementation with lifetime parameters provides a
-            // requirement its parent trait declares only when the parent's
-            // lifetimes are spelled by the implementation's own.
-            if let Some(implementation) =
-                implementation.filter(|definition| definition.type_parameters.is_empty())
-            {
-                let root = typed.trait_definition_by_symbol(implementation.trait_symbol);
-                let arguments = implementation.trait_lifetime_arguments.as_slice();
-                let own = implementation.lifetime_parameters.len();
-                let spelled = root.is_some_and(|root| {
-                    arguments.len() == root.lifetime_parameters.len()
-                        && arguments.iter().all(|ordinal| {
-                            usize::try_from(*ordinal).is_ok_and(|ordinal| ordinal < own)
-                        })
-                });
-                for row in &implementation.rows {
-                    let inherited_without_lifetimes = typed
-                        .trait_definition_by_symbol(row.declaring_trait)
-                        .is_some_and(|declaring| declaring.lifetime_parameters.is_empty());
-                    let direct = root.is_some_and(|root| root.symbol == row.declaring_trait);
-                    if !spelled || !(direct || inherited_without_lifetimes) {
-                        return Err(Diagnostic::error(format!(
-                            "named provider `{}` requires an unsupported inherited declaring-trait lifetime application for `{}`; the exact parent substitution is not retained",
-                            provider.authored_path, row.requirement_name,
-                        )));
-                    }
+                .any(|definition| definition.symbol == slot.symbol && definition.is_boundary)
+        {
+            ProviderSelectionSubject::BoundaryTrait(slot)
+        } else if slot_kind == SymbolKind::Machine
+            && typed.machines().iter().any(|requirement| {
+                requirement.symbol == slot.symbol
+                    && requirement.spelling.is_none()
+                    && requirement.supply_mode
+                        == language_semantics::MachineSupplyMode::TopLevelRequirement
+            })
+        {
+            ProviderSelectionSubject::BoundaryRequirement(slot)
+        } else if slot_kind == SymbolKind::Operator
+            || typed
+                .machine_token_bindings()
+                .iter()
+                .any(|binding| binding.is_boundary && binding.symbol == slot.symbol)
+        {
+            return Err(Diagnostic::error(format!(
+                "no product route yet: source provider defaults: slot `{}` is a boundary-operator family",
+                slot.authored_path
+            )));
+        } else {
+            return Err(Diagnostic::error(format!(
+                "provider selection subject `{}` does not resolve to an exact boundary trait, top-level boundary requirement, or boundary-operator family",
+                slot.authored_path
+            )));
+        };
+        let implementation = typed
+            .conformances()
+            .iter()
+            .find(|definition| definition.symbol == provider.symbol);
+        if implementation.is_none() {
+            return Err(Diagnostic::error(format!(
+                "provider selection `{}` is not a static operation record from a named implementation; a data type is not a provider value",
+                provider.authored_path
+            )));
+        }
+        if implementation.is_some_and(|implementation| !implementation.type_parameters.is_empty()) {
+            return Err(Diagnostic::error(format!(
+                "no product route yet: provider `{}` requires its complete static application",
+                provider.authored_path,
+            )));
+        }
+        // A named implementation with lifetime parameters provides a
+        // requirement its parent trait declares only when the parent's
+        // lifetimes are spelled by the implementation's own.
+        if let Some(implementation) =
+            implementation.filter(|definition| definition.type_parameters.is_empty())
+        {
+            let root = typed.trait_definition_by_symbol(implementation.trait_symbol);
+            let arguments = implementation.trait_lifetime_arguments.as_slice();
+            let own = implementation.lifetime_parameters.len();
+            let spelled = root.is_some_and(|root| {
+                arguments.len() == root.lifetime_parameters.len()
+                    && arguments
+                        .iter()
+                        .all(|ordinal| usize::try_from(*ordinal).is_ok_and(|ordinal| ordinal < own))
+            });
+            for row in &implementation.rows {
+                let inherited_without_lifetimes = typed
+                    .trait_definition_by_symbol(row.declaring_trait)
+                    .is_some_and(|declaring| declaring.lifetime_parameters.is_empty());
+                let direct = root.is_some_and(|root| root.symbol == row.declaring_trait);
+                if !spelled || !(direct || inherited_without_lifetimes) {
+                    return Err(Diagnostic::error(format!(
+                        "named provider `{}` requires an unsupported inherited declaring-trait lifetime application for `{}`; the exact parent substitution is not retained",
+                        provider.authored_path, row.requirement_name,
+                    )));
                 }
             }
-            let origin = language_semantics::declaration_selection::BuildSelectionOrigin::capture(
-                &typed.symbols,
-                machine.symbol,
-                machine.symbol,
-                source_span,
-                None,
-            )
-            .map_err(Diagnostic::error)?;
-            Ok(ProviderSelection {
-                target: None,
-                subject,
-                provider_type: provider,
-                composition_mode: CompositionMode::Fused,
-                origin,
-            })
         }
+        Ok(ProviderSelection {
+            target,
+            subject,
+            provider_type: provider,
+            composition_mode,
+            origin,
+        })
     }
 }
 
@@ -813,12 +757,11 @@ mod tests {
         );
     }
 
-    /// The twins: each operation is refused by exactly its own admission,
+    /// The twins: each unimplemented operation is refused by its own admission,
     /// whether the Build only authored the request or also executed it.
     #[test]
     fn each_request_is_refused_by_the_admission_that_owns_its_operation() {
         for (operation, owner) in [
-            (BuildOperation::NativeBinding, "native binding admission"),
             (
                 BuildOperation::ServiceAudit,
                 "Build product declaration admission",
@@ -847,10 +790,6 @@ mod tests {
                 BuildOperation::BoundaryAcceptance,
                 "Build root grant admission",
             ),
-            (
-                BuildOperation::ProviderSelection,
-                "source provider selection admission",
-            ),
         ] {
             let asked = request(operation);
             let expected = [format!("no product route yet: {owner}")];
@@ -859,15 +798,11 @@ mod tests {
                 expected,
                 "{operation:?}"
             );
-            // Native bindings execute as their own row kind, not as a
-            // product selection.
-            if operation != BuildOperation::NativeBinding {
-                assert_eq!(
-                    refusals(&[], &[executed(&asked)]),
-                    expected,
-                    "{operation:?}"
-                );
-            }
+            assert_eq!(
+                refusals(&[], &[executed(&asked)]),
+                expected,
+                "{operation:?}"
+            );
         }
     }
 
@@ -898,7 +833,7 @@ mod tests {
         .map_err(|diagnostics| diagnostics[0].message.clone())
     }
 
-    const SLOT: &str = "boundary trait Service {\n    machine go() reaches none crashes none;\n}\ndata Native {}\n";
+    const SLOT: &str = "boundary trait Service {\n    machine go() reaches none crashes none;\n}\ndata Native {}\nNativeProvider satisfies Service { machine go() reaches none crashes none {} }\n";
 
     /// A program that declares no provider-defaults machine has no defaults,
     /// and one that declares a default states it as slot and provider.
@@ -912,9 +847,13 @@ mod tests {
         );
         assert_eq!(
             provider_defaults_of(&format!(
-                "{SLOT}machine Native::provider_defaults(defaults: &mut Native) {{\n    Native::select_provider<Service, Native>(defaults);\n}}\n"
+                "{SLOT}machine Native::provider_defaults(defaults: &mut Native) {{\n    Native::select_provider<Service, NativeProvider>(defaults);\n}}\n"
             )),
-            Ok(vec![(None, "Service".to_owned(), "Native".to_owned())])
+            Ok(vec![(
+                None,
+                "Service".to_owned(),
+                "NativeProvider".to_owned()
+            )])
         );
     }
 
@@ -924,7 +863,7 @@ mod tests {
     #[test]
     fn a_provider_default_that_is_not_a_selection_of_a_boundary_is_refused() {
         let refused = provider_defaults_of(&format!(
-            "{SLOT}machine Native::provider_defaults(defaults: &mut Native) {{\n    Native::select_provider<Native, Native>(defaults);\n}}\n"
+            "{SLOT}machine Native::provider_defaults(defaults: &mut Native) {{\n    Native::select_provider<Native, NativeProvider>(defaults);\n}}\n"
         ))
         .unwrap_err();
         assert!(

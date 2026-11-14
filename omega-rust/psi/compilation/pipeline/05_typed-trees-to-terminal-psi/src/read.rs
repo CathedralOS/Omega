@@ -28,6 +28,7 @@ mod authority;
 mod bytes;
 mod calls;
 mod casts;
+mod constant_values;
 mod contracts;
 mod expressions;
 mod machine;
@@ -68,7 +69,13 @@ pub(crate) struct Program<'t> {
     /// not permission to invoke its implementation.
     pub declaration_selections: IdTable<
         semantic_vocabulary::ContractId,
-        Option<(MachineId, MachineId, typed_trees::StaticRequirementDispatch)>,
+        Option<(
+            MachineId,
+            MachineId,
+            typed_trees::StaticRequirementDispatch,
+            typed_trees::expression::StaticMachineArgument,
+            SymbolHandle,
+        )>,
     >,
     /// Construction coordinates are coalesced once after reading. Calls keep
     /// their construction coordinate until lowering translates it; the emitted
@@ -304,37 +311,28 @@ impl<'t> Program<'t> {
                 .declaration_selections
                 .get(coordinate)
                 .ok_or_else(|| unavailable("public contract lost its selection coordinate"))?;
-            let key = if let Some((caller, body, dispatch)) = selected {
-                let owner = self.symbols.get(*caller).copied().ok_or_else(|| {
-                    unavailable("selected contract lost its requesting declaration")
-                })?;
-                if dispatch.selection_application.is_valid()
-                    && !self
-                        .typed
-                        .expression_table
-                        .static_machine_application_is_valid(dispatch.selection_application)
-                {
+            let key = if let Some((caller, body, dispatch, operand, owner)) = selected {
+                if !self.typed.symbols.symbols().nodes().is_valid(*owner) {
                     return Err(unavailable(
-                        "selected contract has a stale source application",
+                        "selected contract lost its actual operand owner",
                     ));
                 }
-                let applications = self.typed.selected_conformance_applications(
-                    owner,
-                    dispatch.selection_application,
-                    dispatch.evidence_parameter,
-                    dispatch.requirement,
-                    dispatch.application_report_fingerprint,
-                    dispatch.application_commitment,
-                );
-                let [application] = applications.as_slice() else {
-                    return Err(unavailable(
-                        "selected contract has no unique complete application",
-                    ));
-                };
                 let application_identity = self
                     .typed
-                    .selected_conformance_application_identity(owner, dispatch)
-                    .map_err(unavailable)?;
+                    .declared_static_operand_identity(
+                        typed_trees::type_identity::DeclaredStaticOperandIdentityRequest {
+                            operand:
+                                typed_trees::type_identity::IndexIdentityArgument::StaticArgument(
+                                    operand,
+                                ),
+                            lexical_owner: *owner,
+                            binders: &[],
+                            lifetime_binders: &[],
+                        },
+                    )
+                    .ok_or_else(|| {
+                        unavailable("selected contract has unresolved static argument identity")
+                    })?;
                 let (declaring, _) = self
                     .typed
                     .trait_machine_signature(source.symbol)
@@ -352,10 +350,7 @@ impl<'t> Program<'t> {
                     application_identity,
                     requirement_identity,
                     *body,
-                    application.lifetime_arguments.clone(),
-                    application.type_arguments.clone(),
-                    application.trait_lifetime_arguments.clone(),
-                    application.trait_arguments.clone(),
+                    dispatch.evidence_parameter,
                 ))
             } else {
                 None
@@ -1025,7 +1020,12 @@ mod tests {
         };
         let detail = |pattern: TableDestructurePattern| {
             let refusal = program
-                .case_pattern(machine(), record, &pattern)
+                .case_pattern(
+                    machine(),
+                    record,
+                    &pattern,
+                    crate::SourceOrigin::Unpositioned(crate::Unpositioned::SpanAbsent),
+                )
                 .unwrap_err();
             assert_eq!(
                 refusal.reason,

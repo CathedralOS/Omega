@@ -51,6 +51,7 @@ mod reach;
 mod references;
 mod result_fields;
 mod result_summaries;
+mod rule_violations;
 mod runtime_indexed_elements;
 mod sequence_regions;
 mod stored_views;

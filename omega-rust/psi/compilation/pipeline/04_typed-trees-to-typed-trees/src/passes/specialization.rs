@@ -692,11 +692,7 @@ struct Selection {
 /// its parameter offers. A requirement the implementation gives no row for,
 /// or one with parameters of its own other than value parameters, leaves the
 /// application unserved.
-fn selections(
-    program: &TypedTrees,
-    operands: &[Operand],
-    applications: &[(SymbolHandle, typed_trees::ClosedConformanceApplication)],
-) -> Served<Vec<Selection>> {
+fn selections(program: &TypedTrees, operands: &[Operand]) -> Served<Vec<Selection>> {
     let mut selected = Vec::new();
     for operand in operands {
         if !matches!(operand.value, StaticMachineBindingValue::Conformance(_)) {
@@ -707,14 +703,6 @@ fn selections(
             .and_then(|declaration| program.conformance_by_symbol(declaration))
         else {
             return Err(Stop::Unserved);
-        };
-        let mut applications = applications
-            .iter()
-            .filter(|(parameter, _)| *parameter == operand.parameter);
-        let (Some((_, application)), None) = (applications.next(), applications.next()) else {
-            return Err(Stop::Defect(
-                "implementation parameter has no unique complete application",
-            ));
         };
         let placeholders = program
             .symbols
@@ -758,13 +746,10 @@ fn selections(
                 placeholder,
                 dispatch: StaticRequirementDispatch {
                     evidence_parameter: operand.parameter,
-                    application_report_fingerprint: application.report_fingerprint,
-                    application_commitment: application.commitment,
                     declaring_trait: row.declaring_trait,
                     requirement: row.requirement,
                     realization_machine: row.realization_machine,
                     realization_state: row.realization_state,
-                    ..StaticRequirementDispatch::default()
                 },
             });
         }
@@ -1094,6 +1079,7 @@ fn generate(
     operands: &[Operand],
 ) -> Served<Generated> {
     let (source, source_state) = template(program, template_symbol)?;
+    let selections = selections(program, operands)?;
     let parameters = program.state_parameters(&source_state).to_vec();
     // The body is copied before anything is written to the program, so a
     // body this pass cannot copy leaves no trace.
@@ -1107,17 +1093,6 @@ fn generate(
     if !embedded.is_empty() {
         return Err(Stop::Unserved);
     }
-
-    let mut applications = Vec::new();
-    for operand in operands {
-        if matches!(operand.value, StaticMachineBindingValue::Conformance(_)) {
-            let selected = program
-                .prepare_plain_conformance_application(application, &operand.argument)
-                .map_err(Stop::Defect)?;
-            applications.push((operand.parameter, selected));
-        }
-    }
-    let selections = selections(program, operands, &applications)?;
 
     let type_start = program.type_reference_table.type_reference_count() + 1;
     let expression_start = program.expression_table.expression_count() + 1;
@@ -1259,10 +1234,6 @@ fn generate(
         type_arguments: spellings.clone(),
         type_argument_identities: spellings,
         conformance_arguments: of_kind(true).filter_map(Operand::declaration).collect(),
-        conformance_applications: applications
-            .into_iter()
-            .map(|(_, application)| application)
-            .collect(),
         normalized_template_identity: program.symbols.display_path(template_symbol, "::"),
         ..MachineSpecialization::default()
     });

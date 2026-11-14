@@ -60,6 +60,24 @@ fn judged(text: &str) -> super::RouteVerdict {
     super::judge(elaborated(text)).unwrap()
 }
 
+fn judged_invocation(text: &str) -> super::RouteVerdict {
+    let program = typed(text);
+    let entry = super::boundary_calls::entry(&program);
+    super::judge(typed_trees_to_terminal_psi::elaborate_for(
+        &program,
+        typed_trees_to_terminal_psi::Compilation {
+            entries: &[entry],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    ))
+    .unwrap()
+}
+
 fn elaborated(
     text: &str,
 ) -> terminal_check_tables::Checked<terminal_check_tables::program::Elaboration> {
@@ -221,6 +239,153 @@ requires holder.bytes.len > 0 {
 }
 
 #[test]
+fn a_direct_view_argument_keeps_its_length_across_later_argument_effects() {
+    let result = judged(
+        r#"
+data Holder<'held> { bytes: &'held [u8]; }
+machine replace<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {
+    holder.bytes = replacement;
+    0
+}
+machine required<'a>(items: &'a [u8], ignored: u64) -> u64
+requires items.len > 0 { items.len - 1 }
+machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64
+requires holder.bytes.len > 0 {
+    required(holder.bytes, replace(holder, replacement))
+}
+"#,
+    );
+    assert!(
+        matches!(result, super::RouteVerdict::Accepted(_)),
+        "{result:?}"
+    );
+}
+
+#[test]
+fn a_direct_view_argument_executes_with_its_captured_descriptor() {
+    let result = judged_invocation(
+        r#"
+data Holder<'held> { bytes: &'held [u8]; }
+machine replace<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {
+    holder.bytes = replacement;
+    0
+}
+machine length(items: &[u8], ignored: u64) -> u64 { items.len }
+machine entry<'a>() -> u64 {
+    let original: &'a [u8] = "long";
+    let replacement: &'a [u8] = "x";
+    let mut holder: Holder<'a> = Holder { bytes: original };
+    length(holder.bytes, replace(&mut holder, replacement))
+}
+"#,
+    );
+    let super::RouteVerdict::Accepted(accepted) = result else {
+        panic!("{result:?}")
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance
+        .invoke(&mut psi_work::WorkMeter::with_budget(1_000))
+        .unwrap();
+    assert!(
+        matches!(
+            status,
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Scalar(
+                    terminal_interpreter::TerminalScalarValue::Integer {
+                        value: semantic_vocabulary::IntegerValue::Unsigned(4),
+                        ..
+                    }
+                )
+            )
+        ),
+        "{status:?}"
+    );
+}
+
+#[test]
+fn a_returned_view_keeps_its_incoming_backing_after_argument_home_retirement() {
+    let result = judged_invocation(
+        r#"
+data Holder<'held> { bytes: &'held [u8]; }
+machine echo<'a>(items: &'a [u8]) -> &'a [u8] { items }
+machine entry<'a>(holder: &Holder<'a>) -> &'a [u8] { echo(holder.bytes) }
+"#,
+    );
+    let super::RouteVerdict::Accepted(accepted) = result else {
+        panic!("{result:?}")
+    };
+    accepted.publish_invocation().unwrap();
+}
+
+#[test]
+fn a_returned_view_executes_after_its_argument_home_and_source_slot_end() {
+    let result = judged_invocation(
+        r#"
+data Holder<'held> { bytes: &'held [u8]; }
+machine echo<'a>(items: &'a [u8]) -> &'a [u8] { items }
+machine replace<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) { holder.bytes = replacement; }
+machine entry<'a>() -> u64 {
+    let original: &'a [u8] = "long";
+    let replacement: &'a [u8] = "x";
+    let mut holder: Holder<'a> = Holder { bytes: original };
+    let returned: &'a [u8] = echo(holder.bytes);
+    replace(&mut holder, replacement);
+    returned.len
+}
+"#,
+    );
+    let super::RouteVerdict::Accepted(accepted) = result else {
+        panic!("{result:?}")
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance
+        .invoke(&mut psi_work::WorkMeter::with_budget(1_000))
+        .unwrap();
+    assert!(
+        matches!(
+            status,
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Scalar(
+                    terminal_interpreter::TerminalScalarValue::Integer {
+                        value: semantic_vocabulary::IntegerValue::Unsigned(4),
+                        ..
+                    }
+                )
+            )
+        ),
+        "{status:?}"
+    );
+}
+
+#[test]
+fn a_staged_view_keeps_its_loan_through_a_crashing_transfer() {
+    let result = judged_invocation(
+        r#"
+machine fail(items: &[u8]) crashes Trap { crash Trap; }
+machine entry() crashes Trap { fail("x"); }
+"#,
+    );
+    let super::RouteVerdict::Accepted(accepted) = result else {
+        panic!("{result:?}")
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance
+        .invoke(&mut psi_work::WorkMeter::with_budget(1_000))
+        .unwrap();
+    assert!(
+        matches!(status, terminal_interpreter::TerminalExecutionStatus::Crashed(ref crash)
+        if crash.cause == semantic_vocabulary::CrashCause::Trap),
+        "{status:?}"
+    );
+}
+
+#[test]
 fn replacing_a_stored_descriptor_cannot_reuse_its_old_extent() {
     let result = judged(
         r#"
@@ -325,24 +490,55 @@ machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {{
         let mut lowered = candidates.next().unwrap().clone();
         assert!(candidates.next().is_none());
         let mut tables = elaboration.tables.machines.get(lowered.id).unwrap().clone();
-        assert_eq!(lowered.blocks.len(), 1);
-        let mut entry = lowered.blocks.remove(0);
-        let call_index = entry
+        let start = lowered.entry;
+        let latch: BlockId = super::id(
+            lowered
+                .blocks
+                .iter()
+                .map(|block| block.id.get())
+                .max()
+                .unwrap()
+                + 1,
+        );
+        let entry_position = lowered
+            .blocks
+            .iter()
+            .position(|block| block.id == start)
+            .unwrap();
+        let mut entry = lowered.blocks.remove(entry_position);
+        let initial_read = entry
             .operations
             .iter()
-            .position(|operation| operation.declared_invocation().is_some())
+            .position(|operation| {
+                matches!(operation.kind, OperationKind::ByteSequenceLength { .. })
+            })
             .unwrap();
-        let after = entry.operations.split_off(call_index + 1);
-        let call = entry.operations.pop().unwrap();
-        assert!(
-            after.iter().any(|operation| matches!(
-                operation.kind,
-                OperationKind::ByteSequenceLength { .. }
-            ))
+        let staged_call = entry.operations.split_off(initial_read + 1);
+        assert_eq!(
+            staged_call
+                .iter()
+                .filter(|operation| operation.declared_invocation().is_some())
+                .count(),
+            1
         );
-        let [start, head, latch]: [BlockId; 3] = [1, 2, 3].map(super::id);
-        assert_eq!(entry.id, start);
-        tables.edges = Default::default();
+        let header_position = lowered
+            .blocks
+            .iter()
+            .position(|block| {
+                block.operations.iter().any(|operation| {
+                    matches!(operation.kind, OperationKind::ByteSequenceLength { .. })
+                })
+            })
+            .unwrap();
+        let head = lowered.blocks[header_position].id;
+        // Move staging and the call to the latch, keeping their actual
+        // retirement jump, cleanup actions and edge identity. Each loop
+        // iteration then creates and retires its own descriptor temporary.
+        let retirement = entry.terminator.clone();
+        let Terminator::Jump { edge, .. } = &retirement else {
+            panic!("staged call has no retirement continuation")
+        };
+        tables.edges.get_mut(*edge).unwrap().source = latch;
         let mut jump = |from, target| {
             let edge = tables.edges.push(EdgeRow {
                 source: from,
@@ -360,11 +556,11 @@ machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {{
             }
         };
         entry.terminator = jump(start, head);
-        let mut header = Block::plain(head, Vec::new(), jump(head, latch));
-        header.operations = after;
-        let mut feedback = Block::plain(latch, Vec::new(), jump(latch, head));
-        feedback.operations.push(call);
-        lowered.blocks = vec![entry, header, feedback];
+        lowered.blocks[header_position].terminator = jump(head, latch);
+        let mut feedback = Block::plain(latch, Vec::new(), retirement);
+        feedback.operations = staged_call;
+        lowered.blocks.insert(0, entry);
+        lowered.blocks.push(feedback);
         let graph = crate::graph::Graph::new(lowered.id, &lowered, &tables).unwrap();
         let types = tables.values.map(|_, row| row.scalar_type);
         let storage = crate::places::Storage::new(
@@ -382,7 +578,11 @@ machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {{
             .iter()
             .find(|operation| matches!(operation.kind, OperationKind::ByteSequenceLength { .. }))
             .unwrap();
-        let fresh = lowered.blocks[1]
+        let fresh = lowered
+            .blocks
+            .iter()
+            .find(|block| block.id == head)
+            .unwrap()
             .operations
             .iter()
             .find(|operation| matches!(operation.kind, OperationKind::ByteSequenceLength { .. }))

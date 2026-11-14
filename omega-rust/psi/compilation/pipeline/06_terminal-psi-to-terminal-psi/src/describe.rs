@@ -385,6 +385,58 @@ fn operation_safety(
     }
 }
 
+/// One fact in force before a branch, as an unreachable-branch warning names
+/// it: an entry requirement or a callee's guarantee as authored, otherwise
+/// what kind of fact it is.
+pub(crate) fn premise(
+    elaboration: &Elaboration,
+    machine: MachineId,
+    premise: terminal_check_tables::values::Justification,
+) -> String {
+    use terminal_check_tables::values::Justification;
+    let clause = |names: Option<&MachineNames>, clause: u32, ensures: bool| {
+        let names = names?;
+        let clauses = if ensures {
+            &names.ensures
+        } else {
+            &names.requires
+        };
+        Some(names.authored(clauses.get(usize::try_from(clause).ok()?)?))
+    };
+    let names = elaboration.names.get(machine);
+    match premise {
+        Justification::EntryRequirement { clause: position } => {
+            clause(names, position, false).unwrap_or_else(|| String::from("an entry requirement"))
+        }
+        Justification::CalleeGuarantee {
+            invocation,
+            clause: position,
+        } => elaboration
+            .tables
+            .machines
+            .get(machine)
+            .and_then(|tables| tables.invocations.get(invocation))
+            .and_then(|row| match row.callee {
+                Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(callee)) => {
+                    let callee_names = elaboration.names.get(callee)?;
+                    Some(format!(
+                        "`{}` ensures {}",
+                        callee_names.machine,
+                        clause(Some(callee_names), position, true)?
+                    ))
+                }
+                _ => None,
+            })
+            .unwrap_or_else(|| String::from("a callee's guarantee")),
+        Justification::BranchCondition { .. } => String::from("an earlier branch condition"),
+        Justification::DispatchBinding { .. } => String::from("the case a dispatch selected"),
+        Justification::BlockInvariant { .. } => String::from("a block invariant"),
+        Justification::Derived { .. } | Justification::OperationSemantics(_) => {
+            String::from("a derived fact")
+        }
+    }
+}
+
 /// Where a value is computed, as the deleted checker named it:
 /// "machine `run` state `entry` local `quotient`", or "... return value".
 pub(crate) fn owner(names: Option<&MachineNames>, site: SourceOrigin) -> String {

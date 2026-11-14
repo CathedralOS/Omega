@@ -797,7 +797,7 @@ pub(crate) mod compiler_evaluation {
     pub struct AdmittedCompilerEvaluation {
         providers: crate::AdmittedProviderSelections,
         artifact: terminal_codec::TerminalExecutionIdentity,
-        target: String,
+        target: Option<String>,
         declaration: ProofDeclarationId,
         requester: DeclarationCustody,
     }
@@ -806,18 +806,19 @@ pub(crate) mod compiler_evaluation {
         pub const fn requester(&self) -> DeclarationCustody {
             self.requester
         }
-        pub fn target(&self) -> &str {
-            &self.target
+        pub fn target(&self) -> Option<&str> {
+            self.target.as_deref()
         }
         pub fn providers(&self) -> &crate::AdmittedProviderSelections {
             &self.providers
         }
-        pub fn require_invocation<'code>(
+        pub fn require_invocation<'code, 'target>(
             &self,
             artifact: impl Into<terminal_codec::TerminalExecutionView<'code>>,
-            target: &str,
+            target: impl Into<Option<&'target str>>,
             entry: TargetMachineCallable,
         ) -> Result<(), String> {
+            let target = target.into();
             let artifact = artifact.into();
             let declaration = artifact
                 .module()
@@ -825,7 +826,7 @@ pub(crate) mod compiler_evaluation {
                 .proof_scope
                 .callable_declaration(entry);
             if self.artifact != artifact.custody_identity()
-                || self.target != target
+                || self.target.as_deref() != target
                 || declaration != Some(self.declaration)
             {
                 return Err(
@@ -837,25 +838,27 @@ pub(crate) mod compiler_evaluation {
         }
     }
 
-    pub fn admit_compiler_evaluation<'code>(
+    pub fn admit_compiler_evaluation<'code, 'target>(
         artifact: impl Into<terminal_codec::TerminalExecutionView<'code>>,
-        target: &str,
+        target: impl Into<Option<&'target str>>,
         root: ProofDeclarationId,
         providers: crate::AdmittedProviderSelections,
         requester: DeclarationCustody,
         authority: Option<&dyn DeclarationSelectionAuthority>,
     ) -> Result<AdmittedCompilerEvaluation, String> {
         let artifact = artifact.into();
+        let target = target.into();
         if providers.execution_identity() != &artifact.custody_identity() {
             return Err(
                 "compiler-evaluation provider installation names a different artifact".into(),
             );
         }
         let scope = &artifact.module().scalar_applications.proof_scope;
-        let root = scope
-            .plan
-            .callable_for_target(root, target)
-            .ok_or("compiler-evaluation declaration has no selected target body")?;
+        let root = match target {
+            Some(target) => scope.plan.callable_for_target(root, target),
+            None => scope.plan.callable_without_target(root),
+        }
+        .ok_or("compiler-evaluation declaration has no body in the requested target scope")?;
         let root_facts = declaration(scope, root)?;
         if root_facts.entry_requires {
             return Err(format!(
@@ -975,7 +978,7 @@ pub(crate) mod compiler_evaluation {
         Ok(AdmittedCompilerEvaluation {
             providers,
             artifact: artifact.custody_identity(),
-            target: target.to_owned(),
+            target: target.map(str::to_owned),
             declaration: root,
             requester,
         })
@@ -989,17 +992,18 @@ pub(crate) mod compiler_evaluation {
         pub dependencies: Vec<ProofDeclarationId>,
     }
 
-    pub(crate) fn compiler_invocation_scope<'scope>(
+    pub(crate) fn compiler_invocation_scope<'target>(
         scope: &ProofApplicationScope,
-        target: impl Into<Option<&'scope str>>,
+        target: impl Into<Option<&'target str>>,
         providers: &crate::AdmittedProviderSelections,
         root: ProofDeclarationId,
     ) -> Result<CompilerInvocationScope, String> {
         let target = target.into();
-        let root = scope
-            .plan
-            .callable_for_target(root, target)
-            .ok_or("compiler-evaluation declaration has no selected target body")?;
+        let root = match target {
+            Some(target) => scope.plan.callable_for_target(root, target),
+            None => scope.plan.callable_without_target(root),
+        }
+        .ok_or("compiler-evaluation declaration has no body in the requested target scope")?;
         let mut selected = Vec::new();
         for (requirement, body) in providers.providers().chain(
             providers
@@ -1034,6 +1038,31 @@ pub(crate) mod compiler_evaluation {
             }
         }
         dependencies.extend(scope.plan.declaration_closure(&dependencies.clone()));
+        if target.is_none() {
+            // A tagged callee can occur below an untagged root. Traversal leaves
+            // it in the demanded call roster rather than silently selecting it.
+            let demanded = dependencies
+                .iter()
+                .copied()
+                .collect::<std::collections::BTreeSet<_>>();
+            for (_, machine) in scope.plan.machines.iter() {
+                if (demanded.contains(&machine.machine)
+                    || scope
+                        .plan
+                        .symbols
+                        .span_or_empty(machine.states)
+                        .iter()
+                        .any(|state| demanded.contains(state)))
+                    && (machine.authored_target.is_some()
+                        || machine.source_target.is_some()
+                        || machine.family_interface)
+                {
+                    return Err(
+                        "target-independent evaluation demands a target-selected body".into(),
+                    );
+                }
+            }
+        }
         Ok(CompilerInvocationScope {
             selected,
             closure,

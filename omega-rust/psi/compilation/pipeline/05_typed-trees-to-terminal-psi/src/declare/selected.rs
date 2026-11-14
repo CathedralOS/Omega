@@ -33,7 +33,7 @@ pub(super) fn publish(
                 .declaration_representatives
                 .get(required)
                 .ok_or("selected public contract lost its construction representative")?;
-            let (source_caller, body, dispatch) = program
+            let (_, body, _, operand, owner) = program
                 .declaration_selections
                 .get(original)
                 .and_then(Option::as_ref)
@@ -41,32 +41,20 @@ pub(super) fn publish(
             if *body != invocation.inputs.callee {
                 return Err("selected public contract names another physical implementation");
             }
-            let owner = *program
-                .symbols
-                .get(*source_caller)
-                .ok_or("selected application lost its actual source caller")?;
-            let applications = typed.selected_conformance_applications(
-                owner,
-                dispatch.selection_application,
-                dispatch.evidence_parameter,
-                dispatch.requirement,
-                dispatch.application_report_fingerprint,
-                dispatch.application_commitment,
-            );
-            let [application] = applications.as_slice() else {
-                return Err("selected application has no unique supplying map");
-            };
-            let application = *application;
-            let identity = typed.selected_conformance_application_identity(owner, dispatch)?;
-            let key = (
-                machine.id,
-                identity,
-                application.lifetime_arguments.clone(),
-                application.type_arguments.clone(),
-                application.trait_lifetime_arguments.clone(),
-                application.trait_arguments.clone(),
-            );
-            demands.push((key, required, original, *body, owner, application));
+            let identity = typed
+                .declared_static_operand_identity(
+                    typed_trees::type_identity::DeclaredStaticOperandIdentityRequest {
+                        operand: typed_trees::type_identity::IndexIdentityArgument::StaticArgument(
+                            operand,
+                        ),
+                        lexical_owner: *owner,
+                        binders: &[],
+                        lifetime_binders: &[],
+                    },
+                )
+                .ok_or("selected application has no complete argument identity")?;
+            let key = (machine.id, identity);
+            demands.push((key, required, original, *body, *owner, operand));
         }
     }
     demands.sort_unstable_by(|left, right| left.0.cmp(&right.0).then(left.1.cmp(&right.1)));
@@ -79,34 +67,70 @@ pub(super) fn publish(
             end += 1;
         }
         let group = &demands[start..end];
-        let selected = group[0].5;
+        let operand = group[0].5;
         let source_owner = group[0].4;
-        let declaration = typed
-            .conformance_by_symbol(selected.declaration)
-            .ok_or("selected map lost its conformance declaration")?;
-        let parameters = typed.conformance_type_parameters(declaration);
-        if parameters.len() != selected.arguments.len()
-            || declaration.lifetime_parameters.len() != selected.lifetime_arguments.len()
+        let selected = typed
+            .conformance_by_symbol(operand.symbol)
+            .ok_or("selected map lost its actual conformance declaration")?;
+        let parameters = typed.conformance_type_parameters(selected);
+        let raw_arguments = operand
+            .application
+            .as_ref()
+            .map_or(&[][..], |application| application.arguments.as_ref());
+        let raw_lifetimes = operand.application.as_ref().map_or(&[][..], |application| {
+            application.lifetime_arguments.as_ref()
+        });
+        if operand
+            .application
+            .as_ref()
+            .is_some_and(|application| application.member.is_valid())
+            || parameters.len() != raw_arguments.len()
+            || selected.lifetime_parameters.len() != raw_lifetimes.len()
         {
             return Err("selected map does not bind its complete declared argument list");
         }
-        let mut telescope =
-            Vec::with_capacity(parameters.len() + selected.lifetime_arguments.len());
-        for (parameter, argument) in declaration
-            .lifetime_parameters
+        let references = raw_arguments
             .iter()
-            .zip(&selected.lifetime_arguments)
-        {
-            if argument.is_empty() {
-                return Err("selected map has an unresolved lifetime argument");
-            }
+            .map(|argument| {
+                if typed
+                    .type_reference_table
+                    .contains_type_reference(argument.type_reference)
+                {
+                    Ok(argument.type_reference)
+                } else {
+                    Err("selected map argument has no retained source reference")
+                }
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let scope = typed_trees::trait_definition::AppliedTraitScope::from_conformance_application(
+            typed,
+            selected,
+            typed_trees::trait_definition::TraitApplicationArguments {
+                lexical_owner: source_owner,
+                enclosing_data_applications: &[],
+                arguments: &references,
+                lifetimes: raw_lifetimes,
+            },
+        )
+        .ok_or("selected map lost its complete applied trait scope")?;
+        let mut telescope = Vec::with_capacity(parameters.len() + raw_lifetimes.len());
+        for (parameter, argument) in selected.lifetime_parameters.iter().zip(raw_lifetimes) {
+            let argument = typed_trees::type_identity::portable_applied_lifetime_identity(
+                typed,
+                argument.as_str(),
+                source_owner,
+                &[],
+            )
+            .and_then(|identity| typed.type_identity_text(identity))
+            .filter(|identity| !identity.is_empty())
+            .ok_or("selected map has an unresolved lifetime argument")?;
             telescope.push(ClosedConformanceParameterBinding {
                 parameter: parameter.as_str().to_owned(),
                 kind: ClosedConformanceParameterKind::Lifetime,
-                argument: argument.clone(),
+                argument,
             });
         }
-        for (parameter, argument) in parameters.iter().zip(&selected.arguments) {
+        for (parameter, argument) in parameters.iter().zip(raw_arguments) {
             use typed_trees::data::TypeParameterKind;
             let kind = match parameter.kind {
                 TypeParameterKind::Type => ClosedConformanceParameterKind::Type,
@@ -120,7 +144,7 @@ pub(super) fn publish(
                     return Err("selected map needs its complete proposition parameter contract");
                 }
             };
-            let identity = typed
+            let argument = typed
                 .declared_static_operand_identity(
                     typed_trees::type_identity::DeclaredStaticOperandIdentityRequest {
                         operand: typed_trees::type_identity::IndexIdentityArgument::StaticArgument(
@@ -137,20 +161,38 @@ pub(super) fn publish(
             telescope.push(ClosedConformanceParameterBinding {
                 parameter: parameter.name.as_str().to_owned(),
                 kind,
-                argument: identity,
+                argument,
             });
         }
-        let scope = selected
-            .trait_scope
-            .scope(typed)
-            .ok_or("selected map lost its complete retained trait scope")?;
+        let trait_lifetime_arguments = scope
+            .portable_lifetime_arguments(typed)
+            .ok_or("selected map trait has unresolved lifetime arguments")?
+            .into_iter()
+            .map(|identity| {
+                typed
+                    .type_identity_text(identity)
+                    .filter(|identity| !identity.is_empty())
+                    .ok_or("selected trait lifetime has no exact identity")
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let trait_arguments = typed
+            .trait_type_parameters(scope.declaration)
+            .iter()
+            .map(|parameter| {
+                scope
+                    .portable_parameter_identity(typed, parameter.symbol)
+                    .and_then(|identity| typed.type_identity_text(identity))
+                    .filter(|identity| !identity.is_empty())
+                    .ok_or("selected trait argument has no exact identity")
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         let mut application = ClosedConformanceApplication {
             owner: group[0].0.0,
-            declaration_identity: nominal(typed, sources, selected.declaration, identities)?,
+            declaration_identity: nominal(typed, sources, selected.symbol, identities)?,
             telescope,
-            trait_identity: nominal(typed, sources, selected.trait_definition, identities)?,
-            trait_lifetime_arguments: selected.trait_lifetime_arguments.clone(),
-            trait_arguments: selected.trait_arguments.clone(),
+            trait_identity: nominal(typed, sources, selected.trait_symbol, identities)?,
+            trait_lifetime_arguments,
+            trait_arguments,
             realization_callables: Vec::new(),
             schemas: Vec::new(),
             static_applications: Vec::new(),
@@ -241,7 +283,7 @@ pub(super) fn publish(
         });
         let application_index = module.closed_conformance_applications.len();
         for (_, required, original, body, _, _) in group {
-            let (_, _, dispatch) = program
+            let (_, _, dispatch, _, _) = program
                 .declaration_selections
                 .get(*original)
                 .and_then(Option::as_ref)

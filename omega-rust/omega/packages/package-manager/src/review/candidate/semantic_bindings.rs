@@ -206,7 +206,7 @@ pub(super) fn projection_error(
         SemanticBindingProjectionError::MissingCallableFacts { diagnostics } => {
             CompileResolvedPackageReviewsError::Compilation {
                 package: consumer.clone(),
-                diagnostics,
+                failure: compilation_products::CompileFailure::Diagnostics(diagnostics),
             }
         }
     }
