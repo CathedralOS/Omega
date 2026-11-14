@@ -2598,19 +2598,22 @@ pub(crate) mod tests {
         }
     }
 
-    #[test]
-    fn selected_calls_keep_the_suppliers_declaration_authority_requests() {
-        use semantic_vocabulary::PackageKeyIdentity;
-        let packages = [1, 2, 3].map(|byte| PackageKeyIdentity::from_digest([byte; 32]).unwrap());
-        let texts = [
-            "machine request() -> u64 { 0u64 }",
-            "public First satisfies Policy { machine plan(value: u64) -> u64 requires value > 0 { value } }",
-            "public trait Policy { machine plan(value: u64) -> u64 requires value > 0; }",
-        ];
+    fn packaged_selection_source(
+        texts: &[&str],
+        bindings: &[(usize, usize, &str)],
+    ) -> (Vec<semantic_vocabulary::PackageKeyIdentity>, TypedTrees) {
+        let packages = (1..=texts.len())
+            .map(|byte| {
+                semantic_vocabulary::PackageKeyIdentity::from_digest(
+                    [u8::try_from(byte).unwrap(); 32],
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
         let mut sources = source::SourceMap::default();
         let mut syntax = None;
         let mut ids = Vec::new();
-        for (index, text) in texts.into_iter().enumerate() {
+        for (index, text) in texts.iter().copied().enumerate() {
             let root = format!("/selection-{index}");
             let source = sources
                 .add_with_metadata(
@@ -2634,12 +2637,47 @@ pub(crate) mod tests {
         let mut request =
             syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax.unwrap());
         request.sources = Some(Arc::new(sources));
-        request.top_level_bindings = vec![symbols::SourceScopedTopLevelBinding::new(
-            ids[1], ids[2], "Policy",
-        )];
+        request.top_level_bindings = bindings
+            .iter()
+            .map(|(from, to, name)| {
+                symbols::SourceScopedTopLevelBinding::new(ids[*from], ids[*to], *name)
+            })
+            .collect();
         let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
         let source =
             symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        (packages, source)
+    }
+
+    struct SelectionAuthorityEdges(
+        Vec<(
+            semantic_vocabulary::PackageKeyIdentity,
+            semantic_vocabulary::PackageKeyIdentity,
+        )>,
+    );
+    impl BuildTimeSelectionAuthority for SelectionAuthorityEdges {
+        fn allows_declaration_selection(
+            &self,
+            requester: semantic_vocabulary::PackageKeyIdentity,
+            owner: semantic_vocabulary::PackageKeyIdentity,
+        ) -> bool {
+            self.0.contains(&(requester, owner))
+        }
+        fn package_label(&self, package: semantic_vocabulary::PackageKeyIdentity) -> String {
+            format!("{package:?}")
+        }
+    }
+
+    #[test]
+    fn selected_calls_keep_the_suppliers_declaration_authority_requests() {
+        let (packages, source) = packaged_selection_source(
+            &[
+                "machine request() -> u64 { 0u64 }",
+                "public First satisfies Policy { machine plan(value: u64) -> u64 requires value > 0 { value } }",
+                "public trait Policy { machine plan(value: u64) -> u64 requires value > 0; }",
+            ],
+            &[(1, 2, "Policy")],
+        );
         let requester = source
             .machines()
             .iter()
@@ -2662,22 +2700,12 @@ pub(crate) mod tests {
             symbol: selected.symbol,
             ..Default::default()
         };
-        struct Edges(Vec<(PackageKeyIdentity, PackageKeyIdentity)>);
-        impl BuildTimeSelectionAuthority for Edges {
-            fn allows_declaration_selection(
-                &self,
-                requester: PackageKeyIdentity,
-                owner: PackageKeyIdentity,
-            ) -> bool {
-                self.0.contains(&(requester, owner))
-            }
-            fn package_label(&self, package: PackageKeyIdentity) -> String {
-                format!("{package:?}")
-            }
-        }
         let limited = PreparedBuildMachineProgram::prepare(
             &source,
-            Some(Arc::new(Edges(vec![(packages[0], packages[1])]))),
+            Some(Arc::new(SelectionAuthorityEdges(vec![(
+                packages[0],
+                packages[1],
+            )]))),
         )
         .unwrap();
         let entry = limited
@@ -2707,7 +2735,7 @@ pub(crate) mod tests {
         assert_eq!(meter.usage().total_units(), 0);
         let complete = PreparedBuildMachineProgram::prepare(
             &source,
-            Some(Arc::new(Edges(vec![
+            Some(Arc::new(SelectionAuthorityEdges(vec![
                 (packages[0], packages[1]),
                 (packages[1], packages[2]),
             ]))),
@@ -2743,6 +2771,79 @@ pub(crate) mod tests {
         assert!(call.inputs.required_contract.is_some());
         assert_eq!(receipt.requester(), requester);
         assert_eq!(receipt.machine(), row.realization_machine);
+    }
+
+    #[test]
+    fn a_reference_row_keeps_its_suppliers_body_dependency() {
+        let (packages, source) = packaged_selection_source(
+            &[
+                "machine request() -> u64 { 0u64 }",
+                "public First satisfies Policy { Policy::plan = implementation; }",
+                "public trait Policy { machine plan(value: u64) -> u64 requires value > 0; }",
+                "public machine implementation(value: u64) -> u64 requires value > 0 { value }",
+            ],
+            &[(1, 2, "Policy"), (1, 3, "implementation")],
+        );
+        let requester = source
+            .machines()
+            .iter()
+            .find(|machine| {
+                source.symbols.symbol_package_identity(machine.symbol) == Some(packages[0])
+            })
+            .unwrap()
+            .symbol;
+        let selected = source
+            .conformances()
+            .iter()
+            .find(|selected| {
+                source.symbols.symbol_package_identity(selected.symbol) == Some(packages[1])
+            })
+            .unwrap();
+        let [row] = selected.rows.as_slice() else {
+            panic!("one exact reference row")
+        };
+        assert_eq!(
+            row.source,
+            typed_trees::trait_definition::ConformanceRowSource::Reference
+        );
+        let operand = typed_trees::expression::StaticMachineArgument {
+            symbol: selected.symbol,
+            ..Default::default()
+        };
+        for has_body_edge in [false, true] {
+            let mut edges = vec![(packages[0], packages[1]), (packages[1], packages[2])];
+            if has_body_edge {
+                edges.push((packages[1], packages[3]));
+            }
+            let program = PreparedBuildMachineProgram::prepare(
+                &source,
+                Some(Arc::new(SelectionAuthorityEdges(edges))),
+            )
+            .unwrap();
+            let entry = program
+                .entry_selected(
+                    requester,
+                    requester,
+                    &operand,
+                    row.requirement,
+                    &[BuildTimeValue::Int(1)],
+                )
+                .unwrap();
+            let mut meter = psi_work::WorkMeter::unbounded();
+            let result = entry.invoke(target(), &mut meter);
+            if has_body_edge {
+                assert_eq!(result.unwrap(), BuildTimeValue::Int(1));
+            } else {
+                let error = result.unwrap_err();
+                assert!(
+                    error.contains("without direct dependency authority")
+                        && error.contains(&format!("{:?}", packages[1]))
+                        && error.contains(&format!("{:?}", packages[3])),
+                    "{error}"
+                );
+                assert_eq!(meter.usage().total_units(), 0);
+            }
+        }
     }
 
     #[test]

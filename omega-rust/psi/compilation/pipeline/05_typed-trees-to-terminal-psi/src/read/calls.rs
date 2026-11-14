@@ -267,19 +267,19 @@ impl<'t> Program<'t> {
             .is_some_and(|machine| machine.attached_data_symbol == qualifier)
     }
 
-    /// A closed named map retains its public requirement and exact row in
-    /// the typed call. The row supplies a body demand, while normal machine
-    /// reading still publishes the originating requirement's contract.
-    fn named_owned_call_target(
+    /// The checked named row retains its public requirement and exact body
+    /// demand. An ordinary selected machine keeps its own contract; the call
+    /// separately names the public contract it must establish.
+    fn named_call_target(
         &self,
         id: MachineId,
         namespace: SymbolHandle,
         requirement: SymbolHandle,
     ) -> Checked<
         Option<(
-            SymbolHandle,
+            &'t typed_trees::trait_definition::Conformance,
+            &'t typed_trees::trait_definition::ConformanceRow,
             &'t typed_trees::signature::StateSignature,
-            SymbolHandle,
         )>,
     > {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
@@ -290,32 +290,9 @@ impl<'t> Program<'t> {
         else {
             return Ok(None);
         };
-        if !row.source.owns_realization() {
-            return Err(unserved("named reference-row invocation"));
-        }
-        let Some((actual_owner, actual_row)) = self
-            .typed
-            .owned_conformance_realization(row.realization_machine)
-        else {
-            return Err(unserved("named operation lost its owned body"));
-        };
-        let Some(machine) = self.typed.machine_by_symbol(row.realization_machine) else {
-            return Err(unserved("named operation lost its machine"));
-        };
-        let [entry] = self.typed.machine_states(machine) else {
-            return Err(unserved("named operation without one entry state"));
-        };
-        if actual_owner.symbol != owner.symbol
-            || actual_row != row
-            || entry.symbol != row.realization_state
-        {
-            return Err(unserved(
-                "named operation disagrees with its exact owned row",
-            ));
-        }
         self.visible_to(id, requirement)?;
         self.visible_declaration_to(id, owner.symbol, owner.is_public)?;
-        Ok(Some((row.realization_machine, required, owner.symbol)))
+        Ok(Some((owner, row, required)))
     }
 
     /// A call is direct only when its authored selection, if recorded,
@@ -509,7 +486,7 @@ impl<'t> Program<'t> {
         let receiver = call.receiver_root_symbol.is_valid()
             || call.receiver_symbol.is_valid()
             || !call.receiver.is_empty();
-        let named = self.named_owned_call_target(id, call.receiver_symbol, call.target_symbol)?;
+        let named = self.named_call_target(id, call.receiver_symbol, call.target_symbol)?;
         let qualified = named.is_some()
             || (call.receiver_root_symbol == call.receiver_symbol
                 && call.receiver.len() == 1
@@ -525,7 +502,7 @@ impl<'t> Program<'t> {
             .statement_table
             .expression_handles(call.arguments);
         if let Some(selected) = named {
-            self.named_owned_call(
+            self.named_call(
                 id,
                 slots,
                 selected,
@@ -642,7 +619,7 @@ impl<'t> Program<'t> {
             .expression_table
             .name_path_node(call.receiver)
             .map_or_else(SymbolHandle::invalid, |path| path.symbol);
-        let named = self.named_owned_call_target(id, namespace, call.target_symbol)?;
+        let named = self.named_call_target(id, namespace, call.target_symbol)?;
         let qualified = named.is_some()
             || (call.receiver.is_valid()
                 && matches!(
@@ -663,7 +640,7 @@ impl<'t> Program<'t> {
             .expression_table
             .expression_handles(call.arguments);
         let mut read = if let Some(selected) = named {
-            self.named_owned_call(id, slots, selected, (arguments, source, expected))?
+            self.named_call(id, slots, selected, (arguments, source, expected))?
         } else {
             self.call(id, slots, call.target_symbol, arguments, source, expected)?
         };
@@ -973,30 +950,21 @@ impl<'t> Program<'t> {
         Ok(read)
     }
 
-    /// Close the already authenticated owned-row query through that same
-    /// selected-call path. No private body becomes directly callable.
-    fn named_owned_call(
+    /// Close the authenticated named row through the same selected-call path.
+    /// Its public contract does not make the body directly callable.
+    fn named_call(
         &mut self,
         id: MachineId,
         slots: &[Slot],
-        (body, required, namespace): (
-            SymbolHandle,
+        (owner, row, required): (
+            &'t typed_trees::trait_definition::Conformance,
+            &'t typed_trees::trait_definition::ConformanceRow,
             &'t typed_trees::signature::StateSignature,
-            SymbolHandle,
         ),
         (arguments, source, expected): (&[ExpressionHandle], SourceOrigin, Option<ValueType>),
     ) -> Checked<Expression> {
-        let (owner, row) = self
-            .typed
-            .owned_conformance_realization(body)
-            .filter(|(owner, _)| owner.symbol == namespace)
-            .ok_or_else(|| {
-                refuse(
-                    id,
-                    Construct::Machine,
-                    Unserved::Call("named member lost its exact owned row"),
-                )
-            })?;
+        let body = row.realization_machine;
+        let namespace = owner.symbol;
         let dispatch = typed_trees::StaticRequirementDispatch {
             evidence_parameter: SymbolHandle::invalid(),
             declaring_trait: row.declaring_trait,

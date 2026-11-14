@@ -418,8 +418,12 @@ fn selection_requests(
             // Its source scope cannot replace the original caller's package edge.
             typed_trees::references::visit_static_argument(typed, &mut references, &operand);
             references.finish()?;
+            let implementation = *elaboration
+                .machines
+                .get(body)
+                .ok_or("selected call lost its source implementation declaration")?;
             let mut declared = SelectionReferences::new(typed, conformance.symbol);
-            declared.extend([conformance.trait_symbol]);
+            declared.extend([conformance.trait_symbol, implementation]);
             for argument in typed
                 .type_reference_table
                 .type_reference_handles(conformance.arguments)
