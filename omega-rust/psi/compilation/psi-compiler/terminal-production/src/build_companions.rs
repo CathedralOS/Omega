@@ -19,7 +19,6 @@ use language_semantics::declaration_selection::{
     BuildOperation, BuildSelectionRequest, NativeBindingFormation, ProductDeclarationRequest,
 };
 use semantic_vocabulary::{BoundaryMachineId, InvocationSite, StructuralTypeId};
-use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use symbols::SymbolHandle;
 use terminal_psi::{StructuralFieldType, StructuralTypeShape, TerminalModule};
@@ -67,7 +66,7 @@ pub(crate) fn produce(
     let elaboration = &accepted.closure().elaboration;
     let mut companions = BuildCompanions::default();
     capture_declared_inputs(accepted, module, &mut companions)?;
-    let mut shapes = BTreeMap::new();
+    let mut shapes = NativeLocatorShapes::new(module)?;
     let mut designated = 0;
     // The accepted module owns unique operations within each machine. Visiting
     // each emitted call once therefore produces one row per complete host key.
@@ -178,7 +177,7 @@ fn binding(
     accepted: &AcceptedTerminalSource,
     module: &TerminalModule,
     call: &ProtocolCall<'_>,
-    shapes: &mut BTreeMap<StructuralTypeId, Arc<TerminalBuildValueShape>>,
+    shapes: &mut NativeLocatorShapes,
 ) -> Result<TerminalBuildBindingCall, Diagnostic> {
     let source = accepted.source().as_ref();
     let elaboration = &accepted.closure().elaboration;
@@ -325,18 +324,23 @@ fn capture_declared_inputs(
         terminal_psi::TargetMachineCallable::Machine(id) => elaboration.machines.get(id).copied(),
         _ => None,
     });
-    let selected: BTreeSet<_> = elaboration
+    let mut selected: Vec<_> = elaboration
         .machines
         .iter()
         .map(|(_, symbol)| (symbol.arena_index(), symbol.generation()))
         .collect();
+    selected.sort_unstable();
+    selected.dedup();
     // Formation is checked for source in this compilation even when no branch
     // issues the request. Unselected Product source supplies no Build intent.
     for occurrence in typed_trees::product_operand::collect_product_selection_occurrences(source) {
-        if !selected.contains(&(
-            occurrence.machine.arena_index(),
-            occurrence.machine.generation(),
-        )) {
+        if selected
+            .binary_search(&(
+                occurrence.machine.arena_index(),
+                occurrence.machine.generation(),
+            ))
+            .is_err()
+        {
             continue;
         }
         let declaration = occurrence.request;
@@ -436,10 +440,7 @@ fn native_locator(
     source: &AcceptedTerminalSource,
     boundary: BoundaryMachineId,
     module: &TerminalModule,
-    cache: &mut std::collections::BTreeMap<
-        semantic_vocabulary::StructuralTypeId,
-        Arc<TerminalBuildValueShape>,
-    >,
+    shapes: &mut NativeLocatorShapes,
 ) -> Result<TerminalBuildNativeLocator, Diagnostic> {
     let publication = source.correspondence();
     let declaration = module
@@ -479,12 +480,7 @@ fn native_locator(
         application.reference,
     )
     .map_err(|diagnostics| refused(diagnostics::join_messages(&diagnostics)))?;
-    let shape = collect_shape(
-        module,
-        parameter.structural_type,
-        cache,
-        &mut std::collections::BTreeSet::new(),
-    )?;
+    let shape = collect_shape(module, parameter.structural_type, shapes)?;
     Ok(TerminalBuildNativeLocator {
         structural_type: parameter.structural_type,
         widths,
@@ -492,20 +488,48 @@ fn native_locator(
     })
 }
 
+enum LocatorShapeState {
+    Unread,
+    Active,
+    Ready(Arc<TerminalBuildValueShape>),
+}
+
+struct NativeLocatorShapes {
+    rows: Vec<(StructuralTypeId, LocatorShapeState)>,
+}
+
+impl NativeLocatorShapes {
+    fn new(module: &TerminalModule) -> Result<Self, Diagnostic> {
+        let mut rows = module
+            .structural_types
+            .iter()
+            .map(|row| (row.id, LocatorShapeState::Unread))
+            .collect::<Vec<_>>();
+        rows.sort_unstable_by_key(|(id, _)| *id);
+        if rows.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+            return Err(refused("native locator type rows repeat an identity"));
+        }
+        Ok(Self { rows })
+    }
+}
+
 fn collect_shape(
     module: &TerminalModule,
     id: StructuralTypeId,
-    cache: &mut BTreeMap<StructuralTypeId, Arc<TerminalBuildValueShape>>,
-    visiting: &mut BTreeSet<StructuralTypeId>,
+    shapes: &mut NativeLocatorShapes,
 ) -> Result<Arc<TerminalBuildValueShape>, Diagnostic> {
-    if let Some(shape) = cache.get(&id) {
-        return Ok(Arc::clone(shape));
+    let position = shapes
+        .rows
+        .binary_search_by_key(&id, |(id, _)| *id)
+        .map_err(|_| refused("native locator child has no declaration"))?;
+    match &shapes.rows[position].1 {
+        LocatorShapeState::Ready(shape) => return Ok(Arc::clone(shape)),
+        LocatorShapeState::Active => {
+            return Err(refused("native locator has a recursive owned shape"));
+        }
+        LocatorShapeState::Unread => {}
     }
-    if !visiting.insert(id) {
-        return Err(Diagnostic::error(
-            "native locator has a recursive owned shape",
-        ));
-    }
+    shapes.rows[position].1 = LocatorShapeState::Active;
     let row = module
         .structural_type(id)
         .ok_or_else(|| Diagnostic::error("native locator child has no declaration"))?;
@@ -520,7 +544,7 @@ fn collect_shape(
             length: length.literal().ok_or_else(|| Diagnostic::error(
                 "native locator requires a closed array extent",
             ))?,
-            element: collect_shape(module, *element, cache, visiting)?,
+            element: collect_shape(module, *element, shapes)?,
         },
         StructuralTypeShape::Sum { cases } => TerminalBuildValueShape::Sum {
             cases: cases.iter().map(|case| Ok(TerminalBuildValueCase {
@@ -530,7 +554,7 @@ fn collect_shape(
                     if field.relevance.is_erased() { return Err(Diagnostic::error("native locator cannot consume erased fields")); }
                     let shape = match field.field_type {
                         StructuralFieldType::Scalar(scalar) => Arc::new(TerminalBuildValueShape::Scalar(scalar)),
-                        StructuralFieldType::Structural(child) => collect_shape(module, child, cache, visiting)?,
+                        StructuralFieldType::Structural(child) => collect_shape(module, child, shapes)?,
                         _ => return Err(Diagnostic::error("native locator field is not an owned scalar or structural value")),
                     };
                     Ok(TerminalBuildValueField { id: field.id, name: label(module, field.identity)?.to_owned(), shape })
@@ -539,9 +563,8 @@ fn collect_shape(
         },
         _ => return Err(Diagnostic::error("native locator cannot retain references, views or opaque storage")),
     };
-    visiting.remove(&id);
     let shape = Arc::new(shape);
-    cache.insert(id, Arc::clone(&shape));
+    shapes.rows[position].1 = LocatorShapeState::Ready(Arc::clone(&shape));
     Ok(shape)
 }
 fn label(

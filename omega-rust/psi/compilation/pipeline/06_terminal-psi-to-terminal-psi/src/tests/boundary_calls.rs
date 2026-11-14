@@ -1396,7 +1396,86 @@ fn a_named_owned_inline_member_calls_through_its_requirement() {
 #[test]
 fn a_named_owned_member_keeps_public_inputs_and_guarantees() {
     for (actual, promised, bad_input) in [("0", "", true), ("7", "ensures result == 0", false)] {
-        let verdicts = declared_verdicts(&named_owned_source(actual, promised, "0"));
+        let program = typed(&named_owned_source(actual, promised, "0"));
+        let entry = entry(&program);
+        let mut conformances = program.conformances().iter();
+        let conformance = conformances
+            .next()
+            .expect("the authored Inline conformance");
+        assert!(conformances.next().is_none());
+        let [row] = conformance.rows.as_slice() else {
+            panic!("the named map owns exactly its authored Step::apply row");
+        };
+        assert_eq!(row.declaring_trait, conformance.trait_symbol);
+        assert!(row.source.owns_realization());
+        let prepared_source = typed_trees_to_terminal_psi::prepare_compilation(
+            &program,
+            typed_trees_to_terminal_psi::Compilation {
+                calling: None,
+                providers: None,
+                declaration_metadata: &[],
+                entries: &[entry],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Invocation,
+        );
+        assert_eq!(prepared_source.source.forms.len(), 3);
+        assert!(prepared_source.source.forms.iter().all(Option::is_some));
+        let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) =
+            prepared_source.program
+        else {
+            panic!("the same authored program must reach ordinary Terminal judgment");
+        };
+        assert!(prepared.forms.is_empty());
+        assert!(prepared.arrivals.is_empty());
+        assert_eq!(prepared.witnesses.len(), 2);
+        // The body's independent conformance comes first. The separate
+        // selected-call signature witness belongs to this exact selection.
+        assert_eq!(prepared.selection_witnesses, [(0, 1)]);
+        let closure = prepared.closure.as_ref().expect("the actual entry closure");
+        assert_eq!(closure.machines.get(id(1)), Some(&entry));
+        let [selected] = closure.selections.as_slice() else {
+            panic!("the actual source makes one named call");
+        };
+        assert_eq!(selected.caller, id(1));
+        assert_eq!(selected.declaring_trait, row.declaring_trait);
+        assert_eq!(selected.requirement, row.requirement);
+        assert_eq!(
+            closure.machines.get(selected.implementation),
+            Some(&row.realization_machine)
+        );
+        assert!(selected.required_contract.is_some());
+        for witness in &prepared.witnesses {
+            let witness = witness
+                .as_ref()
+                .expect("both source witnesses were prepared");
+            let Some(semantic_vocabulary::TargetMachineCallable::Machine(root)) =
+                witness.module.entry
+            else {
+                panic!("each logical witness has its actual requirement root");
+            };
+            assert_eq!(witness.machines.get(root), Some(&row.requirement));
+            let bodies = witness
+                .machines
+                .values()
+                .filter(|symbol| **symbol == row.realization_machine)
+                .count();
+            assert_eq!(
+                bodies, 1,
+                "each witness checks the exact authored Inline body"
+            );
+        }
+        let verdicts = crate::judge_compilation(
+            terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared),
+        )
+        .into_iter()
+        .map(Result::unwrap)
+        .collect::<Vec<_>>();
+        assert_eq!(verdicts.len(), 3, "{verdicts:?}");
         let RouteVerdict::Rejected { unproved, .. } = &verdicts[0] else {
             panic!("{verdicts:?}")
         };
@@ -1411,6 +1490,10 @@ fn a_named_owned_member_keeps_public_inputs_and_guarantees() {
         assert!(
             matches!(verdicts[1], RouteVerdict::Accepted(_)),
             "the own-body witness remains valid: {verdicts:?}"
+        );
+        assert!(
+            matches!(verdicts[2], RouteVerdict::Accepted(_)),
+            "the exact selected public signature witness remains valid: {verdicts:?}"
         );
     }
 }

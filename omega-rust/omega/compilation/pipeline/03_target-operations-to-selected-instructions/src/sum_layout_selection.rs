@@ -493,8 +493,8 @@ fn select(name: &str, plan: &AbstractOperationPlan, target: TargetOperationPlan)
     assert!(
         callable_program
             .bodies
-            .values()
-            .all(|body| body.invocations.is_empty() && body.invalid_invocations.is_empty()),
+            .iter()
+            .all(|(_, body)| body.invocations.is_empty()),
         "{name}: the sum-layout fixture has no call occurrences"
     );
     let callable_roots = terminal_semantics::callable_values::CallableInvocationRoots::new();

@@ -7,7 +7,7 @@
 use crate::TypedTrees;
 use crate::callable_values::RuntimeCallableContractHandle;
 use crate::contract_structure::{
-    self, ContractProjection, DeclaredContractFact, DeclaredContractKind,
+    self, ContractIdentityContext, DeclaredContractFact, DeclaredContractKind,
 };
 use crate::data::{MachineParameterContract, TypeParameterKind};
 use crate::domain::ProofFact;
@@ -585,7 +585,7 @@ fn clauses(
     signature: &StateSignature,
     context: &TypeIdentityContext<'_>,
 ) -> IdentityResult<String> {
-    let mut projection = ContractProjection {
+    let mut projection = ContractIdentityContext {
         type_identity: |reference, _: &[(SymbolHandle, String)]| {
             Ok(program
                 .type_identities

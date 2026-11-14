@@ -32,8 +32,12 @@ pub fn terminal_callable_values_with_boundary_implementations<'a>(
         }
     }
     let mut program = terminal_callable_values(module)?;
-    for body in program.bodies.values_mut() {
-        for invocation in body.invocations.values_mut() {
+    for (_, body) in &mut program.bodies {
+        for invocation in body
+            .invocations
+            .iter_mut()
+            .filter_map(|row| row.value.as_mut().ok())
+        {
             let Some(boundary) = invocation.boundary else {
                 continue;
             };
@@ -61,7 +65,7 @@ pub fn reached_boundary_calls(
     let program = terminal_callable_values_with_boundary_implementations(module, implementations)?;
     let reached = reachable_callable_invocations(&program, [entry])?;
     let mut boundaries = Vec::new();
-    for row in reached.invocations.values() {
+    for row in &reached.invocations {
         if let Some(boundary) = row.invocation.boundary {
             module
                 .boundary_machine(boundary)
@@ -102,7 +106,8 @@ pub fn terminal_callable_values(
         module.machines.iter().map(|machine| machine.id),
     )
     .map_err(|_| "callable provenance cannot reconstruct current Terminal storage flow")?;
-    let mut bodies = BTreeMap::new();
+    let mut bodies: Vec<(semantic_vocabulary::MachineId, CallableValueBody)> =
+        Vec::with_capacity(module.machines.len());
     let mut cleanups = Vec::new();
     for machine in &module.machines {
         let flow = graph
@@ -151,7 +156,7 @@ pub fn terminal_callable_values(
                     u32::try_from(index).map_err(|_| "callable Terminal position overflow")?,
                 );
                 if let Some(result) = operation.result.as_structural() {
-                    body.structural_results.insert(position, result.place);
+                    body.retain_structural_result(position, result.place);
                 }
                 if let Some((target, scalar, structural)) = invocation(&operation.kind) {
                     let site =
@@ -246,8 +251,7 @@ pub fn terminal_callable_values(
             }
             for (edge, actions) in block.terminator.cleanup_rosters() {
                 if body
-                    .cleanup_actions
-                    .insert(edge, actions.to_vec())
+                    .retain_cleanup_actions(edge, actions.to_vec())
                     .is_some()
                 {
                     return Err("callable cleanup has an ambiguous owning edge");
@@ -281,9 +285,10 @@ pub fn terminal_callable_values(
                 _ => {}
             }
         }
-        if bodies.insert(machine.id, body).is_some() {
+        let Err(position) = bodies.binary_search_by_key(&machine.id, |(id, _)| *id) else {
             return Err("callable provenance has duplicate Terminal machine identities");
-        }
+        };
+        bodies.insert(position, (machine.id, body));
     }
     for (caller, position, edge, successor, ordinal, cleanup) in cleanups {
         let flow = graph
@@ -291,7 +296,9 @@ pub fn terminal_callable_values(
             .find(|row| row.id == caller)
             .ok_or("callable cleanup lost its current Terminal storage flow")?;
         let callee = bodies
-            .get(&cleanup.cleanup_machine)
+            .binary_search_by_key(&cleanup.cleanup_machine, |(id, _)| *id)
+            .ok()
+            .map(|position| &bodies[position].1)
             .ok_or("callable cleanup has no exact selected body")?;
         let site = CallableInvocationSite::CleanupAction {
             edge,
@@ -307,9 +314,10 @@ pub fn terminal_callable_values(
             &cleanup,
             callee,
         );
-        let body = bodies
-            .get_mut(&caller)
-            .ok_or("callable cleanup lost its caller")?;
+        let body_position = bodies
+            .binary_search_by_key(&caller, |(id, _)| *id)
+            .map_err(|_| "callable cleanup lost its caller")?;
+        let body = &mut bodies[body_position].1;
         match call {
             Ok(call) => {
                 body.retain_invocation(site, position, Ok(call))?;

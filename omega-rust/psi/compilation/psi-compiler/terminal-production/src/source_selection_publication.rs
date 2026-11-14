@@ -27,7 +27,62 @@ use typed_trees_to_terminal_psi::selection_questions::{
 
 use crate::AcceptedTerminalSource;
 
-type SymbolMap<Value> = HashMap<SymbolHandle, Value, symbols::BuildSymbolHasher>;
+// The source arena bounds the slot table. Each occupied row retains the full
+// handle so a reused arena slot cannot name an earlier declaration generation.
+struct SymbolRows<Value> {
+    positions: Vec<usize>,
+    rows: Vec<(SymbolHandle, Value)>,
+}
+
+impl<Value> SymbolRows<Value> {
+    fn new(symbols: usize) -> Self {
+        Self {
+            positions: vec![0; symbols + 1],
+            rows: Vec::new(),
+        }
+    }
+
+    fn get(&self, symbol: &SymbolHandle) -> Option<&Value> {
+        let position = *self.positions.get(symbol.arena_index() as usize)?;
+        let (retained, value) = self.rows.get(position.checked_sub(1)?)?;
+        (retained == symbol).then_some(value)
+    }
+
+    fn contains(&self, symbol: &SymbolHandle) -> bool {
+        self.get(symbol).is_some()
+    }
+
+    fn insert(&mut self, symbol: SymbolHandle, value: Value) -> Result<(), Diagnostic> {
+        let position = self
+            .positions
+            .get_mut(symbol.arena_index() as usize)
+            .filter(|_| symbol.is_valid())
+            .ok_or_else(|| refused("source declaration is outside its symbol arena"))?;
+        if *position == 0 {
+            self.rows.push((symbol, value));
+            *position = self.rows.len();
+        } else {
+            let (retained, row) = &mut self.rows[*position - 1];
+            if *retained != symbol {
+                return Err(refused("source declaration changed its symbol generation"));
+            }
+            *row = value;
+        }
+        Ok(())
+    }
+
+    fn get_or_insert_with(
+        &mut self,
+        symbol: SymbolHandle,
+        make: impl FnOnce() -> Value,
+    ) -> Result<&mut Value, Diagnostic> {
+        if self.get(&symbol).is_none() {
+            self.insert(symbol, make())?;
+        }
+        let position = self.positions[symbol.arena_index() as usize];
+        Ok(&mut self.rows[position - 1].1)
+    }
+}
 
 fn refused(detail: impl std::fmt::Display) -> Diagnostic {
     Diagnostic::error(format!("source declaration-selection admission: {detail}"))
@@ -886,9 +941,9 @@ fn intrinsic_identity(value: &impl Record, domain: &str) -> Result<String, Diagn
 
 struct Declarations<'source> {
     typed: &'source TypedTrees,
-    ids: SymbolMap<SelectionDeclarationId>,
-    identities: SymbolMap<String>,
-    contracts: SymbolMap<Vec<RuntimeCallableContractHandle>>,
+    ids: SymbolRows<SelectionDeclarationId>,
+    identities: SymbolRows<String>,
+    contracts: SymbolRows<Vec<RuntimeCallableContractHandle>>,
     sources: Vec<(SelectionDeclarationId, source::SourceSpan)>,
 }
 
@@ -897,7 +952,15 @@ impl<'source> Declarations<'source> {
         source: &'source AcceptedTerminalSource,
         module: &TerminalModule,
     ) -> Result<Self, Diagnostic> {
-        let mut identities = SymbolMap::default();
+        let mut identities = SymbolRows::new(
+            source
+                .source()
+                .symbols
+                .symbols()
+                .nodes()
+                .storage_slice()
+                .len(),
+        );
         let elaboration = &source.closure().elaboration;
         for machine in &module.machines {
             let symbol = elaboration
@@ -913,7 +976,7 @@ impl<'source> Declarations<'source> {
                 .identities
                 .text(declaration.semantic_declaration)
                 .ok_or_else(|| refused("checked machine declaration lost its semantic identity"))?;
-            identities.insert(symbol, identity.to_owned());
+            identities.insert(symbol, identity.to_owned())?;
         }
         for (boundary, symbol) in elaboration.boundaries.iter() {
             let declaration = module
@@ -924,20 +987,35 @@ impl<'source> Declarations<'source> {
                 .identities
                 .text(declaration.source.semantic_declaration)
                 .ok_or_else(|| refused("checked boundary lost its semantic identity"))?;
-            identities.insert(*symbol, identity.to_owned());
+            identities.insert(*symbol, identity.to_owned())?;
         }
         // Prepare this association once. Only an admitted contract's meaning
         // is normalized, so unrelated generic contracts never become work.
-        let mut contracts: SymbolMap<Vec<RuntimeCallableContractHandle>> = SymbolMap::default();
+        let mut contracts: SymbolRows<Vec<RuntimeCallableContractHandle>> = SymbolRows::new(
+            source
+                .source()
+                .symbols
+                .symbols()
+                .nodes()
+                .storage_slice()
+                .len(),
+        );
         for (handle, contract) in source.source().runtime_callable_contracts.iter() {
             contracts
-                .entry(contract.signature.symbol)
-                .or_default()
+                .get_or_insert_with(contract.signature.symbol, Vec::new)?
                 .push(handle);
         }
         Ok(Self {
             typed: source.source(),
-            ids: SymbolMap::default(),
+            ids: SymbolRows::new(
+                source
+                    .source()
+                    .symbols
+                    .symbols()
+                    .nodes()
+                    .storage_slice()
+                    .len(),
+            ),
             identities,
             contracts,
             sources: Vec::new(),
@@ -981,7 +1059,7 @@ impl<'source> Declarations<'source> {
     fn dictionary_symbol(&self, symbol: SymbolHandle) -> Result<SymbolHandle, Diagnostic> {
         self.valid(symbol, "declaration")?;
         if self.typed.symbols.get(symbol).kind != SymbolKind::State
-            || self.identities.contains_key(&symbol)
+            || self.identities.contains(&symbol)
         {
             return Ok(symbol);
         }
@@ -1005,7 +1083,7 @@ impl<'source> Declarations<'source> {
             return Ok(symbol);
         };
         self.valid(machine.symbol, "entry declaration")?;
-        if !self.identities.contains_key(&machine.symbol) {
+        if !self.identities.contains(&machine.symbol) {
             // Only an actual emitted declaration supplies an entry alias.
             // An un-emitted source description keeps its genuine identity.
             return Ok(symbol);
@@ -1030,7 +1108,7 @@ impl<'source> Declarations<'source> {
             .typed
             .normalized_hermetic_symbol_identity(symbol)
             .map_err(refused)?;
-        self.identities.insert(symbol, identity.clone());
+        self.identities.insert(symbol, identity.clone())?;
         Ok(identity)
     }
 
@@ -1093,7 +1171,7 @@ impl<'source> Declarations<'source> {
             callable_identity,
         });
         self.sources.push((id, span));
-        self.ids.insert(symbol, id);
+        self.ids.insert(symbol, id)?;
         Ok(id)
     }
 
@@ -1219,5 +1297,27 @@ impl<'source> Declarations<'source> {
                 self.declaration(output, symbol)?,
             )),
         }
+    }
+}
+
+#[cfg(test)]
+mod symbol_rows_tests {
+    use super::*;
+
+    #[test]
+    fn source_declaration_rows_keep_symbol_generations_and_arena_bounds() {
+        let original = SymbolHandle::from_parts(1, 1);
+        let replacement = SymbolHandle::from_parts(1, 2);
+        let mut rows = SymbolRows::new(2);
+        rows.insert(original, "declared identity").unwrap();
+        assert_eq!(rows.get(&original), Some(&"declared identity"));
+        assert_eq!(rows.get(&replacement), None);
+        assert!(rows.insert(replacement, "other identity").is_err());
+        assert_eq!(rows.get(&original), Some(&"declared identity"));
+        assert!(
+            rows.insert(SymbolHandle::from_parts(3, 1), "outside")
+                .is_err()
+        );
+        assert_eq!(rows.rows.len(), 1);
     }
 }

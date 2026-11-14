@@ -602,12 +602,11 @@ fn machine(
         context,
         reference_graph,
     } = prepare(module, domains, id, tables, knowledge)?;
-    let references = std::cell::RefCell::new(
+    let mut references =
         terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
             &module.structural_types,
             &reference_graph,
-        ),
-    );
+        );
     let storage = places::Storage::new(
         id,
         lowered,
@@ -616,12 +615,12 @@ fn machine(
         &graph,
         tables,
         &types,
-        &references,
+        &mut references,
     )?;
     let mut decided: Vec<Option<Checked<Discharged>>> =
         (0..tables.obligations.len()).map(|_| None).collect();
     // Loans are judged by structure, not proved (`places::loans`).
-    let (lent, conflicts) = storage.loans(module, tables)?;
+    let (lent, conflicts) = storage.loans(&mut references, module, tables)?;
     for (obligation, verdict) in lent {
         let slot = decided
             .get_mut(usize::try_from(obligation.get() - 1).unwrap_or(usize::MAX))
@@ -668,6 +667,7 @@ fn machine(
         tables,
         &mut decided,
         activity,
+        &mut references,
     )?;
     // Certificates next; a published clause is then decided from its exits.
     // A machine stage 04 generated takes each one its generic form proved,
@@ -681,7 +681,14 @@ fn machine(
             continue;
         }
         let verdict = goal(
-            module, lowered, &storage, id, obligation, &row.kind, tables, &types,
+            module,
+            lowered,
+            (&storage, &mut references),
+            id,
+            obligation,
+            &row.kind,
+            tables,
+            &types,
         )
         .and_then(|goal| {
             if let Some(carry) = &carrier
@@ -791,7 +798,7 @@ fn machine(
         for earlier in &opened {
             if !earlier.initial
                 && earlier.owner == window.owner
-                && storage.open_before(tables, earlier, window.opened_by)?
+                && storage.open_before(&mut references, tables, earlier, window.opened_by)?
             {
                 within = true;
                 break;
@@ -802,7 +809,7 @@ fn machine(
         }
     }
     let windows = opened;
-    let mut uses = storage.uses(tables)?;
+    let mut uses = storage.uses(&mut references, tables)?;
     // A store into a field of a byte domain is judged by the bytes it
     // supplies; a refused store is that operation's verdict.
     for judged in storage.byte_predicate_stores()? {
@@ -813,7 +820,7 @@ fn machine(
         }
     }
     let mut closures = Vec::new();
-    for consumption in storage.consumptions(tables, &windows)? {
+    for consumption in storage.consumptions(&mut references, tables, &windows)? {
         let window = windows.get(consumption.window).ok_or_else(|| {
             refusal(
                 RefusalReason::ForeignIdentity,
@@ -1045,20 +1052,23 @@ fn refuted(
 /// Fills one machine's knowledge table from its lowered form: entry
 /// `requires`, result equations and field-read equations, branch
 /// conditions, dispatch bindings and callee guarantees.
-fn fill_knowledge(
+fn fill_knowledge<'a>(
     module: &TerminalModule,
     id: MachineId,
     lowered: &TerminalMachine,
     tables: &mut MachineTables,
     knowledge: Knowledge,
     types: &IdTable<ValueId, ScalarType>,
-    storage: &places::Storage<'_>,
+    (storage, references): (
+        &places::Storage<'a>,
+        &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
+    ),
 ) -> Checked<()> {
     for (clause, proposition) in lowered.contract.requires.iter().enumerate() {
         // A clause over a field of a record formal is about what that field
         // held at entry, which is a value when some operation names the
         // field. One that names no such value states nothing here.
-        let stated = match substitute(proposition, &mut storage.at_entry(tables)) {
+        let stated = match substitute(proposition, &mut storage.at_entry(references, tables)) {
             Ok(stated) => stated,
             Err(Unbound::Unproved(_)) => continue,
             Err(unbound) => return Err(unbound.refusal(id, Construct::Machine)),
@@ -1084,7 +1094,7 @@ fn fill_knowledge(
             }
             // A field read's result is a fresh value; what it equals comes
             // from the write log, not from the operation alone.
-            if let Some(equation) = storage.read_equation(tables, operation)? {
+            if let Some(equation) = storage.read_equation(references, tables, operation)? {
                 push_knowledge(
                     tables,
                     equation,
@@ -1095,9 +1105,9 @@ fn fill_knowledge(
             // A read or a returning call establishes the applicable type
             // constraints on its exact observed storage versions.
             for premise in storage
-                .read_premises(tables, operation)?
+                .read_premises(references, tables, operation)?
                 .into_iter()
-                .chain(storage.returned_type_premises(tables, operation)?)
+                .chain(storage.returned_type_premises(references, tables, operation)?)
             {
                 push_knowledge(
                     tables,
@@ -1135,8 +1145,8 @@ fn fill_knowledge(
     // rows hold because that edge was taken and are available on it.
     if knowledge == Knowledge::All {
         for block in &lowered.blocks {
-            let equations = storage.payload_equations(tables, block)?;
-            let premises = storage.payload_premises(tables, block)?;
+            let equations = storage.payload_equations(references, tables, block)?;
+            let premises = storage.payload_premises(references, tables, block)?;
             for (edge, proposition) in equations.into_iter().chain(
                 premises
                     .into_iter()
@@ -1175,10 +1185,10 @@ fn fill_knowledge(
             continue;
         }
         let mut returned = storage.after_call(
+            references,
             tables,
             &row.actuals,
-            contract.structural_parameters,
-            contract.result,
+            (contract.structural_parameters, contract.result),
             operation,
             Construct::Invocation(invocation),
         )?;
@@ -1225,12 +1235,10 @@ impl Prepared {
     fn references<'a>(
         &'a self,
         types: &'a [terminal_psi::StructuralTypeDeclaration],
-    ) -> std::cell::RefCell<terminal_semantics::descriptor_results::DescriptorAnalysis<'a>> {
-        std::cell::RefCell::new(
-            terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
-                types,
-                &self.reference_graph,
-            ),
+    ) -> terminal_semantics::descriptor_results::DescriptorAnalysis<'a> {
+        terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
+            types,
+            &self.reference_graph,
         )
     }
 }
@@ -1258,12 +1266,11 @@ pub(crate) fn prepare(
     let graph = Graph::new(id, lowered, tables)?;
     let reference_graph = places::reference_graph(module, id)?;
     if fill {
-        let references = std::cell::RefCell::new(
+        let mut references =
             terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
                 &module.structural_types,
                 &reference_graph,
-            ),
-        );
+            );
         let storage = places::Storage::new(
             id,
             lowered,
@@ -1272,10 +1279,18 @@ pub(crate) fn prepare(
             &graph,
             tables,
             &types,
-            &references,
+            &mut references,
         )?;
         storage.owed_are_minted(tables)?;
-        fill_knowledge(module, id, lowered, tables, knowledge, &types, &storage)?;
+        fill_knowledge(
+            module,
+            id,
+            lowered,
+            tables,
+            knowledge,
+            &types,
+            (&storage, &mut references),
+        )?;
     }
     // A value of a type parameter has no type the kernel could hold it at,
     // so the context does not list it (`concrete`).
@@ -1654,10 +1669,13 @@ impl Bindings for ScalarActuals<'_> {
 
 /// The goal of one obligation, over this machine's values.
 #[allow(clippy::too_many_arguments)]
-fn goal(
+fn goal<'a>(
     module: &TerminalModule,
     lowered: &TerminalMachine,
-    storage: &places::Storage<'_>,
+    (storage, references): (
+        &places::Storage<'a>,
+        &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
+    ),
     id: MachineId,
     obligation: ObligationId,
     kind: &ObligationKind,
@@ -1665,7 +1683,14 @@ fn goal(
     types: &IdTable<ValueId, ScalarType>,
 ) -> Checked<Proposition> {
     let goal = stated_goal(
-        module, lowered, storage, id, obligation, kind, tables, types,
+        module,
+        lowered,
+        (storage, references),
+        id,
+        obligation,
+        kind,
+        tables,
+        types,
     )?;
     concrete(tables, id, Construct::Obligation(obligation), &goal)?;
     Ok(goal)
@@ -1703,10 +1728,13 @@ fn concrete(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn stated_goal(
+fn stated_goal<'a>(
     module: &TerminalModule,
     lowered: &TerminalMachine,
-    storage: &places::Storage<'_>,
+    (storage, references): (
+        &places::Storage<'a>,
+        &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
+    ),
     id: MachineId,
     obligation: ObligationId,
     kind: &ObligationKind,
@@ -1762,6 +1790,7 @@ fn stated_goal(
             };
             match row.site {
                 InvocationSite::Operation(site) => over_actuals(&mut storage.at_call(
+                    references,
                     tables,
                     &row.actuals,
                     call.contract.structural_parameters,
@@ -1780,7 +1809,7 @@ fn stated_goal(
             .map_err(|unbound| unbound.refusal(id, concerns))
         }
         ObligationKind::DataDomain { operation, clause } => {
-            storage.domain_goal(tables, operation, clause, concerns)
+            storage.domain_goal(references, tables, operation, clause, concerns)
         }
         ObligationKind::NormalGuarantee { exit, clause, .. } => {
             let clause = usize::try_from(clause)
@@ -1796,7 +1825,7 @@ fn stated_goal(
                 })?;
             substitute(
                 &clause.proposition,
-                &mut storage.at_return(tables, exit, concerns)?,
+                &mut storage.at_return(references, tables, exit, concerns)?,
             )
             .map_err(|unbound| unbound.refusal(id, concerns))
         }

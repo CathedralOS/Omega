@@ -55,7 +55,7 @@ pub struct DeclaredCallableContract<Cause = semantic_vocabulary::CrashCause> {
 }
 
 /// The supplying operation owns the context captured by these callbacks.
-pub struct ContractProjection<Type, Fact, Symbol, Cause> {
+pub struct ContractIdentityContext<Type, Fact, Symbol, Cause> {
     pub type_identity: Type,
     pub fact_identity: Fact,
     pub symbol_identity: Symbol,
@@ -92,7 +92,7 @@ pub fn declared_callable_with<Cause, Error, Type, Fact, Symbol, CauseProjection>
     contracts: &[SignatureContract],
     binders: &[(SymbolHandle, String)],
     include_crashes: bool,
-    projection: &mut ContractProjection<Type, Fact, Symbol, CauseProjection>,
+    projection: &mut ContractIdentityContext<Type, Fact, Symbol, CauseProjection>,
 ) -> Result<DeclaredCallableContract<Cause>, Error>
 where
     Cause: Clone + Ord,
@@ -130,7 +130,7 @@ pub fn declared_contracts_with<Cause, Error, Type, Fact, Symbol, CauseProjection
     contracts: &[SignatureContract],
     binders: &[(SymbolHandle, String)],
     include_crashes: bool,
-    projection: &mut ContractProjection<Type, Fact, Symbol, CauseProjection>,
+    projection: &mut ContractIdentityContext<Type, Fact, Symbol, CauseProjection>,
 ) -> Result<Vec<DeclaredContractClause<Cause>>, Error>
 where
     Cause: Clone + Ord,

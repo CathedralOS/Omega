@@ -113,14 +113,16 @@ pub fn body_service_reaches(module: &TerminalModule) -> Result<BodyServiceReache
     let mut rows = vec![Vec::new(); machines.len()];
     let mut predecessors = vec![Vec::new(); machines.len()];
     for (position, machine) in module.machines.iter().enumerate() {
-        let body = program
-            .bodies
-            .get(&machine.id)
-            .ok_or("body service summary lost its exact invocation source")?;
-        if let Some((_, (_, reason))) = body.invalid_invocations.iter().next() {
+        let body = program.body(machine.id)?;
+        if let Some(reason) = body
+            .invocations
+            .iter()
+            .find_map(|row| row.value.as_ref().err())
+        {
             return Err(*reason);
         }
-        for invocation in body.invocations.values() {
+        for row in &body.invocations {
+            let invocation = row.value.as_ref().map_err(|reason| *reason)?;
             program.validate_occurrence(machine.id, invocation)?;
             match invocation.target {
                 CallableInvocationTarget::Machine(callee) => {
@@ -144,9 +146,7 @@ pub fn body_service_reaches(module: &TerminalModule) -> Result<BodyServiceReache
                             .scalar_parameters
                             .iter()
                             .zip(&invocation.scalar_arguments)
-                            .all(|(expected, actual)| {
-                                body.scalar_types.get(actual) == Some(expected)
-                            })
+                            .all(|(expected, actual)| body.scalar_type(*actual) == Some(*expected))
                         || !boundary
                             .structural_parameters
                             .iter()

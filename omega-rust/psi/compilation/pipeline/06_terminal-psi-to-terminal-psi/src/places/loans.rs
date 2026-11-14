@@ -184,7 +184,7 @@ pub(crate) fn reference_graph(
     })
 }
 
-impl Storage<'_> {
+impl<'a> Storage<'a> {
     /// The access a root's storage is held with here, when it is a borrowed
     /// formal: the declared access of its structural parameter.
     fn incoming(&self, root: semantic_vocabulary::PlaceId) -> Option<StructuralAccess> {
@@ -312,6 +312,7 @@ impl Storage<'_> {
     #[allow(clippy::too_many_arguments)]
     fn lent(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         module: &terminal_psi::TerminalModule,
         tables: &MachineTables,
         (concerns, before): (Construct, ProgramPoint),
@@ -452,7 +453,7 @@ impl Storage<'_> {
                 access,
                 lineage: {
                     let (block, before) = self.graph.locate(before)?;
-                    self.backing(&lent, block, before, concerns)?
+                    self.backing(references, &lent, block, before, concerns)?
                 },
                 parent,
                 lender,
@@ -493,6 +494,7 @@ impl Storage<'_> {
     #[allow(clippy::too_many_arguments)]
     fn reference_loan(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         tables: &MachineTables,
         operation: &terminal_psi::Operation,
         before: ProgramPoint,
@@ -605,7 +607,7 @@ impl Storage<'_> {
             invocation: None,
             position: 0,
             access,
-            lineage: self.backing(&raw, at.0, at.1 as usize, concerns)?,
+            lineage: self.backing(references, &raw, at.0, at.1 as usize, concerns)?,
             parent,
             lender,
             from,
@@ -659,6 +661,7 @@ impl Storage<'_> {
     /// loan; a shared loan permits observation but no write through any alias.
     fn uses_retained_loan(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         loan: &Formed,
         formed: &[Formed],
     ) -> Checked<Option<(Construct, LoanConflict)>> {
@@ -708,7 +711,8 @@ impl Storage<'_> {
                     continue;
                 }
                 for place in self.operation_uses(operation)? {
-                    let backing = self.backing(&place, block.id, position as usize, concerns)?;
+                    let backing =
+                        self.backing(references, &place, block.id, position as usize, concerns)?;
                     if loan.access.is_exclusive()
                         && overlap(&loan.lineage, &backing)
                         && !self.authorized_reference(loan, &place, at, formed)?
@@ -717,7 +721,8 @@ impl Storage<'_> {
                     }
                 }
                 for place in self.operation_changes(operation)? {
-                    let backing = self.backing(&place, block.id, position as usize, concerns)?;
+                    let backing =
+                        self.backing(references, &place, block.id, position as usize, concerns)?;
                     if overlap(&loan.lineage, &backing)
                         && (!loan.access.is_exclusive()
                             || !self.authorized_reference(loan, &place, at, formed)?)
@@ -774,7 +779,12 @@ impl Storage<'_> {
         Ok(false)
     }
 
-    fn parents(&self, module: &terminal_psi::TerminalModule, formed: &[Formed]) -> Checked<()> {
+    fn parents(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        module: &terminal_psi::TerminalModule,
+        formed: &[Formed],
+    ) -> Checked<()> {
         for loan in formed {
             let Some(descriptor) = &loan.from else {
                 continue;
@@ -782,7 +792,7 @@ impl Storage<'_> {
             let parent = terminal_semantics::reference_loan_parent(
                 module,
                 self.lowered,
-                &mut self.references.borrow_mut(),
+                references,
                 loan.at,
                 descriptor,
                 formed
@@ -880,6 +890,7 @@ impl Storage<'_> {
     /// block and operation order, each call's loans in argument order.
     fn formed(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         module: &terminal_psi::TerminalModule,
         tables: &MachineTables,
     ) -> Checked<Vec<Formed>> {
@@ -896,17 +907,12 @@ impl Storage<'_> {
                     terminal_psi::OperationKind::EstablishReference { .. }
                 )
             }) {
-            Some(
-                self.references
-                    .borrow_mut()
-                    .flow(self.machine)
-                    .ok_or_else(|| {
-                        self.unsupported(
-                            Construct::Machine,
-                            "persistent loans have no complete descriptor flow",
-                        )
-                    })?,
-            )
+            Some(references.flow(self.machine).ok_or_else(|| {
+                self.unsupported(
+                    Construct::Machine,
+                    "persistent loans have no complete descriptor flow",
+                )
+            })?)
         } else {
             None
         };
@@ -915,6 +921,7 @@ impl Storage<'_> {
             for operation in &block.operations {
                 let concerns = Construct::Operation(operation.id);
                 self.reference_loan(
+                    references,
                     tables,
                     operation,
                     before,
@@ -929,10 +936,11 @@ impl Storage<'_> {
                     module,
                     self.lowered,
                     operation,
-                    &mut self.references.borrow_mut(),
+                    references,
                 )
                 .map_err(|reason| self.unsupported(concerns, reason))?;
                 self.lent(
+                    references,
                     module,
                     tables,
                     (concerns, before),
@@ -956,6 +964,7 @@ impl Storage<'_> {
                     })?;
                 let first = formed.len();
                 self.lent(
+                    references,
                     module,
                     tables,
                     (Construct::Block(block.id), before),
@@ -1019,7 +1028,11 @@ impl Storage<'_> {
 
     /// The advertised return paths must be the paths the body actually
     /// returns. A header cannot turn a local borrow into caller-owned storage.
-    fn reference_results(&self, module: &terminal_psi::TerminalModule) -> Checked<()> {
+    fn reference_results(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        module: &terminal_psi::TerminalModule,
+    ) -> Checked<()> {
         let Some(result) = self.lowered.result.structural().filter(|result| {
             terminal_psi::structural_type_contains_reference_by(
                 |id| module.structural_type(id),
@@ -1029,16 +1042,12 @@ impl Storage<'_> {
             return Ok(());
         };
         let concerns = Construct::Machine;
-        let slots = self
-            .references
-            .borrow_mut()
-            .result_slots(self.machine)
-            .ok_or_else(|| {
-                self.unsupported(
-                    concerns,
-                    "reference result has no complete actual return-source correspondence",
-                )
-            })?;
+        let slots = references.result_slots(self.machine).ok_or_else(|| {
+            self.unsupported(
+                concerns,
+                "reference result has no complete actual return-source correspondence",
+            )
+        })?;
         let actual = terminal_semantics::reference_result_sources(
             self.types,
             &self.lowered.structural_parameters,
@@ -1061,6 +1070,7 @@ impl Storage<'_> {
     /// without a proved disposition remain unavailable.
     fn reference_completions(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         module: &terminal_psi::TerminalModule,
         formed: &[Formed],
     ) -> Checked<()> {
@@ -1129,7 +1139,7 @@ impl Storage<'_> {
                     if let Some(identity) = terminal_semantics::reference_loan_parent(
                         module,
                         self.lowered,
-                        &mut self.references.borrow_mut(),
+                        references,
                         at,
                         &descriptor,
                         formed.iter().filter_map(|loan| {
@@ -1202,17 +1212,18 @@ impl Storage<'_> {
     /// refusal, listed once in the conflicts with what it conflicts with.
     pub(crate) fn loans(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         module: &terminal_psi::TerminalModule,
         tables: &MachineTables,
     ) -> Checked<(Vec<(ObligationId, Checked<()>)>, Vec<ConflictingLoan>)> {
-        self.reference_results(module)?;
-        let formed = self.formed(module, tables)?;
-        self.parents(module, &formed)?;
-        self.reference_completions(module, &formed)?;
+        self.reference_results(references, module)?;
+        let formed = self.formed(references, module, tables)?;
+        self.parents(references, module, &formed)?;
+        self.reference_completions(references, module, &formed)?;
         let mut verdicts = Vec::with_capacity(formed.len());
         let mut conflicts = Vec::new();
         for (at, loan) in formed.iter().enumerate() {
-            let used = self.uses_retained_loan(loan, &formed)?;
+            let used = self.uses_retained_loan(references, loan, &formed)?;
             let site = used.map_or(Construct::Obligation(loan.obligation), |(at, _)| at);
             let exclusive = loan.access.is_exclusive();
             let mut found = used.map(|(_, conflict)| (None, conflict));

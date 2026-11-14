@@ -225,16 +225,17 @@ fn zero_constant(operation: &Operation, scalar_type: ScalarType) -> Option<Value
     (zero && result.scalar_type == scalar_type).then_some(result.id)
 }
 
-impl Storage<'_> {
+impl<'a> Storage<'a> {
     /// Every store of the machine, in block and operation order.
     pub(super) fn stores(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         value_types: &IdTable<ValueId, ScalarType>,
     ) -> Checked<Vec<Logged>> {
         let mut log = Vec::new();
         for block in &self.lowered.blocks {
             for (position, operation) in block.operations.iter().enumerate() {
-                for (lineage, stored) in self.stored_by(block, position, value_types)? {
+                for (lineage, stored) in self.stored_by(references, block, position, value_types)? {
                     log.push(Logged {
                         captured: lineage.clone(),
                         lineage,
@@ -253,6 +254,7 @@ impl Storage<'_> {
     /// stores take effect: a whole store before the stores beneath it.
     fn stored_by(
         &self,
+        references: &mut super::DescriptorAnalysis<'a>,
         block: &Block,
         position: usize,
         value_types: &IdTable<ValueId, ScalarType>,
@@ -479,7 +481,7 @@ impl Storage<'_> {
                 ));
             }
             OperationKind::ByteSequenceSubslice { .. } => {
-                self.shared_subslice(operation)?;
+                self.shared_subslice(references, operation)?;
                 rows.push((fresh()?, Stored::Established));
             }
             OperationKind::EstablishReference { .. } => {

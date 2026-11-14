@@ -806,7 +806,7 @@ pub mod control_flow {
                 }
             }
 
-            pub(crate) fn validate_authored_selection_rebase(
+            pub(crate) fn validate_selection_occurrence_remap(
                 &self,
                 statement_frontier: usize,
                 transition_target_frontier: usize,
@@ -859,7 +859,7 @@ pub mod control_flow {
                 Ok(())
             }
 
-            pub(crate) fn apply_authored_selection_rebase(
+            pub(crate) fn remap_selection_occurrences(
                 &mut self,
                 statement_frontier: usize,
                 transition_target_frontier: usize,
@@ -1451,9 +1451,9 @@ pub mod control_flow {
                     });
 
                 table
-                    .validate_authored_selection_rebase(0, 0, rebase)
+                    .validate_selection_occurrence_remap(0, 0, rebase)
                     .expect("extension-owned folded stores");
-                table.apply_authored_selection_rebase(0, 0, rebase);
+                table.remap_selection_occurrences(0, 0, rebase);
 
                 let StatementNode::Call(call) = table.statement(Handle::from_arena_index(1)) else {
                     panic!("folded call")

@@ -128,7 +128,7 @@ fn describe_calls(
         &elaboration.module.scalar_block_invariants,
         knowledge == Knowledge::All,
     )?;
-    let references = prepared.references(&elaboration.module.structural_types);
+    let mut references = prepared.references(&elaboration.module.structural_types);
     let storage = crate::places::Storage::new(
         id,
         lowered,
@@ -137,7 +137,7 @@ fn describe_calls(
         &prepared.graph,
         &tables,
         &prepared.types,
-        &references,
+        &mut references,
     )?;
     let mut decided = (0..tables.obligations.len())
         .map(|_| None)
@@ -160,6 +160,7 @@ fn describe_calls(
         &mut tables,
         &mut decided,
         activity,
+        &mut references,
     )?;
     for &index in outgoing {
         let site = &sites.arrivals[index];

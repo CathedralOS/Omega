@@ -617,11 +617,12 @@ pub(crate) struct Machine<'a> {
 /// every arrival is decided again, since one join's predicate may be a fact
 /// on another's arrival. Each round weakens at least one predicate, so this
 /// ends. Returns the weakened joins.
-pub(crate) fn check(
-    machine: &Machine<'_>,
+pub(crate) fn check<'a>(
+    machine: &Machine<'a>,
     tables: &mut MachineTables,
     decided: &mut [Option<Checked<Discharged>>],
     activity: &mut crate::ProofSearchActivity,
+    references: &mut terminal_semantics::descriptor_results::DescriptorAnalysis<'a>,
 ) -> Checked<Vec<BlockId>> {
     let arrivals: Vec<(usize, ObligationId, EdgeId, ProgramPoint)> = tables
         .obligations
@@ -642,7 +643,7 @@ pub(crate) fn check(
             let verdict = goal(
                 machine.module,
                 machine.lowered,
-                machine.storage,
+                (machine.storage, references),
                 machine.id,
                 obligation,
                 &kind,

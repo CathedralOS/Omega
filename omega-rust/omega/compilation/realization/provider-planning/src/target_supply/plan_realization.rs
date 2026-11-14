@@ -355,7 +355,7 @@ fn checked_plan(
         rows,
         origin_package_identity: package.flatten(),
         origin_package: owner.to_owned(),
-        digest_memo: Default::default(),
+        ..ProviderPlan::default()
     };
     let canonical = backend_plan::selected_provider_candidate_rows(&plan, owner, module)?;
     if canonical.len() != count
@@ -556,7 +556,7 @@ fn direct_leaves(
             }],
             origin_package_identity: row.realization_package,
             origin_package: text(module, row.realization.semantic_declaration)?.to_owned(),
-            digest_memo: Default::default(),
+            ..ProviderPlan::default()
         };
         let input = crate::DirectBoundaryInput::from_checked(0, row, &module.identities, mechanism)
             .map_err(|error| error.message)?;

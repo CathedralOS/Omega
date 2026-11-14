@@ -1,11 +1,8 @@
 //! Contract refinement is implication in one positional formal namespace.
 //! The constructor and receiving verifier derive the same ordered goals.
 
-use std::collections::BTreeMap;
-
 use semantic_vocabulary::{
-    CallableContractId, CrashCause, MachineId, PlaceId, Proposition, PropositionId, ScalarTerm,
-    ValueId,
+    CallableContractId, CrashCause, MachineId, Proposition, PropositionId, ScalarTerm,
 };
 use terminal_psi::{
     CrashRouteGuard, EvidenceArgumentSubject, EvidenceCallableOwner, EvidenceContractLane,
@@ -60,9 +57,14 @@ fn implication(premise: Proposition, conclusion: Proposition) -> Proposition {
     }
 }
 
-fn remap_atoms(value: &Proposition, atoms: &BTreeMap<PropositionId, PropositionId>) -> Proposition {
+fn remap_atoms(value: &Proposition, atoms: &[(PropositionId, PropositionId)]) -> Proposition {
     match value {
-        Proposition::Atom(id) => Proposition::Atom(atoms.get(id).copied().unwrap_or(*id)),
+        Proposition::Atom(id) => Proposition::Atom(
+            atoms
+                .binary_search_by_key(id, |(source, _)| *source)
+                .ok()
+                .map_or(*id, |position| atoms[position].1),
+        ),
         Proposition::Conjunction(values) => Proposition::Conjunction(
             values
                 .iter()
@@ -249,7 +251,11 @@ pub fn contract_refinement_goals(
     {
         return Err("refinement callable formal or result shape differs");
     }
-    let mut values = BTreeMap::<ValueId, ScalarTerm>::new();
+    let mut values = Vec::with_capacity(
+        selected.scalar_parameters.len()
+            + selected.proof.erased_scalar_formals.len()
+            + usize::from(selected.result.scalar().is_some()),
+    );
     for (source, target) in selected
         .scalar_parameters
         .iter()
@@ -262,27 +268,24 @@ pub fn contract_refinement_goals(
                 .zip(&required.proof.erased_scalar_formals),
         )
     {
-        if source.scalar_type != target.scalar_type
-            || values
-                .insert(
-                    source.id,
-                    ScalarTerm::Value {
-                        id: target.id,
-                        scalar_type: target.scalar_type,
-                    },
-                )
-                .is_some()
-        {
+        if source.scalar_type != target.scalar_type {
             return Err("refinement scalar formal has another type or repeated identity");
         }
+        values.push((
+            source.id,
+            ScalarTerm::Value {
+                id: target.id,
+                scalar_type: target.scalar_type,
+            },
+        ));
     }
-    let mut places = BTreeMap::<
-        PlaceId,
-        (
-            PlaceId,
-            Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
-        ),
-    >::new();
+    values.sort_unstable_by_key(|(id, _)| *id);
+    if values.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        return Err("refinement scalar formal has another type or repeated identity");
+    }
+    let mut places = Vec::with_capacity(
+        selected.structural_parameters.len() + usize::from(selected.result.structural().is_some()),
+    );
     for (source, target) in selected
         .structural_parameters
         .iter()
@@ -292,37 +295,47 @@ pub fn contract_refinement_goals(
             || source.structural_type != target.structural_type
             || source.access != target.access
             || source.multiplicity != target.multiplicity
-            || places
-                .insert(source.place, (target.place, Vec::new()))
-                .is_some()
         {
             return Err("refinement structural formal has another carrier, access or identity");
         }
+        places.push((
+            source.place,
+            (
+                target.place,
+                Vec::<semantic_vocabulary::CanonicalStructuralPathSegment>::new(),
+            ),
+        ));
+    }
+    places.sort_unstable_by_key(|(place, _)| *place);
+    if places.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+        return Err("refinement structural formal has another carrier, access or identity");
     }
     match (selected.result, required_result) {
         (TerminalMachineResult::Unit, TerminalMachineResult::Unit) => {}
         (TerminalMachineResult::Scalar(source), TerminalMachineResult::Scalar(target)) => {
-            if source.scalar_type != target.scalar_type
-                || values
-                    .insert(
-                        source.id,
-                        ScalarTerm::Value {
-                            id: target.id,
-                            scalar_type: target.scalar_type,
-                        },
-                    )
-                    .is_some()
-            {
+            let Err(position) = values.binary_search_by_key(&source.id, |(id, _)| *id) else {
+                return Err("refinement scalar result aliases an input or has another type");
+            };
+            if source.scalar_type != target.scalar_type {
                 return Err("refinement scalar result aliases an input or has another type");
             }
+            values.insert(
+                position,
+                (
+                    source.id,
+                    ScalarTerm::Value {
+                        id: target.id,
+                        scalar_type: target.scalar_type,
+                    },
+                ),
+            );
         }
         (TerminalMachineResult::Structural(source), TerminalMachineResult::Structural(target)) => {
-            if places
-                .insert(source.place, (target.place, Vec::new()))
-                .is_some()
-            {
+            let Err(position) = places.binary_search_by_key(&source.place, |(place, _)| *place)
+            else {
                 return Err("refinement structural result aliases an input");
-            }
+            };
+            places.insert(position, (source.place, (target.place, Vec::new())));
         }
         _ => return Err("refinement result formal has another role"),
     }
@@ -338,17 +351,18 @@ pub fn contract_refinement_goals(
         .iter()
         .filter(|lane| Some(lane.owner) == selected_owner)
         .collect::<Vec<_>>();
-    let mut atoms = BTreeMap::new();
+    let mut atoms: Vec<(PropositionId, PropositionId)> = Vec::new();
     for source in &selected_lanes {
         for target in &required_lanes {
             if same_evidence_meaning(module, source, target)? {
                 let source = lane_proposition(module, source)?;
                 let target = lane_proposition(module, target)?;
-                if atoms
-                    .insert(source, target)
-                    .is_some_and(|previous| previous != target)
-                {
-                    return Err("refinement evidence correspondence is ambiguous");
+                match atoms.binary_search_by_key(&source, |(id, _)| *id) {
+                    Ok(position) if atoms[position].1 != target => {
+                        return Err("refinement evidence correspondence is ambiguous");
+                    }
+                    Ok(_) => {}
+                    Err(position) => atoms.insert(position, (source, target)),
                 }
             }
         }
@@ -384,9 +398,19 @@ pub fn contract_refinement_goals(
             |_| "selected refinement predicate escapes its exact formal/result namespace",
         )?;
         Ok(remap_atoms(
-            &crate::substitution::substitute_proposition_structural_places(
-                &crate::substitution::substitute_proposition_values(proposition, &values),
-                &places,
+            &crate::substitution::substitute_proposition_structural_places_with(
+                &crate::substitution::substitute_proposition_values_with(proposition, &|id| {
+                    values
+                        .binary_search_by_key(&id, |(source, _)| *source)
+                        .ok()
+                        .map(|position| &values[position].1)
+                }),
+                &|place| {
+                    places
+                        .binary_search_by_key(&place, |(source, _)| *source)
+                        .ok()
+                        .map(|position| &places[position].1)
+                },
             ),
             &atoms,
         ))
@@ -612,7 +636,7 @@ pub fn validate_descriptor_refinement_evidence(
         &module.evidence_contract_lanes,
     )?;
     let mut accepted = Vec::new();
-    let mut retained_ids = std::collections::BTreeSet::new();
+    let mut retained_ids = Vec::new();
     for descriptor in &module.callables.descriptors {
         let goals = descriptor_refinement_goals(module, descriptor.id)?;
         if goals.len() != descriptor.refinement_evidence.len() {
@@ -620,9 +644,10 @@ pub fn validate_descriptor_refinement_evidence(
         }
         let context = callable_refinement_context(module, descriptor.contract)?;
         for ((id, goal), certificate) in goals.into_iter().zip(&descriptor.refinement_evidence) {
-            if !retained_ids.insert(id) {
+            let Err(position) = retained_ids.binary_search(&id) else {
                 return Err("descriptor refinements alias an obligation identity");
-            }
+            };
+            retained_ids.insert(position, id);
             accepted.push(proof_admission::verify_obligation(&context,
                 &proof_admission::Obligation { id, proposition: goal.proposition, class: proof_admission::ObligationClass::Derivable },
                 &[], &[], proof_admission::EvidenceRoute::CertificateDerived(certificate.clone()))

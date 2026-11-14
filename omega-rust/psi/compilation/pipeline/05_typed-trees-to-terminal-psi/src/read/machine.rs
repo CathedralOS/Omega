@@ -1845,12 +1845,7 @@ impl<'t> Program<'t> {
             *count = (*count).max(previous_elisions.unwrap_or(0));
         }
         let (mut lowered, _) = result?;
-        lowered.operational = crate::body::OperationalCeilings {
-            suspension: Some(signature.suspends),
-            blocking: Some(signature.blocks),
-        };
-        lowered.termination = self.requirement_termination(id, signature)?;
-        self.retain_signature_view(signature);
+        self.complete_callable_signature(id, signature, &mut lowered)?;
         Ok(lowered)
     }
 
@@ -1887,13 +1882,36 @@ impl<'t> Program<'t> {
             *count = (*count).max(previous_elisions.unwrap_or(0));
         }
         let (mut signature, names) = read?;
-        signature.operational = crate::body::OperationalCeilings {
-            suspension: Some(requirement.suspends),
-            blocking: Some(requirement.blocks),
-        };
-        signature.termination = self.requirement_termination(id, requirement)?;
-        self.retain_signature_view(requirement);
+        self.complete_callable_signature(id, requirement, &mut signature)?;
         Ok((signature, names))
+    }
+
+    // Every bodyless signature uses its own invocation row. Omission closes
+    // that row to no synchronous entry; it does not request body inference.
+    fn complete_callable_signature(
+        &mut self,
+        id: MachineId,
+        source: &StateSignature,
+        signature: &mut Signature,
+    ) -> Checked<()> {
+        signature.invokes = self.entry_ceiling(
+            id,
+            self.typed.state_signature_invokes(source),
+            span(
+                &self.typed.state_parameters,
+                source.parameters,
+                id,
+                "callable parameter span",
+            )?,
+            true,
+        )?;
+        signature.operational = crate::body::OperationalCeilings {
+            suspension: Some(source.suspends),
+            blocking: Some(source.blocks),
+        };
+        signature.termination = self.requirement_termination(id, source)?;
+        self.retain_signature_view(source);
+        Ok(())
     }
 
     fn retain_signature_view(&mut self, signature: &StateSignature) {
@@ -1970,7 +1988,7 @@ impl<'t> Program<'t> {
         {
             return unserved("service reach bound by an installation");
         }
-        let (mut signature, mut names) = self.contract(
+        let (signature, mut names) = self.contract(
             id,
             requirement.symbol,
             requirement.parameters,
@@ -1979,17 +1997,6 @@ impl<'t> Program<'t> {
             declared,
             &[],
             &bound,
-        )?;
-        signature.invokes = self.entry_ceiling(
-            id,
-            self.typed.state_signature_invokes(requirement),
-            span(
-                &self.typed.state_parameters,
-                requirement.parameters,
-                id,
-                "callable parameter span",
-            )?,
-            true,
         )?;
         names.machine = requirement.name.as_str().to_owned();
         Ok((signature, names))

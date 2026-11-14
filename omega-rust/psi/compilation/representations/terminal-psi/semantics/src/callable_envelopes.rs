@@ -3,8 +3,6 @@
 //! Named envelopes belong to the selected declaration, independently of any
 //! descriptor. Compare parameters by their ordered signature positions.
 
-use std::collections::BTreeSet;
-
 use semantic_vocabulary::{ScalarType, ServiceId};
 use terminal_psi::{
     BoundaryParameterKind, StructuralParameterDeclaration, TerminalCallableEnvelope,
@@ -13,7 +11,7 @@ use terminal_psi::{
 
 fn validate_envelope(
     module: &TerminalModule,
-    services: &BTreeSet<ServiceId>,
+    services: &[ServiceId],
     envelope: &TerminalCallableEnvelope,
     order: &[BoundaryParameterKind],
     mut scalar_types: impl ExactSizeIterator<Item = ScalarType>,
@@ -39,7 +37,7 @@ fn validate_envelope(
         || envelope
             .service_reach
             .iter()
-            .any(|service| !services.contains(service))
+            .any(|service| services.binary_search(service).is_err())
         || envelope
             .invocations
             .windows(2)
@@ -52,7 +50,9 @@ fn validate_envelope(
     let mut next_parameter = 0;
     for invocation in &envelope.invocations {
         match invocation {
-            TerminalCallableInvocation::Service(service) if !services.contains(service) => {
+            TerminalCallableInvocation::Service(service)
+                if services.binary_search(service).is_err() =>
+            {
                 return Err("callable invocation ceiling names an unknown service");
             }
             TerminalCallableInvocation::Parameter(position) => {
@@ -118,7 +118,13 @@ fn validate_envelope(
 pub fn validate_callable_operational_refinements(
     module: &TerminalModule,
 ) -> Result<(), &'static str> {
-    let services = module.services.iter().map(|service| service.id).collect();
+    let mut services = module
+        .services
+        .iter()
+        .map(|service| service.id)
+        .collect::<Vec<_>>();
+    services.sort_unstable();
+    services.dedup();
     for contract in &module.callables.contracts {
         validate_envelope(
             module,
@@ -258,7 +264,13 @@ pub fn validate_callable_envelope(
     scalars: &[ValueDeclaration],
     structures: &[StructuralParameterDeclaration],
 ) -> Result<(), &'static str> {
-    let services = module.services.iter().map(|service| service.id).collect();
+    let mut services = module
+        .services
+        .iter()
+        .map(|service| service.id)
+        .collect::<Vec<_>>();
+    services.sort_unstable();
+    services.dedup();
     validate_envelope(
         module,
         &services,
@@ -363,14 +375,7 @@ mod tests {
             termination: TerminalCallableTermination::NotGuaranteed,
         };
         let check = |envelope: &TerminalCallableEnvelope| {
-            validate_envelope(
-                &module,
-                &BTreeSet::new(),
-                envelope,
-                &order,
-                types.iter().copied(),
-                &[],
-            )
+            validate_envelope(&module, &[], envelope, &order, types.iter().copied(), &[])
         };
         check(&envelope).expect("the second actual formal is callable");
         envelope.invocations[0] = TerminalCallableInvocation::Parameter(0);

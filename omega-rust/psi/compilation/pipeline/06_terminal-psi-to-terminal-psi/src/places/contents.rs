@@ -5,7 +5,7 @@ use terminal_check_tables::values::ValueOrigin;
 
 use super::*;
 
-impl Storage<'_> {
+impl<'a> Storage<'a> {
     /// The callee establishes only its result and the exact subtrees borrowed
     /// exclusively. A caller's enclosing record is outside that guarantee.
     pub(super) fn call_content_boundary(
@@ -127,6 +127,7 @@ impl Storage<'_> {
     /// use its post-call versions, never the caller's earlier observations.
     pub(crate) fn returned_type_premises(
         &self,
+        references: &mut DescriptorAnalysis<'a>,
         tables: &MachineTables,
         operation: &Operation,
     ) -> Checked<Vec<Proposition>> {
@@ -159,6 +160,7 @@ impl Storage<'_> {
             for clause in self.clauses_of(data, concerns)? {
                 let mut held = Held {
                     storage: self,
+                    references,
                     tables,
                     place: &owner,
                     block,

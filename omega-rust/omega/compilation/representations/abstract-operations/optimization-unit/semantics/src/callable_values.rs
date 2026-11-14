@@ -1,7 +1,6 @@
 //! Project current Abstract/optimization operations into the shared code-value query.
 
 use std::borrow::Cow;
-use std::collections::BTreeMap;
 
 use abstract_operations::{AbstractCallTarget, AbstractOperation as O, AbstractOperationPlan};
 use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
@@ -76,7 +75,8 @@ fn project<'a>(
         |_, node| Some(Cow::Borrowed(&node.operation)),
     )
     .ok_or("callable provenance cannot reconstruct current Abstract storage flow")?;
-    let mut bodies = BTreeMap::new();
+    let mut bodies: Vec<(semantic_vocabulary::MachineId, CallableValueBody)> =
+        Vec::with_capacity(functions.len());
     let mut cleanups = Vec::new();
     for function in functions {
         let flow = graph
@@ -128,7 +128,7 @@ fn project<'a>(
                     u32::try_from(index).map_err(|_| "callable Abstract position overflow")?,
                 );
                 if let Some((_, result)) = node.operation.structural_result() {
-                    body.structural_results.insert(position, result.place);
+                    body.retain_structural_result(position, result.place);
                 }
                 if let Some((target, scalar, structural)) = invocation(&node.operation) {
                     let site = match node.operation {
@@ -182,8 +182,7 @@ fn project<'a>(
                 }
                 for (edge, actions) in node.operation.cleanup_rosters() {
                     if body
-                        .cleanup_actions
-                        .insert(edge, actions.to_vec())
+                        .retain_cleanup_actions(edge, actions.to_vec())
                         .is_some()
                     {
                         return Err("callable cleanup has an ambiguous owning edge");
@@ -217,9 +216,10 @@ fn project<'a>(
                 }
             }
         }
-        if bodies.insert(function.machine, body).is_some() {
+        let Err(position) = bodies.binary_search_by_key(&function.machine, |(id, _)| *id) else {
             return Err("callable provenance has duplicate Abstract machine identities");
-        }
+        };
+        bodies.insert(position, (function.machine, body));
     }
     for (caller, position, edge, successor, ordinal, cleanup) in cleanups {
         let flow = graph
@@ -227,7 +227,9 @@ fn project<'a>(
             .find(|row| row.id == caller)
             .ok_or("callable cleanup lost its current Abstract storage flow")?;
         let callee = bodies
-            .get(&cleanup.cleanup_machine)
+            .binary_search_by_key(&cleanup.cleanup_machine, |(id, _)| *id)
+            .ok()
+            .map(|position| &bodies[position].1)
             .ok_or("callable cleanup has no exact selected body")?;
         let site = CallableInvocationSite::CleanupAction {
             edge,
@@ -243,9 +245,10 @@ fn project<'a>(
             &cleanup,
             callee,
         );
-        let body = bodies
-            .get_mut(&caller)
-            .ok_or("callable cleanup lost its caller")?;
+        let body_position = bodies
+            .binary_search_by_key(&caller, |(id, _)| *id)
+            .map_err(|_| "callable cleanup lost its caller")?;
+        let body = &mut bodies[body_position].1;
         match call {
             Ok(call) => {
                 body.retain_invocation(site, position, Ok(call))?;

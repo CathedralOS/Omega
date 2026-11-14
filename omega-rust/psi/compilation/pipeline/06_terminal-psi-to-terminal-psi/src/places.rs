@@ -102,7 +102,6 @@ mod log;
 pub(crate) use loans::reference_graph;
 pub use loans::{ConflictingLoan, LoanConflict};
 use log::{Logged, Stored};
-use std::cell::RefCell;
 use terminal_semantics::descriptor_results::DescriptorAnalysis;
 
 fn index(raw: u64) -> usize {
@@ -561,9 +560,6 @@ pub(crate) struct Storage<'a> {
     /// Bound actual operations and structural edge bindings once per machine.
     reaching_budget: usize,
     log: Vec<Logged>,
-    /// Shared descriptor replay owns storage aliasing. This is local checker
-    /// scratch over the same canonical machine closure, never source evidence.
-    references: &'a RefCell<DescriptorAnalysis<'a>>,
     /// The `requires` clauses of each data type, by its identity
     /// (`Elaboration::domains`).
     domains: &'a IdTable<StructuralTypeId, Vec<Proposition>>,
@@ -579,7 +575,7 @@ impl<'a> Storage<'a> {
         graph: &'a Graph,
         tables: &MachineTables,
         value_types: &IdTable<ValueId, ScalarType>,
-        references: &'a RefCell<DescriptorAnalysis<'a>>,
+        references: &mut DescriptorAnalysis<'a>,
     ) -> Checked<Self> {
         // First, because every lineage below is read through the place
         // table's parent links.
@@ -609,11 +605,10 @@ impl<'a> Storage<'a> {
             returned_contents: contents.calls,
             reaching_budget,
             log: Vec::new(),
-            references,
             domains,
         };
         storage.initial_contents_are_declared(tables)?;
-        storage.log = storage.stores(value_types)?;
+        storage.log = storage.stores(references, value_types)?;
         storage.log_is_stated(tables)?;
         // Compare the authored log first. Then every write uses the same
         // captured backing relation as reads and loan compatibility.
@@ -626,9 +621,10 @@ impl<'a> Storage<'a> {
                     .position
                     .checked_sub(1)
                     .ok_or_else(|| storage.foreign(concerns, "a write has no formation point"))?;
-                let destination = storage.backing(&row.lineage, row.block, before, concerns)?;
+                let destination =
+                    storage.backing(references, &row.lineage, row.block, before, concerns)?;
                 let source = if let Stored::Moved(source) = &row.stored {
-                    Some(storage.backing(source, row.block, before, concerns)?)
+                    Some(storage.backing(references, source, row.block, before, concerns)?)
                 } else {
                     None
                 };
@@ -649,6 +645,7 @@ impl<'a> Storage<'a> {
     /// earlier captured borrow. Ambiguous or missing correspondence refuses.
     fn backing(
         &self,
+        references: &mut DescriptorAnalysis<'a>,
         place: &Lineage,
         block: BlockId,
         before: usize,
@@ -678,9 +675,7 @@ impl<'a> Storage<'a> {
                 "reference backing with an unresolved selector or extent",
             )
         })?;
-        let captured = self
-            .references
-            .borrow_mut()
+        let captured = references
             .location(self.machine, (block, before), &location)
             .ok_or_else(|| {
                 self.unsupported(
@@ -985,9 +980,14 @@ impl<'a> Storage<'a> {
     /// at entry. fact_validity.md: "a valid initialized ordinary storage
     /// place at entry may supply its exact reaching value version; it need
     /// not have a store inside the current body."
-    pub(crate) fn at_entry<'s>(&'s self, tables: &'s MachineTables) -> AtEntry<'s, 'a> {
+    pub(crate) fn at_entry<'s>(
+        &'s self,
+        references: &'s mut DescriptorAnalysis<'a>,
+        tables: &'s MachineTables,
+    ) -> AtEntry<'s, 'a> {
         AtEntry {
             storage: self,
+            references,
             tables,
         }
     }
@@ -999,6 +999,7 @@ impl<'a> Storage<'a> {
     /// every invocation under exact actual-argument substitution."
     pub(crate) fn at_call<'s>(
         &'s self,
+        references: &'s mut DescriptorAnalysis<'a>,
         tables: &'s MachineTables,
         actuals: &[Actual],
         callee_formals: &'s [terminal_psi::StructuralParameterDeclaration],
@@ -1017,6 +1018,7 @@ impl<'a> Storage<'a> {
         }
         Ok(AtCall {
             storage: self,
+            references,
             tables,
             scalars: crate::scalar_actuals(actuals),
             places,
@@ -1032,14 +1034,17 @@ impl<'a> Storage<'a> {
     /// reads keep the captured actual place and observe it after this call.
     pub(crate) fn after_call<'s>(
         &'s self,
+        references: &'s mut DescriptorAnalysis<'a>,
         tables: &'s MachineTables,
         actuals: &[Actual],
-        formals: &'s [terminal_psi::StructuralParameterDeclaration],
-        result: Option<&TerminalMachineResult>,
+        (formals, result): (
+            &'s [terminal_psi::StructuralParameterDeclaration],
+            Option<&TerminalMachineResult>,
+        ),
         site: OperationId,
         concerns: Construct,
     ) -> Checked<Returned<'s, 'a, AtCall<'s, 'a>>> {
-        let inputs = self.at_call(tables, actuals, formals, site, concerns)?;
+        let inputs = self.at_call(references, tables, actuals, formals, site, concerns)?;
         let operation = self.operation(site, concerns)?;
         let structural = match (result, operation.result.as_structural()) {
             (Some(TerminalMachineResult::Structural(declared)), Some(actual)) => {
@@ -1084,6 +1089,7 @@ impl<'a> Storage<'a> {
     /// snapshots. Borrowed postconditions cannot use those stale snapshots.
     pub(crate) fn at_return<'s>(
         &'s self,
+        references: &'s mut DescriptorAnalysis<'a>,
         tables: &'s MachineTables,
         exit: EdgeId,
         concerns: Construct,
@@ -1130,7 +1136,7 @@ impl<'a> Storage<'a> {
             }
         };
         Ok(Returned {
-            inputs: self.at_entry(tables),
+            inputs: self.at_entry(references, tables),
             input_formals: &self.lowered.structural_parameters,
             storage: self,
             tables,
@@ -1179,6 +1185,7 @@ impl<'a> Storage<'a> {
     /// `Unproved`.
     fn stated(
         &self,
+        references: &mut DescriptorAnalysis<'a>,
         tables: &MachineTables,
         owner: &Owner,
         block: BlockId,
@@ -1187,6 +1194,7 @@ impl<'a> Storage<'a> {
     ) -> Checked<Proposition> {
         let mut bindings = Held {
             storage: self,
+            references,
             tables,
             place: &owner.place,
             block,
@@ -1211,6 +1219,7 @@ impl<'a> Storage<'a> {
     /// initializer or replacement SSA value, never the old field contents."
     pub(crate) fn domain_goal(
         &self,
+        references: &mut DescriptorAnalysis<'a>,
         tables: &MachineTables,
         operation: OperationId,
         clause: u32,
@@ -1218,7 +1227,7 @@ impl<'a> Storage<'a> {
     ) -> Checked<Proposition> {
         let owner = self.owner(operation, clause, concerns)?;
         let (block, after) = self.graph.locate(ProgramPoint::AfterOperation(operation))?;
-        self.stated(tables, &owner, block, after, concerns)
+        self.stated(references, tables, &owner, block, after, concerns)
     }
 
     /// Whether a store writes no storage that a clause reads, so that the
@@ -1895,6 +1904,7 @@ impl<'a> Storage<'a> {
     /// What one reaching store supplies to the place asked about.
     fn supplied(
         &self,
+        references: &mut DescriptorAnalysis<'a>,
         tables: &MachineTables,
         mut row_index: usize,
         asked: Asked<'_>,
@@ -1938,8 +1948,14 @@ impl<'a> Storage<'a> {
                     weakened = true;
                     continue;
                 }
-                let previous =
-                    self.reaching(tables, asked, row.block, row.position - 1, budget, concerns)?;
+                let previous = self.reaching(
+                    references,
+                    tables,
+                    asked,
+                    (row.block, row.position - 1),
+                    budget,
+                    concerns,
+                )?;
                 return Ok(if previous == Reached::Unestablished {
                     previous
                 } else {
@@ -2008,7 +2024,14 @@ impl<'a> Storage<'a> {
                         }
                     };
                     // The source as it was just before the store.
-                    self.reaching(tables, asked, row.block, row.position - 1, budget, concerns)?
+                    self.reaching(
+                        references,
+                        tables,
+                        asked,
+                        (row.block, row.position - 1),
+                        budget,
+                        concerns,
+                    )?
                 }
             };
             return Ok(if weakened && reached != Reached::Unestablished {
@@ -2100,14 +2123,14 @@ impl<'a> Storage<'a> {
     /// which rows end a path and in what an edge can establish.
     fn reaching(
         &self,
+        references: &mut DescriptorAnalysis<'a>,
         tables: &MachineTables,
         asked: Asked<'_>,
-        block: BlockId,
-        up_to: usize,
+        (block, up_to): (BlockId, usize),
         budget: &mut usize,
         concerns: Construct,
     ) -> Checked<Reached> {
-        let resolved = self.backing(asked.place(), block, up_to, concerns)?;
+        let resolved = self.backing(references, asked.place(), block, up_to, concerns)?;
         let asked = asked.at(&resolved);
         // Each traced move continues strictly before its operation, so an
         // acyclic machine ends within one step per operation; a cycle of
@@ -2172,7 +2195,7 @@ impl<'a> Storage<'a> {
                     Some(_) | None => Some(row),
                 });
             if let Some((index, _)) = last {
-                supply(self.supplied(tables, index, asked, budget, concerns)?);
+                supply(self.supplied(references, tables, index, asked, budget, concerns)?);
                 continue;
             }
             // A block formal is a new owner of the selected edge's actual
@@ -2252,10 +2275,10 @@ impl<'a> Storage<'a> {
                             Asked::Window { .. } => unreachable!("windows close at the binding"),
                         };
                         supply(self.reaching(
+                            references,
                             tables,
                             asked,
-                            predecessor,
-                            usize::MAX,
+                            (predecessor, usize::MAX),
                             budget,
                             concerns,
                         )?);
@@ -2334,6 +2357,7 @@ impl<'a> Storage<'a> {
     /// to it, else none.
     pub(crate) fn read_equation(
         &self,
+        references: &mut DescriptorAnalysis<'a>,
         tables: &MachineTables,
         operation: &Operation,
     ) -> Checked<Option<Proposition>> {
@@ -2361,10 +2385,10 @@ impl<'a> Storage<'a> {
             .ok_or_else(|| self.foreign(concerns, "a read has no point before it"))?;
         let mut budget = self.budget();
         let reached = self.reaching(
+            references,
             tables,
             Asked::Contents(&leaf),
-            block,
-            before,
+            (block, before),
             &mut budget,
             concerns,
         )?;
@@ -2398,6 +2422,7 @@ impl<'a> Storage<'a> {
     /// read's fresh value (`Storage::premises`).
     pub(crate) fn read_premises(
         &self,
+        references: &mut DescriptorAnalysis<'a>,
         tables: &MachineTables,
         operation: &Operation,
     ) -> Checked<Vec<Proposition>> {
@@ -2416,6 +2441,7 @@ impl<'a> Storage<'a> {
             .checked_sub(1)
             .ok_or_else(|| self.foreign(concerns, "a read has no point before it"))?;
         self.premises(
+            references,
             tables,
             &leaf,
             (result.id, result.scalar_type),
@@ -2459,6 +2485,7 @@ impl<'a> Storage<'a> {
     /// left out.
     fn premises(
         &self,
+        references: &mut DescriptorAnalysis<'a>,
         tables: &MachineTables,
         leaf: &Lineage,
         observed: (ValueId, ScalarType),
@@ -2474,10 +2501,10 @@ impl<'a> Storage<'a> {
         // built around it (a literal holding a formal) lends nothing.
         let mut budget = self.budget();
         let arrived = match self.reaching(
+            references,
             tables,
             Asked::Contents(leaf),
-            block,
-            before,
+            (block, before),
             &mut budget,
             concerns,
         )? {
@@ -2557,6 +2584,7 @@ impl<'a> Storage<'a> {
                 let mut bindings = Observed {
                     held: Held {
                         storage: self,
+                        references,
                         tables,
                         place: &owner,
                         block,
@@ -2625,6 +2653,7 @@ impl<'a> Storage<'a> {
     /// parameters on that case's edge before cleanup.").
     pub(crate) fn payload_equations(
         &self,
+        references: &mut DescriptorAnalysis<'a>,
         tables: &MachineTables,
         block: &Block,
     ) -> Checked<Vec<(EdgeId, Proposition)>> {
@@ -2633,10 +2662,10 @@ impl<'a> Storage<'a> {
         for bound in self.bound_payloads(block)? {
             let mut budget = self.budget();
             let Reached::Value(held) = self.reaching(
+                references,
                 tables,
                 Asked::Contents(&bound.leaf),
-                block.id,
-                usize::MAX,
+                (block.id, usize::MAX),
                 &mut budget,
                 concerns,
             )?
@@ -2676,12 +2705,14 @@ impl<'a> Storage<'a> {
     /// several edges enter it.
     pub(crate) fn payload_premises(
         &self,
+        references: &mut DescriptorAnalysis<'a>,
         tables: &MachineTables,
         block: &Block,
     ) -> Checked<Vec<(EdgeId, Lineage, Proposition)>> {
         let mut premises = Vec::new();
         for bound in self.bound_payloads(block)? {
             for premise in self.premises(
+                references,
                 tables,
                 &bound.leaf,
                 (bound.parameter.id, bound.parameter.scalar_type),
@@ -2824,21 +2855,21 @@ impl<'a> Storage<'a> {
     /// or the construction that every reaching write is.
     fn judged(
         &self,
+        references: &mut DescriptorAnalysis<'a>,
         tables: &MachineTables,
         used: &[Lineage],
         named: &[Lineage],
-        block: BlockId,
-        up_to: usize,
+        (block, up_to): (BlockId, usize),
         concerns: Construct,
     ) -> Checked<Checked<()>> {
         for place in used {
             for leaf in self.leaves(place, concerns)? {
                 let mut budget = self.budget();
                 if self.reaching(
+                    references,
                     tables,
                     Asked::Contents(&leaf),
-                    block,
-                    up_to,
+                    (block, up_to),
                     &mut budget,
                     concerns,
                 )? == Reached::Unestablished
@@ -2863,10 +2894,10 @@ impl<'a> Storage<'a> {
                 };
                 let mut budget = self.budget();
                 if self.reaching(
+                    references,
                     tables,
                     Asked::Case(&sum),
-                    block,
-                    up_to,
+                    (block, up_to),
                     &mut budget,
                     concerns,
                 )? != Reached::Case(*case)
@@ -3158,7 +3189,11 @@ impl<'a> Storage<'a> {
     /// payload, in block and operation order, a block's terminator last. A
     /// refusal concerns the module (an identity that does not resolve,
     /// storage outside this route).
-    fn touches(&self, tables: &MachineTables) -> Checked<Vec<Touch<'a>>> {
+    fn touches(
+        &self,
+        references: &mut DescriptorAnalysis<'a>,
+        tables: &MachineTables,
+    ) -> Checked<Vec<Touch<'a>>> {
         let mut touches = Vec::new();
         for block in &self.lowered.blocks {
             for (position, operation) in block.operations.iter().enumerate() {
@@ -3185,7 +3220,10 @@ impl<'a> Storage<'a> {
                 }
                 let mut relied = Vec::new();
                 let how = if let Some(leaf) = self.read_leaf(operation)? {
-                    if !self.read_premises(tables, operation)?.is_empty() {
+                    if !self
+                        .read_premises(references, tables, operation)?
+                        .is_empty()
+                    {
                         relied.push(leaf);
                     }
                     Touching::Leaf
@@ -3221,7 +3259,7 @@ impl<'a> Storage<'a> {
                     let at = Construct::Block(block.id);
                     let subject = vec![self.stored_at(*source, path, at)?];
                     let mut relied = Vec::new();
-                    for (_, leaf, _) in self.payload_premises(tables, block)? {
+                    for (_, leaf, _) in self.payload_premises(references, tables, block)? {
                         if !relied.contains(&leaf) {
                             relied.push(leaf);
                         }
@@ -3334,19 +3372,23 @@ impl<'a> Storage<'a> {
     /// a case payload. A refusal returned outright concerns the module (an
     /// identity that does not resolve, storage outside this route); a use
     /// that is not established is that use's verdict.
-    pub(crate) fn uses(&self, tables: &MachineTables) -> Checked<Vec<StorageUse>> {
+    pub(crate) fn uses(
+        &self,
+        references: &mut DescriptorAnalysis<'a>,
+        tables: &MachineTables,
+    ) -> Checked<Vec<StorageUse>> {
         let mut uses = Vec::new();
-        for touch in self.touches(tables)? {
+        for touch in self.touches(references, tables)? {
             if !touch.judged {
                 continue;
             }
-            let judge = || {
+            let mut judge = || {
                 self.judged(
+                    references,
                     tables,
                     &touch.used,
                     &touch.named,
-                    touch.block,
-                    touch.up_to,
+                    (touch.block, touch.up_to),
                     touch.at,
                 )
             };
@@ -3375,6 +3417,7 @@ impl<'a> Storage<'a> {
     /// it.
     fn open_at(
         &self,
+        references: &mut DescriptorAnalysis<'a>,
         tables: &MachineTables,
         place: &Lineage,
         by: OperationId,
@@ -3383,14 +3426,14 @@ impl<'a> Storage<'a> {
     ) -> Checked<bool> {
         let mut budget = self.budget();
         Ok(self.reaching(
+            references,
             tables,
             Asked::Window {
                 place,
                 by,
                 restored,
             },
-            touch.block,
-            touch.up_to,
+            (touch.block, touch.up_to),
             &mut budget,
             touch.at,
         )? == Reached::Open)
@@ -3399,6 +3442,7 @@ impl<'a> Storage<'a> {
     /// Whether `window` is open just before `operation`.
     pub(crate) fn open_before(
         &self,
+        references: &mut DescriptorAnalysis<'a>,
         tables: &MachineTables,
         window: &Window,
         operation: OperationId,
@@ -3410,14 +3454,14 @@ impl<'a> Storage<'a> {
             .ok_or_else(|| self.foreign(concerns, "an operation has no point before it"))?;
         let mut budget = self.budget();
         Ok(self.reaching(
+            references,
             tables,
             Asked::Window {
                 place: &window.owner.place,
                 by: window.opened_by,
                 restored: &window.restored,
             },
-            block,
-            before,
+            (block, before),
             &mut budget,
             concerns,
         )? == Reached::Open)
@@ -3461,6 +3505,7 @@ impl<'a> Storage<'a> {
     /// declaration zeroed consumes it, a field read included.
     fn consumes(
         &self,
+        references: &mut DescriptorAnalysis<'a>,
         tables: &MachineTables,
         touch: &Touch<'_>,
         window: &Window,
@@ -3482,7 +3527,16 @@ impl<'a> Storage<'a> {
                 .relied
                 .iter()
                 .any(|leaf| leaf.root == place.root && leaf.segments.starts_with(&place.segments));
-        if !aimed || !self.open_at(tables, place, window.opened_by, &window.restored, touch)? {
+        if !aimed
+            || !self.open_at(
+                references,
+                tables,
+                place,
+                window.opened_by,
+                &window.restored,
+                touch,
+            )?
+        {
             return Ok(false);
         }
         if !window.initial {
@@ -3497,7 +3551,7 @@ impl<'a> Storage<'a> {
             // window, or none.
             for leaf in self.leaves(used, touch.at)? {
                 if overlap(&leaf, place)
-                    && self.open_at(tables, &leaf, window.opened_by, &[], touch)?
+                    && self.open_at(references, tables, &leaf, window.opened_by, &[], touch)?
                 {
                     return Ok(true);
                 }
@@ -3532,6 +3586,7 @@ impl<'a> Storage<'a> {
     /// holds there. The clause is proved again at each of them.
     pub(crate) fn consumptions(
         &self,
+        references: &mut DescriptorAnalysis<'a>,
         tables: &MachineTables,
         windows: &[Window],
     ) -> Checked<Vec<Consumption>> {
@@ -3539,9 +3594,9 @@ impl<'a> Storage<'a> {
         if windows.is_empty() {
             return Ok(found);
         }
-        for touch in self.touches(tables)? {
+        for touch in self.touches(references, tables)? {
             for (position, window) in windows.iter().enumerate() {
-                if !self.consumes(tables, &touch, window)? {
+                if !self.consumes(references, tables, &touch, window)? {
                     continue;
                 }
                 found.push(Consumption {
@@ -3549,6 +3604,7 @@ impl<'a> Storage<'a> {
                     at: touch.at,
                     point: self.point(&touch)?,
                     goal: self.stated(
+                        references,
                         tables,
                         &window.owner,
                         touch.block,
@@ -3574,6 +3630,7 @@ fn position_of(cases: &[StructuralCaseDeclaration], case: StructuralCaseId) -> u
 /// the walk finds there, each case test whether the walk finds that case.
 struct Held<'s, 'a> {
     storage: &'s Storage<'a>,
+    references: &'s mut DescriptorAnalysis<'a>,
     tables: &'s MachineTables,
     place: &'s Lineage,
     block: BlockId,
@@ -3600,7 +3657,19 @@ fn extended(
     Ok(place)
 }
 
-impl Held<'_, '_> {
+impl<'a> Held<'_, 'a> {
+    fn at_place<'p>(&'p mut self, place: &'p Lineage) -> Held<'p, 'a> {
+        Held {
+            storage: self.storage,
+            references: self.references,
+            tables: self.tables,
+            place,
+            block: self.block,
+            up_to: self.up_to,
+            concerns: self.concerns,
+        }
+    }
+
     /// The place a clause's path names beneath the value the clause is
     /// about. The clause's root stands for `self` and for nothing else.
     fn beneath(
@@ -3635,7 +3704,8 @@ pub(crate) struct Returned<'s, 'a, Inputs> {
 /// Keep the actual place selected when the invocation's arguments were
 /// evaluated. A completion read changes its observation point, never the
 /// argument or the reference identity it follows.
-pub(crate) trait InputPlaces: crate::Bindings<Error = crate::Unbound> {
+pub(crate) trait InputPlaces<'a>: crate::Bindings<Error = crate::Unbound> {
+    fn references(&mut self) -> &mut DescriptorAnalysis<'a>;
     fn input_place(
         &self,
         root: PlaceId,
@@ -3643,7 +3713,7 @@ pub(crate) trait InputPlaces: crate::Bindings<Error = crate::Unbound> {
     ) -> Result<Lineage, crate::Unbound>;
 }
 
-impl<'s, 'a, Inputs: InputPlaces> Returned<'s, 'a, Inputs> {
+impl<'s, 'a, Inputs: InputPlaces<'a>> Returned<'s, 'a, Inputs> {
     fn owned_inputs(&mut self, root: PlaceId) -> Result<&mut Inputs, crate::Unbound> {
         let formal =
             terminal_psi::StructuralParameterDeclaration::find_by_place(self.input_formals, root)
@@ -3658,14 +3728,10 @@ impl<'s, 'a, Inputs: InputPlaces> Returned<'s, 'a, Inputs> {
         Ok(&mut self.inputs)
     }
 
-    fn held(&self) -> Result<Held<'_, 'a>, crate::Unbound> {
+    fn held(&mut self) -> Result<Held<'_, 'a>, crate::Unbound> {
         let (_, place) = self.structural.as_ref().ok_or(crate::Unbound::Unsupported(
             "no structural result correspondence",
         ))?;
-        self.held_at(place)
-    }
-
-    fn held_at<'p>(&'p self, place: &'p Lineage) -> Result<Held<'p, 'a>, crate::Unbound> {
         let (block, up_to) = self
             .storage
             .graph
@@ -3673,6 +3739,24 @@ impl<'s, 'a, Inputs: InputPlaces> Returned<'s, 'a, Inputs> {
             .map_err(crate::Unbound::Refused)?;
         Ok(Held {
             storage: self.storage,
+            references: self.inputs.references(),
+            tables: self.tables,
+            place,
+            block,
+            up_to,
+            concerns: self.concerns,
+        })
+    }
+
+    fn held_at<'p>(&'p mut self, place: &'p Lineage) -> Result<Held<'p, 'a>, crate::Unbound> {
+        let (block, up_to) = self
+            .storage
+            .graph
+            .locate(self.point)
+            .map_err(crate::Unbound::Refused)?;
+        Ok(Held {
+            storage: self.storage,
+            references: self.inputs.references(),
             tables: self.tables,
             place,
             block,
@@ -3682,7 +3766,7 @@ impl<'s, 'a, Inputs: InputPlaces> Returned<'s, 'a, Inputs> {
     }
 }
 
-impl<Inputs: InputPlaces> crate::Bindings for Returned<'_, '_, Inputs> {
+impl<'a, Inputs: InputPlaces<'a>> crate::Bindings for Returned<'_, 'a, Inputs> {
     type Error = crate::Unbound;
     fn value(
         &mut self,
@@ -3789,6 +3873,7 @@ impl<Inputs: InputPlaces> crate::Bindings for Returned<'_, '_, Inputs> {
 /// See `Storage::at_entry`.
 pub(crate) struct AtEntry<'s, 'a> {
     storage: &'s Storage<'a>,
+    references: &'s mut DescriptorAnalysis<'a>,
     tables: &'s MachineTables,
 }
 
@@ -3888,7 +3973,11 @@ impl crate::Bindings for AtEntry<'_, '_> {
     }
 }
 
-impl InputPlaces for AtEntry<'_, '_> {
+impl<'a> InputPlaces<'a> for AtEntry<'_, 'a> {
+    fn references(&mut self) -> &mut DescriptorAnalysis<'a> {
+        self.references
+    }
+
     fn input_place(
         &self,
         root: PlaceId,
@@ -3922,6 +4011,7 @@ impl InputPlaces for AtEntry<'_, '_> {
 /// See `Storage::at_call`.
 pub(crate) struct AtCall<'s, 'a> {
     storage: &'s Storage<'a>,
+    references: &'s mut DescriptorAnalysis<'a>,
     tables: &'s MachineTables,
     scalars: Vec<ValueId>,
     /// The record actuals, in the callee's structural lane order.
@@ -3968,7 +4058,7 @@ impl AtCall<'_, '_> {
     /// content immediately before this call. An earlier observation of a
     /// replaced descriptor cannot supply the callee's requirement.
     fn observation(
-        &self,
+        &mut self,
         leaf: Lineage,
         scalar_type: ScalarType,
     ) -> Result<ScalarTerm, crate::Unbound> {
@@ -3986,10 +4076,10 @@ impl AtCall<'_, '_> {
         let mut budget = storage.budget();
         let reached = storage
             .reaching(
+                self.references,
                 self.tables,
                 Asked::Contents(&leaf),
-                self.block,
-                self.up_to,
+                (self.block, self.up_to),
                 &mut budget,
                 self.concerns,
             )
@@ -4070,7 +4160,11 @@ impl crate::Bindings for AtCall<'_, '_> {
     }
 }
 
-impl InputPlaces for AtCall<'_, '_> {
+impl<'a> InputPlaces<'a> for AtCall<'_, 'a> {
+    fn references(&mut self) -> &mut DescriptorAnalysis<'a> {
+        self.references
+    }
+
     fn input_place(
         &self,
         root: PlaceId,
@@ -4113,10 +4207,10 @@ impl crate::Bindings for Held<'_, '_> {
         let mut budget = storage.budget();
         let reached = storage
             .reaching(
+                self.references,
                 self.tables,
                 Asked::Contents(&leaf),
-                self.block,
-                self.up_to,
+                (self.block, self.up_to),
                 &mut budget,
                 self.concerns,
             )
@@ -4149,10 +4243,10 @@ impl crate::Bindings for Held<'_, '_> {
         let mut budget = storage.budget();
         match storage
             .reaching(
+                self.references,
                 self.tables,
                 Asked::Case(&sum),
-                self.block,
-                self.up_to,
+                (self.block, self.up_to),
                 &mut budget,
                 self.concerns,
             )
@@ -4311,6 +4405,6 @@ impl crate::Bindings for Observed<'_, '_> {
         let place = self.selected.ok_or(crate::Unbound::Unproved(
             "the clause tests a case of a value above the storage the read observes",
         ))?;
-        Held { place, ..self.held }.case(root, path, case)
+        self.held.at_place(place).case(root, path, case)
     }
 }

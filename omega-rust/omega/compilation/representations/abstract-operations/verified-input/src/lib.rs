@@ -368,7 +368,7 @@ impl AdmittedLoweringFacts {
                 ) {
                     continue;
                 }
-                let mut entries = std::collections::BTreeSet::new();
+                let mut entries = Vec::new();
                 // Admission owns which helper operations can execute. Ignore an
                 // unused proposal; retain the admitted helper's exact declarations.
                 if self
@@ -404,9 +404,24 @@ impl AdmittedLoweringFacts {
                         .map(|entry| entry.entry().machine()),
                 );
                 if !entries.is_empty() {
-                    roots.insert((machine.id, operation.id), entries);
+                    entries.sort_unstable();
+                    entries.dedup();
+                    roots.push(
+                        terminal_semantics::callable_values::CallableInvocationRoot {
+                            caller: machine.id,
+                            operation: operation.id,
+                            entries,
+                        },
+                    );
                 }
             }
+        }
+        roots.sort_unstable_by_key(|row| (row.caller, row.operation));
+        if roots
+            .windows(2)
+            .any(|pair| (pair[0].caller, pair[0].operation) == (pair[1].caller, pair[1].operation))
+        {
+            return Err("callable entry roots have ambiguous registrar occurrences".into());
         }
         // Target lowering retains the admitted selected body for each boundary
         // invocation. Activate that body at this exact source operation, while its
@@ -451,10 +466,24 @@ impl AdmittedLoweringFacts {
                             .into(),
                     );
                 }
-                roots
-                    .entry((function.machine, *psi_operation))
-                    .or_default()
-                    .insert(*callee);
+                match roots.binary_search_by_key(&(function.machine, *psi_operation), |row| {
+                    (row.caller, row.operation)
+                }) {
+                    Ok(position) => {
+                        let entries = &mut roots[position].entries;
+                        if let Err(position) = entries.binary_search(callee) {
+                            entries.insert(position, *callee);
+                        }
+                    }
+                    Err(position) => roots.insert(
+                        position,
+                        terminal_semantics::callable_values::CallableInvocationRoot {
+                            caller: function.machine,
+                            operation: *psi_operation,
+                            entries: vec![*callee],
+                        },
+                    ),
+                }
             }
         }
         Ok(roots)

@@ -14195,7 +14195,11 @@ mod source {
                     let site = crate::callable_calls::call_site(call.owner)
                         .map_err(|detail| Error::CallableInvocation { detail })?;
                     let Some(invocation) = callable_invocations.site(machine, site) else {
-                        if callable_invocations.reached_machines.contains(&machine) {
+                        if callable_invocations
+                            .reached_machines
+                            .binary_search(&machine)
+                            .is_ok()
+                        {
                             return Err(Error::Mismatch(
                                 "callable stack demand lost its reached occurrence",
                             ));

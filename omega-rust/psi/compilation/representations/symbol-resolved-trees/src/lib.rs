@@ -356,7 +356,7 @@ impl SymbolResolvedTrees {
                 .apply_static_argument_rebases(&mut bodies.expressions, folded_arguments);
         }
         trees.apply_tree_statement_rebase(frontier.tree_statements, rebase);
-        trees.statement_table_mut().apply_authored_selection_rebase(
+        trees.statement_table_mut().remap_selection_occurrences(
             frontier.statements,
             frontier.transition_targets,
             rebase,
@@ -406,7 +406,7 @@ impl SymbolResolvedTrees {
         self.tables
             .bodies
             .statements
-            .validate_authored_selection_rebase(
+            .validate_selection_occurrence_remap(
                 frontier.statements,
                 frontier.transition_targets,
                 rebase,

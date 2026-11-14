@@ -269,7 +269,7 @@ fn entry_calls_bind_two_selections_through_one_formal_without_invoking_unused_co
 
     let projected = terminal_callable_values(&module).unwrap();
     let returned = resolve_callable_value(&projected, query(1, 4)).unwrap();
-    assert_eq!(returned.descriptors, BTreeSet::from([descriptor_id(1)]));
+    assert_eq!(returned.descriptors, vec![descriptor_id(1)]);
     assert!(returned.is_resolved());
     let reached = reachable_callable_invocations(&projected, [machine_id(1)]).unwrap();
     let invocation = reached
@@ -279,24 +279,21 @@ fn entry_calls_bind_two_selections_through_one_formal_without_invoking_unused_co
     let ReachedCallableTarget::Callable(target) = &invocation.target else {
         panic!("shared formal lost its evaluated callable target");
     };
-    assert_eq!(
-        target.descriptors,
-        BTreeSet::from([descriptor_id(1), descriptor_id(2)])
-    );
+    assert_eq!(target.descriptors, vec![descriptor_id(1), descriptor_id(2)]);
     assert!(invocation.targets_are_resolved());
     assert_eq!(
         invocation.selected_machines,
-        BTreeSet::from([machine_id(3), machine_id(4)])
+        vec![machine_id(3), machine_id(4)]
     );
     assert_eq!(
         reached.reached_machines,
-        BTreeSet::from([
+        vec![
             machine_id(1),
             machine_id(2),
             machine_id(3),
             machine_id(4),
             machine_id(6)
-        ])
+        ]
     );
     assert!(!reached.reached_machines.contains(&machine_id(5)));
     assert!(
@@ -306,10 +303,13 @@ fn entry_calls_bind_two_selections_through_one_formal_without_invoking_unused_co
             .is_none()
     );
     let mut missing = reached.clone();
-    missing.invocations.remove(&(
-        machine_id(2),
-        CallableInvocationSite::Invocation(InvocationSite::Operation(operation_id(1))),
-    ));
+    missing.invocations.retain(|row| {
+        (row.caller, row.invocation.site)
+            != (
+                machine_id(2),
+                CallableInvocationSite::Invocation(InvocationSite::Operation(operation_id(1))),
+            )
+    });
     assert!(
         missing
             .checked_operation(&projected, machine_id(2), operation_id(1))
@@ -353,10 +353,10 @@ fn entry_calls_bind_two_selections_through_one_formal_without_invoking_unused_co
         resolve_callable_value(&projected, query(1, 4))
             .unwrap()
             .descriptors,
-        BTreeSet::from([descriptor_id(1)])
+        vec![descriptor_id(1)]
     );
     let reached = reachable_callable_invocations(&projected, [machine_id(1)]).unwrap();
-    assert_eq!(reached.roots, BTreeSet::from([machine_id(1)]));
+    assert_eq!(reached.roots, vec![machine_id(1)]);
     assert_eq!(
         reached
             .site(
@@ -365,7 +365,7 @@ fn entry_calls_bind_two_selections_through_one_formal_without_invoking_unused_co
             )
             .unwrap()
             .selected_machines,
-        BTreeSet::from([machine_id(3), machine_id(4)])
+        vec![machine_id(3), machine_id(4)]
     );
     assert_eq!(
         reached_boundary_calls(&module, machine_id(1), &[binding]).unwrap(),
@@ -465,10 +465,7 @@ fn saved_callee_uses_its_read_cut_after_an_overlapping_write() {
     for (result, descriptor) in [(3, 1), (4, 2)] {
         let possibilities = resolve_callable_value(&projected, query(1, result)).unwrap();
         assert!(possibilities.is_resolved());
-        assert_eq!(
-            possibilities.descriptors,
-            BTreeSet::from([descriptor_id(descriptor)])
-        );
+        assert_eq!(possibilities.descriptors, vec![descriptor_id(descriptor)]);
     }
     let reached = reachable_callable_invocations(&projected, [machine_id(1)]).unwrap();
     for (call, selected) in [(6, 3), (8, 4)] {
@@ -477,10 +474,7 @@ fn saved_callee_uses_its_read_cut_after_an_overlapping_write() {
             .unwrap()
             .unwrap();
         assert!(invocation.targets_are_resolved());
-        assert_eq!(
-            invocation.selected_machines,
-            BTreeSet::from([machine_id(selected)])
-        );
+        assert_eq!(invocation.selected_machines, vec![machine_id(selected)]);
     }
 }
 
@@ -504,9 +498,9 @@ fn external_callable_input_retains_an_explicit_unresolved_ceiling() {
         panic!("unknown callable ingress disappeared as a call");
     };
     assert!(target.descriptors.is_empty());
-    assert_eq!(target.unresolved_ceilings, BTreeSet::from([contract_id()]));
+    assert_eq!(target.unresolved_ceilings, vec![contract_id()]);
     assert!(!invocation.targets_are_resolved());
-    assert_eq!(reached.reached_machines, BTreeSet::from([machine_id(1)]));
+    assert_eq!(reached.reached_machines, vec![machine_id(1)]);
 }
 
 #[test]
@@ -527,10 +521,7 @@ fn ungrounded_recursive_callable_result_is_a_ceiling_instead_of_an_empty_selecti
     let selected = resolve_callable_value(&projected, query(1, 1)).unwrap();
     assert!(selected.descriptors.is_empty());
     assert!(selected.inputs.is_empty());
-    assert_eq!(
-        selected.unresolved_ceilings,
-        BTreeSet::from([contract_id()])
-    );
+    assert_eq!(selected.unresolved_ceilings, vec![contract_id()]);
     assert!(!selected.is_resolved());
 }
 

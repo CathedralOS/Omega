@@ -3,7 +3,14 @@
 use super::*;
 
 /// Admitted callback/interrupt entries bound to their exact registrar occurrence.
-pub type CallableInvocationRoots = BTreeMap<(MachineId, OperationId), BTreeSet<MachineId>>;
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CallableInvocationRoot {
+    pub caller: MachineId,
+    pub operation: OperationId,
+    pub entries: Vec<MachineId>,
+}
+
+pub type CallableInvocationRoots = Vec<CallableInvocationRoot>;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ReachedCallableTarget {
@@ -18,7 +25,7 @@ pub struct ReachableCallableInvocation {
     pub caller: MachineId,
     pub invocation: CallableInvocation,
     pub target: ReachedCallableTarget,
-    pub selected_machines: BTreeSet<MachineId>,
+    pub selected_machines: Vec<MachineId>,
 }
 
 impl ReachableCallableInvocation {
@@ -34,10 +41,10 @@ impl ReachableCallableInvocation {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ReachableCallableInvocations {
-    pub roots: BTreeSet<MachineId>,
-    pub reached_machines: BTreeSet<MachineId>,
-    pub invocations: BTreeMap<(MachineId, CallableInvocationSite), ReachableCallableInvocation>,
-    pub inputs: BTreeMap<CallableFormalInput, CallableValuePossibilities>,
+    pub roots: Vec<MachineId>,
+    pub reached_machines: Vec<MachineId>,
+    pub invocations: Vec<ReachableCallableInvocation>,
+    pub inputs: Vec<(CallableFormalInput, CallableValuePossibilities)>,
 }
 
 impl ReachableCallableInvocations {
@@ -46,7 +53,10 @@ impl ReachableCallableInvocations {
         caller: MachineId,
         site: CallableInvocationSite,
     ) -> Option<&ReachableCallableInvocation> {
-        self.invocations.get(&(caller, site))
+        self.invocations
+            .binary_search_by_key(&(caller, site), |row| (row.caller, row.invocation.site))
+            .ok()
+            .map(|position| &self.invocations[position])
     }
 
     /// A missing summary row is allowed only for an authenticated source
@@ -60,7 +70,7 @@ impl ReachableCallableInvocations {
         let site = CallableInvocationSite::Invocation(InvocationSite::Operation(operation));
         let source = program.body(caller)?.invocation(site)?;
         program.validate_occurrence(caller, source)?;
-        if !self.reached_machines.contains(&caller) {
+        if self.reached_machines.binary_search(&caller).is_err() {
             return Err("callable summary has no established caller entry");
         }
         if let Some(reached) = self.site(caller, site) {
@@ -88,7 +98,7 @@ impl ReachableCallableInvocations {
     ) -> CallableValueResult<Option<&ReachableCallableInvocation>> {
         let mut matches = self
             .invocations
-            .values()
+            .iter()
             .filter(|row| row.caller == caller && row.invocation.operation == Some(operation));
         let first = matches.next();
         if matches.next().is_some() {
@@ -108,9 +118,9 @@ struct ReachedEdge {
 struct ReachedSolver<'a, 'program> {
     program: &'a CallableValueProgram<'program>,
     result: ReachableCallableInvocations,
-    edges: BTreeSet<ReachedEdge>,
-    queries: BTreeMap<CallableValueQuery, CallableValuePossibilities>,
-    sites: BTreeMap<MachineId, Vec<CallableInvocation>>,
+    edges: Vec<ReachedEdge>,
+    queries: Vec<(CallableValueQuery, CallableValuePossibilities)>,
+    sites: Vec<Option<Vec<CallableInvocation>>>,
     bound_roots: &'a CallableInvocationRoots,
 }
 
@@ -119,27 +129,31 @@ impl ReachedSolver<'_, '_> {
         &mut self,
         query: CallableValueQuery,
     ) -> CallableValueResult<CallableValuePossibilities> {
-        if let Some(value) = self.queries.get(&query) {
-            return Ok(value.clone());
-        }
+        let position = match self.queries.binary_search_by(|(key, _)| key.cmp(&query)) {
+            Ok(position) => return Ok(self.queries[position].1.clone()),
+            Err(position) => position,
+        };
         let (mut value, inputs) =
             resolve_reached_value(self.program, query.clone(), &self.result.inputs)?;
         for input in inputs {
             let values = self.input(input.clone());
-            if !self.result.inputs.contains_key(&input) && !values.unresolved_ceilings.is_empty() {
+            if input_position(&self.result.inputs, &input).is_err()
+                && !values.unresolved_ceilings.is_empty()
+            {
                 value.join(CallableValuePossibilities::ceiling(query.contract()));
             }
         }
-        self.queries.insert(query, value.clone());
+        self.queries.insert(position, (query, value.clone()));
         Ok(value)
     }
 
     fn input(&mut self, input: CallableFormalInput) -> CallableValuePossibilities {
-        if let Some(value) = self.result.inputs.get(&input) {
-            return value.clone();
-        }
+        let position = match input_position(&self.result.inputs, &input) {
+            Ok(position) => return self.result.inputs[position].1.clone(),
+            Err(position) => position,
+        };
         if let CallableParameter::Structural { position, path } = &input.parameter
-            && self.result.inputs.keys().any(|previous| {
+            && self.result.inputs.iter().any(|(previous, _)| {
                 matches!(&previous.parameter,
                     CallableParameter::Structural { position: p, path: previous_path }
                     if previous.machine == input.machine && previous.contract == input.contract
@@ -152,10 +166,10 @@ impl ReachedSolver<'_, '_> {
             return CallableValuePossibilities::ceiling(input.contract);
         }
         let mut value = CallableValuePossibilities::default();
-        if self.result.roots.contains(&input.machine) {
-            value.inputs.insert(input.clone());
+        if self.result.roots.binary_search(&input.machine).is_ok() {
+            insert_ordered(&mut value.inputs, input.clone());
         }
-        self.result.inputs.insert(input, value.clone());
+        self.result.inputs.insert(position, (input, value.clone()));
         value
     }
 
@@ -168,30 +182,21 @@ impl ReachedSolver<'_, '_> {
     }
 
     fn call_sites(&mut self, machine: MachineId) -> CallableValueResult<Vec<CallableInvocation>> {
-        if let Some(sites) = self.sites.get(&machine) {
+        let index = self
+            .program
+            .bodies
+            .binary_search_by_key(&machine, |(id, _)| *id)
+            .map_err(|_| "callable provenance has no exact machine body")?;
+        if let Some(sites) = &self.sites[index] {
             return Ok(sites.clone());
         }
         let body = self.program.body(machine)?;
         let flow = self.program.flow(machine)?;
-        let occurrences = body
-            .invocations
-            .keys()
-            .chain(body.invalid_invocations.keys())
-            .copied()
-            .collect::<BTreeSet<_>>();
         let mut sites = Vec::new();
-        let mut operations = BTreeSet::new();
-        for site in occurrences {
-            let position = body
-                .invocations
-                .get(&site)
-                .map(|call| call.position)
-                .or_else(|| {
-                    body.invalid_invocations
-                        .get(&site)
-                        .map(|(position, _)| *position)
-                })
-                .ok_or("reached callable occurrence lost its exact source cut")?;
+        let mut operations = Vec::new();
+        for occurrence in &body.invocations {
+            let site = occurrence.site;
+            let position = occurrence.position;
             if !flow.flow.contains_key(&position) {
                 return Err("reached callable invocation has a stale control-flow position");
             }
@@ -220,14 +225,14 @@ impl ReachedSolver<'_, '_> {
                 }
             }
             if let Some(operation) = invocation.operation
-                && !operations.insert(operation)
+                && !insert_ordered(&mut operations, operation)
             {
                 return Err("reached callable invocations have ambiguous operation identities");
             }
             self.program.validate_occurrence(machine, &invocation)?;
             sites.push(invocation);
         }
-        self.sites.insert(machine, sites.clone());
+        self.sites[index] = Some(sites.clone());
         Ok(sites)
     }
 
@@ -255,34 +260,30 @@ impl ReachedSolver<'_, '_> {
         caller: MachineId,
         invocation: &CallableInvocation,
         target: &ReachedCallableTarget,
-    ) -> CallableValueResult<BTreeSet<MachineId>> {
+    ) -> CallableValueResult<Vec<MachineId>> {
         match target {
-            ReachedCallableTarget::Declaration(machine) => Ok(BTreeSet::from([*machine])),
+            ReachedCallableTarget::Declaration(machine) => Ok(vec![*machine]),
             ReachedCallableTarget::Callable(values) => {
                 let CallableInvocationTarget::Value(_, contract) = invocation.target else {
                     return Err("reached callable selection lost its evaluated callee contract");
                 };
-                values
-                    .descriptors
-                    .iter()
-                    .map(|id| {
-                        let descriptor = self
-                            .program
-                            .catalog
-                            .descriptor(*id)
-                            .ok_or("reached callable descriptor is absent or stale")?;
-                        if descriptor.contract != contract {
-                            return Err(
-                                "reached callable descriptor changes its evaluated contract",
-                            );
-                        }
-                        self.program
-                            .validate_actuals(caller, descriptor.machine, invocation)?;
-                        Ok(descriptor.machine)
-                    })
-                    .collect()
+                let mut machines = Vec::with_capacity(values.descriptors.len());
+                for id in &values.descriptors {
+                    let descriptor = self
+                        .program
+                        .catalog
+                        .descriptor(*id)
+                        .ok_or("reached callable descriptor is absent or stale")?;
+                    if descriptor.contract != contract {
+                        return Err("reached callable descriptor changes its evaluated contract");
+                    }
+                    self.program
+                        .validate_actuals(caller, descriptor.machine, invocation)?;
+                    insert_ordered(&mut machines, descriptor.machine);
+                }
+                Ok(machines)
             }
-            ReachedCallableTarget::Opaque => Ok(BTreeSet::new()),
+            ReachedCallableTarget::Opaque => Ok(Vec::new()),
         }
     }
 
@@ -293,71 +294,76 @@ impl ReachedSolver<'_, '_> {
         target: ReachedCallableTarget,
     ) -> CallableValueResult<bool> {
         let key = (caller, invocation.site);
-        let changed = match self.result.invocations.get_mut(&key) {
-            Some(row) => {
+        let (position, mut changed) = match self
+            .result
+            .invocations
+            .binary_search_by_key(&key, |row| (row.caller, row.invocation.site))
+        {
+            Ok(position) => {
+                let row = &mut self.result.invocations[position];
                 if row.invocation != invocation {
                     return Err("reached callable occurrence changed during its fixed point");
                 }
-                match (&mut row.target, target) {
+                let changed = match (&mut row.target, target) {
                     (
                         ReachedCallableTarget::Callable(previous),
                         ReachedCallableTarget::Callable(values),
                     ) => previous.join(values),
                     (previous, current) if *previous == current => false,
                     _ => return Err("reached callable occurrence changed its target kind"),
-                }
+                };
+                (position, changed)
             }
-            None => {
+            Err(position) => {
                 self.result.invocations.insert(
-                    key,
+                    position,
                     ReachableCallableInvocation {
                         caller,
                         invocation: invocation.clone(),
                         target,
-                        selected_machines: BTreeSet::new(),
+                        selected_machines: Vec::new(),
                     },
                 );
-                true
+                (position, true)
             }
         };
-        let row = self
-            .result
-            .invocations
-            .get(&key)
-            .ok_or("reached callable occurrence lost its fixed-point row")?;
-        let machines = self.selected_machines(caller, &invocation, &row.target)?;
-        let mut changed = changed;
+        let machines = self.selected_machines(
+            caller,
+            &invocation,
+            &self.result.invocations[position].target,
+        )?;
         for callee in machines {
-            changed |= self
-                .result
-                .invocations
-                .get_mut(&key)
-                .ok_or("reached callable occurrence lost its selected machine association")?
-                .selected_machines
-                .insert(callee);
-            changed |= self.edges.insert(ReachedEdge {
-                caller,
-                site: invocation.site,
+            changed |= insert_ordered(
+                &mut self.result.invocations[position].selected_machines,
                 callee,
-            });
-            changed |= self.result.reached_machines.insert(callee);
+            );
+            changed |= insert_ordered(
+                &mut self.edges,
+                ReachedEdge {
+                    caller,
+                    site: invocation.site,
+                    callee,
+                },
+            );
+            changed |= insert_ordered(&mut self.result.reached_machines, callee);
         }
-        for root in invocation
-            .operation
-            .and_then(|operation| self.bound_roots.get(&(caller, operation)))
-            .into_iter()
-            .flatten()
+        if let Some(operation) = invocation.operation
+            && let Ok(index) = self
+                .bound_roots
+                .binary_search_by_key(&(caller, operation), |row| (row.caller, row.operation))
         {
-            changed |= self.result.roots.insert(*root);
-            changed |= self.result.reached_machines.insert(*root);
+            for root in &self.bound_roots[index].entries {
+                changed |= insert_ordered(&mut self.result.roots, *root);
+                changed |= insert_ordered(&mut self.result.reached_machines, *root);
+            }
         }
         Ok(changed)
     }
 
     fn update_input(&mut self, input: &CallableFormalInput) -> CallableValueResult<bool> {
         let mut result = CallableValuePossibilities::default();
-        if self.result.roots.contains(&input.machine) {
-            result.inputs.insert(input.clone());
+        if self.result.roots.binary_search(&input.machine).is_ok() {
+            insert_ordered(&mut result.inputs, input.clone());
         }
         let incoming = self
             .edges
@@ -368,8 +374,7 @@ impl ReachedSolver<'_, '_> {
         for edge in incoming {
             let invocation = self
                 .result
-                .invocations
-                .get(&(edge.caller, edge.site))
+                .site(edge.caller, edge.site)
                 .ok_or("reached callable input lost its actual invocation")?
                 .invocation
                 .clone();
@@ -384,12 +389,9 @@ impl ReachedSolver<'_, '_> {
             };
             result.join(self.expand(values));
         }
-        Ok(self
-            .result
-            .inputs
-            .get_mut(input)
-            .ok_or("reached callable input lost its fixed-point row")?
-            .join(result))
+        let position = input_position(&self.result.inputs, input)
+            .map_err(|_| "reached callable input lost its fixed-point row")?;
+        Ok(self.result.inputs[position].1.join(result))
     }
 }
 
@@ -407,7 +409,9 @@ pub fn reachable_callable_invocations_with_roots(
     roots: impl IntoIterator<Item = MachineId>,
     bound_roots: &CallableInvocationRoots,
 ) -> CallableValueResult<ReachableCallableInvocations> {
-    let roots = roots.into_iter().collect::<BTreeSet<_>>();
+    let mut roots = roots.into_iter().collect::<Vec<_>>();
+    roots.sort_unstable();
+    roots.dedup();
     if roots.is_empty() {
         return Err("reachable callable analysis requires an authoritative entry root");
     }
@@ -415,19 +419,30 @@ pub fn reachable_callable_invocations_with_roots(
         program.body(*root)?;
         program.flow(*root)?;
     }
-    for ((owner, operation), entries) in bound_roots {
-        let body = program.body(*owner)?;
+    if bound_roots
+        .windows(2)
+        .any(|pair| (pair[0].caller, pair[0].operation) >= (pair[1].caller, pair[1].operation))
+    {
+        return Err("callable entry roots have repeated or unordered registrar occurrences");
+    }
+    for root in bound_roots {
+        let (owner, operation, entries) = (root.caller, root.operation, &root.entries);
+        if entries.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return Err("callable entry roots repeat or reorder selected entries");
+        }
+        let body = program.body(owner)?;
         let mut occurrences = body
             .invocations
-            .values()
-            .filter(|call| call.operation == Some(*operation));
+            .iter()
+            .filter_map(|row| row.value.as_ref().ok())
+            .filter(|call| call.operation == Some(operation));
         let occurrence = occurrences
             .next()
             .ok_or("callable entry root has no exact registrar invocation")?;
         if occurrences.next().is_some() || occurrence.boundary.is_none() {
             return Err("callable entry root has an ambiguous or non-boundary registrar");
         }
-        program.validate_occurrence(*owner, occurrence)?;
+        program.validate_occurrence(owner, occurrence)?;
         for entry in entries {
             program.body(*entry)?;
             program.flow(*entry)?;
@@ -438,31 +453,31 @@ pub fn reachable_callable_invocations_with_roots(
         result: ReachableCallableInvocations {
             reached_machines: roots.clone(),
             roots,
-            invocations: BTreeMap::new(),
-            inputs: BTreeMap::new(),
+            invocations: Vec::new(),
+            inputs: Vec::new(),
         },
-        edges: BTreeSet::new(),
-        queries: BTreeMap::new(),
-        sites: BTreeMap::new(),
+        edges: Vec::new(),
+        queries: Vec::new(),
+        sites: vec![None; program.bodies.len()],
         bound_roots,
     };
     loop {
         solver.queries.clear();
         let input_count = solver.result.inputs.len();
         let mut changed = false;
-        let machines = solver
-            .result
-            .reached_machines
-            .iter()
-            .copied()
-            .collect::<Vec<_>>();
+        let machines = solver.result.reached_machines.clone();
         for machine in machines {
             for invocation in solver.call_sites(machine)? {
                 let target = solver.evaluate_site(machine, &invocation)?;
                 changed |= solver.retain_site(machine, invocation, target)?;
             }
         }
-        let inputs = solver.result.inputs.keys().cloned().collect::<Vec<_>>();
+        let inputs = solver
+            .result
+            .inputs
+            .iter()
+            .map(|(input, _)| input.clone())
+            .collect::<Vec<_>>();
         for input in inputs {
             changed |= solver.update_input(&input)?;
         }
@@ -478,24 +493,23 @@ pub fn reachable_callable_invocations_with_roots(
             .collect::<Vec<_>>();
         if !bottoms.is_empty() {
             for input in bottoms {
-                solver
-                    .result
-                    .inputs
-                    .get_mut(&input)
-                    .ok_or("reached callable cycle lost its input row")?
+                let position = input_position(&solver.result.inputs, &input)
+                    .map_err(|_| "reached callable cycle lost its input row")?;
+                solver.result.inputs[position]
+                    .1
                     .join(CallableValuePossibilities::ceiling(input.contract));
             }
             continue;
         }
         break;
     }
-    for row in solver.result.invocations.values_mut() {
+    for row in solver.result.invocations.iter_mut() {
         if let ReachedCallableTarget::Callable(values) = &mut row.target {
             let CallableInvocationTarget::Value(_, contract) = row.invocation.target else {
                 return Err("reached callable result lost its exact contract");
             };
             if values.is_bottom() || !values.inputs.is_empty() {
-                values.unresolved_ceilings.insert(contract);
+                insert_ordered(&mut values.unresolved_ceilings, contract);
             }
         }
     }

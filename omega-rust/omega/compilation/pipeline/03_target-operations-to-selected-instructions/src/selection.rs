@@ -1108,7 +1108,8 @@ pub(crate) mod foreign_scalar_backings {
                         if self
                             .callable_invocations
                             .reached_machines
-                            .contains(&machine)
+                            .binary_search(&machine)
+                            .is_ok()
                         {
                             return Err(SelectedInstructionError::custody_because(
                                 "callable backing query lost its reached source occurrence",

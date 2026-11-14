@@ -533,7 +533,7 @@ pub mod descriptor_lifetimes {
             live
         }
 
-        fn overlaps(left: &DescriptorLocation, right: &DescriptorLocation) -> bool {
+        pub fn overlaps(left: &DescriptorLocation, right: &DescriptorLocation) -> bool {
             left.contains(right) || right.contains(left)
         }
     }
@@ -541,6 +541,7 @@ pub mod descriptor_lifetimes {
         canonical_descriptor_location, descriptor_location, descriptor_location_type,
         descriptor_path, fixed_runtime_index_alternatives,
     };
+    pub use residences::overlaps as descriptor_locations_may_overlap;
     pub use residences::{DescriptorResidenceRules, descriptor_residence_live_positions};
 
     pub type DescriptorPosition = (BlockId, u32);

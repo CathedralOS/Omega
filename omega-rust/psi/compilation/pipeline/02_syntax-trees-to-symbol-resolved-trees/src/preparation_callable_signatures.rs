@@ -235,14 +235,37 @@ impl SignatureInputs {
     }
 }
 
+#[derive(Default)]
+pub(in crate::preparation) struct BoundTypeOccurrences {
+    rows: Vec<Option<TypeReferenceHandle>>,
+}
+
+impl BoundTypeOccurrences {
+    pub(in crate::preparation) fn contains(&self, reference: &TypeReferenceHandle) -> bool {
+        self.rows
+            .get(reference.arena_index() as usize)
+            .copied()
+            .flatten()
+            == Some(*reference)
+    }
+
+    fn insert(&mut self, reference: TypeReferenceHandle) {
+        let index = reference.arena_index() as usize;
+        if self.rows.len() <= index {
+            self.rows.resize(index + 1, None);
+        }
+        self.rows[index] = Some(reference);
+    }
+}
+
 /// Locate copied type occurrences hidden by a signature's own binder frames.
 /// These occurrences keep their declaration meaning during enclosing application.
 pub(in crate::preparation) fn bound_type_occurrences(
     syntax: &SyntaxTrees,
     signature: &StateSignature,
-) -> std::collections::HashSet<TypeReferenceHandle> {
+) -> BoundTypeOccurrences {
     use syntax_trees::types::{FixedArrayLength, TypeConstraintNode, TypeReferenceNode};
-    let mut bound = std::collections::HashSet::new();
+    let mut bound = BoundTypeOccurrences::default();
     let inputs = SignatureInputs::of(syntax, signature);
     let mut pending = inputs
         .types

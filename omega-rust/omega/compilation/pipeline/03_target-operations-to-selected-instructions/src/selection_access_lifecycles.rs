@@ -4648,10 +4648,10 @@ pub(crate) mod tests {
         assert!(program.scalar_functions.is_empty());
         let callable_invocations =
             terminal_semantics::callable_values::ReachableCallableInvocations {
-                roots: std::collections::BTreeSet::new(),
-                reached_machines: std::collections::BTreeSet::new(),
-                invocations: std::collections::BTreeMap::new(),
-                inputs: std::collections::BTreeMap::new(),
+                roots: Vec::new(),
+                reached_machines: Vec::new(),
+                invocations: Vec::new(),
+                inputs: Vec::new(),
             };
         let geometries = crate::native_geometry::NativeGeometries::new(std::iter::empty()).unwrap();
         let backings = crate::selection::foreign_scalar_backings::ForeignScalarBackings::new(

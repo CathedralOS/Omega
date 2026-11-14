@@ -9,7 +9,6 @@ use semantic_vocabulary::{
     BlockId, CallableContractId, ContractId, EdgeId, MachineDescriptorId, MachineId, OperationId,
     ScalarType, ValueId, WorkScheduleIdentity,
 };
-use std::collections::BTreeSet;
 use terminal_psi::{
     BoundaryMachineResult, MachineContract, SemanticFingerprint, TerminalCallableCatalog,
     TerminalCallableContract, TerminalCallableEnvelope, TerminalCallableTermination,
@@ -190,18 +189,12 @@ fn optimized_entry_calls_resolve_formal_actuals_without_eligible_code_rosters() 
     let ReachedCallableTarget::Callable(target) = &invocation.target else {
         panic!("optimized invocation lost its evaluated callable operand");
     };
-    assert_eq!(
-        target.descriptors,
-        BTreeSet::from([descriptor(1), descriptor(2)])
-    );
+    assert_eq!(target.descriptors, vec![descriptor(1), descriptor(2)]);
     assert!(invocation.targets_are_resolved());
-    assert_eq!(
-        invocation.selected_machines,
-        BTreeSet::from([machine(3), machine(4)])
-    );
+    assert_eq!(invocation.selected_machines, vec![machine(3), machine(4)]);
     assert_eq!(
         reached.reached_machines,
-        BTreeSet::from([machine(1), machine(2), machine(3), machine(4)])
+        vec![machine(1), machine(2), machine(3), machine(4)]
     );
     assert!(
         reached

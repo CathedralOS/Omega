@@ -502,16 +502,12 @@ impl Calls<'_> {
                     .values
                     .ok_or_else(|| self.foreign("structural callable origins were not prepared"))?;
                 let body = values
-                    .bodies
-                    .get(&self.caller.id)
-                    .ok_or_else(|| self.foreign("structural callable actual lost its caller"))?;
+                    .body(self.caller.id)
+                    .map_err(|reason| self.foreign(reason))?;
                 let key = CallableInvocationSite::Invocation(site);
-                if let Some((_, reason)) = body.invalid_invocations.get(&key) {
-                    return Err(self.foreign(reason));
-                }
-                let invocation = body.invocations.get(&key).ok_or_else(|| {
-                    self.foreign("structural callable actual lost its exact invocation")
-                })?;
+                let invocation = body
+                    .invocation(key)
+                    .map_err(|reason| self.foreign(reason))?;
                 if invocation.scalar_arguments != call.inputs.arguments
                     || invocation.structural_actual_types.get(lane)
                         != Some(&(formal.structural_type, formal.access))

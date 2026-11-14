@@ -28,7 +28,7 @@ fn is_shared_bytes(shape: &StructuralTypeShape) -> bool {
     )
 }
 
-impl Storage<'_> {
+impl<'a> Storage<'a> {
     fn readable_descriptor(
         &self,
         root: PlaceId,
@@ -188,7 +188,11 @@ impl Storage<'_> {
         Ok(())
     }
 
-    pub(super) fn shared_subslice(&self, operation: &Operation) -> Checked<()> {
+    pub(super) fn shared_subslice(
+        &self,
+        references: &mut super::DescriptorAnalysis<'a>,
+        operation: &Operation,
+    ) -> Checked<()> {
         use terminal_semantics::descriptor_results::DescriptorCallOrigin;
         let OperationKind::ByteSequenceSubslice { source, .. } = &operation.kind else {
             unreachable!()
@@ -249,9 +253,7 @@ impl Storage<'_> {
         let position = u32::try_from(after - 1).map_err(|_| {
             self.foreign(concerns, "a subslice position exceeds its descriptor graph")
         })?;
-        let origins = self
-            .references
-            .borrow_mut()
+        let origins = references
             .source_origins(self.machine, (block, position), &location)
             .filter(|origins| !origins.is_empty())
             .ok_or_else(|| {

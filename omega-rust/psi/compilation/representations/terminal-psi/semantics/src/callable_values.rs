@@ -4,8 +4,6 @@
 //! describes possible constructed values and formal inputs; it never searches
 //! for functions with an eligible signature or calling plan.
 
-use std::collections::{BTreeMap, BTreeSet};
-
 use semantic_vocabulary::{
     BlockId, BoundaryMachineId, CallableContractId, EdgeId, InvocationSite, MachineDescriptorId,
     MachineId, OperationId, PlaceId, ScalarTerm, ScalarType, StructuralTypeId, ValueId,
@@ -18,8 +16,8 @@ use crate::descriptor_results::{DescriptorAnalysis, DescriptorDefinition, Descri
 mod reachable;
 mod terminal;
 pub use reachable::{
-    CallableInvocationRoots, ReachableCallableInvocation, ReachableCallableInvocations,
-    ReachedCallableTarget, reachable_callable_invocations,
+    CallableInvocationRoot, CallableInvocationRoots, ReachableCallableInvocation,
+    ReachableCallableInvocations, ReachedCallableTarget, reachable_callable_invocations,
     reachable_callable_invocations_with_roots,
 };
 pub use terminal::{
@@ -27,6 +25,22 @@ pub use terminal::{
     project_nominal_cleanup_invocation, reached_boundary_calls, stored_callable_definition,
     terminal_callable_values, terminal_callable_values_with_boundary_implementations,
 };
+
+fn insert_ordered<T: Ord>(values: &mut Vec<T>, value: T) -> bool {
+    match values.binary_search(&value) {
+        Ok(_) => false,
+        Err(position) => {
+            values.insert(position, value);
+            true
+        }
+    }
+}
+
+fn join_ordered<T: Ord>(values: &mut Vec<T>, mut incoming: Vec<T>) {
+    values.append(&mut incoming);
+    values.sort_unstable();
+    values.dedup();
+}
 
 pub type CallableValueResult<T> = Result<T, &'static str>;
 
@@ -77,9 +91,9 @@ pub struct CallableFormalInput {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct CallableValuePossibilities {
-    pub descriptors: BTreeSet<MachineDescriptorId>,
-    pub inputs: BTreeSet<CallableFormalInput>,
-    pub unresolved_ceilings: BTreeSet<CallableContractId>,
+    pub descriptors: Vec<MachineDescriptorId>,
+    pub inputs: Vec<CallableFormalInput>,
+    pub unresolved_ceilings: Vec<CallableContractId>,
 }
 
 impl CallableValuePossibilities {
@@ -99,9 +113,9 @@ impl CallableValuePossibilities {
             self.inputs.len(),
             self.unresolved_ceilings.len(),
         );
-        self.descriptors.extend(other.descriptors);
-        self.inputs.extend(other.inputs);
-        self.unresolved_ceilings.extend(other.unresolved_ceilings);
+        join_ordered(&mut self.descriptors, other.descriptors);
+        join_ordered(&mut self.inputs, other.inputs);
+        join_ordered(&mut self.unresolved_ceilings, other.unresolved_ceilings);
         before
             != (
                 self.descriptors.len(),
@@ -112,7 +126,7 @@ impl CallableValuePossibilities {
 
     fn ceiling(contract: CallableContractId) -> Self {
         Self {
-            unresolved_ceilings: BTreeSet::from([contract]),
+            unresolved_ceilings: vec![contract],
             ..Self::default()
         }
     }
@@ -154,6 +168,18 @@ pub struct CallableInvocation {
     pub structural_actual_types: Vec<(StructuralTypeId, terminal_psi::StructuralAccess)>,
 }
 
+pub struct CallableValueDefinition {
+    value: ValueId,
+    scalar_type: ScalarType,
+    definition: CallableDefinition,
+}
+
+pub struct CallableInvocationRecord {
+    pub site: CallableInvocationSite,
+    pub position: DescriptorPosition,
+    pub value: CallableValueResult<CallableInvocation>,
+}
+
 #[derive(Default)]
 pub struct CallableValueBody {
     pub attachment: Option<StructuralTypeId>,
@@ -164,54 +190,109 @@ pub struct CallableValueBody {
     pub structural_parameters: Vec<(StructuralTypeId, terminal_psi::StructuralAccess)>,
     pub scalar_result: Option<ScalarType>,
     pub structural_result: Option<StructuralTypeId>,
-    pub scalar_types: BTreeMap<ValueId, ScalarType>,
-    pub definitions: BTreeMap<ValueId, CallableDefinition>,
-    pub invocations: BTreeMap<CallableInvocationSite, CallableInvocation>,
-    pub invalid_invocations: BTreeMap<CallableInvocationSite, (DescriptorPosition, &'static str)>,
-    pub cleanup_actions: BTreeMap<EdgeId, Vec<terminal_psi::TerminalAffineCleanupAction>>,
-    pub structural_results: BTreeMap<DescriptorPosition, PlaceId>,
+    pub values: Vec<CallableValueDefinition>,
+    pub invocations: Vec<CallableInvocationRecord>,
+    pub cleanup_actions: Vec<(EdgeId, Vec<terminal_psi::TerminalAffineCleanupAction>)>,
+    pub structural_results: Vec<(DescriptorPosition, PlaceId)>,
     pub scalar_returns: Vec<ValueId>,
     pub structural_returns: Vec<(DescriptorPosition, PlaceId)>,
 }
 
 impl CallableValueBody {
+    pub(crate) fn scalar_type(&self, value: ValueId) -> Option<ScalarType> {
+        self.values
+            .binary_search_by_key(&value, |row| row.value)
+            .ok()
+            .map(|position| self.values[position].scalar_type)
+    }
+
+    fn definition(&self, value: ValueId) -> Option<&CallableDefinition> {
+        self.values
+            .binary_search_by_key(&value, |row| row.value)
+            .ok()
+            .map(|position| &self.values[position].definition)
+    }
+
+    pub fn retain_cleanup_actions(
+        &mut self,
+        edge: EdgeId,
+        actions: Vec<terminal_psi::TerminalAffineCleanupAction>,
+    ) -> Option<Vec<terminal_psi::TerminalAffineCleanupAction>> {
+        match self
+            .cleanup_actions
+            .binary_search_by_key(&edge, |(edge, _)| *edge)
+        {
+            Ok(position) => Some(std::mem::replace(
+                &mut self.cleanup_actions[position].1,
+                actions,
+            )),
+            Err(position) => {
+                self.cleanup_actions.insert(position, (edge, actions));
+                None
+            }
+        }
+    }
+
+    pub fn retain_structural_result(&mut self, position: DescriptorPosition, place: PlaceId) {
+        match self
+            .structural_results
+            .binary_search_by_key(&position, |(position, _)| *position)
+        {
+            Ok(index) => self.structural_results[index].1 = place,
+            Err(index) => self.structural_results.insert(index, (position, place)),
+        }
+    }
+
+    fn structural_result(&self, position: DescriptorPosition) -> Option<PlaceId> {
+        self.structural_results
+            .binary_search_by_key(&position, |(position, _)| *position)
+            .ok()
+            .map(|index| self.structural_results[index].1)
+    }
+
     pub fn retain_invocation(
         &mut self,
         site: CallableInvocationSite,
         position: DescriptorPosition,
         invocation: CallableValueResult<CallableInvocation>,
     ) -> CallableValueResult<()> {
-        if self.invocations.contains_key(&site) || self.invalid_invocations.contains_key(&site) {
+        let Err(index) = self.invocations.binary_search_by_key(&site, |row| row.site) else {
             return Err("callable invocation has an ambiguous source occurrence identity");
+        };
+        if invocation
+            .as_ref()
+            .is_ok_and(|invocation| invocation.site != site || invocation.position != position)
+        {
+            return Err("callable invocation changed its source occurrence identity");
         }
-        match invocation {
-            Ok(invocation) => {
-                if invocation.site != site || invocation.position != position {
-                    return Err("callable invocation changed its source occurrence identity");
-                }
-                self.invocations.insert(site, invocation);
-            }
-            Err(reason) => {
-                self.invalid_invocations.insert(site, (position, reason));
-            }
-        }
+        self.invocations.insert(
+            index,
+            CallableInvocationRecord {
+                site,
+                position,
+                value: invocation,
+            },
+        );
         Ok(())
     }
 
-    fn invocation(&self, site: CallableInvocationSite) -> CallableValueResult<&CallableInvocation> {
-        if let Some((_, reason)) = self.invalid_invocations.get(&site) {
-            return Err(reason);
-        }
-        self.invocations
-            .get(&site)
-            .ok_or("callable result lost its exact invocation")
+    pub fn invocation(
+        &self,
+        site: CallableInvocationSite,
+    ) -> CallableValueResult<&CallableInvocation> {
+        let position = self
+            .invocations
+            .binary_search_by_key(&site, |row| row.site)
+            .map_err(|_| "callable result lost its exact invocation")?;
+        self.invocations[position]
+            .value
+            .as_ref()
+            .map_err(|reason| *reason)
     }
 
     pub fn has_primary_invocation(&self, position: DescriptorPosition) -> bool {
-        self.invocations.values().any(|call| {
-            call.position == position && matches!(call.site, CallableInvocationSite::Invocation(_))
-        }) || self.invalid_invocations.iter().any(|(site, (cut, _))| {
-            *cut == position && matches!(site, CallableInvocationSite::Invocation(_))
+        self.invocations.iter().any(|row| {
+            row.position == position && matches!(row.site, CallableInvocationSite::Invocation(_))
         })
     }
 
@@ -219,13 +300,19 @@ impl CallableValueBody {
         &self,
         position: DescriptorPosition,
     ) -> CallableValueResult<&CallableInvocation> {
-        if let Some((_, (_, reason))) = self.invalid_invocations.iter().find(|(site, (cut, _))| {
-            *cut == position && matches!(site, CallableInvocationSite::Invocation(_))
-        }) {
-            return Err(reason);
+        if let Some(reason) = self
+            .invocations
+            .iter()
+            .filter(|row| {
+                row.position == position
+                    && matches!(row.site, CallableInvocationSite::Invocation(_))
+            })
+            .find_map(|row| row.value.as_ref().err())
+        {
+            return Err(*reason);
         }
-        let mut rows = self.invocations.values().filter(|call| {
-            call.position == position && matches!(call.site, CallableInvocationSite::Invocation(_))
+        let mut rows = self.invocations.iter().filter(|row| {
+            row.position == position && matches!(row.site, CallableInvocationSite::Invocation(_))
         });
         let row = rows
             .next()
@@ -233,7 +320,7 @@ impl CallableValueBody {
         if rows.next().is_some() {
             return Err("callable result has ambiguous invocation occurrences");
         }
-        Ok(row)
+        row.value.as_ref().map_err(|reason| *reason)
     }
 
     /// Entry block parameters may name the same formal as the machine entry.
@@ -244,20 +331,27 @@ impl CallableValueBody {
         definition: CallableDefinition,
         entry_parameter: bool,
     ) -> CallableValueResult<()> {
-        if let Some(previous) = self.scalar_types.get(&value) {
-            if entry_parameter
-                && *previous == scalar_type
-                && matches!(
-                    self.definitions.get(&value),
-                    Some(CallableDefinition::Formal(_))
-                )
-            {
-                return Ok(());
+        let position = match self.values.binary_search_by_key(&value, |row| row.value) {
+            Ok(position) => {
+                let previous = &self.values[position];
+                if entry_parameter
+                    && previous.scalar_type == scalar_type
+                    && matches!(previous.definition, CallableDefinition::Formal(_))
+                {
+                    return Ok(());
+                }
+                return Err("callable provenance has a missing or ambiguous SSA definition");
             }
-            return Err("callable provenance has a missing or ambiguous SSA definition");
-        }
-        self.scalar_types.insert(value, scalar_type);
-        self.definitions.insert(value, definition);
+            Err(position) => position,
+        };
+        self.values.insert(
+            position,
+            CallableValueDefinition {
+                value,
+                scalar_type,
+                definition,
+            },
+        );
         Ok(())
     }
 }
@@ -267,7 +361,7 @@ pub struct CallableValueProgram<'a> {
     pub catalog: &'a TerminalCallableCatalog,
     pub structural_types: &'a [StructuralTypeDeclaration],
     pub graph: Vec<DescriptorMachine>,
-    pub bodies: BTreeMap<MachineId, CallableValueBody>,
+    pub bodies: Vec<(MachineId, CallableValueBody)>,
 }
 
 #[derive(Clone)]
@@ -275,14 +369,8 @@ enum Source {
     Value(CallableValueQuery),
     Constructed(MachineDescriptorId),
     Input(CallableFormalInput),
-    Invocation(CallableInvocation, ResultProjection),
+    Invocation(CallableInvocation, Option<DescriptorLocation>),
     Ceiling,
-}
-
-#[derive(Clone)]
-enum ResultProjection {
-    Scalar,
-    Structural(Vec<DescriptorPathSegment>),
 }
 
 enum CallableActualValue {
@@ -303,7 +391,7 @@ impl CallableValueProgram<'_> {
             || invocation
                 .scalar_arguments
                 .iter()
-                .any(|actual| !body.scalar_types.contains_key(actual))
+                .any(|actual| body.scalar_type(*actual).is_none())
         {
             return Err("callable invocation no longer matches its exact source occurrence");
         }
@@ -319,9 +407,7 @@ impl CallableValueProgram<'_> {
                     .scalar_parameters
                     .iter()
                     .zip(&invocation.scalar_arguments)
-                    .all(|(formal, actual)| {
-                        body.scalar_types.get(actual) == Some(&formal.scalar_type)
-                    })
+                    .all(|(formal, actual)| body.scalar_type(*actual) == Some(formal.scalar_type))
                 || !signature
                     .structural_parameters
                     .iter()
@@ -373,10 +459,12 @@ impl CallableValueProgram<'_> {
             CallableValueQuery::Storage { location, .. },
         ) = (invocation.site, &query)
         {
-            let actions = self
-                .body(caller)?
+            let caller_body = self.body(caller)?;
+            let actions = caller_body
                 .cleanup_actions
-                .get(&edge)
+                .binary_search_by_key(&edge, |(edge, _)| *edge)
+                .ok()
+                .map(|position| &caller_body.cleanup_actions[position].1)
                 .ok_or("callable cleanup input lost its exact action roster")?;
             let ordinal = usize::try_from(action_ordinal)
                 .map_err(|_| "callable cleanup action ordinal cannot be indexed")?;
@@ -396,12 +484,35 @@ impl CallableValueProgram<'_> {
                     None,
                 )
                 .ok_or("earlier cleanup has no exact storage projection")?;
-                if self.cleanup_locations_may_overlap(
-                    caller,
-                    invocation.position,
-                    location,
-                    &prior,
-                )? {
+                let direct = |location: &DescriptorLocation| {
+                    !location.path.contains(&DescriptorPathSegment::Referent)
+                        && flow.places.iter().any(|place| {
+                            place.place == location.root
+                                && matches!(
+                                    place.definition,
+                                    DescriptorDefinition::Local
+                                        | DescriptorDefinition::Literal
+                                        | DescriptorDefinition::Parameter {
+                                            access: terminal_psi::StructuralAccess::Owned,
+                                            ..
+                                        }
+                                )
+                        })
+                };
+                let mut analysis =
+                    DescriptorAnalysis::with_reference_slots(self.structural_types, &self.graph);
+                let left = analysis
+                    .location(caller, invocation.position, location)
+                    .or_else(|| direct(location).then(|| location.clone()));
+                let right = analysis
+                    .location(caller, invocation.position, &prior)
+                    .or_else(|| direct(&prior).then(|| prior.clone()));
+                if match (left, right) {
+                    (Some(left), Some(right)) => {
+                        crate::descriptor_lifetimes::descriptor_locations_may_overlap(&left, &right)
+                    }
+                    _ => true,
+                } {
                     if matches!(
                         action,
                         terminal_psi::TerminalAffineCleanupAction::InvokeNominal(_)
@@ -413,43 +524,6 @@ impl CallableValueProgram<'_> {
             }
         }
         Ok(CallableActualValue::Value(query))
-    }
-
-    fn cleanup_locations_may_overlap(
-        &self,
-        machine: MachineId,
-        position: DescriptorPosition,
-        left: &DescriptorLocation,
-        right: &DescriptorLocation,
-    ) -> CallableValueResult<bool> {
-        let flow = self.flow(machine)?;
-        let direct = |location: &DescriptorLocation| {
-            !location.path.contains(&DescriptorPathSegment::Referent)
-                && flow.places.iter().any(|place| {
-                    place.place == location.root
-                        && matches!(
-                            place.definition,
-                            DescriptorDefinition::Local
-                                | DescriptorDefinition::Literal
-                                | DescriptorDefinition::Parameter {
-                                    access: terminal_psi::StructuralAccess::Owned,
-                                    ..
-                                }
-                        )
-                })
-        };
-        let mut analysis =
-            DescriptorAnalysis::with_reference_slots(self.structural_types, &self.graph);
-        let left = analysis
-            .location(machine, position, left)
-            .or_else(|| direct(left).then(|| left.clone()));
-        let right = analysis
-            .location(machine, position, right)
-            .or_else(|| direct(right).then(|| right.clone()));
-        Ok(match (left, right) {
-            (Some(left), Some(right)) => left.contains(&right) || right.contains(&left),
-            _ => true,
-        })
     }
 
     pub(crate) fn validate_actuals(
@@ -470,7 +544,7 @@ impl CallableValueProgram<'_> {
             .iter()
             .zip(&invocation.scalar_arguments)
         {
-            if self.body(caller)?.scalar_types.get(actual) != Some(expected) {
+            if self.body(caller)?.scalar_type(*actual) != Some(*expected) {
                 return Err("callable invocation scalar actual has the wrong selected formal type");
             }
         }
@@ -536,9 +610,11 @@ impl CallableValueProgram<'_> {
         Ok(())
     }
 
-    fn body(&self, machine: MachineId) -> CallableValueResult<&CallableValueBody> {
+    pub fn body(&self, machine: MachineId) -> CallableValueResult<&CallableValueBody> {
         self.bodies
-            .get(&machine)
+            .binary_search_by_key(&machine, |(id, _)| *id)
+            .ok()
+            .map(|position| &self.bodies[position].1)
             .ok_or("callable provenance has no exact machine body")
     }
 
@@ -557,7 +633,7 @@ impl CallableValueProgram<'_> {
         value: ValueId,
         contract: CallableContractId,
     ) -> CallableValueResult<CallableValueQuery> {
-        if self.body(machine)?.scalar_types.get(&value) != Some(&ScalarType::Callable(contract)) {
+        if self.body(machine)?.scalar_type(value) != Some(ScalarType::Callable(contract)) {
             return Err("callable provenance SSA type disagrees with its exact contract");
         }
         Ok(CallableValueQuery::Scalar {
@@ -580,8 +656,7 @@ impl CallableValueProgram<'_> {
                 self.scalar_query(*machine, *value, *contract)?;
                 let body = self.body(*machine)?;
                 let source = match body
-                    .definitions
-                    .get(value)
+                    .definition(*value)
                     .ok_or("callable provenance SSA definition is absent")?
                 {
                     CallableDefinition::Constructed(descriptor) => Source::Constructed(*descriptor),
@@ -601,10 +676,9 @@ impl CallableValueProgram<'_> {
                             contract: *contract,
                         })
                     }
-                    CallableDefinition::Invocation(position) => Source::Invocation(
-                        body.primary_invocation(*position)?.clone(),
-                        ResultProjection::Scalar,
-                    ),
+                    CallableDefinition::Invocation(position) => {
+                        Source::Invocation(body.primary_invocation(*position)?.clone(), None)
+                    }
                     CallableDefinition::Opaque => Source::Ceiling,
                     CallableDefinition::Unsupported => {
                         return Err("callable provenance uses an unsupported scalar definition");
@@ -789,7 +863,7 @@ impl CallableValueProgram<'_> {
                     return Err("callable storage arrival has no exact actual binding");
                 }
                 let overlaps = |other: &DescriptorLocation| {
-                    other.contains(&arrival) || arrival.contains(other)
+                    crate::descriptor_lifetimes::descriptor_locations_may_overlap(other, &arrival)
                 };
                 let writes = flow
                     .scalar_payload_writes
@@ -822,12 +896,12 @@ impl CallableValueProgram<'_> {
                     continue;
                 }
                 let body = self.body(machine)?;
-                if body.structural_results.get(producer) == Some(&arrival.root)
+                if body.structural_result(*producer) == Some(arrival.root)
                     && body.has_primary_invocation(*producer)
                 {
                     result.push(Source::Invocation(
                         body.primary_invocation(*producer)?.clone(),
-                        ResultProjection::Structural(arrival.path),
+                        Some(arrival.clone()),
                     ));
                     continue;
                 }
@@ -879,28 +953,26 @@ impl CallableValueProgram<'_> {
     fn result_queries(
         &self,
         machine: MachineId,
-        projection: &ResultProjection,
+        projection: &Option<DescriptorLocation>,
         contract: CallableContractId,
     ) -> CallableValueResult<Vec<CallableValueQuery>> {
         let body = self.body(machine)?;
         match projection {
-            ResultProjection::Scalar
-                if body.scalar_result != Some(ScalarType::Callable(contract)) =>
-            {
+            None if body.scalar_result != Some(ScalarType::Callable(contract)) => {
                 return Err("callable result query changes the selected result contract");
             }
-            ResultProjection::Structural(_) if body.structural_result.is_none() => {
+            Some(_) if body.structural_result.is_none() => {
                 return Err("callable result projection has no selected structural result");
             }
             _ => {}
         }
         let result = match projection {
-            ResultProjection::Scalar => body
+            None => body
                 .scalar_returns
                 .iter()
                 .map(|value| self.scalar_query(machine, *value, contract))
                 .collect::<CallableValueResult<Vec<_>>>()?,
-            ResultProjection::Structural(path) => body
+            Some(location) => body
                 .structural_returns
                 .iter()
                 .map(|(position, root)| {
@@ -913,7 +985,7 @@ impl CallableValueProgram<'_> {
                         position: *position,
                         location: DescriptorLocation {
                             root: *root,
-                            path: path.clone(),
+                            path: location.path.clone(),
                         },
                         contract,
                     })
@@ -927,26 +999,45 @@ impl CallableValueProgram<'_> {
     }
 }
 
+struct CallableQueryState {
+    query: CallableValueQuery,
+    value: CallableValuePossibilities,
+    sources: Option<Vec<Source>>,
+}
+
 struct Solver<'a, 'program> {
     program: &'a CallableValueProgram<'program>,
-    queries: Vec<CallableValueQuery>,
-    values: BTreeMap<CallableValueQuery, CallableValuePossibilities>,
-    sources: BTreeMap<CallableValueQuery, Vec<Source>>,
-    reached_inputs: Option<&'a BTreeMap<CallableFormalInput, CallableValuePossibilities>>,
-    requested_inputs: BTreeSet<CallableFormalInput>,
+    // Discovery order is the solver's evaluation order. Only this compact
+    // ordinal roster is sorted for repeated lookup of actual query rows.
+    queries: Vec<CallableQueryState>,
+    lookup: Vec<usize>,
+    reached_inputs: Option<&'a [(CallableFormalInput, CallableValuePossibilities)]>,
+    requested_inputs: Vec<CallableFormalInput>,
+}
+
+fn input_position(
+    inputs: &[(CallableFormalInput, CallableValuePossibilities)],
+    input: &CallableFormalInput,
+) -> Result<usize, usize> {
+    inputs.binary_search_by(|(candidate, _)| candidate.cmp(input))
 }
 
 impl Solver<'_, '_> {
+    fn query_index(&self, query: &CallableValueQuery) -> Result<usize, usize> {
+        self.lookup
+            .binary_search_by(|index| self.queries[*index].query.cmp(query))
+            .map(|position| self.lookup[position])
+    }
+
     fn read(
         &mut self,
         query: CallableValueQuery,
     ) -> CallableValueResult<CallableValuePossibilities> {
-        if let Some(value) = self.values.get(&query) {
-            return Ok(value.clone());
-        }
+        let position = match self.query_index(&query) {
+            Ok(index) => return Ok(self.queries[index].value.clone()),
+            Err(position) => position,
+        };
         self.program.validate_query(&query)?;
-        // Recursive projections can grow without producing a finite stored
-        // coordinate. Keep the authored ceiling rather than inventing a leaf.
         if let CallableValueQuery::Storage {
             machine,
             position,
@@ -954,7 +1045,7 @@ impl Solver<'_, '_> {
             contract,
         } = &query
             && self.queries.iter().any(|previous| {
-                matches!(previous,
+                matches!(&previous.query,
                 CallableValueQuery::Storage { machine: m, position: p, location: l, contract: c }
                 if m == machine && p == position && c == contract && l.root == location.root
                     && l.path.len() < location.path.len() && location.path.starts_with(&l.path))
@@ -962,9 +1053,13 @@ impl Solver<'_, '_> {
         {
             return Ok(CallableValuePossibilities::ceiling(*contract));
         }
-        self.queries.push(query.clone());
-        self.values
-            .insert(query, CallableValuePossibilities::default());
+        let index = self.queries.len();
+        self.queries.push(CallableQueryState {
+            query,
+            value: CallableValuePossibilities::default(),
+            sources: None,
+        });
+        self.lookup.insert(position, index);
         Ok(CallableValuePossibilities::default())
     }
 
@@ -972,15 +1067,15 @@ impl Solver<'_, '_> {
         &mut self,
         caller: MachineId,
         invocation: &CallableInvocation,
-        projection: &ResultProjection,
+        projection: &Option<DescriptorLocation>,
         result_contract: CallableContractId,
     ) -> CallableValueResult<CallableValuePossibilities> {
         self.program.validate_occurrence(caller, invocation)?;
         let mut result = CallableValuePossibilities::default();
-        let mut machines = BTreeSet::new();
+        let mut machines = Vec::new();
         match invocation.target {
             CallableInvocationTarget::Machine(machine) => {
-                machines.insert(machine);
+                insert_ordered(&mut machines, machine);
             }
             CallableInvocationTarget::Value(value, contract) => {
                 let query = self.program.scalar_query(caller, value, contract)?;
@@ -997,7 +1092,7 @@ impl Solver<'_, '_> {
                     if descriptor.contract != contract {
                         return Err("callable selection descriptor changes its contract");
                     }
-                    machines.insert(descriptor.machine);
+                    insert_ordered(&mut machines, descriptor.machine);
                 }
             }
             CallableInvocationTarget::Opaque => {
@@ -1015,10 +1110,8 @@ impl Solver<'_, '_> {
                     result.join(values);
                     continue;
                 }
-                result.descriptors.extend(values.descriptors);
-                result
-                    .unresolved_ceilings
-                    .extend(values.unresolved_ceilings);
+                join_ordered(&mut result.descriptors, values.descriptors);
+                join_ordered(&mut result.unresolved_ceilings, values.unresolved_ceilings);
                 for input in values.inputs {
                     if input.machine != machine {
                         return Err("callable result summary retained another machine's formal");
@@ -1041,11 +1134,14 @@ impl Solver<'_, '_> {
         query: &CallableValueQuery,
     ) -> CallableValueResult<CallableValuePossibilities> {
         let mut result = CallableValuePossibilities::default();
-        let sources = match self.sources.get(query) {
+        let index = self
+            .query_index(query)
+            .map_err(|_| "callable query lost its source row")?;
+        let sources = match &self.queries[index].sources {
             Some(sources) => sources.clone(),
             None => {
                 let sources = self.program.sources(query)?;
-                self.sources.insert(query.clone(), sources.clone());
+                self.queries[index].sources = Some(sources.clone());
                 sources
             }
         };
@@ -1064,17 +1160,17 @@ impl Solver<'_, '_> {
                         return Err("constructed callable descriptor has the wrong exact contract");
                     }
                     self.program.body(descriptor.machine)?;
-                    result.descriptors.insert(id);
+                    insert_ordered(&mut result.descriptors, id);
                 }
                 Source::Input(input) => match self.reached_inputs {
                     Some(inputs) => {
-                        self.requested_inputs.insert(input.clone());
-                        if let Some(values) = inputs.get(&input) {
-                            result.join(values.clone());
+                        insert_ordered(&mut self.requested_inputs, input.clone());
+                        if let Ok(position) = input_position(inputs, &input) {
+                            result.join(inputs[position].1.clone());
                         }
                     }
                     None => {
-                        result.inputs.insert(input);
+                        insert_ordered(&mut result.inputs, input);
                     }
                 },
                 Source::Invocation(invocation, projection) => {
@@ -1101,92 +1197,71 @@ pub fn resolve_callable_value(
     let mut solver = Solver {
         program,
         queries: Vec::new(),
-        values: BTreeMap::new(),
-        sources: BTreeMap::new(),
+        lookup: Vec::new(),
         reached_inputs: None,
-        requested_inputs: BTreeSet::new(),
+        requested_inputs: Vec::new(),
     };
     solver.read(query.clone())?;
     loop {
         let count = solver.queries.len();
         let mut changed = false;
         for index in 0..count {
-            let key = solver.queries[index].clone();
+            let key = solver.queries[index].query.clone();
             let result = solver.evaluate(&key)?;
-            changed |= solver
-                .values
-                .get_mut(&key)
-                .ok_or("callable query lost its fixed-point row")?
-                .join(result);
+            changed |= solver.queries[index].value.join(result);
         }
         if changed || solver.queries.len() != count {
             continue;
         }
-        let bottom = solver
-            .queries
-            .iter()
-            .filter(|key| {
-                solver
-                    .values
-                    .get(*key)
-                    .is_some_and(CallableValuePossibilities::is_bottom)
-            })
-            .cloned()
-            .collect::<Vec<_>>();
-        if bottom.is_empty() {
+        let mut bottoms = false;
+        for row in &mut solver.queries {
+            if row.value.is_bottom() {
+                row.value
+                    .join(CallableValuePossibilities::ceiling(row.query.contract()));
+                bottoms = true;
+            }
+        }
+        if !bottoms {
             break;
         }
-        for key in bottom {
-            solver
-                .values
-                .get_mut(&key)
-                .ok_or("callable cycle lost its fixed-point row")?
-                .join(CallableValuePossibilities::ceiling(key.contract()));
-        }
     }
-    solver
-        .values
-        .remove(&query)
-        .ok_or("callable query lost its result")
+    let index = solver
+        .query_index(&query)
+        .map_err(|_| "callable query lost its result")?;
+    Ok(std::mem::take(&mut solver.queries[index].value))
 }
 
-// Reachability supplies only actual inputs from already reached invocations.
-// Keep bottom private while that outer fixed point is still collecting them.
+// The outer reachability fixed point supplies only actual reached inputs.
 fn resolve_reached_value(
     program: &CallableValueProgram<'_>,
     query: CallableValueQuery,
-    inputs: &BTreeMap<CallableFormalInput, CallableValuePossibilities>,
-) -> CallableValueResult<(CallableValuePossibilities, BTreeSet<CallableFormalInput>)> {
+    inputs: &[(CallableFormalInput, CallableValuePossibilities)],
+) -> CallableValueResult<(CallableValuePossibilities, Vec<CallableFormalInput>)> {
     let mut solver = Solver {
         program,
         queries: Vec::new(),
-        values: BTreeMap::new(),
-        sources: BTreeMap::new(),
+        lookup: Vec::new(),
         reached_inputs: Some(inputs),
-        requested_inputs: BTreeSet::new(),
+        requested_inputs: Vec::new(),
     };
     solver.read(query.clone())?;
     loop {
         let count = solver.queries.len();
         let mut changed = false;
         for index in 0..count {
-            let key = solver.queries[index].clone();
-            let value = solver.evaluate(&key)?;
-            changed |= solver
-                .values
-                .get_mut(&key)
-                .ok_or("reached callable query lost its fixed-point row")?
-                .join(value);
+            let key = solver.queries[index].query.clone();
+            let result = solver.evaluate(&key)?;
+            changed |= solver.queries[index].value.join(result);
         }
         if !changed && count == solver.queries.len() {
             break;
         }
     }
+    let index = solver
+        .query_index(&query)
+        .map_err(|_| "reached callable query lost its result")?;
     Ok((
-        solver
-            .values
-            .remove(&query)
-            .ok_or("reached callable query lost its result")?,
+        std::mem::take(&mut solver.queries[index].value),
         solver.requested_inputs,
     ))
 }
