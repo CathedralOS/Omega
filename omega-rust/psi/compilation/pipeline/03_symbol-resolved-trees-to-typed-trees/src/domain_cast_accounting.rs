@@ -323,8 +323,9 @@ fn authored_span(program: &TypedTrees, handle: ExpressionHandle) -> Option<sourc
     declaration or follows from one: a place (a parameter, an annotated local,
     a field or element of one), a cast, and builtin arithmetic over plain
     operands. `None` is "typing does not read this form", never "no domains":
-    the caller defers the run. Calls, matches and unannotated locals are not
-    read here; the checker of the lowered form types every expression and
+    the caller defers the run. The callable-value query also retains the
+    compiler's `old` projection. Ordinary calls, matches and unannotated locals
+    are not read here; the checker of the lowered form types every expression and
     re-checks each entry against the operand it finds.
 */
 fn declared_type(
@@ -337,7 +338,10 @@ fn declared_type(
         return None;
     }
     match table.expression(expression) {
-        ExpressionNode::Name(_) | ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
+        ExpressionNode::Name(_)
+        | ExpressionNode::Member(_)
+        | ExpressionNode::Indexed(_)
+        | ExpressionNode::Call(_) => {
             crate::typing_queries::declared_callable_value_type(program, owner, expression).ok()
         }
         // An accounted entry and a settled cast carry their result. A plain

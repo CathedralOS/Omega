@@ -31,6 +31,8 @@ pub(super) struct ClauseScope<'s> {
     /// Each formal's immutable logical input identity, by slot
     /// (`body::formal_values`); `None` for a record or borrowed formal.
     /// Body assignments change working slots, never these contract inputs.
+    /// The signature owner constructs this roster from declaration formals
+    /// only; `old` additionally excludes erased and borrowed formals.
     pub(super) values: &'s [Option<ValueId>],
     /// The value parameters this reading of the clause has bound, each to
     /// its literal: a requirement read at the static arguments of one call
@@ -394,9 +396,12 @@ impl Program<'_> {
                 text.push_text(&language_core::PLACE_MEMBER_SEPARATOR.to_string());
                 text.push_text(member.member.as_str());
             }
-            // `embed(rest)`: the formal inside stays open, so a call's
+            // Proof projections keep the formal inside open, so a call's
             // statement of the clause names its own argument there.
-            ExpressionNode::Call(call) if self.embeds(call) => {
+            ExpressionNode::Call(call)
+                if self.embeds(call)
+                    || self.builtin_call(call, symbols::BuiltinFunction::ContentOld) =>
+            {
                 text.push_text(call.target.as_str());
                 text.push_text("(");
                 for argument in table.expression_handles(call.arguments) {
@@ -668,6 +673,11 @@ impl Program<'_> {
                 }
             },
             ExpressionNode::Cast(cast) => self.clause_cast(id, scope, cast, expected),
+            ExpressionNode::Call(call)
+                if self.builtin_call(call, symbols::BuiltinFunction::ContentOld) =>
+            {
+                self.old_term(id, scope, call, expected)
+            }
             // An `embed` is a mathematical integer, which only a
             // mathematical comparison holds (`mathematical_term`).
             ExpressionNode::Call(call) if self.embeds(call) => {
@@ -675,6 +685,74 @@ impl Program<'_> {
             }
             ExpressionNode::Call(_) => unserved("call in a clause term"),
             _ => unserved("term other than a formal, a literal or an embedded integer"),
+        }
+    }
+
+    /// A by-value scalar's entry observation is its existing logical input.
+    /// Keep its complete declared type for the consumer's qualification and
+    /// cast checks, and require this signature's actual runtime input identity.
+    /// A result, erased value, bound constant, computed term or storage read
+    /// cannot acquire an entry identity by being wrapped in `old`.
+    fn old_term(
+        &self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        call: &typed_trees::expression::TableCallExpression,
+        expected: Option<ScalarType>,
+    ) -> Checked<(ScalarTerm, ValueType)> {
+        if scope.subject.is_some() {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("old outside a callable contract"),
+            ));
+        }
+        let argument = self.old_argument(id, call)?;
+        let inputs = ClauseScope {
+            result: ResultTerm::Absent("result has no callable-entry value"),
+            ..*scope
+        };
+        let term = self.term(id, &inputs, argument, expected)?;
+        let is_input = match &term.0 {
+            ScalarTerm::Value {
+                id: value,
+                scalar_type,
+            } => scope.slots.iter().zip(scope.values).any(|(slot, input)| {
+                !slot.erased
+                    && slot.borrowed.is_none()
+                    && *input == Some(*value)
+                    && slot.value_type == term.1
+                    && matches!(slot.value_type, ValueType::Scalar(declared, _)
+                            if declared == *scalar_type)
+            }),
+            _ => false,
+        };
+        if !is_input {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("old of a subject without a scalar invocation input"),
+            ));
+        }
+        Ok(term)
+    }
+
+    fn old_argument(
+        &self,
+        id: MachineId,
+        call: &typed_trees::expression::TableCallExpression,
+    ) -> Checked<ExpressionHandle> {
+        match self
+            .typed
+            .expression_table
+            .expression_handles(call.arguments)
+        {
+            [argument] => Ok(*argument),
+            _ => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("old of other than one subject"),
+            )),
         }
     }
 
@@ -778,6 +856,14 @@ impl Program<'_> {
     /// decided by the symbol stage 02 resolved the callee to, never by its
     /// spelling, so a machine a program names `embed` is not one.
     fn embeds(&self, call: &typed_trees::expression::TableCallExpression) -> bool {
+        self.builtin_call(call, symbols::BuiltinFunction::IntegerEmbed)
+    }
+
+    fn builtin_call(
+        &self,
+        call: &typed_trees::expression::TableCallExpression,
+        builtin: symbols::BuiltinFunction,
+    ) -> bool {
         !call.receiver.is_valid()
             && call.machine_arguments.is_empty()
             && call.evidence_arguments.is_empty()
@@ -786,7 +872,7 @@ impl Program<'_> {
                 .typed
                 .symbols
                 .builtin_function_for_symbol(call.target_symbol)
-                == Some(symbols::BuiltinFunction::IntegerEmbed)
+                == Some(builtin)
     }
 
     /// Whether `expression` holds an `embed` beneath binary operators only:
