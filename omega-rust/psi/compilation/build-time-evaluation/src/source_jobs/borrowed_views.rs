@@ -226,6 +226,59 @@ machine run() -> i64 crashes none {
         terminal_semantics::closed_conformances::validate_closed_conformances(&narrowed),
         Err("selected public result replaces declared lifetimes with body origins")
     );
+    // An application checksum describes its contents; recomputing it cannot
+    // change the original public signature's declared lifetime relation.
+    let mut rewritten = module.clone();
+    let changed = &mut rewritten.closed_conformance_applications[0];
+    let original_definition = changed.schemas[0].definition.clone();
+    let original_commitment = changed.commitment;
+    assert_eq!(
+        changed.static_applications[0]
+            .result_lifetimes
+            .as_mut()
+            .unwrap()[0]
+            .inputs
+            .pop(),
+        Some(terminal_psi::BoundaryLifetimeDependency::Referent {
+            argument_index: 1,
+            access: terminal_psi::StructuralAccess::MutableBorrow,
+        }),
+    );
+    changed.commitment =
+        terminal_psi::closed_conformance_application_commitment(&rewritten.identities, changed);
+    changed.report_fingerprint = terminal_psi::closed_conformance_application_report_fingerprint(
+        &rewritten.identities,
+        changed,
+    );
+    assert_ne!(changed.commitment, original_commitment);
+    assert_eq!(changed.schemas[0].definition, original_definition);
+    let commitment = changed.commitment;
+    let report = changed.report_fingerprint;
+    let update = |dispatch: &mut terminal_psi::StaticRequirementDispatch| {
+        if dispatch.conformance_application_commitment == original_commitment {
+            dispatch.conformance_application_commitment = commitment;
+            dispatch.conformance_application_report_fingerprint = report;
+        }
+    };
+    for contract in &mut rewritten.declaration_contracts {
+        if let Some(dispatch) = &mut contract.selected_application {
+            update(dispatch);
+        }
+    }
+    for machine in &mut rewritten.machines {
+        if let Some(dispatch) = &mut machine.selected_application {
+            update(dispatch);
+        }
+    }
+    for call in &mut rewritten.proof_output_calls {
+        if let Some(dispatch) = &mut call.static_requirement_dispatch {
+            update(dispatch);
+        }
+    }
+    assert_eq!(
+        terminal_semantics::closed_conformances::validate_closed_conformances(&rewritten),
+        Err("selected result lifetimes differ from the original public definition")
+    );
     // Publish the authored closure, rather than relabeling the temporary
     // invocation probe as portable. The receiver has no source trees.
     let (portable, _) = typed_trees_to_typed_trees::prepare_typed_trees(

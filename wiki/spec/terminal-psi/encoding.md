@@ -2339,9 +2339,21 @@ An absent list means that the instantiated frontier remains unavailable. A
 present empty list declares no borrowed result. An empty input set within a
 group denotes a caller-chosen result lifetime and supplies no backing authority.
 
+The original requirement definition uses domain `omega.requirement-schema.v4`.
+After its existing signature and telescope it retains a type-presence byte.
+When present, a counted outer lifetime roster, counted complete parameter type
+identities and one complete result type identity follow. The type identities
+bind declared lifetimes to canonical `schema` ordinals; an absent type section
+cannot authorize a selected borrowed result. The receiver derives the input
+union from this original type relation and requires the application groups to
+agree, including after their application commitment is recomputed. Constraint
+and array-length type arguments do not become stored reference occurrences.
+Unresolved nominal or method-argument frontiers remain unavailable.
+
 These groups come from the original public signature and its complete method
 tuple before lifetime erasure. They are included in the conformance application
-commitment. The implementing body's actual return origins remain separate:
+commitment, which describes contents and cannot replace that independent
+declaration check. The implementing body's actual return origins remain separate:
 receiving checks must not replace the public input set with those narrower
 origins. Backing formation, access, source correspondence and loan completion
 remain independent obligations; retaining a group does not establish them.

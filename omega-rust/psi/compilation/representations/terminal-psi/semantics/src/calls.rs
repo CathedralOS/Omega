@@ -1001,9 +1001,24 @@ pub mod closed_conformances {
             .map_err(|_| "schema length exceeds host positions")
     }
 
+    fn definition_type<'a>(bytes: &mut &'a [u8]) -> Result<&'a str, &'static str> {
+        let count = length(bytes)?;
+        if count == 0 {
+            return Err("original signature has an empty declared type");
+        }
+        std::str::from_utf8(take(bytes, count)?)
+            .map_err(|_| "original signature type is not canonical text")
+    }
+
     fn validate_definition(schema: &ClosedConformanceSchema) -> Result<(), &'static str> {
+        definition_types(schema).map(|_| ())
+    }
+
+    pub(crate) fn definition_types(
+        schema: &ClosedConformanceSchema,
+    ) -> Result<Option<(u32, Vec<&str>, &str)>, &'static str> {
         let mut bytes = schema.definition.as_slice();
-        let domain = b"omega.requirement-schema.v3\0";
+        let domain = b"omega.requirement-schema.v4\0";
         if take(&mut bytes, domain.len())? != domain {
             return Err("conformance schema has an unknown definition domain");
         }
@@ -1035,13 +1050,37 @@ pub mod closed_conformances {
             let contract = length(&mut bytes)?;
             take(&mut bytes, contract)?;
         }
+        let types = match take(&mut bytes, 1)?[0] {
+            0 => None,
+            1 => {
+                let outer = u32::try_from(length(&mut bytes)?)
+                    .map_err(|_| "original signature lifetime roster exceeds u32")?;
+                let lifetimes = outer
+                    .checked_add(schema.lifetime_parameter_count)
+                    .ok_or("original signature lifetime roster overflows")?;
+                let count = length(&mut bytes)?;
+                if count > bytes.len() / 8 {
+                    return Err("original signature parameter types are truncated");
+                }
+                let mut parameters = Vec::new();
+                parameters
+                    .try_reserve_exact(count)
+                    .map_err(|_| "original signature parameter allocation failed")?;
+                for _ in 0..count {
+                    parameters.push(definition_type(&mut bytes)?);
+                }
+                let result = definition_type(&mut bytes)?;
+                Some((lifetimes, parameters, result))
+            }
+            _ => return Err("original signature has an invalid type-presence flag"),
+        };
         if !bytes.is_empty() {
             return Err("conformance schema definition has trailing bytes");
         }
         let generic = schema.lifetime_parameter_count != 0 || !schema.parameter_kinds.is_empty();
         match (schema.kind, generic, &schema.finite_tuples) {
             (ClosedConformanceSchemaKind::Nongeneric, false, None)
-            | (ClosedConformanceSchemaKind::Open, true, None) => Ok(()),
+            | (ClosedConformanceSchemaKind::Open, true, None) => Ok(types),
             (ClosedConformanceSchemaKind::Finite, true, Some(tuples))
                 if schema.lifetime_parameter_count == 0
                     && schema
@@ -1052,7 +1091,7 @@ pub mod closed_conformances {
                         .iter()
                         .all(|tuple| tuple.len() == schema.parameter_kinds.len()) =>
             {
-                Ok(())
+                Ok(types)
             }
             _ => Err(
                 "conformance schema classification contradicts its retained telescope or roster",

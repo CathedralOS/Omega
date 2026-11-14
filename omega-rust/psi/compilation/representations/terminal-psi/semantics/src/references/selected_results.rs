@@ -13,6 +13,8 @@ use terminal_psi::{
     TerminalDynamicReferenceRegion, TerminalMachineResult, TerminalModule,
 };
 
+mod definition;
+
 pub struct SelectedReferenceResult<'module> {
     module: &'module TerminalModule,
     contract: &'module MachineContract,
@@ -50,6 +52,19 @@ pub fn selected_reference_result(
         .result_lifetimes
         .as_deref()
         .ok_or("selected reference result has an unresolved declared lifetime frontier")?;
+    let schema = application
+        .schemas
+        .iter()
+        .find(|schema| {
+            schema.declaring_trait_identity == dispatch.declaring_trait_identity
+                && schema.public_requirement_identity == dispatch.public_requirement_identity
+                && schema.requirement_identity == dispatch.requirement_identity
+                && schema.realization_identity == dispatch.realization_identity
+        })
+        .ok_or("selected reference result lost its original public definition")?;
+    if definition::result_lifetimes(module, contract, schema)? != groups {
+        return Err("selected result lifetimes differ from the original public definition");
+    }
     let leaves = validate_result_lifetime_groups(groups)?;
     let selected = SelectedReferenceResult {
         module,
