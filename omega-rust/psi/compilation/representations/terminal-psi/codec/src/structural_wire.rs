@@ -236,27 +236,27 @@ pub(crate) mod structural_field_wire {
         match field_type {
             StructuralFieldType::AtomicBoundedInteger(bounded) => {
                 writer.u8(10);
-                encode_integer_type(writer, bounded.integer_type());
+                encode_integer_type(writer, bounded.integer_type())?;
                 encode_integer_value(writer, bounded.minimum());
                 encode_integer_value(writer, bounded.maximum());
             }
             StructuralFieldType::Atomic(scalar_type) => {
                 writer.u8(8);
-                encode_scalar_type(writer, *scalar_type);
+                encode_scalar_type(writer, *scalar_type)?;
             }
             StructuralFieldType::Scalar(scalar_type) => {
                 writer.u8(1);
-                encode_scalar_type(writer, *scalar_type);
+                encode_scalar_type(writer, *scalar_type)?;
             }
             StructuralFieldType::BoundedInteger(bounded) => {
                 writer.u8(6);
-                encode_integer_type(writer, bounded.integer_type());
+                encode_integer_type(writer, bounded.integer_type())?;
                 encode_integer_value(writer, bounded.minimum());
                 encode_integer_value(writer, bounded.maximum());
             }
             StructuralFieldType::RefinedScalar(refinement) => {
                 writer.u8(9);
-                encode_scalar_type(writer, refinement.carrier());
+                encode_scalar_type(writer, refinement.carrier())?;
                 encode_proposition(writer, refinement.predicate())?;
             }
             StructuralFieldType::IeeeFloat(format) => {
@@ -1764,7 +1764,7 @@ pub(crate) mod structural_type_wire {
                 } else {
                     6
                 });
-                encode_scalar_type(writer, *scalar_type);
+                encode_scalar_type(writer, *scalar_type)?;
                 if let Some(restriction) = &declaration.scalar_restriction {
                     encode_structural_field_type(writer, restriction)?;
                 }
@@ -2044,7 +2044,7 @@ pub(crate) mod structural_type_wire {
                 writer.u8(if stored_scalar.is_some() { 2 } else { 1 });
                 writer.u64(*byte_offset);
                 if let Some(scalar) = stored_scalar {
-                    encode_scalar_type(writer, *scalar);
+                    encode_scalar_type(writer, *scalar)?;
                 }
             }
             Some(AuthoredFieldStorage::Repeated {

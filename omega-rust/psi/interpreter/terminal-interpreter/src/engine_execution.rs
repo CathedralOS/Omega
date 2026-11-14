@@ -807,7 +807,7 @@ pub(crate) mod capabilities {
             let identity = terminal_codec::terminal_psi_identity(&module).unwrap();
             let mut program = AdmittedTerminalProgram {
                 identity: terminal_codec::TerminalExecutionIdentity::portable(identity),
-                catalogs: std::sync::Arc::new(crate::embedding::program::ProgramStorage::Owned(
+                catalogs: std::sync::Arc::new(crate::embedding::program::ProgramStorage::Fixture(
                     module,
                 )),
                 target_layouts: None,
