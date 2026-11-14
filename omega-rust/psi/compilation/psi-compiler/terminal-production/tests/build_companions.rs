@@ -401,6 +401,63 @@ machine second(builder: &mut Build) {
     assert_ne!(sites[0].machine, sites[1].machine);
 }
 
+/// Build admission counts what an activation of the entry can run, not every
+/// machine the Build's source declares. A Build is checked as a whole
+/// package, so its program also holds helpers the entry never calls; a
+/// boundary such a helper calls is nothing this Build asks of its host.
+/// `watch` calls `Probe`, which is outside the protocols. In the first
+/// program nothing calls `watch`. The twins differ only in who calls it: a
+/// helper the entry calls, as a statement and then as its result.
+#[test]
+fn a_helper_the_entry_never_calls_asks_nothing_of_the_host() {
+    let program = |request_body: &str| {
+        accepted(&format!(
+            r#"
+machine build(builder: &Build) {{
+    BuildRequestOperations::artifact_only(builder);
+    request(builder);
+}}
+machine request(builder: &Build) {{
+    BuildRequestOperations::artifact_only(builder);
+    {request_body}
+}}
+machine watch() {{
+    Probe::poke(7);
+}}
+"#
+        ))
+        .unwrap()
+    };
+    let unreached = program("");
+    assert!(!unreached.build_protocol_use().unwrap().reaches_outside);
+    // The helper is still part of the program: its call has no host row,
+    // and the entry's and the called helper's requests have theirs.
+    let produced = unreached
+        .produce(
+            TerminalProductionCustody::default(),
+            &mut UnmeasuredProduction,
+        )
+        .unwrap();
+    assert_eq!(
+        produced
+            .build_requests()
+            .calls_for(produced.view())
+            .unwrap()
+            .len(),
+        2
+    );
+    assert_eq!(published_boundary_calls(&produced).len(), 3);
+    for reached in ["watch();", "watch()"] {
+        assert!(
+            program(reached)
+                .build_protocol_use()
+                .unwrap()
+                .reaches_outside,
+            "{reached}"
+        );
+    }
+}
+
 /// Build admission bounds an activation's authority by what its accepted
 /// program asks of the host. A call of the toolchain's protocols is inside
 /// that bound; a call of any other boundary is outside it, and gets no row.
