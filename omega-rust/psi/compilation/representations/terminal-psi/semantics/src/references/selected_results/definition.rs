@@ -325,7 +325,7 @@ mod tests {
         StructuralTypeDeclaration, TerminalIdentityIndex,
     };
 
-    fn id(value: usize) -> StructuralTypeId {
+    fn id(value: u64) -> StructuralTypeId {
         StructuralTypeId::new(value).unwrap()
     }
 
