@@ -1975,7 +1975,7 @@ mod lookup {
                 .find(|child| kinds.contains(&symbols.get(*child).kind))
                 .unwrap_or_else(SymbolHandle::invalid);
         }
-        child_symbol_by_kinds_matching(symbols, parent, kinds, |symbol_name| symbol_name == name)
+        child_symbol_by_kinds_matching(symbols, parent, kinds, name)
     }
 
     pub(super) fn child_or_attached_data_child_symbol_by_kinds(
@@ -2020,9 +2020,7 @@ mod lookup {
         name: &str,
         index: i64,
     ) -> SymbolHandle {
-        child_symbol_by_kinds_matching(symbols, parent, kinds, |symbol_name| {
-            symbol_name_matches_indexed_member(symbol_name, name, index)
-        })
+        child_symbol_by_kinds_matching(symbols, parent, kinds, &format!("{name}[{index}]"))
     }
 
     pub(super) fn call_target_for_attached_data(
@@ -2046,47 +2044,21 @@ mod lookup {
         child_symbol_by_kinds(symbols, machine_symbol, &[SymbolKind::State], target_name)
     }
 
+    /*
+        Ask the symbol table once per requested kind. A private walk of the same
+        children skipped source selection and, under a module, the kind, so one
+        spelling was ambiguous here and a single declaration there.
+    */
     fn child_symbol_by_kinds_matching(
         symbols: &SymbolTable,
         parent: SymbolHandle,
         kinds: &[SymbolKind],
-        mut matches_name: impl FnMut(&str) -> bool,
+        name: &str,
     ) -> SymbolHandle {
-        let Some(children) = symbols.child_handles(parent) else {
-            return SymbolHandle::invalid();
-        };
-
-        let mut matched = SymbolHandle::invalid();
-        for child in children {
-            let symbol = symbols.get(child);
-            if matches_name(symbols.name(child))
-                && (kinds.contains(&symbol.kind) || symbols.get(parent).kind == SymbolKind::Module)
-            {
-                if symbols.get(parent).kind != SymbolKind::Module {
-                    return child;
-                }
-                if matched.is_valid() {
-                    return SymbolHandle::invalid();
-                }
-                matched = child;
-            }
-        }
-
-        matched
-    }
-
-    fn symbol_name_matches_indexed_member(symbol_name: &str, member: &str, index: i64) -> bool {
-        let Some(suffix) = symbol_name.strip_prefix(member) else {
-            return false;
-        };
-        let Some(suffix) = suffix.strip_prefix('[') else {
-            return false;
-        };
-        let Some(index_text) = suffix.strip_suffix(']') else {
-            return false;
-        };
-
-        index_text.parse::<i64>().ok() == Some(index)
+        kinds
+            .iter()
+            .find_map(|kind| symbols.find_child_by_name_and_kind(parent, name, *kind))
+            .unwrap_or_else(SymbolHandle::invalid)
     }
 
     /*

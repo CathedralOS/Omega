@@ -323,7 +323,7 @@ mod calls {
         machine_entry_symbol(symbols, machine_symbol, target.as_str())
     }
 
-    fn machine_entry_symbol(
+    pub(super) fn machine_entry_symbol(
         symbols: &SymbolTable,
         machine_symbol: SymbolHandle,
         target: &str,
@@ -871,9 +871,11 @@ mod static_namespaces {
     /*
         Resolve an authored static path through ordinary source-owned selection.
         A package alias need not have a Module symbol: its loader-certified import
-        already selects the exact declaration owner. A machine stands
-        for its callable `entry` state, while an unresolved member still claims the
-        call with an invalid target so later passes see a selection, not a spelling.
+        already selects the exact declaration owner. A machine stands for the
+        state `machine_entry_symbol` selects: the child spelled like the call
+        when one exists, and `entry` otherwise. An unresolved member still
+        claims the call with an invalid target so later passes see a selection,
+        not a spelling.
         Every invocation carrier applies this one law: keeping the
         lookup in one place is what stops the two carriers from drifting apart.
     */
@@ -911,9 +913,11 @@ mod static_namespaces {
                 )
                 .map(|symbol| {
                     if symbols.get(symbol).kind == SymbolKind::Machine {
-                        symbols
-                            .find_child_by_name_and_kind(symbol, "entry", SymbolKind::State)
-                            .unwrap_or_else(SymbolHandle::invalid)
+                        let call_target = name
+                            .strip_prefix(receiver_name)
+                            .and_then(|suffix| suffix.strip_prefix("::"))
+                            .unwrap_or(name);
+                        super::calls::machine_entry_symbol(symbols, symbol, call_target)
                     } else {
                         symbol
                     }
@@ -1219,3 +1223,65 @@ pub(super) use calls::{
 pub(super) use transitions::assign_transition_target_symbols;
 
 pub(crate) use static_namespaces::normalize_static_module_calls;
+
+#[cfg(test)]
+mod tests {
+    /*
+        `machine kit::work` names its callable state `work`. The static pass
+        used to ask only for a child named `entry` and left `kit::work()`
+        with no target. The call keeps that `work` state.
+    */
+
+    use crate::resolution::{ResolutionRequest, resolve};
+    use source_files_to_tokens::Lexer;
+    use symbol_resolved_trees::expression::ExpressionNode;
+    use symbols::SymbolKind;
+
+    #[test]
+    fn static_module_call_keeps_the_state_named_the_call_target() {
+        let text = r#"
+            module kit;
+            machine kit::work() -> i32 { 1 }
+            machine caller() -> i32 { kit::work() }
+        "#;
+        let mut sources = source::SourceMap::default();
+        let source_id = sources
+            .add("kit/main.omg".into(), text.to_owned())
+            .source_id;
+        let tokens = Lexer::new(text).tokenize().expect("tokenize");
+        let syntax =
+            tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).expect("parse");
+        let program = resolve(ResolutionRequest {
+            syntax,
+            sources: Some(std::sync::Arc::new(sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
+        .expect("resolve");
+        let call = program
+            .tables
+            .bodies
+            .expressions
+            .iter_expressions()
+            .find_map(|(_, expression)| match expression {
+                ExpressionNode::Call(call) if call.target.as_str() == "kit::work" => Some(call),
+                _ => None,
+            })
+            .expect("the qualified call");
+        assert!(
+            call.target_symbol.is_valid(),
+            "the static pass dropped the state named the call target"
+        );
+        assert_eq!(
+            program.symbols.get(call.target_symbol).kind,
+            SymbolKind::State
+        );
+        assert_eq!(program.symbols.name(call.target_symbol), "work");
+        assert_eq!(
+            program
+                .symbols
+                .name(program.symbols.get(call.target_symbol).parent),
+            "kit::work"
+        );
+    }
+}
