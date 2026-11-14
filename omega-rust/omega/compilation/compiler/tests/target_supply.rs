@@ -138,7 +138,7 @@ fn supplied_target(supplied: &str, program: &str) -> Result<compiler::SuppliedTa
         publication: &publication,
         build: &[],
         defaults: &defaults,
-        target: TARGET,
+        target: Some(TARGET),
     })
     .map_err(first)
 }
@@ -248,6 +248,15 @@ fn prepare(
     build: &[ProviderSelection],
     defaults: &[TargetProviderDefaults],
 ) -> Result<PreparedTargetSupply, String> {
+    prepare_for_target(accepted, build, defaults, Some(TARGET))
+}
+
+fn prepare_for_target(
+    accepted: &AcceptedTerminalSource,
+    build: &[ProviderSelection],
+    defaults: &[TargetProviderDefaults],
+    target: Option<&str>,
+) -> Result<PreparedTargetSupply, String> {
     let reached = accepted
         .boundary_requirements_reached()
         .expect("reached requirements rejoin their declarations")
@@ -264,7 +273,7 @@ fn prepare(
         reached: &reached,
         build,
         defaults,
-        target: TARGET,
+        target,
     })
     .map_err(first)
 }
@@ -328,6 +337,7 @@ fn a_module_that_reaches_nothing_checks_against_its_settled_execution() {
         artifact.view(),
         optimization_core::OptimizationSelections::default().identity(),
     );
+    let proposal = proposal.expect("selected deployment retains its provider proposal");
     assert_eq!(proposal.target, TARGET);
     assert_eq!(
         proposal
@@ -389,6 +399,33 @@ fn a_module_that_reaches_no_boundary_requirement_has_nothing_to_settle() {
     assert!(prepared.demands_nothing());
     let settled = prepared.settle().unwrap();
     assert_eq!(settled.plans(), Ok(Vec::new()));
+}
+
+#[test]
+fn unscoped_supply_keeps_pure_programs_targetless_and_refuses_provider_demands() {
+    let (accepted, defaults) = accepted(&format!("{SLOT}{NATIVE_DEFAULT}"), REACHES_NOTHING);
+    let prepared = prepare_for_target(&accepted, &[], &defaults, None).unwrap();
+    assert_eq!(prepared.target(), None);
+    let settled = prepared.settle().unwrap();
+    let execution = selected_dispatch::SelectedExecution::settle(None, &settled).unwrap();
+    assert_eq!(execution.target_profile(), None);
+    let artifact = produced(&accepted);
+    assert!(
+        execution
+            .provider_proposal(
+                artifact.view(),
+                optimization_core::OptimizationSelections::default().identity()
+            )
+            .is_none()
+    );
+    assert!(selected_dispatch::SelectedExecution::settle(Some(profile()), &settled).is_err());
+
+    let (reached, defaults) = self::accepted(&format!("{SLOT}{NATIVE_DEFAULT}"), REACHES);
+    let error = prepare_for_target(&reached, &[], &defaults, None).unwrap_err();
+    assert!(
+        error.contains("requires an explicit deployment target"),
+        "{error}"
+    );
 }
 
 /// The twin reaches the requirement. Preparation pairs it with the declared

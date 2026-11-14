@@ -184,12 +184,19 @@ fn generated_verdicts(fixture: &str, template: &str) -> Vec<String> {
         .iter()
         .filter(|specialization| specialization.template == declared)
         .map(|specialization| {
-            let closure = structure_elaboration::elaborate_closure(typed, specialization.instance);
-            match lowered_discharge::judge(closure) {
-                Ok(lowered_discharge::RouteVerdict::Accepted { .. }) => "accepted".into(),
-                Ok(lowered_discharge::RouteVerdict::Rejected { .. }) => "rejected".into(),
-                Ok(lowered_discharge::RouteVerdict::Incomplete { .. }) => "incomplete".into(),
-                Ok(lowered_discharge::RouteVerdict::FallBack(refusal)) => {
+            let closure =
+                typed_trees_to_terminal_psi::elaborate_closure(typed, specialization.instance);
+            match terminal_psi_to_terminal_psi::judge(closure) {
+                Ok(terminal_psi_to_terminal_psi::RouteVerdict::Accepted { .. }) => {
+                    "accepted".into()
+                }
+                Ok(terminal_psi_to_terminal_psi::RouteVerdict::Rejected { .. }) => {
+                    "rejected".into()
+                }
+                Ok(terminal_psi_to_terminal_psi::RouteVerdict::Incomplete { .. }) => {
+                    "incomplete".into()
+                }
+                Ok(terminal_psi_to_terminal_psi::RouteVerdict::FallBack(refusal)) => {
                     format!("falls back: {}", refusal.detail)
                 }
                 Err(refusal) => format!("defect: {}", refusal.detail),

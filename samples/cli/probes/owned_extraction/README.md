@@ -1,6 +1,6 @@
 # Applied generic result extraction
 
-Run `omega update --project samples/cli/owned_extraction --target <host>`,
+Run `omega packages update --project samples/cli/owned_extraction --target <host>`,
 review the package changes, then run
 `omega run --both samples/cli/owned_extraction/main.omg`.
 Both execution engines must exit 0; a wrong payload or selected case traps.

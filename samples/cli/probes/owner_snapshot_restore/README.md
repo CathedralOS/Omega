@@ -16,5 +16,5 @@ Compile-checked only (no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/owner_snapshot_restore/main.omg
-mbx run -p omega -- update --project samples/cli/probes/owner_snapshot_restore
+mbx run -p omega -- packages update --project samples/cli/probes/owner_snapshot_restore
 ```

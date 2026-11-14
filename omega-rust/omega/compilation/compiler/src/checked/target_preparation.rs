@@ -69,8 +69,8 @@ pub struct TargetSupplySource<'a> {
     /// defaults.
     pub build: &'a [build_time_evaluation::provider_declarations::ProviderSelection],
     pub defaults: &'a [build_time_evaluation::provider_declarations::TargetProviderDefaults],
-    /// The canonical name of the target being prepared.
-    pub target: &'a str,
+    /// The selected deployment, or no deployment for targetless checking.
+    pub target: Option<&'a str>,
 }
 
 /// Prepares what one target must supply and has every chosen provider
@@ -145,12 +145,11 @@ impl PreparedProductTarget {
             .terminal_publication
             .require_source_owner(&source.program)
             .map_err(|error| vec![error])?;
-        let target = profile.unwrap_or_else(target::TargetProfile::host);
         let supplied = prepare_supplied_target(TargetSupplySource {
             publication: &source.terminal_publication,
             build: &source.computed_build_config.config.provider_selections,
             defaults: &source.provider_defaults,
-            target: target.target_name(),
+            target: profile.map(|profile| profile.target_name()),
         })
         .map_err(|mut diagnostics| {
             if let Some(sources) = source.program.symbols.source_map() {

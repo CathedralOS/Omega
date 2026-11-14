@@ -12,7 +12,7 @@ From the repository root on macOS ARM64:
 
 ```sh
 mbx run -p omega -- --check --target macos_arm64 samples/cli/simulation/calendar/main.omg
-mbx run -p omega -- update --target macos_arm64 --project samples/cli/simulation/calendar
+mbx run -p omega -- packages update --target macos_arm64 --project samples/cli/simulation/calendar
 ```
 
 If update requests review, inspect the generated source findings and
@@ -21,7 +21,7 @@ Record an `accept` or `reject` for each pending decision after reviewing it,
 then resume the transaction:
 
 ```sh
-mbx run -p omega -- update --resume --project samples/cli/simulation/calendar
+mbx run -p omega -- packages update --resume --project samples/cli/simulation/calendar
 mbx run -p omega -- run --both samples/cli/simulation/calendar/main.omg
 ```
 

@@ -1,0 +1,27 @@
+[package]
+name = "typed-trees-to-terminal-psi"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "typed_trees_to_terminal_psi"
+path = "src/lib.rs"
+
+# Reads frozen typed trees (Psi 04 output) and writes unsealed Terminal Psi
+# plus the check tables. It depends on representations, never adjacent stages:
+# it proves nothing and reads no checker fact.
+[dependencies]
+arena = { path = "../../../foundation/arena" }
+language-core = { path = "../../../foundation/language-core" }
+language-semantics = { path = "../../../foundation/language-semantics" }
+numerics = { path = "../../../foundation/numerics" }
+optimization = { path = "../../../foundation/optimization" }
+semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }
+source = { path = "../../../foundation/source" }
+symbols = { path = "../../../foundation/symbols" }
+terminal-check-tables = { path = "../../representations/terminal-psi/check-tables" }
+terminal-codec = { path = "../../representations/terminal-psi/codec" }
+terminal-psi = { path = "../../representations/terminal-psi" }
+terminal-semantics = { path = "../../representations/terminal-psi/semantics" }
+typed-trees = { path = "../../representations/typed-trees" }

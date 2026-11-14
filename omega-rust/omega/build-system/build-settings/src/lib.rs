@@ -97,7 +97,6 @@ pub use activation::{
 pub use admission::checking::settle_rejoined_build_slice;
 use admission::program::{AdmittedBuildProgram, admit_build_program};
 pub use admission::target_helpers::select_build_helpers;
-pub use artifacts::compile_timings::counters::preliminary_check_totals;
 pub use build_evaluation::{
     BuildEvaluationRequest, EvaluatedBuild, PreparedBuildEvaluation, RestrictedBuildGrants,
     prepare_build_evaluation,

@@ -69,9 +69,9 @@ From the repository root, with `OMEGA_LIBRARY_ROOT` set to this checkout's
 `source/library`, and a compiler built from the recorded base:
 
 ```sh
-omega update --project samples/cli/independent/layered_toolpath_coverage --target linux_x86_64
+omega packages update --project samples/cli/independent/layered_toolpath_coverage --target linux_x86_64
 # Inspect the generated review, accept only the reviewed decisions, then:
-omega update --project samples/cli/independent/layered_toolpath_coverage --resume
+omega packages update --project samples/cli/independent/layered_toolpath_coverage --resume
 omega --check samples/cli/independent/layered_toolpath_coverage/main.omg
 omega run samples/cli/independent/layered_toolpath_coverage/main.omg < samples/cli/independent/layered_toolpath_coverage/data/hole.in
 python3 samples/cli/independent/layered_toolpath_coverage/reference.py --cli /absolute/path/to/omega

@@ -24,7 +24,10 @@ permissions:
   contents: read
 
 concurrency:
-  group: admission-${{ github.event.pull_request.number || github.ref }}
+  # Same-head PR events can arrive out of order. Canceling the newer run can
+  # leave its required check canceled even after an older run succeeds.
+  # Let PR checks finish independently; coalesce only main's cache builds.
+  group: admission-${{ github.event_name == 'pull_request' && github.run_id || github.ref }}
   cancel-in-progress: true
 
 jobs:

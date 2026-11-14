@@ -49,8 +49,8 @@ pub use crate::checked::{
     PackageProductSourceRequest, PackageSourceRequest, PreparedPackageProduct, ProductCheckOutcome,
     RestrictedBuildGrants, SourceBuildDeclaration, SourceCompilation, SuppliedTarget,
     TargetSupplySource, TypedFrontier, TypedFrontierCheck, TypedFrontierRequest,
-    checked_compilation_call_count, preliminary_check_totals, prepare_supplied_target,
-    settled_check_totals, source_assembly_invocation_count, typed_frontier_reuse_count,
+    checked_compilation_call_count, prepare_supplied_target, settled_check_totals,
+    source_assembly_invocation_count, typed_frontier_reuse_count,
 };
 pub use build_settings::BuildSnapshotRequest;
 pub use checked::checking::ProductQueries;

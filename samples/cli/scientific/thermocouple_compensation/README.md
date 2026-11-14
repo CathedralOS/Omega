@@ -71,7 +71,7 @@ PROJECT=samples/cli/independent/thermocouple_compensation
 "$OMEGA" update --resume --project "$PROJECT"
 "$OMEGA" --check --target linux_x86_64 "$PROJECT/main.omg"
 "$OMEGA" run --both --keep "$PROJECT/main.omg" < "$PROJECT/data/curved_hot.txt"
-"$OMEGA" inspect-terminal --machine Application::main --target linux_x86_64 "$PROJECT/main.omg"
+"$OMEGA" psi inspect --machine Application::main --target linux_x86_64 "$PROJECT/main.omg"
 "$OMEGA" --check --target linux_x86_64 "$PROJECT/controls/invalid_bounds/control.omg"
 ```
 

@@ -56,7 +56,7 @@ From the recorded worktree `/workspace/Omega/.codex/worktrees/new092`:
 
 ```sh
 source /workspace/cloud-setup/activate.sh
-./target/release/omega update --project samples/cli/independent/bounded_sensor_compression --target linux_x86_64
+./target/release/omega packages update --project samples/cli/independent/bounded_sensor_compression --target linux_x86_64
 ./target/release/omega --check --target linux_x86_64 samples/cli/independent/bounded_sensor_compression/main.omg
 ./target/release/omega --target linux_x86_64 --build-dir samples/cli/independent/bounded_sensor_compression/build/qualified-cli --report-file /workspace/review-artifacts/new092-approved-completion/native-report.txt samples/cli/independent/bounded_sensor_compression/main.omg
 python3 -B samples/cli/independent/bounded_sensor_compression/validate.py --binary samples/cli/independent/bounded_sensor_compression/build/qualified-shared-product/omega-program --output /workspace/review-artifacts/new092-approved-completion/native-results.json

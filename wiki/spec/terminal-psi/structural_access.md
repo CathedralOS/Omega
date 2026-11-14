@@ -418,6 +418,18 @@ including an established case payload. The
 current custody judgment rejects overlapping affine transfers and preserves the
 remaining siblings. An unrestricted array cannot absorb an affine element.
 
+Completed elements can also form an immutable sequence while keeping every
+field and its backing storage. The same `EstablishStructuralArray` operation
+admits an `ElementView` with `StoredLength`: its exact ordered element roster
+determines the length and retained backing. The shared constructor checks each
+operand, charges before transfer and publishes the complete result atomically;
+descriptor homes and reference origins retain their ordinal paths. This form
+admits no linear claims or executable affine cleanup. The source/Psi route
+supports construction, read-only transport and complete result snapshots;
+source indexing still requires the same view's live length and bounds proof.
+Mutable typed views and native zero layout for typed descriptors remain
+unsupported.
+
 An array introduces no fresh linear claim. Its result continues every live
 operand claim beneath `FixedIndex(ordinal)` followed by that claim's original
 child path. One element may contain several claims or another fixed array;

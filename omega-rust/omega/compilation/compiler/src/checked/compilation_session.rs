@@ -170,7 +170,7 @@ impl CompilationSession {
     /// is `None` and the source declares one) is bound to the request
     /// target's `ProgramEntry`, as a Build's `Build::bind` would bind it;
     /// nothing else a Build decides is present. Judge the result with
-    /// `lowered_discharge::judge_compilation`. This is the route's probe
+    /// `terminal_psi_to_terminal_psi::judge_compilation`. This is the route's probe
     /// (`checking::unbuilt_source`), not a way to compile: it yields no
     /// product.
     pub fn typed_frontier_without_build(

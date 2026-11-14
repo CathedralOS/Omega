@@ -388,7 +388,7 @@ fn settle_review(
     let out = execution::output(
         with_source_inputs(
             Command::new(cli)
-                .args(["update", "--project"])
+                .args(["packages", "update", "--project"])
                 .arg(sample_dir)
                 .args(["--target", target])
                 .stdin(Stdio::null()),
@@ -415,7 +415,7 @@ fn settle_review(
         )?;
         let resume = execution::output(
             Command::new(cli)
-                .args(["update", "--project"])
+                .args(["packages", "update", "--project"])
                 .arg(sample_dir)
                 .arg("--resume")
                 .stdin(Stdio::null()),
@@ -801,7 +801,7 @@ fn failure_report(sample: &str, reason: &str, evidence: &Path) -> String {
 }
 
 pub fn run(args: &[String]) -> Result<(), u8> {
-    let repo = repo_root();
+    let repo = repo_root()?;
     let mut filters: Vec<String> = Vec::new();
     let mut facts_only = false;
     let mut programs_only = false;
@@ -1111,7 +1111,12 @@ if [ "$main" != yes ] || [ "$build" != yes ]; then
   exit 91
 fi
 case "$1" in
-  update) exit 0;;
+  packages)
+    case "$2" in
+      update) exit 0;;
+      *) exit 92;;
+    esac
+    ;;
   run) echo 'native exit 0' >&2; echo 'interp exit: 0' >&2; exit 0;;
   *) exit 92;;
 esac

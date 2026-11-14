@@ -371,9 +371,10 @@ pub(crate) mod progress {
             typed::expression::ExpressionNode::Member(member) => {
                 let mut subject = subject_path(program, member.receiver, parameters)?;
                 let symbol = member
-                    .member_symbol
+                    .selection
+                    .field_symbol()
                     .is_valid()
-                    .then_some(member.member_symbol)
+                    .then_some(member.selection.field_symbol())
                     .or_else(|| {
                         resolve_subject_member_symbol(
                             program,
@@ -1754,6 +1755,7 @@ pub(crate) fn close_typed_cohort(
     )?;
     normalize_membership_selections(lowerer.source_trees, &mut lowerer.typed_trees)?;
     crate::contracts::proof_facts::intern_proof_membership_instances(&mut lowerer.typed_trees)?;
+    crate::constructor_applications::prepare(&mut lowerer.typed_trees, cohort.typed_expressions)?;
     lowerer
         .typed_trees
         .prepare_data_application_views(cohort.typed_type_references)

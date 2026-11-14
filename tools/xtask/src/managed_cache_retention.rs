@@ -106,7 +106,7 @@ fn configure(repo: &Path) -> Result<(), String> {
 
 pub fn run(args: &[String]) -> Result<(), u8> {
     let repo = match args {
-        [] => crate::repo_root(),
+        [] => crate::repo_root()?,
         [flag, path] if flag == "--repository" => PathBuf::from(path),
         _ => {
             eprintln!("usage: cargo xtask managed-cache-retention [--repository <dir>]");

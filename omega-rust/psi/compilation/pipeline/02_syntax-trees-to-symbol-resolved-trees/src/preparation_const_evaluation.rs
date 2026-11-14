@@ -194,7 +194,7 @@ mod anonymous {
         binary node. Operator spellings resolve by operand carrier
         (wiki/spec/language/numeric_values.md), so a node whose operands are both
         wholly anonymous selects no declaration: it is exact builtin arithmetic or
-        comparison, the rule checked-tree operator selection also applies.
+        comparison.
     */
     pub(super) fn has_builtin_const_operator(
         syntax: &SyntaxTrees,

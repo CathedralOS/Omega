@@ -328,7 +328,7 @@ impl CompilationSession {
     }
 
     // Provider publication needs the lowered route's actual provider custody.
-    // The removed checked-tree producer cannot be called with typed source.
+    // The removed producer cannot be called with typed source.
     pub fn produce_package_build_provider(
         &mut self,
         _build: PackageBuild,

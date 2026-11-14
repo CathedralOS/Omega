@@ -13,15 +13,13 @@ pub(crate) mod atomic_access {
     use crate::structural_inputs::structural_reference_input::{
         PrimitiveAccessGeometry, atomic_cell_geometry,
     };
-    use legalized_operations::{
-        LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-    };
+    use legalized_operations::{LegalizedScalarInstruction, LegalizedScalarInstructionKind};
     use selected_instructions::AtomicForm;
     use semantic_vocabulary::ScalarType;
     use terminal_psi::StructuralAccess;
 
     pub(crate) fn form(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Option<(AtomicForm, PrimitiveAccessGeometry, ScalarType)> {
         let LegalizedScalarInstructionKind::AtomicAccess {
@@ -85,12 +83,7 @@ pub(crate) mod atomic_access {
         {
             return None;
         }
-        let geometry = atomic_cell_geometry(
-            root,
-            &location.path,
-            logical_type,
-            &signature.structural_types,
-        )?;
+        let geometry = atomic_cell_geometry(root, &location.path, logical_type, source.geometry())?;
         (geometry.byte_offset == *field_byte_offset
             && geometry.byte_size == u32::from(form.width.bytes())
             && geometry.byte_offset % geometry.byte_size == 0)
@@ -99,10 +92,10 @@ pub(crate) mod atomic_access {
 }
 pub(crate) mod block_order {
     use super::SelectedInstructionError;
-    use legalized_operations::{LegalizedScalarFunction, LegalizedScalarTerminator};
+    use legalized_operations::LegalizedScalarTerminator;
 
     pub(crate) fn derive(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
     ) -> Result<Vec<usize>, SelectedInstructionError> {
         let entry = source
             .block_index(source.entry_block)
@@ -301,7 +294,7 @@ pub(crate) mod block_order {
 pub(crate) use crate::selection_inputs::byte_concatenation_input;
 pub(crate) use crate::selection_inputs::byte_owner_input;
 pub(crate) mod byte_view_homes {
-    use legalized_operations::{LegalizedScalarFunction, LegalizedScalarTerminator};
+    use legalized_operations::LegalizedScalarTerminator;
     use selected_instructions::VirtualRegisterId;
     use semantic_vocabulary::{PlaceId, StructuralPlaceKind, ValueId};
     use std::collections::BTreeSet;
@@ -320,7 +313,7 @@ pub(crate) mod byte_view_homes {
     }
 
     pub(crate) fn own_view_root(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         place: PlaceId,
     ) -> Option<PlaceId> {
         match source
@@ -335,7 +328,7 @@ pub(crate) mod byte_view_homes {
     }
 
     pub(crate) fn view_backing_roots(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         views: &[ByteViewHomes],
         place: PlaceId,
         extent: ValueId,
@@ -369,7 +362,7 @@ pub(crate) mod byte_view_homes {
     }
 
     fn bound_view_roots(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         views: &[ByteViewHomes],
         parameter: PlaceId,
         extent: ValueId,
@@ -383,7 +376,7 @@ pub(crate) mod byte_view_homes {
     }
 
     fn transitive_view_roots(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         views: &[ByteViewHomes],
         parameter: PlaceId,
         extent: ValueId,
@@ -404,7 +397,7 @@ pub(crate) mod byte_view_homes {
     }
 
     fn bound_view_roots_recurse(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         views: &[ByteViewHomes],
         parameter: PlaceId,
         extent: ValueId,
@@ -681,10 +674,20 @@ pub(crate) mod construction {
         }
         let catalog = environment.constraints();
         require_key_rows(&constraints.keys, catalog)?;
-        let backings = super::foreign_scalar_backings::ForeignScalarBackings::new(target);
         let interrupt_helpers = crate::installed_interrupts::PreparedHelperCohort::new(
             legalized.installed_interrupts(),
         );
+        let native_geometry = crate::native_geometry::NativeGeometries::new(
+            target.scalar_functions.iter().map(|source| {
+                source
+                    .structural
+                    .as_ref()
+                    .map_or(&[][..], |contract| contract.structural_types.as_slice())
+            }),
+        )
+        .map_err(|_| SelectedInstructionError::custody())?;
+        let backings =
+            super::foreign_scalar_backings::ForeignScalarBackings::new(target, &native_geometry);
         let mut functions = target
             .scalar_functions
             .iter()
@@ -693,6 +696,14 @@ pub(crate) mod construction {
                 scalar_graph::build_with_environment(
                     index,
                     source,
+                    native_geometry
+                        .get(
+                            source
+                                .structural
+                                .as_ref()
+                                .map_or(&[][..], |contract| contract.structural_types.as_slice()),
+                        )
+                        .ok_or_else(SelectedInstructionError::custody)?,
                     constraints,
                     environment,
                     &backings,
@@ -810,13 +821,13 @@ pub(crate) mod field_bytes {
 
     impl FieldBytes {
         pub(crate) fn resolve(
-            function: &legalized_operations::LegalizedScalarFunction,
+            function: &crate::native_geometry::NativeFunction<'_>,
             source: &terminal_psi::StructuralArgument,
             field: semantic_vocabulary::StructuralFieldId,
             indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
         ) -> Option<Self> {
             let structural_type = root_type(function, source)?;
-            let signature = function.structural.as_ref()?;
+            function.structural.as_ref()?;
             if source.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
                 return None;
             }
@@ -825,7 +836,7 @@ pub(crate) mod field_bytes {
                     structural_type,
                     &source.path,
                     field,
-                    &signature.structural_types,
+                    function.geometry(),
                 )?;
             if !crate::structural_inputs::runtime_indices_match(indices, &geometry.elements) {
                 return None;
@@ -849,7 +860,7 @@ pub(crate) mod field_bytes {
     }
 
     pub(crate) fn root_type(
-        function: &legalized_operations::LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         source: &terminal_psi::StructuralArgument,
     ) -> Option<semantic_vocabulary::StructuralTypeId> {
         use terminal_psi::{StructuralAccess, StructuralMultiplicity};
@@ -890,8 +901,7 @@ pub(crate) mod foreign_scalar_backings {
     use crate::structural_inputs::structural_reference_input::projected_scalar_codec;
     use legalized_operations::{
         LegalizedOperationPlan, LegalizedScalarArgument, LegalizedScalarCall,
-        LegalizedScalarFunction, LegalizedScalarInstructionKind as I,
-        LegalizedScalarTerminator as T,
+        LegalizedScalarInstructionKind as I, LegalizedScalarTerminator as T,
     };
     use semantic_vocabulary::{MachineId, StructuralPlaceKind};
     use std::collections::{BTreeMap, BTreeSet};
@@ -899,6 +909,7 @@ pub(crate) mod foreign_scalar_backings {
 
     pub(crate) struct ForeignScalarBackings<'program> {
         program: &'program LegalizedOperationPlan,
+        geometries: &'program crate::native_geometry::NativeGeometries<'program>,
         incoming: BTreeMap<MachineId, Vec<(usize, &'program LegalizedScalarCall)>>,
         opaque_ingress: BTreeSet<MachineId>,
     }
@@ -909,9 +920,13 @@ pub(crate) mod foreign_scalar_backings {
         backing: bool,
     }
     impl<'program> ForeignScalarBackings<'program> {
-        pub(crate) fn new(program: &'program LegalizedOperationPlan) -> Self {
+        pub(crate) fn new(
+            program: &'program LegalizedOperationPlan,
+            geometries: &'program crate::native_geometry::NativeGeometries<'program>,
+        ) -> Self {
             let mut context = Self {
                 program,
+                geometries,
                 incoming: BTreeMap::new(),
                 opaque_ingress: BTreeSet::from([program.entry]),
             };
@@ -950,7 +965,7 @@ pub(crate) mod foreign_scalar_backings {
         }
         pub(crate) fn matches(
             &self,
-            function: &LegalizedScalarFunction,
+            function: &crate::native_geometry::NativeFunction<'_>,
             source: &StructuralArgument,
             width: u32,
         ) -> Result<bool, SelectedInstructionError> {
@@ -958,7 +973,7 @@ pub(crate) mod foreign_scalar_backings {
                 .program
                 .scalar_functions
                 .iter()
-                .position(|candidate| std::ptr::eq(candidate, function))
+                .position(|candidate| std::ptr::eq(candidate, &**function))
                 .ok_or_else(|| {
                     SelectedInstructionError::custody_because(
                         "foreign backing query lost its exact closed function",
@@ -974,6 +989,16 @@ pub(crate) mod foreign_scalar_backings {
             while cursor < coordinates.len() {
                 let function_index = coordinates[cursor].function;
                 let function = &self.program.scalar_functions[function_index];
+                let declarations = function
+                    .structural
+                    .as_ref()
+                    .map_or(&[][..], |signature| signature.structural_types.as_slice());
+                let geometry = self.geometries.get(declarations).ok_or_else(|| {
+                    SelectedInstructionError::custody_because(
+                        "foreign backing query lost its prepared native geometry",
+                    )
+                })?;
+                let function = &crate::native_geometry::NativeInput::new(function, geometry);
                 let Some(origins) = super::storage_origin_input::scalar_storage_origins(
                     function,
                     &coordinates[cursor].source,
@@ -1105,12 +1130,12 @@ pub(crate) mod foreign_scalar_backings {
     }
 
     fn inline_footprint(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         root: semantic_vocabulary::StructuralTypeId,
         path: &[terminal_psi::StructuralPathSegment],
     ) -> Option<u32> {
         let signature = function.structural.as_ref()?;
-        let codec = projected_scalar_codec(root, path, &signature.structural_types);
+        let codec = projected_scalar_codec(root, path, function.geometry());
         if let Some(codec) = codec {
             return Some(u32::from(codec.byte_size()));
         }
@@ -1122,7 +1147,7 @@ pub(crate) mod foreign_scalar_backings {
         else {
             return None;
         };
-        projected_scalar_codec(element, &[], &signature.structural_types)
+        projected_scalar_codec(element, &[], function.geometry())
             .map(|codec| u32::from(codec.byte_size()))
     }
 }
@@ -1455,8 +1480,7 @@ pub(crate) use crate::selection_inputs::native_code_layout_input;
 pub(crate) use crate::selection_inputs::owned_block_home_input;
 pub(crate) mod parameter_use {
     use legalized_operations::{
-        LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarFunction,
-        LegalizedScalarInstructionKind,
+        LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarInstructionKind,
     };
     use semantic_vocabulary::PlaceId;
 
@@ -1466,7 +1490,10 @@ pub(crate) mod parameter_use {
         })
     }
 
-    pub(crate) fn referent_used(source: &LegalizedScalarFunction, place: PlaceId) -> bool {
+    pub(crate) fn referent_used(
+        source: &crate::native_geometry::NativeFunction<'_>,
+        place: PlaceId,
+    ) -> bool {
         super::established_view_input::transferred(source, place)
             || source.blocks.iter().any(|block| block.terminator.cleanup_calls().any(|(_, call)|
                 call_uses_referent(call, place)))
@@ -1561,7 +1588,7 @@ pub(crate) mod parameter_use {
     }
 }
 pub(crate) mod place_declaration {
-    use legalized_operations::{LegalizedScalarFunction, LegalizedStructuralContract};
+    use legalized_operations::LegalizedStructuralContract;
     use semantic_vocabulary::{
         BlockId, OperationId, PlaceId, StructuralPlaceKind, StructuralTypeId,
     };
@@ -1591,7 +1618,7 @@ pub(crate) mod place_declaration {
     }
 
     pub(crate) fn arrivals<'a>(
-        source: &'a LegalizedScalarFunction,
+        source: &'a crate::native_geometry::NativeFunction<'a>,
         place: PlaceId,
     ) -> impl Iterator<Item = (BlockId, &'a StructuralParameterDeclaration)> + 'a {
         source.blocks.iter().flat_map(move |block| {
@@ -1616,12 +1643,13 @@ pub(crate) mod value_transport {
     use std::collections::{BTreeMap, BTreeSet};
 
     use legalized_operations::{
-        LegalizedScalarFunction, LegalizedScalarReturnValue,
-        LegalizedScalarTerminator as Terminator,
+        LegalizedScalarReturnValue, LegalizedScalarTerminator as Terminator,
     };
     use semantic_vocabulary::ValueId;
 
-    pub(crate) fn required_values(function: &LegalizedScalarFunction) -> BTreeSet<ValueId> {
+    pub(crate) fn required_values(
+        function: &legalized_operations::LegalizedScalarFunction,
+    ) -> BTreeSet<ValueId> {
         let mut pending = Vec::new();
         let mut incoming = BTreeMap::<ValueId, Vec<ValueId>>::new();
         for block in &function.blocks {

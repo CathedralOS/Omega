@@ -58,7 +58,7 @@ an optimized producer, and retain its Cargo JSON artifacts:
 
 ```
 mbx build --release -p omega --message-format=json > build/w2-24/cargo.json
-omega update --project samples/cli/independent/ordinary_kriging --target linux_x86_64
+omega packages update --project samples/cli/independent/ordinary_kriging --target linux_x86_64
 # Resolve the exact generated package-policy choices before execution.
 omega run samples/cli/independent/ordinary_kriging/main.omg < samples/cli/independent/ordinary_kriging/data/planar.stdin
 python samples/cli/independent/ordinary_kriging/validation/validate.py --omega target/release/omega --route all

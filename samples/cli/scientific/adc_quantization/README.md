@@ -83,7 +83,7 @@ From the repository root, with a compiler built from this candidate and
 `OMEGA_LIBRARY_ROOT` set to that checkout's `source/library`:
 
 ```
-omega update --project samples/cli/independent/adc_quantization
+omega packages update --project samples/cli/independent/adc_quantization
 # Review the generated package decisions and resume the documented review.
 omega --check --target linux_x86_64 samples/cli/independent/adc_quantization/main.omg
 omega run --both --keep samples/cli/independent/adc_quantization/main.omg < samples/cli/independent/adc_quantization/data/signed_calibrated.txt

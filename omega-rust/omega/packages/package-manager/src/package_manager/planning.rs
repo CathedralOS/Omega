@@ -59,7 +59,7 @@ pub(super) fn update(
     let updates = if packages.is_empty() {
         None
     } else {
-        let subject = subject.ok_or_else(|| failure("omega.lock is missing; run omega update without package selections to review the complete graph first"))?;
+        let subject = subject.ok_or_else(|| failure("omega.lock is missing; run omega packages update without package selections to review the complete graph first"))?;
         Some(select_packages(subject, &packages)?)
     };
     let mut proposed_source = before.to_owned();
@@ -130,7 +130,7 @@ fn proposed(edit: BuildDependencyEditPlan, before: &str) -> Result<String, Packa
             Ok(replacement.replacement_source().to_owned())
         }
         BuildDependencyEditPlan::Manual(patch) => Err(failure(format!(
-            "build.omg needs a manually placed dependency edit: {}\n{}\nAccepted project files are unchanged; edit the declaration and run omega update to review it.",
+            "build.omg needs a manually placed dependency edit: {}\n{}\nAccepted project files are unchanged; edit the declaration and run omega packages update to review it.",
             patch.reason(),
             patch.proposed_statement(),
         ))),

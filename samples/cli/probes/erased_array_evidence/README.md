@@ -6,7 +6,7 @@ runtime argument remains 70. Expected native and captured Terminal exit: 70.
 The runtime oracle is unchanged from `erased_record_parameter_exit` and does
 not inspect or depend on the evidence.
 
-Run `omega update --project samples/cli/erased_array_evidence --target linux_x86_64`,
+Run `omega packages update --project samples/cli/erased_array_evidence --target linux_x86_64`,
 complete this checkout's package review, then run
 `omega run --both samples/cli/erased_array_evidence/main.omg`.
 

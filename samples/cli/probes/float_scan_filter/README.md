@@ -10,7 +10,7 @@ The signature uses explicitly wrapping arithmetic; it is not an exact sum claim.
 Expected native and Terminal exit: `0`, with no program output.
 
 ```sh
-omega update --project samples/cli/collections/float_scan_filter --target macos_arm64 --offline --dangerously-accept-all
+omega packages update --project samples/cli/collections/float_scan_filter --target macos_arm64 --offline --dangerously-accept-all
 omega run --both samples/cli/collections/float_scan_filter/main.omg
 ```
 

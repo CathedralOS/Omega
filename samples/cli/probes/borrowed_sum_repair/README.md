@@ -8,7 +8,7 @@ returns 0; any wrong observation traps.
 From the repository root, with the compiler available as `omega`:
 
 ```text
-omega update --project samples/cli/basics/borrowed_sum_repair
+omega packages update --project samples/cli/basics/borrowed_sum_repair
 omega run --both samples/cli/basics/borrowed_sum_repair/main.omg
 ```
 

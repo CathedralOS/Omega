@@ -256,6 +256,15 @@ fn print_outcome(outcome: &BuildReport) {
     for entry in outcome.report.test_roster() {
         eprintln!("{entry}");
     }
+    // Warnings about an accepted program are advisory: they go to stderr
+    // and change neither the summary nor the exit status.
+    let advisories = outcome.report.advisories();
+    if !advisories.is_empty() {
+        let mut text = String::new();
+        if diagnostics::write_diagnostics(&mut text, advisories).is_ok() {
+            eprintln!("{text}");
+        }
+    }
     if outcome.executable_path.is_none() {
         println!("{}", outcome.report.summary());
     }

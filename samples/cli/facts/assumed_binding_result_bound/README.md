@@ -30,7 +30,7 @@ accompanied by `<place>/invalid/` reject twins and `<place>/controls/insufficien
 
 Run each place with `omega run --both <place>/main.omg`. Public Build
 evaluation of that place's `assume_binding_contract` projects the exact root
-Product risk rows for the activation. No `omega update` lock is required, and
+Product risk rows for the activation. No `omega packages update` lock is required, and
 a retained lock must still match those rows.
 
 ## Requirements and Evidence

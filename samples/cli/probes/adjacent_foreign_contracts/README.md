@@ -6,7 +6,7 @@ remain separate and produce 41, 39 and 42 respectively. The helper also retains
 a semicolon-separated fact over a parameter named `macos_arm64`.
 
 ```sh
-omega update --project samples/cli/systems/adjacent_foreign_contracts --target macos_arm64
+omega packages update --project samples/cli/systems/adjacent_foreign_contracts --target macos_arm64
 omega run samples/cli/systems/adjacent_foreign_contracts/main.omg
 ```
 

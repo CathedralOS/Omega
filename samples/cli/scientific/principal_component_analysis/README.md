@@ -51,7 +51,7 @@ independently of exit parity.
 From the repository root, use the compiler from a recorded build:
 
 ```sh
-omega update --project samples/cli/independent/principal_component_analysis --target linux_x86_64 < /dev/null
+omega packages update --project samples/cli/independent/principal_component_analysis --target linux_x86_64 < /dev/null
 omega --check samples/cli/independent/principal_component_analysis/main.omg < /dev/null
 omega run samples/cli/independent/principal_component_analysis/main.omg < samples/cli/independent/principal_component_analysis/input.txt
 ```

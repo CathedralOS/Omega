@@ -83,7 +83,7 @@ an independently rejected out-of-bounds array access.
 From repository root, with a compiler built from the recorded candidate:
 
 ```sh
-omega update --project samples/cli/independent/differential_expression --target linux_x86_64
+omega packages update --project samples/cli/independent/differential_expression --target linux_x86_64
 # Inspect the exact generated source and capability review, then resume it.
 omega run --keep samples/cli/independent/differential_expression/main.omg < samples/cli/independent/differential_expression/data/realistic.stdin
 python -B samples/cli/independent/differential_expression/validation/run.py --executable /retained/build/path/omega-program

@@ -29,7 +29,13 @@ each call through the parameter enters the machine the implementation selects
 for that requirement and records the requirement it was written against
 (`StaticRequirementDispatch`), which structural elaboration reads
 (`read/calls.rs`, `requirement_call`). Two names of one implementation value
-are one application. A value or machine argument, an applied type such as
+are one application. A call that names a trait's requirement and applies the
+requirement's own parameters (`Probe::take<Reading>(..)`) is served the same
+way, except that a requirement has no body to copy: the application selects
+the requirement's signature and contract at the arguments
+(`TypedTrees::instantiate_requirement_application`), one closed requirement
+per application, which the call then names and structural elaboration reads
+as any requirement (`read/calls.rs`, `boundary`). A machine argument, an applied type such as
 `Pair<u8>` or an applied implementation, a requirement with parameters of its
 own, and a generic machine that owns data, declares lifetimes or nested
 machines are not served: the

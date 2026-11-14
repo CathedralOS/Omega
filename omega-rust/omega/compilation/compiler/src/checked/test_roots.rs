@@ -4,7 +4,7 @@ Discover a registered test group's roster and select each test as its own root
 
 After the package's final source is checked, every concrete, executable,
 package-local machine with a checked exact satisfaction edge to a registered
-requirement is one test. Discovery reads that edge from the checked trees; it
+requirement is one test. Discovery reads that edge from the checked program; it
 never matches names or method conventions. Each test is then a separate
 selection over the same checked source: a copy of the application source whose
 only `ProgramEntry` root is the test machine. Roots decide which machines the

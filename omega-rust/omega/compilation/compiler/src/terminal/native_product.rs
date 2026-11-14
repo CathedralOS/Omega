@@ -80,10 +80,9 @@ pub(crate) fn prepare(
             "executable product has no admitted application root",
         ));
     }
-    let ProducedTerminalProduct {
-        program,
-        mut proposal,
-    } = produced;
+    let ProducedTerminalProduct { program, proposal } = produced;
+    let mut proposal =
+        proposal.ok_or_else(|| failure("native entry has no selected target proposal"))?;
     let module = program.artifact().semantic_module();
     proposal.application_roots = Some(roots);
     let selected = proposal.selection.as_ref().map_err(|reasons| {

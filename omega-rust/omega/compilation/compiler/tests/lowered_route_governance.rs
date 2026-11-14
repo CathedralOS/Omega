@@ -13,8 +13,8 @@ mod fixture_package_inputs;
 use fixture_package_inputs::{
     FixtureProductCheck, check_fixture_keeping_typed_frontier, repo_root,
 };
-use lowered_discharge::{RouteVerdict, judge_compilation};
-use structure_elaboration::Compilation;
+use terminal_psi_to_terminal_psi::RouteVerdict;
+use typed_trees_to_terminal_psi::Compilation;
 
 /// Kept in step with `compiler`'s `lowered_route::NO_PRODUCT_ROUTE`.
 const NO_PRODUCT_ROUTE: &str = "no product route yet";
@@ -43,17 +43,21 @@ fn rejected(fixture: &str) -> (Vec<String>, RouteVerdict) {
     else {
         panic!("{fixture}: the compilation must be rejected after Psi 04");
     };
-    let mut verdicts = judge_compilation(
-        &frontier.typed,
-        Compilation {
-            declaration_metadata: &[],
-            entries: &frontier.entries,
-            subjects: &[frontier.subject],
-            purpose: source::DependencyScope::Product,
-            selected: &frontier.selected,
-            bindings: &frontier.bindings,
-            supplies: &[],
-        },
+    let mut verdicts = terminal_psi_to_terminal_psi::judge_compilation(
+        typed_trees_to_terminal_psi::prepare_compilation(
+            &frontier.typed,
+            Compilation {
+                declaration_metadata: &[],
+                entries: &frontier.entries,
+                subjects: &[frontier.subject],
+                purpose: source::DependencyScope::Product,
+                selected: &frontier.selected,
+                bindings: &frontier.bindings,
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .program,
     )
     .into_iter();
     let verdict = verdicts

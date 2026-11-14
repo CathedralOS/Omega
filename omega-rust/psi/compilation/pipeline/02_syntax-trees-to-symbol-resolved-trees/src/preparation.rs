@@ -133,6 +133,15 @@ pub(crate) mod declaration_selection {
             self.retained.as_deref()
         }
 
+        /*
+            Early declaration consumers share the prepared namespace's visibility
+            and import identities. These handles belong to this header table;
+            consumers rejoin declarations before publishing resolved symbols.
+        */
+        pub(crate) fn header_symbols(&self) -> &SymbolTable {
+            &self.symbols
+        }
+
         pub(crate) fn shared_retained_base(
             &self,
         ) -> Option<Arc<symbol_resolved_trees::SymbolResolvedTrees>> {
@@ -1937,6 +1946,8 @@ pub(crate) mod declaration_selection {
 mod callable_types;
 #[path = "preparation_generic_data.rs"]
 pub(crate) mod generic_data;
+#[path = "preparation_integer_widths.rs"]
+pub(crate) mod integer_widths;
 #[path = "preparation_machine_equations.rs"]
 pub(crate) mod machine_equations;
 pub(crate) mod module_normalization {
@@ -5555,6 +5566,7 @@ pub(crate) fn prepare(
     if constants == crate::resolution::lowerer::ConstResolutionMode::Complete {
         generic_data::fold_closed_scalar_initializers(&mut syntax, &constant_selection)?;
     }
+    integer_widths::normalize(&mut syntax, &constant_selection)?;
     validate_with_const_resolution_mode(&syntax, &constant_selection, constants)?;
     synthesize_trait_defaults_after_module_validation(&mut syntax, &constant_selection)?;
     Ok(Prepared {

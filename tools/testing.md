@@ -10,6 +10,14 @@ selection, execution evidence and platform details. The
 work; [.github/workflows/](../.github/workflows/) defines what is implemented.
 Older qualification procedures below do not reinstate retired checks.
 
+Repository-dependent `xtask` commands default to the nearest Omega workspace
+containing their invocation directory, even when the binary was built elsewhere.
+Run them inside the checkout you intend to inspect; outside one, commands needing a
+repository refuse instead of falling back to the build checkout. Existing
+command-specific paths such as `fmt --repository` and
+`rust-producer-omission --root` still select their explicit inputs. `fmt` already
+uses its invocation directory by default and keeps that behavior.
+
 ## Validation scope
 
 Prove the thing you built with tests on the changed code, then a very small
@@ -116,7 +124,7 @@ records the cost and failure pattern behind this rule.
 
 ### Historical pilot records
 
-The Python pilot and its workflow were removed in #2080. Use the current Rust
+The earlier pilot workflow was removed in #2080. Use the current Rust
 qualification route below for new program observations. Existing pilot records
 retain their original source, producer, profile and executor identities; assess
 reuse through the [execution evidence rule](#execution-evidence-and-replay-inputs).
@@ -223,17 +231,11 @@ alone does not trigger pull, rebase, rebuild, requalification or review. Only a
 demonstrated actual merge conflict, concrete prerequisite or changed affected
 source justifies targeted local work and reassessment against recorded inputs.
 
-When pinned qualification is explicitly requested, or the assigned release or
-trust-boundary outcome requires it, use the executable
-[pinned qualification runner](qualification.md) to capture dependency identities
-and measured checks. An ordinary progress PR needs its scoped evidence and
-passing admission; it does not need a new qualification plan or packet. For a
-qualification assignment, keep the checkpoint fixed through publication;
-`assess`/`run-pending` uses that recorded base. After justified source integration,
-assess only the changed closure. Preserve original observation identities when
-reusing evidence. Immutable producers and complete reviewed closures remain
-required within a qualification capture; file replacement during capture
-invalidates it even when the validator exits successfully.
+When a release or trust-boundary assignment asks for sample qualification,
+run [`mbx xtask qualify`](qualification.md). An ordinary progress PR needs its
+scoped evidence and passing admission. Keep the checkpoint fixed through
+publication. After a justified source change, rerun the affected checks.
+Preserve original observation identities when reusing evidence.
 
 - Resolve ordinary Git text conflicts while preserving both outcomes' intent.
   Unrelated changes do not require repeating unaffected checks.
@@ -256,9 +258,8 @@ independently of runtime branch reachability.
 
 For each check, connect the changes to its asserted behavior and state the
 evidence supporting reuse or the focused rerun needed. If that argument is
-uncertain or costs more than the check, rerun the affected check. Register
-independent source-scope reuse through [qualification](qualification.md), retaining
-the original run, producer and artifact identities. New corroborating executions
+uncertain or costs more than the check, rerun the affected check. Retain
+the original run, producer, and artifact identities when reusing evidence. New corroborating executions
 keep their own identities; do not relabel an old observation as a new execution.
 
 Share a completed replay's artifacts and receipts across checks/reviewers when
@@ -323,28 +324,13 @@ the few programs a test reads, never a matrix.
 
 ## Sample check gate
 
-`tools/sample_gate.py` is the samples' cheap check.
-`tools/sample_native_gate.py` builds and runs applicable samples against their
-native oracles, which is the release gate; this one runs `omega --check` over
-each positive `samples/**` project and validates intended-invalid source controls
-against their authored diagnostic identity. The gates share the role-aware
+`mbx xtask sample-gate` builds and runs applicable samples against their
+native oracles. It uses the role-aware
 [project discovery](../samples/README.md#project-roles-and-discovery), including
 nested build roots and non-`main.omg` entries. Libraries qualify through consumers;
-external submodules use their own gates. Checks run into a scratch build
-directory, and groups the first diagnostic per sample by cause.
+external submodules use their own gates.
 
-```bash
-python3 tools/sample_gate.py                        # the whole tree
-python3 tools/sample_gate.py --filter text,gui/     # matching paths
-python3 tools/sample_gate.py --cli target/debug/omega --write-results out.json
-```
-
-It writes nothing into the working tree and needs no native toolchain, so it
-is the sweep to run before reporting sample coverage. About twelve minutes
-for a historical 148-project tree; current selection comes from discovery, not
-that historical count.
-
-`mbx xtask sample-gate` runs each sample's `omega update`, then builds
+`mbx xtask sample-gate` runs each sample's `omega packages update`, then builds
 and runs it. Without `--cli` it first builds the opt-level 1 CLI with `mbx`
 (direct Cargo fallback is forbidden) in the checkout's own Cargo target directory
 (`target/`, or `CARGO_TARGET_DIR`) and measures that. The default input inventory
@@ -385,29 +371,10 @@ native build with every non-empty line of that file in the output, reported as
 or a missing line fails it. Existing
 no-oracle/freestanding reporting and positive package-review behavior are unchanged.
 
-```bash
-python3 tools/sample_native_gate.py --filter cli/ --jobs 8 --timeout 900 < /dev/null
-python3 tools/sample_native_gate.py --cli <existing-omega> --filter cli/games
-```
-
-For work selection, `python3 tools/sample_native_gate.py --programs-only`
-omits the same probe/control trees the work queue excludes. It retains
-host exclusions and missing-oracle reports. This is application discovery,
-not release acceptance: the unfiltered default gate still checks every project.
-Compiler advancement adds `--facts` (`--programs-only --find-work --facts`,
-then `python3 tools/sample_queue.py --facts`). That record is filtered to
-`samples/cli/facts` and does not replace the unfiltered application queue.
-Ordinary program runs omit `--facts`.
-Unexpected failures print immediately as they finish, before the aggregate
-report. Only a completed run writes a queue record; an interrupted run is not
-complete coverage.
-
-`python3 tools/sample_queue.py` reads the latest unfiltered application or full run record and lists
-the samples that do not yet run, smallest first with each refusal: the work
-queue of [the sample loop](../AGENTS.md#the-sample-loop). After the work it
-lists, apart, samples whose README cites `OWNER_QUESTIONS.md` (waiting on that
-decision) and programs with no oracle (nothing defines them running). `--all`
-adds probes and invalid controls and therefore requires a full gate record.
+`mbx xtask sample-gate --programs-only` omits probe and control trees.
+`mbx xtask sample-gate --facts` limits the run to `samples/cli/facts`.
+`--filter` selects path fragments, and `--cli` uses an existing compiler.
+The unfiltered gate still checks every discovered project.
 
 The sample gate executes a project carrying `input.txt` beside its entry with
 that file as stdin (absent means an empty stream) and then scores the authored
@@ -427,8 +394,8 @@ reporting the host.
 
 ## Bootstrap gates
 
-Bootstrap gates are `sh` scripts, not Cargo tests, and self-skip when `python3`
-is absent:
+Bootstrap gates are `sh` scripts, not Cargo tests, and skip on a host that
+cannot run them:
 
 ```bash
 sh tools/bootstrap/check-chain-hygiene.sh
@@ -449,22 +416,21 @@ full baseline is a manual trigger: only the user starts it. Agents run the
 focused checks under [validation scope](#validation-scope) instead.
 
 ```bash
-python tools/check_native_boundary.py
-python tools/fmt.py --check
+mbx xtask check-boundary
+mbx xtask fmt --check
 mbx clippy --workspace --all-targets -- -D warnings
 mbx check --workspace --all-targets
 mbx nextest run --workspace --lib --no-fail-fast
 ```
 
-The native-boundary gate walks Cargo's declared production path dependencies,
+`mbx xtask check-boundary` walks Cargo's declared production path dependencies,
 including optional, build and target-specific edges. It rejects source/compiler,
-package and interpreter owners anywhere behind `native-compiler`. Its seeded
-negative controls run with `python tools/tests/test_native_boundary.py -v`.
+package and interpreter owners anywhere behind `native-compiler`.
 This is a check of the native facade, not a claim that all workspace topology
-has converged to the two-driver contract. The same script's
-`FORBIDDEN_DEPENDENCIES` include the Omega firewall: Omega compilation crates
-do not depend on source-side Psi, and no Omega stage depends on another. Edges
-that predate those rules sit in `FIREWALL_ALLOWANCES` with a reason each; a
+has converged to the two-driver contract. Its firewall rules reject an
+Omega compilation crate depending on source-side Psi, and an Omega stage
+depending on another. Edges that predate those rules sit in `FIREWALL_ALLOWANCES`
+with a reason each; a
 removed edge's row must be deleted, so the list only shrinks. The post-merge
 check runs the boundary audit on main; admission does not run it for a PR.
 
@@ -473,19 +439,13 @@ subset: all library tests, no target-specific executable/runtime legs.
 `--no-fail-fast` is mandatory; retries are disabled. Platform integration tests
 are separate and must report an explicit skip when the host cannot run them.
 
-For a scoped recheck with a previously verified commit, use the
-[test_affected.py](test_affected.py) selector documented below:
-`--base VERIFIED_COMMIT` replaces the library gate commands above,
-and a configured TypeSafe key adds a `jev` augment (see Jev semantic augment).
 Keep checks applicable under Validation scope, including relevant
-integration/bootstrap checks. If a full-baseline claim is needed and its prior
-evidence, environment, or input dependencies are uncertain, use `--full`. For
-routine work without that evidence, select and report scoped checks explicitly;
+integration and bootstrap checks. Select and report scoped checks explicitly;
 do not describe them as a verified full baseline.
 
 ## Requirements and commands
 
-`python3 tools/doctor.py` checks all of the below in one pass: it compiles,
+`mbx xtask doctor` checks all of the below in one pass: it compiles,
 links, and runs a probe binary (which is what an Xcode linker older than the
 active SDK breaks), verifies the pinned toolchain resolves, reports mbx and
 cargo-nextest versions, confirms the claims coordination ref answers, and
@@ -494,123 +454,14 @@ with the remedy printed beside them. On Linux, `bash tools/agent_setup.sh`
 installs everything doctor checks for; it is also the setup script for Claude
 Code cloud environments (`if [ -d Omega ]; then bash Omega/tools/agent_setup.sh; fi`).
 
-The selector requires Git, the pinned Rust toolchain, `mbx` 1.29.0 or newer, and
+Builds need Git, the pinned Rust toolchain, `mbx` 1.29.0 or newer, and
 `cargo-nextest` 0.9.140 or newer (`mbx` is mandatory; direct Cargo fallback is forbidden).
 `mbx` is [Mr Boxington](https://mr-boxington.jdx.dev/), a shared build cache
 that wraps Cargo ([source](https://github.com/jdx/mr-boxington)); installation
 instructions are at <https://mr-boxington.jdx.dev/installation>.
 Check `mbx nextest --version` (or `cargo nextest --version`); nextest installation
 instructions are at <https://nexte.st/docs/installation/pre-built-binaries/>.
-Run these commands from the repository checkout.
-
-PowerShell:
-
-```powershell
-python tools/test_affected.py --base VERIFIED_COMMIT --plan
-# Inspect the plan before running:
-python tools/test_affected.py --base VERIFIED_COMMIT
-```
-
-macOS shell:
-
-```sh
-python3 tools/test_affected.py --base VERIFIED_COMMIT --plan
-# Inspect the plan before running:
-python3 tools/test_affected.py --base VERIFIED_COMMIT
-```
-
-Use the exact commit whose baseline is verified, not an unverified `origin/main`.
-`--full` replaces `--base VERIFIED_COMMIT` to select the complete portable test
-phases; it does not run formatting, Clippy, workspace checking, doctests, or all
-integration/bootstrap gates. See the [full baseline](#full-baseline) gates above.
-The same Python invocation with `--full --plan` previews those commands.
-
-The process returns nonzero when any selected phase fails and still attempts
-the remaining phases. In a PowerShell wrapper, propagate `$LASTEXITCODE`; in a
-shell wrapper, propagate `$?`. Do not edit the worktree during a run. Retain the
-printed plan with results: the selector neither caches evidence nor certifies
-its base or grants a landing reservation.
-
-## Coverage and limits
-
-The JSON plan reports the resolved base, changed paths, affected packages,
-documentation paths, fallback reasons, filter, and exact command arguments.
-Git compares the base tree to current working files, including staged,
-unstaged, deleted, moved, and untracked nonignored files. It includes incoming
-main changes rather than using a merge-base. Invalid references fail.
-
-| Changed input | Selection |
-| --- | --- |
-| Rust `.rs` under a known workspace crate's `src/` | That crate and declared reverse dependencies, including dev/build/optional/platform dependencies, plus known source-reader edges. |
-| Root `AGENTS.md`, `CLAUDE.md`, `README.md`, `OWNER_QUESTIONS.md`, `TASKS.md`, `TASKS_BOOTSTRAP.md`, `TASKS_OPTIMIZER.md`; Markdown under `wiki/` | No library commands — reported under `documentation_paths` in the plan; a `jev` augment may still add checks. |
-| Manifests, build scripts, lockfiles, toolchain/configuration, shared fixtures, Omega library sources, tools, and unknown inputs | All libraries. Markdown outside the allowlist, including this file, also takes this fallback. |
-| No changed input | No commands; library filter `none()`. |
-
-A change under a `PATH_CANDIDATES` prefix in `test_affected.py` also runs that
-catalog candidate, reported under `path_candidates`: `tools/` runs the tools
-unit tests, `tools/release/` the release-record plan, `tools/bootstrap/` and
-`bootstrap/` the chain-hygiene check, and `omega-rust/` the fmt check. Changes under
-`source/library/` run `std_package_check` (`omega --check
-source/library/std/main.omg`, about 2.5 minutes on a debug build): a
-program compiles only the std bodies it reaches, so only a whole-package
-check observes a std body that fails checking.
-
-Mixed documentation/Rust changes retain the Rust dependency closure. Library
-commands keep `--workspace` feature unification even for a narrow filter;
-splitting compilation into separate package builds need not be equivalent.
-A narrow selection containing only binary crates may report zero library tests
-and succeed. Full library runs reject an unexpectedly empty suite.
-
-`SOURCE_READERS` records dependencies invisible to Cargo, including
-`terminal-codec`'s embedded verifier/proof sources. Changes to its source-reader
-implementation force the full fallback. New cross-crate source or fixture
-readers must be represented in this map or force full selection. New readers of
-allowlisted documentation must be covered by its audit route or removed from
-that allowlist. Arbitrary runtime filesystem reads cannot be inferred from
-Cargo metadata.
-
-Selection is a conservative dependency calculation, not an independence proof.
-A verified-base recheck assumes unchanged host, toolchain, feature flags,
-environment, and external inputs. Follow [validation scope](#validation-scope)
-when that evidence is unavailable; do not describe scoped checks as a verified
-full baseline.
-
-## Jev semantic augment
-
-When a TypeSafe API key is configured (`TYPESAFE_API_KEY`, or
-`build/typesafe.env.txt` in this or — from a linked worktree — the main
-checkout, or `~/.config/typesafe/typesafe.env.txt`), the plan
-additionally asks a System One model which entries of
-[test_select_candidates.json](test_select_candidates.json) the diff could break
-*beyond what the deterministic baseline already covers*, and appends commands
-for flagged candidates the baseline lacks. The augment is union-only: it can
-add checks (e.g., a standard-library compile for a name-resolution change)
-but never removes baseline
-coverage, so every failure mode degrades to deterministic selection. An entry
-the augment adds repeatedly for the same path family is promoted into
-`PATH_CANDIDATES`: the augment is the discovery layer, the table is the
-owner. The
-`jev` plan field reports `augmented` with `flagged`/`added`/`covered`/
-`suggested` lists. With no key configured the plan reports `unconfigured` and
-behaves exactly as before; a configured-but-unreachable API prints one stderr
-warning and reports `unavailable`. Suppress it with `--no-jev` or
-`OMEGA_JEV_OFFLINE=1`. Responses are cached per request payload under
-`build/test-select-cache/`. The candidate catalog is the maintenance surface:
-descriptions state what each test observes and what breaks it — keep them
-current or recall silently degrades.
-
-`--base X --attribute LOG` is the sibling advisory for the *is this red
-mine* question: it parses FAIL/FAILED/error lines from a captured test log
-and classifies each against the candidate diff — `YOURS` (investigate the
-commit), `baseline` (check whether it fails at base), or `environmental`
-(flake/host/timing). Solo calls per failure — batch labels contaminate.
-
-[triage_advisor.py](triage_advisor.py) is the companion advisory for the
-other half of the debug ledger: pipe it captured failure output plus the
-command and it names the most likely suspect commit inside a ranked window
-(or `none_in_window` for infrastructure and pre-window history), the owning
-layer, and a recent-change confidence. Advisory only — it orders
-investigation, discharges nothing, and exits 0 on its own failures.
+Run commands from the repository checkout.
 
 For an explicitly scoped manual library check, a nextest filter can select a
 crate and its reverse dependencies while retaining workspace features:
@@ -619,7 +470,7 @@ crate and its reverse dependencies while retaining workspace features:
 mbx nextest run --workspace --lib --no-fail-fast -E 'rdeps(=x86-encoding)'
 ```
 
-Unlike the selector, this command does not add source-reader edges or audits.
+This command does not add source-reader edges or audits.
 [Nextest configuration](../.config/nextest.toml) disables retries, reserves the
 whole test pool for process resource-limit cases, and schedules long package
 fixtures early without a universal thread cap. Doctests remain a separate Cargo
@@ -627,25 +478,12 @@ test mode. [Temporary Windows measurements](../wiki/drafts/measurements/test_cyc
 explain why neither a thread cap nor nextest alone has an established full-suite
 speedup.
 
-## Release matrix
-
-[release_record.py](release/release_record.py) runs the
-[release matrix](../wiki/drafts/reference/rust_compiler_completion.md#release-matrix):
-the six `RC-*` gates with their exact contract invocations on one host, and
-writes that lane's release record (`commit`, toolchain, host, commands,
-results, elapsed time, expected skips, direct-execution observation). `close`
-joins the four lanes' same-commit records into the release closure. It does
-not substitute for the selector — `plan` reviews what would run on this host,
-`run` executes. See
-[recording a runner row](release/README.md#recording-a-runner-row) and
-[joining the four lanes](release/README.md#joining-the-four-lanes).
-
 ## Slow builds
 
 Use [test-cycle measurements](../wiki/drafts/measurements/test_cycle_measurements.md) to distinguish
 compilation, test execution, and repeated landing validation. The Windows
 measurements did not establish a stable universal test-thread cap or a full-suite
-speedup from nextest alone; avoid unrelated test execution using the selector above.
+speedup from nextest alone; avoid unrelated test execution.
 
 If small crates each pause for seconds before parsing, inspect `target/` before
 changing test or compiler architecture: a long-lived `target/debug/deps` with
@@ -787,20 +625,3 @@ Moving a cache between volumes has its own trap. macOS ships `openrsync` as
 usage and copying nothing, and `rsync ... | tail -1` reports exit 0 because the
 pipeline's status is the last command's. Use `ditto` or `rsync -aH`, and never
 read a pipeline's exit code as the tool's.
-
-### Fast sample work discovery
-
-Use `python3 tools/sample_native_gate.py --programs-only --find-work` to find the
-next application failure. It remeasures previous failures first, excludes live
-claimed outcomes and owner prerequisites, then tries smaller applications. It
-stops scheduling when a confirmed failure supplies work. `sample_queue.py` reads
-that partial discovery record and labels unmeasured applications unknown.
-`--facts` on that command and on `sample_queue.py` limits the same search to
-`samples/cli/facts` for compiler advancement. Without `--facts`, ordinary
-program discovery is unchanged.
-Historical verdicts guide order only: they never become fresh acceptance.
-
-Discovery does not replace complete application coverage or the full release
-gate. Run without `--find-work` for those gates; `sample_queue.py --all` accepts
-only complete full-gate records. This avoids waiting for every unrelated program
-before starting one repair, while keeping release coverage explicit.

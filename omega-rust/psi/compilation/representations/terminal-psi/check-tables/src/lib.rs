@@ -4,15 +4,16 @@
 The shared tables of the checker that runs on the lowered form: the explicit,
 unsealed Terminal Psi module that structure-only elaboration produces
 (`wiki/drafts/designs/check_on_lowered_form.md`). They hold what the checker
-knows about one machine, as five tables over dense identities: values with
-their knowledge rows, places with the forward write log, may-sets,
-obligations, and edges with invocations. Callee contracts are a sixth,
-module-wide table of summaries, one term per axis.
+knows about one machine, as tables over dense identities: values with
+their knowledge rows, places with the forward write log, obligations, and
+edges with invocations.
 
-The point of the crate is what it cannot say. No row holds a name, a printed
-expression, a path string or a formatted handle: a place is a dense identity
+Semantic rows never identify a fact by a name, printed expression, path string
+or formatted handle: a place is a dense identity
 whose row names its parent and one typed segment, and a fact is a row over
-value identities. Text appears only in `Refusal::detail`. A checking step
+value identities. The complete program packet also retains diagnostic names
+and source spans, separately from these semantic rows; no proof reads their
+spelling. A checking step
 returns a row or a `Refusal`; there is no "nothing" result.
 
 Identities are reused from `semantic-vocabulary` wherever the lowered form
@@ -27,9 +28,11 @@ has no identity for the concept.
 */
 
 pub mod bindings;
+pub mod compilation;
 pub mod edges;
-pub mod may_sets;
+pub mod names;
 pub mod obligations;
+pub mod program;
 pub mod values;
 
 use std::num::NonZeroU64;
@@ -69,14 +72,6 @@ check_id!(
 check_id!(
     WriteId,
     "One entry of the forward write log (`bindings::WriteRow`)."
-);
-check_id!(
-    ReferentSetId,
-    "The places one installed reference may denote (`may_sets::ReferentSet`)."
-);
-check_id!(
-    SelectionSetId,
-    "The machines one callable selector value may select (`may_sets::SelectionSet`)."
 );
 check_id!(
     InvocationId,
@@ -163,6 +158,17 @@ pub enum RefusalReason {
     /// An identity is past the end of the table it was looked up in. This
     /// catches only out-of-range identities; see `row`.
     ForeignIdentity,
+    /// The program breaks a rule of the language that is judged on the
+    /// source form, before any construct is lowered: a value whose type
+    /// carries other domains than its destination declares, a cast that adds
+    /// a domain outside the domain's establishment routes. It is a compile
+    /// error of the program and is published as a rejection, never as "not
+    /// supported". `detail` states the rule; the span is where the program
+    /// breaks it, absent only when the authored node carries none. A step
+    /// gives this reason only where the specification defines the error for
+    /// every program of that form: a form the step merely cannot judge is
+    /// `Unsupported`.
+    Violation(Option<source::SourceSpan>),
 }
 
 /// Why an obligation's evidence did not check. Closed like `RefusalReason`:
@@ -241,9 +247,8 @@ pub type Checked<T> = Result<T, Refusal>;
 /// is in range resolves to the wrong row. The rule that prevents this is
 /// structural, not checked here: identities never cross `MachineTables`, and
 /// every checking API takes exactly one `MachineTables` and only identities
-/// read from it. Crossing machines goes through an `InvocationRow` and the
-/// callee's `Summary`, which hold `MachineId`s and positions, never the
-/// callee's local identities.
+/// read from it. Crossing machines goes through an `InvocationRow`, which
+/// holds a `MachineId` and positions, never the callee's local identities.
 pub fn row<Id: PsiSemanticId, T>(
     table: &IdTable<Id, T>,
     identity: Id,
@@ -274,18 +279,15 @@ pub struct MachineTables {
     /// `PlaceId`s densely too, so interning a root is one index.
     pub roots: IdTable<PlaceId, ExactPlaceId>,
     pub writes: IdTable<WriteId, bindings::WriteRow>,
-    pub referent_sets: IdTable<ReferentSetId, may_sets::ReferentSet>,
-    pub selection_sets: IdTable<SelectionSetId, may_sets::SelectionSet>,
     pub obligations: IdTable<ObligationId, obligations::ObligationRow>,
     pub edges: IdTable<EdgeId, edges::EdgeRow>,
     pub invocations: IdTable<InvocationId, edges::InvocationRow>,
 }
 
-/// The module: one `MachineTables` and one published `Summary` per machine.
+/// The module: one `MachineTables` per machine.
 #[derive(Debug, Clone, Default)]
 pub struct CheckTables {
     pub machines: IdTable<MachineId, MachineTables>,
-    pub summaries: IdTable<MachineId, edges::Summary>,
 }
 
 #[cfg(test)]

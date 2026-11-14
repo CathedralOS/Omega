@@ -13,8 +13,8 @@ use semantic_vocabulary::{IntegerSign, ScalarType, ValueId};
 use terminal_psi::StructuralAccess;
 pub(crate) mod borrowed_argument {
     use super::{
-        CallSignature, LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarFunction,
-        StructuralAccess, ValueShape, evaluate_call_plan, scalar_shape,
+        CallSignature, LegalizedScalarArgument, LegalizedScalarCall, StructuralAccess, ValueShape,
+        evaluate_call_plan, scalar_shape,
     };
     use crate::selection::established_view_input::{
         accepts_at, accepts_view_loan, completed_descriptor, element_view_type, view_access,
@@ -27,7 +27,7 @@ pub(crate) mod borrowed_argument {
     };
 
     pub(crate) fn validate_borrowed_argument(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         call: &LegalizedScalarCall,
         site: semantic_vocabulary::InvocationSite,
         argument_index: usize,
@@ -116,15 +116,15 @@ pub(crate) mod borrowed_argument {
             });
         let storage_loan = storage_root
             .filter(|root| {
-                owned_storage_shape(*root, &signature.structural_types).is_some()
-                    || terminal_psi::find_structural_type(&signature.structural_types, *root)
-                        .is_some_and(|declaration| {
+                owned_storage_shape(*root, source.geometry()).is_some()
+                    || terminal_psi::find_structural_type(source.geometry(), *root).is_some_and(
+                        |declaration| {
                             matches!(
                                 declaration.shape,
                                 terminal_psi::StructuralTypeShape::Reference { .. }
                             )
-                        })
-                        && stored_value_shape(*root, &signature.structural_types).is_some()
+                        },
+                    ) && stored_value_shape(*root, source.geometry()).is_some()
             })
             .and_then(|root| {
                 let (selected, offset, elements) = runtime_borrowed_projection(
@@ -132,9 +132,9 @@ pub(crate) mod borrowed_argument {
                     &semantic.path,
                     semantic.access,
                     Some(target.structural_type),
-                    &signature.structural_types,
+                    source.geometry(),
                 )?;
-                let shape = internal_borrow_shape(selected, &signature.structural_types)?;
+                let shape = internal_borrow_shape(selected, source.geometry())?;
                 (target.root_structural_type == root
                     && matches!(
                         terminal_semantics::borrowed_referent_presentation(
@@ -189,12 +189,7 @@ pub(crate) mod borrowed_argument {
                 })
             });
         let byte_view = view_root.and_then(|root| {
-            fixed_byte_array_view(
-                root,
-                semantic,
-                target.structural_type,
-                &signature.structural_types,
-            )
+            fixed_byte_array_view(root, semantic, target.structural_type, source.geometry())
         });
         let byte_field = crate::selection::byte_owner_input::view_argument_at(
             source, site, semantic, target, indices,
@@ -208,16 +203,11 @@ pub(crate) mod borrowed_argument {
                     &parameter.semantic,
                     semantic,
                     target.structural_type,
-                    &signature.structural_types,
+                    source.geometry(),
                 )
             });
         let element_view = view_root.and_then(|root| {
-            fixed_element_array_view(
-                root,
-                semantic,
-                target.structural_type,
-                &signature.structural_types,
-            )
+            fixed_element_array_view(root, semantic, target.structural_type, source.geometry())
         });
         let established_view_loan = element_view_type(source, semantic.place)
             .or_else(|| {
@@ -233,7 +223,7 @@ pub(crate) mod borrowed_argument {
                     &semantic.path,
                     semantic.access,
                     Some(target.structural_type),
-                    &signature.structural_types,
+                    source.geometry(),
                 )?;
                 if target.root_structural_type != view_type
                     || !terminal_semantics::borrowed_referent_matches(
@@ -248,14 +238,13 @@ pub(crate) mod borrowed_argument {
                 {
                     return None;
                 }
-                let shape = internal_borrow_shape(selected, &signature.structural_types)?;
+                let shape = internal_borrow_shape(selected, source.geometry())?;
                 Some(shape)
             });
         let window = byte_view
             .map(|(offset, _)| offset)
             .or(element_view.map(|(offset, _, _)| offset));
-        let destination_shape =
-            internal_borrow_shape(target.structural_type, &signature.structural_types)?;
+        let destination_shape = internal_borrow_shape(target.structural_type, source.geometry())?;
         let projected_loan = projected_loan_shape(source, semantic, target, indices);
         let block_forward = semantic.path.is_empty()
             && terminal_semantics::borrowed_referent_presentation(
@@ -289,7 +278,7 @@ pub(crate) mod borrowed_argument {
                     &semantic.path,
                     semantic.access,
                     Some(target.structural_type),
-                    &signature.structural_types,
+                    source.geometry(),
                 )?;
                 if target.root_structural_type != joined.structural_type
                     || !terminal_semantics::borrowed_referent_matches(
@@ -302,7 +291,7 @@ pub(crate) mod borrowed_argument {
                 {
                     return None;
                 }
-                internal_borrow_shape(selected, &signature.structural_types)?
+                internal_borrow_shape(selected, source.geometry())?
             }
         } else if let Some(shape) = storage_loan {
             shape
@@ -338,7 +327,7 @@ pub(crate) mod borrowed_argument {
             {
                 return None;
             }
-            internal_borrow_shape(result.structural_type, &signature.structural_types)?
+            internal_borrow_shape(result.structural_type, source.geometry())?
         } else if let Some(shape) = projected_loan {
             shape
         } else if exclusive
@@ -366,12 +355,12 @@ pub(crate) mod borrowed_argument {
             && established_view_loan.is_none()
             && projected_loan.is_none();
         if source.attachment.is_some_and(|attachment| {
-            !terminal_psi::find_structural_type(&signature.structural_types, attachment).is_some()
+            !terminal_psi::find_structural_type(source.geometry(), attachment).is_some()
         }) || (!parameters.is_empty()
             && !crate::structural_inputs::structural_unit_input::accepts_graph(
                 &source.call_plan,
                 &parameters,
-                &signature.structural_types,
+                source.geometry(),
             ))
             || call.call_plan != expected
             || (no_indirect_home
@@ -476,7 +465,7 @@ pub(crate) mod borrowed_argument {
     }
 
     fn validate_reference_argument(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         call: &LegalizedScalarCall,
         site: semantic_vocabulary::InvocationSite,
         argument_index: usize,
@@ -510,12 +499,12 @@ pub(crate) mod borrowed_argument {
     }
 
     fn projected_loan_shape(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         semantic: &terminal_psi::StructuralArgument,
         target: &target_operations::TargetStructuralArgument,
         indices: &[legalized_operations::LegalizedRuntimeIndexOperand],
     ) -> Option<ValueShape> {
-        let signature = source.structural.as_ref()?;
+        source.structural.as_ref()?;
         let root = crate::selection::arrival_parameter_input::parameter(source, semantic.place)?;
         if !borrow_access_permitted(root.access, semantic.access) {
             return None;
@@ -525,9 +514,9 @@ pub(crate) mod borrowed_argument {
             &semantic.path,
             semantic.access,
             Some(target.structural_type),
-            &signature.structural_types,
+            source.geometry(),
         )?;
-        let shape = internal_borrow_shape(referent, &signature.structural_types)?;
+        let shape = internal_borrow_shape(referent, source.geometry())?;
         (target.root_structural_type == root.structural_type
             && target.structural_type == referent
             && target.source_byte_offset == offset
@@ -536,7 +525,7 @@ pub(crate) mod borrowed_argument {
     }
 
     fn expected_signature_plan(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         call: &LegalizedScalarCall,
         argument_index: usize,
         shape: calling_conventions::ValueShape,
@@ -575,16 +564,14 @@ pub(crate) mod borrowed_argument {
     }
 }
 pub(crate) mod input_site {
-    use legalized_operations::{
-        LegalizedScalarFunction, LegalizedScalarInstruction, LegalizedScalarTerminator,
-    };
+    use legalized_operations::{LegalizedScalarInstruction, LegalizedScalarTerminator};
     use semantic_vocabulary::{BlockId, InvocationSite, OperationId};
 
-    pub(crate) fn installation_call(
-        source: &LegalizedScalarFunction,
+    pub(crate) fn installation_call<'input>(
+        source: &'input crate::native_geometry::NativeFunction<'input>,
         operation: OperationId,
         role: target_operations::InstallationCallRole,
-    ) -> Option<&legalized_operations::LegalizedScalarCall> {
+    ) -> Option<&'input legalized_operations::LegalizedScalarCall> {
         let mut rows = source
             .instructions()
             .filter(|row| row.operation == operation);
@@ -608,7 +595,7 @@ pub(crate) mod input_site {
     }
 
     pub(crate) fn use_cut(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         site: InvocationSite,
     ) -> Option<(BlockId, usize)> {
         let mut found = None;
@@ -648,11 +635,11 @@ pub(crate) mod input_site {
         found
     }
 
-    pub(crate) fn producer_before_use(
-        source: &LegalizedScalarFunction,
+    pub(crate) fn producer_before_use<'input>(
+        source: &'input crate::native_geometry::NativeFunction<'input>,
         producer: OperationId,
         site: InvocationSite,
-    ) -> Option<(BlockId, usize, &LegalizedScalarInstruction)> {
+    ) -> Option<(BlockId, usize, &'input LegalizedScalarInstruction)> {
         let used = use_cut(source, site)?;
         let mut producers = source.blocks.iter().flat_map(|block| {
             block
@@ -670,7 +657,7 @@ pub(crate) mod input_site {
     }
 
     pub(crate) fn no_normal_result<'source>(
-        source: &'source LegalizedScalarFunction,
+        source: &'source crate::native_geometry::NativeFunction<'source>,
         site: InvocationSite,
         call: &legalized_operations::LegalizedScalarCall,
     ) -> Option<&'source abstract_operations::AbstractFunctionResult> {
@@ -697,7 +684,7 @@ pub(crate) mod input_site {
     }
 }
 pub(crate) mod normalized_foreign {
-    use super::{CallSignature, LegalizedScalarFunction, ValueLocation, ValueShape, scalar_shape};
+    use super::{CallSignature, ValueLocation, ValueShape, scalar_shape};
     use crate::SelectedInstructionError;
     use calling_conventions::validate_boundary_entry_plan;
     use legalized_operations::{LegalizedNormalizedForeignCall, LegalizedValueDefinition};
@@ -755,7 +742,7 @@ pub(crate) mod normalized_foreign {
     }
 
     fn borrowed_block_argument_root<'source>(
-        source: &'source LegalizedScalarFunction,
+        source: &'source crate::native_geometry::NativeFunction<'source>,
         operation: semantic_vocabulary::OperationId,
         argument: &target_operations::TargetStructuralArgument,
     ) -> Option<(
@@ -818,7 +805,7 @@ pub(crate) mod normalized_foreign {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn validate(
         function: usize,
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         backings: &crate::selection::foreign_scalar_backings::ForeignScalarBackings<'_>,
         call: &LegalizedNormalizedForeignCall,
         invocation_site: InvocationSite,
@@ -1020,7 +1007,7 @@ pub(crate) mod normalized_foreign {
             };
             let presentation = (argument.access != terminal_psi::StructuralAccess::Owned).then(||
                 crate::structural_inputs::structural_reference_input::borrowed_byte_view_presentation(
-                    &root, &semantic, argument.structural_type, &signature.structural_types,
+                    &root, &semantic, argument.structural_type, source.geometry(),
                 )).flatten();
             let (projected_type, source_byte_offset, elements) = if let Some((offset, _, _)) =
                 presentation
@@ -1041,7 +1028,7 @@ pub(crate) mod normalized_foreign {
                     let scalar =
                         crate::structural_inputs::structural_reference_input::scalar_storage_type(
                             argument.structural_type,
-                            &signature.structural_types,
+                            source.geometry(),
                         )
                         .ok_or_else(|| invalid!())?;
                     crate::selection::reference_input::validate_scalar_foreign_export(
@@ -1058,7 +1045,7 @@ pub(crate) mod normalized_foreign {
                         &argument.path,
                         argument.access,
                         Some(argument.structural_type),
-                        &signature.structural_types,
+                        source.geometry(),
                     )
                     .ok_or_else(|| invalid!())?;
                 (
@@ -1072,20 +1059,20 @@ pub(crate) mod normalized_foreign {
                     &argument.path,
                     argument.access,
                     Some(argument.structural_type),
-                    &signature.structural_types,
+                    source.geometry(),
                 )
                 .ok_or_else(|| invalid!())?
             } else {
                 crate::structural_inputs::structural_reference_input::runtime_projection(
                     argument.root_structural_type,
                     &argument.path,
-                    &signature.structural_types,
+                    source.geometry(),
                 )
                 .ok_or_else(|| invalid!())?
             };
             let projected_shape = crate::structural_inputs::structural_reference_input::shape(
                 projected_type,
-                &signature.structural_types,
+                source.geometry(),
             )
             .ok_or_else(|| invalid!())?;
             let (storage_shape, abi_shape) = match argument.access {
@@ -1104,7 +1091,7 @@ pub(crate) mod normalized_foreign {
                     }
                     let classified = calling_conventions::classified_boundary_shape(
                         projected_type,
-                        &signature.structural_types,
+                        source.geometry(),
                         plan.call.policy,
                     )
                     .map_err(|_| invalid!())?;
@@ -1120,7 +1107,7 @@ pub(crate) mod normalized_foreign {
                     if descriptor {
                         let classified = calling_conventions::classified_boundary_shape(
                             projected_type,
-                            &signature.structural_types,
+                            source.geometry(),
                             plan.call.policy,
                         )
                         .map_err(|_| invalid!())?;
@@ -1203,15 +1190,15 @@ pub(crate) mod normalized_foreign {
             }
             (TargetBoundaryResult::Structural(home), Some(placement), None) => {
                 let (producer, result) = home.operation_result().ok_or_else(|| invalid!())?;
-                let signature = source.structural.as_ref().ok_or_else(|| invalid!())?;
+                source.structural.as_ref().ok_or_else(|| invalid!())?;
                 let storage = crate::structural_inputs::structural_reference_input::shape(
                     result.structural_type,
-                    &signature.structural_types,
+                    source.geometry(),
                 )
                 .ok_or_else(|| invalid!())?;
                 let shape = calling_conventions::classified_boundary_shape(
                     result.structural_type,
-                    &signature.structural_types,
+                    source.geometry(),
                     plan.call.policy,
                 )
                 .map_err(|_| invalid!())?;
@@ -1273,13 +1260,12 @@ pub(crate) mod owned_argument {
     use crate::structural_inputs::structural_reference_input::runtime_projection;
 
     use super::{
-        LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarFunction, StructuralAccess,
-        evaluate_call_plan,
+        LegalizedScalarArgument, LegalizedScalarCall, StructuralAccess, evaluate_call_plan,
     };
     use legalized_operations::LegalizedScalarInstructionKind;
 
     pub(crate) fn validate_owned_arguments(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         call: &LegalizedScalarCall,
         site: semantic_vocabulary::InvocationSite,
     ) -> Option<()> {
@@ -1298,7 +1284,7 @@ pub(crate) mod owned_argument {
                 continue;
             }
             let shape = super::owned_value_shape(source, target.structural_type)?;
-            let types = &source.structural.as_ref()?.structural_types;
+            let types = source.geometry();
             let (selected, offset, elements) =
                 runtime_projection(target.root_structural_type, &semantic.path, types)?;
             if semantic.access != StructuralAccess::Owned
@@ -1412,20 +1398,22 @@ pub(crate) mod owned_argument {
 }
 use borrowed_argument::validate_borrowed_argument;
 use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
-use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall, LegalizedScalarFunction};
+use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall};
 use register_environment::ValidatedTargetRegisterEnvironment;
 
 use crate::structural_inputs::structural_reference_input::stack_pointer_offset;
 
 pub(crate) fn owned_value_shape(
-    source: &LegalizedScalarFunction,
+    source: &crate::native_geometry::NativeFunction<'_>,
     structural_type: semantic_vocabulary::StructuralTypeId,
 ) -> Option<ValueShape> {
-    let types = &source.structural.as_ref()?.structural_types;
+    let types = source.geometry();
     owned_storage_shape(structural_type, types)
 }
 
-pub(crate) fn accepts_stack_parameter_entry(source: &LegalizedScalarFunction) -> bool {
+pub(crate) fn accepts_stack_parameter_entry(
+    source: &crate::native_geometry::NativeFunction<'_>,
+) -> bool {
     source.call_plan.result.is_none()
         || (source.structural.is_none()
             && source.parameters.len() == source.call_plan.parameters.len()
@@ -1439,7 +1427,7 @@ pub(crate) fn accepts_stack_parameter_entry(source: &LegalizedScalarFunction) ->
                 }))
         || source.structural.as_ref().is_some_and(|signature| {
             let parameters = parameter_views(signature);
-            accepts_graph(&source.call_plan, &parameters, &signature.structural_types)
+            accepts_graph(&source.call_plan, &parameters, source.geometry())
         })
 }
 
@@ -1649,7 +1637,7 @@ pub(crate) fn empty_aggregate_placement(placement: &calling_conventions::ValuePl
 
 pub(crate) fn validate(
     function: usize,
-    source: &LegalizedScalarFunction,
+    source: &crate::native_geometry::NativeFunction<'_>,
     call: &LegalizedScalarCall,
     owner: target_operations::CallSiteOwner,
     key: RegisterConstraintKey,
@@ -1695,11 +1683,9 @@ pub(crate) fn validate(
         call.validate_shape()
     }
     .map_err(|_| invalid())?;
-    let canonical = evaluate_call_plan(call.call_plan.policy, &call_abi_signature(call))
-        .map_err(|_| invalid())?;
-    if call.call_plan != canonical {
-        return Err(invalid());
-    }
+    // Legalization already stored this call's calling-convention plan. Selection
+    // checks the roles and arguments it is about to encode; it does not compute
+    // the plan again.
     if call
         .arguments
         .iter()
@@ -2029,11 +2015,17 @@ pub(crate) fn load_transfer(
     })
 }
 
-fn scalar_value_shape(source: &LegalizedScalarFunction, value: ValueId) -> Option<ValueShape> {
+fn scalar_value_shape(
+    source: &crate::native_geometry::NativeFunction<'_>,
+    value: ValueId,
+) -> Option<ValueShape> {
     scalar_value_type(source, value).and_then(scalar_shape)
 }
 
-fn scalar_value_type(source: &LegalizedScalarFunction, value: ValueId) -> Option<ScalarType> {
+fn scalar_value_type(
+    source: &crate::native_geometry::NativeFunction<'_>,
+    value: ValueId,
+) -> Option<ScalarType> {
     source
         .parameters
         .iter()

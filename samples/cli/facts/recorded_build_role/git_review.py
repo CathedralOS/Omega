@@ -173,7 +173,7 @@ machine no_dependency() {}
                                 f'Source::Git {{ repository: "{url}", revision: "witness", selection: {selection} }}')
         (application / "build.omg").write_text(source)
         cli = str(args.cli.resolve())
-        command = [cli, "update", "--project", str(application), "--target", "linux_x86_64"]
+        command = [cli, "packages", "update", "--project", str(application), "--target", "linux_x86_64"]
         if args.invalid or args.request_missing:
             result = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=180)
             text = result.stdout + result.stderr

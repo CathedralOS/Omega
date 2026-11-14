@@ -26,20 +26,20 @@ mod managed_cache_retention;
 mod producer;
 mod provenance;
 mod qualification;
+mod repository;
 mod rules;
 mod rust_producer_omission;
 mod samples;
 mod worktree;
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::ExitCode;
 
-pub(crate) fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .parent()
-        .and_then(Path::parent)
-        .expect("tools/xtask sits two levels below repository root")
-        .to_path_buf()
+pub(crate) fn repo_root() -> Result<PathBuf, u8> {
+    repository::current().map_err(|error| {
+        eprintln!("xtask: {error}");
+        1
+    })
 }
 
 fn usage() -> &'static str {

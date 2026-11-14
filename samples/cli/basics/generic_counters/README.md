@@ -12,7 +12,7 @@ the entry and final machines declare `reaches Console`.
 From the repository root, request review for the host where you will run it:
 
 ```text
-mbx run -p omega -- update --project samples/cli/basics/generic_counters --target macos_arm64
+mbx run -p omega -- packages update --project samples/cli/basics/generic_counters --target macos_arm64
 ```
 
 Use `windows_x86_64`, `linux_x86_64`, or `linux_arm64` for those hosts. Exit 3
@@ -21,7 +21,7 @@ reported `build/package-manager/review-<target>.txt`, change each decision from
 `pending` to `accept` or `reject`, then resume:
 
 ```text
-mbx run -p omega -- update --resume --project samples/cli/basics/generic_counters
+mbx run -p omega -- packages update --resume --project samples/cli/basics/generic_counters
 ```
 
 Resume must succeed before running. Review in the checkout you intend to use:

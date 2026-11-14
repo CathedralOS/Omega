@@ -121,7 +121,7 @@ impl<'a> TerminalProductRequest<'a> {
 
 pub(crate) struct ProducedTerminalProduct {
     pub(crate) program: Arc<psi_compiler::PortableTerminalProgram>,
-    pub(super) proposal: backend_plan::TerminalTargetProviderProposal,
+    pub(super) proposal: Option<backend_plan::TerminalTargetProviderProposal>,
 }
 
 impl ProducedTerminalProduct {
@@ -129,17 +129,19 @@ impl ProducedTerminalProduct {
         self.program.artifact().view().module()
     }
 
-    // Target-local scalar conditions of the produced program, evaluated for
-    // the selected target against its provider proposal.
+    // Check the produced program's scalar conditions without inventing a
+    // deployment for targetless source. A selected target supplies its proposal.
     pub(crate) fn check_conditions(
         &self,
         selection: &mut SelectedProviderCustody,
     ) -> Result<(), Vec<Diagnostic>> {
         build_settings::scalar_completion::complete(
             self.program.artifact(),
-            &self.proposal.target,
+            self.proposal
+                .as_ref()
+                .map(|proposal| proposal.target.as_str()),
             &[],
-            std::slice::from_ref(&self.proposal),
+            self.proposal.as_slice(),
             &mut selection.source_completion_accounting,
         )
         .map_err(|reason| vec![Diagnostic::error(format!("constant checking: {reason}"))])?;

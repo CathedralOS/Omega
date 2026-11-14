@@ -46,7 +46,7 @@ From the repository root, use the normal package workflow, inspecting any
 actual pending authority decision before accepting it:
 
 ```sh
-omega update --project samples/cli/independent/molecular_pair_distribution --target linux_x86_64
+omega packages update --project samples/cli/independent/molecular_pair_distribution --target linux_x86_64
 omega run --keep samples/cli/independent/molecular_pair_distribution/main.omg < samples/cli/independent/molecular_pair_distribution/input.txt
 python3 samples/cli/independent/molecular_pair_distribution/validate.py --executable /absolute/native/path
 python3 samples/cli/independent/molecular_pair_distribution/validate.py --captures /absolute/terminal/captures

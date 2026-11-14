@@ -17,6 +17,6 @@ composition; neither dropping the query nor discarding the inspection may erase
 its effect. Forged schema/provider path controls, a missing schema and a plain
 data provider control live beside this fixture under `tests/omega/fail/build`.
 
-Run with `omega update --project <this-directory> --target <host>`, then
+Run with `omega packages update --project <this-directory> --target <host>`, then
 `omega run <this-directory>/main.omg`. The native corpus route supplies its own
 fixture package inputs: `python3 tools/corpus_gate.py --native --filter build/product_description_paths_exit`.

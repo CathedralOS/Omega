@@ -778,32 +778,6 @@ pub(crate) mod type_predicates {
         }
     }
 
-    #[derive(Default)]
-    struct StaticContextBuilder {
-        rows:
-            std::collections::HashMap<ExpressionHandle, Vec<TypeWorld>, symbols::BuildSymbolHasher>,
-        statement_rows: std::collections::HashMap<
-            crate::statement::StatementHandle,
-            Vec<TypeWorld>,
-            symbols::BuildSymbolHasher,
-        >,
-        transition_rows: std::collections::HashMap<
-            crate::statement::TransitionTargetHandle,
-            Vec<TypeWorld>,
-            symbols::BuildSymbolHasher,
-        >,
-    }
-    impl StaticContextBuilder {
-        fn record(&mut self, expression: ExpressionHandle, worlds: &[TypeWorld]) {
-            let previous = self.rows.entry(expression).or_default();
-            for world in worlds {
-                if !previous.contains(world) {
-                    previous.push(world.clone());
-                }
-            }
-        }
-    }
-
     impl TypeWorld {
         fn resolve(
             &self,
@@ -877,18 +851,6 @@ pub(crate) mod type_predicates {
             }
             Some(self)
         }
-    }
-
-    fn condition(
-        program: &TypedTrees,
-        worlds: &[TypeWorld],
-        expression: ExpressionHandle,
-        holds: bool,
-    ) -> Vec<TypeWorld> {
-        if !contains_type_predicate(program, expression, &mut Vec::new()) {
-            return worlds.to_vec();
-        }
-        condition_inner(program, worlds, expression, holds)
     }
 
     fn contains_type_predicate(
@@ -1069,427 +1031,7 @@ pub(crate) mod type_predicates {
         }
     }
 
-    fn visit_context(
-        program: &TypedTrees,
-        output: &mut StaticContextBuilder,
-        expression: ExpressionHandle,
-        worlds: &[TypeWorld],
-        active: &mut Vec<ExpressionHandle>,
-    ) {
-        if !program.expression_table.expression_is_valid(expression) || active.contains(&expression)
-        {
-            return;
-        }
-        output.record(expression, worlds);
-        active.push(expression);
-        let mut visit = |child, environment: &[TypeWorld]| {
-            visit_context(program, output, child, environment, active)
-        };
-        match program.expression_table.expression(expression) {
-            ExpressionNode::Binary(binary) => {
-                visit(binary.left, worlds);
-                let right = if binary.operator == BinaryOperator::And {
-                    condition(program, worlds, binary.left, true)
-                } else if binary.operator == BinaryOperator::Or {
-                    condition(program, worlds, binary.left, false)
-                } else {
-                    worlds.to_vec()
-                };
-                visit(binary.right, &right);
-            }
-            ExpressionNode::Match(dispatch) => {
-                visit(dispatch.subject, worlds);
-                let mut remaining = worlds.to_vec();
-                for arm in program.expression_table.match_arms(dispatch.arms) {
-                    let environment = match arm.pattern {
-                        crate::expression::MatchPattern::Value(pattern) => {
-                            visit(pattern, &remaining);
-                            if let ExpressionNode::Boolean(value) =
-                                program.expression_table.expression(pattern)
-                            {
-                                let environment =
-                                    condition(program, &remaining, dispatch.subject, *value);
-                                remaining =
-                                    condition(program, &remaining, dispatch.subject, !*value);
-                                environment
-                            } else {
-                                remaining.clone()
-                            }
-                        }
-                        crate::expression::MatchPattern::Destructure(pattern) => {
-                            condition(program, &remaining, pattern.condition, true)
-                        }
-                        crate::expression::MatchPattern::Wildcard => remaining.clone(),
-                    };
-                    visit(arm.value, &environment);
-                }
-            }
-            ExpressionNode::Call(call) => {
-                visit(call.receiver, worlds);
-                for &argument in program.expression_table.expression_handles(call.arguments) {
-                    visit(argument, worlds);
-                }
-            }
-            ExpressionNode::Atomic(atomic) => {
-                visit(atomic.value, worlds);
-                visit(atomic.result, worlds);
-            }
-            ExpressionNode::Unary(unary) => visit(unary.operand, worlds),
-            ExpressionNode::Borrow(borrow) => visit(borrow.target, worlds),
-            ExpressionNode::Cast(cast) => visit(cast.value, worlds),
-            ExpressionNode::Member(member) => visit(member.receiver, worlds),
-            ExpressionNode::Indexed(indexed) => {
-                visit(indexed.collection, worlds);
-                visit(indexed.index, worlds);
-            }
-            ExpressionNode::Range(range) => {
-                visit(range.start, worlds);
-                visit(range.end, worlds);
-            }
-            ExpressionNode::ArrayLiteral(values) => {
-                for &value in program.expression_table.expression_handles(*values) {
-                    visit(value, worlds);
-                }
-            }
-            ExpressionNode::StructLiteral(literal) => {
-                for field in program.expression_table.struct_fields(literal.fields) {
-                    visit(field.value, worlds);
-                }
-            }
-            ExpressionNode::SavedSubject(_)
-            | ExpressionNode::TypeExpression(_)
-            | crate::literal_expression_pattern!() => {}
-        }
-        active.pop();
-    }
-
     impl TypedTrees {
-        pub fn prepare_static_type_contexts(
-            &mut self,
-            boolean_equalities: &[ExpressionHandle],
-            mut case_memberships: Vec<CaseMembershipTypeFacts>,
-        ) {
-            case_memberships.sort_unstable_by_key(|facts| {
-                (
-                    facts.membership.arena_index(),
-                    facts.membership.generation(),
-                )
-            });
-            case_memberships.dedup_by_key(|facts| facts.membership);
-            self.static_type_contexts = StaticTypeContexts {
-                boolean_equalities: boolean_equalities.to_vec(),
-                case_memberships,
-                ..Default::default()
-            };
-            use crate::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
-            let mut contexts = StaticContextBuilder::default();
-            for machine in self.machines() {
-                let mut worlds = vec![TypeWorld::default()];
-                for equation in self
-                    .declared_type_equations
-                    .span_or_empty(machine.declared_type_equations)
-                {
-                    worlds = worlds
-                        .into_iter()
-                        .filter_map(|world| {
-                            world.constrain(self, equation.parameter, equation.definition, true)
-                        })
-                        .collect();
-                }
-                let mut active = Vec::new();
-                for contract in self.machine_contracts(machine) {
-                    for fact in self.proof_facts.span_or_empty(contract.facts) {
-                        if let crate::domain::ProofFact::Expression(expression) = fact {
-                            visit_context(self, &mut contexts, *expression, &worlds, &mut active);
-                            if contract.kind == crate::signature::SignatureContractKind::Requires {
-                                worlds = condition(self, &worlds, *expression, true);
-                            }
-                        }
-                    }
-                }
-                for state in self.machine_states(machine) {
-                    let mut remaining = worlds.clone();
-                    for contract in self.state_contracts(state) {
-                        for fact in self.proof_facts.span_or_empty(contract.facts) {
-                            if let crate::domain::ProofFact::Expression(expression) = fact {
-                                visit_context(
-                                    self,
-                                    &mut contexts,
-                                    *expression,
-                                    &remaining,
-                                    &mut active,
-                                );
-                                if contract.kind
-                                    == crate::signature::SignatureContractKind::Requires
-                                {
-                                    remaining = condition(self, &remaining, *expression, true);
-                                }
-                            }
-                        }
-                    }
-                    for (handle, statement) in state
-                        .statement_nodes
-                        .handles()
-                        .zip(self.statement_table.statements(state.statement_nodes))
-                    {
-                        let retained = contexts.statement_rows.entry(handle).or_default();
-                        for world in &remaining {
-                            if !retained.contains(world) {
-                                retained.push(world.clone());
-                            }
-                        }
-                        let mut visit = |expression, environment: &[TypeWorld]| {
-                            visit_context(self, &mut contexts, expression, environment, &mut active)
-                        };
-                        match statement {
-                            StatementNode::Transition(transition) => {
-                                let selected = match transition.guard {
-                                    TransitionGuardNode::Always => remaining.clone(),
-                                    TransitionGuardNode::When(guard) => {
-                                        visit(guard, &remaining);
-                                        condition(self, &remaining, guard, true)
-                                    }
-                                };
-                                let complement = match transition.guard {
-                                    TransitionGuardNode::Always => Vec::new(),
-                                    TransitionGuardNode::When(guard) => {
-                                        condition(self, &remaining, guard, false)
-                                    }
-                                };
-                                for target in transition.targets() {
-                                    let target_worlds = if target == transition.target {
-                                        &selected
-                                    } else {
-                                        &complement
-                                    };
-                                    let retained =
-                                        contexts.transition_rows.entry(target).or_default();
-                                    for world in target_worlds {
-                                        if !retained.contains(world) {
-                                            retained.push(world.clone());
-                                        }
-                                    }
-                                    match self.statement_table.transition_target(target) {
-                                        TransitionTargetNode::Value(value) => visit_context(
-                                            self,
-                                            &mut contexts,
-                                            *value,
-                                            target_worlds,
-                                            &mut active,
-                                        ),
-                                        TransitionTargetNode::Named { arguments, .. } => {
-                                            for &argument in
-                                                self.statement_table.expression_handles(*arguments)
-                                            {
-                                                visit_context(
-                                                    self,
-                                                    &mut contexts,
-                                                    argument,
-                                                    target_worlds,
-                                                    &mut active,
-                                                );
-                                            }
-                                        }
-                                        TransitionTargetNode::Terminal => {}
-                                    }
-                                }
-                                remaining = match transition.guard {
-                                    TransitionGuardNode::Always => remaining.clone(),
-                                    TransitionGuardNode::When(guard) => {
-                                        condition(self, &remaining, guard, false)
-                                    }
-                                };
-                            }
-                            StatementNode::Expression(expression) => visit(*expression, &remaining),
-                            StatementNode::LocalData(local) => {
-                                if let Some(value) = local.ordinary_value_initializer() {
-                                    visit(value, &remaining);
-                                }
-                            }
-                            StatementNode::Assignment(assignment) => {
-                                visit(assignment.target, &remaining);
-                                visit(assignment.value, &remaining);
-                            }
-                            StatementNode::Call(call) => {
-                                for &argument in
-                                    self.statement_table.expression_handles(call.arguments)
-                                {
-                                    visit(argument, &remaining);
-                                }
-                            }
-                            StatementNode::AssemblyFact(fact) => {
-                                if let crate::domain::ProofFact::Expression(expression) =
-                                    self.proof_facts.get(fact.fact)
-                                {
-                                    visit(*expression, &remaining);
-                                }
-                            }
-                            StatementNode::Assembly(_) => {}
-                        }
-                    }
-                }
-            }
-            let mut rows = contexts.rows.into_iter().collect::<Vec<_>>();
-            rows.sort_unstable_by_key(|(expression, _)| {
-                (expression.arena_index(), expression.generation())
-            });
-            self.static_type_contexts.rows = rows;
-            let mut statement_rows = contexts.statement_rows.into_iter().collect::<Vec<_>>();
-            statement_rows.sort_unstable_by_key(|(statement, _)| {
-                (statement.arena_index(), statement.generation())
-            });
-            self.static_type_contexts.statement_rows = statement_rows;
-            let mut transition_rows = contexts.transition_rows.into_iter().collect::<Vec<_>>();
-            transition_rows
-                .sort_unstable_by_key(|(target, _)| (target.arena_index(), target.generation()));
-            self.static_type_contexts.transition_rows = transition_rows;
-        }
-
-        pub fn elide_unreachable_case_arms(&mut self) {
-            self.elide_unreachable_transition_rows();
-            let rewrites = self
-                .expression_table
-                .expression_entries()
-                .filter_map(|(handle, node)| {
-                    let ExpressionNode::Match(dispatch) = node else {
-                        return None;
-                    };
-                    let arms = self.expression_table.match_arms(dispatch.arms);
-                    let excluded = |arm: &crate::expression::TableMatchArm| {
-                        matches!(arm.pattern, crate::expression::MatchPattern::Destructure(_))
-                            && self.static_type_contexts.is_unreachable(arm.value)
-                    };
-                    let live = arms
-                        .iter()
-                        .filter(|arm| !excluded(arm))
-                        .cloned()
-                        .collect::<Vec<_>>();
-                    if live.len() == arms.len() || live.is_empty() {
-                        return None;
-                    }
-                    let alias = |arm: &crate::expression::TableMatchArm| match arm.pattern {
-                        crate::expression::MatchPattern::Destructure(pattern) => {
-                            self.case_tag_alias(pattern)
-                        }
-                        _ => None,
-                    };
-                    let dropped_aliases = arms
-                        .iter()
-                        .filter(|arm| excluded(arm))
-                        .filter_map(alias)
-                        .collect::<Vec<_>>();
-                    let survivor = live.iter().find_map(alias);
-                    Some((handle, dispatch.capture, live, dropped_aliases, survivor))
-                })
-                .collect::<Vec<_>>();
-            for (handle, capture, live, dropped_aliases, survivor) in rewrites {
-                let arms = self.expression_table.insert_match_arms(live);
-                if let ExpressionNode::Match(dispatch) =
-                    self.expression_table.expression_mut(handle)
-                {
-                    dispatch.arms = arms;
-                }
-                if self.expression_table.contains_value_capture(capture)
-                    && let Some(survivor) = survivor
-                    && dropped_aliases
-                        .contains(&self.expression_table.value_capture(capture).value_anchor)
-                {
-                    self.expression_table.set_value_anchor(capture, survivor);
-                }
-            }
-        }
-
-        fn elide_unreachable_transition_rows(&mut self) {
-            use crate::statement::{StatementNode, TransitionGuardNode};
-            let mut rewrites = Vec::new();
-            for machine in self.machines() {
-                for (state_index, state) in self.machine_states(machine).iter().enumerate() {
-                    let statements = self.statement_table.statements(state.statement_nodes);
-                    let excluded = |statement: &StatementNode| {
-                        matches!(statement, StatementNode::Transition(transition)
-                        if matches!(transition.guard, TransitionGuardNode::When(guard)
-                            if self.guard_opens_with_refuted_case(guard))
-                            && self.static_transition_type_context_is_unreachable(transition.target))
-                    };
-                    if !statements.iter().any(excluded) {
-                        continue;
-                    }
-                    let live = statements
-                        .iter()
-                        .filter(|statement| !excluded(statement))
-                        .cloned()
-                        .collect::<Vec<_>>();
-                    if live
-                        .iter()
-                        .any(|statement| matches!(statement, StatementNode::Transition(_)))
-                    {
-                        rewrites.push((machine.clone(), state_index, live));
-                    }
-                }
-            }
-            for (machine, state_index, live) in rewrites {
-                let body = self.statement_table.insert_statements(live);
-                self.machine_states_mut(&machine)[state_index].statement_nodes = body;
-            }
-        }
-
-        fn guard_opens_with_refuted_case(&self, mut guard: ExpressionHandle) -> bool {
-            loop {
-                if !self.expression_table.expression_is_valid(guard) {
-                    return false;
-                }
-                if let Some(facts) = self.static_type_contexts.case_membership(guard) {
-                    return facts.impossible;
-                }
-                match self.expression_table.expression(guard) {
-                    ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And => {
-                        guard = binary.left;
-                    }
-                    ExpressionNode::Binary(binary)
-                        if binary.operator == BinaryOperator::Equal
-                            && self
-                                .static_type_contexts
-                                .boolean_equalities
-                                .binary_search_by_key(
-                                    &(guard.arena_index(), guard.generation()),
-                                    |handle| (handle.arena_index(), handle.generation()),
-                                )
-                                .is_ok() =>
-                    {
-                        guard = match (
-                            self.expression_table.expression(binary.left),
-                            self.expression_table.expression(binary.right),
-                        ) {
-                            (_, ExpressionNode::Boolean(true)) => binary.left,
-                            (ExpressionNode::Boolean(true), _) => binary.right,
-                            _ => return false,
-                        };
-                    }
-                    _ => return false,
-                }
-            }
-        }
-
-        fn case_tag_alias(
-            &self,
-            pattern: crate::expression::TableDestructurePattern,
-        ) -> Option<ExpressionHandle> {
-            let table = &self.expression_table;
-            if !table.expression_is_valid(pattern.condition) {
-                return None;
-            }
-            let ExpressionNode::Binary(conjunction) = table.expression(pattern.condition) else {
-                return None;
-            };
-            let ExpressionNode::Binary(tag) = table.expression(conjunction.left) else {
-                return None;
-            };
-            (conjunction.operator == BinaryOperator::And
-                && tag.operator == BinaryOperator::CaseMembership
-                && matches!(table.expression(tag.left), ExpressionNode::SavedSubject(_)))
-            .then_some(tag.left)
-        }
-
         pub fn static_statement_type_context_is_unreachable(
             &self,
             statement: crate::statement::StatementHandle,
@@ -1668,191 +1210,6 @@ pub(crate) mod type_predicates {
             right: ExpressionHandle,
         ) -> bool {
             self.static_type_contexts.agree(left, right)
-        }
-    }
-
-    /// A store for `TypedTrees::static_boolean_value_memoized` answers.
-    pub trait StaticBooleanMemo {
-        /// `Some(answer)` if `expression`'s answer is stored.
-        fn static_boolean(&self, expression: ExpressionHandle) -> Option<Option<bool>>;
-        fn remember_static_boolean(&self, expression: ExpressionHandle, value: Option<bool>);
-    }
-
-    struct StaticBooleanWalk<'memo> {
-        memo: Option<&'memo dyn StaticBooleanMemo>,
-        // Per arena slot: whether the expression encloses the one being valued.
-        active: Vec<bool>,
-        // Whether a cycle was cut since the current expression was entered.
-        cut: bool,
-    }
-
-    impl<'memo> StaticBooleanWalk<'memo> {
-        fn new(memo: Option<&'memo dyn StaticBooleanMemo>) -> Self {
-            Self {
-                memo,
-                active: Vec::new(),
-                cut: false,
-            }
-        }
-
-        fn is_active(&self, expression: ExpressionHandle) -> bool {
-            self.active
-                .get(expression.arena_index() as usize)
-                .copied()
-                .unwrap_or(false)
-        }
-
-        fn enter(&mut self, expression: ExpressionHandle) {
-            let slot = expression.arena_index() as usize;
-            if slot >= self.active.len() {
-                self.active.resize(slot + 1, false);
-            }
-            self.active[slot] = true;
-        }
-
-        fn leave(&mut self, expression: ExpressionHandle) {
-            self.active[expression.arena_index() as usize] = false;
-        }
-    }
-
-    impl TypedTrees {
-        pub fn static_boolean_value(&self, expression: ExpressionHandle) -> Option<bool> {
-            self.static_boolean_value_inner(expression, &mut StaticBooleanWalk::new(None))
-        }
-
-        /*
-            `static_boolean_value` with every answer that does not depend on
-            the walk's path kept in `memo` for later queries. Callers ask it
-            of each logical operator's left operand, so without a memo a long
-            `&&` chain re-walked its left spine at every operator.
-        */
-        pub fn static_boolean_value_memoized(
-            &self,
-            expression: ExpressionHandle,
-            memo: &dyn StaticBooleanMemo,
-        ) -> Option<bool> {
-            self.static_boolean_value_inner(expression, &mut StaticBooleanWalk::new(Some(memo)))
-        }
-
-        fn static_boolean_value_inner(
-            &self,
-            expression: ExpressionHandle,
-            walk: &mut StaticBooleanWalk<'_>,
-        ) -> Option<bool> {
-            if !self.expression_table.expression_is_valid(expression) {
-                return None;
-            }
-            if let Some(memo) = walk.memo
-                && let Some(value) = memo.static_boolean(expression)
-            {
-                return value;
-            }
-            if walk.is_active(expression) {
-                // A cycle back to an enclosing expression: true only of this
-                // walk, so nothing that met it is memoized.
-                walk.cut = true;
-                return None;
-            }
-            if let Ok(position) = self
-                .static_type_contexts
-                .completed_case_values
-                .binary_search_by_key(
-                    &(expression.arena_index(), expression.generation()),
-                    |(expression, _)| (expression.arena_index(), expression.generation()),
-                )
-            {
-                return Some(self.static_type_contexts.completed_case_values[position].1);
-            }
-            if let Some(value) = self.static_type_predicate_value(expression) {
-                return Some(value);
-            }
-            walk.enter(expression);
-            let enclosing_cut = std::mem::take(&mut walk.cut);
-            let value = (|| match self.expression_table.expression(expression) {
-                ExpressionNode::Boolean(value) => Some(*value),
-                ExpressionNode::Name(path)
-                    if path.symbol.is_valid()
-                        && self.symbols.get(path.symbol).kind == symbols::SymbolKind::Local =>
-                {
-                    let state_symbol = self.symbols.get(path.symbol).parent;
-                    let machine_symbol = self.symbols.get(state_symbol).parent;
-                    let machine = self.machine_by_symbol(machine_symbol)?;
-                    let state = self.state_in_machine(machine, state_symbol)?;
-                    let (_, local) = self.state_local_declaration(state, path.symbol)?;
-                    if local.is_mutable {
-                        return None;
-                    }
-                    self.static_boolean_value_inner(local.ordinary_value_initializer()?, walk)
-                }
-                ExpressionNode::Unary(unary) if unary.operator == UnaryOperator::LogicalNot => self
-                    .static_boolean_value_inner(unary.operand, walk)
-                    .map(|value| !value),
-                ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::And => {
-                    if self.static_boolean_value_inner(binary.left, walk)? {
-                        self.static_boolean_value_inner(binary.right, walk)
-                    } else {
-                        Some(false)
-                    }
-                }
-                ExpressionNode::Binary(binary) if binary.operator == BinaryOperator::Or => {
-                    if self.static_boolean_value_inner(binary.left, walk)? {
-                        Some(true)
-                    } else {
-                        self.static_boolean_value_inner(binary.right, walk)
-                    }
-                }
-                ExpressionNode::Binary(binary)
-                    if self
-                        .static_type_contexts
-                        .boolean_equalities
-                        .contains(&expression) =>
-                {
-                    let left = self.static_boolean_value_inner(binary.left, walk)?;
-                    let right = self.static_boolean_value_inner(binary.right, walk)?;
-                    Some((left == right) != (binary.operator == BinaryOperator::NotEqual))
-                }
-                _ => None,
-            })();
-            walk.leave(expression);
-            if !walk.cut
-                && let Some(memo) = walk.memo
-            {
-                memo.remember_static_boolean(expression, value);
-            }
-            walk.cut |= enclosing_cut;
-            value
-        }
-
-        pub fn static_boolean_normal_form(
-            &self,
-            mut expression: ExpressionHandle,
-        ) -> ExpressionHandle {
-            loop {
-                let ExpressionNode::Binary(binary) = self.expression_table.expression(expression)
-                else {
-                    return expression;
-                };
-                let Some(left) = self.static_boolean_value(binary.left) else {
-                    return expression;
-                };
-                expression = match binary.operator {
-                    BinaryOperator::And => {
-                        if left {
-                            binary.right
-                        } else {
-                            binary.left
-                        }
-                    }
-                    BinaryOperator::Or => {
-                        if left {
-                            binary.left
-                        } else {
-                            binary.right
-                        }
-                    }
-                    _ => return expression,
-                };
-            }
         }
     }
 
@@ -3178,18 +2535,30 @@ pub mod types {
                         element_type,
                         length,
                     } => {
-                        if let FixedArrayLength::ConstParameter { symbol, .. } = &length
-                            && substitutions.iter().any(|(binder, _)| binder == symbol)
-                        {
-                            return Err(
-                                "a trait parameter as an array length has no instantiation",
-                            );
-                        }
+                        let instantiated_length = match &length {
+                            FixedArrayLength::ConstParameter { symbol, .. } => {
+                                match substitutions.iter().find(|(binder, _)| binder == symbol) {
+                                    Some((_, argument)) => match self.type_reference(*argument) {
+                                        TypeReferenceNode::Named { symbol, name } if symbol.is_valid() =>
+                                            FixedArrayLength::ConstParameter { symbol: *symbol, name: name.clone() },
+                                        _ => FixedArrayLength::Literal(
+                                            self.anonymous_numeric_literal_value(*argument).ok_or(
+                                                "an applied array length is not a closed nonnegative integer",
+                                            )?,
+                                        ),
+                                    },
+                                    None => length.clone(),
+                                }
+                            }
+                            _ => length.clone(),
+                        };
                         let instantiated = self.instantiate(element_type, substitutions)?;
-                        (instantiated != element_type).then_some(TypeReferenceNode::FixedArray {
-                            element_type: instantiated,
-                            length,
-                        })
+                        (instantiated != element_type || instantiated_length != length).then_some(
+                            TypeReferenceNode::FixedArray {
+                                element_type: instantiated,
+                                length: instantiated_length,
+                            },
+                        )
                     }
                     TypeReferenceNode::Slice { element_type } => {
                         let instantiated = self.instantiate(element_type, substitutions)?;
@@ -4680,7 +4049,7 @@ pub mod types {
                     Some(Self::Integer(FixedInteger::unsigned(32)))
                 }
                 name if name.starts_with("AtomicU64#AccessField<") => Some(Self::U64),
-                name => FixedInteger::from_builtin_name(name).map(Self::Integer),
+                name => FixedInteger::from_decimal_spelling(name).map(Self::Integer),
             }
         }
 
@@ -4919,11 +4288,23 @@ pub mod types {
             assert_eq!(address.landed_landing(), Some(LandedIntegerType::Addr));
             assert_eq!(address.landed_landing_fixed(), None);
 
-            for name in ["u", "i", "u0", "u13", "i1", "u128", "U32", "usize", "u032"] {
+            for name in ["u", "i", "u0", "U32", "usize", "u032"] {
                 assert_eq!(PrimitiveType::from_name(name), None, "{name}");
             }
+            /* Every width is a name; `u1` is an integer, never `bool`. */
+            for (name, carrier) in [
+                ("u13", FixedInteger::unsigned(13)),
+                ("i1", FixedInteger::signed(1)),
+                ("u1", FixedInteger::unsigned(1)),
+                ("u128", FixedInteger::unsigned(128)),
+                ("i257", FixedInteger::signed(257)),
+            ] {
+                let primitive = PrimitiveType::from_name(name).unwrap();
+                assert_eq!(primitive, PrimitiveType::Integer(carrier), "{name}");
+                assert_ne!(primitive, PrimitiveType::Bool, "{name}");
+            }
             /* A width with no native scalar has no byte size to hand out. */
-            let odd = PrimitiveType::Integer(FixedInteger::unsigned(13));
+            let odd = PrimitiveType::from_name("u13").unwrap();
             assert_eq!(odd.scalar_byte_size(), None);
             assert_eq!(odd.name(), "u13");
             assert_eq!(odd.integer_bounds(), Some((0, 8191)));

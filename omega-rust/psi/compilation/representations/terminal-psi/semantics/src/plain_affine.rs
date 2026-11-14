@@ -80,16 +80,16 @@ impl Region {
         }
     }
 
-    fn vacant(&self, path: &[Segment]) -> bool {
+    fn selected(&self, path: &[Segment]) -> Option<&Region> {
         let Some((head, tail)) = path.split_first() else {
-            return !self.base && self.children.is_empty();
+            return Some(self);
         };
         match self
             .children
             .binary_search_by_key(head, |(segment, _)| *segment)
         {
-            Ok(position) => self.children[position].1.vacant(tail),
-            Err(_) => !self.base,
+            Ok(position) => self.children[position].1.selected(tail),
+            Err(_) => None,
         }
     }
 
@@ -914,7 +914,7 @@ impl Analysis<'_> {
         operation: &terminal_psi::Operation,
         settled: bool,
     ) -> Result<(), Error> {
-        use terminal_psi::{OperationKind as Op, RecordFieldValue};
+        use terminal_psi::OperationKind as Op;
         let site = Site::Operation(operation.id);
         if let Op::StructuralLeafCopy { source, path } = &operation.kind
             && let Some(root) = self.root(*source)?
@@ -971,11 +971,12 @@ impl Analysis<'_> {
         }
         match &operation.kind {
             Op::MoveStructuralValue { source } => self.argument(state, source, site, true)?,
-            Op::EstablishRecord { fields } | Op::EstablishStructuralCase { fields, .. } => {
-                for field in fields {
-                    if let RecordFieldValue::Structural(argument) = &field.value {
-                        self.argument(state, argument, site, true)?;
-                    }
+            kind if kind.constructor_arguments().next().is_some() => {
+                // Every constructor transfers its actual owned children. The
+                // same roster covers records, cases and fixed/stored arrays;
+                // their moved homes must not also receive edge cleanup.
+                for argument in kind.constructor_arguments() {
+                    self.argument(state, argument, site, true)?;
                 }
             }
             Op::StoreStructuralField {
@@ -1001,7 +1002,7 @@ impl Analysis<'_> {
                         if settled {
                             let required = if region.available(&path) {
                                 StructuralStoreDisposition::ReplaceDiscardable
-                            } else if region.vacant(&path) {
+                            } else if self.vacant_region(*destination, region, &path)? {
                                 StructuralStoreDisposition::Vacant
                             } else {
                                 return Err(Error::Unsupported(
@@ -1049,6 +1050,46 @@ impl Analysis<'_> {
             )));
         }
         Ok(())
+    }
+
+    fn vacant_region(
+        &self,
+        place: PlaceId,
+        region: &Region,
+        path: &[Segment],
+    ) -> Result<bool, Error> {
+        use std::collections::BTreeSet;
+        let Some(selected) = region.selected(path) else {
+            return Ok(false);
+        };
+        // A partially rebuilt missing ancestor needs its remaining missing
+        // complement modeled explicitly; it cannot be collapsed to a hole.
+        if !selected.base && !selected.children.is_empty() {
+            return Ok(false);
+        }
+        let root = self
+            .root(place)?
+            .ok_or(Error::Malformed("vacancy has no affine owner"))?;
+        let selected_type =
+            crate::canonical_structural_path_tip(self.types.iter(), root.structural_type, path)
+                .ok_or(Error::Malformed("vacancy has no typed receiving region"))?
+                .id;
+        let mut paths = Vec::new();
+        selected.vacancies(&mut Vec::new(), &mut paths);
+        let missing = paths
+            .into_iter()
+            .map(|path| {
+                crate::canonical_structural_storage_path(self.types.iter(), selected_type, &path)
+            })
+            .collect::<Option<BTreeSet<_>>>()
+            .ok_or(Error::Malformed("vacancy has an untyped missing child"))?;
+        Ok(crate::structural_region_is_vacant(
+            self.types,
+            selected_type,
+            &missing,
+            &[],
+            &|_, _| false,
+        ))
     }
 
     fn dispose(
@@ -1124,7 +1165,7 @@ impl Analysis<'_> {
         joined.vacancies(&mut Vec::new(), &mut vacated);
         let mut actions = Vec::new();
         for path in vacated {
-            if held.vacant(&path) {
+            if self.vacant_region(place, held, &path)? {
                 continue;
             }
             if path.is_empty() || !held.available(&path) {

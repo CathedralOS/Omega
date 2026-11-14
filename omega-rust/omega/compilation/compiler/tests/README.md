@@ -45,7 +45,7 @@ For example, prepare the reference-pressure witness on macOS ARM64 from the
 repository root:
 
 ```text
-omega update --project tests/fixtures/pass/borrows/runtime_reference_array_pressure_exit --target macos_arm64
+omega packages update --project tests/fixtures/pass/borrows/runtime_reference_array_pressure_exit --target macos_arm64
 ```
 
 If review requests decisions, inspect the reported file and accept or reject
@@ -53,7 +53,7 @@ the actual findings. Only after resolving them, resume without repeating
 `--target`, then run the original source:
 
 ```text
-omega update --resume --project tests/fixtures/pass/borrows/runtime_reference_array_pressure_exit
+omega packages update --resume --project tests/fixtures/pass/borrows/runtime_reference_array_pressure_exit
 omega run tests/fixtures/pass/borrows/runtime_reference_array_pressure_exit/main.omg
 ```
 

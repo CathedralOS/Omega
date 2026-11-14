@@ -56,7 +56,7 @@ an index of 32 in a 32-element complex array must reject at source checking.
 Run with an optimized compiler built from a recorded source revision:
 
 ```sh
-omega update --project samples/cli/independent/quantum_wavepacket_evolution --target linux_x86_64 < /dev/null
+omega packages update --project samples/cli/independent/quantum_wavepacket_evolution --target linux_x86_64 < /dev/null
 # Inspect any generated pending review. Only Console stdin/stdout/exit is
 # required; std source-risk disclosures do not grant filesystem authority.
 omega --build-dir build/quantum --target linux_x86_64 samples/cli/independent/quantum_wavepacket_evolution/main.omg < /dev/null

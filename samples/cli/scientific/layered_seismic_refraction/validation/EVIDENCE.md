@@ -67,7 +67,7 @@ Observer and integrated review used the normal manager and required no new
 pending decisions. Review’s source rendering hit its resource limit; exact
 public source files remained available for the independent source review.
 
-Audited-base smoke ran ordinary `omega update` and `omega run --both` on
+Audited-base smoke ran ordinary `omega packages update` and `omega run --both` on
 `tests/omega/pass/calls/runtime_static_entry_context_exit`, with native and
 Terminal exits both 0. Actual sample execution passed 31 native fixtures and
 31 captured Terminal fixtures. The private observer retains the accepted

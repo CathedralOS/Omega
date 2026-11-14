@@ -11,9 +11,9 @@ the application waits for user input.
 From the repository root with the development `omega` CLI:
 
 ```sh
-omega update --project samples/gui/windowed_calculator --target macos_arm64 --offline
+omega packages update --project samples/gui/windowed_calculator --target macos_arm64 --offline
 # If review is required, inspect the reported file and decide its pending rows.
-omega update --resume --project samples/gui/windowed_calculator --offline
+omega packages update --resume --project samples/gui/windowed_calculator --offline
 omega run --keep samples/gui/windowed_calculator/main.omg
 ```
 

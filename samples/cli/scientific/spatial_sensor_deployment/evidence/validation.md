@@ -21,7 +21,7 @@ The default sandbox compiler invocation rejected source resolver storage:
 `git cache entry / is invalid: cache custody ancestry is owned by an unrelated user`.
 The same check in the approved normal per-command context ran to a package
 preparation rejection: std's `LinuxX86_64Application` entry schema needs an
-accepted program-entry binding, and the diagnostic prescribes `omega update`.
+accepted program-entry binding, and the diagnostic prescribes `omega packages update`.
 Custody and trust guards were preserved.
 
 Exact first check: `/workspace/new070-target/debug/omega --check --target

@@ -9,5 +9,5 @@ Compile-checked only (no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/borrowed_case_read/main.omg
-mbx run -p omega -- update --project samples/cli/probes/borrowed_case_read
+mbx run -p omega -- packages update --project samples/cli/probes/borrowed_case_read
 ```

@@ -3484,6 +3484,20 @@ pub(crate) mod element_views {
             self
         }
 
+        pub(crate) fn relocated_descriptor(
+            &self,
+            source: &crate::boundary::values::StructuralRuntimePlace,
+            destination: &crate::boundary::values::StructuralRuntimePlace,
+        ) -> Result<Self, TerminalInterpretError> {
+            let mut descriptor = self.descriptor_home.clone().ok_or_else(malformed)?;
+            if crate::boundary::values::StructuralRuntimePlace::from(&descriptor) != *source {
+                return Err(malformed());
+            }
+            descriptor.opaque_identity = destination.opaque_identity;
+            descriptor.path = destination.path.clone();
+            Ok(self.clone().with_descriptor_home(descriptor))
+        }
+
         pub(crate) fn project_array(
             &self,
             types: &crate::embedding::program::ProgramDeclarations<
@@ -3880,6 +3894,17 @@ pub(crate) mod element_views {
                 .get(&crate::boundary::values::StructuralRuntimePlace::from(
                     resolved,
                 ))
+                .filter(|view| {
+                    view.descriptor_home().is_some() && view.matches_descriptor_home(resolved)
+                })
+                .or_else(|| match (&self.returned_element_view, &self.result) {
+                    (Some(view), Some(crate::TerminalExecutionResult::Structural(returned)))
+                        if view.matches_bound_descriptor_home(&returned.value, resolved) =>
+                    {
+                        Some(view)
+                    }
+                    _ => None,
+                })
                 .or_else(|| {
                     self.element_view_values.iter().find_map(|(place, view)| {
                         self.structural_values
@@ -5541,6 +5566,63 @@ pub(crate) mod element_views {
         use crate::boundary::values::TerminalStructuralValue;
         use semantic_vocabulary::{PlaceId, StructuralDomainId, StructuralTypeId};
         use terminal_psi::{StructuralAccess, StructuralPathQualification, StructuralPathSegment};
+
+        #[test]
+        fn immutable_sequence_requires_complete_backing_and_exact_relocated_home() {
+            use super::immutable_sequence::ImmutableStructuralSequence;
+            use crate::boundary::values::StructuralRuntimePlace;
+            // Model values deliberately have no qualifiers or authority. This
+            // tests the real backing/relocation owner, not source acceptance.
+            let element = StructuralTypeId::new(1).unwrap();
+            let child = TerminalStructuralValue::minted(17, element, Vec::new());
+            assert!(
+                ImmutableStructuralSequence::from_values(2, [Ok(child.clone())], None).is_err()
+            );
+            assert!(
+                ImmutableStructuralSequence::from_values(
+                    1,
+                    [Ok(child.clone()), Ok(child.clone())],
+                    None
+                )
+                .is_err()
+            );
+            let elements = ImmutableStructuralSequence::from_values(
+                2,
+                [
+                    Ok(child),
+                    Ok(TerminalStructuralValue::minted(18, element, Vec::new())),
+                ],
+                None,
+            )
+            .unwrap();
+            let original =
+                TerminalStructuralValue::minted(19, StructuralTypeId::new(2).unwrap(), Vec::new());
+            let view = ElementView::immutable_sequence(
+                elements,
+                original.clone(),
+                PlaceId::new(1).unwrap(),
+            );
+            let source = StructuralRuntimePlace::from(&original);
+            let mut destination = source.clone();
+            destination.opaque_identity += 1;
+            let relocated = view.relocated_descriptor(&source, &destination).unwrap();
+            let mut expected = original.clone();
+            expected.opaque_identity = destination.opaque_identity;
+            assert_eq!(relocated.len(), 2);
+            assert!(relocated.matches_descriptor_home(&expected));
+            assert!(!relocated.matches_descriptor_home(&original));
+            assert!(
+                relocated
+                    .relocated_descriptor(&source, &destination)
+                    .is_err(),
+                "old owner is no authority for the new descriptor"
+            );
+            expected.structural_type = StructuralTypeId::new(3).unwrap();
+            assert!(
+                !relocated.matches_descriptor_home(&expected),
+                "equal storage does not replace the declared carrier"
+            );
+        }
 
         #[test]
         fn descriptor_home_survives_checked_membership_changes() {

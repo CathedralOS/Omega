@@ -6,7 +6,7 @@ while the other descriptor still denotes its original one-cell backing. Expected
 exit: 0.
 
 ```sh
-omega update --project samples/cli/collections/selected_scan_window --target macos_arm64
+omega packages update --project samples/cli/collections/selected_scan_window --target macos_arm64
 omega run --both samples/cli/collections/selected_scan_window/main.omg
 ```
 

@@ -20,7 +20,7 @@ fn limits(
 fn measured() -> BuildEvaluationUsage {
     let sponsor = BuildEvaluationSponsor::new(limits(100, 100, 100, 100, 100, 100));
     let invocation = sponsor
-        .begin_invocation(EvaluationMeasurementIdentity::CheckedTree, 100)
+        .begin_invocation(sponsor.measurement(), 100)
         .unwrap();
     let storage = invocation.reserve_site(7, 3, 6).unwrap();
     invocation.charge_build_log_bytes(2).unwrap();
@@ -32,7 +32,10 @@ fn measured() -> BuildEvaluationUsage {
 fn replay_spends_current_account_and_refreshes_its_peaks_without_live_leases() {
     let usage = measured();
     let sponsor = BuildEvaluationSponsor::new(limits(100, 100, 100, 100, 100, 100));
-    let existing = sponsor.reserve_live_text_bytes(11).unwrap();
+    let holding = sponsor
+        .begin_invocation(sponsor.measurement(), 100)
+        .unwrap();
+    let existing = holding.reserve_storage(0, 11).unwrap();
     let current = sponsor.charge_pure_usage(usage).unwrap();
     assert_eq!(sponsor.consumed_work_units(), 7);
     assert_eq!(sponsor.consumed_result_storage_cells(), 2);
@@ -63,7 +66,7 @@ fn every_refused_axis_leaves_all_counters_unchanged() {
     ] {
         let sponsor = BuildEvaluationSponsor::new(limits);
         let invocation = sponsor
-            .begin_invocation(EvaluationMeasurementIdentity::CheckedTree, 100)
+            .begin_invocation(sponsor.measurement(), 100)
             .unwrap();
         let before = *invocation.snapshot().unwrap().record();
         assert!(sponsor.charge_pure_usage(measured()).is_err());
@@ -82,20 +85,22 @@ fn invalid_records_effectful_usage_and_other_measurements_cannot_spend() {
     let mut effects = measured();
     effects.filesystem_operation_attempts = 1;
     assert!(sponsor.charge_pure_usage(effects).is_err());
-    let mut terminal = measured();
-    terminal.measurement = EvaluationMeasurementIdentity::TerminalPsi {
+    let mut other = measured();
+    other.measurement = EvaluationMeasurementIdentity::TerminalPsi {
         work_schedule: WorkScheduleIdentity::new(1).unwrap(),
-        storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+        storage_schedule: TerminalStorageScheduleIdentity::new(2).unwrap(),
     };
-    terminal.usage_schema_version = 8;
-    terminal.validate().unwrap();
-    assert!(sponsor.charge_pure_usage(terminal).is_err());
+    assert!(other.validate().is_err());
+    assert!(sponsor.charge_pure_usage(other).is_err());
     assert_eq!(sponsor.consumed_work_units(), 0);
 }
 #[test]
 fn replay_accounts_for_current_live_reservations() {
     let sponsor = BuildEvaluationSponsor::new(limits(100, 100, 3, 6, 100, 100));
-    let held = sponsor.reserve_live_cell().unwrap();
+    let holding = sponsor
+        .begin_invocation(sponsor.measurement(), 100)
+        .unwrap();
+    let held = holding.reserve_storage(1, 0).unwrap();
     assert!(sponsor.charge_pure_usage(measured()).is_err());
     assert_eq!(sponsor.live_storage_cells(), 1);
     assert_eq!(sponsor.consumed_work_units(), 0);
@@ -107,7 +112,7 @@ fn replay_accounts_for_current_live_reservations() {
 fn overflowing_replay_does_not_change_other_axes() {
     let sponsor = BuildEvaluationSponsor::new(limits(u64::MAX, 100, 100, 100, 100, 100));
     let invocation = sponsor
-        .begin_invocation(EvaluationMeasurementIdentity::CheckedTree, u64::MAX)
+        .begin_invocation(sponsor.measurement(), u64::MAX)
         .unwrap();
     invocation.charge_work(u64::MAX).unwrap();
     assert!(

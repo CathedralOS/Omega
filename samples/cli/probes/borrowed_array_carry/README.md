@@ -13,7 +13,7 @@ Compile-checked only (no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/borrowed_array_carry/main.omg
-mbx run -p omega -- update --project samples/cli/probes/borrowed_array_carry
+mbx run -p omega -- packages update --project samples/cli/probes/borrowed_array_carry
 ```
 
 Both green on Linux x86-64; `omega.lock` publishes locally, ignored.

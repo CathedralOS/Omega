@@ -54,9 +54,9 @@ From the repository root, using the compiler built from that checkout and
 `OMEGA_LIBRARY_ROOT` set to its `source/library`:
 
 ```sh
-omega update --project samples/cli/independent/exact_contingency_inference
+omega packages update --project samples/cli/independent/exact_contingency_inference
 # Inspect the generated review; accept only the required documented std decisions.
-omega update --resume --project samples/cli/independent/exact_contingency_inference
+omega packages update --resume --project samples/cli/independent/exact_contingency_inference
 omega --check samples/cli/independent/exact_contingency_inference/main.omg
 omega run --keep samples/cli/independent/exact_contingency_inference/main.omg < samples/cli/independent/exact_contingency_inference/data/sparse.stdin
 omega run --both --keep samples/cli/independent/exact_contingency_inference/main.omg < samples/cli/independent/exact_contingency_inference/data/sparse.stdin

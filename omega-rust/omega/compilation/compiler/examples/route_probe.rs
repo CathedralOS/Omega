@@ -9,8 +9,8 @@
 //! any of that. It types the sources as a compilation does, binds the named
 //! machine to the target's `ProgramEntry` in the Build's place
 //! (`CompilationSession::typed_frontier_without_build`), stops at Psi 04's
-//! frozen typed trees, and runs `structure_elaboration` and
-//! `lowered_discharge` on them. Nothing else a Build would select is present,
+//! frozen typed trees, and runs `typed_trees_to_terminal_psi` and
+//! `terminal_psi_to_terminal_psi` on them. Nothing else a Build would select is present,
 //! so a program that needs its Build's providers or representations is judged
 //! without them.
 //!
@@ -38,6 +38,7 @@
 //! For each source one line per judged part (the entry closure first, then each generic
 //! check form), then `<path>\troute=<verdict>` where the verdict is
 //! `accepted`, `rejected`, `incomplete`, `not-supported` or `no-typed-trees`.
+//! An accepted part lists its advisory warnings and their notes beneath it.
 //! The exit code is 0 only when every source was accepted.
 
 use std::path::{Path, PathBuf};
@@ -45,7 +46,7 @@ use std::path::{Path, PathBuf};
 #[path = "../tests/support/unbuilt_dependencies.rs"]
 mod unbuilt_dependencies;
 
-use lowered_discharge::{CompilationRefusal, RouteVerdict};
+use terminal_psi_to_terminal_psi::{CompilationRefusal, RouteVerdict};
 
 fn brief(text: impl std::fmt::Debug) -> String {
     format!("{text:?}")
@@ -110,17 +111,21 @@ fn probe(
         frontier.bindings.clear();
         Vec::new()
     };
-    let verdicts = lowered_discharge::judge_compilation(
-        &frontier.typed,
-        structure_elaboration::Compilation {
-            declaration_metadata: &[],
-            entries: &frontier.entries,
-            subjects: &subjects,
-            purpose: source::DependencyScope::Product,
-            selected: &frontier.selected,
-            bindings: &frontier.bindings,
-            supplies: &[],
-        },
+    let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
+        typed_trees_to_terminal_psi::prepare_compilation(
+            &frontier.typed,
+            typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
+                entries: &frontier.entries,
+                subjects: &subjects,
+                purpose: source::DependencyScope::Product,
+                selected: &frontier.selected,
+                bindings: &frontier.bindings,
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .program,
     );
     let mut whole = "accepted";
     let mut worse = |verdict: &'static str| {
@@ -136,12 +141,17 @@ fn probe(
     };
     for (part, verdict) in verdicts.iter().enumerate() {
         match verdict {
-            Ok(RouteVerdict::Accepted(_)) => {
+            Ok(RouteVerdict::Accepted(closure)) => {
                 println!("  part {part}: accepted");
+                // Warnings about an accepted part and their notes.
+                for advisory in closure.advisories() {
+                    println!("    {advisory}");
+                }
                 worse("accepted");
             }
             Ok(RouteVerdict::Rejected {
                 formations,
+                violations,
                 unproved,
                 unestablished,
                 conflicts,
@@ -151,6 +161,7 @@ fn probe(
                 for diagnostic in formations
                     .iter()
                     .map(|entry| entry.reject_diagnostic())
+                    .chain(violations.iter().map(|entry| entry.reject_diagnostic()))
                     .chain(unproved.iter().map(|entry| entry.reject_diagnostic()))
                     .chain(unestablished.iter().map(|entry| entry.reject_diagnostic()))
                     .chain(conflicts.iter().map(|entry| entry.reject_diagnostic()))

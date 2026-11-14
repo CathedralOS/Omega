@@ -35,6 +35,16 @@ pub enum TargetMachineCallable {
     Boundary(BoundaryMachineId),
 }
 
+/// A known mismatch between two already-resolved callable signatures.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CallableShapeMismatch {
+    GenericArity { required: usize, actual: usize },
+    ParameterArity { required: usize, actual: usize },
+    ParameterMode { position: usize },
+    ParameterType { position: usize },
+    ReturnType,
+}
+
 impl From<MachineId> for TargetMachineCallable {
     fn from(machine: MachineId) -> Self {
         Self::Machine(machine)
@@ -1437,3 +1447,11 @@ pub use storage::content::{
 pub use storage::structural_places::{AffineConstructionElement, StructuralPlaceKind};
 
 pub use boundary::foreign_locator::{ForeignLocatorCandidate, NativeBindingLocator};
+
+/// The termination promise a callable publishes. A local body proof is kept
+/// separately; absence of a promise never asserts that execution will finish.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Termination {
+    Terminates,
+    NoGuarantee,
+}

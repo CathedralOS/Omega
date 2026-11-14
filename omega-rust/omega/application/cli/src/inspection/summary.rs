@@ -1,4 +1,4 @@
-// Format a `TerminalModule` into the line-oriented text dump printed by `omega inspect-terminal`.
+// Format a `TerminalModule` into the line-oriented text dump printed by `omega psi inspect`.
 //
 // In machine and block signatures (`proof_formals`), erased proof formals are
 // printed as `source:<position>:<type_identity>` in their own `erased_proofs=`

@@ -12,8 +12,8 @@ pub(crate) use crate::legalization::LegalizationError;
 pub(crate) use crate::legalization::{accepted_fact, references_obligation};
 #[allow(unused_imports)]
 pub(crate) use abstract_operations::{
-    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
-    AbstractStructuralCallResult, IntegerShiftPolicy,
+    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractStructuralCallResult,
+    IntegerShiftPolicy,
 };
 #[allow(unused_imports)]
 pub(crate) use calling_conventions::{
@@ -34,7 +34,7 @@ pub(crate) use semantic_vocabulary::{
 #[allow(unused_imports)]
 pub(crate) use target_operations::{TargetFunction, TargetOperationPlan, TargetUnitOperation};
 pub(crate) mod address_joins {
-    use super::{AbstractOperation, AbstractOperationPlan, CallPlan, PsiOptimizationFunction};
+    use super::{AbstractOperation, CallPlan, PsiOptimizationFunction};
     use crate::LegalizationError;
     use crate::legalization::scalar_graph_input::target::control_flow::sources::dominates;
     use crate::structural_inputs::structural_reference_input::{
@@ -48,7 +48,7 @@ pub(crate) mod address_joins {
     pub(crate) fn parameter<'a>(
         function: &'a PsiOptimizationFunction,
         place: PlaceId,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
     ) -> Option<(BlockId, &'a StructuralParameterDeclaration)> {
         parameter_from_rows(
             function.entry,
@@ -62,14 +62,14 @@ pub(crate) mod address_joins {
     pub(crate) fn parameter_from_rows<'function>(
         entry: BlockId,
         place: PlaceId,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
         mut matching: impl Iterator<Item = (BlockId, &'function StructuralParameterDeclaration)>,
         mut declarations: impl Iterator<Item = &'function terminal_psi::StructuralPlaceDeclaration>,
     ) -> Option<(BlockId, &'function StructuralParameterDeclaration)> {
         let (block, parameter) = matching.next()?;
         (matching.next().is_none()
             && block != entry
-            && is_address_join_in(parameter, &plan.structural_types)
+            && is_address_join_in(parameter, plan.geometry())
             && declarations.any(|declaration| {
                 declaration.id == place
                     && declaration.kind
@@ -89,7 +89,7 @@ pub(crate) mod address_joins {
         call: &CallPlan,
         parameter_ordinal: usize,
         native: &target_operations::TargetOperationPlan,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
     ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
         let (block, parameter) =
             parameter(caller, semantic.place, plan).ok_or(LegalizationError::custody())?;
@@ -116,11 +116,11 @@ pub(crate) mod address_joins {
             &semantic.path,
             semantic.access,
             Some(destination.structural_type),
-            &plan.structural_types,
+            plan.geometry(),
         )
         .ok_or(LegalizationError::custody())?;
-        let shape = internal_borrow_shape(selected, &plan.structural_types)
-            .ok_or(LegalizationError::custody())?;
+        let shape =
+            internal_borrow_shape(selected, plan.geometry()).ok_or(LegalizationError::custody())?;
         let placement = call
             .parameters
             .get(parameter_ordinal)
@@ -165,9 +165,9 @@ pub(crate) mod address_joins {
         parameter: &StructuralParameterDeclaration,
         call: &CallPlan,
         parameter_ordinal: usize,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
     ) -> Option<Result<target_operations::TargetStructuralArgument, LegalizationError>> {
-        let types = &plan.structural_types;
+        let types = plan.geometry();
         let (source_byte_offset, length, stride) =
             fixed_byte_array_view(parameter, semantic, destination.structural_type, types)
                 .map(|(offset, length)| (offset, length, 1))
@@ -215,7 +215,7 @@ pub(crate) mod address_joins {
         source_block: BlockId,
         target: BlockId,
         bindings: &[abstract_operations::AbstractStructuralBinding],
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
     ) -> bool {
         let Some(destination) = function.block(target) else {
             return false;
@@ -225,7 +225,7 @@ pub(crate) mod address_joins {
                 .iter()
                 .zip(&destination.structural_parameters)
                 .all(|(binding, declaration)| {
-                    if !is_address_join_in(declaration, &plan.structural_types) {
+                    if !is_address_join_in(declaration, plan.geometry()) {
                         return true;
                     }
                     binding.parameter == declaration.place
@@ -233,7 +233,7 @@ pub(crate) mod address_joins {
                         && optimization_unit_semantics::descriptor_argument_accessible(
                             function,
                             &binding.argument,
-                            &plan.structural_types,
+                            plan.geometry(),
                             declaration.access,
                         )
                         && abstract_operations::control_flow::address_joins::is_address_projection(
@@ -277,7 +277,7 @@ pub(crate) mod address_joins {
         place: PlaceId,
         path: &[terminal_psi::StructuralPathSegment],
         access: StructuralAccess,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
     ) -> Option<semantic_vocabulary::StructuralTypeId> {
         let permitted = |source: &StructuralParameterDeclaration| {
             abstract_operations::control_flow::address_joins::loan_access_permitted(
@@ -358,17 +358,17 @@ pub(crate) mod address_joins {
 }
 pub(crate) mod aggregate_results {
     use super::{
-        AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
-        CallPlan, CallSignature, CallingPolicy, PsiOptimizationFunction, TargetFunction,
-        TargetOperationPlan, ValueDefinitionSite, evaluate_call_plan, scalar_shape,
+        AbstractFunction, AbstractFunctionResult, AbstractOperation, CallPlan, CallSignature,
+        CallingPolicy, PsiOptimizationFunction, TargetFunction, TargetOperationPlan,
+        ValueDefinitionSite, evaluate_call_plan, scalar_shape,
     };
     use crate::LegalizationError;
     use crate::structural_inputs::structural_reference_input::{
-        field_shape, owned_storage_shape, primitive_array_shape,
+        owned_storage_shape, primitive_array_shape,
     };
     use abstract_operations::AbstractStructuralCallResult;
     use semantic_vocabulary::{PlaceId, StructuralPlaceKind};
-    use terminal_psi::{StructuralMultiplicity, StructuralOperationResult, StructuralTypeShape};
+    use terminal_psi::{StructuralMultiplicity, StructuralOperationResult};
 
     pub(crate) mod borrowed_arguments {
         use crate::LegalizationError;
@@ -378,8 +378,7 @@ pub(crate) mod aggregate_results {
         };
 
         use super::{
-            AbstractOperationPlan, CallPlan, PsiOptimizationFunction, StructuralMultiplicity,
-            TargetOperationPlan,
+            CallPlan, PsiOptimizationFunction, StructuralMultiplicity, TargetOperationPlan,
         };
         use crate::legalization::scalar_graph_input::aggregate_results::home_layout;
         use crate::legalization::scalar_graph_input::structural_case;
@@ -392,7 +391,7 @@ pub(crate) mod aggregate_results {
             callee: abstract_operations::AbstractCallSignature<'_>,
             call: &CallPlan,
             native: &TargetOperationPlan,
-            plan: &AbstractOperationPlan,
+            plan: &crate::native_geometry::NativePlan<'_>,
         ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
             reconstruct_at_owner(
                 argument,
@@ -421,7 +420,7 @@ pub(crate) mod aggregate_results {
             callee: abstract_operations::AbstractCallSignature<'_>,
             call: &CallPlan,
             native: &TargetOperationPlan,
-            plan: &AbstractOperationPlan,
+            plan: &crate::native_geometry::NativePlan<'_>,
             address_join: impl FnOnce() -> Option<(
                 semantic_vocabulary::BlockId,
                 &'caller terminal_psi::StructuralParameterDeclaration,
@@ -578,7 +577,7 @@ pub(crate) mod aggregate_results {
                 &argument.path,
                 argument.access,
                 Some(destination.structural_type),
-                &plan.structural_types,
+                plan.geometry(),
             )
             .ok_or(LegalizationError::custody())?;
             let indices = if elements.is_empty() {
@@ -586,7 +585,7 @@ pub(crate) mod aggregate_results {
             } else {
                 target::control_flow::sources::call_indices(native, caller, owner, &elements)?
             };
-            let shape = internal_borrow_shape(selected, &plan.structural_types)
+            let shape = internal_borrow_shape(selected, plan.geometry())
                 .ok_or(LegalizationError::custody())?;
             let placement = call
                 .parameters
@@ -619,7 +618,7 @@ pub(crate) mod aggregate_results {
         pub(crate) fn view_arrival<'caller>(
             caller: &'caller PsiOptimizationFunction,
             place: semantic_vocabulary::PlaceId,
-            structural_types: &[terminal_psi::StructuralTypeDeclaration],
+            structural_types: &crate::native_geometry::NativeGeometry<'_>,
         ) -> Option<(
             semantic_vocabulary::BlockId,
             &'caller terminal_psi::StructuralParameterDeclaration,
@@ -650,8 +649,8 @@ pub(crate) mod aggregate_results {
         };
 
         use super::{
-            AbstractOperation, AbstractOperationPlan, CallPlan, PsiOptimizationFunction,
-            StructuralMultiplicity, StructuralPlaceKind, TargetOperationPlan,
+            AbstractOperation, CallPlan, PsiOptimizationFunction, StructuralMultiplicity,
+            StructuralPlaceKind, TargetOperationPlan,
         };
         use crate::legalization::scalar_graph_input::structural_case;
         use crate::legalization::scalar_graph_input::structural_parameters;
@@ -664,7 +663,7 @@ pub(crate) mod aggregate_results {
             callee: abstract_operations::AbstractCallSignature<'_>,
             call: &CallPlan,
             native: &TargetOperationPlan,
-            plan: &AbstractOperationPlan,
+            plan: &crate::native_geometry::NativePlan<'_>,
         ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
             let declaration = crate::legalization::scalar_graph_input::call_signature::parameter(
                 callee,
@@ -675,12 +674,10 @@ pub(crate) mod aggregate_results {
             if destination.access != terminal_psi::StructuralAccess::Owned {
                 return Err(LegalizationError::custody());
             }
-            let shape =
-                crate::structural_inputs::parameter_shape(destination, &plan.structural_types)
-                    .ok_or(LegalizationError::custody())?;
-            let value_shape =
-                owned_storage_shape(destination.structural_type, &plan.structural_types)
-                    .ok_or(LegalizationError::custody())?;
+            let shape = crate::structural_inputs::parameter_shape(destination, plan.geometry())
+                .ok_or(LegalizationError::custody())?;
+            let value_shape = owned_storage_shape(destination.structural_type, plan.geometry())
+                .ok_or(LegalizationError::custody())?;
             if shape != value_shape {
                 return Err(LegalizationError::custody());
             }
@@ -713,9 +710,8 @@ pub(crate) mod aggregate_results {
                             .find(|retained| retained.place == argument.place)
                     })
                     .ok_or(LegalizationError::custody())?;
-                let root_shape =
-                    owned_storage_shape(parameter.structural_type, &plan.structural_types)
-                        .ok_or(LegalizationError::custody())?;
+                let root_shape = owned_storage_shape(parameter.structural_type, plan.geometry())
+                    .ok_or(LegalizationError::custody())?;
                 if retained.structural_type != parameter.structural_type
                     || retained.access != parameter.access
                     || retained.multiplicity != parameter.multiplicity
@@ -845,7 +841,7 @@ pub(crate) mod aggregate_results {
             root: semantic_vocabulary::StructuralTypeId,
             destination: semantic_vocabulary::StructuralTypeId,
             argument: &terminal_psi::StructuralArgument,
-            plan: &AbstractOperationPlan,
+            plan: &crate::native_geometry::NativePlan<'_>,
         ) -> Result<(u32, Vec<RuntimeElement>), LegalizationError> {
             if argument.path.is_empty() {
                 return (root == destination)
@@ -853,7 +849,7 @@ pub(crate) mod aggregate_results {
                     .ok_or(LegalizationError::custody());
             }
             let (selected, offset, indices) =
-                runtime_projection(root, &argument.path, &plan.structural_types)
+                runtime_projection(root, &argument.path, plan.geometry())
                     .ok_or(LegalizationError::custody())?;
             if selected != destination {
                 return Err(LegalizationError::custody());
@@ -1000,57 +996,19 @@ pub(crate) mod aggregate_results {
             })
     }
 
-    pub(crate) fn sum_layout(
-        result: &StructuralOperationResult,
-        plan: &AbstractOperationPlan,
-    ) -> Result<calling_conventions::ConventionalSumLayout, LegalizationError> {
-        sum_type_layout(result.structural_type, plan)
-    }
-
     pub(crate) fn sum_type_layout(
         structural_type: semantic_vocabulary::StructuralTypeId,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
     ) -> Result<calling_conventions::ConventionalSumLayout, LegalizationError> {
-        let mut declarations = plan
-            .structural_types
-            .iter()
-            .filter(|declaration| declaration.id == structural_type);
-        let declaration = declarations.next().ok_or(LegalizationError::custody())?;
-        let (common, cases) = match &declaration.shape {
-            StructuralTypeShape::Sum { cases } => (&[][..], cases.as_slice()),
-            StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), cases.as_slice()),
-            _ => return Err(LegalizationError::custody()),
-        };
-        if declarations.next().is_some() {
-            return Err(LegalizationError::custody());
-        }
-        let shape_of = |field: &terminal_psi::StructuralFieldDeclaration| {
-            field_shape(&field.field_type, &plan.structural_types, &mut Vec::new())
-                .ok_or(LegalizationError::custody())
-        };
-        let common = common
-            .iter()
-            .filter(|field| !field.relevance.is_erased())
-            .map(shape_of)
-            .collect::<Result<Vec<_>, _>>()?;
-        let payloads = cases
-            .iter()
-            .map(|case| {
-                case.fields
-                    .iter()
-                    .filter(|field| !field.relevance.is_erased())
-                    .map(shape_of)
-                    .collect::<Result<Vec<_>, _>>()
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        calling_conventions::evaluate_conventional_sum_layout(&common, &payloads)
+        plan.geometry()
+            .sum_layout(structural_type)
             .map_err(|_| LegalizationError::custody())
     }
 
     pub(crate) fn cleanup(
         function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
         actions: &[terminal_psi::TerminalAffineCleanupAction],
-        structural_types: &[terminal_psi::StructuralTypeDeclaration],
+        structural_types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> bool {
         let owner = |place: semantic_vocabulary::PlaceId| {
             if let Some((_, structural_type, _)) = function_inputs.trivial_affine_local(place) {
@@ -1113,7 +1071,7 @@ pub(crate) mod aggregate_results {
         abstracted: &AbstractFunction,
         optimized: &PsiOptimizationFunction,
         native: ::target::NativeTarget,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
     ) -> Result<CallPlan, LegalizationError> {
         let graph = &target.graph;
         if target.machine != abstracted.machine
@@ -1166,7 +1124,7 @@ pub(crate) mod aggregate_results {
             .collect::<Result<Vec<_>, _>>()?;
         for parameter in &abstracted.structural_parameters {
             shapes.push(
-                crate::structural_inputs::parameter_shape(parameter, &plan.structural_types)
+                crate::structural_inputs::parameter_shape(parameter, plan.geometry())
                     .ok_or(LegalizationError::custody())?,
             );
         }
@@ -1257,7 +1215,7 @@ pub(crate) mod aggregate_results {
 
     pub(crate) fn block_home_layout(
         parameter: &terminal_psi::StructuralParameterDeclaration,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
     ) -> Result<target_operations::TargetStructuralHomeLayout, LegalizationError> {
         if parameter.access != terminal_psi::StructuralAccess::Owned {
             return Err(LegalizationError::custody());
@@ -1279,12 +1237,12 @@ pub(crate) mod aggregate_results {
 
     fn borrowed_view_parameter(
         parameter: &terminal_psi::StructuralParameterDeclaration,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
     ) -> bool {
         terminal_semantics::view_descriptor_parameter(parameter, plan.structural_types.iter())
             || abstract_operations::control_flow::owner_loans::is_shared_view_carrier_loan_in(
                 parameter,
-                &plan.structural_types,
+                plan.geometry(),
             )
     }
 
@@ -1296,7 +1254,7 @@ pub(crate) mod aggregate_results {
         callee: abstract_operations::AbstractCallSignature<'_>,
         call: &CallPlan,
         native: &TargetOperationPlan,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
         custody: &super::reference_custody::Custody,
     ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
         call_argument_invocation(
@@ -1320,7 +1278,7 @@ pub(crate) mod aggregate_results {
         callee: abstract_operations::AbstractCallSignature<'_>,
         call: &CallPlan,
         native: &TargetOperationPlan,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
         custody: &super::reference_custody::Custody,
     ) -> Result<target_operations::TargetStructuralArgument, LegalizationError> {
         let declaration = super::call_signature::parameter(callee, position, argument.place)?;
@@ -1344,11 +1302,11 @@ pub(crate) mod aggregate_results {
                 native,
                 call_operation,
                 custody,
-                &plan.structural_types,
+                plan.geometry(),
             );
         }
         if argument.access != terminal_psi::StructuralAccess::Owned
-            && owned_storage_shape(destination.structural_type, &plan.structural_types).is_some()
+            && owned_storage_shape(destination.structural_type, plan.geometry()).is_some()
         {
             return borrowed_arguments::reconstruct(
                 argument,
@@ -1373,9 +1331,7 @@ pub(crate) mod aggregate_results {
                 plan,
             );
         }
-        if super::primitive_locals::scalar(&plan.structural_types, destination.structural_type)
-            .is_some()
-        {
+        if super::primitive_locals::scalar(plan.geometry(), destination.structural_type).is_some() {
             if !argument.path.is_empty() {
                 return borrowed_arguments::reconstruct(
                     argument,
@@ -1441,19 +1397,19 @@ pub(crate) mod aggregate_results {
     pub(crate) fn borrowed_block_arrival<'function>(
         function: &'function PsiOptimizationFunction,
         place: PlaceId,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
     ) -> Option<(
         semantic_vocabulary::BlockId,
         &'function terminal_psi::StructuralParameterDeclaration,
     )> {
         super::address_joins::parameter(function, place, plan)
-            .or_else(|| borrowed_arguments::view_arrival(function, place, &plan.structural_types))
+            .or_else(|| borrowed_arguments::view_arrival(function, place, plan.geometry()))
     }
 
     pub(crate) fn result_home(
         function: &PsiOptimizationFunction,
         place: PlaceId,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
     ) -> Result<target_operations::TargetStructuralHomeRequirement, LegalizationError> {
         let source = super::structural_case::source_owner(function, place).or_else(|_| {
             let mut matching = super::structural_case::arrivals(function, place);
@@ -1461,7 +1417,7 @@ pub(crate) mod aggregate_results {
             if matching.next().is_some()
                 || !abstract_operations::control_flow::owner_loans::is_owned_bounded_byte_parameter_in(
                     declaration,
-                    &plan.structural_types,
+                    plan.geometry(),
                 )
             {
                 return Err(LegalizationError::custody());
@@ -1510,21 +1466,14 @@ pub(crate) mod aggregate_results {
 
     pub(crate) fn home_layout(
         result: &StructuralOperationResult,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
     ) -> Result<target_operations::TargetStructuralHomeLayout, LegalizationError> {
-        let layout = type_home_layout(result.structural_type, plan)?;
-        if matches!(
-            layout,
-            target_operations::TargetStructuralHomeLayout::Sum(_)
-        ) {
-            sum_layout(result, plan)?;
-        }
-        Ok(layout)
+        type_home_layout(result.structural_type, plan)
     }
 
     pub(crate) fn type_home_layout(
         structural_type: semantic_vocabulary::StructuralTypeId,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
     ) -> Result<target_operations::TargetStructuralHomeLayout, LegalizationError> {
         let declaration = plan
             .structural_types
@@ -1540,10 +1489,8 @@ pub(crate) mod aggregate_results {
             ));
         }
         Ok(target_operations::TargetStructuralHomeLayout::Aggregate(
-            primitive_array_shape(structural_type, &plan.structural_types)
-                .or_else(|| {
-                    crate::structural_inputs::shape(structural_type, &plan.structural_types)
-                })
+            primitive_array_shape(structural_type, plan.geometry())
+                .or_else(|| crate::structural_inputs::shape(structural_type, plan.geometry()))
                 .ok_or(LegalizationError::custody())?,
         ))
     }
@@ -1552,9 +1499,7 @@ pub(crate) mod atomic_access {
     use crate::structural_inputs::structural_reference_input::atomic_cell_geometry;
     use abstract_operations::{AbstractAtomicEvent, AbstractResult};
     use semantic_vocabulary::IntegerType;
-    use terminal_psi::{
-        AtomicAccessEvent, StructuralAccess, StructuralArgument, StructuralTypeDeclaration,
-    };
+    use terminal_psi::{AtomicAccessEvent, StructuralAccess, StructuralArgument};
 
     pub(crate) struct Access {
         pub location: StructuralArgument,
@@ -1656,7 +1601,7 @@ pub(crate) mod atomic_access {
     pub(crate) fn access(
         source: &AbstractAtomicEvent,
         function: &optimization_unit::PsiOptimizationFunction,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> Option<Access> {
         let location = source.location()?;
         let (event, result) = event(source)?;
@@ -1726,7 +1671,7 @@ pub(crate) mod atomic_access {
     }
 }
 pub(crate) mod borrowed_windows {
-    use super::{AbstractOperationPlan, PsiOptimizationFunction};
+    use super::PsiOptimizationFunction;
     use crate::LegalizationError;
     use crate::structural_inputs::structural_reference_input::{self, RuntimeElement};
     use abstract_operations::control_flow::address_joins::is_address_join_in;
@@ -1747,7 +1692,7 @@ pub(crate) mod borrowed_windows {
         root: &abstract_operations::StructuralWindowRoot,
         path: &[StructuralPathSegment],
         field: Option<StructuralFieldId>,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
         custody: &super::reference_custody::Custody,
         required_access: StructuralAccess,
     ) -> Result<WindowExtent, LegalizationError> {
@@ -1755,7 +1700,7 @@ pub(crate) mod borrowed_windows {
             let referent = super::reference_custody::window_destination(
                 function,
                 custody,
-                &plan.structural_types,
+                plan.geometry(),
                 root.place(),
                 path,
                 required_access,
@@ -1787,7 +1732,7 @@ pub(crate) mod borrowed_windows {
                             .blocks
                             .iter()
                             .any(|block| block.structural_parameters.contains(root))
-                            && (is_address_join_in(root, &plan.structural_types)
+                            && (is_address_join_in(root, plan.geometry())
                                 || (matches!(
                                     root.access,
                                     terminal_psi::exclusive_borrow_pair_pattern!()
@@ -1812,7 +1757,7 @@ pub(crate) mod borrowed_windows {
         let (root_type, path) = referent.as_ref().map_or((root_type, path), |referent| {
             (referent.referent, referent.path.as_slice())
         });
-        let types = &plan.structural_types;
+        let types = plan.geometry();
         if !terminal_semantics::structural_window_selects_child(path, field) {
             let authenticated = if let Some(referent) = &referent {
                 super::reference_custody::window_backing_roots(
@@ -1895,7 +1840,7 @@ pub(crate) mod borrowed_windows {
         path: &[StructuralPathSegment],
         field: Option<StructuralFieldId>,
         result: &StructuralOperationResult,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
         custody: &super::reference_custody::Custody,
     ) -> Result<WindowExtent, LegalizationError> {
         if path.is_empty()
@@ -1924,8 +1869,8 @@ pub(crate) mod borrowed_windows {
 }
 pub(crate) mod byte_views {
     use super::{
-        AbstractFunction, AbstractFunctionResult, AbstractOperationPlan, CallPlan, CallingPolicy,
-        PsiOptimizationFunction, TargetFunction, ValueDefinitionSite, scalar_shape,
+        AbstractFunction, AbstractFunctionResult, CallPlan, CallingPolicy, PsiOptimizationFunction,
+        TargetFunction, ValueDefinitionSite, scalar_shape,
     };
     use crate::LegalizationError;
 
@@ -1934,7 +1879,7 @@ pub(crate) mod byte_views {
         abstracted: &AbstractFunction,
         optimized: &PsiOptimizationFunction,
         native: ::target::NativeTarget,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
     ) -> Result<CallPlan, LegalizationError> {
         let (call_plan, scalar_parameters, structural_parameters) =
             match (&abstracted.result, &target.mixed_structural_scalar_abi) {
@@ -1978,7 +1923,7 @@ pub(crate) mod byte_views {
             || !crate::structural_inputs::structural_unit_input::accepts_graph(
                 call_plan,
                 &parameters,
-                &plan.structural_types,
+                plan.geometry(),
             )
             || abstracted.parameters.len() != optimized.parameters.len()
             || scalar_parameters.len() != abstracted.parameters.len()
@@ -2015,7 +1960,7 @@ pub(crate) mod byte_views {
             return Err(LegalizationError::custody());
         }
         if optimized.block_structural_parameters().any(|parameter| {
-            crate::structural_inputs::parameter_shape(parameter, &plan.structural_types).is_none()
+            crate::structural_inputs::parameter_shape(parameter, plan.geometry()).is_none()
         }) {
             return Err(LegalizationError::custody());
         }
@@ -2025,7 +1970,7 @@ pub(crate) mod byte_views {
     pub(crate) fn writable_bytes(
         function: &PsiOptimizationFunction,
         place: semantic_vocabulary::PlaceId,
-        types: &[terminal_psi::StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> bool {
         let (structural_type, multiplicity, projected) =
             if let Some(parameter) = function.arrival_parameter(place) {
@@ -2079,7 +2024,7 @@ pub(crate) mod byte_views {
     pub(crate) fn view_type(
         function: &PsiOptimizationFunction,
         place: semantic_vocabulary::PlaceId,
-        types: &[terminal_psi::StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> Option<semantic_vocabulary::StructuralTypeId> {
         let identity = function
             .arrival_parameter(place)
@@ -2104,7 +2049,7 @@ pub(crate) mod byte_views {
     pub(crate) fn descriptor_return(
         function: &PsiOptimizationFunction,
         place: semantic_vocabulary::PlaceId,
-        types: &[terminal_psi::StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> bool {
         let Some(declared) = function.result.structural() else {
             return false;
@@ -2162,7 +2107,7 @@ pub(crate) mod byte_views {
     pub(crate) fn element_type(
         function: &PsiOptimizationFunction,
         place: semantic_vocabulary::PlaceId,
-        types: &[terminal_psi::StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> Option<semantic_vocabulary::StructuralTypeId> {
         let identity = view_type(function, place, types)?;
         match terminal_psi::find_structural_type(types, identity)?.shape {
@@ -2174,7 +2119,7 @@ pub(crate) mod byte_views {
     pub(crate) fn contains_view(
         function: &PsiOptimizationFunction,
         place: semantic_vocabulary::PlaceId,
-        types: &[terminal_psi::StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> bool {
         view_type(function, place, types).is_some()
     }
@@ -2182,7 +2127,7 @@ pub(crate) mod byte_views {
     pub(crate) fn owned_byte_result(
         function: &PsiOptimizationFunction,
         place: semantic_vocabulary::PlaceId,
-        types: &[terminal_psi::StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> Option<(
         semantic_vocabulary::OperationId,
         semantic_vocabulary::StructuralTypeId,
@@ -2201,7 +2146,7 @@ pub(crate) mod byte_views {
     pub(crate) fn reads_owner_layout(
         function: &PsiOptimizationFunction,
         place: semantic_vocabulary::PlaceId,
-        types: &[terminal_psi::StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> bool {
         owned_byte_result(function, place, types).is_some()
             || function.arrival_parameter(place).is_some_and(|parameter| {
@@ -2215,7 +2160,7 @@ pub(crate) mod byte_views {
     pub(crate) fn contains_readable_bytes(
         function: &PsiOptimizationFunction,
         place: semantic_vocabulary::PlaceId,
-        types: &[terminal_psi::StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> bool {
         view_type(function, place, types).is_some_and(|identity| {
             types
@@ -2227,7 +2172,7 @@ pub(crate) mod byte_views {
     pub(crate) fn completed_descriptor<'function>(
         function: &'function PsiOptimizationFunction,
         place: semantic_vocabulary::PlaceId,
-        types: &[terminal_psi::StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> Option<(
         semantic_vocabulary::OperationId,
         &'function terminal_psi::StructuralOperationResult,
@@ -2252,7 +2197,7 @@ pub(crate) mod byte_views {
     pub(crate) fn descriptor_result(
         function: &PsiOptimizationFunction,
         place: semantic_vocabulary::PlaceId,
-        types: &[terminal_psi::StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> Option<(
         semantic_vocabulary::OperationId,
         semantic_vocabulary::StructuralTypeId,
@@ -2265,9 +2210,9 @@ pub(crate) mod byte_views {
     }
 
     pub(crate) struct CallDescriptorOrigins<'a, 'g> {
-        unit: &'a optimization_unit::PsiOptimizationUnit,
+        unit: &'a crate::native_geometry::NativeUnit<'a>,
         native: &'a target_operations::TargetOperationPlan,
-        plan: &'a abstract_operations::AbstractOperationPlan,
+        plan: &'a crate::native_geometry::NativePlan<'a>,
         graph: &'g std::cell::OnceCell<
             Option<Vec<terminal_semantics::descriptor_results::DescriptorMachine>>,
         >,
@@ -2279,9 +2224,9 @@ pub(crate) mod byte_views {
         'a: 'g,
     {
         pub(crate) fn new(
-            unit: &'a optimization_unit::PsiOptimizationUnit,
+            unit: &'a crate::native_geometry::NativeUnit<'a>,
             native: &'a target_operations::TargetOperationPlan,
-            plan: &'a abstract_operations::AbstractOperationPlan,
+            plan: &'a crate::native_geometry::NativePlan<'a>,
             graph: &'g std::cell::OnceCell<
                 Option<Vec<terminal_semantics::descriptor_results::DescriptorMachine>>,
             >,
@@ -2308,11 +2253,7 @@ pub(crate) mod byte_views {
                 return Ok(Vec::new());
             }
             let slots = terminal_semantics::descriptor_results::DescriptorSlotKind::Views
-                .owned_slots(
-                    &self.unit.structural_types,
-                    result.place,
-                    result.structural_type,
-                )
+                .owned_slots(self.unit.geometry(), result.place, result.structural_type)
                 .ok_or_else(LegalizationError::custody)?;
             if slots.is_empty() {
                 return Ok(Vec::new());
@@ -2329,7 +2270,7 @@ pub(crate) mod byte_views {
                             optimization_unit_semantics::descriptor_results::optimized_catalog_graph(
                                 unit.functions.iter(),
                                 &unit.boundary_machines,
-                                &unit.structural_types,
+                                unit.geometry(),
                                 &unit.dynamic_dispatch,
                                 |function, node| {
                                     super::call_origin::selected_boundary_operation(
@@ -2347,7 +2288,7 @@ pub(crate) mod byte_views {
                         .ok_or_else(LegalizationError::custody)?;
                     self.analysis.insert(
                         terminal_semantics::descriptor_results::DescriptorAnalysis::new(
-                            &self.unit.structural_types,
+                            self.unit.geometry(),
                             graph,
                         ),
                     )
@@ -2399,8 +2340,8 @@ pub(crate) mod byte_views {
 }
 pub(crate) mod call_origin {
     use super::{
-        AbstractFunctionResult, AbstractOperation, AbstractOperationPlan, OptimizationNode,
-        PsiOptimizationFunction, TargetOperationPlan,
+        AbstractFunctionResult, AbstractOperation, OptimizationNode, PsiOptimizationFunction,
+        TargetOperationPlan,
     };
     use crate::LegalizationError;
     use abstract_operations::AbstractStructuralCallResult;
@@ -2557,7 +2498,7 @@ pub(crate) mod call_origin {
         node: &OptimizationNode,
         caller: &PsiOptimizationFunction,
         native: &TargetOperationPlan,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
     ) -> Result<Option<(AbstractOperation, NativeCallOrigin)>, LegalizationError> {
         let AbstractOperation::BoundaryCall {
             psi_operation,
@@ -2869,12 +2810,12 @@ pub(crate) mod call_origin {
 }
 pub(crate) mod call_signature {
     use crate::LegalizationError;
-    use abstract_operations::{AbstractCallSignature, AbstractCallTarget, AbstractOperationPlan};
+    use abstract_operations::{AbstractCallSignature, AbstractCallTarget};
 
-    pub(crate) fn signature(
+    pub(crate) fn signature<'input>(
         target: impl Into<AbstractCallTarget>,
-        plan: &AbstractOperationPlan,
-    ) -> Result<AbstractCallSignature<'_>, LegalizationError> {
+        plan: &'input crate::native_geometry::NativePlan<'input>,
+    ) -> Result<AbstractCallSignature<'input>, LegalizationError> {
         match target.into() {
             AbstractCallTarget::Machine(machine) => plan
                 .function(machine)
@@ -2925,10 +2866,9 @@ pub(crate) mod call_signature {
 }
 pub(crate) mod cleanup_calls {
     use crate::LegalizationError;
-    use abstract_operations::{AbstractFunctionResult, AbstractOperation, AbstractOperationPlan};
+    use abstract_operations::{AbstractFunctionResult, AbstractOperation};
     use calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
     use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall};
-    use optimization_unit::PsiOptimizationUnit;
     use target_operations::{CallSiteOwner, TargetOperationPlan, TargetUnitOperation};
     use terminal_psi::{StructuralArgument, TerminalAffineCleanupAction};
 
@@ -2936,8 +2876,8 @@ pub(crate) mod cleanup_calls {
         operation: &AbstractOperation,
         function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
         native: &TargetOperationPlan,
-        plan: &AbstractOperationPlan,
-        unit: &PsiOptimizationUnit,
+        plan: &crate::native_geometry::NativePlan<'_>,
+        unit: &crate::native_geometry::NativeUnit<'_>,
     ) -> Result<Vec<(CallSiteOwner, LegalizedScalarCall)>, LegalizationError> {
         let caller = function_inputs.function();
         let mut calls = Vec::new();
@@ -2969,7 +2909,7 @@ pub(crate) mod cleanup_calls {
                     .structural_parameters
                     .iter()
                     .map(|parameter| {
-                        crate::structural_inputs::parameter_shape(parameter, &plan.structural_types)
+                        crate::structural_inputs::parameter_shape(parameter, plan.geometry())
                             .ok_or(LegalizationError::custody())
                     })
                     .collect::<Result<Vec<_>, _>>()?;
@@ -3009,7 +2949,7 @@ pub(crate) mod cleanup_calls {
                         optimization_unit::PsiProvenance::Edge(edge),
                         target.root_structural_type,
                         &target.path,
-                        &unit.structural_types,
+                        unit.geometry(),
                     )?;
                     arguments.push(LegalizedScalarArgument::Structural {
                         semantic,
@@ -3046,8 +2986,8 @@ pub(crate) mod cleanup_calls {
         operation: &AbstractOperation,
         function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
         native: &TargetOperationPlan,
-        plan: &AbstractOperationPlan,
-        unit: &PsiOptimizationUnit,
+        plan: &crate::native_geometry::NativePlan<'_>,
+        unit: &crate::native_geometry::NativeUnit<'_>,
     ) -> Result<(), LegalizationError> {
         let expected = expected(operation, function_inputs, native, plan, unit)?;
         if rows.len() != expected.len() {
@@ -3092,7 +3032,7 @@ pub(crate) mod control {
         node: &OptimizationNode,
         _body: &[OptimizationNode],
         function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
-        structural_types: &[terminal_psi::StructuralTypeDeclaration],
+        structural_types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> Result<(), LegalizationError> {
         let function = function_inputs.function();
         match (&node.operation, &function.result) {
@@ -3282,7 +3222,7 @@ pub(crate) mod control {
     fn branch_edges(
         node: &OptimizationNode,
         function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
-        structural_types: &[terminal_psi::StructuralTypeDeclaration],
+        structural_types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> Result<(), LegalizationError> {
         if !node.provenance.is_empty()
             || !node.work.is_empty()
@@ -3309,12 +3249,12 @@ pub(crate) mod element_views {
         ReferenceSourceGeometry, descriptor_source_geometry,
     };
     use optimization_unit::PsiOptimizationFunction;
-    use terminal_psi::{StructuralAccess, StructuralArgument, StructuralTypeDeclaration};
+    use terminal_psi::{StructuralAccess, StructuralArgument};
 
     pub(crate) fn descriptor_geometry(
         function: &PsiOptimizationFunction,
         source: &StructuralArgument,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> Option<ReferenceSourceGeometry> {
         descriptor_geometry_access(function, source, types, false)
     }
@@ -3322,7 +3262,7 @@ pub(crate) mod element_views {
     pub(crate) fn descriptor_metadata_geometry(
         function: &PsiOptimizationFunction,
         source: &StructuralArgument,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> Option<ReferenceSourceGeometry> {
         descriptor_geometry_access(function, source, types, true)
     }
@@ -3330,7 +3270,7 @@ pub(crate) mod element_views {
     fn descriptor_geometry_access(
         function: &PsiOptimizationFunction,
         source: &StructuralArgument,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         metadata: bool,
     ) -> Option<ReferenceSourceGeometry> {
         let actual = optimization_unit_semantics::structural_place_backing_access(
@@ -3403,7 +3343,7 @@ pub(crate) mod element_views {
     pub(crate) fn length_geometry(
         function: &PsiOptimizationFunction,
         source: &StructuralArgument,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> Option<ReferenceSourceGeometry> {
         let mut geometry = descriptor_metadata_geometry(function, source, types)?;
         if !geometry.readable
@@ -3424,7 +3364,7 @@ pub(crate) mod element_views {
     pub(crate) fn byte_length_geometry(
         function: &PsiOptimizationFunction,
         source: &StructuralArgument,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> Option<(ReferenceSourceGeometry, terminal_psi::ByteSequenceCarrier)> {
         let mut geometry = descriptor_metadata_geometry(function, source, types)?;
         if !geometry.readable {
@@ -3449,7 +3389,7 @@ pub(crate) mod element_views {
     pub(crate) fn fixed_byte_length(
         function: &PsiOptimizationFunction,
         source: &StructuralArgument,
-        types: &[StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> Option<u64> {
         let geometry = descriptor_metadata_geometry(function, source, types)?;
         if !geometry.readable
@@ -3579,10 +3519,7 @@ pub(crate) mod header {
     }
 }
 pub(crate) mod hosted_scalar {
-    use super::{
-        AbstractOperation, AbstractOperationPlan, MachineId, PsiOptimizationFunction,
-        TargetOperationPlan,
-    };
+    use super::{AbstractOperation, MachineId, PsiOptimizationFunction, TargetOperationPlan};
     use crate::LegalizationError;
     use semantic_vocabulary::OperationId;
     use target_operations::{BoundaryRealization, TargetUnitOperation};
@@ -3590,7 +3527,7 @@ pub(crate) mod hosted_scalar {
     pub(crate) fn validate_normal_call_completions(
         _native: &TargetOperationPlan,
         optimized: &PsiOptimizationFunction,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
     ) -> Result<(), LegalizationError> {
         for block in &optimized.blocks {
             for node in &block.nodes {
@@ -3638,8 +3575,7 @@ pub(crate) mod hosted_scalar {
 }
 pub(crate) mod ieee_float_arithmetic {
     use super::LegalizationError;
-    use abstract_operations::{AbstractBoundaryResult, AbstractOperation, AbstractOperationPlan};
-    use optimization_unit::PsiOptimizationUnit;
+    use abstract_operations::{AbstractBoundaryResult, AbstractOperation};
     use semantic_vocabulary::{MachineId, OperationId, ValueId};
     use target_operations::{
         BoundaryExecutionBinding, CompilerBuiltinExecution, TargetOperationPlan,
@@ -3668,8 +3604,8 @@ pub(crate) mod ieee_float_arithmetic {
         target: &TargetUnitOperation,
         source: &AbstractOperation,
         native: ::target::NativeTarget,
-        plan: &AbstractOperationPlan,
-        unit: &PsiOptimizationUnit,
+        plan: &crate::native_geometry::NativePlan<'_>,
+        unit: &crate::native_geometry::NativeUnit<'_>,
         sources: &mut crate::legalization_target::control_flow::sources::AvailableSources<'_>,
     ) -> Result<(), LegalizationError> {
         if let (
@@ -3824,8 +3760,8 @@ pub(crate) mod ieee_float_arithmetic {
 }
 pub(crate) mod interrupt_installation {
     use crate::LegalizationError;
-    use abstract_operations::{AbstractBoundaryResult, AbstractOperation, AbstractOperationPlan};
-    use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
+    use abstract_operations::{AbstractBoundaryResult, AbstractOperation};
+    use optimization_unit::PsiOptimizationFunction;
     use target_operations::{InstallationCallRole, TargetOperationPlan, TargetUnitOperation};
 
     pub(crate) fn validate(
@@ -3833,8 +3769,8 @@ pub(crate) mod interrupt_installation {
         source: &AbstractOperation,
         caller: &PsiOptimizationFunction,
         native: &TargetOperationPlan,
-        plan: &AbstractOperationPlan,
-        unit: &PsiOptimizationUnit,
+        plan: &crate::native_geometry::NativePlan<'_>,
+        unit: &crate::native_geometry::NativeUnit<'_>,
         custody: &super::reference_custody::Custody,
     ) -> Result<(), LegalizationError> {
         let TargetUnitOperation::InstallStaticInterrupt {
@@ -3931,10 +3867,7 @@ pub(crate) mod interrupt_installation {
     }
 }
 pub(crate) mod normalized_foreign {
-    use super::{
-        AbstractOperationPlan, MachineId, PsiOptimizationFunction, PsiOptimizationUnit,
-        TargetOperationPlan,
-    };
+    use super::{MachineId, PsiOptimizationFunction, TargetOperationPlan};
     use crate::LegalizationError;
     use crate::structural_inputs::structural_reference_input::{
         borrowed_byte_view_presentation, projected_scalar_codec, reference_projection,
@@ -3953,7 +3886,7 @@ pub(crate) mod normalized_foreign {
         declaration: &terminal_psi::BoundaryMachineResult,
         operation: OperationId,
         optimized: &PsiOptimizationFunction,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
         policy: calling_conventions::CallingPolicy,
     ) -> Result<(target_operations::TargetBoundaryResult, Option<ValueShape>), LegalizationError>
     {
@@ -4000,12 +3933,12 @@ pub(crate) mod normalized_foreign {
                 }
                 let storage = crate::structural_inputs::structural_reference_input::shape(
                     result.structural_type,
-                    &plan.structural_types,
+                    plan.geometry(),
                 )
                 .ok_or(LegalizationError::custody())?;
                 let shape = calling_conventions::classified_boundary_shape(
                     result.structural_type,
-                    &plan.structural_types,
+                    plan.geometry(),
                     policy,
                 )
                 .map_err(|_| LegalizationError::custody())?;
@@ -4168,13 +4101,13 @@ pub(crate) mod normalized_foreign {
         optimized: &PsiOptimizationFunction,
         native: ::target::NativeTarget,
         policy: calling_conventions::CallingPolicy,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
         call_operation: OperationId,
         target_plan: &TargetOperationPlan,
-        unit: &PsiOptimizationUnit,
+        unit: &crate::native_geometry::NativeUnit<'_>,
     ) -> Result<TargetStructuralArgument, LegalizationError> {
         use terminal_psi::{StructuralAccess, StructuralPathSegment};
-        let declarations = plan.structural_types.as_slice();
+        let declarations = plan.geometry();
         let (root_type, root_access, root_multiplicity, source, root, presentation_debt) =
             if let Some(caller_parameter) = parameters
                 .iter()
@@ -4516,17 +4449,17 @@ pub(crate) mod normalized_foreign {
         argument: &terminal_psi::StructuralArgument,
         width: u32,
         function: &PsiOptimizationFunction,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
         operation: OperationId,
         native: &TargetOperationPlan,
-        unit: &PsiOptimizationUnit,
+        unit: &crate::native_geometry::NativeUnit<'_>,
     ) -> Result<(), &'static str> {
         use std::borrow::Cow;
         use terminal_semantics::descriptor_lifetimes::{
             descriptor_location, descriptor_path, fixed_runtime_index_alternatives,
         };
         use terminal_semantics::descriptor_results::{DescriptorAnalysis, descriptor_machine};
-        let types = &plan.structural_types;
+        let types = plan.geometry();
         let graph =
             optimization_unit_semantics::descriptor_results::optimized_reference_catalog_graph(
                 &unit.functions,
@@ -4687,10 +4620,7 @@ pub(crate) mod place_declarations {
     }
 }
 pub(crate) mod read_byte {
-    use super::{
-        AbstractOperation, AbstractOperationPlan, PsiOptimizationFunction, PsiOptimizationUnit,
-        ScalarType, ValueShape,
-    };
+    use super::{AbstractOperation, PsiOptimizationFunction, ScalarType, ValueShape};
     use crate::LegalizationError;
     use crate::legalization::scalar_graph_input::i32_type;
     use calling_conventions::ConventionalSumLayout;
@@ -4704,7 +4634,7 @@ pub(crate) mod read_byte {
 
     pub(crate) fn layout(
         result: &StructuralOperationResult,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
     ) -> Result<ConventionalSumLayout, LegalizationError> {
         if result.multiplicity != StructuralMultiplicity::Affine
             || !result.qualifications.is_empty()
@@ -4755,8 +4685,8 @@ pub(crate) mod read_byte {
         target: &TargetUnitOperation,
         source: &AbstractOperation,
         native: ::target::NativeTarget,
-        plan: &AbstractOperationPlan,
-        unit: &PsiOptimizationUnit,
+        plan: &crate::native_geometry::NativePlan<'_>,
+        unit: &crate::native_geometry::NativeUnit<'_>,
     ) -> Result<(), LegalizationError> {
         let (
             TargetUnitOperation::BoundarySettlement {
@@ -4866,12 +4796,12 @@ pub(crate) mod read_byte {
     }
 }
 pub(crate) mod scalar_arrays {
-    use super::{AbstractOperationPlan, ScalarType, ValueShape, scalar_shape};
+    use super::{ScalarType, ValueShape, scalar_shape};
     use crate::LegalizationError;
 
     pub(crate) fn shape(
         result: &terminal_psi::StructuralOperationResult,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
     ) -> Result<(ScalarType, u64, ValueShape), LegalizationError> {
         if result.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
             || !result.claims.is_empty()
@@ -4926,10 +4856,7 @@ pub(crate) mod scalar_arrays {
     }
 }
 pub(crate) mod structural_case {
-    use super::{
-        AbstractOperation, AbstractOperationPlan, OptimizationNode, PsiOptimizationFunction,
-        PsiProvenance,
-    };
+    use super::{AbstractOperation, OptimizationNode, PsiOptimizationFunction, PsiProvenance};
     use crate::LegalizationError;
     use crate::structural_inputs::structural_reference_input::{
         RuntimeElement, case_projection, leaf_copy_geometry, reference_source_geometry,
@@ -4941,7 +4868,7 @@ pub(crate) mod structural_case {
     };
     use terminal_psi::{
         StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
-        StructuralTypeDeclaration, StructuralTypeShape, find_structural_type,
+        StructuralTypeShape, find_structural_type,
     };
 
     pub(crate) fn source_result(
@@ -5102,12 +5029,27 @@ pub(crate) mod structural_case {
         Ok(parameter.structural_type)
     }
 
+    fn stored_slots_match(
+        stored: &[target_operations::TargetCasePointerSlot],
+        expected: &[crate::structural_inputs::structural_reference_input::PointerSlot],
+    ) -> bool {
+        stored.len() == expected.len()
+            && stored.iter().zip(expected).all(|(stored, expected)| {
+                stored.byte_offset == expected.byte_offset
+                    && usize::try_from(stored.index_start).ok() == Some(expected.indices.start)
+                    && usize::try_from(stored.index_end).ok() == Some(expected.indices.end)
+                    && stored.scalar_descriptor == expected.scalar_descriptor
+            })
+    }
+
     #[allow(clippy::type_complexity)]
     pub(crate) fn dispatch_projection(
         function: &PsiOptimizationFunction,
         source: PlaceId,
         path: &[StructuralPathSegment],
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
+        pointer_slots: &[target_operations::TargetCasePointerSlot],
+        region_byte_size: u32,
     ) -> Result<
         (
             StructuralTypeId,
@@ -5118,7 +5060,7 @@ pub(crate) mod structural_case {
         LegalizationError,
     > {
         let root = source_identity(function, source, source_result(function, source))?;
-        let geometry = reference_source_geometry(root, path, &plan.structural_types)
+        let geometry = reference_source_geometry(root, path, plan.geometry())
             .ok_or(LegalizationError::custody())?;
         if !geometry.elements.is_empty()
             || !geometry.readable
@@ -5135,9 +5077,11 @@ pub(crate) mod structural_case {
         let region_shape =
             super::aggregate_results::type_home_layout(geometry.region_root, plan)?.shape();
         let layout = super::aggregate_results::sum_type_layout(selected, plan)?;
-        if byte_offset
-            .checked_add(layout.shape.byte_size)
-            .is_none_or(|end| end > region_shape.byte_size)
+        if region_byte_size != region_shape.byte_size
+            || !stored_slots_match(pointer_slots, &geometry.pointer_slots)
+            || byte_offset
+                .checked_add(layout.shape.byte_size)
+                .is_none_or(|end| end > region_shape.byte_size)
         {
             return Err(LegalizationError::custody());
         }
@@ -5150,11 +5094,12 @@ pub(crate) mod structural_case {
         source: PlaceId,
         path: &[terminal_psi::StructuralPathSegment],
         case: semantic_vocabulary::StructuralCaseId,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
         result: Result<(OperationId, &StructuralOperationResult), LegalizationError>,
+        pointer_slots: &[target_operations::TargetCasePointerSlot],
     ) -> Result<(u32, u32, Vec<RuntimeElement>), LegalizationError> {
         let identity = source_identity(function, source, result)?;
-        let geometry = reference_source_geometry(identity, path, &plan.structural_types)
+        let geometry = reference_source_geometry(identity, path, plan.geometry())
             .ok_or(LegalizationError::custody())?;
         if !geometry.readable
             || geometry
@@ -5162,6 +5107,9 @@ pub(crate) mod structural_case {
                 .iter()
                 .any(|slot| slot.scalar_descriptor)
         {
+            return Err(LegalizationError::custody());
+        }
+        if !stored_slots_match(pointer_slots, &geometry.pointer_slots) {
             return Err(LegalizationError::custody());
         }
         let identity = geometry.selected;
@@ -5172,8 +5120,8 @@ pub(crate) mod structural_case {
         {
             return Err(LegalizationError::custody());
         }
-        let declaration = find_structural_type(plan.structural_types.as_slice(), identity)
-            .ok_or(LegalizationError::custody())?;
+        let declaration =
+            find_structural_type(plan.geometry(), identity).ok_or(LegalizationError::custody())?;
         let cases: &[terminal_psi::StructuralCaseDeclaration] = match &declaration.shape {
             terminal_psi::StructuralTypeShape::Sum { cases }
             | terminal_psi::StructuralTypeShape::Mixed { cases, .. } => cases,
@@ -5187,13 +5135,36 @@ pub(crate) mod structural_case {
             .ok_or(LegalizationError::custody())
     }
 
+    /// Runtime-index operands for a case-membership test whose pointer chase
+    /// is already stored on the target row. Called only when the path contains
+    /// a runtime index, because extent and obligation are not part of that chase.
+    pub(crate) fn membership_address(
+        function: &PsiOptimizationFunction,
+        source: PlaceId,
+        path: &[terminal_psi::StructuralPathSegment],
+        plan: &crate::native_geometry::NativePlan<'_>,
+    ) -> Result<Vec<RuntimeElement>, LegalizationError> {
+        let identity = source_identity(function, source, source_result(function, source))?;
+        let geometry = reference_source_geometry(identity, path, plan.geometry())
+            .ok_or(LegalizationError::custody())?;
+        if !geometry.readable
+            || geometry
+                .pointer_slots
+                .iter()
+                .any(|slot| slot.scalar_descriptor)
+        {
+            return Err(LegalizationError::custody());
+        }
+        Ok(geometry.elements)
+    }
+
     pub(crate) fn structural_transport_layout(
         function: &PsiOptimizationFunction,
         operation: OperationId,
         source: PlaceId,
         path: &abstract_operations::StructuralCopyPath,
         result: &StructuralOperationResult,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
     ) -> Result<(u32, calling_conventions::ValueShape, Vec<RuntimeElement>), LegalizationError>
     {
         let identity = source_identity(function, source, source_result(function, source))?;
@@ -5202,7 +5173,7 @@ pub(crate) mod structural_case {
         }
         let (endpoint, byte_offset, indices) = match path {
             abstract_operations::StructuralCopyPath::Case(path) => {
-                let geometry = case_projection(identity, path, &plan.structural_types)
+                let geometry = case_projection(identity, path, plan.geometry())
                     .ok_or(LegalizationError::custody())?;
                 (geometry.selected, geometry.byte_offset, geometry.elements)
             }
@@ -5210,24 +5181,15 @@ pub(crate) mod structural_case {
                 (identity, 0, Vec::new())
             }
             abstract_operations::StructuralCopyPath::Ordinary(path) => {
-                let geometry = leaf_copy_geometry(
-                    identity,
-                    path,
-                    result.structural_type,
-                    &plan.structural_types,
-                )
-                .filter(|geometry| geometry.readable)
-                .ok_or(LegalizationError::custody())?;
+                let geometry =
+                    leaf_copy_geometry(identity, path, result.structural_type, plan.geometry())
+                        .filter(|geometry| geometry.readable)
+                        .ok_or(LegalizationError::custody())?;
                 (geometry.selected, geometry.byte_offset, geometry.elements)
             }
         };
         let byte_carrier = endpoint != result.structural_type
-            && byte_carrier_leaf_copy(
-                &plan.structural_types,
-                identity,
-                path,
-                result.structural_type,
-            );
+            && byte_carrier_leaf_copy(plan.geometry(), identity, path, result.structural_type);
         let copy_type = if byte_carrier {
             result.structural_type
         } else {
@@ -5283,10 +5245,10 @@ pub(crate) mod structural_case {
                 })
                 .ok_or(LegalizationError::custody())?;
         }
-        let shape = crate::structural_inputs::shape(copy_type, &plan.structural_types)
+        let shape = crate::structural_inputs::shape(copy_type, plan.geometry())
             .ok_or(LegalizationError::custody())?;
         if quotient
-            && crate::structural_inputs::shape(result.structural_type, &plan.structural_types)
+            && crate::structural_inputs::shape(result.structural_type, plan.geometry())
                 != Some(shape)
         {
             return Err(LegalizationError::custody());
@@ -5295,7 +5257,7 @@ pub(crate) mod structural_case {
     }
 
     fn byte_carrier_leaf_copy(
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &crate::native_geometry::NativeGeometry<'_>,
         root: StructuralTypeId,
         path: &abstract_operations::StructuralCopyPath,
         expected: StructuralTypeId,
@@ -5340,7 +5302,7 @@ pub(crate) mod structural_case {
     pub(crate) fn validate(
         node: &OptimizationNode,
         function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
-        structural_types: &[terminal_psi::StructuralTypeDeclaration],
+        structural_types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> Result<(), LegalizationError> {
         let function = function_inputs.function();
         let AbstractOperation::StructuralCase { source, cases, .. } = &node.operation else {
@@ -5510,7 +5472,7 @@ pub(crate) mod primitive_locals {
     };
 
     pub(crate) fn scalar(
-        types: &[terminal_psi::StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         identity: StructuralTypeId,
     ) -> Option<ScalarType> {
         types
@@ -5594,7 +5556,7 @@ pub(crate) mod primitive_locals {
 
     pub(crate) fn validate(
         function: &PsiOptimizationFunction,
-        types: &[terminal_psi::StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> Result<(), LegalizationError> {
         for node in function.block_nodes() {
             match &node.operation {
@@ -5670,7 +5632,6 @@ pub(crate) mod primitive_locals {
 pub(crate) use crate::legalization_reference_custody as reference_custody;
 pub(crate) mod structural_call {
     use crate::LegalizationError;
-    use abstract_operations::AbstractOperationPlan;
     use calling_conventions::{CallPlan, ValueShape};
     use optimization_unit::PsiOptimizationFunction;
     use target_operations::{TargetOperationPlan, TargetStructuralArgument};
@@ -5678,8 +5639,8 @@ pub(crate) mod structural_call {
 
     pub(crate) mod array_homes {
         use super::{
-            AbstractOperationPlan, CallPlan, PsiOptimizationFunction, StructuralAccess,
-            StructuralArgument, TargetStructuralArgument,
+            CallPlan, PsiOptimizationFunction, StructuralAccess, StructuralArgument,
+            TargetStructuralArgument,
         };
         use crate::LegalizationError;
         use crate::legalization::scalar_graph_input::aggregate_results::{node_site, precedes};
@@ -5697,7 +5658,7 @@ pub(crate) mod structural_call {
             destination: &StructuralParameterDeclaration,
             call: &CallPlan,
             parameter_ordinal: usize,
-            plan: &AbstractOperationPlan,
+            plan: &crate::native_geometry::NativePlan<'_>,
             native: &target_operations::TargetOperationPlan,
         ) -> Result<Option<TargetStructuralArgument>, LegalizationError> {
             if !matches!(
@@ -5706,7 +5667,7 @@ pub(crate) mod structural_call {
             ) {
                 return Ok(None);
             }
-            let types = &plan.structural_types;
+            let types = plan.geometry();
             let producer_result = structural_case::source_result(caller, semantic.place).ok();
             let (presented, source) = if let Some((producer, result)) = producer_result {
                 (
@@ -5846,7 +5807,6 @@ pub(crate) mod structural_call {
         use crate::structural_inputs::structural_reference_input::{
             bounded_byte_view, fixed_byte_array_view,
         };
-        use abstract_operations::AbstractOperationPlan;
         use calling_conventions::{CallPlan, ValueShape};
         use optimization_unit::PsiOptimizationFunction;
         use semantic_vocabulary::StructuralPlaceKind;
@@ -5867,7 +5827,7 @@ pub(crate) mod structural_call {
             call: &CallPlan,
             ordinal: usize,
             native: &TargetOperationPlan,
-            plan: &AbstractOperationPlan,
+            plan: &crate::native_geometry::NativePlan<'_>,
         ) -> Result<Option<TargetStructuralArgument>, LegalizationError> {
             if actual.access != StructuralAccess::SharedBorrow
                 || actual.path.iter().any(|segment| {
@@ -5967,25 +5927,19 @@ pub(crate) mod structural_call {
                 && super::super::byte_views::descriptor_result(
                     caller,
                     actual.place,
-                    &plan.structural_types,
+                    plan.geometry(),
                 )
                 .is_some_and(|(_, identity)| identity == formal.structural_type)
             {
                 (0, None, Vec::new())
-            } else if let Some((offset, length)) = fixed_byte_array_view(
-                &root,
-                actual,
-                formal.structural_type,
-                &plan.structural_types,
-            ) {
+            } else if let Some((offset, length)) =
+                fixed_byte_array_view(&root, actual, formal.structural_type, plan.geometry())
+            {
                 (offset, Some(length), Vec::new())
             } else {
-                let Some(geometry) = bounded_byte_view(
-                    &root,
-                    actual,
-                    formal.structural_type,
-                    &plan.structural_types,
-                ) else {
+                let Some(geometry) =
+                    bounded_byte_view(&root, actual, formal.structural_type, plan.geometry())
+                else {
                     return Ok(None);
                 };
                 (geometry.offset, None, geometry.elements)
@@ -6025,8 +5979,8 @@ pub(crate) mod structural_call {
     }
     pub(crate) mod exclusive {
         use super::{
-            AbstractOperationPlan, CallPlan, PsiOptimizationFunction, StructuralAccess,
-            StructuralArgument, TargetOperationPlan, TargetStructuralArgument, ValueShape,
+            CallPlan, PsiOptimizationFunction, StructuralAccess, StructuralArgument,
+            TargetOperationPlan, TargetStructuralArgument, ValueShape,
         };
         use crate::LegalizationError;
         use crate::structural_inputs::structural_reference_input::{
@@ -6045,12 +5999,12 @@ pub(crate) mod structural_call {
             call: &CallPlan,
             scalar_count: usize,
             native: &TargetOperationPlan,
-            plan: &AbstractOperationPlan,
+            plan: &crate::native_geometry::NativePlan<'_>,
         ) -> Result<TargetStructuralArgument, LegalizationError> {
             let source = caller
                 .arrival_parameter(semantic.place)
                 .ok_or(LegalizationError::custody())?;
-            let types = &plan.structural_types;
+            let types = plan.geometry();
             let source_shape = parameter_shape(source, types).ok_or(LegalizationError::custody())?;
             let source_placement = arrival_source(source, caller, native, source_shape)?;
             let byte_field =
@@ -6196,7 +6150,7 @@ pub(crate) mod structural_call {
         called: abstract_operations::AbstractCallSignature<'_>,
         call: &CallPlan,
         native: &TargetOperationPlan,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
         custody: &super::reference_custody::Custody,
     ) -> Result<TargetStructuralArgument, LegalizationError> {
         argument_at_invocation(
@@ -6220,7 +6174,7 @@ pub(crate) mod structural_call {
         called: abstract_operations::AbstractCallSignature<'_>,
         call: &CallPlan,
         native: &TargetOperationPlan,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
         custody: &super::reference_custody::Custody,
     ) -> Result<TargetStructuralArgument, LegalizationError> {
         let declaration = crate::legalization::scalar_graph_input::call_signature::parameter(
@@ -6248,7 +6202,7 @@ pub(crate) mod structural_call {
                 native,
                 call_operation,
                 custody,
-                &plan.structural_types,
+                plan.geometry(),
             );
         }
         if super::address_joins::parameter(caller, semantic.place, plan).is_some() {
@@ -6266,7 +6220,7 @@ pub(crate) mod structural_call {
         if semantic.access == StructuralAccess::Owned
             || crate::structural_inputs::structural_reference_input::owned_storage_shape(
                 destination_parameter.structural_type,
-                &plan.structural_types,
+                plan.geometry(),
             )
             .is_some()
         {
@@ -6297,7 +6251,7 @@ pub(crate) mod structural_call {
                     &semantic.path,
                     semantic.access,
                     Some(destination_parameter.structural_type),
-                    &plan.structural_types,
+                    plan.geometry(),
                 )
                 .is_some_and(|(selected, _, _)| {
                     matches!(
@@ -6371,7 +6325,7 @@ pub(crate) mod structural_call {
                 call,
                 parameter_ordinal,
                 native,
-                &plan.structural_types,
+                plan.geometry(),
             );
         }
         if super::primitive_locals::producer(caller, semantic.place).is_some()
@@ -6381,7 +6335,7 @@ pub(crate) mod structural_call {
             )
             || semantic.access == StructuralAccess::SharedBorrow
                 && super::primitive_locals::scalar(
-                    &plan.structural_types,
+                    plan.geometry(),
                     destination_parameter.structural_type,
                 )
                 .is_some()
@@ -6468,7 +6422,7 @@ pub(crate) mod structural_call {
         call: &CallPlan,
         parameter_ordinal: usize,
         native: &TargetOperationPlan,
-        structural_types: &[terminal_psi::StructuralTypeDeclaration],
+        structural_types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> Result<TargetStructuralArgument, LegalizationError> {
         use target_operations::TargetStructuralArgumentSource;
         let completed =
@@ -6620,7 +6574,7 @@ pub(crate) mod structural_call {
         call: &CallPlan,
         parameter_ordinal: usize,
         native: &TargetOperationPlan,
-        plan: &AbstractOperationPlan,
+        plan: &crate::native_geometry::NativePlan<'_>,
     ) -> Result<TargetStructuralArgument, LegalizationError> {
         use target_operations::TargetStructuralArgumentSource;
         if let Some((producer, result, value)) =
@@ -6635,14 +6589,14 @@ pub(crate) mod structural_call {
                     != terminal_psi::StructuralMultiplicity::Unrestricted
                 || !destination_parameter.qualifications.is_empty()
                 || !destination_parameter.projected_qualifications.is_empty()
-                || super::primitive_locals::scalar(&plan.structural_types, result.structural_type)
+                || super::primitive_locals::scalar(plan.geometry(), result.structural_type)
                     != Some(value.scalar_type)
             {
                 return Err(LegalizationError::custody());
             }
             let shape = crate::structural_inputs::structural_reference_input::parameter_shape(
                 destination_parameter,
-                &plan.structural_types,
+                plan.geometry(),
             )
             .ok_or(LegalizationError::custody())?;
             let destination = call
@@ -6697,7 +6651,7 @@ pub(crate) mod structural_fields {
         destination: &abstract_operations::StructuralScalarStoreDestination,
         path: &[terminal_psi::StructuralPathSegment],
         field: semantic_vocabulary::StructuralFieldId,
-        types: &[terminal_psi::StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         domains: &[terminal_psi::StructuralDomainDeclaration],
         identities: &terminal_psi::TerminalIdentityTable,
         custody: &super::reference_custody::Custody,
@@ -6742,7 +6696,7 @@ pub(crate) mod structural_fields {
 
     fn field_write_preserves_memberships(
         function: &PsiOptimizationFunction,
-        types: &[terminal_psi::StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         domains: &[terminal_psi::StructuralDomainDeclaration],
         identities: &terminal_psi::TerminalIdentityTable,
         destination: semantic_vocabulary::PlaceId,
@@ -6769,7 +6723,7 @@ pub(crate) mod structural_fields {
 
     fn reference_field_write_preserves_memberships(
         function: &PsiOptimizationFunction,
-        types: &[terminal_psi::StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         domains: &[terminal_psi::StructuralDomainDeclaration],
         identities: &terminal_psi::TerminalIdentityTable,
         destination: semantic_vocabulary::PlaceId,
@@ -6801,7 +6755,7 @@ pub(crate) mod structural_fields {
     pub(crate) fn replacement(
         function: &PsiOptimizationFunction,
         operation: &AbstractOperation,
-        types: &[terminal_psi::StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         domains: &[terminal_psi::StructuralDomainDeclaration],
         identities: &terminal_psi::TerminalIdentityTable,
         custody: &super::reference_custody::Custody,
@@ -7005,7 +6959,7 @@ pub(crate) mod structural_fields {
     pub(crate) fn view_replacement(
         function: &PsiOptimizationFunction,
         operation: &AbstractOperation,
-        types: &[terminal_psi::StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         domains: &[terminal_psi::StructuralDomainDeclaration],
         identities: &terminal_psi::TerminalIdentityTable,
         custody: &super::reference_custody::Custody,
@@ -7105,13 +7059,13 @@ pub(crate) mod structural_fields {
 
     pub(crate) fn byte_index_operands(
         function: &PsiOptimizationFunction,
-        unit: &optimization_unit::PsiOptimizationUnit,
+        unit: &crate::native_geometry::NativeUnit<'_>,
         operation: semantic_vocabulary::OperationId,
         source: &terminal_psi::StructuralArgument,
         field: semantic_vocabulary::StructuralFieldId,
     ) -> Result<Vec<legalized_operations::LegalizedRuntimeIndexOperand>, crate::LegalizationError>
     {
-        let geometry = byte_geometry(function, source, field, &unit.structural_types)
+        let geometry = byte_geometry(function, source, field, unit.geometry())
             .ok_or(crate::LegalizationError::custody())?;
         crate::legalization::runtime_indices::operands(
             function,
@@ -7123,13 +7077,13 @@ pub(crate) mod structural_fields {
 
     pub(crate) fn view_slot_index_operands(
         function: &PsiOptimizationFunction,
-        unit: &optimization_unit::PsiOptimizationUnit,
+        unit: &crate::native_geometry::NativeUnit<'_>,
         operation: semantic_vocabulary::OperationId,
         destination: &terminal_psi::StructuralArgument,
         field: Option<semantic_vocabulary::StructuralFieldId>,
     ) -> Result<Vec<legalized_operations::LegalizedRuntimeIndexOperand>, crate::LegalizationError>
     {
-        let geometry = view_slot_geometry(function, destination, field, &unit.structural_types)
+        let geometry = view_slot_geometry(function, destination, field, unit.geometry())
             .ok_or(crate::LegalizationError::custody())?;
         crate::legalization::runtime_indices::operands(
             function,
@@ -7143,7 +7097,7 @@ pub(crate) mod structural_fields {
         function: &PsiOptimizationFunction,
         destination: &terminal_psi::StructuralArgument,
         field: Option<semantic_vocabulary::StructuralFieldId>,
-        types: &[terminal_psi::StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> Option<ProjectedByteField> {
         let Some(field) = field else {
             let home =
@@ -7159,7 +7113,7 @@ pub(crate) mod structural_fields {
         function: &PsiOptimizationFunction,
         source: &terminal_psi::StructuralArgument,
         field: semantic_vocabulary::StructuralFieldId,
-        types: &[terminal_psi::StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> Option<ProjectedByteField> {
         let (root, access) = byte_field_root(function, source.place)?;
         if access != source.access {
@@ -7171,7 +7125,7 @@ pub(crate) mod structural_fields {
     pub(crate) fn byte_read(
         function: &PsiOptimizationFunction,
         operation: &AbstractOperation,
-        types: &[terminal_psi::StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> Option<terminal_psi::StructuralArgument> {
         let AbstractOperation::StructuralByteSequenceFieldRead {
             result,
@@ -7228,7 +7182,7 @@ pub(crate) mod structural_fields {
     pub(crate) fn read(
         function: &PsiOptimizationFunction,
         operation: &AbstractOperation,
-        types: &[terminal_psi::StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         custody: &super::reference_custody::Custody,
     ) -> Option<FieldObservation> {
         if let AbstractOperation::StructuralByteSequenceFieldLength {
@@ -7390,7 +7344,7 @@ pub(crate) fn structural_contract(
     target: &TargetFunction,
     abstracted: &AbstractFunction,
     optimized: &PsiOptimizationFunction,
-    plan: &AbstractOperationPlan,
+    plan: &crate::native_geometry::NativePlan<'_>,
 ) -> Option<legalized_operations::LegalizedStructuralContract> {
     if let Some(parameters) = structural_parameters(target).or_else(|| {
         (abstracted.structural_parameters.is_empty()
@@ -7761,7 +7715,7 @@ pub(crate) mod nodes {
     fn subslice_geometry(
         optimized: &PsiOptimizationFunction,
         source: &terminal_psi::StructuralArgument,
-        types: &[terminal_psi::StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         shape: fn(&terminal_psi::StructuralTypeShape) -> bool,
     ) -> bool {
         super::element_views::descriptor_geometry(optimized, source, types).is_some_and(
@@ -7776,7 +7730,7 @@ pub(crate) mod nodes {
     pub(crate) fn validate(
         block: &OptimizationBlock,
         function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
-        types: &[terminal_psi::StructuralTypeDeclaration],
+        types: &crate::native_geometry::NativeGeometry<'_>,
         domains: &[terminal_psi::StructuralDomainDeclaration],
         identities: &terminal_psi::TerminalIdentityTable,
     ) -> Result<(), LegalizationError> {
@@ -8707,7 +8661,7 @@ pub(crate) fn match_input(
     let native = descriptor_inputs.native();
     let plan = descriptor_inputs.plan();
     let unit = descriptor_inputs.unit();
-    primitive_locals::validate(optimized, &unit.structural_types)?;
+    primitive_locals::validate(optimized, unit.geometry())?;
     let call_plan = if aggregate_results::uses(optimized) {
         aggregate_results::header(target, abstracted, optimized, native.target, plan)?
     } else if structural_parameters(target).is_some() {
@@ -8758,7 +8712,7 @@ pub(crate) fn match_input(
         nodes::validate(
             block,
             &function_inputs,
-            &plan.structural_types,
+            plan.geometry(),
             &unit.structural_domains,
             &unit.identities,
         )?;
@@ -8793,13 +8747,10 @@ pub(crate) fn match_input(
         }
         if let AbstractOperation::EstablishZeroedStructural { result, .. }
         | AbstractOperation::EstablishStructuralLocal { result, .. } = &node.operation
-            && (!terminal_psi::find_structural_type(&plan.structural_types, result.structural_type)
+            && (!terminal_psi::find_structural_type(plan.geometry(), result.structural_type)
                 .is_some()
-                || !terminal_psi::find_structural_type(
-                    &unit.structural_types,
-                    result.structural_type,
-                )
-                .is_some())
+                || !terminal_psi::find_structural_type(unit.geometry(), result.structural_type)
+                    .is_some())
         {
             return Err(LegalizationError::custody());
         }
@@ -8831,12 +8782,9 @@ pub(crate) fn match_input(
                         }
                         _ => false,
                     }
-            }) || !terminal_psi::find_structural_type(
-                &plan.structural_types,
-                result.structural_type,
-            )
-            .is_some()
-                || !terminal_psi::find_structural_type(&unit.structural_types, *element).is_some())
+            }) || !terminal_psi::find_structural_type(plan.geometry(), result.structural_type)
+                .is_some()
+                || !terminal_psi::find_structural_type(unit.geometry(), *element).is_some())
         {
             return Err(LegalizationError::custody());
         }
@@ -8844,13 +8792,10 @@ pub(crate) fn match_input(
         | AbstractOperation::MoveStructuralValue { result, .. }
         | AbstractOperation::TransformContent { result, .. }
         | AbstractOperation::MoveStructuralField { result, .. } = &node.operation
-            && (!terminal_psi::find_structural_type(&plan.structural_types, result.structural_type)
+            && (!terminal_psi::find_structural_type(plan.geometry(), result.structural_type)
                 .is_some()
-                || !terminal_psi::find_structural_type(
-                    &unit.structural_types,
-                    result.structural_type,
-                )
-                .is_some())
+                || !terminal_psi::find_structural_type(unit.geometry(), result.structural_type)
+                    .is_some())
         {
             return Err(LegalizationError::custody());
         }
@@ -8984,8 +8929,8 @@ pub(crate) fn match_input(
 pub(crate) fn callee_plan(
     callee: impl Into<abstract_operations::AbstractCallTarget>,
     native: &TargetOperationPlan,
-    plan: &AbstractOperationPlan,
-    unit: &PsiOptimizationUnit,
+    plan: &crate::native_geometry::NativePlan<'_>,
+    unit: &crate::native_geometry::NativeUnit<'_>,
 ) -> Result<CallPlan, LegalizationError> {
     let target = callee.into();
     let Some(callee) = target.machine() else {
@@ -8999,7 +8944,7 @@ pub(crate) fn callee_plan(
                 .structural_parameter(position)
                 .ok_or(LegalizationError::custody())?;
             parameters.push(
-                crate::structural_inputs::parameter_shape(formal, &plan.structural_types)
+                crate::structural_inputs::parameter_shape(formal, plan.geometry())
                     .ok_or(LegalizationError::custody())?,
             );
         }
@@ -9061,7 +9006,7 @@ pub(crate) fn callee_plan(
             || position.checked_sub(abstracted.parameters.len())
                 .and_then(|position| abstracted.structural_parameters.get(position))
                 .is_some_and(|parameter| parameter.access == terminal_psi::StructuralAccess::Owned
-                    && crate::structural_inputs::structural_reference_input::parameter_shape(parameter, &plan.structural_types) == Some(placement.shape)
+                    && crate::structural_inputs::structural_reference_input::parameter_shape(parameter, plan.geometry()) == Some(placement.shape)
                     && (placement.locations.iter().all(|location| matches!(location,
                         calling_conventions::register_or_stack_pair_pattern!(byte_size:1..=8, ..)))
                         || crate::structural_inputs::structural_unit_input::owned_indirect_pointer(parameter, placement).is_some()))

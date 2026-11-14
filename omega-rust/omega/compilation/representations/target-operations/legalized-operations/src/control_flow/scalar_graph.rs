@@ -689,6 +689,8 @@ pub enum LegalizedScalarInstructionKind {
         case_tag: u32,
         tag_byte_offset: u32,
         indices: Vec<LegalizedRuntimeIndexOperand>,
+        /// Pointer words the target membership row already recorded.
+        pointer_slots: Vec<target_operations::TargetCasePointerSlot>,
     },
     StructuralLeafCopy {
         result: terminal_psi::StructuralOperationResult,
@@ -1251,6 +1253,9 @@ impl LegalizedStructuralCaseSource {
     }
 }
 
+/// Pointer word carried forward from the target operation that projected it.
+pub type LegalizedCasePointerSlot = target_operations::TargetCasePointerSlot;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LegalizedScalarTerminator {
     InvokeNoNormal {
@@ -1289,6 +1294,14 @@ pub enum LegalizedScalarTerminator {
         root_shape: calling_conventions::ValueShape,
         byte_offset: u32,
         layout: calling_conventions::ConventionalSumLayout,
+        /// Pointer words and referent-region size copied from the target case row.
+        ///
+        /// After a chase the region is the referent, so `region_byte_size` is
+        /// not `layout.shape.byte_size` when the sum is a field of a larger
+        /// pointed-to record. Selection borrows the chase and reads the size
+        /// only for that borrowed dispatch.
+        pointer_slots: Vec<target_operations::TargetCasePointerSlot>,
+        region_byte_size: u32,
         cases: Vec<super::LegalizedStructuralCaseSuccessor>,
         effect: EffectLink,
         ownership: Vec<OwnershipEvent>,
