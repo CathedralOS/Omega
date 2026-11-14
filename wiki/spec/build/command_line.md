@@ -120,7 +120,8 @@ permitted redundant markers invalid.
 ## Checker conformance
 
 `omega --check --floor-only <root.omg>` restricts automatic discharge to the
-[required automatic discharge](../proofs/contracts.md#required-automatic-discharge).
+[required automatic discharge](../proofs/contracts.md#required-automatic-discharge)
+and the [first synchronization floor](../language/concurrency.md#first-required-automatic-floor).
 Cited lemmas, branches and contracts work as usual. Each obligation that the
 ordinary run proves only with automation beyond the floor is reported with its
 location, so a project can confirm that every conforming checker accepts its

@@ -900,6 +900,13 @@ parks an activation and requires a continuation; blocking retains its stack and
 worker. Carry policy may reject a crossing with particular live values but
 cannot rewrite the callee's envelope.
 
+Calls and forwarding wrappers also retain their
+[synchronization contracts](concurrency.md#retained-protocol-contracts).
+Acknowledging blocking or suspension does not discharge the default deadlock
+obligation, and an empty service reach establishes no absence of waiting.
+An atomic retry protocol may await another participant without either marker;
+its synchronization behavior must still be established.
+
 A call written with `suspend`, including a redundant acknowledgement, may occur
 only as a complete statement, simple `let` right-hand side, transition subject,
 or terminal expression, including a

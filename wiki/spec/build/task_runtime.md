@@ -60,6 +60,15 @@ operations must agree on runtime instance, activation identity, backing custody
 and settlement. Fabricated provider/activation fields do not establish a real
 task claim, and owning `Task<T>` alone grants no execution custody.
 
+The selected runtime also supplies its
+[synchronization contract](../language/concurrency.md#completion-and-finite-capacity):
+which worker slots, execution leases and other capacity it retains or releases
+during a wait, and how completion becomes enabled. Suspension alone establishes
+no release of those resources. Closed composition checks self/circular completion
+and exhaustion by parents awaiting work that needs their retained capacity;
+helping, release or independent reservations need their actual checked/admitted
+protocol, not a provider name or nominal worker count.
+
 A root profile may select a shipped ordinary reference provider as a default;
 there need not be one universal runtime. A configuration that cannot realize
 the demanded task behavior rejects explicitly rather than substituting a no-op.
