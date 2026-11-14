@@ -185,12 +185,6 @@ framework or a list of features that remain unimplemented.
 - Cost: two stages own the same default with different selection rules; new rankable carriers can acquire different defaults depending on which stage first recognizes them.
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### The "independent" unit validator gets its expected values from the constructor it is checking
-- Category: re-deriving
-- Where: `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs:2654`, `:2670`, `:2375`, against `.../optimization-unit/src/construction.rs:527-608` and `:612-741`
-- Saw: `expected_definitions`, `expected_uses` and `expected_ownership` call `optimization_unit::operation_definition`, `operation_uses` and `operation_ownership`, the functions that built the unit; the first two end in a wildcard arm (`_ => None`, `_ => Vec::new()`); the crate header (`semantics/src/lib.rs:4`) calls this "independent semantic and rewrite validation"
-- Cost: an operation the constructor forgets to list is missed identically on both sides, so the comparison passes and the next agent trusts a check that cannot fail for that case
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### Register and machine-effect catalogs are validated by rebuilding them with the builder that made them
 - Category: re-deriving

@@ -2365,9 +2365,6 @@ pub(crate) mod derived_metadata {
             }
         }
     }
-    mod ownership {
-        pub(crate) use optimization_unit::operation_ownership as expected_ownership;
-    }
     mod places {
         use crate::OptimizationUnitValidationError;
         use abstract_operations::AbstractOperation as O;
@@ -2636,44 +2633,14 @@ pub(crate) mod derived_metadata {
             }
         }
     }
-    mod values {
-        use optimization_unit::{ValueDefinition, ValueDefinitionSite, ValueUse};
-        use semantic_vocabulary::BlockId;
-
-        pub(crate) fn expected_definitions(
-            operation: &abstract_operations::AbstractOperation,
-            block: BlockId,
-            node: u32,
-        ) -> Vec<ValueDefinition> {
-            let definition = optimization_unit::operation_definition(operation);
-            definition
-                .into_iter()
-                .map(|(value, scalar_type)| ValueDefinition {
-                    value,
-                    scalar_type,
-                    site: ValueDefinitionSite::Node { block, node },
-                })
-                .collect()
-        }
-
-        pub(crate) fn expected_uses(
-            operation: &abstract_operations::AbstractOperation,
-            block: BlockId,
-            node: u32,
-        ) -> Vec<ValueUse> {
-            optimization_unit::operation_uses(operation)
-                .into_iter()
-                .map(|value| ValueUse { value, block, node })
-                .collect()
-        }
-    }
+    pub(crate) use crate::operation_metadata::{
+        expected_definitions, expected_ownership, expected_uses,
+    };
     pub(crate) use control_flow::is_terminator;
     pub(crate) use edges::{expected_edges, successors_match_operation};
     pub(crate) use optimization_unit::dominators;
-    pub(crate) use ownership::expected_ownership;
     pub(crate) use places::{function_has_claim, reconstruct_declared_places};
     pub(crate) use provenance::{expected_provenance, provenance_matches_operation};
-    pub(crate) use values::{expected_definitions, expected_uses};
 
     pub(crate) fn validate_places_and_claims(
         function: &PsiOptimizationFunction,
@@ -5585,8 +5552,7 @@ pub(crate) mod function_structure {
     pub use byte_views::declared_descriptor_home;
     mod control_flow {
         use crate::unit_validation::derived_metadata::{
-            expected_definitions, expected_ownership, expected_uses, is_terminator,
-            provenance_matches_operation, successors_match_operation,
+            is_terminator, provenance_matches_operation, successors_match_operation,
         };
         use crate::{OperationSite, OptimizationUnitValidationError};
         use optimization_unit::PsiOptimizationFunction;
@@ -5676,11 +5642,8 @@ pub(crate) mod function_structure {
                     let node_index =
                         u32::try_from(index).expect("unit node index was built as u32");
                     if !provenance_matches_operation(&node.operation, &node.provenance)
-                        || node.definitions
-                            != expected_definitions(&node.operation, block.id, node_index)
-                        || node.uses != expected_uses(&node.operation, block.id, node_index)
+                        || !crate::operation_metadata::metadata_matches(node, block.id, node_index)
                         || !successors_match_operation(&node.operation, &node.successors)
-                        || node.ownership != expected_ownership(&node.operation)
                     {
                         return Err(OptimizationUnitValidationError::OperationMetadataMismatch(
                             OperationSite::new(function.machine, block.id, node_index),
