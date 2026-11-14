@@ -2184,7 +2184,7 @@ pub(crate) mod program {
     }
 
     impl ProgramStorage<'_> {
-        fn closed_module(
+        pub(crate) fn closed_module(
             &self,
         ) -> Result<&terminal_codec::ClosedTerminalModule, TerminalInterpretError> {
             match self {
