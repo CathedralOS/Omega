@@ -288,10 +288,12 @@ impl Program<'_> {
                 self.fields_minted += 1;
                 let field = StructuralFieldId::new(self.fields_minted)
                     .ok_or_else(|| unserved("field identity overflow"))?;
+                let byte_predicates = self.view_predicates(id, value_type)?;
                 declared.push(RecordField {
                     id: field,
                     identity,
                     value_type,
+                    byte_predicates,
                 });
             }
             Ok(declared)
@@ -491,7 +493,7 @@ impl Program<'_> {
                 Unserved::Typing("data field that elides a lifetime argument"),
             ));
         }
-        let value_type = self.value_type(id, field.type_reference)?;
+        let value_type = self.qualified_view_type(id, field.type_reference)?;
         // Stored byte and typed views keep the region of their actual source
         // type (lifetimes.md: "storage that remains valid for its use"). The
         // shared view owner keys the type by that region in this declaration;
@@ -737,7 +739,7 @@ impl Program<'_> {
         member: &TableMemberExpression,
         source: SourceOrigin,
     ) -> Checked<Expression> {
-        if !member.member_symbol.is_valid() {
+        if !member.selection.field_symbol().is_valid() {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -756,18 +758,20 @@ impl Program<'_> {
             .result
             .map_or(crate::body::Regions::NONE, ValueType::regions);
         let base = Box::new(base);
-        Ok(match self.member_of(id, record, member.member_symbol)? {
-            Member::Field(field) => Expression {
-                result: Some(self.field_type(id, record, regions, field)?),
-                kind: ExpressionKind::Field { base, field },
-                source,
+        Ok(
+            match self.member_of(id, record, member.selection.field_symbol())? {
+                Member::Field(field) => Expression {
+                    result: Some(self.field_type(id, record, regions, field)?),
+                    kind: ExpressionKind::Field { base, field },
+                    source,
+                },
+                Member::Payload { case, field } => Expression {
+                    result: Some(self.payload_type(id, record, regions, case, field)?),
+                    kind: ExpressionKind::Payload { base, case, field },
+                    source,
+                },
             },
-            Member::Payload { case, field } => Expression {
-                result: Some(self.payload_type(id, record, regions, case, field)?),
-                kind: ExpressionKind::Payload { base, case, field },
-                source,
-            },
-        })
+        )
     }
 
     /// `R { a: x, b: y }`: every field of `R` exactly once, operands kept in

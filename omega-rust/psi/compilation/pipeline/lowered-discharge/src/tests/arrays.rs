@@ -188,6 +188,7 @@ fn an_indexed_match_reuses_its_captured_selector_in_the_arm() {
                     id: id(1),
                     identity: "value".into(),
                     value_type: u32_type().into(),
+                    byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
                 }],
             },
             CaseType {
@@ -288,6 +289,7 @@ fn an_array_move_vacates_only_its_exact_element() {
             id: id(1),
             identity: "value".into(),
             value_type: u32_type().into(),
+            byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
         }]),
         requires: Vec::new(),
     });

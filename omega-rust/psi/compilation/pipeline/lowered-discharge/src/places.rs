@@ -180,13 +180,30 @@ pub(crate) fn overlap(left: &Lineage, right: &Lineage) -> bool {
 /// write-only, and access-unspecified view fields remain unsupported". A
 /// predicate-bearing view owes proofs this route does not state yet, so it
 /// is not one of these.
+///
+/// A shared view whose field type carries primitive byte predicates is one
+/// too, when the empty view, its zero, satisfies them: a record holding it is
+/// then zero-constructible like any other, and each store into the field is
+/// judged against the predicates (`Storage::byte_predicate_stores`). One the
+/// empty view does not satisfy would make its owner gated, which this route
+/// does not judge.
 fn is_stored_view(field_type: &StructuralFieldType) -> bool {
-    matches!(
-        field_type,
-        StructuralFieldType::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
-            access: Some(terminal_psi::StructuralAccess::SharedBorrow),
-        })
-    )
+    let shared = |carrier: &terminal_psi::ByteSequenceCarrier| {
+        matches!(
+            carrier,
+            terminal_psi::ByteSequenceCarrier::BorrowedView {
+                access: Some(terminal_psi::StructuralAccess::SharedBorrow),
+            }
+        )
+    };
+    match field_type {
+        StructuralFieldType::ByteSequence(carrier) => shared(carrier),
+        StructuralFieldType::PredicateByteSequence {
+            carrier,
+            predicates,
+        } => shared(carrier) && predicates.holds_for(&[]),
+        _ => false,
+    }
 }
 
 // A shared view is one established descriptor. Its backing is supplied by
@@ -2284,6 +2301,202 @@ impl<'a> Storage<'a> {
         Ok(Ok(()))
     }
 
+    /// One verdict per operation that puts a view into a field whose type
+    /// carries primitive byte predicates
+    /// (`StructuralFieldType::PredicateByteSequence`, a source field written
+    /// `&[u8] in Utf8`): a record or case literal naming the field, a whole
+    /// store into it, or a view store into it.
+    ///
+    /// The predicates are decided by the bytes the view shows, so each is
+    /// judged from the bytes its source supplies. byte_views.md: "Checking
+    /// rejoins the source's declared predicates or literal contents";
+    /// structural_access.md: "Primitive byte predicates replay independently
+    /// from exact literal octets". A source is served when it is, whole, the
+    /// home of one literal established by the one
+    /// `EstablishByteSequenceLiteral` that names it: a shared view never
+    /// writes its backing, so those octets are what every later read sees.
+    /// Bytes some predicate does not hold of are `Unestablished`, a compile
+    /// error of the program: the field's domain was never established for
+    /// that value. Any other source is refused as unsupported, never judged
+    /// true.
+    pub(crate) fn byte_predicate_stores(&self) -> Checked<Vec<StorageUse>> {
+        let mut verdicts = Vec::new();
+        for block in &self.lowered.blocks {
+            for operation in &block.operations {
+                let concerns = Construct::Operation(operation.id);
+                for (predicates, source) in self.predicate_view_sources(operation, concerns)? {
+                    let bytes = if source.path.is_empty() {
+                        self.literal_bytes(source.place, concerns)?
+                    } else {
+                        None
+                    };
+                    let verdict = match bytes {
+                        Some(bytes) if predicates.holds_for(bytes) => Ok(()),
+                        Some(_) => Err(refusal(
+                            RefusalReason::Unestablished,
+                            self.machine,
+                            concerns,
+                            "a byte view is stored into a field of a byte domain, and the bytes \
+                             it shows are not in that domain",
+                        )),
+                        None => Err(self.unsupported(
+                            concerns,
+                            "a byte view stored into a field of a byte domain from other than a \
+                             literal",
+                        )),
+                    };
+                    if let Err(refused) = verdict {
+                        verdicts.push(StorageUse {
+                            at: concerns,
+                            verdict: Err(refused),
+                        });
+                        break;
+                    }
+                }
+            }
+        }
+        Ok(verdicts)
+    }
+
+    /// The fields of a byte domain an operation stores a view into, each
+    /// with the field's predicates and the view's source.
+    fn predicate_view_sources(
+        &self,
+        operation: &'a Operation,
+        concerns: Construct,
+    ) -> Checked<Vec<(terminal_psi::ByteSequencePredicateSet, StructuralArgument)>> {
+        let in_fields = |fields: &[StructuralFieldDeclaration], field| {
+            fields
+                .iter()
+                .find(|declared| declared.id == field)
+                .map(|declared| declared.field_type.byte_predicates())
+                .ok_or_else(|| self.foreign(concerns, "a field is not of the type it names"))
+        };
+        let carrier_fields = |destination, path: &[StructuralPathSegment]| {
+            let carrier = self.stored_at(destination, path, concerns)?;
+            match self.shape(&carrier, concerns)? {
+                Shape::Typed(owner) => match &self.declaration(owner, concerns)?.shape {
+                    StructuralTypeShape::Record { fields, .. } => Ok(fields.as_slice()),
+                    _ => Err(self.foreign(concerns, "a field store into no record")),
+                },
+                Shape::Payload(case) => Ok(case.fields.as_slice()),
+                _ => Err(self.foreign(concerns, "a field store into no record")),
+            }
+        };
+        let mut found = Vec::new();
+        let mut initialized = |fields: &[StructuralFieldDeclaration],
+                               initializers: &[terminal_psi::RecordFieldInitializer]|
+         -> Checked<()> {
+            for initializer in initializers {
+                if let terminal_psi::RecordFieldValue::Structural(source) = &initializer.value {
+                    let predicates = in_fields(fields, initializer.field)?;
+                    if !predicates.is_empty() {
+                        found.push((predicates, source.clone()));
+                    }
+                }
+            }
+            Ok(())
+        };
+        match &operation.kind {
+            OperationKind::EstablishRecord { fields } => {
+                let built = self.produced_type(operation, concerns)?;
+                let StructuralTypeShape::Record {
+                    fields: declared, ..
+                } = &self.declaration(built, concerns)?.shape
+                else {
+                    return Err(self.foreign(concerns, "a record literal of no record type"));
+                };
+                initialized(declared, fields)?;
+            }
+            OperationKind::EstablishStructuralCase {
+                result_case,
+                fields,
+            } => {
+                let built = self.produced_type(operation, concerns)?;
+                let StructuralTypeShape::Sum { cases } = &self.declaration(built, concerns)?.shape
+                else {
+                    return Err(self.foreign(concerns, "a case literal of no sum type"));
+                };
+                let case = cases
+                    .iter()
+                    .find(|case| case.id == *result_case)
+                    .ok_or_else(|| self.foreign(concerns, "a case is not of the sum it builds"))?;
+                initialized(&case.fields, fields)?;
+            }
+            OperationKind::StoreStructuralField {
+                destination,
+                path,
+                field: Some(field),
+                value,
+                ..
+            } => {
+                let predicates = in_fields(carrier_fields(*destination, path)?, *field)?;
+                if !predicates.is_empty() {
+                    found.push((predicates, value.clone()));
+                }
+            }
+            OperationKind::StructuralByteViewFieldStore {
+                destination,
+                path,
+                field: Some(field),
+                source,
+                ..
+            } => {
+                let predicates = in_fields(carrier_fields(*destination, path)?, *field)?;
+                if !predicates.is_empty() {
+                    found.push((
+                        predicates,
+                        StructuralArgument::whole(
+                            *source,
+                            terminal_psi::StructuralAccess::SharedBorrow,
+                        ),
+                    ));
+                }
+            }
+            _ => {}
+        }
+        Ok(found)
+    }
+
+    /// The structural type an operation's result is established as.
+    fn produced_type(
+        &self,
+        operation: &Operation,
+        concerns: Construct,
+    ) -> Checked<StructuralTypeId> {
+        operation
+            .result
+            .structural()
+            .map(|result| result.structural_type)
+            .ok_or_else(|| self.foreign(concerns, "a literal with no structural result"))
+    }
+
+    /// The octets of the literal whose home is `place`, when `place` is a
+    /// literal's home and exactly one operation establishes it.
+    fn literal_bytes(&self, place: PlaceId, concerns: Construct) -> Checked<Option<&'a [u8]>> {
+        if !matches!(
+            self.root_kind(place, concerns)?,
+            StructuralPlaceKind::ByteSequenceLiteral { .. }
+        ) {
+            return Ok(None);
+        }
+        let mut producers = self.lowered.blocks.iter().flat_map(|block| {
+            block
+                .operations
+                .iter()
+                .filter_map(|operation| match &operation.kind {
+                    OperationKind::EstablishByteSequenceLiteral {
+                        destination, bytes, ..
+                    } if *destination == place => Some(bytes.as_slice()),
+                    _ => None,
+                })
+        });
+        match (producers.next(), producers.next()) {
+            (Some(bytes), None) => Ok(Some(bytes)),
+            _ => Ok(None),
+        }
+    }
+
     /// Every operation and terminator that reads storage or names a case
     /// payload, in block and operation order, a block's terminator last. A
     /// refusal concerns the module (an identity that does not resolve,
@@ -2581,9 +2794,8 @@ impl<'a> Storage<'a> {
     /// "A call need not close an unrelated domain window when its complete
     /// access, effect and outcome contracts prove that it cannot observe or
     /// expose the broken coupling ... Unknown access/effects are treated
-    /// conservatively." The tables hold no callee summary
-    /// (`CheckTables::summaries` stays empty), so nothing here proves a call
-    /// unrelated, and none is treated as one.
+    /// conservatively." The tables hold no callee summary, so nothing here
+    /// proves a call unrelated, and none is treated as one.
     ///
     /// A window a zero establishment opened is on storage that holds no
     /// valid value yet: "A zeroed storage representation can be accessed as

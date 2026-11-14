@@ -1237,12 +1237,11 @@ worked around by adding to `terminal-check-tables`.
    `NormalGuarantee` per (normal return edge, clause), which names it through
    its `published` field. The published clause holds when every return
    edge's guarantee holds.
-3. **No summaries.** `Summary::requires` and `result_relation` are
-   `PropositionId`s into "the module's proposition table", but Terminal Psi
-   keeps contract propositions inline in `MachineContract` and its only
+3. **Published crash routes live on the machine contract.** Terminal Psi
+   keeps contract propositions inline in `MachineContract`, and its only
    `PropositionId` table (`proposition_declarations`) is named propositions
-   with a `String` name. `CheckTables::summaries` is left empty; published
-   crash routes live in `MachineContract::crash_routes` only.
+   with a `String` name. Published crash routes live in
+   `MachineContract::crash_routes` only.
 4. **`requires` is a canonical set in Terminal Psi.** The codec requires
    `MachineContract::requires` to strictly increase in canonical byte order,
    so clauses are sorted and a duplicate clause is refused. Clause positions

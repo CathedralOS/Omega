@@ -171,9 +171,9 @@ This follows [result caching](../../../../wiki/spec/language/evaluation.md#resul
 so a warm result cannot bypass a ceiling a cold evaluation would exceed.
 
 Run `mbx run -p compiler --example build_session` from the repository root.
-This public compiler measurement requires two target products, two preliminary
-admissions and one Build execution. It also requires a later one-unit work
-account to reject and a different source input to execute its own Build.
+This public compiler measurement requires two target products and one Build
+execution. It also requires a later one-unit work account to reject and a
+different source input to execute its own Build.
 This is the repeated-work acceptance for `BUILD-EVALUATES-ONCE`, not a new
 language fact row or a foreign-host execution claim. The broader capability,
 including generated-source and target-row completion, remains open.

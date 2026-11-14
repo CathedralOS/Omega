@@ -112,6 +112,96 @@ fn source_boundary_calls_keep_their_actual_input_obligations() {
     );
 }
 
+/// A boundary requirement may take a type parameter of its own. It has no
+/// body, so a call that applies it, `Probe::take<Reading>(..)`, is held to
+/// the requirement's signature and contract with `Reading` where it named
+/// `Item` (generics.md, "Closed applications and canonical identity"). Typed
+/// preparation closes the requirement once per application, as it generates
+/// one machine per application of a generic machine, so the program is read
+/// after that stage.
+fn applied_boundary(limit: u32) -> Checked<structure_elaboration::Elaboration> {
+    let typed = typed(&format!(
+        r#"
+data Reading {{ level: u32; }}
+boundary trait Probe {{
+    machine take<Item>(item: Item, limit: u32) -> u32
+    reaches none
+    requires limit <= 10
+    ensures result <= 10
+    crashes none;
+}}
+machine entry() -> u32 crashes none {{
+    let first: u32 = Probe::take<u32>(7, {limit});
+    let room: u32 = 10u32 - first;
+    let second: u32 = Probe::take<Reading>(Reading {{ level: 3 }}, 4);
+    let third: u32 = Probe::take<u32>(9, 2);
+    room
+}}
+"#
+    ));
+    let entry = entry(&typed);
+    let (frozen, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        typed,
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap();
+    structure_elaboration::elaborate_for(
+        &frozen,
+        structure_elaboration::Compilation {
+            entries: &[entry],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    )
+}
+
+#[test]
+fn a_boundary_requirement_is_judged_at_the_type_a_call_applies_it_at() {
+    let elaboration = applied_boundary(10).unwrap();
+    // `take` at `u32` and at `Reading` are two declarations of one
+    // requirement; the two calls at `u32` name one of them.
+    let boundaries = &elaboration.module.boundary_machines;
+    assert_eq!(boundaries.len(), 2);
+    let declared: Vec<_> = boundaries
+        .iter()
+        .map(|boundary| boundary.declaration.as_ref().unwrap())
+        .collect();
+    assert!(declared.iter().all(|declared| {
+        declared.method_arguments.len() == 1 && declared.source.specialization.is_some()
+    }));
+    assert_ne!(
+        declared[0]
+            .source
+            .specialization
+            .as_ref()
+            .unwrap()
+            .commitment,
+        declared[1]
+            .source
+            .specialization
+            .as_ref()
+            .unwrap()
+            .commitment
+    );
+    // What the requirement guarantees at `u32` keeps `10 - first` exact.
+    assert!(matches!(
+        judge(Ok(elaboration)).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
+    // The twin differs only in one argument: `limit` of 11 breaks
+    // `limit <= 10`.
+    let verdict = judge(applied_boundary(11)).unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
+        "{verdict:?}"
+    );
+}
+
 #[test]
 fn an_unserved_operational_contract_cannot_be_added_to_a_lowered_boundary() {
     for blocks in [false, true] {

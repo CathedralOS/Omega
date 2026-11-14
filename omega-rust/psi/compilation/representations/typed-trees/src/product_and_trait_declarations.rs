@@ -1112,7 +1112,7 @@ pub mod product_operand {
                     },
                     expr::ExpressionNode::Member(member) => ProductExpressionKind::Member {
                         receiver: self.expression(member.receiver)?,
-                        member: self.name(member.member.as_str(), member.member_symbol),
+                        member: self.name(member.member.as_str(), member.selection.field_symbol()),
                     },
                     expr::ExpressionNode::Indexed(indexed) => ProductExpressionKind::Indexed {
                         receiver: self.expression(indexed.collection)?,

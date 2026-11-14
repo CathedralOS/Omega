@@ -139,6 +139,18 @@ impl<'t> Program<'t> {
         {
             return Ok(());
         }
+        // The same for a requirement applied at its own parameters: stage
+        // 04 pointed the call at the closed requirement this application
+        // selects, whose signature holds the arguments where the requirement
+        // named its parameters. The typed trees keep the requirement it was
+        // closed from, which must be the one this application registered.
+        if self
+            .typed
+            .closed_requirement_application(target)
+            .is_some_and(|closed| closed.template == application.registration_operation)
+        {
+            return Ok(());
+        }
         if !application.arguments.is_empty() || !application.selected_machine_arguments.is_empty() {
             return unserved("static application arguments");
         }

@@ -354,6 +354,10 @@ pub struct RecordField {
     pub id: StructuralFieldId,
     pub identity: String,
     pub value_type: ValueType,
+    /// The primitive byte predicates of a byte view field in a domain, which
+    /// the lowered form carries on the field's type; empty for every other
+    /// field (`read::bytes`, `byte_view_domains`).
+    pub byte_predicates: semantic_vocabulary::ByteSequencePredicateSet,
 }
 
 /// A machine's published signature as lowering and its callers need it.

@@ -6,7 +6,7 @@ ladder the CLI prints under `--timings`. A disabled accumulator runs the same
 work without retaining rows. The CLI controls measurement presentation.
 
 [Activity counters](src/compile_timings/counters.rs) retain process-wide checked
-requests, source assemblies, frontend reuse, and preliminary/settled check totals.
+requests, source assemblies, frontend reuse, and settled check totals.
 Compilation and Build evaluation record events; package review reads this owner
 directly. These diagnostic counters are not per-request custody, successful-check
 evidence, or atomic snapshots. Psi's repeated-check owner separately counts actual

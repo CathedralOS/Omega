@@ -746,6 +746,182 @@ fn each_built_in_integer_name_is_judged_at_its_own_sign_and_width() {
     assert!(wrong.is_empty(), "{wrong:#?}");
 }
 
+/// An integer type is a sign and a width at every width, not only the eight
+/// conventional ones (`wiki/spec/language/numeric_values.md`, "Width-indexed
+/// integers": "All existing fixed-integer operations apply at N, not at a
+/// convenient machine register width"). Each row is a carrier no machine
+/// register has, with its greatest value.
+///
+/// As for the built-in names, `value + 1` is accepted when `requires` keeps
+/// `value` below the carrier's greatest value and rejected when it allows
+/// the greatest value itself, and the Wrapping add of a literal suffixed
+/// with the same carrier (`1u13`) is accepted with nothing known about
+/// `value`. `u1` holds zero and one and is an integer, not `bool`.
+#[test]
+fn an_integer_of_any_width_is_judged_at_its_own_sign_and_width() {
+    let mut wrong = Vec::new();
+    for (carrier, greatest) in [
+        ("u1", "1"),
+        ("u13", "8191"),
+        ("i13", "4095"),
+        ("u24", "16777215"),
+        ("i48", "140737488355327"),
+        ("u63", "9223372036854775807"),
+    ] {
+        let bounded = |relation: &str| {
+            format!(
+                "machine next(value: {carrier}) -> {carrier} requires value {relation} {greatest} {{ value + 1 }}
+                 machine main() {{ }}
+"
+            )
+        };
+        let wrapped = format!(
+            "machine next(value: {carrier}) -> {carrier} {{ value +% 1{carrier} }}
+             machine main() {{ }}
+"
+        );
+        for (case, source, expected) in [
+            ("below_greatest", bounded("<"), "accepted"),
+            ("at_greatest", bounded("<="), "rejected"),
+            ("suffixed_literal", wrapped, "accepted"),
+        ] {
+            let name = format!("{carrier}_{case}");
+            let found = verdicts(&name, &source);
+            if found != [expected] {
+                wrong.push(format!("{name}: {found:?}, expected {expected}"));
+            }
+        }
+    }
+    assert!(wrong.is_empty(), "{wrong:#?}");
+}
+
+/// `u<N>` and `i<N>` are the same types their decimal shorthand names
+/// ("`u32` and `u<32>` are exactly the same type, not convertible
+/// wrappers"). A parameter written `u<13>` is returned as a `u13` and judged
+/// at thirteen bits: accepted below the greatest value, rejected at it.
+///
+/// A width is "a positive proof-static `u64`": "Zero widths and runtime
+/// width arguments reject", each before typing and for its own reason.
+///
+/// A width that is a const parameter is kept for the specialization that
+/// substitutes it. The lowered-form checker has no integer type whose width
+/// is a parameter yet, so such a program is refused by name, not judged at
+/// some other width.
+#[test]
+fn an_indexed_width_is_the_type_its_shorthand_names() {
+    let spare = |declaration: &str| format!("{declaration}\nmachine main() {{ }}\n");
+    for (name, declaration, expected) in [
+        (
+            "indexed_conventional",
+            "machine next(value: u<32>) -> u32 { value }",
+            "accepted",
+        ),
+        (
+            "indexed_below_greatest",
+            "machine next(value: u<13>) -> u13 requires value < 8191 { value + 1 }",
+            "accepted",
+        ),
+        (
+            "indexed_at_greatest",
+            "machine next(value: u<13>) -> u13 requires value <= 8191 { value + 1 }",
+            "rejected",
+        ),
+        (
+            "indexed_signed_above_least",
+            "machine next(value: i<13>) -> i13 requires value > -4096 { value - 1 }",
+            "accepted",
+        ),
+        (
+            "indexed_signed_at_least",
+            "machine next(value: i<13>) -> i13 requires value >= -4096 { value - 1 }",
+            "rejected",
+        ),
+    ] {
+        assert_eq!(verdicts(name, &spare(declaration)), [expected], "{name}");
+    }
+    /* The empty `main` is judged; the generic form of `next` is what is refused. */
+    assert_eq!(
+        verdicts(
+            "symbolic_width",
+            &spare("machine next<const N: u64>(value: u<N>) -> u<N> { value }")
+        ),
+        ["accepted", "not-supported"]
+    );
+    for (name, declaration, reason) in [
+        (
+            "zero_width",
+            "machine next(value: u<0>) -> u32 { 1 }",
+            "zero width",
+        ),
+        (
+            "runtime_width",
+            "machine next(count: u64, value: u<count>) -> u32 { 1 }",
+            "runtime value",
+        ),
+    ] {
+        let stopped = unbuilt_frontier::staged(name, &spare(declaration))
+            .err()
+            .unwrap_or_else(|| panic!("{name}: a malformed width must not be typed"));
+        assert!(
+            stopped.iter().any(|message| message.contains(reason)),
+            "{name}: {stopped:?}"
+        );
+    }
+}
+
+/// Saturating arithmetic and exact conversion are judged at the carrier's
+/// own width ("Exact numerical conversion preserves value and proves
+/// destination fit"). `u16` to `u13` is accepted when `requires` keeps the
+/// value within thirteen bits and rejected when it does not; the widening
+/// `u13` to `u16` and the Saturating add at `u13` owe nothing.
+///
+/// A width the checker cannot state is refused by that width, never read as
+/// a narrower one: its statements hold integers up to 128 bits, so `u128`
+/// is judged and `u257` is not supported yet.
+#[test]
+fn conversions_and_policies_are_judged_at_the_width_the_program_names() {
+    let spare = |declaration: &str| format!("{declaration}\nmachine main() {{ }}\n");
+    for (name, declaration, expected) in [
+        (
+            "narrowing_within",
+            "machine next(value: u16) -> u13 requires value <= 8191 { value as u13 }",
+            "accepted",
+        ),
+        (
+            "narrowing_beyond",
+            "machine next(value: u16) -> u13 requires value <= 8192 { value as u13 }",
+            "rejected",
+        ),
+        (
+            "widening",
+            "machine next(value: u13) -> u16 { value as u16 }",
+            "accepted",
+        ),
+        (
+            "saturating_add",
+            "machine next(value: u13) -> u13 { value +| 8191u13 }",
+            "accepted",
+        ),
+        (
+            "beyond_a_register_below_greatest",
+            "machine next(value: u65) -> u65 requires value < 5 { value + 1 }",
+            "accepted",
+        ),
+        (
+            "beyond_a_register_unbounded",
+            "machine next(value: u65) -> u65 { value + 1 }",
+            "rejected",
+        ),
+        (
+            "beyond_the_checker",
+            "machine next(value: u257) -> u257 { value }",
+            "not-supported",
+        ),
+    ] {
+        assert_eq!(verdicts(name, &spare(declaration)), [expected], "{name}");
+    }
+}
+
 /// A dispatch over an owned sum that is not `[copy]`. The `Root` arm names
 /// nothing of the subject, so the subject is discarded on that case's edge
 /// (`wiki/spec/terminal-psi/control_flow.md`: "Selected payload fields become

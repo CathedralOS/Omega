@@ -145,6 +145,10 @@ pub(crate) struct Program<'t> {
     /// before reading anything nested (`regions`: a call instantiates its
     /// callee's lifetimes from it first).
     expected: Option<ValueType>,
+    /// Whether the type being read may be a byte view in a domain: true
+    /// while a data field's type or a cast's result type is read, the two
+    /// places such a view is served (`view_type`).
+    qualified_views: bool,
     /// How many `StructuralFieldId`s the records above hold.
     fields_minted: u64,
     /// How many `StructuralCaseId`s the sums above hold.
@@ -236,6 +240,7 @@ impl<'t> Program<'t> {
             elision: regions::Elision::Declaration,
             elided_lifetimes: Vec::new(),
             expected: None,
+            qualified_views: false,
             fields_minted: 0,
             cases_minted: 0,
             captures: Vec::new(),
@@ -790,7 +795,7 @@ mod tests {
         let member = |case_variant| {
             ExpressionNode::Member(TableMemberExpression {
                 receiver: ExpressionHandle::invalid(),
-                member_symbol: SymbolHandle::invalid(),
+                selection: typed_trees::expression::MemberSelection::Unresolved,
                 member: Default::default(),
                 case_variant,
             })
@@ -927,7 +932,7 @@ mod tests {
                 .expression_table
                 .insert(ExpressionNode::Member(TableMemberExpression {
                     receiver: whole,
-                    member_symbol: SymbolHandle::invalid(),
+                    selection: typed_trees::expression::MemberSelection::Unresolved,
                     member: Default::default(),
                     case_variant: None,
                 }));

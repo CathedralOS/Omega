@@ -181,7 +181,17 @@ pub(crate) fn declare<'a>(
                                 // the carrier a copy of the descriptor has:
                                 // it names the region the view is valid for.
                                 inline_carrier = Some(nested);
-                                StructuralFieldType::ByteSequence(*carrier)
+                                // A view in a domain keeps its primitive
+                                // predicates on the field's type, where every
+                                // store into it is judged against them.
+                                if field.byte_predicates.is_empty() {
+                                    StructuralFieldType::ByteSequence(*carrier)
+                                } else {
+                                    StructuralFieldType::PredicateByteSequence {
+                                        carrier: *carrier,
+                                        predicates: field.byte_predicates,
+                                    }
+                                }
                             }
                             Some(crate::StorageShape::ByteSequence(_)) => {
                                 return Err(refuse(
