@@ -107,7 +107,7 @@ Write each item so any agent can start from it alone: current state, files and e
 
 ## Lowering, checker, and data-flow
 
-- **MUTABLE-PARAMETER-CONTRACT-NAME.** Implement [immutable logical contract inputs](wiki/spec/language/state_contracts.md#contract-inputs-and-working-values) separately from mutable executable parameter storage. Replace the temporary refusal in `05_typed-trees-to-terminal-psi/src/read/contracts.rs` and its stale owner-question comment with exact input identities carried through lowered-form checking, contract import and publication.
+- **MUTABLE-PARAMETER-CONTRACT-NAME.** Implement [immutable logical contract inputs](wiki/spec/language/state_contracts.md#contract-inputs-and-working-values) separately from mutable executable parameter storage.
   Acceptance: a mutable by-value counter proves a result against its original input, including mutation through a helper; a final-local-value interpretation and incorrectly covered crash reject. Preserve borrowed final/`old` observations, contained-reference invalidation, fresh recursive/terminal inputs and non-copy ownership without a runtime snapshot. Pin focused tests beside the changed code and demonstrate native/Psi agreement; do not restore the frozen checker.
 
 - **WIDTH-INDEXED-INTEGERS.** Deliver `u<N>`/`i<N>` and concrete-width shorthand as one integer family ([contract and acceptance](wiki/spec/language/numeric_values.md#width-indexed-integers)). Extend shared carrier identity, literal/query/conversion handling, lowered-form proofs, versioned Psi encodings and multiword realization; no per-width source tables or hidden allocation. Run non-byte-width arithmetic and fixed multiword customers, not only constant folding.

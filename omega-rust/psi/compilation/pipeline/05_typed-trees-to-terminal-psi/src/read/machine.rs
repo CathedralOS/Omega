@@ -1475,9 +1475,8 @@ impl<'t> Program<'t> {
             slots.push(Slot {
                 symbol: formal.symbol,
                 value_type,
-                // What a clause reader needs to know of the binding mode: a
-                // guarantee or a crash route guard may not name a formal
-                // the body can replace (`ClauseScope::formal_fields`).
+                // Retain the declared working-binding mode. Contract scalar
+                // names use their immutable input ValueIds regardless of it.
                 assignable: mutable_formal(formal, access),
                 homed: false,
                 erased: is_erased,
