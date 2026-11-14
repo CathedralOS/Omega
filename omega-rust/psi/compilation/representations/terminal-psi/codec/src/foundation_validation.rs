@@ -4622,7 +4622,7 @@ pub(crate) mod scalar_observations {
             {
                 return malformed("scalar application term has no exact catalog carrier");
             }
-            if let ScalarTerm::BooleanField { root, path }
+            if let ScalarTerm::BooleanField { root, path, .. }
             | ScalarTerm::IntegerField { root, path, .. }
             | ScalarTerm::IeeeFloatField { root, path, .. } = term
             {

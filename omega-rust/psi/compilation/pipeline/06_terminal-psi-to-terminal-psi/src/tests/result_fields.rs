@@ -93,8 +93,8 @@ fn borrowed_completion_observations_cannot_reuse_input_snapshots() {
 
     // The authored promise is true of the actual result. A receiving producer
     // must not replace it with an entry fact about a borrowed input: the Pair
-    // is changed before return. The borrowed view is unchanged, but its
-    // completion observation is still unsupported, not an entry snapshot.
+    // is changed before return. Its current field cannot reuse the entry
+    // fact. The borrowed view's extent still has no completion observation.
     const SOURCE: &str = r#"
 data Pair [copy] { first: u32; second: u32; }
 machine build_entry(INPUT, bytes: &[u8]) -> Pair
@@ -190,6 +190,18 @@ ensures result.first == 0
                 matches!(verdict, Ok(RouteVerdict::Accepted(_))),
                 "an owned input still names its original value: {verdict:?}"
             );
+        } else if !extent {
+            let Ok(RouteVerdict::Rejected { unproved, .. }) = verdict else {
+                panic!("the changed borrowed field must reject its old entry fact: {verdict:?}")
+            };
+            let [failure] = unproved.as_slice() else {
+                panic!("one changed guarantee: {unproved:?}")
+            };
+            assert!(matches!(
+                failure.kind,
+                ObligationKind::NormalGuarantee { clause: 0, .. }
+            ));
+            assert_eq!(failure.cause, UnprovedCause::NoDerivation);
         } else {
             let Ok(RouteVerdict::FallBack(refusal)) = verdict else {
                 panic!("unsupported borrowed completion must remain refused: {verdict:?}")
@@ -201,4 +213,194 @@ ensures result.first == 0
             );
         }
     }
+}
+
+#[test]
+fn borrowed_field_guarantees_connect_entry_and_completion_at_each_call() {
+    // The helper must prove the update it promises. Each later call observes
+    // the preceding call's actual completion, rather than reusing entry zero.
+    const SOURCE: &str = r#"
+data Pair [copy] { first: u32; second: u32; }
+machine step(p: &mut Pair)
+requires p.first < 32
+ensures embed(p.first) == embed(old(p.first)) + 1
+{ p.first = p.first + 1; }
+machine build_entry() -> u32
+ensures result == 2
+{
+    let mut value: Pair = Pair { first: 0, second: 9 };
+    step(&mut value);
+    step(&mut value);
+    value.first
+}
+"#;
+    let prepare = |text: &str| {
+        super::calling_policies::prepared(
+            super::build_purpose::frontier_of(text, "machine unused_build_body() { }"),
+            &["build_entry"],
+            terminal_codec::TerminalPublication::Portable,
+        )
+    };
+    let owners = |input: &terminal_check_tables::compilation::TerminalCompilation| {
+        let terminal_check_tables::compilation::TerminalCompilation::Prepared(input) = input else {
+            panic!("the source must prepare")
+        };
+        let root = &input.closure.as_ref().unwrap().module.machines[0];
+        let calls: Vec<_> = root
+            .operations()
+            .filter_map(|operation| terminal_psi::direct_call_parts(&operation.kind))
+            .collect();
+        let [first, second] = calls.as_slice() else {
+            panic!("the actual caller has two step calls")
+        };
+        assert_eq!(first.callee, second.callee);
+        (root.id, first.callee)
+    };
+    let input = prepare(SOURCE);
+    owners(&input);
+    let verdicts = crate::judge_compilation(input);
+    let [Ok(RouteVerdict::Accepted(accepted))] = verdicts.as_slice() else {
+        panic!("{verdicts:?}")
+    };
+    accepted.publish().unwrap();
+
+    for (changed, helper) in [
+        (
+            SOURCE.replace("embed(old(p.first)) + 1", "embed(old(p.first)) + 2"),
+            true,
+        ),
+        (
+            SOURCE.replace("ensures result == 2", "ensures result == 3"),
+            false,
+        ),
+    ] {
+        let input = prepare(&changed);
+        let (root, step) = owners(&input);
+        let verdicts = crate::judge_compilation(input);
+        let [
+            Ok(RouteVerdict::Rejected {
+                unproved,
+                formations,
+                violations,
+                unestablished,
+                conflicts,
+                exceeded,
+            }),
+        ] = verdicts.as_slice()
+        else {
+            panic!("{verdicts:?}")
+        };
+        assert!(
+            formations.is_empty()
+                && violations.is_empty()
+                && unestablished.is_empty()
+                && conflicts.is_empty()
+                && exceeded.is_empty(),
+            "{verdicts:?}"
+        );
+        let expected = if helper { step } else { root };
+        assert!(
+            unproved.iter().any(|row| row.machine == expected
+                && row.cause == UnprovedCause::NoDerivation
+                && matches!(row.kind, ObligationKind::NormalGuarantee { clause: 0, .. })),
+            "{unproved:?}"
+        );
+        if !helper {
+            assert_eq!(
+                unproved.len(),
+                1,
+                "only the caller's false result promise: {unproved:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn owned_field_guarantees_keep_the_input_separate_from_working_storage() {
+    const SOURCE: &str = r#"
+data Pair [copy] { first: u32; second: u32; }
+machine build_entry(mut p: Pair) -> Pair
+requires p.first == 0
+ensures p.first == old(p.first), result.first == 9
+{ p.first = 9; p }
+"#;
+    // Keep the actual test-package source identity for an independently
+    // received artifact; an invocation-only module is not made portable.
+    let prepared = super::calling_policies::prepared(
+        super::build_purpose::frontier_of(SOURCE, "machine unused_build_body() { }"),
+        &["build_entry"],
+        terminal_codec::TerminalPublication::Portable,
+    );
+    let verdicts = crate::judge_compilation(prepared);
+    let [Ok(RouteVerdict::Accepted(accepted))] = verdicts.as_slice() else {
+        panic!("{verdicts:?}")
+    };
+    accepted.publish().unwrap();
+    let bytes = terminal_codec::encode_module(&accepted.elaboration.module).unwrap();
+    let received = terminal_codec::decode_module(&bytes).unwrap();
+    assert_eq!(received, accepted.elaboration.module);
+
+    let mut forged = received.clone();
+    let machine = &mut forged.machines[0];
+    let result_root = machine.result.structural().unwrap().place;
+    let result_term = machine
+        .contract
+        .ensures
+        .iter_mut()
+        .find_map(|clause| {
+            let Proposition::Equal(left, right) = &mut clause.proposition else {
+                return None;
+            };
+            [left, right].into_iter().find(|term| {
+                matches!(
+                    term,
+                    ScalarTerm::IntegerField { root, .. } if *root == result_root
+                )
+            })
+        })
+        .expect("the actual source promises a field of its returned Pair");
+    let ScalarTerm::IntegerField { version, .. } = result_term else {
+        unreachable!()
+    };
+    *version = semantic_vocabulary::ContentPlaceVersion::Entry;
+    let forged = terminal_codec::encode_module(&forged).unwrap();
+    assert!(matches!(terminal_codec::decode_module(&forged),
+        Err(terminal_codec::CodecError::MalformedProposition(
+            semantic_vocabulary::PropositionError::EntryNonInputStructuralPlace(root))) if root == result_root));
+
+    let mut old = bytes;
+    old[8..10].copy_from_slice(&264u16.to_le_bytes());
+    assert!(matches!(
+        terminal_codec::decode_module(&old),
+        Err(terminal_codec::CodecError::UnsupportedFormatMarker(264))
+    ));
+
+    let changed = SOURCE.replace("p.first == old(p.first)", "p.first == 9");
+    let verdict = judge_build(&changed).unwrap();
+    let RouteVerdict::Rejected {
+        unproved,
+        formations,
+        violations,
+        unestablished,
+        conflicts,
+        exceeded,
+    } = verdict
+    else {
+        panic!("{verdict:?}")
+    };
+    assert!(
+        formations.is_empty()
+            && violations.is_empty()
+            && unestablished.is_empty()
+            && conflicts.is_empty()
+            && exceeded.is_empty()
+    );
+    let [failure] = unproved.as_slice() else {
+        panic!("one false owned-input guarantee: {unproved:?}")
+    };
+    assert!(matches!(
+        failure.kind,
+        ObligationKind::NormalGuarantee { clause: 0, .. }
+    ));
+    assert_eq!(failure.cause, UnprovedCause::NoDerivation);
 }

@@ -15,8 +15,9 @@ fields and no case, a sum has cases and no field.
 */
 
 use semantic_vocabulary::{
-    BoundaryMachineId, CrashCause, IdTable, IntegerValue, MachineId, Proposition, ScalarType,
-    StructuralCaseId, StructuralFieldId, StructuralTypeId, TargetMachineCallable, ValueId,
+    BoundaryMachineId, CrashCause, IdTable, IntegerValue, MachineId, PlaceId, Proposition,
+    ScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId, TargetMachineCallable,
+    ValueId,
 };
 use terminal_check_tables::values::RigidType;
 use terminal_psi::CrashRouteBucket;
@@ -595,6 +596,19 @@ impl Signature {
     pub fn is_place(&self, position: usize) -> bool {
         self.borrowed(position).is_some()
             || matches!(self.parameters.get(position), Some(ValueType::Record(..)))
+    }
+
+    /// A structural result follows every structural input. It has no entry
+    /// contents; clause naming uses this coordinate to keep result reads
+    /// separate from the input observations it records.
+    pub fn structural_result_place(&self) -> Option<PlaceId> {
+        if !matches!(self.result, Some(ValueType::Record(..))) {
+            return None;
+        }
+        let inputs = (0..self.parameters.len())
+            .filter(|position| self.is_place(*position))
+            .count();
+        PlaceId::new(u64::try_from(inputs).ok()?.checked_add(1)?)
     }
 
     /// The value identity of each formal, by position; `None` for a record

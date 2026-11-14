@@ -4,8 +4,8 @@
 //! and unsupported observations return errors rather than retaining callee IDs.
 
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment, IntegerMathTerm, PlaceId, Proposition, ScalarTerm, ScalarType,
-    StructuralCaseId, ValueId,
+    CanonicalStructuralPathSegment, ContentPlaceVersion, IntegerMathTerm, PlaceId, Proposition,
+    ScalarTerm, ScalarType, StructuralCaseId, ValueId,
 };
 
 /// What each name of a clause stands for where the clause is used. A clause
@@ -15,9 +15,12 @@ pub trait ClauseBindings {
     type Error: From<&'static str>;
     /// The term a value of the clause's owner stands for.
     fn value(&mut self, id: ValueId, scalar_type: ScalarType) -> Result<ScalarTerm, Self::Error>;
-    /// The value the scalar field at `path` beneath `root` holds.
+    /// The value the scalar field at `path` beneath `root` holds. Entry
+    /// observations keep the invocation input; current observations follow
+    /// the consumer's cut and the formal's owned or borrowed meaning.
     fn field(
         &mut self,
+        version: ContentPlaceVersion,
         root: PlaceId,
         path: &[CanonicalStructuralPathSegment],
         scalar_type: ScalarType,
@@ -112,11 +115,16 @@ pub fn substitute_clause_term<Error: From<&'static str>>(
     match term {
         ScalarTerm::Value { id, scalar_type } => bindings.value(*id, *scalar_type),
         ScalarTerm::IntegerField {
+            version,
             root,
             path,
             scalar_type,
-        } => bindings.field(*root, path, ScalarType::Integer(*scalar_type)),
-        ScalarTerm::BooleanField { root, path } => bindings.field(*root, path, ScalarType::Boolean),
+        } => bindings.field(*version, *root, path, ScalarType::Integer(*scalar_type)),
+        ScalarTerm::BooleanField {
+            version,
+            root,
+            path,
+        } => bindings.field(*version, *root, path, ScalarType::Boolean),
         ScalarTerm::ViewExtent {
             root,
             path,
@@ -237,6 +245,7 @@ mod tests {
 
         fn field(
             &mut self,
+            _: ContentPlaceVersion,
             root: PlaceId,
             path: &[CanonicalStructuralPathSegment],
             carrier: ScalarType,
@@ -265,6 +274,7 @@ mod tests {
     #[test]
     fn checked_clause_substitution_preserves_selected_fields_and_simultaneous_values() {
         let field = |selected| ScalarTerm::IntegerField {
+            version: ContentPlaceVersion::Current,
             root: PlaceId::new(1).unwrap(),
             path: vec![CanonicalStructuralPathSegment::Field(
                 StructuralFieldId::new(selected).unwrap(),

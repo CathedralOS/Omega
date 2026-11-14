@@ -3414,6 +3414,7 @@ fn a_module_with_a_sum_declares_its_cases_and_encodes() {
 /// and with a second clause `from.y <= to.y`, and `Shape` unconstrained.
 fn constrained() -> IdTable<StructuralTypeId, RecordType> {
     let own = |fields: &[u64]| ScalarTerm::IntegerField {
+        version: semantic_vocabulary::ContentPlaceVersion::Current,
         root: crate::self_place().unwrap(),
         path: fields
             .iter()
@@ -3538,6 +3539,7 @@ fn an_entry_clause_over_a_record_formals_field_encodes_in_the_module_contract() 
     // The clause is a field term rooted at the formal's place, the first
     // place of the machine, and the module that carries it encodes.
     let field = ScalarTerm::IntegerField {
+        version: semantic_vocabulary::ContentPlaceVersion::Current,
         root: id(1),
         path: vec![CanonicalStructuralPathSegment::Field(id(1))],
         scalar_type: match u32_type() {

@@ -2187,8 +2187,13 @@ mod propositions {
                         pending.extend(term.operands().into_iter().rev());
                     }
                     crate::scalar_term_predicate_quint_pattern!(root, ..) => {
-                        if !self.structural_places.contains_key(root) {
+                        let Some(kind) = self.structural_places.get(root) else {
                             return Err(PropositionError::UnknownStructuralPlace(*root));
+                        };
+                        if term.field_version() == Some(ContentPlaceVersion::Entry)
+                            && !matches!(kind, StructuralPlaceKind::Parameter { .. })
+                        {
+                            return Err(PropositionError::EntryNonInputStructuralPlace(*root));
                         }
                     }
                     ScalarTerm::Boolean(_)
@@ -2354,6 +2359,7 @@ mod propositions {
         NestedContentSeparation,
         UnknownValue(ValueId),
         UnknownStructuralPlace(PlaceId),
+        EntryNonInputStructuralPlace(PlaceId),
         EntryResultStructuralPlace(PlaceId),
         UnsupportedContentLocalStructuralPlace(PlaceId),
         ConflictingValueType {
@@ -2871,6 +2877,40 @@ mod tests {
             assert_eq!(
                 PropositionContext::default().validate(&proposition),
                 Err(PropositionError::UnknownStructuralPlace(root))
+            );
+        }
+    }
+
+    #[test]
+    fn entry_field_observations_require_an_actual_input_root() {
+        use crate::{ContentPlaceVersion, PlaceId, StructuralPlaceKind};
+        let root = PlaceId::new(1).unwrap();
+        let term = ScalarTerm::BooleanField {
+            version: ContentPlaceVersion::Entry,
+            root,
+            path: Vec::new(),
+        };
+        let proposition = Proposition::Equal(term.clone(), term);
+        for (kind, input) in [
+            (StructuralPlaceKind::Parameter { position: 0 }, true),
+            (StructuralPlaceKind::Result, false),
+            (
+                StructuralPlaceKind::OperationResult {
+                    producer: crate::OperationId::new(1).unwrap(),
+                    structural_type: crate::StructuralTypeId::new(1).unwrap(),
+                },
+                false,
+            ),
+        ] {
+            let context =
+                PropositionContext::from_value_types_and_places([], [(root, kind)]).unwrap();
+            assert_eq!(
+                context.validate(&proposition),
+                if input {
+                    Ok(())
+                } else {
+                    Err(PropositionError::EntryNonInputStructuralPlace(root))
+                }
             );
         }
     }

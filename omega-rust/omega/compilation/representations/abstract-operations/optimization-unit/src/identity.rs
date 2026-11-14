@@ -425,8 +425,16 @@ pub(crate) mod proposition_encoding {
                 bytes.id(*application);
                 encode_scalar_type(bytes, *scalar_type);
             }
-            S::IeeeFloatField { root, path, format } => {
-                bytes.u8(38);
+            S::IeeeFloatField {
+                version,
+                root,
+                path,
+                format,
+            } => {
+                bytes.u8(match version {
+                    semantic_vocabulary::ContentPlaceVersion::Current => 38,
+                    semantic_vocabulary::ContentPlaceVersion::Entry => 44,
+                });
                 bytes.id(*root);
                 encode_canonical_path(bytes, path);
                 encode_float_format(bytes, *format);
@@ -458,17 +466,28 @@ pub(crate) mod proposition_encoding {
                 encode_integer_type(bytes, *scalar_type);
                 encode_integer_value(bytes, *value);
             }
-            S::BooleanField { root, path } => {
-                bytes.u8(4);
+            S::BooleanField {
+                version,
+                root,
+                path,
+            } => {
+                bytes.u8(match version {
+                    semantic_vocabulary::ContentPlaceVersion::Current => 4,
+                    semantic_vocabulary::ContentPlaceVersion::Entry => 42,
+                });
                 bytes.id(*root);
                 encode_canonical_path(bytes, path);
             }
             S::IntegerField {
+                version,
                 root,
                 path,
                 scalar_type,
             } => {
-                bytes.u8(5);
+                bytes.u8(match version {
+                    semantic_vocabulary::ContentPlaceVersion::Current => 5,
+                    semantic_vocabulary::ContentPlaceVersion::Entry => 43,
+                });
                 bytes.id(*root);
                 encode_canonical_path(bytes, path);
                 encode_integer_type(bytes, *scalar_type);

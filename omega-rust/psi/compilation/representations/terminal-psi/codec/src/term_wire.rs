@@ -2501,8 +2501,16 @@ pub(crate) mod scalar_term_wire {
                     }
                 }
             }
-            ScalarTerm::IeeeFloatField { root, path, format } => {
-                writer.u8(38);
+            ScalarTerm::IeeeFloatField {
+                version,
+                root,
+                path,
+                format,
+            } => {
+                writer.u8(match version {
+                    semantic_vocabulary::ContentPlaceVersion::Current => 38,
+                    semantic_vocabulary::ContentPlaceVersion::Entry => 44,
+                });
                 encode_canonical_structural_field(writer, *root, path, "IEEE float field path")?;
                 encode_ieee_float_format(writer, *format);
             }
@@ -2524,16 +2532,27 @@ pub(crate) mod scalar_term_wire {
                 writer.id(*id);
                 encode_scalar_type(writer, *scalar_type);
             }
-            ScalarTerm::BooleanField { root, path } => {
-                writer.u8(34);
+            ScalarTerm::BooleanField {
+                version,
+                root,
+                path,
+            } => {
+                writer.u8(match version {
+                    semantic_vocabulary::ContentPlaceVersion::Current => 34,
+                    semantic_vocabulary::ContentPlaceVersion::Entry => 42,
+                });
                 encode_canonical_structural_field(writer, *root, path, "Boolean field path")?;
             }
             ScalarTerm::IntegerField {
+                version,
                 root,
                 path,
                 scalar_type,
             } => {
-                writer.u8(35);
+                writer.u8(match version {
+                    semantic_vocabulary::ContentPlaceVersion::Current => 35,
+                    semantic_vocabulary::ContentPlaceVersion::Entry => 43,
+                });
                 encode_canonical_structural_field(writer, *root, path, "Integer field path")?;
                 encode_integer_type(writer, *scalar_type);
             }
@@ -2790,13 +2809,30 @@ pub(crate) mod scalar_term_wire {
             31 => binary_row(reader, children, ScalarTerm::wrapping_integer_remainder)?,
             32 => binary_row(reader, children, ScalarTerm::saturating_integer_divide)?,
             33 => binary_row(reader, children, ScalarTerm::saturating_integer_remainder)?,
-            34 => {
+            tag @ (34 | 42) => {
                 let (root, path) = decode_canonical_structural_field(reader)?;
-                ScalarTerm::boolean_field_path(root, path)
+                ScalarTerm::BooleanField {
+                    version: if tag == 34 {
+                        semantic_vocabulary::ContentPlaceVersion::Current
+                    } else {
+                        semantic_vocabulary::ContentPlaceVersion::Entry
+                    },
+                    root,
+                    path,
+                }
             }
-            35 => {
+            tag @ (35 | 43) => {
                 let (root, path) = decode_canonical_structural_field(reader)?;
-                ScalarTerm::integer_field_path(root, path, decode_integer_type(reader)?)
+                ScalarTerm::IntegerField {
+                    version: if tag == 35 {
+                        semantic_vocabulary::ContentPlaceVersion::Current
+                    } else {
+                        semantic_vocabulary::ContentPlaceVersion::Entry
+                    },
+                    root,
+                    path,
+                    scalar_type: decode_integer_type(reader)?,
+                }
             }
             36 => {
                 let (root, path) = decode_canonical_structural_field(reader)?;
@@ -2807,13 +2843,18 @@ pub(crate) mod scalar_term_wire {
                 2 => semantic_vocabulary::IeeeFloatValue::Binary64(reader.u64()?),
                 tag => return Err(CodecError::InvalidTag("IeeeFloatValue", tag)),
             }),
-            38 => {
+            tag @ (38 | 44) => {
                 let (root, path) = decode_canonical_structural_field(reader)?;
-                let term = ScalarTerm::ieee_float_field_path(
+                let term = ScalarTerm::IeeeFloatField {
+                    version: if tag == 38 {
+                        semantic_vocabulary::ContentPlaceVersion::Current
+                    } else {
+                        semantic_vocabulary::ContentPlaceVersion::Entry
+                    },
                     root,
                     path,
-                    decode_ieee_float_format(reader)?,
-                );
+                    format: decode_ieee_float_format(reader)?,
+                };
                 term.validate_after_operands()
                     .map_err(CodecError::MalformedProposition)?;
                 term
@@ -2880,6 +2921,62 @@ pub(crate) mod scalar_term_wire {
     mod scalar_read_projection_tests {
         use super::*;
         use semantic_vocabulary::{PlaceId, ScalarType};
+
+        #[test]
+        fn entry_field_observations_remain_distinct_on_the_wire() {
+            use semantic_vocabulary::{
+                ContentPlaceVersion, IeeeFloatFormat, IntegerSign, IntegerType,
+            };
+            let root = PlaceId::new(1).unwrap();
+            let path = vec![CanonicalStructuralPathSegment::Field(
+                semantic_vocabulary::StructuralFieldId::new(2).unwrap(),
+            )];
+            let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
+            for (current, current_tag, entry_tag) in [
+                (ScalarTerm::boolean_field_path(root, path.clone()), 34, 42),
+                (
+                    ScalarTerm::integer_field_path(root, path.clone(), integer),
+                    35,
+                    43,
+                ),
+                (
+                    ScalarTerm::ieee_float_field_path(
+                        root,
+                        path.clone(),
+                        IeeeFloatFormat::Binary32,
+                    ),
+                    38,
+                    44,
+                ),
+            ] {
+                let mut entry = current.clone();
+                match &mut entry {
+                    ScalarTerm::BooleanField { version, .. }
+                    | ScalarTerm::IntegerField { version, .. }
+                    | ScalarTerm::IeeeFloatField { version, .. } => {
+                        *version = ContentPlaceVersion::Entry
+                    }
+                    _ => unreachable!("the cases are scalar field observations"),
+                }
+                let mut encoded = Vec::new();
+                for (term, tag) in [(&current, current_tag), (&entry, entry_tag)] {
+                    let mut row = Writer::default();
+                    write_scalar_row(&mut row, term).unwrap();
+                    assert_eq!(row.finish()[0], tag);
+                    let mut writer = Writer::default();
+                    encode_scalar_term(&mut writer, term).unwrap();
+                    let bytes = writer.finish();
+                    let mut reader = Reader::new(&bytes);
+                    assert_eq!(decode_scalar_term(&mut reader).unwrap(), *term);
+                    assert_eq!(reader.remaining(), 0);
+                    encoded.push(bytes);
+                }
+                assert_ne!(
+                    encoded[0], encoded[1],
+                    "an entry read cannot become a current read"
+                );
+            }
+        }
 
         #[test]
         fn explicit_reference_read_has_an_exact_canonical_wire_roundtrip() {
