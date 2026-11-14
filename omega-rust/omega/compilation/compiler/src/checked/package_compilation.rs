@@ -366,22 +366,12 @@ impl CompilationSession {
         Vec<Diagnostic>,
     > {
         super::run_on_compile_thread(|| {
-            let mut completed = Vec::new();
-            let mut pending = Vec::new();
-            for (position, (owner, build)) in builds.into_iter().enumerate() {
-                let cache = super::component_cache::ComponentProductCache::for_build(&build.source)
-                    .ok()
-                    .flatten();
-                if let Some(cache) = &cache
-                    && let Ok(Some(product)) = cache.load()
-                {
-                    let description = product.description().clone();
-                    self.retain_component_product(product);
-                    completed.push((position, owner, Ok(description)));
-                    continue;
-                }
-                pending.push(((position, owner, cache), build.source));
-            }
+            let mut completed = Vec::with_capacity(builds.len());
+            let pending = builds
+                .into_iter()
+                .enumerate()
+                .map(|(position, (owner, build))| ((position, owner), build.source))
+                .collect();
             let mut requests = Vec::new();
             for (owner, selected) in self.select_build_batch(pending, None) {
                 let request = match selected.result {
@@ -393,14 +383,9 @@ impl CompilationSession {
                 };
                 requests.push((owner, request));
             }
-            for ((position, owner, cache), product) in
-                crate::target_batch::produce_products(requests)
-            {
+            for ((position, owner), product) in crate::target_batch::produce_products(requests) {
                 let description = match product.and_then(crate::CompilationOutput::into_component) {
                     Ok(product) => {
-                        if let Some(cache) = cache {
-                            let _ = cache.store(&product);
-                        }
                         let description = product.description().clone();
                         self.retain_component_product(product);
                         Ok(description)

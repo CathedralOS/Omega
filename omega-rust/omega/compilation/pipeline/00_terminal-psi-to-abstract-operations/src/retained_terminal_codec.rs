@@ -1727,7 +1727,7 @@ impl DerivationInputs {
 }
 
 pub fn recover_native_derivation_inputs(
-    artifact: Arc<terminal_codec::CanonicalTerminalArtifact>,
+    authorization: terminal_installation::AuthorizedTerminalArtifact,
     bytes: &[u8],
 ) -> Result<
     (
@@ -1737,6 +1737,7 @@ pub fn recover_native_derivation_inputs(
     ),
     Vec<Diagnostic>,
 > {
+    let artifact = authorization.shared_artifact();
     let error = |reason: String| vec![Diagnostic::error(reason)];
     let mut reader = RecordReader::new(bytes, RecordLimits::default())
         .map_err(|reason| error(reason.to_string()))?;
@@ -1813,15 +1814,15 @@ pub fn recover_native_derivation_inputs(
         x86_scalar_fma_provider: fma,
     };
     let mut proposal =
-        project_terminal_native_realization_proposal(&artifact, checked_entry, request)?;
+        project_terminal_native_realization_proposal(artifact, checked_entry, request)?;
     if physical_adapter_requested || entry_adapter_requested {
         proposal
-            .bind_physical_adapter(&artifact)
+            .bind_physical_adapter(artifact)
             .map_err(|reason| error(reason.to_owned()))?;
     }
     Ok((
         RetainedTerminalArtifact::new_with_native_realization_proposal(
-            artifact,
+            authorization,
             proposal.with_target_provider_proposals(provider_proposals),
         ),
         accepted,
