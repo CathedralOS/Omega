@@ -666,6 +666,29 @@ pub(crate) mod affine_authority {
                     .take_while(|action| action.place() == place)
                     .count();
                 let (group, rest) = remaining.split_at(count);
+                if crate::current_ownership::unrestricted_owned_cleanup_root(function, types, place)
+                {
+                    if !matches!(group,
+                        [TerminalAffineCleanupAction::RetireHome(root) | TerminalAffineCleanupAction::DiscardRoot(root)] if *root == place)
+                        || frontier
+                            .owned_places
+                            .iter()
+                            .any(|owned| owned.place == place)
+                        || frontier
+                            .partial_custody
+                            .iter()
+                            .any(|custody| custody.place == place)
+                        || frontier
+                            .claims
+                            .iter()
+                            .any(|claim| claim.input == Some(place))
+                    {
+                        return None;
+                    }
+                    retired.push(place);
+                    remaining = rest;
+                    continue;
+                }
                 let partition = match group.split_last()? {
                     (TerminalAffineCleanupAction::RetireHome(retired), partition)
                         if *retired == place =>

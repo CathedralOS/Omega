@@ -3190,8 +3190,33 @@ mod cleanup {
         Ok(remaining)
     }
 
+    /// Copyable values owe no disposal, but an explicit cleanup still needs
+    /// their actual owned source and no-code declaration. Foundation validation
+    /// checks that each cleanup use follows its dominating producer.
+    pub(crate) fn unrestricted_owned_cleanup_root(
+        function: &PsiOptimizationFunction,
+        types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+        place: PlaceId,
+    ) -> bool {
+        crate::unit_validation::operation_contracts::structural_source_contract(function, place)
+            .filter(|source| {
+                source.access == terminal_psi::StructuralAccess::Owned
+                    && source.multiplicity == StructuralMultiplicity::Unrestricted
+                    && !function.entry_claim_declared(place)
+                    && !function.content_entry_claim_declared(place)
+            })
+            .and_then(|source| types.get(&source.structural_type))
+            .is_some_and(|declaration| {
+                declaration.copyable
+                    && !declaration.owns_linear_claim
+                    && declaration.no_code_affine_cleanup
+                    && declaration.descriptor_cleanup
+            })
+    }
+
     pub(super) fn cleanup_root_order(
         function: &PsiOptimizationFunction,
+        types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
         frontier: &CurrentOwnership,
     ) -> Vec<PlaceId> {
         let mut results = Vec::new();
@@ -3199,6 +3224,7 @@ mod cleanup {
         for place in &function.structural_places {
             if !frontier.owned_places.contains_key(&place.id)
                 && !frontier.partial_custody_paths.contains_key(&place.id)
+                && !unrestricted_owned_cleanup_root(function, types, place.id)
             {
                 continue;
             }
@@ -3228,6 +3254,7 @@ mod cleanup {
                             || frontier
                                 .partial_custody_paths
                                 .contains_key(&parameter.place)
+                            || unrestricted_owned_cleanup_root(function, types, parameter.place)
                     })
                     .map(|parameter| parameter.place),
             )
@@ -3385,6 +3412,29 @@ mod cleanup {
             machine: function.machine,
             block,
         };
+        if unrestricted_owned_cleanup_root(function, types, place) {
+            if !matches!(actions,
+                [TerminalAffineCleanupAction::RetireHome(root) | TerminalAffineCleanupAction::DiscardRoot(root)] if *root == place)
+                || frontier.owned_places.contains_key(&place)
+                || frontier.partial_custody_paths.contains_key(&place)
+                || frontier
+                    .claims
+                    .values()
+                    .any(|claim| claim.input == Some(place))
+                || frontier.live_references.iter().any(|reference| {
+                    super::references::borrows_owned_storage(function, types, reference, place)
+                })
+            {
+                return Err(mismatch());
+            }
+            return super::references::discard_owned(
+                function,
+                types,
+                block,
+                &mut frontier.live_references,
+                place,
+            );
+        }
         if super::value_custody::uninstalled_home(frontier, place) {
             if !matches!(actions, [TerminalAffineCleanupAction::RetireHome(retired)] if *retired == place)
                 || frontier
@@ -3773,7 +3823,7 @@ mod continuation {
             machine: function.machine,
             block,
         };
-        let roots = super::cleanup::cleanup_root_order(function, frontier);
+        let roots = super::cleanup::cleanup_root_order(function, structural_types, frontier);
         let mut eligible = roots.into_iter();
         for group in actions.chunk_by(|left, right| left.place() == right.place()) {
             let place = group[0].place();
@@ -10144,6 +10194,151 @@ mod value_custody {
         }
 
         #[test]
+        fn optional_copy_cleanup_requires_its_actual_no_code_owner() {
+            use terminal_psi::TerminalAffineCleanupAction as Action;
+            let (mut function, mut types, _) = context();
+            function.structural_parameters[0].multiplicity = StructuralMultiplicity::Unrestricted;
+            for declaration in &mut types {
+                declaration.copyable = true;
+            }
+            let cleanup = |function: &PsiOptimizationFunction,
+                           types: &[StructuralTypeDeclaration],
+                           current: &mut CurrentOwnership,
+                           actions: &[Action]| {
+                let types = types
+                    .iter()
+                    .map(|declaration| (declaration.id, declaration))
+                    .collect();
+                super::super::continuation::apply_edge_cleanup_actions(
+                    function,
+                    &BTreeMap::new(),
+                    &types,
+                    id(1),
+                    current,
+                    actions,
+                    &|_, _, _, _| false,
+                )
+            };
+            let empty = || CurrentOwnership {
+                claims: BTreeMap::new(),
+                owned_places: BTreeMap::new(),
+                partial_custody_paths: BTreeMap::new(),
+                live_references: Vec::new(),
+            };
+            for action in [Action::RetireHome(id(1)), Action::DiscardRoot(id(1))] {
+                let mut frontier = empty();
+                cleanup(&function, &types, &mut frontier, &[action]).unwrap();
+                assert_eq!(
+                    frontier,
+                    empty(),
+                    "a copy has no finite obligation to invent"
+                );
+            }
+            for borrowed in [
+                StructuralAccess::SharedBorrow,
+                StructuralAccess::MutableBorrow,
+            ] {
+                let mut borrowed_function = function.clone();
+                borrowed_function.structural_parameters[0].access = borrowed;
+                assert!(
+                    cleanup(
+                        &borrowed_function,
+                        &types,
+                        &mut empty(),
+                        &[Action::RetireHome(id(1))]
+                    )
+                    .is_err()
+                );
+            }
+            for changed in 0..4 {
+                let mut declarations = types.clone();
+                match changed {
+                    0 => declarations[2].copyable = false,
+                    1 => declarations[2].owns_linear_claim = true,
+                    2 => declarations[2].no_code_affine_cleanup = false,
+                    _ => declarations[2].descriptor_cleanup = false,
+                }
+                assert!(
+                    cleanup(
+                        &function,
+                        &declarations,
+                        &mut empty(),
+                        &[Action::RetireHome(id(1))]
+                    )
+                    .is_err()
+                );
+            }
+            let mut claimed = empty();
+            claimed.claims.insert(
+                id(1),
+                super::super::LiveClaim {
+                    input: Some(id(1)),
+                    path: Vec::new(),
+                    multiplicity: Some(StructuralMultiplicity::Linear),
+                },
+            );
+            assert!(
+                cleanup(
+                    &function,
+                    &types,
+                    &mut claimed,
+                    &[Action::RetireHome(id(1))]
+                )
+                .is_err()
+            );
+            for actions in [
+                vec![Action::RetireHome(id(2))],
+                vec![Action::RetireHome(id(1)), Action::RetireHome(id(1))],
+            ] {
+                assert!(cleanup(&function, &types, &mut empty(), &actions).is_err());
+            }
+            let mut unresolved = function.clone();
+            unresolved.structural_parameters.clear();
+            unresolved.structural_places[0].kind = StructuralPlaceKind::OperationResult {
+                producer: id(1),
+                structural_type: id(3),
+            };
+            assert!(
+                cleanup(
+                    &unresolved,
+                    &types,
+                    &mut empty(),
+                    &[Action::RetireHome(id(1))]
+                )
+                .is_err(),
+                "a type declaration cannot invent its missing producer"
+            );
+            use crate::unit_validation::references::{
+                LiveReference, ReferenceIdentity, ReferenceOrigin, ReferenceParent,
+            };
+            let mut borrowed = empty();
+            borrowed.live_references.push(LiveReference {
+                identity: ReferenceIdentity {
+                    place: id(2),
+                    path: Vec::new(),
+                },
+                carrier: id(2),
+                carrier_path: Vec::new(),
+                root: ReferenceOrigin::Primitive(id(1)),
+                parent: ReferenceParent::Root(ReferenceOrigin::Primitive(id(1))),
+            });
+            let before = borrowed.clone();
+            assert!(
+                cleanup(
+                    &function,
+                    &types,
+                    &mut borrowed,
+                    &[Action::RetireHome(id(1))]
+                )
+                .is_err()
+            );
+            assert_eq!(
+                borrowed, before,
+                "retirement leaves an outstanding loan intact"
+            );
+        }
+
+        #[test]
         fn a_join_compares_missing_regions_instead_of_their_partition_spelling() {
             let (function, types, destination) = context();
             let children = current(vec![path(&[0, 0]), path(&[0, 1])]);
@@ -10513,3 +10708,4 @@ fn reconstruct_entry_ownership(
 }
 
 pub(crate) use address_joins::validate_compatibility as validate_descriptor_compatibility;
+pub(crate) use cleanup::unrestricted_owned_cleanup_root;
