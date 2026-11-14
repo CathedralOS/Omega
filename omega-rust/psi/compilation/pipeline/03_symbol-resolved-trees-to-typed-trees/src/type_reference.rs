@@ -2089,29 +2089,6 @@ pub(crate) mod direct {
                     .type_reference_table
                     .insert(typed::types::TypeReferenceNode::ConstExpression(expression)))
             }
-            resolved::types::TypeReference::DynamicTrait {
-                symbol,
-                name,
-                arguments,
-                ..
-            } => {
-                let source_arguments = source_trees.child_type_references(*arguments);
-                let mut lowered_arguments = Vec::with_capacity(source_arguments.len());
-                for argument in source_arguments {
-                    lowered_arguments.push(lower!(argument)?);
-                }
-                let arguments = typed_trees
-                    .type_reference_table
-                    .insert_type_reference_handles(lowered_arguments);
-                super::lower_dynamic_trait_type_reference(
-                    source_trees,
-                    typed_trees,
-                    *symbol,
-                    name,
-                    arguments,
-                    exposure,
-                )
-            }
             resolved::types::TypeReference::Named { symbol, name, .. } => {
                 super::lower_named_type_reference(
                     source_trees,
@@ -2861,22 +2838,6 @@ pub(crate) mod generic_origins {
                             self.constraint(first, second, left.base_type, right.base_type)
                         })
                 }
-                (
-                    TypeReference::DynamicTrait {
-                        symbol: left,
-                        arguments: left_arguments,
-                        ..
-                    },
-                    TypeReference::DynamicTrait {
-                        symbol: right,
-                        arguments: right_arguments,
-                        ..
-                    },
-                ) => {
-                    self.live(*left)
-                        && left == right
-                        && self.arguments(*left_arguments, *right_arguments)
-                }
                 (TypeReference::ConstExpression(left), TypeReference::ConstExpression(right)) => {
                     if !left.expression.is_valid() || !right.expression.is_valid() {
                         return false;
@@ -3167,22 +3128,6 @@ pub(crate) mod table {
                     .type_reference_table
                     .insert(typed::types::TypeReferenceNode::ConstExpression(expression)))
             }
-            resolved::types::TypeReferenceNode::DynamicTrait {
-                symbol,
-                name,
-                arguments,
-            } => {
-                let lowered_arguments =
-                    lower_type_argument_handles(source_trees, typed_trees, *arguments, exposure)?;
-                super::lower_dynamic_trait_type_reference(
-                    source_trees,
-                    typed_trees,
-                    *symbol,
-                    name,
-                    lowered_arguments,
-                    exposure,
-                )
-            }
             resolved::types::TypeReferenceNode::Named { symbol, name } => {
                 super::lower_named_type_reference(
                     source_trees,
@@ -3450,31 +3395,6 @@ pub(crate) fn retain_type_reference_selection(
             ))
             .with_source_span(name.source_span())
         })
-}
-
-pub(crate) fn lower_dynamic_trait_type_reference(
-    source_trees: &resolved::SymbolResolvedTrees,
-    typed_trees: &mut typed::TypedTrees,
-    symbol: SymbolHandle,
-    name: &resolved::name::DiagnosticName,
-    arguments: arena::HandleSpan<typed::types::TypeReferenceHandle>,
-    exposure: Option<AuthoredDeclarationSelectionExposure>,
-) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
-    retain_type_reference_selection(
-        source_trees,
-        typed_trees,
-        name,
-        symbol,
-        exposure,
-        AuthoredDeclarationSelectionKind::TypeReference,
-    )?;
-    Ok(typed_trees
-        .type_reference_table
-        .insert(typed::types::TypeReferenceNode::DynamicTrait {
-            symbol,
-            name: crate::lowerer::name::lower_name(name),
-            arguments,
-        }))
 }
 
 pub(crate) fn lower_named_type_reference(

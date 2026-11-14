@@ -4038,11 +4038,7 @@ mod templates {
             TypeReferenceNode::Slice { element_type } => {
                 collect_type_expression_handles(syntax, *element_type, expressions, type_references)
             }
-            TypeReferenceNode::Generic { arguments, .. }
-            | TypeReferenceNode::DynamicTrait {
-                trait_arguments: arguments,
-                ..
-            } => {
+            TypeReferenceNode::Generic { arguments, .. } => {
                 for argument in syntax.type_references.type_reference_handles(*arguments) {
                     collect_type_expression_handles(
                         syntax,
@@ -4293,9 +4289,7 @@ mod templates {
                 "a scoped type selection must resolve before scalar template normalization"
                     .to_owned(),
             ),
-            TypeReferenceNode::DynamicTrait { .. }
-            | TypeReferenceNode::Named(_)
-            | TypeReferenceNode::Unit => Ok(()),
+            TypeReferenceNode::Named(_) | TypeReferenceNode::Unit => Ok(()),
         }
     }
 
@@ -4422,11 +4416,7 @@ mod templates {
                 }
             }
             TypeReferenceNode::Slice { element_type } => visit_child!(*element_type),
-            TypeReferenceNode::Generic { arguments, .. }
-            | TypeReferenceNode::DynamicTrait {
-                trait_arguments: arguments,
-                ..
-            } => {
+            TypeReferenceNode::Generic { arguments, .. } => {
                 for argument in syntax_type_references(syntax).type_reference_handles(*arguments) {
                     visit_child!(*argument);
                 }
@@ -5851,7 +5841,6 @@ mod values {
         TypeReferenceNode::Unit => Ok(()),
         TypeReferenceNode::Reference { .. }
         | TypeReferenceNode::Slice { .. }
-        | TypeReferenceNode::DynamicTrait { .. }
         | TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::StaticSelection(_)
  => Err(

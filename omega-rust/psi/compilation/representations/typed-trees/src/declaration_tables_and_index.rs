@@ -4278,8 +4278,7 @@ pub(crate) mod trait_and_machine_tables {
                         TypeReferenceNode::Unit => self.shape.push(Shape::Unit),
                         TypeReferenceNode::Constrained { .. }
                         | TypeReferenceNode::FixedArray { .. }
-                        | TypeReferenceNode::ConstExpression(_)
-                        | TypeReferenceNode::DynamicTrait { .. } => self.closed = false,
+                        | TypeReferenceNode::ConstExpression(_) => self.closed = false,
                     }
                 }
             }
@@ -5778,7 +5777,6 @@ pub(crate) mod type_reference_queries {
                         TypeReferenceNode::Slice { .. } => return Some(2),
                         TypeReferenceNode::FixedArray { .. }
                         | TypeReferenceNode::Reference { .. }
-                        | TypeReferenceNode::DynamicTrait { .. }
                         | TypeReferenceNode::Unit => return Some(1),
                         TypeReferenceNode::Named { symbol, .. }
                         | TypeReferenceNode::Generic {
@@ -6511,7 +6509,6 @@ pub(crate) mod type_reference_queries {
                         .map(|definition| definition.properties.multiplicity)
                         .unwrap_or(Multiplicity::Affine)
                 }
-                TypeReferenceNode::DynamicTrait { .. } => Multiplicity::Unrestricted,
                 TypeReferenceNode::Slice { .. } => Multiplicity::Affine,
             }
         }

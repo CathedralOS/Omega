@@ -562,23 +562,6 @@ mod calls {
                         syntax_type_references(syntax).type_reference_handles(*right_arguments),
                     )
             }
-            (
-                TypeReferenceNode::DynamicTrait {
-                    trait_name: left_name,
-                    trait_arguments: left_arguments,
-                },
-                TypeReferenceNode::DynamicTrait {
-                    trait_name: right_name,
-                    trait_arguments: right_arguments,
-                },
-            ) => {
-                left_name.as_str(syntax) == right_name.as_str(syntax)
-                    && call_context_parameter_types_agree(
-                        syntax,
-                        syntax_type_references(syntax).type_reference_handles(*left_arguments),
-                        syntax_type_references(syntax).type_reference_handles(*right_arguments),
-                    )
-            }
             (TypeReferenceNode::Constrained { .. }, TypeReferenceNode::Constrained { .. })
             | (TypeReferenceNode::ConstExpression(_), TypeReferenceNode::ConstExpression(_)) => {
                 false

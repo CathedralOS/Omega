@@ -161,9 +161,9 @@ impl Program<'_> {
                 TypeReferenceNode::Reference { .. }
                 | TypeReferenceNode::FixedArray { .. }
                 | TypeReferenceNode::Slice { .. } => return Ok(false),
-                TypeReferenceNode::ConstExpression(_)
-                | TypeReferenceNode::DynamicTrait { .. }
-                | TypeReferenceNode::Unit => return Err(unserved()),
+                TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => {
+                    return Err(unserved());
+                }
             }
         }
         Err(unserved())
@@ -242,7 +242,6 @@ impl Program<'_> {
                 )))
             }
             TypeReferenceNode::ConstExpression(_) => unserved("const expression"),
-            TypeReferenceNode::DynamicTrait { .. } => unserved("dynamic trait"),
             TypeReferenceNode::Unit => unserved("unit as a value"),
         }
     }

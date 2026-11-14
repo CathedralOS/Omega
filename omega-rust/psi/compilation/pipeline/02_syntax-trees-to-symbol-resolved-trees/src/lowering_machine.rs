@@ -581,11 +581,6 @@ mod token_bindings {
         /* A `Named` type or a generic application's base (`Vec2` in `Vec2<T>`). */
         Declaration { symbol: SymbolHandle },
         /*
-            A dynamic-trait slot (`dyn Trait<..>`): a requirement the operand
-            satisfies, kept distinct from a declaration the operand itself names.
-        */
-        Trait { symbol: SymbolHandle },
-        /*
             A domain constraint's spelling (`i32 in Degrees`). A constraint is
             still a name here; [`domain_named`] is the one place that joins a
             spelling to the declarations it selects.
@@ -599,13 +594,8 @@ mod token_bindings {
     */
     #[derive(Clone, Copy, PartialEq, Eq)]
     enum ReadingScope {
-        /* Every argument, including an instantiated `dyn` requirement's. */
+        /* The complete generic argument telescope. */
         EveryArgument,
-        /*
-            Generic application arguments; a `dyn` slot's arguments stay with the
-            rule that reads that requirement.
-        */
-        GenericArguments,
         /*
             The reference, constrained-base, array and slice chain, with no
             application arguments.
@@ -618,8 +608,8 @@ mod token_bindings {
         order.
 
         Every operand-telescope rule in this module reads the same closed
-        inventory: a `Named` slot, a generic application's base and arguments, a
-        dynamic-trait slot and arguments, a domain constraint's spelling, and the
+        inventory: a `Named` slot, a generic application's base and arguments,
+        a domain constraint's spelling, and the
         reference, constrained-base, array and slice chains. This is the one owner
         of that inventory; a new position is one edit here rather than five
         recursions kept in step by comment. Two facts are structural, not scope: a
@@ -655,21 +645,8 @@ mod token_bindings {
                 positions.push(TypePosition::Declaration {
                     symbol: generic.base_symbol,
                 });
-                if matches!(
-                    scope,
-                    ReadingScope::EveryArgument | ReadingScope::GenericArguments
-                ) {
-                    for argument in program.child_type_references(generic.arguments) {
-                        extend_name_positions(program, argument, scope, positions);
-                    }
-                }
-            }
-            TypeReference::DynamicTrait {
-                symbol, arguments, ..
-            } => {
-                positions.push(TypePosition::Trait { symbol: *symbol });
                 if scope == ReadingScope::EveryArgument {
-                    for argument in program.child_type_references(*arguments) {
+                    for argument in program.child_type_references(generic.arguments) {
                         extend_name_positions(program, argument, scope, positions);
                     }
                 }
@@ -742,9 +719,7 @@ mod token_bindings {
         name_positions(program, type_reference, ReadingScope::EveryArgument)
             .into_iter()
             .any(|position| match position {
-                TypePosition::Declaration { symbol } | TypePosition::Trait { symbol } => {
-                    symbol == home
-                }
+                TypePosition::Declaration { symbol } => symbol == home,
                 TypePosition::Domain { .. } => false,
             })
     }
@@ -764,7 +739,7 @@ mod token_bindings {
             .into_iter()
             .any(|position| match position {
                 TypePosition::Domain { name } => domain_named(program, name) == Some(domain),
-                TypePosition::Declaration { .. } | TypePosition::Trait { .. } => false,
+                TypePosition::Declaration { .. } => false,
             })
     }
 
@@ -773,16 +748,13 @@ mod token_bindings {
         domain constraint. Builtin primitives resolve to `BuiltinType` symbols and
         generic binders to `TypeParameter` symbols; neither is a declaration that
         can own a family, so a telescope of only those has no home. Generic
-        application arguments are read; a `dyn` slot's arguments are left to the
-        rule that reads that requirement.
+        application arguments are read.
     */
     fn names_declaration(program: &SymbolResolvedTrees, type_reference: &TypeReference) -> bool {
-        name_positions(program, type_reference, ReadingScope::GenericArguments)
+        name_positions(program, type_reference, ReadingScope::EveryArgument)
             .into_iter()
             .any(|position| match position {
-                TypePosition::Declaration { symbol } | TypePosition::Trait { symbol } => {
-                    is_declaration(program, symbol)
-                }
+                TypePosition::Declaration { symbol } => is_declaration(program, symbol),
                 TypePosition::Domain { name } => domain_named(program, name).is_some(),
             })
     }
@@ -800,9 +772,9 @@ mod token_bindings {
         type_reference: &TypeReference,
     ) -> Vec<SymbolHandle> {
         let mut symbols = Vec::new();
-        for position in name_positions(program, type_reference, ReadingScope::GenericArguments) {
+        for position in name_positions(program, type_reference, ReadingScope::EveryArgument) {
             match position {
-                TypePosition::Declaration { symbol } | TypePosition::Trait { symbol } => {
+                TypePosition::Declaration { symbol } => {
                     if is_declaration(program, symbol) {
                         symbols.push(symbol);
                     }
@@ -1181,21 +1153,6 @@ mod token_bindings {
                 TypeReference::ConstExpression(expression) => format!(
                     "const({})",
                     body_expressions(self.program).display_name(expression.expression)
-                ),
-                TypeReference::DynamicTrait {
-                    symbol,
-                    name,
-                    arguments,
-                    ..
-                } => format!(
-                    "dyn {}<{}>",
-                    self.binder_or_symbol(*symbol, name.as_str()),
-                    self.program
-                        .child_type_references(*arguments)
-                        .iter()
-                        .map(|argument| self.type_shape(argument))
-                        .collect::<Vec<_>>()
-                        .join(", ")
                 ),
                 TypeReference::Named { symbol, name, .. } => {
                     self.binder_or_symbol(*symbol, name.as_str())

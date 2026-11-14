@@ -254,17 +254,6 @@ impl TypedReferences for TypeResolution<'_> {
         let node = self.typed.type_reference_table.type_reference(reference);
         match node {
             TypeReferenceNode::Named { symbol, .. } => self.extend([*symbol]),
-            TypeReferenceNode::DynamicTrait {
-                symbol, arguments, ..
-            } => {
-                self.extend([*symbol]);
-                self.arguments(
-                    self.typed
-                        .type_reference_table
-                        .type_reference_handles(*arguments),
-                    arguments.len(),
-                );
-            }
             TypeReferenceNode::Generic {
                 base_symbol,
                 arguments,

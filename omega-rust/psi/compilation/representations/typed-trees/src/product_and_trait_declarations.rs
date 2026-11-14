@@ -150,10 +150,6 @@ pub mod product_operand {
                                 TypeReferenceNode::Generic { base_symbol, .. },
                             ) => *base_symbol,
                             (
-                                ProductTypeSelectionSlot::Declaration,
-                                TypeReferenceNode::DynamicTrait { symbol, .. },
-                            ) => *symbol,
-                            (
                                 ProductTypeSelectionSlot::ArrayExtent,
                                 TypeReferenceNode::FixedArray {
                                     length: FixedArrayLength::ConstParameter { symbol, .. },
@@ -815,14 +811,6 @@ pub mod product_operand {
                     } => ProductOperandType::Generic {
                         name: self.name(base_name.as_str(), *base_symbol),
                         lifetimes: self.names(lifetime_arguments),
-                        arguments: self.type_arguments(*arguments)?,
-                    },
-                    types::TypeReferenceNode::DynamicTrait {
-                        symbol,
-                        name,
-                        arguments,
-                    } => ProductOperandType::Dynamic {
-                        name: self.name(name.as_str(), *symbol),
                         arguments: self.type_arguments(*arguments)?,
                     },
                     types::TypeReferenceNode::Reference {
@@ -3106,275 +3094,7 @@ pub mod trait_definition {
                 }
             }
         }
-        pub(crate) mod source_fields {
-            use super::{
-                AppliedTraitScope, TraitApplicationArguments, enclosing, project_type_reference,
-            };
-            use crate::TypedTrees;
-            use crate::data;
-            use crate::references::TypedReferences;
-            use crate::references::visit_type_reference;
-            use crate::types::{TypeReferenceHandle, TypeReferenceNode};
-            use data::DataMember;
-            use std::collections::BTreeSet;
-            use symbols::SymbolHandle;
 
-            pub(crate) fn contract_application_roots<'program>(
-                program: &'program TypedTrees,
-                occurrences: &[crate::references::TypeOccurrence],
-            ) -> Vec<AppliedTraitScope<'program>> {
-                if !program
-                    .type_reference_table
-                    .references()
-                    .any(|(_, node)| matches!(node, TypeReferenceNode::DynamicTrait { .. }))
-                {
-                    debug_assert!(
-                        walk_contract_application_roots(program, occurrences).is_empty(),
-                        "a contract-root walk published a root without a dynamic trait row",
-                    );
-                    return Vec::new();
-                }
-                walk_contract_application_roots(program, occurrences)
-            }
-
-            fn walk_contract_application_roots<'program>(
-                program: &'program TypedTrees,
-                occurrences: &[crate::references::TypeOccurrence],
-            ) -> Vec<AppliedTraitScope<'program>> {
-                let mut discovery = SourceFields {
-                    program,
-                    roots: Vec::new(),
-                    seen: Vec::new(),
-                    active: Vec::new(),
-                    field_inventories: Vec::new(),
-                    field_references: Vec::new(),
-                };
-                for occurrence in occurrences {
-                    discovery.visit(
-                        occurrence.lexical_owner,
-                        occurrence.reference,
-                        &[],
-                        &[],
-                        &[],
-                    );
-                }
-                discovery.roots
-            }
-
-            #[derive(PartialEq, Eq, PartialOrd, Ord)]
-            struct SourceFieldOccurrence {
-                owner: (u32, u32),
-                reference: (u32, u32),
-                frames: Vec<(u32, u32)>,
-            }
-
-            struct SourceFields<'program> {
-                program: &'program TypedTrees,
-                roots: Vec<AppliedTraitScope<'program>>,
-                seen: Vec<BTreeSet<SourceFieldOccurrence>>,
-                active: Vec<(SymbolHandle, usize)>,
-                field_inventories: Vec<(SymbolHandle, std::ops::Range<usize>)>,
-                field_references: Vec<TypeReferenceHandle>,
-            }
-
-            impl SourceFields<'_> {
-                fn visit(
-                    &mut self,
-                    owner: SymbolHandle,
-                    reference: TypeReferenceHandle,
-                    enclosing_applications: &[TypeReferenceHandle],
-                    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
-                    scope_starts: &[usize],
-                ) {
-                    let applied = project_type_reference(
-                        self.program,
-                        reference,
-                        substitutions,
-                        scope_starts,
-                    );
-                    let reference = applied.reference;
-                    if !reference.is_valid() {
-                        return;
-                    }
-                    let enclosing_applications =
-                        &enclosing_applications[..applied.scope_starts.len()];
-                    let slot = reference.arena_index() as usize;
-                    if self.seen.len() <= slot {
-                        self.seen.resize_with(slot + 1, BTreeSet::new);
-                    }
-                    let identity =
-                        |handle: TypeReferenceHandle| (handle.arena_index(), handle.generation());
-                    if !self.seen[slot].insert(SourceFieldOccurrence {
-                        owner: (owner.arena_index(), owner.generation()),
-                        reference: identity(reference),
-                        frames: enclosing_applications
-                            .iter()
-                            .copied()
-                            .map(identity)
-                            .collect(),
-                    }) {
-                        return;
-                    }
-
-                    if let TypeReferenceNode::DynamicTrait {
-                        symbol, arguments, ..
-                    } = self.program.type_reference_table.type_reference(reference)
-                    {
-                        if let Some(declaration) = self.program.trait_definition_by_symbol(*symbol)
-                            && let Some(scope) = AppliedTraitScope::new(
-                                self.program,
-                                declaration,
-                                TraitApplicationArguments {
-                                    lexical_owner: owner,
-                                    enclosing_data_applications: enclosing_applications,
-                                    arguments: self.program.type_reference_handles(*arguments),
-                                    lifetimes: &[],
-                                },
-                            )
-                        {
-                            self.roots.push(scope);
-                        }
-                        return;
-                    }
-
-                    match self.program.type_reference_table.type_reference(reference) {
-                        TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. } => {
-                            return;
-                        }
-                        TypeReferenceNode::Constrained { base_type, .. } => {
-                            self.visit(
-                                owner,
-                                *base_type,
-                                enclosing_applications,
-                                applied.substitutions,
-                                applied.scope_starts,
-                            );
-                            return;
-                        }
-                        TypeReferenceNode::FixedArray { element_type, .. } => {
-                            self.visit(
-                                owner,
-                                *element_type,
-                                enclosing_applications,
-                                applied.substitutions,
-                                applied.scope_starts,
-                            );
-                            return;
-                        }
-                        _ => {}
-                    }
-                    let Some(application) = enclosing::data_application(self.program, reference)
-                    else {
-                        return;
-                    };
-                    if self
-                        .active
-                        .iter()
-                        .rev()
-                        .find(|(ancestor, _)| *ancestor == application.declaration.symbol)
-                        .is_some_and(|(_, end)| applied.scope_starts.len() >= *end)
-                    {
-                        return;
-                    }
-                    let mut frames = enclosing_applications.to_vec();
-                    frames.push(reference);
-                    let mut starts = applied.scope_starts.to_vec();
-                    starts.push(applied.substitutions.len());
-                    let mut substitutions = applied.substitutions.to_vec();
-                    substitutions.extend(
-                        self.program
-                            .data_type_parameters(application.declaration)
-                            .iter()
-                            .zip(application.arguments)
-                            .map(|(parameter, argument)| (parameter.symbol, *argument)),
-                    );
-
-                    let fields = self.field_inventory(application.declaration);
-                    self.active
-                        .push((application.declaration.symbol, starts.len()));
-                    for position in fields {
-                        let field = self.field_references[position];
-                        self.visit(owner, field, &frames, &substitutions, &starts);
-                    }
-                    self.active.pop();
-                }
-
-                fn field_inventory(
-                    &mut self,
-                    declaration: &data::DataDefinition,
-                ) -> std::ops::Range<usize> {
-                    let slot = declaration.symbol.arena_index() as usize;
-                    if self.field_inventories.len() <= slot {
-                        self.field_inventories
-                            .resize_with(slot + 1, || (SymbolHandle::invalid(), 0..0));
-                    }
-                    let (symbol, fields) = &self.field_inventories[slot];
-                    if *symbol == declaration.symbol {
-                        return fields.clone();
-                    }
-                    let mut fields = FieldTypes {
-                        program: self.program,
-                        references: Vec::new(),
-                    };
-                    for member in self.program.data_members(declaration) {
-                        match member {
-                            DataMember::Field(field) => visit_type_reference(
-                                self.program,
-                                &mut fields,
-                                field.type_reference,
-                            ),
-                            DataMember::Variant(variant) => {
-                                for field in self.program.data_payload_fields(variant) {
-                                    visit_type_reference(
-                                        self.program,
-                                        &mut fields,
-                                        field.type_reference,
-                                    );
-                                }
-                            }
-                        }
-                    }
-                    let start = self.field_references.len();
-                    self.field_references.extend(fields.references);
-                    let span = start..self.field_references.len();
-                    self.field_inventories[slot] = (declaration.symbol, span.clone());
-                    span
-                }
-            }
-
-            struct FieldTypes<'program> {
-                program: &'program TypedTrees,
-                references: Vec<TypeReferenceHandle>,
-            }
-
-            impl Extend<SymbolHandle> for FieldTypes<'_> {
-                fn extend<Symbols: IntoIterator<Item = SymbolHandle>>(&mut self, _: Symbols) {}
-            }
-
-            impl TypedReferences for FieldTypes<'_> {
-                fn type_reference(&mut self, reference: TypeReferenceHandle) -> bool {
-                    if self.references.contains(&reference) {
-                        return false;
-                    }
-                    self.references.push(reference);
-                    !matches!(
-                        self.program.type_reference_table.type_reference(reference),
-                        TypeReferenceNode::Reference { .. } | TypeReferenceNode::Slice { .. }
-                    )
-                }
-
-                fn expression(&mut self, _: crate::expression::ExpressionHandle) -> bool {
-                    false
-                }
-
-                fn mathematical_type(
-                    &mut self,
-                    _: crate::mathematical::MathematicalTypeHandle,
-                ) -> bool {
-                    false
-                }
-            }
-        }
         pub(crate) use retention::RetainedTraitApplicationFrame;
         pub use retention::{RetainedTraitScope, TraitApplicationEnvironment};
 
@@ -3497,7 +3217,6 @@ pub mod trait_definition {
                         .then(|| application.scope.scope(self)).flatten()
                 }),
             )
-            .chain(source_fields::contract_application_roots(self, &occurrences.types))
             .chain(
                 occurrences
                     .requirement_applications
@@ -3708,18 +3427,6 @@ pub mod trait_definition {
                             enclosing_data_applications: &[],
                             arguments: program.type_reference_handles(*arguments),
                             lifetimes: lifetime_arguments,
-                        },
-                    ),
-                    TypeReferenceNode::DynamicTrait {
-                        symbol, arguments, ..
-                    } => Self::new(
-                        program,
-                        program.trait_definition_by_symbol(*symbol)?,
-                        TraitApplicationArguments {
-                            lexical_owner,
-                            enclosing_data_applications: &[],
-                            arguments: program.type_reference_handles(*arguments),
-                            lifetimes: &[],
                         },
                     ),
                     _ => None,
@@ -4320,11 +4027,5 @@ pub mod trait_definition {
         pub lifetime_arguments: Vec<Identifier>,
         pub arguments: HandleSpan<crate::types::TypeReferenceHandle>,
         pub source_span: source::SourceSpan,
-    }
-
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub enum DynamicSignatureIneligibility {
-        BoundaryRequirement,
-        RequirementLocalGenerics,
     }
 }

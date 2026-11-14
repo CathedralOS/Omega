@@ -907,15 +907,6 @@ pub(crate) mod capture_product_operands {
                     constraints: self.graph.constraints.insert_many(constraints),
                 }
             }
-            Source::DynamicTrait {
-                symbol,
-                name,
-                arguments,
-                ..
-            } => ProductOperandType::Dynamic {
-                name: self.type_name(name, *symbol, language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference)?,
-                arguments: self.types(*arguments)?,
-            },
             Source::ConstExpression(value) => {
                 ProductOperandType::ConstExpression(self.expression(value.expression)?)
             }

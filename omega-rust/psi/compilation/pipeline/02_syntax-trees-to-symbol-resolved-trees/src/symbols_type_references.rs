@@ -904,26 +904,6 @@ mod assignment {
                 }
             }
             TypeReference::ConstExpression(_) => {}
-            TypeReference::DynamicTrait {
-                symbol,
-                name,
-                arguments,
-                ..
-            } => {
-                *symbol = crate::symbols::lookup::top_level_symbol_for_source(
-                    symbols,
-                    SymbolKind::Trait,
-                    name,
-                );
-                assign_type_arguments_with_definitions(
-                    symbols,
-                    child_type_references,
-                    type_constraints,
-                    local_type_parameters,
-                    *arguments,
-                    definition_references,
-                );
-            }
             symbol_resolved_trees::types::TypeReference::Named { symbol, name, .. } => {
                 *symbol = if definition_references.contains(&name.source_span()) {
                     top_level_type_symbol_for_source(symbols, name)
@@ -1202,7 +1182,6 @@ mod queries {
             ),
             TypeReference::Generic(generic) => generic.base_symbol,
             TypeReference::ConstExpression(_) => SymbolHandle::invalid(),
-            TypeReference::DynamicTrait { symbol, .. } => *symbol,
             TypeReference::Named { symbol, .. } => *symbol,
             TypeReference::Unit => SymbolHandle::invalid(),
         }
@@ -1773,9 +1752,7 @@ mod value_expressions {
                     &references,
                 );
             }
-            TypeReference::Named { .. }
-            | TypeReference::DynamicTrait { .. }
-            | TypeReference::Unit => {}
+            TypeReference::Named { .. } | TypeReference::Unit => {}
         }
     }
 

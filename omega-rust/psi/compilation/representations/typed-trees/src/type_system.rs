@@ -1520,24 +1520,6 @@ pub mod types {
                         });
                         destination
                     }
-                    TypeReferenceNode::DynamicTrait {
-                        symbol,
-                        name,
-                        arguments,
-                    } => {
-                        let arguments = self.copy_type_reference_handles_from(
-                            source,
-                            source_expressions,
-                            target_expressions,
-                            *arguments,
-                            expressions,
-                        );
-                        self.insert(TypeReferenceNode::DynamicTrait {
-                            symbol: *symbol,
-                            name: name.clone(),
-                            arguments,
-                        })
-                    }
                     TypeReferenceNode::Named { symbol, name } => {
                         self.insert(TypeReferenceNode::Named {
                             symbol: *symbol,
@@ -1700,20 +1682,6 @@ pub mod types {
                     }
                     TypeReferenceNode::ConstExpression(expression) => {
                         expressions.remap_symbols_in(expression, symbols);
-                    }
-                    TypeReferenceNode::DynamicTrait {
-                        symbol, arguments, ..
-                    } => {
-                        for argument in self.type_reference_handles(arguments).to_vec() {
-                            self.remap_symbols_in(argument, expressions, symbols);
-                        }
-                        let TypeReferenceNode::DynamicTrait {
-                            symbol: current, ..
-                        } = self.type_references.get_mut(type_reference)
-                        else {
-                            unreachable!();
-                        };
-                        *current = remapped(symbol, symbols);
                     }
                     TypeReferenceNode::Named { symbol, .. } => {
                         let replaced_named = matches!(
@@ -1999,13 +1967,6 @@ pub mod types {
                         )
                     }
                     TypeReferenceNode::ConstExpression(_) => "const <expression>".to_owned(),
-                    TypeReferenceNode::DynamicTrait {
-                        name, arguments, ..
-                    } => match arguments.count() {
-                        0 => format!("dyn {name}"),
-                        1 => format!("dyn {name}<1 argument>"),
-                        count => format!("dyn {name}<{count} arguments>"),
-                    },
                     TypeReferenceNode::Named { name, .. } => name.to_string(),
                     TypeReferenceNode::Unit => "()".to_owned(),
                 }
@@ -2074,14 +2035,6 @@ pub mod types {
                     TypeReferenceNode::ConstExpression(expression) => {
                         format!("const {}", expressions.display_name(*expression))
                     }
-                    TypeReferenceNode::DynamicTrait {
-                        name, arguments, ..
-                    } => format!(
-                        "dyn {name}<{}>",
-                        comma_join_display(table.type_reference_handles(*arguments), |argument| {
-                            table.display_name_with_constraints(*argument, expressions)
-                        })
-                    ),
                     TypeReferenceNode::Named { name, .. } => name.to_string(),
                     TypeReferenceNode::Unit => "()".to_owned(),
                 }
@@ -2582,17 +2535,6 @@ pub mod types {
                             base_symbol,
                             base_name,
                             lifetime_arguments,
-                            arguments,
-                        }),
-                    TypeReferenceNode::DynamicTrait {
-                        symbol,
-                        name,
-                        arguments,
-                    } => self
-                        .instantiate_arguments(arguments, substitutions)?
-                        .map(|arguments| TypeReferenceNode::DynamicTrait {
-                            symbol,
-                            name,
                             arguments,
                         }),
                     TypeReferenceNode::ConstExpression(_) | TypeReferenceNode::Unit => None,
@@ -3784,11 +3726,6 @@ pub mod types {
             arguments: HandleSpan<TypeReferenceHandle>,
         },
         ConstExpression(ExpressionHandle),
-        DynamicTrait {
-            symbol: SymbolHandle,
-            name: Identifier,
-            arguments: HandleSpan<TypeReferenceHandle>,
-        },
         Named {
             symbol: SymbolHandle,
             name: Identifier,
@@ -3863,7 +3800,6 @@ pub mod types {
                     table.primitive_type(*base_type, symbols)
                 }
                 TypeReferenceNode::Named { symbol, .. } => symbols.primitive_type(*symbol),
-                TypeReferenceNode::DynamicTrait { .. } => Some(PrimitiveType::Selector),
                 TypeReferenceNode::FixedArray { .. }
                 | TypeReferenceNode::Slice { .. }
                 | TypeReferenceNode::Generic { .. }
@@ -3902,7 +3838,6 @@ pub mod types {
                 }
                 TypeReferenceNode::Slice { element_type } => table.type_symbol(*element_type),
                 TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
-                TypeReferenceNode::DynamicTrait { symbol, .. } => *symbol,
                 TypeReferenceNode::ConstExpression(_) => SymbolHandle::invalid(),
                 TypeReferenceNode::Named { symbol, .. } => *symbol,
                 TypeReferenceNode::Unit => SymbolHandle::invalid(),
