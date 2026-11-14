@@ -321,7 +321,7 @@ mod native {
                 Some(&layouts),
             )
             .map_err(ArtifactLoweringError::Lowering)?;
-            let mut input = retain_native_plan(module, plan, Some(selections))
+            let mut input = retain_native_plan(artifact.closed_module(), plan, Some(selections))
                 .try_into_native_input(establishments)?;
             input
                 .optimization_input
@@ -634,16 +634,17 @@ mod native {
     }
 
     pub(super) fn lower_decoded_native_module(
-        module: &terminal_psi::TerminalModule,
+        closed: &terminal_codec::ClosedTerminalModule,
         entry: semantic_vocabulary::MachineId,
         selections: Option<AdmittedTargetMachineSelections>,
     ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
-        let plan = lower_decoded_module(module, entry).map_err(ArtifactLoweringError::Lowering)?;
-        Ok(retain_native_plan(module, plan, selections))
+        let plan = lower_decoded_module(closed.module(), entry)
+            .map_err(ArtifactLoweringError::Lowering)?;
+        Ok(retain_native_plan(closed, plan, selections))
     }
 
     fn retain_native_plan(
-        module: &terminal_psi::TerminalModule,
+        module: &terminal_codec::ClosedTerminalModule,
         plan: AbstractOperationPlan,
         selections: Option<AdmittedTargetMachineSelections>,
     ) -> AdmittedNativeArtifact {
@@ -1141,7 +1142,7 @@ pub struct ArtifactSections<'artifact> {
 pub fn lower_artifact(
     sections: ArtifactSections<'_>,
 ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
-    let module = terminal_codec::decode_module(sections.semantic_bytes)
+    let module = terminal_codec::ClosedTerminalModule::from_semantic_bytes(sections.semantic_bytes)
         .map_err(ArtifactLoweringError::SemanticDecode)?;
     lower_decoded_artifact(&module)
 }
@@ -1166,9 +1167,9 @@ pub fn lower_module_with_evidence(
 }
 
 pub(crate) fn lower_decoded_artifact(
-    module: &terminal_psi::TerminalModule,
+    module: &terminal_codec::ClosedTerminalModule,
 ) -> Result<AdmittedNativeArtifact, ArtifactLoweringError> {
-    let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.entry else {
+    let Some(terminal_psi::TargetMachineCallable::Machine(entry)) = module.module().entry else {
         return Err(ArtifactLoweringError::TargetSelectionRequired);
     };
     native::lower_decoded_native_module(module, entry, None)
