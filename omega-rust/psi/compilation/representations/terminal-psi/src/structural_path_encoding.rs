@@ -41,9 +41,27 @@ impl SegmentTag {
 pub fn encode_structural_path_segment<Output>(
     output: &mut Output,
     segment: &StructuralPathSegment,
-    mut write_bytes: impl FnMut(&mut Output, &[u8]),
+    write_bytes: impl FnMut(&mut Output, &[u8]),
     mut write_scalar: impl FnMut(&mut Output, ScalarType),
 ) {
+    let result =
+        try_encode_structural_path_segment(output, segment, write_bytes, |output, scalar| {
+            write_scalar(output, scalar);
+            Ok::<(), core::convert::Infallible>(())
+        });
+    match result {
+        Ok(()) => {}
+        Err(never) => match never {},
+    }
+}
+
+/// Writes one segment, propagating scalar encoding failures without changing its bytes.
+pub fn try_encode_structural_path_segment<Output, Error>(
+    output: &mut Output,
+    segment: &StructuralPathSegment,
+    mut write_bytes: impl FnMut(&mut Output, &[u8]),
+    mut write_scalar: impl FnMut(&mut Output, ScalarType) -> Result<(), Error>,
+) -> Result<(), Error> {
     use SegmentTag as Tag;
     match segment {
         StructuralPathSegment::Field(field) => {
@@ -77,11 +95,12 @@ pub fn encode_structural_path_segment<Output>(
             write_bytes(output, &structural_type.get().to_le_bytes());
             write_bytes(output, &[u8::from(stored_scalar.is_some())]);
             if let Some(scalar) = stored_scalar {
-                write_scalar(output, *scalar);
+                write_scalar(output, *scalar)?;
             }
         }
         StructuralPathSegment::AllElements => write_bytes(output, &[Tag::AllElements as u8]),
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -147,6 +166,23 @@ mod tests {
             assert_eq!(encoded, expected, "{segment:?}");
             assert_eq!(SegmentTag::from_byte(encoded[0]).unwrap() as u8, encoded[0]);
         }
+    }
+
+    #[test]
+    fn scalar_failure_propagates_from_a_representation_view() {
+        let segment = StructuralPathSegment::RepresentationView {
+            structural_type: StructuralTypeId::new(7).unwrap(),
+            stored_scalar: Some(ScalarType::Boolean),
+        };
+        let mut bytes = Vec::new();
+        let result = try_encode_structural_path_segment(
+            &mut bytes,
+            &segment,
+            Vec::extend_from_slice,
+            |_, _| Err("unclosed scalar"),
+        );
+        assert_eq!(result, Err("unclosed scalar"));
+        assert_eq!(bytes, [8, 7, 0, 0, 0, 0, 0, 0, 0, 1]);
     }
 
     #[test]
