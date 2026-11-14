@@ -2917,15 +2917,91 @@ pub(crate) mod namespaces {
             &self,
             call: &TableCallExpression,
         ) -> Result<Option<&signature::StateSignature>, &'static str> {
-            if call.static_requirement_dispatch.is_some() || call.requirement_application.is_valid()
-            {
+            if call.static_requirement_dispatch.is_some() {
                 return Ok(None);
             }
+            self.named_conformance_call_member(call)
+                .map(|member| member.map(|(_, _, signature)| signature))
+        }
+
+        /// The call retains a named map's independently supplied telescope in
+        /// its requirement application, and the source application owns the
+        /// lexical scope. Neither the receiver's name nor the expected result
+        /// supplies an omitted argument.
+        pub fn named_conformance_call_member(
+            &self,
+            call: &TableCallExpression,
+        ) -> Result<
+            Option<(
+                &crate::trait_definition::Conformance,
+                &crate::trait_definition::ConformanceRow,
+                &signature::StateSignature,
+            )>,
+            &'static str,
+        > {
             let Some(receiver) = self.expression_table.name_path_node(call.receiver) else {
                 return Ok(None);
             };
-            self.named_conformance_member(receiver.symbol, call.target_symbol)
-                .map(|member| member.map(|(_, _, signature)| signature))
+            if !call.requirement_application.is_valid() {
+                return self.named_conformance_member(receiver.symbol, call.target_symbol);
+            }
+            if !receiver.symbol.is_valid()
+                || !self.symbols.symbols().nodes().is_valid(receiver.symbol)
+            {
+                return Err("named application has no exact receiver");
+            }
+            if self.symbols.get(receiver.symbol).kind != SymbolKind::Conformance {
+                return Ok(None);
+            }
+            let selected = self
+                .conformance_by_symbol(receiver.symbol)
+                .ok_or("named application lost its implementation")?;
+            let parameters = self.conformance_type_parameters(selected);
+            if parameters.is_empty() != selected.type_parameters.is_empty()
+                || !selected.lifetime_parameters.is_empty()
+                || parameters.iter().any(|parameter| {
+                    parameter.kind != crate::data::TypeParameterKind::Type
+                        || parameter.bounds != crate::data::DataProperties::default()
+                })
+            {
+                return Err("named application needs its complete eligible type telescope");
+            }
+            if !self
+                .type_reference_table
+                .contains_type_reference(call.requirement_application)
+                || !matches!(self.type_reference_node(call.requirement_application),
+                    crate::types::TypeReferenceNode::Generic { base_symbol, lifetime_arguments, .. }
+                        if *base_symbol == receiver.symbol && lifetime_arguments.is_empty())
+                || !self
+                    .expression_table
+                    .static_machine_application_is_valid(call.authored_machine_application)
+            {
+                return Err("named application changed its retained map or source application");
+            }
+            let source = self.static_machine_application(call.authored_machine_application);
+            let template = self
+                .closed_requirement_application(call.target_symbol)
+                .map_or(call.target_symbol, |closed| closed.template);
+            // A bodyless trait requirement is no machine declaration, so
+            // source retention leaves its local binding declaration absent.
+            // Its registered operation and supplying owner remain exact.
+            if source.registration_operation != template
+                || (source.binding_declaration.is_valid() && source.binding_declaration != template)
+                || !source.bindings.is_empty()
+                || !source.lifetime_bindings.is_empty()
+                || !source.lexical_owner.is_valid()
+                || !self
+                    .symbols
+                    .symbols()
+                    .nodes()
+                    .is_valid(source.lexical_owner)
+            {
+                return Err("named application changed its requirement or supplying owner");
+            }
+            let scope = self
+                .applied_requirement_scope(source.lexical_owner, call.requirement_application)
+                .ok_or("named application lost its complete trait application")?;
+            self.named_conformance_member_at(receiver.symbol, call.target_symbol, Some(scope))
         }
 
         /// The named operation record, its unique requirement row and that
@@ -2935,6 +3011,22 @@ pub(crate) mod namespaces {
             &self,
             namespace: SymbolHandle,
             requirement: SymbolHandle,
+        ) -> Result<
+            Option<(
+                &crate::trait_definition::Conformance,
+                &crate::trait_definition::ConformanceRow,
+                &signature::StateSignature,
+            )>,
+            &'static str,
+        > {
+            self.named_conformance_member_at(namespace, requirement, None)
+        }
+
+        fn named_conformance_member_at(
+            &self,
+            namespace: SymbolHandle,
+            requirement: SymbolHandle,
+            application: Option<AppliedTraitScope<'_>>,
         ) -> Result<
             Option<(
                 &crate::trait_definition::Conformance,
@@ -2957,7 +3049,10 @@ pub(crate) mod namespaces {
                 .ok_or("named public view lost its selected implementation")?;
             // Applied generic maps retain their independently supplied tuple in
             // the ordinary dispatch path above; a bare declaration cannot supply it.
-            if !selected.type_parameters.is_empty() || !selected.lifetime_parameters.is_empty() {
+            if application.is_none()
+                && (!selected.type_parameters.is_empty()
+                    || !selected.lifetime_parameters.is_empty())
+            {
                 return Err("named public view has no complete selected application");
             }
             let closed = self.closed_requirement_application(requirement);
@@ -2974,7 +3069,8 @@ pub(crate) mod namespaces {
             if rows.next().is_some() {
                 return Err("named public view has ambiguous requirement rows");
             }
-            let scope = AppliedTraitScope::from_conformance(self, selected)
+            let scope = application
+                .or_else(|| AppliedTraitScope::from_conformance(self, selected))
                 .ok_or("named public view lost its complete trait application")?
                 .declaring_scope(self, row.declaring_trait)
                 .ok_or("named public view lost its declaring trait scope")?;

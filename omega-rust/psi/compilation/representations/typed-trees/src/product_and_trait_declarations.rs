@@ -3557,6 +3557,20 @@ pub mod trait_definition {
                 else {
                     return None;
                 };
+                // A named map's application binds its own telescope first;
+                // its trait arguments can then refer to those exact binders.
+                if let Some(conformance) = self.conformance_by_symbol(*base_symbol) {
+                    return AppliedTraitScope::from_conformance_application(
+                        self,
+                        conformance,
+                        TraitApplicationArguments {
+                            lexical_owner,
+                            enclosing_data_applications: &[],
+                            arguments: self.type_reference_table.type_reference_handles(*arguments),
+                            lifetimes: lifetime_arguments,
+                        },
+                    );
+                }
                 AppliedTraitScope::new(
                     self,
                     self.trait_definition_by_symbol(*base_symbol)?,

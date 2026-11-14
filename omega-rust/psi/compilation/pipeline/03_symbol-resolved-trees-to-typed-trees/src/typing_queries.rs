@@ -454,6 +454,24 @@ impl<'program> DeclaredCallTargets<'program> {
         else {
             return false;
         };
+        self.owns_named_body(owner, row)
+    }
+
+    fn owned_named_expression_call(
+        &self,
+        call: &typed_trees::expression::TableCallExpression,
+    ) -> bool {
+        let Ok(Some((owner, row, _))) = self.program.named_conformance_call_member(call) else {
+            return false;
+        };
+        self.owns_named_body(owner, row)
+    }
+
+    fn owns_named_body(
+        &self,
+        owner: &typed_trees::trait_definition::Conformance,
+        row: &typed_trees::trait_definition::ConformanceRow,
+    ) -> bool {
         if !row.source.owns_realization() {
             return false;
         }
@@ -553,7 +571,7 @@ pub(crate) fn defer_unbound_calls(
                 .then_some(call.target.as_str());
                 in_expressions.push((handle, request, bare));
             }
-            if targets.owned_named_call(call.target_symbol, receiver)
+            if targets.owned_named_expression_call(call)
                 && let Some(occurrence) = call.authored_call_selection
             {
                 closed_selections.push((occurrence, call.target_symbol));

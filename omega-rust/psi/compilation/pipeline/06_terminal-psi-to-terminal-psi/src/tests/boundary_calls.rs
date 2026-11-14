@@ -1606,3 +1606,114 @@ requires input > 0 ensures result < input crashes none { input - 1 }
         "{refusal:?}"
     );
 }
+
+fn generic_named_map_source() -> &'static str {
+    r#"
+trait Step<Value> {
+    machine apply(value: Value) -> Value reaches none crashes none;
+}
+Selected<Value> satisfies Step<Value> {
+    machine apply(input: Value) -> Value reaches none crashes none { input }
+}
+machine entry() -> u32 reaches none crashes none { Selected<u32>::apply(7) }
+"#
+}
+
+fn generic_named_map_call(
+    program: &typed_trees::TypedTrees,
+) -> &typed_trees::expression::TableCallExpression {
+    let mut calls = program
+        .expression_table
+        .expression_entries()
+        .filter_map(|(_, node)| {
+            let typed_trees::expression::ExpressionNode::Call(call) = node else {
+                return None;
+            };
+            program
+                .expression_table
+                .name_path_node(call.receiver)
+                .filter(|path| program.conformance_by_symbol(path.symbol).is_some())
+                .map(|_| call)
+        });
+    let call = calls.next().expect("one direct named map call");
+    assert!(calls.next().is_none());
+    call
+}
+
+#[test]
+fn generic_named_map_source_retains_its_explicit_application() {
+    let program = typed(generic_named_map_source());
+    let call = generic_named_map_call(&program);
+    let (owner, row, signature) = program
+        .named_conformance_call_member(call)
+        .unwrap()
+        .unwrap();
+    assert_eq!(program.conformance_type_parameters(owner).len(), 1);
+    assert_eq!(row.requirement, call.target_symbol);
+    assert_eq!(signature.symbol, row.requirement);
+    assert_eq!(
+        program
+            .type_reference_table
+            .primitive_type(signature.return_type),
+        typed_trees::types::PrimitiveType::from_name("u32")
+    );
+    let selection = program
+        .authored_declaration_selections()
+        .get(call.authored_call_selection.unwrap())
+        .unwrap();
+    assert_eq!(
+        selection.target().as_resolved().unwrap().selected_symbol(),
+        row.requirement
+    );
+    assert_ne!(row.requirement, row.realization_state);
+    assert!(
+        program
+            .named_conformance_member(owner.symbol, row.requirement)
+            .is_err(),
+        "a bare generic map cannot borrow the call's explicit application"
+    );
+}
+
+#[test]
+fn generic_named_map_source_refuses_missing_foreign_or_rebound_applications() {
+    let program = typed(generic_named_map_source());
+    let call = generic_named_map_call(&program);
+    let (_, row, _) = program
+        .named_conformance_call_member(call)
+        .unwrap()
+        .unwrap();
+    let mut missing = call.clone();
+    missing.requirement_application = typed_trees::types::TypeReferenceHandle::invalid();
+    assert!(program.named_conformance_call_member(&missing).is_err());
+    let mut foreign = call.clone();
+    foreign.requirement_application = typed_trees::types::TypeReferenceHandle::from_parts(
+        call.requirement_application.arena_index(),
+        call.requirement_application.generation() + 1,
+    );
+    assert!(program.named_conformance_call_member(&foreign).is_err());
+    let mut source = call.clone();
+    source.authored_machine_application =
+        typed_trees::static_applications::StaticMachineApplicationHandle::from_parts(
+            call.authored_machine_application.arena_index(),
+            call.authored_machine_application.generation() + 1,
+        );
+    assert!(program.named_conformance_call_member(&source).is_err());
+    let mut body = call.clone();
+    body.target_symbol = row.realization_state;
+    assert!(
+        program.named_conformance_call_member(&body).is_err(),
+        "the owning body cannot replace its public requirement selection"
+    );
+}
+
+#[test]
+fn generic_named_map_invokes_its_closed_own_telescope() {
+    let (prepared, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+        typed(generic_named_map_source()),
+        &typed_trees_to_typed_trees::PreparationRequest::settled(),
+    )
+    .unwrap();
+    let verdicts = compilation_verdicts_of(&prepared);
+    eprintln!("direct generic map verdicts: {verdicts:?}");
+    assert_named_invocation_value(verdicts, semantic_vocabulary::IntegerValue::Unsigned(7));
+}
