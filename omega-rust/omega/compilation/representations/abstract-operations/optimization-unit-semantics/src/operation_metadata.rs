@@ -518,7 +518,8 @@ pub(crate) fn expected_ownership(operation: &AbstractOperation) -> Vec<Ownership
         | O::StructuralCase { .. }
         | O::EstablishAccessReference { .. }
         | O::EstablishReference { .. }
-        | O::ReleaseReference { .. } => Vec::new(),
+        | O::ReleaseReference { .. }
+        | O::EliminateEmpty { .. } => Vec::new(),
     }
 }
 
