@@ -616,7 +616,7 @@ pub use storage::storage_regions::{
 };
 pub use storage::zero_valid_storage::{scalar_declaration_accepts_zero, zero_valid_record_storage};
 pub use structural::atomic_cell::atomic_cell_type;
-pub use structural::partial_affine::partial_affine_residuals;
+pub use structural::partial_affine::{partial_affine_residuals, structural_region_is_vacant};
 pub use structural::primitive_place::{
     Position, StructuralStorageSelection, borrowed_primitive_projection_declaration,
     byte_carrier_geometry_matches, canonical_primitive_path, canonical_primitive_read_path,

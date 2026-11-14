@@ -2059,6 +2059,66 @@ fn a_moved_owned_field_is_refilled_before_its_whole_owner_is_transferred() {
 }
 
 #[test]
+fn a_subrecord_with_all_owned_fields_moved_out_can_be_filled_whole() {
+    let mut records = records();
+    for raw in 1..=2 {
+        records.get_mut(id(raw)).unwrap().copyable = false;
+    }
+    records.push(RecordType {
+        copyable: false,
+        identity: "Envelope".into(),
+        shape: crate::StorageShape::Record(vec![
+            RecordField {
+                id: id(5),
+                identity: "line".into(),
+                value_type: line(),
+            },
+            RecordField {
+                id: id(6),
+                identity: "untouched".into(),
+                value_type: point(),
+            },
+        ]),
+        requires: Vec::new(),
+    });
+    let envelope = ValueType::record(id(3));
+    let endpoint = |field| member(member(place(0, envelope), 0, line()), field, point());
+    let point_value = |x, y| literal(vec![(0, integer(x)), (1, integer(y))], point());
+    let mut bodies = IdTable::default();
+    bodies.push(Body {
+        slots: vec![envelope, point(), point()],
+        statements: vec![
+            bind(1, endpoint(0)),
+            bind(2, endpoint(1)),
+            store(
+                0,
+                &[0],
+                literal(
+                    vec![(0, point_value(7, 9)), (1, point_value(11, 13))],
+                    line(),
+                ),
+            ),
+            returns(place(0, envelope)),
+        ],
+    });
+    let mut signatures = IdTable::default();
+    signatures.push(shaped(vec![envelope], Some(envelope)));
+    let elaboration = crate::lower_bodies(id(1), &bodies, &signatures, &records)
+        .expect("all moved children leave their exact containing subrecord vacant");
+    let machine = &elaboration.module.machines[0];
+    assert!(machine.operations().any(|operation| matches!(
+        &operation.kind,
+        OperationKind::StoreStructuralField {
+            disposition: terminal_psi::StructuralStoreDisposition::Vacant, path, ..
+        } if path.len() == 1
+    )));
+    let checked =
+        terminal_semantics::plain_affine::verify(machine, &elaboration.module.structural_types)
+            .expect("the containing owner is reconstructed from the complete subtree");
+    assert!(checked.unavailable.is_empty());
+}
+
+#[test]
 fn a_field_store_is_one_operation_and_one_row_on_its_exact_leaf() {
     // f() -> u32 {
     //     let p = Point { x: 1, y: 2 };

@@ -140,6 +140,57 @@ fn borrowing_after_an_earlier_operand_moves_the_local_is_rejected() {
     );
 }
 
+fn execute_refilled_owner(closure: &lowered_discharge::AcceptedClosure) {
+    let publication = closure.publish().expect("refilled ownership publishes");
+    assert!(
+        publication
+            .artifact
+            .semantic_module()
+            .machines
+            .iter()
+            .flat_map(|machine| &machine.blocks)
+            .any(|block| matches!(
+                block.terminator,
+                terminal_psi::Terminator::Conditional { .. }
+            )),
+        "the interpreted module retains its exact-value execution oracle"
+    );
+    let input = terminal_psi_to_abstract_operations::lower_module_with_evidence(
+        publication.artifact.semantic_module(),
+        publication.seals.clone(),
+    )
+    .expect("Omega 00 carries the exact restoration")
+    .into_optimization_artifact()
+    .into_optimization_input();
+    let (_, unit) =
+        abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
+            input,
+            psi_work::WorkSchedule::CURRENT.identity(),
+        )
+        .expect("Omega 01 verifies the restored owned home")
+        .into_parts();
+    optimization_unit_semantics::validate_psi_optimization_unit_with_admitted_cycle_machines(
+        &unit,
+        &[],
+    )
+    .expect("the independent current ownership walk reconstructs the restored owner");
+    let bytes = terminal_codec::encode_module(publication.artifact.semantic_module())
+        .expect("restored module encodes");
+    let mut execution =
+        TerminalExecution::start_artifact(&bytes, &[], TerminalStructuralInputs::default())
+            .expect("restored module loads");
+    let status = execution
+        .resume(
+            &mut psi_work::WorkMeter::with_budget(1_000_000),
+            &mut NoEffects,
+        )
+        .expect("the old moved value and restored owner execute independently");
+    assert!(
+        matches!(status, TerminalExecutionStatus::Complete(_)),
+        "{status:?}"
+    );
+}
+
 #[test]
 fn refilling_the_moved_field_restores_its_owner_but_writing_a_sibling_does_not() {
     let _compilation = FIXTURE_COMPILATIONS
@@ -186,6 +237,7 @@ machine main() crashes Trap {
                 purpose: source::DependencyScope::Product,
                 selected: &frontier.selected,
                 bindings: &frontier.bindings,
+                supplies: &[], // This source-only check runs no Build provider selections.
             },
         );
         if wrong_sibling {
@@ -211,54 +263,83 @@ machine main() crashes Trap {
                 "{verdict:?}"
             );
         }
-        let publication = closure.publish().expect("refilled ownership publishes");
-        assert!(
-            publication
-                .artifact
-                .semantic_module()
-                .machines
-                .iter()
-                .flat_map(|machine| &machine.blocks)
-                .any(|block| matches!(
-                    block.terminator,
-                    terminal_psi::Terminator::Conditional { .. }
-                )),
-            "the interpreted module retains the total-equals-15 execution oracle"
+        execute_refilled_owner(&closure);
+    }
+}
+
+#[test]
+fn a_whole_subrecord_can_be_refilled_after_all_its_owned_children_move() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let source = r#"
+data Item { value: u64; }
+data Pair { first: Item; second: Item; }
+data Outer { selected: Pair; other: Pair; }
+machine main() crashes Trap {
+    let mut outer: Outer = Outer {
+        selected: Pair { first: Item { value: 3 }, second: Item { value: 5 } },
+        other: Pair { first: Item { value: 13 }, second: Item { value: 17 } }
+    };
+    let first: Item = outer.selected.first;
+    let second: Item = outer.selected.second;
+    outer.selected = Pair { first: Item { value: 7 }, second: Item { value: 11 } };
+    let restored: Outer = outer;
+    let total: u64 = first.value + second.value
+        + restored.selected.first.value + restored.selected.second.value
+        + restored.other.first.value + restored.other.second.value;
+    transition total == 56 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#;
+    for wrong_region in [false, true] {
+        let source = if wrong_region {
+            source.replace("outer.selected =", "outer.other =")
+        } else {
+            source.to_owned()
+        };
+        let frontier = unbuilt_frontier::staged_frontier(
+            if wrong_region {
+                "subrecord-wrong-region"
+            } else {
+                "subrecord-refill"
+            },
+            &source,
         );
-        let input = terminal_psi_to_abstract_operations::lower_module_with_evidence(
-            publication.artifact.semantic_module(),
-            publication.seals.clone(),
-        )
-        .expect("Omega 00 carries the exact restoration")
-        .into_optimization_artifact()
-        .into_optimization_input();
-        let (_, unit) =
-            abstract_operations_to_abstract_operations::build_verified_psi_optimization_unit(
-                input,
-                psi_work::WorkSchedule::CURRENT.identity(),
-            )
-            .expect("Omega 01 verifies the restored owned home")
-            .into_parts();
-        optimization_unit_semantics::validate_psi_optimization_unit_with_admitted_cycle_machines(
-            &unit,
-            &[],
-        )
-        .expect("the independent current ownership walk reconstructs the restored owner");
-        let bytes = terminal_codec::encode_module(publication.artifact.semantic_module())
-            .expect("restored module encodes");
-        let mut execution =
-            TerminalExecution::start_artifact(&bytes, &[], TerminalStructuralInputs::default())
-                .expect("restored module loads");
-        let status = execution
-            .resume(
-                &mut psi_work::WorkMeter::with_budget(1_000_000),
-                &mut NoEffects,
-            )
-            .expect("the old moved value and restored owner execute independently");
-        assert!(
-            matches!(status, TerminalExecutionStatus::Complete(_)),
-            "{status:?}"
+        let verdicts = judge_compilation(
+            &frontier.typed,
+            Compilation {
+                entries: &frontier.entries,
+                subjects: &[frontier.subject],
+                purpose: source::DependencyScope::Product,
+                selected: &frontier.selected,
+                bindings: &frontier.bindings,
+                supplies: &[], // This source-only check runs no Build provider selections.
+            },
         );
+        if wrong_region {
+            assert!(verdicts.iter().any(|verdict| matches!(verdict,
+                Ok(RouteVerdict::Rejected { unestablished, .. })
+                    if unestablished.iter().any(|used| used.detail == "owned storage is used after its value was transferred or consumed")
+            )), "a sibling store cannot fill the moved subrecord: {verdicts:?}");
+            continue;
+        }
+        let mut verdicts = verdicts.into_iter();
+        let closure = match verdicts.next().expect("entry closure") {
+            Ok(RouteVerdict::Accepted(closure)) => closure,
+            other => panic!("all moved children leave the exact subrecord vacant: {other:?}"),
+        };
+        for verdict in verdicts {
+            assert!(
+                matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                "{verdict:?}"
+            );
+        }
+        execute_refilled_owner(&closure);
     }
 }
 
