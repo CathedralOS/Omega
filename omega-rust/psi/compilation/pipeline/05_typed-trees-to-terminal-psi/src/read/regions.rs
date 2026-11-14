@@ -20,9 +20,10 @@
 //!   region a call passes for each of its callee's lifetime parameters, so
 //!   the call infers it: from the type the caller expects of the result, then
 //!   from each argument in order (`unify`). One parameter given two regions
-//!   is refused, and so is a result whose region no input supplies:
-//!   lifetimes.md, "A signature does not authorize returning unrelated
-//!   storage merely because its type has the same lifetime spelling".
+//!   is refused. A result lifetime no input carries is the caller's to
+//!   choose (lifetimes.md, "Caller-chosen result lifetimes"): where nothing
+//!   expected decides it, it is a region variable the result's first use
+//!   decides.
 //!
 //! A region is one of two kinds. A named lifetime is the parameter it
 //! resolves to (`Region::Parameter`): the declaration that binds it and its
@@ -281,8 +282,8 @@ pub(crate) enum Elision {
     Inputs(SymbolHandle),
     /// In its result: the one lifetime its inputs carry. With several there
     /// is no unambiguous input and the result is refused; with none the
-    /// result is a fresh lifetime no input relates, which every call refuses
-    /// (`call_of`).
+    /// result is a fresh lifetime no input relates, which each caller
+    /// chooses (`call_of`) and the body knows nothing about.
     Result(SymbolHandle),
     /// On a local's type annotation: a region variable, which the first
     /// value that meets it decides (`agrees`).

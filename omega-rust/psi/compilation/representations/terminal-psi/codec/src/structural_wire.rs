@@ -1742,6 +1742,17 @@ pub(crate) mod structural_type_wire {
         writer.boolean(declaration.descriptor_cleanup);
         writer.boolean(declaration.copyable);
         match &declaration.shape {
+            StructuralTypeShape::Opaque => {
+                if declaration.quotient_carrier.is_some()
+                    || declaration.scalar_restriction.is_some()
+                    || !declaration.requires.is_empty()
+                {
+                    return Err(CodecError::MalformedStructuralFoundation(
+                        "opaque data cannot supply a visible carrier or authored value predicate",
+                    ));
+                }
+                writer.u8(19);
+            }
             StructuralTypeShape::Reference { referent, access } => {
                 writer.u8(7);
                 writer.id(*referent);
@@ -1894,6 +1905,7 @@ pub(crate) mod structural_type_wire {
         let tag = reader.u8()?;
         let declares_requires = matches!(tag, PACKED_RECORD_WITH_REQUIRES | SUM_WITH_REQUIRES);
         let shape = match tag {
+            19 => StructuralTypeShape::Opaque,
             7 => StructuralTypeShape::Reference {
                 referent: reader.id("StructuralTypeId")?,
                 access: decode_structural_access(reader)?,

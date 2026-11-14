@@ -30,9 +30,9 @@ fn geometry_error(
         Geometry::UnsupportedStructuralSum(identity) => {
             LoweringError::UnsupportedStructuralSum(identity)
         }
-        Geometry::InvalidStorageGeometry(_) | Geometry::ReentrantLayoutQuery(_) => {
-            LoweringError::NativeStructuralLayout(error)
-        }
+        Geometry::UnclosedOpaqueRepresentation(_)
+        | Geometry::InvalidStorageGeometry(_)
+        | Geometry::ReentrantLayoutQuery(_) => LoweringError::NativeStructuralLayout(error),
     }
 }
 use calling_conventions::ValueShape;

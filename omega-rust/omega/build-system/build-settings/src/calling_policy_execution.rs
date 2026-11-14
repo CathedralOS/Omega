@@ -199,7 +199,7 @@ pub fn evaluate_terminal_calling_policy(
             ));
         }
     }
-    let value = result_value(&instance, result_type)?;
+    let value = result_value(&instance, result_type, &[])?;
     let cells = value
         .retained_cell_count()
         .ok_or("calling policy result cell count overflowed")?;

@@ -2693,7 +2693,7 @@ pub(crate) mod results {
                 StructuralTypeShape::ByteSequence(_) | StructuralTypeShape::AtomicCell(_) => {
                     return true;
                 }
-                StructuralTypeShape::PrimitiveScalar(_) => {}
+                StructuralTypeShape::Opaque | StructuralTypeShape::PrimitiveScalar(_) => {}
                 StructuralTypeShape::FixedArray { element, .. }
                 | StructuralTypeShape::ElementView { element, .. } => pending.push(*element),
                 StructuralTypeShape::Record {

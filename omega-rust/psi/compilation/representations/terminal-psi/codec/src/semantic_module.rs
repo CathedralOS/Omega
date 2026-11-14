@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 260`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 262`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -4725,11 +4725,10 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 261 retains each machine contract's optional inferred write frame:
-// an unknown ceiling differs from a complete empty set. Marker 260 and older
-// artifacts lack that field. Exact intrinsic widths and typed dynamic-family
-// values from markers 260/259 remain unchanged.
-pub(crate) const FORMAT_MARKER: u16 = 261;
+// Marker 262 distinguishes an opaque supplied value from an empty record.
+// Earlier decoders cannot interpret that shape. The complete write frames,
+// numeric meanings and finite families published in 261/260/259 remain intact.
+pub(crate) const FORMAT_MARKER: u16 = 262;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -5584,6 +5583,78 @@ mod descriptor_operation_tests {
 }
 
 #[cfg(test)]
+mod opaque_value_tests {
+    use super::target_family_tests::identity_table;
+    use crate::{decode_module, encode_module};
+    use semantic_vocabulary::{StructuralCaseId, StructuralTypeId};
+    use terminal_psi::{
+        StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+        TerminalIdentityIndex, TerminalModule,
+    };
+
+    #[test]
+    fn opaque_values_round_trip_without_granting_construction_or_contents() {
+        // A supplied opaque value can cross the artifact boundary as a whole.
+        // Its presence grants neither zero construction nor readable children.
+        let mut module = TerminalModule::declarations();
+        let identity = StructuralTypeId::new(1).unwrap();
+        module.identities = identity_table(1);
+        module.structural_types.push(StructuralTypeDeclaration {
+            requires: Vec::new(),
+            id: identity,
+            identity: TerminalIdentityIndex(1),
+            quotient_carrier: None,
+            owns_linear_claim: false,
+            copyable: false,
+            no_code_affine_cleanup: true,
+            descriptor_cleanup: false,
+            scalar_restriction: None,
+            shape: StructuralTypeShape::Opaque,
+        });
+        let bytes = encode_module(&module).unwrap();
+        let decoded = decode_module(&bytes).unwrap();
+        assert_eq!(decoded, module);
+        assert_eq!(encode_module(&decoded).unwrap(), bytes);
+        assert!(!terminal_semantics::zeroed_structural_shape(
+            decoded.structural_types.iter(),
+            identity,
+        ));
+        assert_eq!(
+            crate::foundation_validation::validate_structural_path(&decoded, identity, &[])
+                .unwrap(),
+            identity,
+        );
+        for child in [
+            StructuralPathSegment::Field(TerminalIdentityIndex(1)),
+            StructuralPathSegment::FixedIndex(0),
+            StructuralPathSegment::Case(StructuralCaseId::new(1).unwrap()),
+            StructuralPathSegment::Referent,
+            StructuralPathSegment::AllElements,
+            StructuralPathSegment::RepresentationView {
+                structural_type: identity,
+                stored_scalar: None,
+            },
+        ] {
+            assert!(
+                crate::foundation_validation::validate_structural_path(
+                    &decoded,
+                    identity,
+                    &[child],
+                )
+                .is_err()
+            );
+        }
+        module.structural_types[0].quotient_carrier = Some(identity);
+        assert!(
+            encode_module(&module)
+                .unwrap_err()
+                .to_string()
+                .contains("opaque data cannot supply a visible carrier")
+        );
+    }
+}
+
+#[cfg(test)]
 mod format_marker_tests {
     use super::*;
 
@@ -5593,7 +5664,7 @@ mod format_marker_tests {
         // independent Id and relocation layouts both used 251).
         // Neither body may be interpreted as the combined layout, regardless
         // of which payload follows their shared legacy marker.
-        for legacy in [250u16, 251, 252, 256] {
+        for legacy in [250u16, 251, 252, 256, 261] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();
                 bytes.extend_from_slice(&legacy.to_le_bytes());

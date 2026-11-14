@@ -1478,8 +1478,12 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<()> {
         match &self.declaration(structural_type, concerns)?.shape {
-            StructuralTypeShape::PrimitiveScalar(_) | StructuralTypeShape::Reference { .. } => {
-                found.push(at.clone())
+            // References and opaque values each occupy one established
+            // place. Neither grants owned access to hidden backing storage.
+            StructuralTypeShape::Opaque
+            | StructuralTypeShape::PrimitiveScalar(_)
+            | StructuralTypeShape::Reference { .. } => {
+                found.push(at.clone());
             }
             shape if is_shared_view(shape) => {
                 found.push(at.clone());

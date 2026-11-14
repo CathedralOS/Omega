@@ -14106,7 +14106,8 @@ pub(crate) mod operation_contracts {
                         }
                     }
                     StructuralTypeShape::FixedArray { element, .. } => pending.push(*element),
-                    StructuralTypeShape::Reference { .. }
+                    StructuralTypeShape::Opaque
+                    | StructuralTypeShape::Reference { .. }
                     | StructuralTypeShape::ByteSequence(_)
                     | StructuralTypeShape::ElementView { .. }
                     | terminal_psi::sum_or_mixed_shape_pattern!() => return false,
@@ -16483,6 +16484,18 @@ pub(crate) mod structural_catalog {
             }
             for declaration in &unit.structural_types {
                 match &declaration.shape {
+                    terminal_psi::StructuralTypeShape::Opaque => {
+                        if declaration.quotient_carrier.is_some()
+                            || declaration.scalar_restriction.is_some()
+                            || !declaration.requires.is_empty()
+                        {
+                            return Err(
+                                OptimizationUnitValidationError::InvalidStructuralTypeIdentity(
+                                    declaration.id,
+                                ),
+                            );
+                        }
+                    }
                     terminal_psi::StructuralTypeShape::Reference { .. } => {}
                     terminal_psi::StructuralTypeShape::PrimitiveScalar(_) => {}
                     terminal_psi::StructuralTypeShape::AtomicCell(cell) => {
@@ -16520,7 +16533,8 @@ pub(crate) mod structural_catalog {
             }
             for declaration in &unit.structural_types {
                 let referenced = match &declaration.shape {
-                    terminal_psi::StructuralTypeShape::Reference { .. } => Vec::new(),
+                    terminal_psi::StructuralTypeShape::Opaque
+                    | terminal_psi::StructuralTypeShape::Reference { .. } => Vec::new(),
                     terminal_psi::StructuralTypeShape::PrimitiveScalar(_)
                     | terminal_psi::StructuralTypeShape::AtomicCell(_)
                     | terminal_psi::StructuralTypeShape::ByteSequence(_) => Vec::new(),

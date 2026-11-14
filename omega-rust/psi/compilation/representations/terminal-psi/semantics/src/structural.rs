@@ -2225,7 +2225,8 @@ pub(crate) mod primitive_place {
             {
                 if payload_fields.is_some()
                     || matches!(position, Position::Declared(root)
-                        if matches!(unique(root)?.shape, StructuralTypeShape::Reference { .. }))
+                        if matches!(unique(root)?.shape,
+                            StructuralTypeShape::Opaque | StructuralTypeShape::Reference { .. }))
                 {
                     return None;
                 }
@@ -2758,6 +2759,8 @@ pub(crate) mod shared_mutation {
         }
         active.push(identity);
         let result = match &declaration.shape {
+            // Hidden fields cannot prove absence of shared interior mutation.
+            StructuralTypeShape::Opaque => SharedMutation::Unbounded,
             StructuralTypeShape::PrimitiveScalar(_) => SharedMutation::None,
             StructuralTypeShape::AtomicCell(_) => SharedMutation::Inline,
             StructuralTypeShape::ByteSequence(carrier) => byte_mutation(*carrier),
@@ -5370,6 +5373,7 @@ pub(crate) mod structural_store {
         };
         visiting.push(identity);
         let valid = match &declaration.shape {
+            StructuralTypeShape::Opaque => declaration.no_code_affine_cleanup,
             StructuralTypeShape::PrimitiveScalar(_) => true,
             StructuralTypeShape::AtomicCell(_) => true,
             StructuralTypeShape::ByteSequence(carrier) => {

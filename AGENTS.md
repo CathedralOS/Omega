@@ -333,6 +333,11 @@ refuses a second build or test run while one is active.
 - When a genuine specification ambiguity blocks progress, record the exact
   question in `OWNER_QUESTIONS.md` and cite it in the relevant README rather
   than inventing unratified language semantics.
+- Before you raise a question or report work as waiting on the owner, run
+  `git fetch origin` and re-read `OWNER_QUESTIONS.md`,
+  `OWNER_QUESTIONS_BOOTSTRAP.md` and the pull requests merged since you
+  started. Rulings land while long sessions work; a question already answered
+  on `origin/main` is not open.
 - Repair obvious code-quality and architecture defects under the existing rules;
   they do not need owner sign-off. If a concrete defect reaches beyond the
   current repair (duplicated mechanisms, pipeline bypasses, unsound fallbacks,
