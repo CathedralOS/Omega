@@ -1712,10 +1712,16 @@ pub(crate) mod declaration_foundations {
             {
                 return malformed("complete structural domain lost part of its required theory");
             }
-            if !strictly_increasing(domain.establishment_routes.iter()) {
+            if !strictly_increasing(
+                domain
+                    .establishment_routes
+                    .as_deref()
+                    .unwrap_or_default()
+                    .iter(),
+            ) {
                 return malformed("structural domain issuer routes must be canonical and unique");
             }
-            for route in &domain.establishment_routes {
+            for route in domain.establishment_routes.as_deref().unwrap_or_default() {
                 let declaration = route.declaration().identity();
                 let callable = route.identity();
                 if [declaration, callable]
@@ -4253,7 +4259,7 @@ pub(crate) mod scalar_fields {
                                     domains.iter().all(|id| {
                                         super::scalar_domain(module, *id).is_some_and(|domain| {
                                             domain.predicate.is_none()
-                                                && domain.establishment_routes.is_empty()
+                                                && domain.establishment_routes.is_none()
                                                 && domain.has_no_required_memberships()
                                         })
                                     })
@@ -4712,7 +4718,12 @@ pub(crate) mod scalar_qualifications {
             {
                 return malformed("scalar domain has no retained identity");
             }
-            if !domain.establishment_routes.is_empty() && domain.predicate.is_none() {
+            if domain
+                .establishment_routes
+                .as_deref()
+                .is_some_and(|routes| !routes.is_empty())
+                && domain.predicate.is_none()
+            {
                 return malformed("routed scalar domain lost its predicate component");
             }
             if let Some(predicate) = &domain.predicate {
@@ -4727,16 +4738,22 @@ pub(crate) mod scalar_qualifications {
                     return malformed("scalar domain predicate escapes its formal subject");
                 }
             }
-            if domain.establishment_routes.iter().any(|route| {
-                module
-                    .identities
-                    .text(route.identity())
-                    .is_none_or(str::is_empty)
-                    || module
+            if domain
+                .establishment_routes
+                .as_deref()
+                .unwrap_or_default()
+                .iter()
+                .any(|route| {
+                    module
                         .identities
-                        .text(route.declaration().identity())
+                        .text(route.identity())
                         .is_none_or(str::is_empty)
-            }) {
+                        || module
+                            .identities
+                            .text(route.declaration().identity())
+                            .is_none_or(str::is_empty)
+                })
+            {
                 return malformed("scalar domain lost an issuer identity");
             }
         }
@@ -4783,7 +4800,7 @@ pub(crate) mod scalar_qualifications {
                     .is_none_or(|missing| {
                         missing.iter().any(|node| {
                             node.predicate.is_some()
-                                || !node.establishment_routes.is_empty()
+                                || node.establishment_routes.is_some()
                                 || !node.has_no_required_memberships()
                         })
                     })
@@ -4879,7 +4896,7 @@ pub(crate) mod scalar_qualifications {
                     ScalarReturnOrigin::Vacuous => {
                         matches!(returned.site, ScalarReturnSite::Completion { .. })
                             && domain.predicate.is_none()
-                            && domain.establishment_routes.is_empty()
+                            && domain.establishment_routes.is_none()
                             && domain.has_no_required_memberships()
                     }
                     ScalarReturnOrigin::Forwarded => catalog.sets.iter().any(|set| {
@@ -4894,7 +4911,7 @@ pub(crate) mod scalar_qualifications {
                                 "scalar issuer lost its checked declaration",
                             ),
                         )?;
-                        match domain.establishment_routes.get(*route as usize) {
+                        match domain.establishment_routes.as_deref().unwrap_or_default().get(*route as usize) {
                             Some(ScalarDomainEstablishmentRoute::ExactMachine { declaration: issuer, machine_identity }) => {
                                 (module.identities.text(*machine_identity).zip(module.identities.text(declaration.callable))
                                     .is_some_and(|(issued, callable)| issued == terminal_psi::CheckedMachineDeclaration::callable_evidence_identity(
@@ -4933,7 +4950,7 @@ pub(crate) mod scalar_qualifications {
                         .missing_membership_requirements(&catalog.domains, supplied)
                         .is_some_and(|missing| {
                             missing.iter().all(|node| {
-                                node.id == domain.id || node.establishment_routes.is_empty()
+                                node.id == domain.id || node.establishment_routes.is_none()
                             })
                         })
                 } else {
@@ -4961,6 +4978,8 @@ pub(crate) mod scalar_qualifications {
                     let issuer = match origin {
                         ScalarReturnOrigin::Established { route } => domain
                             .establishment_routes
+                            .as_deref()
+                            .unwrap_or_default()
                             .get(*route as usize)
                             .map(|route| {
                                 let callable = match route {
@@ -5078,7 +5097,7 @@ pub(crate) mod scalar_qualifications {
                             .is_none_or(|required| {
                                 required
                                     .iter()
-                                    .any(|node| !node.establishment_routes.is_empty())
+                                    .any(|node| node.establishment_routes.is_some())
                             })
                 })
             }) {
@@ -6899,10 +6918,7 @@ pub(crate) mod storage_foundations {
                     .ok_or(CodecError::MalformedStructuralFoundation(
                         "value transfer has unknown prerequisites",
                     ))?;
-                if missing
-                    .iter()
-                    .any(|row| !row.establishment_routes.is_empty())
-                {
+                if missing.iter().any(|row| row.establishment_routes.is_some()) {
                     return malformed(
                         "value transfer cannot establish unsupplied routed prerequisites",
                     );
@@ -10095,6 +10111,21 @@ fn validate_declaration_contracts(module: &TerminalModule) -> Result<(), CodecEr
         .iter()
         .chain(module.machines.iter().map(|machine| &machine.contract))
     {
+        if contract
+            .declared_service_reach
+            .as_ref()
+            .is_some_and(|row| row != &contract.published_service_ceiling)
+            || contract
+                .declared_synchronous_entries
+                .as_ref()
+                .is_some_and(|row| row != &contract.published_synchronous_entries)
+            || contract
+                .declared_crash_routes
+                .as_ref()
+                .is_some_and(|row| row != &contract.crash_routes)
+        {
+            return malformed("authored callable effects differ from their published promises");
+        }
         require_known_services(
             module,
             contract

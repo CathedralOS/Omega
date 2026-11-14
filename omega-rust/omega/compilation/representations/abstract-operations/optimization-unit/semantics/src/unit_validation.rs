@@ -8271,7 +8271,7 @@ pub(crate) mod function_structure {
                                         .is_none_or(|missing| {
                                             missing
                                                 .iter()
-                                                .any(|node| !node.establishment_routes.is_empty())
+                                                .any(|node| node.establishment_routes.is_some())
                                         })
                                 }) {
                                     return Err(invalid(
@@ -16425,15 +16425,22 @@ pub(crate) mod structural_catalog {
                             }))
                     || declaration
                         .establishment_routes
+                        .as_deref()
+                        .unwrap_or_default()
                         .windows(2)
                         .any(|pair| pair[0] >= pair[1])
-                    || declaration.establishment_routes.iter().any(|route| {
-                        [route.declaration().identity(), route.identity()]
-                            .iter()
-                            .any(|identity| {
-                                unit.identities.text(*identity).is_none_or(str::is_empty)
-                            })
-                    })
+                    || declaration
+                        .establishment_routes
+                        .as_deref()
+                        .unwrap_or_default()
+                        .iter()
+                        .any(|route| {
+                            [route.declaration().identity(), route.identity()]
+                                .iter()
+                                .any(|identity| {
+                                    unit.identities.text(*identity).is_none_or(str::is_empty)
+                                })
+                        })
                 {
                     return Err(
                         OptimizationUnitValidationError::InvalidStructuralDomainIdentity(
@@ -16457,7 +16464,7 @@ pub(crate) mod structural_catalog {
                 if declaration.byte_predicate.is_some()
                     && (declaration.content_projection.is_some()
                         || !declaration.has_no_required_memberships()
-                        || !declaration.establishment_routes.is_empty()
+                        || declaration.establishment_routes.is_some()
                         || !matches!(
                             types[&declaration.carrier].shape,
                             terminal_psi::StructuralTypeShape::ByteSequence(_)

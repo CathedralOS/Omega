@@ -74,7 +74,7 @@
 4 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/control_graph.rs
 14 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptor_replay.rs
 13 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/descriptors.rs
-9 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/scalars.rs
+3 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/scalars.rs
 19 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/storage.rs
 19 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/structural.rs
 9 omega-rust/psi/compilation/representations/terminal-psi/semantics/src/substitution.rs
@@ -83,7 +83,7 @@
 1 omega-rust/psi/compilation/representations/typed-trees/src/lib.rs
 2 omega-rust/psi/compilation/representations/typed-trees/src/product_and_trait_declarations.rs
 25 omega-rust/psi/compilation/representations/typed-trees/src/references.rs
-4 omega-rust/psi/compilation/representations/typed-trees/src/type_system.rs
+1 omega-rust/psi/compilation/representations/typed-trees/src/type_system.rs
 2 omega-rust/psi/compilation/terminal-installation/src/evaluation_and_synchronous_calls.rs
 4 omega-rust/psi/compilation/terminal-installation/src/provider_and_target_installation.rs
 2 omega-rust/psi/foundation/semantic-vocabulary/src/proposition.rs

@@ -247,12 +247,11 @@ impl Program<'_> {
                         other => conjuncts.push(other),
                     }
                 }
-                // A data clause keeps its authored order: it is never
-                // encoded, and a conjunct that tests the case guards the
-                // conjuncts that project its payload.
-                if scope.subject.is_some() {
-                    return Ok(Proposition::Conjunction(conjuncts));
-                }
+                // A data clause is published with its type, so it takes the
+                // canonical order too. A conjunct that tests the case still
+                // guards the conjuncts that project its payload wherever it
+                // stands: substitution decides a connective by any one part
+                // (`substitute_clause`).
                 return canonical::clauses(conjuncts, Repeated::Refuse, id)
                     .map(Proposition::Conjunction);
             }
@@ -264,7 +263,8 @@ impl Program<'_> {
                         other => disjuncts.push(other),
                     }
                 }
-                return Ok(Proposition::Disjunction(disjuncts));
+                return canonical::clauses(disjuncts, Repeated::Refuse, id)
+                    .map(Proposition::Disjunction);
             }
             BinaryOperator::Equal
             | BinaryOperator::Less
@@ -308,7 +308,6 @@ impl Program<'_> {
         }
         let ordered = matches!(left_type, ScalarType::Integer(_));
         match comparison {
-            BinaryOperator::Equal if scope.subject.is_some() => Ok(Proposition::Equal(left, right)),
             BinaryOperator::Equal => canonical::equal(left, right, id),
             _ if !ordered => unserved("ordering of Booleans"),
             BinaryOperator::Less => Ok(Proposition::LessThan(left, right)),
@@ -1009,7 +1008,7 @@ impl Program<'_> {
                 (subject.root, subject.path.to_vec(), record, path.symbol)
             }
             ExpressionNode::Member(member) => {
-                if !member.member_symbol.is_valid() {
+                if !member.selection.field_symbol().is_valid() {
                     return Err(spelling("clause member without a field symbol"));
                 }
                 let not_data = || {
@@ -1026,7 +1025,7 @@ impl Program<'_> {
                 let Some(record) = self.opened(id, Some(receiver), Access::Read)? else {
                     return Err(not_data());
                 };
-                (root, base, record, member.member_symbol)
+                (root, base, record, member.selection.field_symbol())
             }
             ExpressionNode::Indexed(_)
             | ExpressionNode::TypeExpression(_)

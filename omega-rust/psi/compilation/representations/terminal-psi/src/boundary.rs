@@ -662,7 +662,7 @@ pub(crate) mod declarations {
                                         )
                                         .is_some_and(|missing| {
                                             missing.into_iter().all(|required| {
-                                                required.establishment_routes.is_empty()
+                                                required.establishment_routes.is_none()
                                                     || required.authorizes_boundary_requirement(
                                                         requirement,
                                                         declaration,
@@ -954,7 +954,7 @@ pub(crate) mod declarations {
                                             && node.content_projection.is_some())
                                             || ((node.content_projection.is_none()
                                                 || !consumes_qualification(node.id))
-                                                && !node.establishment_routes.is_empty()
+                                                && node.establishment_routes.is_some()
                                                 && !node.authorizes_boundary_requirement(
                                                     self.identity,
                                                     self.declaration.as_ref().map(|callable| {

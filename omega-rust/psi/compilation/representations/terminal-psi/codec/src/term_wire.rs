@@ -2300,11 +2300,17 @@ pub(crate) mod scalar_qualification_wire {
         )?;
         for domain in &catalog.domains {
             require_increasing(
-                domain.establishment_routes.iter(),
+                domain
+                    .establishment_routes
+                    .as_deref()
+                    .unwrap_or_default()
+                    .iter(),
                 "scalar domain establishment routes",
             )?;
             if domain
                 .establishment_routes
+                .as_deref()
+                .unwrap_or_default()
                 .iter()
                 .any(|route| route.identity().is_absent())
             {

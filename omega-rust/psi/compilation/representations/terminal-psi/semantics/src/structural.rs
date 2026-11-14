@@ -5802,7 +5802,7 @@ pub(crate) mod zeroed_structural {
             let Some(domain) = domains.clone().find(|domain| domain.id == row.domain) else { return false; };
             domain.carrier == carrier.id
                 && domain.content_projection.is_none()
-                && domain.establishment_routes.is_empty()
+                && domain.establishment_routes.is_none()
                 && domain.has_no_required_memberships()
                 && domain.byte_predicate.is_some_and(|predicate| match predicate {
                     terminal_psi::ByteSequencePredicate::ValidUtf8 | terminal_psi::ByteSequencePredicate::AsciiOnly => true,

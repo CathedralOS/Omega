@@ -1329,7 +1329,14 @@ impl<'t> Program<'t> {
             // only crash-free members.
             (Declarer::Requirement { .. }, false) => CrashCeiling::Inferred,
         };
-        let reaches = self.reach_ceiling(id, owner)?;
+        // A requirement closed at an application keeps the reach its
+        // requirement wrote: the typed trees hold authored reach rows
+        // against the declaration the author wrote them on.
+        let reach_author = self
+            .typed
+            .closed_requirement_application(owner)
+            .map_or(owner, |closed| closed.template);
+        let reaches = self.reach_ceiling(id, reach_author)?;
         let authored = requires.clone();
         let requires = canonical::clauses(requires, Repeated::Refuse, id)?;
         // Each clause's text follows it into canonical order. A repeated
@@ -1564,10 +1571,13 @@ impl<'t> Program<'t> {
         } else {
             self.value_type(id, referee)?
         };
-        // A data type with `requires` may be stored into by the callee, so
-        // its domain is owed again where the loan returns; no slice follows
-        // a domain across a call yet.
+        // A data type with `requires` may be stored into by the callee of an
+        // exclusive loan, so its domain is owed again where the loan
+        // returns; no slice follows a domain across a call yet. A shared
+        // loan admits no store, so the value behind it is the one its owner
+        // established.
         if let ValueType::Record(record, _, _) = value_type
+            && access == language_core::ReferenceAccess::Mutable
             && self.restricted(record)
         {
             return unserved("reference to data with requires");

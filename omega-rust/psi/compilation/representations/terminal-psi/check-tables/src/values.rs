@@ -10,7 +10,7 @@ use semantic_vocabulary::{
     BlockId, EdgeId, EvidenceTermId, OperationId, PropositionId, ScalarType,
 };
 
-use crate::{ExactPlaceId, InvocationId, KnowledgeId, ProgramPoint, SelectionSetId};
+use crate::{ExactPlaceId, InvocationId, KnowledgeId, ProgramPoint};
 
 /// One evaluated scalar value, indexed by the lowered form's `ValueId`.
 ///
@@ -22,12 +22,6 @@ use crate::{ExactPlaceId, InvocationId, KnowledgeId, ProgramPoint, SelectionSetI
 pub struct ValueRow {
     pub scalar_type: ScalarType,
     pub origin: ValueOrigin,
-    /// For a callable selector, the machines it may select; the lowered form
-    /// makes selectors scalar values (see `may_sets`). Elaboration sets it
-    /// when it pushes the row, and it is `Some` for every value a
-    /// `Callee::Selected` names, `Unknown` when nothing narrower is known.
-    /// `None` only for values that are not selectors.
-    pub selects: Option<SelectionSetId>,
     /// Set for a value whose type is a type parameter that a generic check
     /// form leaves rigid (`machine same<T>(left: T, ..)`). The lowered form
     /// can declare a value only with a `ScalarType`, so such a value is

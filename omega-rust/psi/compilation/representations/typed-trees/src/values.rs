@@ -793,149 +793,6 @@ pub mod expression {
             }
         }
     }
-    pub(crate) mod index_authority {
-        use super::{ExpressionHandle, ExpressionNode, ExpressionTable, source_span_index};
-        use crate::types::TypeReferenceHandle;
-        use arena::Handle;
-        use symbols::SymbolHandle;
-
-        #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
-        pub struct IndexExpressionAuthority {
-            pub normalization: Option<OpenIndexNormalization>,
-            pub operation: Option<OpenIndexOperationSelection>,
-        }
-
-        #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-        pub struct OpenIndexNormalization {
-            pub index_type: TypeReferenceHandle,
-            pub normalizer_version: u32,
-        }
-
-        #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-        pub struct OpenIndexOperationSelection {
-            pub expression: ExpressionHandle,
-            pub spelling: language_core::operator_spelling::OperatorSpelling,
-            pub operator: SymbolHandle,
-            pub operand_type: TypeReferenceHandle,
-            pub provider: SymbolHandle,
-            pub application: Option<super::StaticMachineArgument>,
-            pub algebra_trait: SymbolHandle,
-            pub algebra_requirement: String,
-            pub algebra_alias: Option<String>,
-            pub commutativity_licensed: bool,
-            pub associativity_licensed: bool,
-            pub distributes_over: Vec<String>,
-            pub left_identity_literal: String,
-            pub right_identity_literal: String,
-        }
-
-        impl OpenIndexOperationSelection {
-            pub fn apply_provider(&mut self, selected: &super::StaticMachineArgument, alias: &str) {
-                self.provider = selected.symbol;
-                self.application = selected.application.as_ref().map(|_| selected.clone());
-                self.algebra_alias = Some(alias.to_owned());
-            }
-
-            pub fn operation_contract_identity(&self, program: &crate::TypedTrees) -> String {
-                let subject = program.normalized_type_identity_text(self.operand_type);
-                format!(
-                    "trait::{}::{}({subject},{subject})->{subject}",
-                    program.symbols.display_path(self.algebra_trait, "::"),
-                    self.algebra_requirement,
-                )
-            }
-        }
-
-        impl ExpressionTable {
-            pub fn index_expression_authority(
-                &self,
-                expression: ExpressionHandle,
-            ) -> Option<&IndexExpressionAuthority> {
-                if !self.expressions.is_valid(expression) {
-                    return None;
-                }
-                let handle = *self
-                    .index_expression_authority_handles
-                    .get(source_span_index(expression))?;
-                handle
-                    .is_valid()
-                    .then(|| self.index_expression_authorities.get(handle))
-            }
-
-            pub fn index_expression_authority_mut(
-                &mut self,
-                expression: ExpressionHandle,
-            ) -> &mut IndexExpressionAuthority {
-                assert!(
-                    self.expressions.is_valid(expression),
-                    "index authority requires a live expression"
-                );
-                let position = source_span_index(expression);
-                if self.index_expression_authority_handles.len() <= position {
-                    self.index_expression_authority_handles
-                        .resize(position + 1, Handle::invalid());
-                }
-                let handle = &mut self.index_expression_authority_handles[position];
-                if !handle.is_valid() {
-                    *handle = self
-                        .index_expression_authorities
-                        .insert(IndexExpressionAuthority::default());
-                }
-                self.index_expression_authorities.get_mut(*handle)
-            }
-
-            pub fn open_index_operation(
-                &self,
-                expression: ExpressionHandle,
-            ) -> Option<&OpenIndexOperationSelection> {
-                self.binary_node(expression)?;
-                self.index_expression_authority(expression)?
-                    .operation
-                    .as_ref()
-            }
-
-            pub fn open_index_operations(
-                &self,
-                root: ExpressionHandle,
-            ) -> impl Iterator<Item = &OpenIndexOperationSelection> {
-                let mut pending = vec![root];
-                std::iter::from_fn(move || {
-                    while let Some(expression) = pending.pop() {
-                        match self.expression(expression) {
-                            ExpressionNode::Binary(binary) => {
-                                pending.push(binary.right);
-                                pending.push(binary.left);
-                            }
-                            ExpressionNode::Unary(unary) => pending.push(unary.operand),
-                            _ => {}
-                        }
-                        if let Some(operation) = self.open_index_operation(expression) {
-                            return Some(operation);
-                        }
-                    }
-                    None
-                })
-            }
-
-            pub fn selected_index_operations(
-                &self,
-            ) -> impl Iterator<Item = &OpenIndexOperationSelection> {
-                self.index_expression_authorities
-                    .iter()
-                    .filter_map(|(_, authority)| {
-                        let operation = authority.operation.as_ref()?;
-                        self.open_index_operation(operation.expression)
-                    })
-            }
-
-            pub fn open_index_normalization_count(&self) -> usize {
-                self.index_expression_authorities
-                    .iter()
-                    .filter(|(_, authority)| authority.normalization.is_some())
-                    .count()
-            }
-        }
-    }
     pub(crate) mod shape {
         use crate::expression::TableCallExpression;
 
@@ -1522,7 +1379,6 @@ pub mod expression {
                     language_core::PatternComponent::Fields
                 };
                 let node = self.expression(source).clone();
-                let authority = self.index_expression_authority(source).cloned();
                 let source_index = super::source_span_index(source);
                 let destination_index = super::source_span_index(destination);
                 let occurrences = self.authored_selection_occurrences[source_index];
@@ -1549,17 +1405,6 @@ pub mod expression {
                 }
                 if let Some(previous) = self
                     .construction_required_type_handles
-                    .get_mut(destination_index)
-                {
-                    *previous = Default::default();
-                }
-                if let Some(mut authority) = authority {
-                    if let Some(operation) = &mut authority.operation {
-                        operation.expression = destination;
-                    }
-                    *self.index_expression_authority_mut(destination) = authority;
-                } else if let Some(previous) = self
-                    .index_expression_authority_handles
                     .get_mut(destination_index)
                 {
                     *previous = Default::default();
@@ -1607,26 +1452,6 @@ pub mod expression {
                 }
                 if !tests.is_empty() {
                     self.replace_executable_domain_tests(root, tests);
-                }
-
-                if let Some(mut authority) = self.index_expression_authority(root).cloned() {
-                    if let Some(operation) = &mut authority.operation {
-                        if let Some(application) = &mut operation.application {
-                            self.remap_static_argument_symbols(application, symbols.execution());
-                        }
-                        for symbol in [
-                            &mut operation.provider,
-                            &mut operation.operator,
-                            &mut operation.algebra_trait,
-                        ] {
-                            if let Some((_, replacement)) =
-                                symbols.iter().find(|(original, _)| original == symbol)
-                            {
-                                *symbol = *replacement;
-                            }
-                        }
-                    }
-                    *self.index_expression_authority_mut(root) = authority;
                 }
 
                 let node = self.expression(root).clone();
@@ -1699,7 +1524,11 @@ pub mod expression {
                         let ExpressionNode::Member(member) = self.expression_mut(root) else {
                             unreachable!();
                         };
-                        member.member_symbol = remapped(member.member_symbol, symbols);
+                        if let crate::expression::MemberSelection::Field(symbol) =
+                            &mut member.selection
+                        {
+                            *symbol = remapped(*symbol, symbols);
+                        }
                     }
                     ExpressionNode::Borrow(inner) => {
                         self.remap_symbols_in_inner(inner.target, symbols, visited)
@@ -1899,7 +1728,6 @@ pub mod expression {
                     .direct_pattern_component(expression)
                     .expect("copied expression retains its component row");
                 let materialization_source = origin.materialization_source(expression);
-                let authority = origin.index_expression_authority(expression).cloned();
                 let domain_tests = origin.executable_domain_tests(expression).to_vec();
                 let query_carrier =
                     matches!(origin.expression(expression), ExpressionNode::Call(call)
@@ -2118,7 +1946,7 @@ pub mod expression {
                         );
                         self.insert(ExpressionNode::Member(TableMemberExpression {
                             receiver,
-                            member_symbol: member.member_symbol,
+                            selection: member.selection,
                             member: member.member,
                             case_variant: member.case_variant,
                         }))
@@ -2207,20 +2035,6 @@ pub mod expression {
                     self.set_constructed_value_type_reference(copied, carrier);
                 }
                 self.attach_authored_selection_occurrences(copied, occurrences);
-                if let Some(mut authority) = authority {
-                    if let Some(operation) = &mut authority.operation {
-                        operation.expression = copied;
-                        if let Some(argument) = &mut operation.application {
-                            *argument = match source {
-                                CopySource::Own => self.copy_static_argument_from_self(argument),
-                                CopySource::Table(table) => {
-                                    self.copy_static_argument_from(table, argument)
-                                }
-                            };
-                        }
-                    }
-                    *self.index_expression_authority_mut(copied) = authority;
-                }
                 self.set_pattern_component(copied, component);
                 copies.expressions.push((expression, copied));
                 if materialization_source.is_valid() {
@@ -2527,6 +2341,102 @@ pub mod expression {
         #[cfg(test)]
         mod materialization_tests {
             use super::*;
+
+            #[test]
+            fn pattern_dependencies_retain_the_combined_condition_once() {
+                use crate::expression::{
+                    BinaryOperator, MatchFieldAction, MatchPattern, TableDestructurePattern,
+                    TableMatchArm, TableMatchExpression, TableMatchField,
+                };
+
+                let mut trees = crate::TypedTrees::default();
+                let table = &mut trees.expression_table;
+                let head = table.insert(ExpressionNode::Boolean(true));
+                let observed = table.insert(ExpressionNode::Boolean(false));
+                let expected = table.insert(ExpressionNode::Boolean(true));
+                let equality = table.insert(ExpressionNode::Binary(TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    left: observed,
+                    operator: BinaryOperator::Equal,
+                    right: expected,
+                }));
+                let guard = table.insert(ExpressionNode::Boolean(true));
+                let condition = table.insert(ExpressionNode::Binary(TableBinaryExpression {
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
+                    left: equality,
+                    operator: BinaryOperator::And,
+                    right: guard,
+                }));
+                let fields = table.insert_match_fields([TableMatchField {
+                    action: MatchFieldAction::Equal(expected),
+                    ..Default::default()
+                }]);
+                let pattern = MatchPattern::Destructure(TableDestructurePattern {
+                    head,
+                    fields,
+                    guard,
+                    condition,
+                    ..Default::default()
+                });
+                assert_eq!(
+                    table
+                        .match_pattern_dependencies(pattern)
+                        .collect::<Vec<_>>(),
+                    [head, condition]
+                );
+                let ExpressionNode::Binary(combined) = table.expression(condition) else {
+                    panic!("retained condition contains both predicate inputs");
+                };
+                assert_eq!([combined.left, combined.right], [equality, guard]);
+                assert_eq!(
+                    table
+                        .match_pattern_dependencies(MatchPattern::Value(equality))
+                        .collect::<Vec<_>>(),
+                    [equality]
+                );
+                assert_eq!(
+                    table
+                        .match_pattern_dependencies(MatchPattern::Wildcard)
+                        .count(),
+                    0
+                );
+                assert_eq!(
+                    table
+                        .match_pattern_dependencies(MatchPattern::Destructure(Default::default()))
+                        .count(),
+                    0
+                );
+
+                let subject = table.insert(ExpressionNode::Boolean(true));
+                let result = table.insert(ExpressionNode::Boolean(false));
+                let capture = table.insert_match_subject(subject);
+                let arms = table.insert_match_arms([TableMatchArm {
+                    pattern,
+                    value: result,
+                    ..Default::default()
+                }]);
+                let dispatch = table.insert(ExpressionNode::Match(TableMatchExpression {
+                    subject,
+                    capture,
+                    arms,
+                }));
+                let mut visited = Vec::new();
+                trees.subtree_for_each(
+                    dispatch,
+                    crate::values::subtrees::SubtreeEdges {
+                        pattern_dependencies: true,
+                        ..Default::default()
+                    },
+                    |expression, _| visited.push(expression),
+                );
+                assert_eq!(
+                    visited,
+                    [
+                        dispatch, subject, head, condition, equality, observed, expected, guard,
+                        result
+                    ]
+                );
+            }
 
             /// A contract's reserved `result` is known by its owner identity,
             /// not its spelling, so a name rebuilt from an owned tree must
@@ -2946,7 +2856,7 @@ pub mod expression {
                         let receiver = self.insert_tree(&member.receiver);
                         self.insert(ExpressionNode::Member(TableMemberExpression {
                             receiver,
-                            member_symbol: member.member_symbol,
+                            selection: member.selection,
                             member: member.member.clone(),
                             case_variant: member.case_variant.clone(),
                         }))
@@ -3021,10 +2931,6 @@ pub mod expression {
     pub use table_copies::ExpressionCopy;
 
     pub use display::{display_call_label, display_match_pattern, display_name_path};
-    pub use index_authority::{
-        IndexExpressionAuthority, OpenIndexNormalization, OpenIndexOperationSelection,
-    };
-
     pub type ExpressionHandle = Handle<ExpressionNode>;
 
     #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
@@ -3100,8 +3006,6 @@ pub mod expression {
         constructed_value_type_handles: Vec<Handle<crate::types::TypeReferenceHandle>>,
         construction_required_types: Arena<crate::types::TypeReferenceHandle>,
         construction_required_type_handles: Vec<Handle<crate::types::TypeReferenceHandle>>,
-        index_expression_authorities: Arena<IndexExpressionAuthority>,
-        index_expression_authority_handles: Vec<Handle<IndexExpressionAuthority>>,
         authored_selection_occurrences: Vec<HandleSpan<StoredAuthoredSelectionOccurrenceId>>,
         authored_selection_occurrence_ids: Arena<StoredAuthoredSelectionOccurrenceId>,
         executable_domain_tests: Vec<HandleSpan<ExecutableDomainTest>>,
@@ -3291,31 +3195,14 @@ pub mod expression {
             &self,
             pattern: MatchPattern,
         ) -> impl Iterator<Item = ExpressionHandle> + '_ {
-            let (head, fields, guard) = match pattern {
-                MatchPattern::Value(value) => {
-                    (value, HandleSpan::empty(), ExpressionHandle::invalid())
-                }
-                MatchPattern::Destructure(pattern) => {
-                    (pattern.head, HandleSpan::empty(), pattern.condition)
-                }
-                MatchPattern::Wildcard => (
-                    ExpressionHandle::invalid(),
-                    HandleSpan::empty(),
-                    ExpressionHandle::invalid(),
-                ),
+            // The lowered condition includes field equalities, the authored
+            // guard and any case test. Its graph owns those dependencies.
+            let roots = match pattern {
+                MatchPattern::Value(value) => [value, ExpressionHandle::invalid()],
+                MatchPattern::Destructure(pattern) => [pattern.head, pattern.condition],
+                MatchPattern::Wildcard => [ExpressionHandle::invalid(); 2],
             };
-            head.is_valid()
-                .then_some(head)
-                .into_iter()
-                .chain(
-                    self.match_fields(fields)
-                        .iter()
-                        .filter_map(|field| match &field.action {
-                            MatchFieldAction::Equal(value) => Some(*value),
-                            _ => None,
-                        }),
-                )
-                .chain(guard.is_valid().then_some(guard))
+            roots.into_iter().filter(|root| root.is_valid())
         }
 
         pub fn match_pattern_operands(
@@ -3381,7 +3268,6 @@ pub mod expression {
                 .revision()
                 .wrapping_add(self.build_selection_requests.revision())
                 .wrapping_add(self.expression_roots.revision())
-                .wrapping_add(self.index_expression_authorities.revision())
                 .wrapping_add(self.authored_selection_occurrence_ids.revision())
                 .wrapping_add(self.executable_domain_test_rows.revision())
                 .wrapping_add(self.expression_handles.revision())
@@ -3430,8 +3316,6 @@ pub mod expression {
                 constructed_value_type_handles: Vec::new(),
                 construction_required_types: Arena::default(),
                 construction_required_type_handles: Vec::new(),
-                index_expression_authorities: Arena::default(),
-                index_expression_authority_handles: Vec::new(),
                 authored_selection_occurrences: Vec::with_capacity(capacity.expressions),
                 authored_selection_occurrence_ids: Arena::with_capacity(
                     capacity.authored_selection_occurrences,
@@ -3463,8 +3347,6 @@ pub mod expression {
             self.constructed_value_type_handles.clear();
             self.construction_required_types.reset_retain_capacity();
             self.construction_required_type_handles.clear();
-            self.index_expression_authorities.reset_retain_capacity();
-            self.index_expression_authority_handles.clear();
             self.authored_selection_occurrences.clear();
             self.authored_selection_occurrence_ids
                 .reset_retain_capacity();
@@ -4101,16 +3983,25 @@ pub mod expression {
             &self,
             expression: ExpressionHandle,
         ) -> Option<ExpressionHandle> {
-            use language_semantics::declaration_selection::CollectionMeasure;
             let member = self.member_node(expression)?;
-            if CollectionMeasure::from_authored_spelling(member.member.as_str())
-                != Some(CollectionMeasure::Length)
-                || member.member_symbol.is_valid()
-                || member.case_variant.is_some()
-            {
+            if member.case_variant.is_some() {
                 return None;
             }
-            Some(member.receiver)
+            // A selected operation has already acquired its meaning. An
+            // unresolved occurrence can still request source completion,
+            // but its spelling alone supplies no selected operation.
+            match member.selection {
+                MemberSelection::CollectionMeasure(CollectionMeasure::Length) => {
+                    Some(member.receiver)
+                }
+                MemberSelection::Unresolved
+                    if CollectionMeasure::from_authored_spelling(member.member.as_str())
+                        == Some(CollectionMeasure::Length) =>
+                {
+                    Some(member.receiver)
+                }
+                _ => None,
+            }
         }
 
         pub fn name_path_string(&self, span: HandleSpan<Identifier>) -> String {
@@ -4405,7 +4296,7 @@ pub mod expression {
                         )
                 }
                 (ExpressionNode::Member(x), ExpressionNode::Member(y)) => {
-                    x.member_symbol == y.member_symbol
+                    x.selection == y.selection
                         && x.member.as_str() == y.member.as_str()
                         && self.expressions_structurally_equal(x.receiver, y.receiver)
                 }
@@ -4641,10 +4532,88 @@ pub mod expression {
         pub end_inclusive: bool,
     }
 
+    pub use language_semantics::declaration_selection::CollectionMeasure;
+
+    /// A nominal field and a builtin collection observation are different
+    /// selections. Retaining the selected operation avoids asking a later
+    /// checker to recover its meaning from a diagnostic member spelling.
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+    pub enum MemberSelection {
+        #[default]
+        Unresolved,
+        Field(SymbolHandle),
+        CollectionMeasure(CollectionMeasure),
+    }
+
+    impl MemberSelection {
+        pub const fn field_symbol(self) -> SymbolHandle {
+            match self {
+                Self::Field(symbol) => symbol,
+                Self::Unresolved | Self::CollectionMeasure(_) => SymbolHandle::invalid(),
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod member_selection_tests {
+        use super::*;
+
+        #[test]
+        fn member_selection_keeps_its_role_through_copy_remap_and_records() {
+            let old = SymbolHandle::from_arena_index(7);
+            let new = SymbolHandle::from_arena_index(9);
+            for (selected, rebound) in [
+                (MemberSelection::Field(old), MemberSelection::Field(new)),
+                (
+                    MemberSelection::CollectionMeasure(CollectionMeasure::Length),
+                    MemberSelection::CollectionMeasure(CollectionMeasure::Length),
+                ),
+                (MemberSelection::Unresolved, MemberSelection::Unresolved),
+            ] {
+                let bytes = compiler_storage::encode(&selected, Default::default()).unwrap();
+                let decoded: MemberSelection =
+                    compiler_storage::decode(&bytes, Default::default()).unwrap();
+                assert_eq!(decoded, selected);
+                let mut source = ExpressionTable::default();
+                let receiver = source.insert(ExpressionNode::Boolean(false));
+                let member = source.insert(ExpressionNode::Member(TableMemberExpression {
+                    receiver,
+                    selection: decoded,
+                    member: Identifier::generated("len"),
+                    case_variant: None,
+                }));
+                let own_copy = source.insert_copy(member);
+                assert_eq!(source.member_node(own_copy).unwrap().selection, selected);
+                let mut target = ExpressionTable::default();
+                let copied = target.copy_from(&source, member);
+                target.remap_symbols_in(copied, &vec![(old, new)]);
+                assert_eq!(target.member_node(copied).unwrap().selection, rebound);
+            }
+        }
+
+        #[test]
+        fn a_selected_measure_does_not_depend_on_its_diagnostic_spelling() {
+            let mut table = ExpressionTable::default();
+            let receiver = table.insert(ExpressionNode::Boolean(false));
+            let member = table.insert(ExpressionNode::Member(TableMemberExpression {
+                receiver,
+                selection: MemberSelection::CollectionMeasure(CollectionMeasure::Length),
+                member: Identifier::generated("diagnostic-only"),
+                case_variant: None,
+            }));
+            assert_eq!(table.authored_length_receiver(member), Some(receiver));
+            let ExpressionNode::Member(selected) = table.expression_mut(member) else {
+                unreachable!();
+            };
+            selected.selection = MemberSelection::Field(SymbolHandle::invalid());
+            assert_eq!(table.authored_length_receiver(member), None);
+        }
+    }
+
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct MemberExpression {
         pub receiver: Expression,
-        pub member_symbol: SymbolHandle,
+        pub selection: MemberSelection,
         pub member: Identifier,
         pub case_variant: Option<Identifier>,
     }
@@ -4652,7 +4621,7 @@ pub mod expression {
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct TableMemberExpression {
         pub receiver: ExpressionHandle,
-        pub member_symbol: SymbolHandle,
+        pub selection: MemberSelection,
         pub member: Identifier,
         pub case_variant: Option<Identifier>,
     }

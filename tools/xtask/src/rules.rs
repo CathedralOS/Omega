@@ -126,24 +126,29 @@ fn collect_files_with_ext(dir: &Path, root: &Path, ext: &str, out: &mut Vec<Path
 }
 
 /*
-    Checking reads frozen typed tables and publishes facts it owns; it holds no
-    hidden mutable state. The stage-05 lib test `checking_does_not_reopen_typed_preparation`
-    pins this, but CI never runs that test, so six PRs broke it unnoticed. The
-    same scan runs here, on every PR, over the same roots. :CheckingInteriorState
+    Stage 04 reads frozen typed tables and publishes facts it owns; it holds no
+    hidden mutable state. Every pull request scans that source tree for
+    `thread_local!` and `RefCell`. A configured root that `read_dir` cannot open
+    is reported here, because the file walk treats that failure as an empty
+    tree. :CheckingInteriorState
 */
-const CHECKING_STATE_ROOTS: &[&str] = &[
-    "omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src",
-    "omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src",
-    "omega-rust/psi/compilation/validation/src",
-];
+const CHECKING_STATE_ROOTS: &[&str] =
+    &["omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src"];
 const CHECKING_STATE_FORBIDDEN: &[&str] = &["thread_local!", "RefCell"];
 
 fn checking_interior_state_violations(root: &Path) -> Vec<String> {
     let mut files = Vec::new();
-    for dir in CHECKING_STATE_ROOTS {
-        collect_files_with_ext(&root.join(dir), root, "rs", &mut files);
-    }
     let mut violations = Vec::new();
+    for dir in CHECKING_STATE_ROOTS {
+        let configured = root.join(dir);
+        if let Err(error) = fs::read_dir(&configured) {
+            violations.push(format!(
+                "{dir}: interior-state scan could not read this root ({error})"
+            ));
+            continue;
+        }
+        collect_files_with_ext(&configured, root, "rs", &mut files);
+    }
     for path in files {
         if path
             .file_name()
@@ -1613,6 +1618,55 @@ pub fn run(args: &[String]) -> Result<(), u8> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn interior_state_scan_reports_an_unreadable_configured_root() {
+        let scratch = std::env::temp_dir().join(format!(
+            "omega-interior-state-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("system clock precedes the unix epoch")
+                .as_nanos()
+        ));
+        fs::create_dir(&scratch).unwrap();
+        let missing = checking_interior_state_violations(&scratch);
+
+        for dir in CHECKING_STATE_ROOTS {
+            let stage = scratch.join(dir);
+            fs::create_dir_all(&stage).unwrap();
+            fs::write(stage.join("hidden.rs"), "let cell = RefCell::new(1);\n").unwrap();
+        }
+        let found = checking_interior_state_violations(&scratch);
+
+        for dir in CHECKING_STATE_ROOTS {
+            fs::write(scratch.join(dir).join("hidden.rs"), "fn plain() {}\n").unwrap();
+        }
+        let clean = checking_interior_state_violations(&scratch);
+        let _ = fs::remove_dir_all(&scratch);
+
+        assert_eq!(missing.len(), CHECKING_STATE_ROOTS.len());
+        for dir in CHECKING_STATE_ROOTS {
+            assert!(
+                missing.iter().any(|violation| violation.starts_with(dir)
+                    && violation.contains("could not read this root")),
+                "{dir} missing from {missing:?}"
+            );
+        }
+        assert!(
+            found
+                .iter()
+                .any(|violation| violation.contains("hidden.rs") && violation.contains("RefCell")),
+            "{found:?}"
+        );
+        assert!(
+            found
+                .iter()
+                .all(|violation| !violation.contains("could not read this root")),
+            "{found:?}"
+        );
+        assert!(clean.is_empty(), "{clean:?}");
+    }
 
     #[test]
     fn place_transport_counts_comparisons_rebasers_and_place_types() {

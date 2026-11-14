@@ -730,6 +730,15 @@ fn machine(
     }
     let windows = opened;
     let mut uses = storage.uses(tables)?;
+    // A store into a field of a byte domain is judged by the bytes it
+    // supplies; a refused store is that operation's verdict.
+    for judged in storage.byte_predicate_stores()? {
+        match uses.iter_mut().find(|used| used.at == judged.at) {
+            Some(used) if used.verdict.is_ok() => used.verdict = judged.verdict,
+            Some(_) => {}
+            None => uses.push(judged),
+        }
+    }
     let mut closures = Vec::new();
     for consumption in storage.consumptions(tables, &windows)? {
         let window = windows.get(consumption.window).ok_or_else(|| {

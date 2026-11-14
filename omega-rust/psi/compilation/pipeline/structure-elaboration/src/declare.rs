@@ -192,7 +192,7 @@ pub(crate) fn public_requirements(
                 .ok_or("public contract no longer names its declaring requirement")?;
             let reach = names(&contract.published_service_ceiling)?;
             let entries = names(&contract.published_synchronous_entries)?;
-            let (_, declaration) = trait_requirement(
+            let (_, declaration, _) = trait_requirement(
                 typed,
                 requirement,
                 signature,
@@ -439,13 +439,17 @@ pub(crate) fn boundary(
     {
         return Err("boundary declaration needs its complete applied telescope");
     }
-    let (owner, source) = trait_requirement(typed, requirement, signature, published, identities)?;
+    if signature.declared_crash_routes().is_none() {
+        return Err("boundary declaration has no published crash ceiling");
+    }
+    let (owner, source, method_arguments) =
+        trait_requirement(typed, requirement, signature, published, identities)?;
     Ok((
         owner,
         terminal_psi::CheckedBoundaryCallable {
             source,
             execution: terminal_psi::CheckedBoundaryExecution::Provider,
-            method_arguments: Vec::new(),
+            method_arguments,
         },
     ))
 }
@@ -458,7 +462,14 @@ pub(crate) fn trait_requirement(
     signature: &Signature,
     published: Published<'_>,
     identities: &mut TerminalIdentityTableBuilder,
-) -> Result<(NominalDeclarationIdentity, CheckedMachineDeclaration), &'static str> {
+) -> Result<
+    (
+        NominalDeclarationIdentity,
+        CheckedMachineDeclaration,
+        Vec<terminal_psi::ClosedReachArgument>,
+    ),
+    &'static str,
+> {
     let (owner, declared) = typed
         .trait_machine_signature(requirement.symbol)
         .filter(|(_, declared)| declared.symbol == requirement.symbol)
@@ -509,6 +520,15 @@ pub(crate) fn trait_requirement(
         signature,
         published,
     );
+    let (specialization, method_arguments) =
+        match typed.closed_requirement_application(requirement.symbol) {
+            Some(closed) => {
+                let (specialization, arguments) =
+                    requirement_application(typed, &sources, &closed, identities)?;
+                (Some(specialization), arguments)
+            }
+            None => (None, Vec::new()),
+        };
     let source = CheckedMachineDeclaration {
         machine: NominalDeclarationIdentity::new(owner_identity),
         state: NominalDeclarationIdentity::new(requirement_identity),
@@ -522,9 +542,103 @@ pub(crate) fn trait_requirement(
         contract,
         published_may_suspend: requirement.suspends,
         published_may_block: requirement.blocks,
-        specialization: None,
+        specialization,
     };
-    Ok((NominalDeclarationIdentity::new(owner_identity), source))
+    Ok((
+        NominalDeclarationIdentity::new(owner_identity),
+        source,
+        method_arguments,
+    ))
+}
+
+/// What the declaration of a closed requirement states beside its own
+/// identity: the requirement it was closed from, the arguments its
+/// parameters were given, in parameter order, and a commitment to that
+/// application. The commitment is formed as a generated machine's is
+/// (`application`): the generic declaration's callable identity, then each
+/// argument's kind and identity. Type and value arguments are stated; an
+/// application that binds anything else is left undeclared.
+fn requirement_application(
+    typed: &TypedTrees,
+    sources: &[(source::SourceId, [u8; 32])],
+    closed: &typed_trees::ClosedRequirementApplication<'_>,
+    identities: &mut TerminalIdentityTableBuilder,
+) -> Result<
+    (
+        terminal_psi::CheckedMachineSpecialization,
+        Vec<terminal_psi::ClosedReachArgument>,
+    ),
+    &'static str,
+> {
+    use typed_trees::static_applications::StaticMachineBindingValue;
+    let (owner, template) = typed
+        .trait_machine_signature(closed.template)
+        .filter(|(owner, _)| owner.symbol == closed.declaring_trait)
+        .ok_or("a closed requirement's requirement has no typed-tree declaration")?;
+    let callable = typed.trait_requirement_callable_identity_text(owner, template);
+    if callable.is_empty() {
+        return Err("a closed requirement's requirement has no callable identity");
+    }
+    // Stated as a boundary's own semantic declaration is (`boundary`).
+    let semantic = match invocation_local(typed, closed.template, identities)? {
+        Some(identity) => identity,
+        None => identities.intern(
+            &typed
+                .normalized_hermetic_symbol_identity(closed.template)
+                .map_err(|_| "a closed requirement's requirement has no hermetic identity")?,
+        ),
+    };
+    let bindings = typed
+        .expression_table
+        .static_machine_application_bindings(closed.application);
+    if bindings.is_empty() || bindings.len() != closed.portable_local_arguments.len() {
+        return Err("a closed requirement binds other than one argument per parameter");
+    }
+    let mut commitment = Commitment(DomainDigestEncoder::new(APPLICATION_DOMAIN));
+    callable.hash(&mut commitment);
+    let mut arguments = Vec::with_capacity(bindings.len());
+    for (binding, identity) in bindings.iter().zip(closed.portable_local_arguments) {
+        let text = typed
+            .type_identity_text(*identity)
+            .filter(|text| !text.is_empty())
+            .ok_or("a closed requirement's argument has no identity")?;
+        match &binding.value {
+            StaticMachineBindingValue::Type(_) => {
+                text.hash(&mut commitment);
+                arguments.push(terminal_psi::ClosedReachArgument::Type(
+                    identities.intern(&text),
+                ));
+            }
+            StaticMachineBindingValue::Const(_) => {
+                ("value", text.as_str()).hash(&mut commitment);
+                arguments.push(terminal_psi::ClosedReachArgument::Const(
+                    identities.intern(&text),
+                ));
+            }
+            StaticMachineBindingValue::Conformance(_)
+            | StaticMachineBindingValue::RuntimeValue { .. }
+            | StaticMachineBindingValue::Machine(_) => {
+                return Err(
+                    "a closed requirement's application binds something other than a type or a value",
+                );
+            }
+        }
+    }
+    Ok((
+        terminal_psi::CheckedMachineSpecialization {
+            capture: None,
+            template: NominalDeclarationIdentity::new(nominal(
+                typed,
+                sources,
+                closed.template,
+                identities,
+            )?),
+            template_callable: identities.intern(&callable),
+            template_semantic_declaration: semantic,
+            commitment: commitment.0.finish(),
+        },
+        arguments,
+    ))
 }
 
 #[allow(clippy::too_many_arguments)]

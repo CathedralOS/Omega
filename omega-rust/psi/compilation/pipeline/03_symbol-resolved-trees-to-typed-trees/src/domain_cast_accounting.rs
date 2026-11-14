@@ -475,7 +475,7 @@ fn entry_label(program: &TypedTrees, cast: &TableCastExpression) -> String {
 by a named domain when no receiving type is available. */
 fn operand_type(
     source: &symbol_resolved_trees::SymbolResolvedTrees,
-    program: &TypedTrees,
+    program: &mut TypedTrees,
     owner: Option<&Owner>,
     run: &Run,
     cast_destinations: &[TypeReferenceHandle],
@@ -488,6 +488,42 @@ fn operand_type(
         return Ok(reference);
     }
     let label = entry_label(program, &first_cast);
+    // A quoted literal is a shared view of its bytes in no domain
+    // (domains.md, "Byte containers and encoding domains": "Quoted literals
+    // supply raw bytes"). With a receiving view it is that view with the
+    // domains its referent displays left off, which the entries then add.
+    if matches!(
+        program.expression_table.expression(operand),
+        ExpressionNode::String(_)
+    ) {
+        let destination = cast_destinations
+            .get(run[run.len() - 1].0.arena_index() as usize)
+            .copied()
+            .filter(|destination| destination.is_valid());
+        let Some(TypeReferenceNode::Reference {
+            referee,
+            access: language_core::ReferenceAccess::Shared,
+            lifetime,
+        }) = destination.map(|destination| {
+            program
+                .type_reference_table
+                .type_reference(destination)
+                .clone()
+        })
+        else {
+            return Err(Unaccounted::Deferred(
+                DeferredRequest::DomainCastOperandType,
+            ));
+        };
+        let referee = flatten(program, referee).0;
+        return Ok(program
+            .type_reference_table
+            .insert(TypeReferenceNode::Reference {
+                referee,
+                access: language_core::ReferenceAccess::Shared,
+                lifetime,
+            }));
+    }
     if !is_anonymous_literal(program, operand) {
         return Err(Unaccounted::Deferred(
             DeferredRequest::DomainCastOperandType,
@@ -703,17 +739,29 @@ fn account_run(
     let outermost = run[run.len() - 1].0;
     refuse_qualified_carrier_operand(program, owner, run)?;
     let operand_type = operand_type(source, program, owner, run, cast_destinations)?;
-    if matches!(
-        program.type_reference_table.type_reference(operand_type),
-        TypeReferenceNode::Reference { .. }
-    ) {
-        // domains.md, "Mutable views": a cast through a reference accounts
-        // for the referent's domains and may owe a removed one back.
-        return Err(Unaccounted::Deferred(
-            DeferredRequest::DomainCastThroughReference,
-        ));
-    }
-    let (carrier, constraints) = flatten(program, operand_type);
+    // domains.md, "Mutable views": "A cast applies to a reference by
+    // accounting for the domains displayed on its referent, with the same
+    // syntax ... The cast preserves the referent, lifetime and access mode".
+    // Through a shared reference "any removal a by-value cast permits is
+    // accepted and nothing is owed", so the accounting is the referent's and
+    // each type an entry carries is that reference again. A mutable or
+    // write-only view may owe a removed domain back, which this does not
+    // account for yet.
+    let view = match program.type_reference_table.type_reference(operand_type) {
+        TypeReferenceNode::Reference {
+            referee,
+            access: language_core::ReferenceAccess::Shared,
+            lifetime,
+        } => Some((*referee, lifetime.clone())),
+        TypeReferenceNode::Reference { .. } => {
+            return Err(Unaccounted::Deferred(
+                DeferredRequest::DomainCastThroughReference,
+            ));
+        }
+        _ => None,
+    };
+    let accounted = view.as_ref().map_or(operand_type, |(referee, _)| *referee);
+    let (carrier, constraints) = flatten(program, accounted);
     let operand_display = program.display_type_reference_with_constraints(operand_type);
     let members = carried(program, &constraints)?;
     let named = named_domains(source, program, run, carrier)?;
@@ -860,6 +908,22 @@ fn account_run(
             }
         }
         let after = spell(source, program, carrier, &running)?;
+        // A view's entry carries the same reference to each referent type.
+        let (before, after) = match &view {
+            Some((_, lifetime)) => {
+                let mut lent = |referee| {
+                    program
+                        .type_reference_table
+                        .insert(TypeReferenceNode::Reference {
+                            referee,
+                            access: language_core::ReferenceAccess::Shared,
+                            lifetime: lifetime.clone(),
+                        })
+                };
+                (lent(before), lent(after))
+            }
+            None => (before, after),
+        };
         let ExpressionNode::Cast(cast) = program.expression_table.expression_mut(entry.handle)
         else {
             continue;

@@ -17,7 +17,6 @@ fn main() {
     .expect("fixture admission");
     let mut session = CompilationSession::default();
     let before = counters::build_execution_count();
-    let admissions = counters::preliminary_check_totals().0;
     let checks = counters::settled_check_totals().0;
     for name in ["windows_x86_64", "linux_x86_64"] {
         let profile = target::TargetProfile::from_omega_target_name(Some(name)).expect("profile");
@@ -42,9 +41,8 @@ fn main() {
         builds, 1,
         "one invocation must reuse exact pure Build inputs"
     );
-    assert_eq!(counters::preliminary_check_totals().0 - admissions, 2);
     let checks = counters::settled_check_totals().0 - checks;
-    println!("preliminary_admissions=2 settled_checks={checks}");
+    println!("settled_checks={checks}");
     assert_eq!(checks, 2, "one Build check and one final Product check");
 
     // The same source under a different resource policy is a new admission.

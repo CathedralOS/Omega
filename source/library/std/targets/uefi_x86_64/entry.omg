@@ -222,7 +222,7 @@ machine UefiX86_64::plan(
     machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection {
-                reason: "UefiApplication requires two program-storage roots",
+                reason: "UefiApplication requires two program-storage roots" as +Utf8,
             },
         }
     }

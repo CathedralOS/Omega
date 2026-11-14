@@ -1,6 +1,6 @@
 /*
 Canonical `PSITERM\0` semantic-module entry points (`encode_module`, `decode_module`,
-`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 257`), canonical
+`semantic_fingerprint`, `terminal_psi_identity`), format marker (`FORMAT_MARKER = 258`), canonical
 ordering validators (`canonical_order`), dynamic descriptor-result admission, and machine/provider
 wire sections.
 */
@@ -1794,8 +1794,8 @@ pub(crate) mod machine_wire {
     use super::structural_signature_wire::StructuralParameter;
     use super::wire::{Reader, Writer};
     use super::wire_fields::{
-        ClaimBinding, Field, Id, Ids, List, MachineDeclaration, Multiplicity, Optional, OptionalId,
-        Path, QualificationSet, Scalar, delegated_fields, wire_enum, wire_record,
+        ClaimBinding, Field, Id, Ids, List, Multiplicity, OptionalId, Path, QualificationSet,
+        Scalar, delegated_fields, wire_enum, wire_record,
     };
     use crate::sections::semantic_module::wire::decode_counted;
 
@@ -3570,10 +3570,10 @@ mod routed_scalar_tests {
                     subject,
                     proposition: predicate,
                 }),
-                establishment_routes: vec![ScalarDomainEstablishmentRoute::ExactMachine {
+                establishment_routes: Some(vec![ScalarDomainEstablishmentRoute::ExactMachine {
                     declaration: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
                     machine_identity: TerminalIdentityIndex(3),
-                }],
+                }]),
             });
         module
             .scalar_qualifications
@@ -3774,9 +3774,7 @@ mod routed_scalar_tests {
                 "mutation {mutation}"
             );
         }
-        module.scalar_qualifications.domains[0]
-            .establishment_routes
-            .clear();
+        module.scalar_qualifications.domains[0].establishment_routes = None;
         module.scalar_qualifications.domains[0].predicate = None;
         module.scalar_qualifications.returns[0].origins = vec![ScalarReturnOrigin::Vacuous];
         assert_eq!(
@@ -3803,11 +3801,13 @@ mod routed_scalar_tests {
                 module.scalar_qualifications.returns[0].result = ValueId::new(9).unwrap()
             }),
             ("wrong issuer", |module| {
-                module.scalar_qualifications.domains[0].establishment_routes[0] =
-                    ScalarDomainEstablishmentRoute::ExactMachine {
-                        declaration: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
-                        machine_identity: TerminalIdentityIndex(2),
-                    }
+                module.scalar_qualifications.domains[0]
+                    .establishment_routes
+                    .as_mut()
+                    .unwrap()[0] = ScalarDomainEstablishmentRoute::ExactMachine {
+                    declaration: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
+                    machine_identity: TerminalIdentityIndex(2),
+                }
             }),
             ("missing predicate", |module| {
                 module.scalar_qualifications.domains[0].predicate = None
@@ -3864,6 +3864,54 @@ mod routed_scalar_tests {
         );
     }
 
+    // An explicit empty issuer set can transport an existing qualification,
+    // but it cannot make a fresh result. The wire and semantic identity must
+    // retain that distinction even when both choices contain zero routes.
+    #[test]
+    fn empty_issuer_set_round_trips_without_authorizing_fresh_membership() {
+        let mut denied = module();
+        denied.scalar_qualifications.domains[0].establishment_routes = Some(Vec::new());
+        // Encoding trusts its stage producer. Receiving formation validation,
+        // rather than serialization, must refuse this unchanged fresh result.
+        let encoded = encode_module(&denied).unwrap();
+        let error = decode_module(&encoded)
+            .expect_err("an empty issuer set cannot establish fresh membership");
+        assert!(
+            matches!(error, crate::CodecError::MalformedScalarReturnFoundation { ref reason, .. }
+            if reason.contains("origin authorized=false") && reason.contains("issuer=None")),
+            "{error:?}"
+        );
+
+        denied.machines[0].parameters[0].qualifications = ScalarQualificationSetId::new(1);
+        denied.machines[0].declaration.as_mut().unwrap().callable = TerminalIdentityIndex(2);
+        denied.scalar_qualifications.returns[0].origins = vec![ScalarReturnOrigin::Forwarded];
+        assert_eq!(
+            decode_module(&encode_module(&denied).unwrap()).unwrap(),
+            denied
+        );
+
+        let mut unrestricted = denied.clone();
+        unrestricted.scalar_qualifications.domains[0].establishment_routes = None;
+        assert_eq!(
+            decode_module(&encode_module(&unrestricted).unwrap()).unwrap(),
+            unrestricted
+        );
+        assert_ne!(
+            semantic_fingerprint(&denied).unwrap(),
+            semantic_fingerprint(&unrestricted).unwrap()
+        );
+
+        let mut detached = denied;
+        detached.machines[0].parameters[0].qualifications = ScalarQualificationSetId::ZERO;
+        let error = decode_module(&encode_raw(&detached).unwrap())
+            .expect_err("forwarding needs actual existing membership on its unchanged source");
+        assert!(
+            matches!(error, crate::CodecError::MalformedScalarReturnFoundation { ref reason, .. }
+            if reason.contains("origin authorized=false")),
+            "{error:?}"
+        );
+    }
+
     #[test]
     fn declaration_contract_roundtrip_keeps_public_promises_separate_from_body() {
         let mut module = module();
@@ -3902,21 +3950,23 @@ mod routed_scalar_tests {
             .max()
             .unwrap_or(0)
             + 1;
-        body.blocks[0].operations.push(Operation::unsuspended(
-            semantic_vocabulary::OperationId::new(operation).unwrap(),
-            terminal_psi::OperationResult::Unit,
-            terminal_psi::OperationKind::CallUnit {
-                callee: semantic_vocabulary::MachineId::new(required.get()).unwrap(),
-                arguments: Vec::new(),
-                erased_arguments: Vec::new(),
-                erased_proof_arguments: Vec::new(),
-                structural_arguments: Vec::new(),
-                claim_transfers: Vec::new(),
-                completion_receipts: Vec::new(),
-                requirement_obligations: Vec::new(),
-                crash_continuations: Vec::new(),
-            },
-        ));
+        body.blocks[0]
+            .operations
+            .push(terminal_psi::Operation::unsuspended(
+                semantic_vocabulary::OperationId::new(operation).unwrap(),
+                terminal_psi::OperationResult::Unit,
+                terminal_psi::OperationKind::CallUnit {
+                    callee: semantic_vocabulary::MachineId::new(required.get()).unwrap(),
+                    arguments: Vec::new(),
+                    erased_arguments: Vec::new(),
+                    erased_proof_arguments: Vec::new(),
+                    structural_arguments: Vec::new(),
+                    claim_transfers: Vec::new(),
+                    completion_receipts: Vec::new(),
+                    requirement_obligations: Vec::new(),
+                    crash_continuations: Vec::new(),
+                },
+            ));
         assert!(
             decode_module(&encode_raw(&executable_requirement).unwrap()).is_err(),
             "a declaration-only contract cannot supply an executable machine"
@@ -3952,6 +4002,16 @@ mod routed_scalar_tests {
                 "mutation {mutation}"
             );
         }
+    }
+
+    #[test]
+    fn previous_issuer_choice_format_refuses_before_decoding() {
+        let mut bytes = b"PSITERM\0".to_vec();
+        bytes.extend_from_slice(&257_u16.to_le_bytes());
+        assert_eq!(
+            decode_module(&bytes),
+            Err(crate::CodecError::UnsupportedFormatMarker(257))
+        );
     }
 
     #[test]
@@ -4593,12 +4653,11 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 256 adds the published synchronous-entry row to every machine and
-// boundary machine row, after the closed reach application and the published
-// service ceiling respectively. Marker 255, which encodes every recursive
-// term as a postorder table of rows whose children are handles to earlier
-// rows and has no entry row, and all earlier layouts are incompatible.
-pub(crate) const FORMAT_MARKER: u16 = 257;
+// Marker 258 stores complete signatures and authored effect clauses in the
+// existing declaration contract, and adds bodyless requirement declarations.
+// Marker 257's explicit issuer choice remains unchanged, but its signatures
+// live in machine rows. That layout and every earlier marker are incompatible.
+pub(crate) const FORMAT_MARKER: u16 = 258;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -4833,7 +4892,7 @@ mod normal_qualification_tests {
             predicate: None,
             content_projection: None,
             byte_predicate: None,
-            establishment_routes: Vec::new(),
+            establishment_routes: None,
         });
         module.boundary_machines.push(BoundaryMachineDeclaration {
             id: BoundaryMachineId::new(1).unwrap(),
@@ -4909,6 +4968,31 @@ mod normal_qualification_tests {
             published_service_ceiling: Vec::new(),
         });
         module
+    }
+
+    // A dormant structural declaration still commits its issuer choice. No
+    // boundary in this module may establish membership merely to test its wire.
+    #[test]
+    fn structural_wire_preserves_an_explicit_empty_issuer_set() {
+        let mut unrestricted = module();
+        unrestricted.boundary_machines.clear();
+        let unrestricted_bytes = encode_module(&unrestricted).unwrap();
+        assert_eq!(decode_module(&unrestricted_bytes).unwrap(), unrestricted);
+
+        let mut denied = unrestricted.clone();
+        denied.structural_domains[0].establishment_routes = Some(Vec::new());
+        let denied_bytes = encode_module(&denied).unwrap();
+        let decoded = decode_module(&denied_bytes).unwrap();
+        assert_eq!(decoded, denied);
+        assert_eq!(
+            decoded.structural_domains[0].establishment_routes,
+            Some(Vec::new())
+        );
+        assert_ne!(denied_bytes, unrestricted_bytes);
+        assert_ne!(
+            semantic_fingerprint(&denied).unwrap(),
+            semantic_fingerprint(&unrestricted).unwrap()
+        );
     }
 
     #[test]
@@ -5437,7 +5521,7 @@ mod format_marker_tests {
         // independent Id and relocation layouts both used 251).
         // Neither body may be interpreted as the combined layout, regardless
         // of which payload follows their shared legacy marker.
-        for legacy in [250u16, 251, 252] {
+        for legacy in [250u16, 251, 252, 256] {
             for payload in [&[][..], &[0xff, 0xff, 0xff][..]] {
                 let mut bytes = MAGIC.to_vec();
                 bytes.extend_from_slice(&legacy.to_le_bytes());

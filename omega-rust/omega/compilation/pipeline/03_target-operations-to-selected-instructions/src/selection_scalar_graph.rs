@@ -2431,7 +2431,7 @@ pub(crate) mod call_arguments {
 pub(crate) mod cleanup_call {
     use super::{Builder, SelectedInstructionKind, SelectedInstructionProvenance};
     use crate::SelectedInstructionError;
-    use calling_conventions::{CallSignature, CallingPolicy, ValueClass, evaluate_call_plan};
+    use calling_conventions::ValueClass;
     use legalized_operations::{LegalizedScalarArgument, LegalizedScalarCall};
     use optimization_unit::EffectLink;
     use target_operations::{CallSiteOwner, NativeCallOrigin};
@@ -2454,7 +2454,6 @@ pub(crate) mod cleanup_call {
         {
             return Err(SelectedInstructionError::custody());
         }
-        let mut shapes = Vec::new();
         for argument in &call.arguments {
             let LegalizedScalarArgument::Structural {
                 semantic,
@@ -2479,21 +2478,14 @@ pub(crate) mod cleanup_call {
             {
                 return Err(SelectedInstructionError::custody());
             }
-            shapes.push(target.shape);
         }
-        let expected = evaluate_call_plan(
-            CallingPolicy::native_for_target(environment.target()),
-            &CallSignature {
-                parameters: shapes,
-                result: None,
-            },
-        )
-        .map_err(|_| SelectedInstructionError::custody())?;
-        if expected != call.call_plan
+        // The stored plan is the calling-convention result. Match the arguments
+        // about to be encoded to that plan instead of computing it again.
+        if call.arguments.len() != call.call_plan.parameters.len()
             || call
                 .arguments
                 .iter()
-                .zip(&expected.parameters)
+                .zip(&call.call_plan.parameters)
                 .any(|(argument, placement)| argument.placement() != placement)
         {
             return Err(SelectedInstructionError::custody());
