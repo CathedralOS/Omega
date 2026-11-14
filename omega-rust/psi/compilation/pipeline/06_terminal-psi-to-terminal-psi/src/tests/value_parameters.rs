@@ -356,13 +356,15 @@ fn width_questions_are_exact_and_cannot_move_after_the_entry() {
         .map(|(obligation, row)| (obligation, *row))
         .expect("lowering emits width formation");
     let mut omitted = form.clone();
-    omitted
-        .tables
-        .machines
-        .get_mut(id(1))
-        .unwrap()
-        .obligations
-        .remove(obligation);
+    let tables = omitted.tables.machines.get_mut(id(1)).unwrap();
+    tables.obligations = IdTable::from_rows(
+        tables
+            .obligations
+            .iter()
+            .filter(|(id, _)| *id != obligation)
+            .map(|(id, row)| (id, *row)),
+    )
+    .unwrap();
     assert!(crate::minted::width_questions_are_minted(&omitted).is_err());
     let mut duplicate = form.clone();
     duplicate
@@ -419,4 +421,47 @@ fn a_width_body_needs_its_own_positive_width_proof() {
         questions[0].1.is_err(),
         "positive callers cannot establish a generic type's width"
     );
+}
+
+#[test]
+fn a_width_binder_keeps_its_position_after_an_erased_formal() {
+    let width = ScalarType::Integer(IntegerType::parameterized(
+        IntegerSign::Unsigned,
+        semantic_vocabulary::WidthParameter {
+            owner: id(1),
+            value: id(2),
+        },
+    ));
+    let count = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let mut form = lower(vec![Machine {
+        erased: vec![0],
+        result: width,
+        requires: vec![Proposition::LessThan(
+            bound(count, IntegerValue::Unsigned(0)),
+            formal(2, count),
+        )],
+        ensures: vec![Proposition::Equal(formal(3, width), formal(1, width))],
+        ..machine(
+            vec![ScalarType::Boolean, width, count],
+            vec![returns(slot(1, width))],
+        )
+    }])
+    .unwrap();
+    form.value_parameters.push(1);
+    crate::minted::width_questions_are_minted(&form).unwrap();
+    let origin = &mut form
+        .tables
+        .machines
+        .get_mut(id(1))
+        .unwrap()
+        .values
+        .get_mut(id(2))
+        .unwrap()
+        .origin;
+    assert_eq!(
+        *origin,
+        terminal_check_tables::values::ValueOrigin::MachineParameter { position: 2 }
+    );
+    *origin = terminal_check_tables::values::ValueOrigin::MachineParameter { position: 1 };
+    assert!(crate::minted::width_questions_are_minted(&form).is_err());
 }
