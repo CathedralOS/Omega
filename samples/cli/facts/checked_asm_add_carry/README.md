@@ -19,15 +19,15 @@ sentence above. The root witness does too.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [source](local/main.omg) | [cleared carry bit](local/invalid/main.omg) |
-| field | [source](field/main.omg) | [subtraction image demanded](field/invalid/main.omg) |
-| parameter | [source](parameter/main.omg) | [cleared carry bit](parameter/invalid/main.omg) |
-| call result | [source](call_result/main.omg) | [cleared carry bit](call_result/invalid/main.omg) |
-| match join | [source](match_join/main.omg) | [one arm clears carry](match_join/invalid/main.omg) |
-| const name | [source](const_name/main.omg) | [named image is the subtraction image](const_name/invalid/main.omg) |
-| a nested machine | [source](other_state/main.omg) | [cleared carry bit](other_state/invalid/main.omg) |
-| another machine | [source](other_machine/main.omg) | [cleared carry bit](other_machine/invalid/main.omg) |
-| another target body | [source](target_body/main.omg) | [subtraction image demanded](target_body/invalid/main.omg) |
+| local | [source](local/main.omg) | [cleared carry bit](invalid_local/main.omg) |
+| field | [source](field/main.omg) | [subtraction image demanded](invalid_field/main.omg) |
+| parameter | [source](parameter/main.omg) | [cleared carry bit](invalid_parameter/main.omg) |
+| call result | [source](call_result/main.omg) | [cleared carry bit](invalid_call_result/main.omg) |
+| match join | [source](match_join/main.omg) | [one arm clears carry](invalid_match_join/main.omg) |
+| const name | [source](const_name/main.omg) | [named image is the subtraction image](invalid_const_name/main.omg) |
+| a nested machine | [source](other_state/main.omg) | [cleared carry bit](invalid_other_state/main.omg) |
+| another machine | [source](other_machine/main.omg) | [cleared carry bit](invalid_other_machine/main.omg) |
+| another target body | [source](target_body/main.omg) | [subtraction image demanded](invalid_target_body/main.omg) |
 
 Each positive is pinned under `tests/omega/pass/facts/checked_asm_add_carry*`.
 Each reject twin is pinned under `tests/omega/fail/facts/checked_asm_add_carry*`.

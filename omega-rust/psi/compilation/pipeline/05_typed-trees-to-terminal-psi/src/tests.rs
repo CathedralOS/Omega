@@ -17,7 +17,7 @@ use terminal_psi::{
 };
 
 use crate::body::{
-    Body, CrashCeiling, Expression, ExpressionKind, Signature, Statement, Strict, Target,
+    Body, CrashCeiling, Expression, ExpressionKind, Selector, Signature, Statement, Strict, Target,
     Termination, ValueType,
 };
 use crate::outcome::Outcome;
@@ -1214,6 +1214,170 @@ fn a_right_operand_that_never_returns_ends_only_its_branch() {
     assert!(lowered.sources.unreachable.is_empty());
 }
 
+#[test]
+fn a_never_returning_argument_stops_later_arguments_and_the_outer_call() {
+    let mut first = call(3, Vec::new(), Some(u32_type()));
+    first.source = authored(10);
+    let mut later = call(4, Vec::new(), Some(u32_type()));
+    later.source = authored(20);
+    let body = Body {
+        slots: scalars(vec![u32_type()]),
+        statements: vec![
+            Statement::Bind {
+                slot: 0,
+                value: call(2, vec![first, later.clone()], Some(u32_type())),
+            },
+            Statement::Evaluate(later),
+        ],
+    };
+    let lowered = try_lower(
+        body,
+        vec![
+            signature(Vec::new(), Some(u32_type())),
+            signature(vec![u32_type(), u32_type()], Some(u32_type())),
+            signature(Vec::new(), Some(u32_type())),
+            signature(Vec::new(), Some(u32_type())),
+        ],
+        vec![
+            returns_normally(),
+            returns_normally(),
+            never_returns(),
+            returns_normally(),
+        ],
+    )
+    .unwrap();
+    assert_module_and_tables_agree(&lowered.machine, &lowered.tables);
+    assert_eq!(lowered.machine.blocks.len(), 1);
+    assert!(block(&lowered.machine, 1).operations.is_empty());
+    assert!(matches!(block(&lowered.machine, 1).terminator,
+        Terminator::InvokeNoNormal { callee, .. } if callee == id(3)));
+    assert_eq!(
+        lowered.sources.unreachable,
+        vec![crate::Unreachable {
+            statement: authored(20),
+            call: authored(10),
+        }]
+    );
+}
+
+#[test]
+fn a_never_returning_record_base_stops_its_field_projection() {
+    let body = Body {
+        slots: Vec::new(),
+        statements: vec![returns(member(
+            of_type(
+                ExpressionKind::Call {
+                    callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
+                    arguments: Vec::new(),
+                    designated: None,
+                },
+                point(),
+            ),
+            0,
+            u32_type().into(),
+        ))],
+    };
+    let mut signatures = IdTable::default();
+    signatures.push(signature(Vec::new(), Some(u32_type())));
+    signatures.push(shaped(Vec::new(), Some(point())));
+    let mut outcomes = IdTable::default();
+    outcomes.push(returns_normally());
+    outcomes.push(never_returns());
+    let lowered = lower_records(body, &signatures, &outcomes, &records()).unwrap();
+    assert_module_and_tables_agree(&lowered.machine, &lowered.tables);
+    assert!(block(&lowered.machine, 1).operations.is_empty());
+    assert!(matches!(block(&lowered.machine, 1).terminator,
+        Terminator::InvokeNoNormal { callee, .. } if callee == id(2)));
+}
+
+#[test]
+fn a_refused_operand_is_not_a_never_returning_evaluation() {
+    let body = Body {
+        slots: Vec::new(),
+        statements: vec![returns(strict(
+            Strict::Add,
+            slot(99, u32_type()),
+            call(2, Vec::new(), Some(u32_type())),
+            u32_type(),
+        ))],
+    };
+    let refusal = try_lower(
+        body,
+        vec![
+            signature(Vec::new(), Some(u32_type())),
+            signature(Vec::new(), Some(u32_type())),
+        ],
+        vec![returns_normally(), never_returns()],
+    )
+    .unwrap_err();
+    assert_eq!(
+        refusal.reason,
+        terminal_check_tables::RefusalReason::ForeignIdentity
+    );
+    assert!(refusal.detail.contains("slot is past the end"));
+}
+
+#[test]
+fn a_never_returning_later_pattern_keeps_earlier_match_arrivals() {
+    let body = Body {
+        slots: scalars(vec![u32_type()]),
+        statements: vec![returns(expression(
+            ExpressionKind::Match {
+                capture: None,
+                subject: Box::new(slot(0, u32_type())),
+                arms: vec![
+                    (Selector::Value(integer(1)), integer(7)),
+                    (
+                        Selector::Value(call(2, Vec::new(), Some(u32_type()))),
+                        integer(9),
+                    ),
+                ],
+                default: Some(Box::new(integer(11))),
+            },
+            Some(u32_type()),
+        ))],
+    };
+    let lowered = try_lower(
+        body,
+        vec![
+            signature(vec![u32_type()], Some(u32_type())),
+            signature(Vec::new(), Some(u32_type())),
+        ],
+        vec![returns_normally(), never_returns()],
+    )
+    .unwrap();
+    assert_module_and_tables_agree(&lowered.machine, &lowered.tables);
+    assert_eq!(
+        lowered
+            .machine
+            .blocks
+            .iter()
+            .filter(|block| matches!(block.terminator, Terminator::Return { .. }))
+            .count(),
+        1
+    );
+    assert_eq!(
+        lowered
+            .machine
+            .blocks
+            .iter()
+            .filter(|block| matches!(block.terminator, Terminator::InvokeNoNormal { .. }))
+            .count(),
+        1
+    );
+    let constants: Vec<_> = lowered
+        .machine
+        .operations()
+        .filter_map(|operation| match operation.kind {
+            OperationKind::IntegerConstant {
+                value: IntegerValue::Unsigned(value),
+            } => Some(value),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(constants, [1, 7]);
+}
+
 /// An authored position, so a test can tell two constructs apart.
 fn authored(start: usize) -> SourceOrigin {
     SourceOrigin::Authored(source::SourceSpan::new(
@@ -1650,6 +1814,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     };
     let mut records = IdTable::default();
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Point"),
         shape: crate::StorageShape::Record(vec![
@@ -1659,6 +1824,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         requires: Vec::new(),
     });
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Line"),
         shape: crate::StorageShape::Record(vec![
@@ -2316,6 +2482,7 @@ fn a_subrecord_with_all_owned_fields_moved_out_can_be_filled_whole() {
         records.get_mut(id(raw)).unwrap().copyable = false;
     }
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: false,
         identity: "Envelope".into(),
         shape: crate::StorageShape::Record(vec![
@@ -2705,12 +2872,14 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
     let scalar = ValueType::Scalar(u32_type(), Qualification::NONE);
     let mut records = IdTable::default();
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Point"),
         shape: crate::StorageShape::Record(vec![field(1, "x", scalar), field(2, "y", scalar)]),
         requires: Vec::new(),
     });
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Shape"),
         shape: crate::StorageShape::Sum(vec![
@@ -2998,7 +3167,10 @@ fn a_value_match_joins_its_arms_with_the_result_as_one_block_parameter() {
         ExpressionKind::Match {
             capture: None,
             subject: Box::new(place(0, shape())),
-            arms: vec![(DOT, payload(place(0, shape()), DOT, 0, scalar))],
+            arms: vec![(
+                Selector::Case(DOT),
+                payload(place(0, shape()), DOT, 0, scalar),
+            )],
             default: Some(Box::new(integer(7))),
         },
         scalar,
@@ -3515,3 +3687,80 @@ fn an_erased_binding_is_refused_as_a_runtime_value() {
     );
 }
 mod loops;
+
+#[test]
+fn a_scalar_match_evaluates_its_subject_once_and_tests_each_value_in_authored_order() {
+    // machine 1() -> u32 { match g() { 0 -> 10, 1 -> 20, _ -> 30 } }
+    let matched = expression(
+        ExpressionKind::Match {
+            capture: None,
+            subject: Box::new(call(2, Vec::new(), Some(u32_type()))),
+            arms: vec![
+                (Selector::Value(integer(0)), integer(10)),
+                (Selector::Value(integer(1)), integer(20)),
+            ],
+            default: Some(Box::new(integer(30))),
+        },
+        Some(u32_type()),
+    );
+    let (machine, tables) = lower(
+        Body {
+            slots: Vec::new(),
+            statements: vec![returns(matched)],
+        },
+        vec![
+            signature(Vec::new(), Some(u32_type())),
+            signature(Vec::new(), Some(u32_type())),
+        ],
+    );
+    let calls = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter(|operation| matches!(operation.kind, OperationKind::Call { .. }))
+        .count();
+    assert_eq!(calls, 1, "the subject is evaluated once");
+    let subject = block(&machine, 1).operations[0].result.scalar().unwrap().id;
+    // A test is the subject's one value equal to the arm's literal, and a
+    // branch to the arm (true) or the next test (false).
+    let test = |raw: u64| {
+        let tested = block(&machine, raw);
+        let Some(OperationKind::IntegerEqual { left, .. }) =
+            tested.operations.last().map(|operation| &operation.kind)
+        else {
+            panic!("block {raw} ends in an equality test, found {tested:?}");
+        };
+        assert_eq!(*left, subject);
+        let Terminator::Conditional {
+            when_true,
+            when_false,
+            ..
+        } = &tested.terminator
+        else {
+            panic!("block {raw} branches on its test");
+        };
+        (when_true.target, when_false.target)
+    };
+    // Blocks: 2 and 3 the first arm and the next test, 4 and 5 the second
+    // arm and the wildcard, 6 the join, made once every arm is lowered.
+    assert_eq!(test(1), (id(2), id(3)));
+    assert_eq!(test(3), (id(4), id(5)));
+    let join = block(&machine, 6);
+    let [result] = join.parameters.as_slice() else {
+        panic!("one result parameter");
+    };
+    assert_eq!(
+        tables.values.get(result.id).unwrap().origin,
+        ValueOrigin::BlockParameter {
+            block: join.id,
+            position: 0,
+        }
+    );
+    for arm in [2, 4, 5] {
+        assert!(matches!(
+            &block(&machine, arm).terminator,
+            Terminator::Jump { target, arguments, .. } if *target == join.id && arguments.len() == 1
+        ));
+    }
+    assert!(matches!(join.terminator, Terminator::Return { value, .. } if value == result.id));
+}

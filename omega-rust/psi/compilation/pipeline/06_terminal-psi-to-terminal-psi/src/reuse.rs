@@ -71,7 +71,7 @@ pub fn reverify(
     let storage = crate::places::Storage::new(
         machine,
         lowered,
-        &module.structural_types,
+        module,
         domains,
         &prepared.graph,
         tables,
@@ -738,7 +738,7 @@ pub fn reverify_specialization(
     let storage = crate::places::Storage::new(
         specialization,
         lowered,
-        &module.structural_types,
+        module,
         domains,
         &prepared.graph,
         tables,

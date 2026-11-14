@@ -785,7 +785,7 @@ pub(crate) mod pre_allocation {
         use selected_instruction_analyses::SelectedProgramView;
         use std::collections::BTreeSet;
 
-        use crate::analyses::validated_machine_effect_catalog;
+        use crate::analyses::prepared_machine_effect_catalog;
         use crate::rewrites::condition_state::adjacency;
         use crate::rewrites::{
             SelectedFunction, address_fold_measured_steps, constant_boolean_measured_steps,
@@ -1427,7 +1427,7 @@ pub(crate) mod pre_allocation {
                 constant_boolean_surface_sizes(context.environment)
                     .map_err(OptimizedPreAllocationCustodyError::ConstantBoolean)?;
             setup: let (successors, _) = adjacency(function);
-            setup: let effect_catalog = validated_machine_effect_catalog(
+            setup: let effect_catalog = prepared_machine_effect_catalog(
                 context.environment.target(),
                 context.environment.constraints(),
             )
@@ -1462,7 +1462,7 @@ pub(crate) mod pre_allocation {
             setup: let (flag_universe, jump_surface) = constant_branch_surface_sizes(context.environment)
                 .map_err(OptimizedPreAllocationCustodyError::ConstantBranch)?;
             setup: let (successors, _) = adjacency(function);
-            setup: let effect_catalog = validated_machine_effect_catalog(
+            setup: let effect_catalog = prepared_machine_effect_catalog(
                 context.environment.target(),
                 context.environment.constraints(),
             )
@@ -1705,7 +1705,7 @@ pub(crate) mod pre_allocation {
             let CandidatePosition::Body(position) = site.position else {
                 return Err(OptimizedPreAllocationCustodyError::CandidateFrontierMismatch);
             };
-            let effect_catalog = validated_machine_effect_catalog(
+            let effect_catalog = prepared_machine_effect_catalog(
                 context.environment.target(),
                 context.environment.constraints(),
             )

@@ -893,10 +893,32 @@ mod tests {
         assert_eq!(value(&program, "SECOND_LIMIT"), integer("u64", 10));
         /*
             Neither private constant is visible from another package, so a
-            file without its own `LIMIT` reads no value at all.
+            file without its own `LIMIT` reads no value at all: its `LIMIT`
+            selects no constant and nothing is folded. An initializer that is
+            not closed stays a request for evaluation (constants.md,
+            "Evaluation"), and that evaluation refuses the unselected name.
         */
         let stranger = "public const STRANGER: u64 = LIMIT + 1;";
-        assert!(resolve_files(&[("first/a.omg", first), ("third/c.omg", stranger)], None).is_err());
+        let (program, _) =
+            resolve_files(&[("first/a.omg", first), ("third/c.omg", stranger)], None).unwrap();
+        let declaration = program
+            .const_declarations
+            .iter()
+            .find(|declaration| program.symbols.name(declaration.symbol) == "STRANGER")
+            .expect("declared constant");
+        assert_eq!(declaration.evaluated_value, None);
+        let symbol_resolved_trees::expression::ExpressionNode::Binary(sum) = program
+            .tables
+            .bodies
+            .expressions
+            .expression(declaration.initializer)
+        else {
+            panic!("the initializer is retained as written");
+        };
+        assert_eq!(
+            crate::constant::selected_expression_constant(&program, sum.left),
+            None
+        );
     }
 
     #[test]
@@ -915,18 +937,28 @@ mod tests {
     #[test]
     fn an_initializer_that_needs_a_machine_is_not_folded() {
         /*
-            A call is not a closed scalar. Resolution has no carrier for an
-            unevaluated constant yet, so the declaration is still refused,
-            and it is refused as written rather than given a value.
+            A call is not a closed scalar. An initializer may call an ordinary
+            machine whose invocation is admitted for evaluation (constants.md,
+            "Evaluation"), so resolution keeps the call as written and gives
+            the constant no value: copying the call into each use would run
+            it at runtime, and only the accepted invocation supplies a value.
         */
-        let diagnostics =
+        let program =
             resolve_one("machine seven() -> u64 { 7u64 }\npublic const COMPUTED: u64 = seven();")
-                .expect_err("a machine-call initializer has no route yet");
-        assert!(
-            diagnostics
-                .iter()
-                .any(|diagnostic| diagnostic.message.contains("expected an integer literal")),
-            "{diagnostics:?}"
-        );
+                .unwrap();
+        let declaration = program
+            .const_declarations
+            .iter()
+            .find(|declaration| program.symbols.name(declaration.symbol) == "COMPUTED")
+            .expect("declared constant");
+        assert_eq!(declaration.evaluated_value, None);
+        assert!(matches!(
+            program
+                .tables
+                .bodies
+                .expressions
+                .expression(declaration.initializer),
+            symbol_resolved_trees::expression::ExpressionNode::Call(_)
+        ));
     }
 }

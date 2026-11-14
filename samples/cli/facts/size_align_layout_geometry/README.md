@@ -8,15 +8,15 @@ Every positive forms `size - (align * 2u64)` before checking the transported siz
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [main](local/main.omg) | [invalid](local/invalid/main.omg) |
-| field | [main](field/main.omg) | [invalid](field/invalid/main.omg) |
-| parameter | [main](parameter/main.omg) | [invalid](parameter/invalid/main.omg) |
-| call result | [main](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
-| match join | [main](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
-| const name | [main](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| nested machine | [main](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
-| another machine | [main](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
-| another target body | [main](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+| local | [main](local/main.omg) | [invalid](invalid_local/main.omg) |
+| field | [main](field/main.omg) | [invalid](invalid_field/main.omg) |
+| parameter | [main](parameter/main.omg) | [invalid](invalid_parameter/main.omg) |
+| call result | [main](call_result/main.omg) | [invalid](invalid_call_result/main.omg) |
+| match join | [main](match_join/main.omg) | [invalid](invalid_match_join/main.omg) |
+| const name | [main](const_name/main.omg) | [invalid](invalid_const_name/main.omg) |
+| nested machine | [main](other_state/main.omg) | [invalid](invalid_other_state/main.omg) |
+| another machine | [main](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
+| another target body | [main](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
 The [root program](main.omg) exercises the same geometry. Two compositions retain the same fact, bound and operation: [ordinary call results followed by a private arrival](compositions/private_arrival_calls/main.omg), and [terminal helper returns followed by a private arrival](compositions/terminal_returns/main.omg). Their [first](compositions/private_arrival_calls/invalid/main.omg) and [second](compositions/terminal_returns/invalid/main.omg) twins break only the record's second-field requirement.
 

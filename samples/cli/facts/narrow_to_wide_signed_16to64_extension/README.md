@@ -9,15 +9,15 @@ Every place performs the same operation: sign-extend bounded 16-bit signed opera
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | (root) | [`main.omg`](main.omg) | — | root 16-bit to 64-bit signed sign extension, headroom subtraction, and margin discharge |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the 16-bit signed operand is sign-extended into a local binding before verification |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the sign-extended 64-bit signed value is stored in a record field before verification |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | machine parameter receives the sign-extended 64-bit value before verification |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | callee function sign-extends the bounded 16-bit signed operand and returns the 64-bit result before verification |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield bounded 16-bit values and join before sign-extending and verification |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constant supplies bounded 16-bit signed operand before sign extension and verification |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | successor machine receives sign-extended 64-bit value before verification |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate forwarding machine receives and passes the sign-extended 64-bit value to verification |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target-scoped machine bodies sign-extends bounded 16-bit signed operand and verifies |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the 16-bit signed operand is sign-extended into a local binding before verification |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the sign-extended 64-bit signed value is stored in a record field before verification |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | machine parameter receives the sign-extended 64-bit value before verification |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | callee function sign-extends the bounded 16-bit signed operand and returns the 64-bit result before verification |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both match arms yield bounded 16-bit values and join before sign-extending and verification |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | named constant supplies bounded 16-bit signed operand before sign extension and verification |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | successor machine receives sign-extended 64-bit value before verification |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | an intermediate forwarding machine receives and passes the sign-extended 64-bit value to verification |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each of four target-scoped machine bodies sign-extends bounded 16-bit signed operand and verifies |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, carries an
@@ -56,15 +56,15 @@ omega --check samples/cli/facts/narrow_to_wide_signed_16to64_extension/<place>/i
 
 | Place | Reject Twin | Obligation Class | Authored Diagnostic Fragment |
 | --- | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | Contract precondition | `cannot prove requires contract for call` |
 
 ### Acceptance Gate
 

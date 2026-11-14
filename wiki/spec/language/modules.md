@@ -127,6 +127,59 @@ introduce a collision in a broad import.
 Narrow imports avoid exposure to unrelated additions. Diagnostics retain both
 declaration owners, the exact carrier, and the imports exposing the conflict.
 
+### Builtin type names
+
+Named decision: `role-separated-builtin-type-names`, ratified 2026-11-13.
+
+Compiler-defined type names, such as `bool`, `f32`, `f64`, `addr` and the
+integer family, exist only in the type role. The integer family is open-ended:
+`i`, `u`, and every `i` or `u` followed by decimal digits, whether or not the
+digits form a valid width. `u0` is a family spelling and an invalid type. A
+value binding with the same spelling never hides one, and no declaration may
+redefine one. What is decided is the role of the name being introduced, not its
+letters. A declaration introducing a type or namespace name may not use a
+builtin type spelling; a declaration introducing a value may:
+
+| Introduced name | May use a builtin type spelling |
+| --- | --- |
+| A value: local, machine or state parameter, field, pattern binding, value constant, generic value binder, machine, named implementation, value import alias | Yes. It does not affect type lookup. |
+| A type: data declaration, trait schema, type alias, generic type binder, type import alias | No. It would compete with the builtin type, and rejects where it is introduced. |
+| A namespace: module declaration, namespace import alias | No, for the same reason. |
+
+Each use resolves by its role, determined before any operation is chosen:
+
+- A type annotation, cast target or type-qualified path reads the builtin
+  type. A literal suffix such as `7u32` is lexical and unaffected by bindings.
+- An expression operand reads a value binding. A builtin type never stands in
+  for a missing value.
+- A generic argument takes its role from the selected declaration's binder: a
+  type binder reads a type and `const N: u64` reads a value. Lookup never tries
+  both roles to find one that checks.
+- Where an operand could be either, as in a type equality, a value binding
+  takes the value role and a type/value mixture rejects. With a parameter
+  named `i32` in scope, `requires T == i32` rejects; the diagnostic names both
+  meanings and suggests renaming the parameter or using a type alias.
+- Where syntax already requires a type or domain qualifier, as in
+  `domain u32::NonZero`, the prefix resolves in that role. Otherwise a `::`
+  prefix is ambiguous only when several visible roots are eligible for that
+  form of static qualification, such as a builtin type and a same-spelled
+  operation-record value. Constness alone does not make a scalar value
+  eligible, so `const u32: u64 = 3;` leaves `u32::NonZero` unaffected. When
+  several eligible roots remain, the prefix rejects without searching their
+  members to choose one.
+
+```omega
+machine scaled(i: u32, u8: u16) -> u32 {
+    let i1: u64 = 1;          // A value named i1; the type i1 is unaffected.
+    let wide: u32 = u8 as u32; // The value u8, cast to the type u32.
+    i + wide
+}
+
+data u7 { value: u32; }        // Rejected: redefines a builtin type.
+trait u32 { }                  // Rejected: introduces a competing type name.
+machine i(value: u32) -> u32 { value } // Accepted: a callable value.
+```
+
 ## Visibility
 
 Named decision: `public-visibility-spelling`, settled 2026-10-19.

@@ -8,15 +8,15 @@ input from `3` to `6` (the named constant in `const_name`).
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| local | [source](local/main.omg) | [invalid](local/invalid/main.omg) |
-| field | [source](field/main.omg) | [invalid](field/invalid/main.omg) |
-| parameter | [source](parameter/main.omg) | [invalid](parameter/invalid/main.omg) |
-| call_result | [source](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
-| match_join | [source](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
-| const_name | [source](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
-| other_state | [source](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
-| other_machine | [source](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
-| target_body | [source](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+| local | [source](local/main.omg) | [invalid](invalid_local/main.omg) |
+| field | [source](field/main.omg) | [invalid](invalid_field/main.omg) |
+| parameter | [source](parameter/main.omg) | [invalid](invalid_parameter/main.omg) |
+| call_result | [source](call_result/main.omg) | [invalid](invalid_call_result/main.omg) |
+| match_join | [source](match_join/main.omg) | [invalid](invalid_match_join/main.omg) |
+| const_name | [source](const_name/main.omg) | [invalid](invalid_const_name/main.omg) |
+| other_state | [source](other_state/main.omg) | [invalid](invalid_other_state/main.omg) |
+| other_machine | [source](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) |
+| target_body | [source](target_body/main.omg) | [invalid](invalid_target_body/main.omg) |
 
 The same authored sources and oracles are pinned under
 `tests/omega/{pass,fail}/facts/negated_mathematical_order_through_*`.

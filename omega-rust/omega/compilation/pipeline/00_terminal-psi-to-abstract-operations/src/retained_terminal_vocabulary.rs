@@ -360,6 +360,33 @@ mod providers {
         use std::collections::BTreeSet;
 
         #[test]
+        fn integer_width_records_retain_exact_carriers_and_reject_invalid_metadata() {
+            use effects::CompilerNumericType as Numeric;
+            use numerics::integer_carrier::FixedInteger;
+            for width in [1, 13, 257, u64::MAX] {
+                for carrier in [FixedInteger::signed(width), FixedInteger::unsigned(width)] {
+                    let value = Numeric::Integer(carrier);
+                    let mut writer = RecordWriter::new(RecordLimits::default());
+                    value.write(&mut writer).unwrap();
+                    let bytes = writer.finish();
+                    assert_eq!(bytes, value.canonical_encoding());
+                    let mut reader = RecordReader::new(&bytes, RecordLimits::default()).unwrap();
+                    assert_eq!(Numeric::read(&mut reader).unwrap(), value);
+                    reader.finish().unwrap();
+                    for length in 0..bytes.len() {
+                        let mut reader =
+                            RecordReader::new(&bytes[..length], RecordLimits::default()).unwrap();
+                        assert!(Numeric::read(&mut reader).is_err());
+                    }
+                }
+            }
+            for invalid in [[0; Numeric::ENCODED_SIZE], [255; Numeric::ENCODED_SIZE]] {
+                let mut reader = RecordReader::new(&invalid, RecordLimits::default()).unwrap();
+                assert!(Numeric::read(&mut reader).is_err());
+            }
+        }
+
+        #[test]
         fn release_and_interrupt_execution_records_do_not_alias() {
             let cases = [
                 (Execution::EmptyRunRelease, 16_u16),
@@ -391,18 +418,17 @@ mod providers {
         }
     }
 
-    record_variants!(effects::CompilerNumericType {
-        0 => I8,
-        1 => I16,
-        2 => I32,
-        3 => I64,
-        4 => U8,
-        5 => U16,
-        6 => U32,
-        7 => U64,
-        8 => F32,
-        9 => F64,
-    });
+    impl super::value::RecordValue for effects::CompilerNumericType {
+        fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
+            super::value::RecordValue::write(&self.canonical_encoding(), output)
+        }
+
+        fn read(input: &mut super::value::RecordReader<'_>) -> Result<Self, RecordError> {
+            let bytes = <[u8; Self::ENCODED_SIZE] as super::value::RecordValue>::read(input)?;
+            Self::from_canonical_encoding(bytes)
+                .ok_or_else(|| input.error("invalid numeric intrinsic carrier"))
+        }
+    }
 
     record_variants!(effects::CompilerAccessorScalarOperation {
         0 => Read,

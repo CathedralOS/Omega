@@ -6,20 +6,7 @@ use std::time::{Duration, Instant};
 
 fn main() {
     let arguments: Vec<_> = std::env::args().skip(1).collect();
-    if std::env::var_os("PROBE_BAD_ALLOCATION").is_some()
-        && let Some(path) = std::env::var_os("OMEGA_ALLOCATION_PROFILE")
-    {
-        std::fs::write(path, "malformed allocation report").unwrap();
-    }
     match arguments.first().map(String::as_str) {
-        Some("--build-profile") => {
-            let level = if std::env::var_os("PROBE_UNOPTIMIZED").is_some() {
-                "0"
-            } else {
-                "1"
-            };
-            println!("{{\"schema\":\"omega-compiler-build-profile-v1\",\"opt_level\":\"{level}\"}}")
-        }
         Some("--version") => println!("benchmark-probe fake compiler; not an Omega producer"),
         Some("plain") | None => println!("native ok"),
         Some("wrong-exit") => std::process::exit(7),

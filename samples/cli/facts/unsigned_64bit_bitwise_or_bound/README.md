@@ -9,15 +9,15 @@ Every place performs the same operation: combine a bounded 64-bit unsigned base 
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | (root) | [`main.omg`](main.omg) | — | root 64-bit unsigned bitwise OR, headroom subtraction, and margin discharge |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the 64-bit base operand and mask are copied into locals before bitwise OR and interval discharge |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the 64-bit base operand and mask are stored in record fields before bitwise OR and interval discharge |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | explicit machine parameters receive bounded 64-bit operands before bitwise OR and interval discharge |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | contracted helper calls return bounded 64-bit operands before bitwise OR and interval discharge |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield bounded 64-bit operands and join before bitwise OR and interval discharge |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constants supply bounded 64-bit operands before bitwise OR and interval discharge |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives bounded 64-bit operands before bitwise OR and interval discharge |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | an intermediate forwarding machine receives and passes bounded 64-bit operands to bitwise OR |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target-scoped machine bodies performs 64-bit bitwise OR and discharges interval |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the 64-bit base operand and mask are copied into locals before bitwise OR and interval discharge |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the 64-bit base operand and mask are stored in record fields before bitwise OR and interval discharge |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | explicit machine parameters receive bounded 64-bit operands before bitwise OR and interval discharge |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | contracted helper calls return bounded 64-bit operands before bitwise OR and interval discharge |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both match arms yield bounded 64-bit operands and join before bitwise OR and interval discharge |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | named constants supply bounded 64-bit operands before bitwise OR and interval discharge |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine receives bounded 64-bit operands before bitwise OR and interval discharge |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | an intermediate forwarding machine receives and passes bounded 64-bit operands to bitwise OR |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each of four target-scoped machine bodies performs 64-bit bitwise OR and discharges interval |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` and declares
@@ -57,15 +57,15 @@ omega --check samples/cli/facts/unsigned_64bit_bitwise_or_bound/<place>/invalid/
 
 | Place | Reject Twin | Obligation Class | Authored Diagnostic Fragment |
 | --- | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | Contract precondition | `cannot prove requires contract for call` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | Contract precondition | `cannot prove requires contract for call` |
 
 ## Pinned Fixtures
 

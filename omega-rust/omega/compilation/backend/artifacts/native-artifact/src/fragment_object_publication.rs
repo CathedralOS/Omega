@@ -9,7 +9,6 @@ admitted `ValidatedNativeProgramEntrySettlement` before returning a
 
 use diagnostics::Diagnostic;
 
-use crate::NativePhysicalEvidenceScope;
 use crate::native_artifact_error;
 use terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement;
 
@@ -24,6 +23,15 @@ pub struct FragmentObjectProjection {
 }
 
 impl FragmentObjectProjection {
+    pub fn with_semantic_source(
+        mut self,
+        code: terminal_codec::RetainedTerminalCode,
+        coverage: boundary_applications::TerminalBoundaryApplicationCoverage,
+    ) -> Result<Self, &'static str> {
+        self.object = self.object.with_semantic_source(code, coverage)?;
+        Ok(self)
+    }
+
     pub fn object(&self) -> &image_emission::ObjectArtifact {
         &self.object
     }
@@ -57,7 +65,6 @@ impl FragmentObjectProjection {
 
 pub struct PublishedFragmentObject {
     pub object: image_emission::ObjectArtifact,
-    pub physical_evidence_scope: NativePhysicalEvidenceScope,
 }
 
 pub fn publish_fragment_object(
@@ -156,10 +163,7 @@ pub fn publish_fragment_object(
     image_emission::require_installed_root_provision(&object)
         .map_err(|error| native_artifact_error("installed physical stack", error))?;
     validate_emitted_receiver_binding(&object, request.program_entry)?;
-    Ok(PublishedFragmentObject {
-        object,
-        physical_evidence_scope: NativePhysicalEvidenceScope::Unavailable,
-    })
+    Ok(PublishedFragmentObject { object })
 }
 
 pub fn emit_fragment_object(

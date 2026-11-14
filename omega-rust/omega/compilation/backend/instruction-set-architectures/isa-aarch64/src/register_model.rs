@@ -130,10 +130,10 @@ mod constraint_catalog {
     };
     use register_model::complement;
     use register_model::{
-        PreservationConvention, RegisterClassId, RegisterConstraintCatalog,
-        RegisterConstraintCatalogValidationError, RegisterConstraintId, RegisterConstraintKey,
-        RegisterInstructionConstraint, RegisterOperandAccess, RegisterOperandConstraint,
-        ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog, sorted_units,
+        PreparedRegisterConstraintCatalog, PreservationConvention, RegisterClassId,
+        RegisterConstraintCatalog, RegisterConstraintCatalogValidationError, RegisterConstraintId,
+        RegisterConstraintKey, RegisterInstructionConstraint, RegisterOperandAccess,
+        RegisterOperandConstraint, ValidatedPhysicalRegisterModel, sorted_units,
         validate_register_constraint_catalog,
     };
     use target::Architecture;
@@ -1064,11 +1064,9 @@ mod constraint_catalog {
         }
     }
 
-    pub fn validate_aarch64_register_constraint_catalog(
-        catalog: RegisterConstraintCatalog,
+    fn check_aarch64_catalog_model(
         model: &ValidatedPhysicalRegisterModel,
-    ) -> Result<ValidatedRegisterConstraintCatalog, Aarch64RegisterConstraintCatalogValidationError>
-    {
+    ) -> Result<(), Aarch64RegisterConstraintCatalogValidationError> {
         if model.model().architecture != Architecture::Aarch64 {
             return Err(
                 Aarch64RegisterConstraintCatalogValidationError::PhysicalModelArchitectureMismatch,
@@ -1077,6 +1075,35 @@ mod constraint_catalog {
         if model.identity() != canonical_aarch64_physical_register_model_identity() {
             return Err(Aarch64RegisterConstraintCatalogValidationError::NonCanonicalPhysicalModel);
         }
+        Ok(())
+    }
+
+    pub fn prepare_aarch64_register_constraint_catalog(
+        model: &ValidatedPhysicalRegisterModel,
+    ) -> Result<PreparedRegisterConstraintCatalog, Aarch64RegisterConstraintCatalogValidationError>
+    {
+        check_aarch64_catalog_model(model)?;
+        Ok(canonical_aarch64_register_constraint_catalog().clone())
+    }
+
+    fn canonical_aarch64_register_constraint_catalog() -> &'static PreparedRegisterConstraintCatalog
+    {
+        static CANONICAL: std::sync::OnceLock<PreparedRegisterConstraintCatalog> =
+            std::sync::OnceLock::new();
+        CANONICAL.get_or_init(|| {
+            register_model::produce_register_constraint_catalog(
+                validated_aarch64_physical_register_model(),
+                aarch64_register_constraint_catalog,
+            )
+        })
+    }
+
+    pub fn validate_aarch64_register_constraint_catalog(
+        catalog: RegisterConstraintCatalog,
+        model: &ValidatedPhysicalRegisterModel,
+    ) -> Result<PreparedRegisterConstraintCatalog, Aarch64RegisterConstraintCatalogValidationError>
+    {
+        check_aarch64_catalog_model(model)?;
         let validated = validate_register_constraint_catalog(catalog, model)
             .map_err(Aarch64RegisterConstraintCatalogValidationError::Structural)?;
         let canonical = aarch64_register_constraint_catalog_for(model);
@@ -1109,12 +1136,8 @@ mod constraint_catalog {
     pub(crate) fn aarch64_register_constraint_catalog_for(
         model: &ValidatedPhysicalRegisterModel,
     ) -> std::borrow::Cow<'static, RegisterConstraintCatalog> {
-        static CANONICAL: std::sync::OnceLock<RegisterConstraintCatalog> =
-            std::sync::OnceLock::new();
         if model.identity() == canonical_aarch64_physical_register_model_identity() {
-            std::borrow::Cow::Borrowed(CANONICAL.get_or_init(|| {
-                aarch64_register_constraint_catalog(validated_aarch64_physical_register_model())
-            }))
+            std::borrow::Cow::Borrowed(canonical_aarch64_register_constraint_catalog().catalog())
         } else {
             std::borrow::Cow::Owned(aarch64_register_constraint_catalog(model))
         }
@@ -2926,7 +2949,7 @@ pub use call_keys::{
 pub(crate) use constraint_catalog::aarch64_register_constraint_catalog_for;
 pub use constraint_catalog::{
     Aarch64RegisterConstraintCatalogValidationError, aarch64_register_constraint_catalog,
-    validate_aarch64_register_constraint_catalog,
+    prepare_aarch64_register_constraint_catalog, validate_aarch64_register_constraint_catalog,
 };
 pub use float_scalar_calls::{aarch64_float_scalar_call_keys, aarch64_float_scalar_return_keys};
 pub use indirect_results::aarch64_indirect_aggregate_call_keys;

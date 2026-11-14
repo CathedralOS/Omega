@@ -64,8 +64,8 @@ mod reference_results;
 
 pub use body::{
     Axis, Body, Borrowed, CaseType, Ceiling, CrashCeiling, DomainSet, Expression, ExpressionKind,
-    Policy, Qualification, RecordField, RecordType, Signature, Statement, StorageShape, Strict,
-    Target, Termination, ValueType, self_place,
+    Policy, Qualification, RecordField, RecordType, Selector, Signature, Statement, StorageShape,
+    Strict, Target, Termination, ValueType, self_place,
 };
 pub use callable_formations::check_bound_callable_shapes;
 pub use compilation::{PreparedSource, prepare_compilation};
@@ -84,6 +84,10 @@ use typed_trees::TypedTrees;
 /// set is decided by the request, not by where source lives").
 #[derive(Debug, Clone, Copy)]
 pub struct Compilation<'a> {
+    /// Exact source declarations whose canonical metadata this product needs.
+    /// This nominates descriptors, not executable roots or outbound service
+    /// demand, and grants no compatibility or installation authority.
+    pub declaration_metadata: &'a [SymbolHandle],
     /// The Build's bound program entries. The first is the module's entry.
     /// An empty slice checks the declared subjects and selections in a
     /// declaration module with no executable entry.
@@ -106,7 +110,7 @@ pub struct Compilation<'a> {
     /// One visible-continuation shape obligation per executed Build binding.
     /// Deduplicating machine roots must not discard distinct slot contracts.
     pub bindings: &'a [typed_trees::callable_signature_shapes::BoundCallableShape],
-    /// The providers chosen to supply boundary slots of this compilation:
+    /// The implementations chosen for nominal requirements of this compilation:
     /// the Build's own selections, and the supply settlement chose for each
     /// requirement the compilation reaches. The check claims each provider's
     /// machines for the slot as roots and owes, for each, the proof that the
@@ -114,9 +118,10 @@ pub struct Compilation<'a> {
     pub supplies: &'a [Supply],
 }
 
-/// One chosen provider of a boundary slot. `slot` is the declaration the
-/// selection names: a boundary trait, which the provider must then cover
-/// requirement by requirement, or one requirement of a boundary trait.
+/// One chosen implementation of a nominal slot. `slot` is the declaration
+/// the selection names: a trait, which the provider must cover requirement
+/// by requirement, or one exact trait requirement. Ordinary trait bindings
+/// grant no boundary operation, service identity or native authority.
 /// `provider` is the named implementation or the data type whose machines
 /// state `satisfies` for the slot's requirements. Both are declarations of
 /// the judged source, compared by identity and never by spelling.
@@ -128,11 +133,7 @@ pub struct Compilation<'a> {
 /// it calls is judged like any other root, and the machine must refine the
 /// requirement: signature, contracts, service reach, callback entries and
 /// crash routes (`Elaboration::conformance_witnesses`).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Supply {
-    pub slot: SymbolHandle,
-    pub provider: SymbolHandle,
-}
+pub use typed_trees::trait_definition::Supply;
 
 pub use terminal_check_tables::program::{
     Branch, ConformanceWitness, Elaboration, MachineSources, Selected, SourceOrigin,
@@ -265,6 +266,7 @@ fn elaborate_source_for(
 ) -> Checked<PreparedProgram> {
     let mut program = read::Program::new(typed, false);
     program.publication = publication;
+    program.declaration_metadata = compilation.declaration_metadata.to_vec();
     let first = MachineId::new(1).expect("1 is nonzero");
     program.build_entry_context(first, compilation.purpose, compilation.entries)?;
     let entry = if let Some((entry, others)) = compilation.entries.split_first() {
@@ -403,7 +405,7 @@ pub fn elaborate_witness(
     implementation: SymbolHandle,
 ) -> Checked<Elaboration> {
     let mut program = read::Program::new(typed, false);
-    let entry = program.witnessed(declaring_trait, requirement, arguments)?;
+    let entry = program.witnessed(declaring_trait, requirement, arguments, implementation)?;
     let callee = program.implementation(implementation, declaring_trait, requirement)?;
     elaborate_witness_call(program, entry, callee)
 }
@@ -500,6 +502,9 @@ fn finish_reading(
     }
     let private_inputs = program.private_input_contracts(entry, diagnostic)?;
     let local_results = program.local_result_bodies(entry)?;
+    program.begin_declaration_storage(diagnostic, bodies.len())?;
+    let declarations = program.declaration_metadata.clone();
+    let calling_abis = program.prepare_calling_abis(diagnostic, &declarations)?;
     let PreparedProgram {
         program: mut elaboration,
         mut source,
@@ -516,6 +521,7 @@ fn finish_reading(
         program.publication,
         Some(&program),
     )?;
+    calling_abis.publish(&mut elaboration.module)?;
     if let Some(typed) = declared {
         declare::declare(
             typed,
@@ -525,6 +531,15 @@ fn finish_reading(
             &program.declaration_signatures,
             &mut elaboration,
         )
+        .and_then(|()| {
+            declare::provider_candidates(
+                typed,
+                &program.symbols,
+                &program.boundary_symbols,
+                &program.supplied,
+                &mut elaboration.module,
+            )
+        })
         .map_err(|reason| {
             refuse(
                 diagnostic,
@@ -841,6 +856,7 @@ fn lower_generic_for(
             }
         }
     }
+    lower::publish_write_frames(diagnostic, &mut module, &mut tables)?;
     // This is the emitted behavior before proving or publication. Keeping its
     // inventory here lets product consumers retain the exact judged module.
     module.unoptimized_behavior = module

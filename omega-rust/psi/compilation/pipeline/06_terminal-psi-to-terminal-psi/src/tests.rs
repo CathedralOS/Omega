@@ -15,8 +15,8 @@ use terminal_check_tables::obligations::ObligationKind;
 use terminal_check_tables::values::Justification;
 use terminal_check_tables::{Checked, ProgramPoint, RefusalReason};
 use typed_trees_to_terminal_psi::{
-    Body, CrashCeiling, Expression, ExpressionKind, Signature, SourceOrigin, Statement, Strict,
-    Target, Termination, Unpositioned, ValueType,
+    Body, CrashCeiling, Expression, ExpressionKind, Selector, Signature, SourceOrigin, Statement,
+    Strict, Target, Termination, Unpositioned, ValueType,
 };
 
 use crate::{Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, discharge, judge};
@@ -32,6 +32,7 @@ mod calling_policies;
 mod case_payloads;
 mod ceilings;
 mod collection_members;
+mod compiler_primitive_headers;
 mod empty_records;
 mod entry_inputs;
 mod entryless;
@@ -44,8 +45,10 @@ mod machine_lifetimes;
 mod mathematical_clauses;
 mod mutable_formals;
 mod owned_dispatch;
+mod owned_match_results;
 mod proof_scope;
 mod provider_supplies;
+mod qualified_terms;
 mod ranges;
 mod reach;
 mod references;
@@ -1325,6 +1328,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
     };
     let mut records = IdTable::default();
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Point"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
@@ -1334,6 +1338,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         requires: Vec::new(),
     });
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Line"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
@@ -1582,6 +1587,7 @@ fn a_value_transferred_on_one_path_is_not_owned_after_the_join() {
 fn an_affine_empty_case_cannot_be_moved_twice() {
     let mut records = IdTable::default();
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: false,
         identity: "EmptyCase".into(),
         shape: typed_trees_to_terminal_psi::StorageShape::Sum(vec![
@@ -2030,7 +2036,7 @@ fn a_formal_leaf_reads_as_its_one_entry_content_value() {
 }
 
 #[test]
-fn a_copy_reads_as_what_its_source_held_and_an_unknown_content_reads_as_nothing() {
+fn a_copy_reads_as_what_its_source_held_and_a_call_result_as_its_own_unknown_leaf() {
     // f() -> u32 {
     //     let p = Point { x: 3, y: 7 };  let q = p;
     //     bounded(q.y);              // the copy carries 7
@@ -2038,8 +2044,9 @@ fn a_copy_reads_as_what_its_source_held_and_an_unknown_content_reads_as_nothing(
     //     bounded(t.y)
     // }
     // The executable whole-result value is not a scalar leaf fact. A caller
-    // may name result leaves logically, but needs a checked guarantee to know
-    // their contents; this model's producer publishes none.
+    // names a result leaf as the initial content the exact producing call
+    // left there (#3000), but needs a checked guarantee to know what it is;
+    // this model's producer publishes none.
     let caller = Shaped {
         parameters: Vec::new(),
         locals: vec![point(), point(), point()],
@@ -2078,7 +2085,11 @@ fn a_copy_reads_as_what_its_source_held_and_an_unknown_content_reads_as_nothing(
     };
     let seven = constants(&elaboration)[1];
     assert_eq!(read_equals(tables, *of_copy), Some(seven));
-    assert_eq!(read_equals(tables, *of_result), None);
+    let leaf = read_equals(tables, *of_result).expect("the result leaf's initial content");
+    assert!(matches!(
+        tables.values.get(leaf).unwrap().origin,
+        ValueOrigin::InitialContent { .. }
+    ));
     let requirements = verdicts(&elaboration, &result, 1, requirement);
     let [(first, through_copy), (_, through_result)] = requirements.as_slice() else {
         panic!("two requirements");
@@ -2999,6 +3010,7 @@ fn every_use_of_storage_has_exactly_one_verdict() {
     // `Gated { v } requires 1 <= v` beside `Point` and `Line`.
     let mut types = records();
     types.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Gated"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![RecordField {
@@ -3152,6 +3164,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
     let scalar = ValueType::plain(u32_type());
     let mut records = IdTable::default();
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Point"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
@@ -3161,6 +3174,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         requires: Vec::new(),
     });
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Shape"),
         shape: typed_trees_to_terminal_psi::StorageShape::Sum(vec![
@@ -3176,6 +3190,7 @@ fn sums() -> IdTable<StructuralTypeId, RecordType> {
         requires: Vec::new(),
     });
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Holder"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![field(7, "shape", shape())]),
@@ -3219,7 +3234,10 @@ fn matching(
         ExpressionKind::Match {
             capture: None,
             subject: Box::new(subject),
-            arms,
+            arms: arms
+                .into_iter()
+                .map(|(case, arm)| (Selector::Case(case), arm))
+                .collect(),
             default: default.map(Box::new),
         },
         u32_type().into(),
@@ -3804,6 +3822,7 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
         byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
     };
     let record = |spelled: &str, fields, requires| RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: spelled.to_owned(),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(fields),
@@ -3832,6 +3851,7 @@ fn constrained() -> IdTable<StructuralTypeId, RecordType> {
         )],
     ));
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("ByteRead"),
         shape: typed_trees_to_terminal_psi::StorageShape::Sum(vec![
@@ -4049,13 +4069,10 @@ fn a_field_store_owes_the_clause_over_the_stored_value_and_the_other_fields_logg
     assert_eq!(uses(&result), [Ok(())]);
 }
 
-#[test]
-fn a_clause_over_a_field_with_no_value_identity_is_unproved_and_says_so() {
-    // f() -> u32 { let mut s = make(); s.low = 0; s.high }
-    // `s.high` is what the call returned: contents with no value identity.
-    // `0 <= high` is true of every `u32`, and still the clause cannot be
-    // stated over values, so the store is not shown to keep it; never dropped.
-    let (elaboration, result) = run_constrained(vec![
+/// `f() -> u32 { let mut s = make(); s.low = stored; s.high }`, with
+/// `make() -> Span { Span { low: 1, high: 9 } }`.
+fn returned_span_store(stored: u128) -> (typed_trees_to_terminal_psi::Elaboration, Discharge) {
+    run_constrained(vec![
         closed(
             vec![data(SPAN)],
             u32_type().into(),
@@ -4071,7 +4088,7 @@ fn a_clause_over_a_field_with_no_value_identity_is_unproved_and_says_so() {
                         data(SPAN),
                     ),
                 ),
-                store(0, &[0], unsigned(0)),
+                store(0, &[0], unsigned(stored)),
                 returns(read(place(0, data(SPAN)), 1)),
             ],
         ),
@@ -4080,13 +4097,26 @@ fn a_clause_over_a_field_with_no_value_identity_is_unproved_and_says_so() {
             data(SPAN),
             vec![returns(literal_of(SPAN, vec![unsigned(1), unsigned(9)]))],
         ),
-    ]);
+    ])
+}
+
+#[test]
+fn a_clause_over_a_field_a_call_returned_is_stated_over_that_calls_result_leaf() {
+    // `s.high` is what the call returned: the initial content of the exact
+    // call's result leaf (#3000), a value nothing in the caller bounds. The
+    // store to `low` owes `stored <= high` over it. `0 <= high` is true of
+    // every `u32`, so storing 0 keeps the clause.
+    let (elaboration, result) = returned_span_store(0);
     let owed = domains(&elaboration, &result);
     assert_eq!(owed.len(), 1);
-    // The store is not shown to keep the clause, so it opens a window, and
-    // the window keeps the reason.
-    let why = assert_opens_a_window(owed[0].1);
-    assert!(why.detail.contains("no value identity"), "{}", why.detail);
+    assert_kernel_checked(&elaboration, 1, owed[0].0, certificate(owed[0].1));
+    // The twin stores 10. The `9` written inside `make` is not known here,
+    // so the store is not shown to keep the clause: it opens a window, which
+    // keeps the reason, and the clause is never dropped.
+    let (elaboration, result) = returned_span_store(10);
+    let owed = domains(&elaboration, &result);
+    assert_eq!(owed.len(), 1);
+    assert_opens_a_window(owed[0].1);
 }
 
 /// `f() -> u32 { let mut w = Wrap { span: Span { low: 1, high: 9 }, top: 9 };
@@ -4663,8 +4693,10 @@ fn a_type_built_around_an_arrived_value_lends_no_clause_to_a_read_inside_it() {
 fn a_read_of_what_a_call_returned_carries_its_types_clause() {
     // f() -> u32 { let b = make(); bounded(b.value) }
     // make() -> Bounded { Bounded { value: 3 } }
-    // The caller cannot name what `make` returned, and it need not: the
-    // value arrived established, so the read's value is at most 5.
+    // The caller names what `make` returned only as the result leaf of that
+    // exact call (#3000), which knows nothing of the `3` written there, and
+    // it need not: the value arrived established, so the read's value is at
+    // most 5.
     let (elaboration, result) = run_constrained(vec![
         closed(
             vec![data(BOUNDED)],
@@ -4693,7 +4725,11 @@ fn a_read_of_what_a_call_returned_carries_its_types_clause() {
     ]);
     let tables = elaboration.tables.machines.get(id(1)).unwrap();
     let observed = field_reads(&elaboration)[0];
-    assert_eq!(read_equals(tables, observed), None);
+    let held = read_equals(tables, observed).expect("the result leaf's initial content");
+    assert!(matches!(
+        tables.values.get(held).unwrap().origin,
+        ValueOrigin::InitialContent { .. }
+    ));
     assert_eq!(
         read_premises(tables, observed),
         [at_most_value(observed.1, 5)]
@@ -4769,8 +4805,9 @@ fn a_requirement_over_a_field_of_a_record_formal_is_decided_by_the_actuals_leaf(
     let (elaboration, result) = calling(8);
     assert_unproved(verdicts_of(&elaboration, &result)[0].1);
     // g() -> u32 { peek(make()) }, make() -> Point { Point { x: 7, y: 9 } }:
-    // what a call returned has no value identity in the caller, so the
-    // requirement is unproved and says why.
+    // the actual's `x` leaf is what the call returned there, the result of
+    // that exact call (#3000), and `make` promises nothing of it, so nothing
+    // in the caller bounds it: the requirement is unproved and says why.
     let (elaboration, result) = run_places(vec![
         closed(
             Vec::new(),
@@ -4801,7 +4838,9 @@ fn a_requirement_over_a_field_of_a_record_formal_is_decided_by_the_actuals_leaf(
         refusal.reason
     );
     assert!(
-        refusal.detail.contains("no value identity"),
+        refusal
+            .detail
+            .contains("the bounds do not decide the comparison"),
         "{}",
         refusal.detail
     );
@@ -5333,6 +5372,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
     let at_least_one = |raw| Proposition::LessOrEqual(number(1), field_of_self(raw));
     let mut records = constrained();
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Both"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
@@ -5342,6 +5382,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
         requires: vec![at_least_one(10), at_least_one(11)],
     });
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Half"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![
@@ -5351,6 +5392,7 @@ fn windowed() -> IdTable<StructuralTypeId, RecordType> {
         requires: vec![at_least_one(12)],
     });
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: true,
         identity: String::from("Limits"),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![

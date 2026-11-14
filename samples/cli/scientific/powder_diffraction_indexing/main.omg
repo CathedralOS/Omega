@@ -1,6 +1,6 @@
 // Expected exit: 0.
 // Expected output contains: hypotheses
-use omega_language_std::console;
+use omega_language_std::Console;
 use io::input;
 use domain::indexing;
 data Main { }

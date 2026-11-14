@@ -302,6 +302,7 @@ impl Program<'_> {
             return Ok(ValueType::Record(id, Qualification::NONE, regions));
         }
         let id = self.records.push(RecordType {
+            owns_linear_claim: false,
             copyable: self.typed.stored_value_multiplicity(reference)
                 == language_semantics::Multiplicity::Unrestricted,
             identity,
@@ -345,8 +346,10 @@ impl Program<'_> {
             return Ok(ValueType::Record(id, Qualification::NONE, value.regions()));
         }
         let copyable = self.data_type(machine, element)?.copyable;
+        let owns_linear_claim = self.data_type(machine, element)?.owns_linear_claim;
         let identity = self.storage_identity(machine, reference)?;
         let id = self.records.push(RecordType {
+            owns_linear_claim,
             copyable,
             identity,
             shape: StorageShape::FixedArray {
@@ -402,6 +405,7 @@ impl Program<'_> {
         }
         let identity = self.storage_identity(machine, reference)?;
         let id = self.records.push(RecordType {
+            owns_linear_claim: false,
             copyable: true,
             identity,
             shape: StorageShape::PrimitiveScalar {

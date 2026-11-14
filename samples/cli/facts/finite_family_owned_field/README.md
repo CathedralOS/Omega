@@ -12,15 +12,15 @@ The field's declared range proves the public result is at least 100. The caller 
 
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
-| Local | [program](local/main.omg) | [twin](local/invalid/main.omg) | A local packet supplies the call. |
-| Field | [program](field/main.omg) | [twin](field/invalid/main.omg) | An enclosing record stores the packet. |
-| Parameter | [program](parameter/main.omg) | [twin](parameter/invalid/main.omg) | The checking machine receives the packet as a parameter. |
-| Call result | [program](call_result/main.omg) | [twin](call_result/invalid/main.omg) | A constructor call returns the packet. |
-| Match join | [program](match_join/main.omg) | [twin](match_join/invalid/main.omg) | The arms construct the same packet shape from different lawful field values. Choosing the wrong arm changes the observed difference. |
-| Const name | [program](const_name/main.omg) | [twin](const_name/invalid/main.omg) | Each constant initializer constructs a token, performs the selected read and consumes the token; only the resulting scalar becomes a constant. The same reads also run at runtime. |
-| Nested machine | [program](other_state/main.omg) | [twin](other_state/invalid/main.omg) | A transition transfers the packet to a nested machine. |
-| Another machine | [program](other_machine/main.omg) | [twin](other_machine/invalid/main.omg) | A separate machine forwards the packet to dispatch. |
-| Target body | [program](target_body/main.omg) | [twin](target_body/invalid/main.omg) | Build selects the provider that performs dispatch. |
+| Local | [program](local/main.omg) | [twin](invalid_local/main.omg) | A local packet supplies the call. |
+| Field | [program](field/main.omg) | [twin](invalid_field/main.omg) | An enclosing record stores the packet. |
+| Parameter | [program](parameter/main.omg) | [twin](invalid_parameter/main.omg) | The checking machine receives the packet as a parameter. |
+| Call result | [program](call_result/main.omg) | [twin](invalid_call_result/main.omg) | A constructor call returns the packet. |
+| Match join | [program](match_join/main.omg) | [twin](invalid_match_join/main.omg) | The arms construct the same packet shape from different lawful field values. Choosing the wrong arm changes the observed difference. |
+| Const name | [program](const_name/main.omg) | [twin](invalid_const_name/main.omg) | Each constant initializer constructs a token, performs the selected read and consumes the token; only the resulting scalar becomes a constant. The same reads also run at runtime. |
+| Nested machine | [program](other_state/main.omg) | [twin](invalid_other_state/main.omg) | A transition transfers the packet to a nested machine. |
+| Another machine | [program](other_machine/main.omg) | [twin](invalid_other_machine/main.omg) | A separate machine forwards the packet to dispatch. |
+| Target body | [program](target_body/main.omg) | [twin](invalid_target_body/main.omg) | Build selects the provider that performs dispatch. |
 
 Every twin changes only the field domain's lower bound from 100 to 0. The same inputs still form, but an arbitrary field of the weaker type cannot prove the method's unchanged result guarantee. The intended diagnostic is `cannot prove ensures contract`. No caller guard substitutes for the guarantee. Sample and corpus Main/Build files match.
 

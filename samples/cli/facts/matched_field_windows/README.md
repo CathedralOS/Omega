@@ -11,15 +11,15 @@ is an application that exits 0:
 
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the pattern subject is a local copy |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the pattern subject is a record field |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the pattern subject is an explicit parameter |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the window end is a call whose ensured result is 2 |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | the window end joins two spellings of that coordinate |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the window end adds the named constant `SPAN` |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the coordinate |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine receives `which + 2` |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of four target bodies publishes the same contract |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the pattern subject is a local copy |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the pattern subject is a record field |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the pattern subject is an explicit parameter |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | the window end is a call whose ensured result is 2 |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | the window end joins two spellings of that coordinate |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | the window end adds the named constant `SPAN` |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine receives the coordinate |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | a forwarding machine receives `which + 2` |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each of four target bodies publishes the same contract |
 
 Root witness: [`main.omg`](main.omg) with [`build.omg`](build.omg).
 
@@ -55,15 +55,15 @@ hands `open_end` the coordinate 3 while that machine requires `end == 2`.
 
 | Place | Twin | Pinned Diagnostic Fragment |
 | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | `cannot prove ensures contract` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | `cannot prove ensures contract` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `cannot prove ensures contract` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `cannot prove ensures contract` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `cannot prove ensures contract` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `cannot prove ensures contract` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `cannot prove ensures contract` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `violates required fact \`end == 2\`` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `cannot prove ensures contract` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | `cannot prove ensures contract` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | `cannot prove ensures contract` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `cannot prove ensures contract` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `cannot prove ensures contract` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | `cannot prove ensures contract` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | `cannot prove ensures contract` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | `cannot prove ensures contract` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `violates required fact \`end == 2\`` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `cannot prove ensures contract` |
 
 The target-body twin breaks every one of the four target bodies, so it rejects
 on every host rather than only where a body is realized.

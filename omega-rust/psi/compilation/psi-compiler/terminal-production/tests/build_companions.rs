@@ -157,6 +157,7 @@ fn accepted_frontier_with_subjects(
     AcceptedTerminalSource::judge(
         Arc::new(frozen),
         typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
             entries: &[entry],
             subjects,
             purpose: DependencyScope::Build,

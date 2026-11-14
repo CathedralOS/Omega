@@ -59,7 +59,7 @@ Runtime-invalid fixtures challenge count, missing fields, overflow, digit count,
 lexical form, negative values, zero identities/provenance/duration, duplicate IDs,
 risk range and trailing garbage.
 
-`invalid_source/` is a separate complete intended-invalid source project. It
+`../invalid_pareto_experiment_selection_source/` is a separate complete intended-invalid source project. It
 attempts exact unsigned `0 - 1`; validation requires its proof rejection,
 independently of all runtime-invalid tests.
 

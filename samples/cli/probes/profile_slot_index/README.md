@@ -10,5 +10,5 @@ The program stores 2.0 at slot (1, 0) through a local and 7.0 at slot (3, 1)
 through the call result, then repeats slot (1, 0) with the mirrored spelling
 `0 == side || 1 == side`. It prints `slots=2,7` and exits 0.
 
-The invalid control multiplies `side * 2` under `side == 0 || flag == 1` and
+The ../invalid_profile_slot_index control multiplies `side * 2` under `side == 0 || flag == 1` and
 must still be rejected: the flag alternative never bounds `side`.

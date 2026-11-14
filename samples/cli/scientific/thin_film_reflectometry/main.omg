@@ -8,7 +8,7 @@ use omega::language::core::F64::from_i32;
 use omega::language::core::I32::from_f64;
 use omega::language::core::cos;
 use omega::language::core::sin;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Application {
     reader: Reader;

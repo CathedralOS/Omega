@@ -2020,6 +2020,7 @@ pub mod inspection {
                     #[serde(skip_serializing_if = "Option::is_none")]
                     mechanism: Option<&'static str>,
                 },
+                CompilerProvided,
             }
 
             #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -2238,6 +2239,7 @@ pub mod inspection {
                             mechanism: mechanism.map(|mechanism| mechanism.as_str()),
                         }
                     }
+                    MachineSupplyMode::CompilerProvided => MachineSupplySnapshot::CompilerProvided,
                 }
             }
 

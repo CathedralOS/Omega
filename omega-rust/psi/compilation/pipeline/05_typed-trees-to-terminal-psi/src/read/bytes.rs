@@ -360,6 +360,7 @@ impl Program<'_> {
             return Ok(typed_view(row));
         }
         let row = self.records.push(RecordType {
+            owns_linear_claim: false,
             copyable: carrier.is_shared_readable_view(),
             identity,
             shape: StorageShape::ByteSequence(carrier),
@@ -423,6 +424,7 @@ impl Program<'_> {
             return row;
         }
         let row = self.records.push(RecordType {
+            owns_linear_claim: false,
             copyable: true,
             // This text labels the structural type; it names no declaration.
             // Exact literal contents and origin belong to its producer below.

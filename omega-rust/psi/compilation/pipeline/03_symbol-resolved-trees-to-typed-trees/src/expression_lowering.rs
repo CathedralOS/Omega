@@ -1039,14 +1039,26 @@ pub(crate) mod expression {
                         if let Some(occurrence) = own
                             && let typed::expression::ExpressionNode::Call(call) =
                                 self.target().expression(lowered)
-                            && call.build_selection.is_valid()
                         {
                             let selected = call.target_symbol;
-                            crate::call_and_product_selections::bind_generated_call_selection(
-                                self.target_trees,
-                                occurrence,
-                                selected,
-                            )?;
+                            // A generated call owns the occurrence only when
+                            // the answer the author got is that call's target.
+                            let owned = if call.build_selection.is_valid() {
+                                crate::call_and_product_selections::bind_generated_call_selection(
+                                    self.target_trees,
+                                    occurrence,
+                                    selected,
+                                )?
+                            } else {
+                                !crate::call_and_product_selections::names_replaced_prelude_operation(
+                                    self.target_trees,
+                                    occurrence,
+                                    selected,
+                                )
+                            };
+                            if !owned {
+                                own = None;
+                            }
                         }
                         if let typed::expression::ExpressionNode::Call(call) =
                             self.target().expression_mut(lowered)
@@ -1584,6 +1596,29 @@ pub(crate) mod expression {
                         }
                         resolved::expression::ExpressionNode::Integer(value) => {
                             if let Some(landing) = value.landing() {
+                                /*
+                                    numeric_values.md, "Literal landing and
+                                    destinations": "A suffix lands its literal
+                                    at that occurrence", and integer landing
+                                    requires the "destination range where
+                                    bounded". `1i1` and `8192u13` name a value
+                                    their own carrier does not hold, whatever
+                                    policy the surrounding operation selects.
+                                */
+                                if let numerics::literals::LandedIntegerType::Fixed(carrier) =
+                                    landing.landed_type
+                                    && !value
+                                        .value_bignum()
+                                        .is_some_and(|exact| carrier.admits(&exact))
+                                {
+                                    return Err(Diagnostic::error(format!(
+                                        "integer literal `{}` is outside `{carrier}`: a suffix \
+                                         lands the literal in that type, which does not hold \
+                                         this value",
+                                        value.canonical_spelling().as_str(),
+                                    ))
+                                    .with_source_span(self.source.source_span(expression)));
+                                }
                                 self.retain_builtin_type_reference(
                                     typed::types::builtin_type_atom(landing.landed_type),
                                 )?;
@@ -2619,7 +2654,15 @@ pub(crate) mod expression {
                 }
                 match expressions.expression(expression) {
                     ExpressionNode::Name(path) => {
-                        inferred_capture_type(program, expressions, path.symbol, depth)
+                        if path.reserved_result_of.is_valid() {
+                            // A result guarantee describes its exact owning
+                            // callable's return type, not a captured local. This
+                            // also keeps ordinary result fields ahead of builtin
+                            // collection measurements in member selection.
+                            declared_call_return(program, path.reserved_result_of)
+                        } else {
+                            inferred_capture_type(program, expressions, path.symbol, depth)
+                        }
                     }
                     ExpressionNode::Call(call) => declared_call_return(program, call.target_symbol),
                     ExpressionNode::ArrayLiteral(_) => {

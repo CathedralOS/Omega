@@ -3,14 +3,52 @@ Call result typing, captured product operands, construction destinations, build
 and product selections, installed interrupts, and qualification casts.
 */
 
+/// Whether the call the author wrote named a declared operation of the
+/// toolchain Build prelude that typing replaces with a call of the Build
+/// protocol.
+///
+/// `Build::exclude_crash(builder, cause)` and the Product queries are
+/// declared prelude machines, so name resolution answers the authored call
+/// with that declaration. Typing then spells the protocol requirement that
+/// carries the request (the prelude: "typing normalizes the declaration to
+/// the authenticated selection protocol"). The two are different
+/// declarations and both answers are true: the record keeps what the author
+/// named, and the generated call is not that call.
+pub(crate) fn names_replaced_prelude_operation(
+    program: &typed_trees::TypedTrees,
+    occurrence: language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+    target: symbols::SymbolHandle,
+) -> bool {
+    let Some(selected) = program
+        .authored_declaration_selections()
+        .get(occurrence)
+        .and_then(|selection| selection.target().as_resolved().copied())
+        .map(|resolved| resolved.selected_symbol())
+    else {
+        return false;
+    };
+    selected != target
+        && program.symbols.is_build_prelude_symbol(selected)
+        && program.symbols.is_build_prelude_symbol(target)
+        // The protocol call targets a requirement: a member of a trait.
+        // The symbol table says so before the typed trees hold the trait.
+        && program.symbols.get(program.symbols.get(target).parent).kind
+            == symbols::SymbolKind::Trait
+}
+
 /// A rewrite that already selected an exact declaration must retain that
 /// answer on the original call occurrence. An unresolved different question
 /// or a contradictory earlier answer remains an error.
+///
+/// Returns whether the occurrence is the generated call's own selection. It
+/// is not when the author named a declared prelude operation the rewrite
+/// replaces (`names_replaced_prelude_operation`): the record is left as the
+/// author's answer and the generated call carries no selection.
 pub(crate) fn bind_generated_call_selection(
     program: &mut typed_trees::TypedTrees,
     occurrence: language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
     target: symbols::SymbolHandle,
-) -> Result<(), diagnostics::Diagnostic> {
+) -> Result<bool, diagnostics::Diagnostic> {
     use language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionLateBinding as Late,
         AuthoredDeclarationSelectionTarget as Target,
@@ -32,12 +70,16 @@ pub(crate) fn bind_generated_call_selection(
     match selection.target() {
         Target::LateBound(Late::CheckedCall) => program
             .finalize_authored_declaration_selection(occurrence, Late::CheckedCall, target)
+            .map(|()| true)
             .map_err(|error| {
                 refused(&format!(
                     "rewritten call cannot retain its selected declaration: {error:?}"
                 ))
             }),
-        Target::Resolved(selected) if selected.selected_symbol() == target => Ok(()),
+        Target::Resolved(selected) if selected.selected_symbol() == target => Ok(true),
+        Target::Resolved(_) if names_replaced_prelude_operation(program, occurrence, target) => {
+            Ok(false)
+        }
         _ => Err(refused(
             "rewritten call contradicts its original selection record",
         )),
@@ -1604,11 +1646,20 @@ pub(crate) mod construction_destinations {
         {
             carrier = *base_type;
         }
-        (!matches!(
-            program.type_reference_table.type_reference(carrier),
-            TypeReferenceNode::Reference { .. }
-        ))
-        .then_some(declared)
+        // Assigning to a binding of reference type writes through the
+        // reference, so the place's own type is not the type the literal is
+        // built at. A view is the exception: `&[u8]` is the value the place
+        // holds (data_and_literals.md, "Quoted bytes": a quoted literal "has
+        // ordinary shared byte-view type `&[u8]`"), so a literal assigned to
+        // a view field lands at the field's declared view type.
+        let receives_its_own_type = match program.type_reference_table.type_reference(carrier) {
+            TypeReferenceNode::Reference { referee, .. } => matches!(
+                program.type_reference_table.type_reference(*referee),
+                TypeReferenceNode::Slice { .. }
+            ),
+            _ => true,
+        };
+        receives_its_own_type.then_some(declared)
     }
 
     fn collect_call_destinations(
@@ -2995,22 +3046,18 @@ pub(crate) mod qualification_casts {
             };
             let authored = *authored;
             if let Some(entry) = authored.form.entry() {
-                /*
-                    Accounting fixed this entry's target and result. Only an
-                    added domain stays on the node, as the membership the cast
-                    establishes; a kept or removed one was named for the
-                    accounting and its selection is recorded above.
-                */
+                // Accounting fixed this entry's target and result. Every
+                // named entry retains the selected declaration and arguments:
+                // the checker must distinguish keeping/removing that domain
+                // from a different qualification with the same carrier.
                 let ExpressionNode::Cast(cast) = program.expression_table.expression_mut(handle)
                 else {
                     continue;
                 };
-                if entry.kind == language_core::cast_form::CastEntryKind::Add {
-                    cast.semantic_domain_symbol = domain;
-                    cast.semantic_domain_id = semantic_id;
-                } else {
+                cast.semantic_domain_symbol = domain;
+                cast.semantic_domain_id = semantic_id;
+                if entry.kind != language_core::cast_form::CastEntryKind::Add {
                     cast.semantic_domain = arena::HandleSpan::empty();
-                    cast.semantic_domain_arguments = arena::HandleSpan::empty();
                 }
                 continue;
             }

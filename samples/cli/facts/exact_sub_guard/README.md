@@ -12,15 +12,15 @@ call result, match join, const name, a nested machine, another machine, and anot
 | Place | Positive Program | Reject Twin (invalid) | Transport Mechanism |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) | — | canonical root witness with local copy and transition guard |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | value is copied into a local variable before guarded subtraction |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | value is stored in and projected from record field `pocket.remaining` |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | explicit parameter carries bounded contract before guarded subtraction |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | contracted helper call result supplies bounded value before subtraction |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms preserve and join bounded value before guarded subtraction |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constant supplies bounded value before guarded subtraction |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | successor machine `deduct` receives bounded value across transition |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | forwarding machine supplies bounded value to consumer machine |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | target-scoped machine bodies verify bounded subtraction on each hosted platform |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | value is copied into a local variable before guarded subtraction |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | value is stored in and projected from record field `pocket.remaining` |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | explicit parameter carries bounded contract before guarded subtraction |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | contracted helper call result supplies bounded value before subtraction |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both match arms preserve and join bounded value before guarded subtraction |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | named constant supplies bounded value before guarded subtraction |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | successor machine `deduct` receives bounded value across transition |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | forwarding machine supplies bounded value to consumer machine |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | target-scoped machine bodies verify bounded subtraction on each hosted platform |
 
 ## Execution
 
@@ -63,15 +63,15 @@ Restoring the lower-bound guard makes each twin check and pass, proving that the
 this exact fact and nothing else.
 
 ```sh
-omega --check samples/cli/facts/exact_sub_guard/local/invalid/main.omg
-omega --check samples/cli/facts/exact_sub_guard/field/invalid/main.omg
-omega --check samples/cli/facts/exact_sub_guard/parameter/invalid/main.omg
-omega --check samples/cli/facts/exact_sub_guard/call_result/invalid/main.omg
-omega --check samples/cli/facts/exact_sub_guard/match_join/invalid/main.omg
-omega --check samples/cli/facts/exact_sub_guard/const_name/invalid/main.omg
-omega --check samples/cli/facts/exact_sub_guard/other_state/invalid/main.omg
-omega --check samples/cli/facts/exact_sub_guard/other_machine/invalid/main.omg
-omega --check samples/cli/facts/exact_sub_guard/target_body/invalid/main.omg
+omega --check samples/cli/facts/exact_sub_guard/invalid_local/main.omg
+omega --check samples/cli/facts/exact_sub_guard/invalid_field/main.omg
+omega --check samples/cli/facts/exact_sub_guard/invalid_parameter/main.omg
+omega --check samples/cli/facts/exact_sub_guard/invalid_call_result/main.omg
+omega --check samples/cli/facts/exact_sub_guard/invalid_match_join/main.omg
+omega --check samples/cli/facts/exact_sub_guard/invalid_const_name/main.omg
+omega --check samples/cli/facts/exact_sub_guard/invalid_other_state/main.omg
+omega --check samples/cli/facts/exact_sub_guard/invalid_other_machine/main.omg
+omega --check samples/cli/facts/exact_sub_guard/invalid_target_body/main.omg
 ```
 
 ## Requirements and Evidence

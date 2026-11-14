@@ -71,15 +71,15 @@ four hosted targets and declares `Expected exit: 0`.
 
 | Place | Positive | Reject twin | How the root arrives |
 | --- | --- | --- | --- |
-| local | [main](local/main.omg) | [invalid](local/invalid/main.omg) | the match directly evaluates the computed index |
-| field | [main](field/main.omg) | [invalid](field/invalid/main.omg) | `compute` returns the copied record's index |
-| parameter | [main](parameter/main.omg) | [invalid](parameter/invalid/main.omg) | `apply` receives both arrays and the counter |
-| call result | [main](call_result/main.omg) | [invalid](call_result/invalid/main.omg) | `select` returns the selected exclusive loan |
-| match join | [main](match_join/main.omg) | [invalid](match_join/invalid/main.omg) | an earlier match returns the computed index |
-| const name | [main](const_name/main.omg) | [invalid](const_name/invalid/main.omg) | `compute` returns the named index constant |
-| nested machine | [main](other_state/main.omg) | [invalid](other_state/invalid/main.omg) | a nested `write` receives the explicit references |
-| another machine | [main](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) | `forward` passes the references to `apply` |
-| target body | [main](target_body/main.omg) | [invalid](target_body/invalid/main.omg) | Build selects an ordinary provider that calls `apply` |
+| local | [main](local/main.omg) | [invalid](invalid_local/main.omg) | the match directly evaluates the computed index |
+| field | [main](field/main.omg) | [invalid](invalid_field/main.omg) | `compute` returns the copied record's index |
+| parameter | [main](parameter/main.omg) | [invalid](invalid_parameter/main.omg) | `apply` receives both arrays and the counter |
+| call result | [main](call_result/main.omg) | [invalid](invalid_call_result/main.omg) | `select` returns the selected exclusive loan |
+| match join | [main](match_join/main.omg) | [invalid](invalid_match_join/main.omg) | an earlier match returns the computed index |
+| const name | [main](const_name/main.omg) | [invalid](invalid_const_name/main.omg) | `compute` returns the named index constant |
+| nested machine | [main](other_state/main.omg) | [invalid](invalid_other_state/main.omg) | a nested `write` receives the explicit references |
+| another machine | [main](other_machine/main.omg) | [invalid](invalid_other_machine/main.omg) | `forward` passes the references to `apply` |
+| target body | [main](target_body/main.omg) | [invalid](invalid_target_body/main.omg) | Build selects an ordinary provider that calls `apply` |
 
 The existing corpus mirrors are `tests/omega/{pass,fail}/facts/match_computed_root_through_*`.
 Their main files match the corresponding sample. Every twin retains the same

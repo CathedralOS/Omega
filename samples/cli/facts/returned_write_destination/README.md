@@ -10,15 +10,15 @@ The nine places are:
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) with [`build.omg`](build.omg) | — | returned write destination loan replaced in caller storage |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | returned descriptor bound locally |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | returned descriptor stored in a record field |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | returned descriptor passed as a parameter |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | returned descriptor forwarded by another call |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | either arm returns the same caller destination |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | named constant selects the caller array element |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | returned descriptor becomes a successor parameter |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine calls the replacement machine |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each target's Build row selects an ordinary implementation that returns the caller destination |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | returned descriptor bound locally |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | returned descriptor stored in a record field |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | returned descriptor passed as a parameter |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | returned descriptor forwarded by another call |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | either arm returns the same caller destination |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | named constant selects the caller array element |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | returned descriptor becomes a successor parameter |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | a forwarding machine calls the replacement machine |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each target's Build row selects an ordinary implementation that returns the caller destination |
 
 ## Execution
 
@@ -47,15 +47,15 @@ Each place has an `invalid/` reject twin (and corresponding `controls/read_desti
 
 | Place | Twin | Pinned Diagnostic Fragment |
 | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | `write-only` / `never observation` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | `write-only` / `never observation` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | `write-only` / `never observation` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | `write-only` / `never observation` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | `write-only` / `never observation` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `write-only` / `never observation` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `write-only` / `never observation` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `write-only` / `never observation` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | `write-only` / `never observation` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | `write-only` / `never observation` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | `write-only` / `never observation` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | `write-only` / `never observation` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | `write-only` / `never observation` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | `write-only` / `never observation` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | `write-only` / `never observation` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | `write-only` / `never observation` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `write-only` / `never observation` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | `write-only` / `never observation` |
 
 ## Pinned Fixtures
 

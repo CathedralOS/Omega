@@ -40,6 +40,7 @@ fn owned_call_results_and_locals_publish_and_execute_the_routes_module() {
         typed_trees_to_terminal_psi::prepare_compilation(
             &frontier.typed,
             Compilation {
+                declaration_metadata: &[],
                 entries: &frontier.entries,
                 subjects: &[frontier.subject],
                 purpose: source::DependencyScope::Product,
@@ -114,6 +115,7 @@ fn borrowing_after_an_earlier_operand_moves_the_local_is_rejected() {
         typed_trees_to_terminal_psi::prepare_compilation(
             &frontier.typed,
             Compilation {
+                declaration_metadata: &[],
                 entries: &frontier.entries,
                 subjects: &[frontier.subject],
                 purpose: source::DependencyScope::Product,
@@ -177,11 +179,15 @@ fn execute_refilled_owner(closure: &terminal_psi_to_terminal_psi::AcceptedClosur
         )
         .expect("Omega 01 verifies the restored owned home")
         .into_parts();
+    let frontiers = optimization_unit_semantics::reconstruct_ownership_frontier_facts_with_admitted_cycle_machines(&unit, &[])
+        .expect("the independent current ownership walk reconstructs the restored owner");
+    let unit = optimization_unit::attach_ownership_frontier_facts(unit, frontiers)
+        .expect("the exact reconstructed owner facts attach without substitution");
     optimization_unit_semantics::validate_psi_optimization_unit_with_admitted_cycle_machines(
         &unit,
         &[],
     )
-    .expect("the independent current ownership walk reconstructs the restored owner");
+    .expect("the retained owner facts preserve the actual edge cleanup transitions");
     let bytes = terminal_codec::encode_module(publication.artifact.semantic_module())
         .expect("restored module encodes");
     let mut execution =
@@ -197,6 +203,83 @@ fn execute_refilled_owner(closure: &terminal_psi_to_terminal_psi::AcceptedClosur
         matches!(status, TerminalExecutionStatus::Complete(_)),
         "{status:?}"
     );
+}
+
+/// Each selected arm supplies its actual owned value, through publication,
+/// the independent ownership boundary and execution. Repeating one outgoing
+/// value instead of consuming the two results must still reject.
+#[test]
+fn owned_match_results_keep_their_values_and_transfer_once() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let source = r#"
+data Choice [copy] { case Left; case Right; }
+data Item { value: u32; }
+machine choose(choice: Choice) -> Item {
+    match choice {
+        Choice::Left -> Item { value: 7 }
+        Choice::Right -> Item { value: 11 }
+    }
+}
+machine pair(first: Item, second: Item) { }
+machine main() crashes Trap {
+    let left: Item = choose(Choice::Left {});
+    let right: Item = choose(Choice::Right {});
+    transition left.value == 7 && right.value == 11 {
+        true -> pair(left, right)
+        false -> bad()
+    }
+    machine bad() { crash Trap; }
+}
+"#;
+    for repeat in [false, true] {
+        let source = if repeat {
+            source.replace("pair(left, right)", "pair(left, left)")
+        } else {
+            source.to_owned()
+        };
+        let frontier = unbuilt_frontier::staged_frontier("owned-match-results", &source);
+        let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
+            typed_trees_to_terminal_psi::prepare_compilation(
+                &frontier.typed,
+                Compilation {
+                    declaration_metadata: &[],
+                    entries: &frontier.entries,
+                    subjects: &[frontier.subject],
+                    purpose: source::DependencyScope::Product,
+                    selected: &frontier.selected,
+                    bindings: &frontier.bindings,
+                    supplies: &[],
+                },
+                terminal_codec::TerminalPublication::Portable,
+            )
+            .program,
+        );
+        if repeat {
+            assert!(
+                verdicts.iter().any(|verdict| matches!(verdict,
+                    Ok(RouteVerdict::Rejected { unestablished, .. })
+                        if unestablished.iter().any(|used| used.detail
+                            == "owned storage is used after its value was transferred or consumed")
+                )),
+                "one selected result cannot supply both arguments: {verdicts:?}"
+            );
+            continue;
+        }
+        let mut verdicts = verdicts.into_iter();
+        let closure = match verdicts.next().expect("entry closure") {
+            Ok(RouteVerdict::Accepted(closure)) => closure,
+            other => panic!("the selected values must reach their continuation: {other:?}"),
+        };
+        for verdict in verdicts {
+            assert!(
+                matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                "{verdict:?}"
+            );
+        }
+        execute_refilled_owner(&closure);
+    }
 }
 
 #[test]
@@ -241,6 +324,7 @@ machine main() crashes Trap {
             typed_trees_to_terminal_psi::prepare_compilation(
                 &frontier.typed,
                 Compilation {
+                    declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
                     purpose: source::DependencyScope::Product,
@@ -326,6 +410,7 @@ machine main() crashes Trap {
             typed_trees_to_terminal_psi::prepare_compilation(
                 &frontier.typed,
                 Compilation {
+                    declaration_metadata: &[],
                     entries: &frontier.entries,
                     subjects: &[frontier.subject],
                     purpose: source::DependencyScope::Product,
@@ -348,6 +433,104 @@ machine main() crashes Trap {
         let closure = match verdicts.next().expect("entry closure") {
             Ok(RouteVerdict::Accepted(closure)) => closure,
             other => panic!("all moved children leave the exact subrecord vacant: {other:?}"),
+        };
+        for verdict in verdicts {
+            assert!(
+                matches!(verdict, Ok(RouteVerdict::Accepted(_))),
+                "{verdict:?}"
+            );
+        }
+        execute_refilled_owner(&closure);
+    }
+}
+
+#[test]
+fn partial_and_whole_branch_transfers_rejoin_before_the_subrecord_is_refilled() {
+    let _compilation = FIXTURE_COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let source = r#"
+data Choice [copy] { case Part; case Whole; }
+data Item { value: u32; }
+data Pair { first: Item; second: Item; }
+data Outer { selected: Pair; other: Pair; }
+machine take_item(item: Item) -> u32 { item.value }
+machine take_pair(pair: Pair) -> u32 { pair.second.value }
+machine restored(choice: Choice) -> u64 {
+    let mut outer: Outer = Outer {
+        selected: Pair { first: Item { value: 3 }, second: Item { value: 5 } },
+        other: Pair { first: Item { value: 13 }, second: Item { value: 17 } }
+    };
+    let consumed: u32 = match choice {
+        Choice::Part -> take_item(outer.selected.first)
+        Choice::Whole -> take_pair(outer.selected)
+    };
+    outer.selected = Pair { first: Item { value: 7 }, second: Item { value: 11 } };
+    let owner: Outer = outer;
+    (consumed as u64)
+        + (owner.selected.first.value as u64) + (owner.selected.second.value as u64)
+        + (owner.other.first.value as u64) + (owner.other.second.value as u64)
+}
+machine main() crashes Trap {
+    let partial: u64 = restored(Choice::Part {});
+    let whole: u64 = restored(Choice::Whole {});
+    transition partial == 51 && whole == 53 {
+        true -> done()
+        false -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#;
+    for (reversed, wrong_region) in [(false, false), (true, false), (false, true)] {
+        let mut source = source.to_owned();
+        if reversed {
+            source = source.replace("case Part; case Whole;", "case Whole; case Part;")
+                .replace(
+                    "Choice::Part -> take_item(outer.selected.first)\n        Choice::Whole -> take_pair(outer.selected)",
+                    "Choice::Whole -> take_pair(outer.selected)\n        Choice::Part -> take_item(outer.selected.first)",
+                );
+        }
+        if wrong_region {
+            source = source.replace("outer.selected =", "outer.other =");
+        }
+        let frontier = unbuilt_frontier::staged_frontier(
+            if wrong_region {
+                "join-wrong-region"
+            } else if reversed {
+                "join-refill-reversed"
+            } else {
+                "join-refill"
+            },
+            &source,
+        );
+        let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
+            typed_trees_to_terminal_psi::prepare_compilation(
+                &frontier.typed,
+                Compilation {
+                    declaration_metadata: &[],
+                    entries: &frontier.entries,
+                    subjects: &[frontier.subject],
+                    purpose: source::DependencyScope::Product,
+                    selected: &frontier.selected,
+                    bindings: &frontier.bindings,
+                    supplies: &[],
+                },
+                terminal_codec::TerminalPublication::Portable,
+            )
+            .program,
+        );
+        if wrong_region {
+            assert!(verdicts.iter().any(|verdict| matches!(verdict,
+                Ok(RouteVerdict::Rejected { unestablished, .. })
+                    if unestablished.iter().any(|used| used.detail == "owned storage is used after its value was transferred or consumed")
+            )), "a sibling replacement cannot restore the joined region: {verdicts:?}");
+            continue;
+        }
+        let mut verdicts = verdicts.into_iter();
+        let closure = match verdicts.next().expect("entry closure") {
+            Ok(RouteVerdict::Accepted(closure)) => closure,
+            other => panic!("partial and whole moves share the exact vacant join: {other:?}"),
         };
         for verdict in verdicts {
             assert!(
@@ -400,6 +583,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
     };
     let mut records = IdTable::default();
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable: false,
         identity: "Owned".into(),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![RecordField {
@@ -589,6 +773,7 @@ mod transferred_on_one_path {
         };
         let mut records = IdTable::default();
         records.push(RecordType {
+            owns_linear_claim: false,
             copyable: false,
             identity: "Inner".into(),
             shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![field(
@@ -599,6 +784,7 @@ mod transferred_on_one_path {
             requires: Vec::new(),
         });
         records.push(RecordType {
+            owns_linear_claim: false,
             copyable: false,
             identity: "Pair".into(),
             shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![

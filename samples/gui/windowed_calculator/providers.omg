@@ -3,9 +3,26 @@
 // member declared for the build target, exactly like window_demo's providers.
 // Windows bodies use the shared WindowsGuiHost seam; macOS bodies keep the
 // existing Cocoa facades. Window is the shared application-owned state.
-use omega_language_std::macos_gui;
-use omega_language_std::macos_image;
-use omega_language_std::windows_gui_host;
+use omega_language_std::AppKit;
+use omega_language_std::CoreGraphics;
+use omega_language_std::DarwinClock;
+use omega_language_std::ObjectiveC;
+use omega_language_std::Window;
+use omega_language_std::macos_key_state;
+use omega_language_std::macos_sleep;
+use omega_language_std::macos_window_blit;
+use omega_language_std::macos_window_create;
+use omega_language_std::macos_window_destroy;
+use omega_language_std::macos_window_foreground_window;
+use omega_language_std::macos_window_get_dc;
+use omega_language_std::macos_window_is_window;
+use omega_language_std::macos_window_msg_dispatch;
+use omega_language_std::macos_window_msg_peek;
+use omega_language_std::macos_window_msg_translate;
+use omega_language_std::MacosImageData;
+use omega_language_std::MacosImageObjects;
+use omega_language_std::WindowsGuiHost;
+use omega_language_std::WindowsMessage;
 
 public windows_x86_64 machine calc_window_create(class_name: [u8; 7], title: [u8; 11], style: u32, x: i32, y: i32, width: i32, height: i32) -> Window
 requires title[10] == 0

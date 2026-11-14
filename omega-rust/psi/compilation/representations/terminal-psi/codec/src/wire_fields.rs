@@ -435,6 +435,17 @@ integer_fields! {
     Flag: bool => boolean / boolean,
 }
 
+pub(crate) struct I128;
+impl Field<i128> for I128 {
+    fn write(writer: &mut Writer, value: &i128) -> Result<(), CodecError> {
+        writer.bytes(&value.to_le_bytes());
+        Ok(())
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<i128, CodecError> {
+        Ok(i128::from_le_bytes(reader.array()?))
+    }
+}
+
 pub(crate) struct Path;
 impl Field<Vec<StructuralPathSegment>> for Path {
     fn write(writer: &mut Writer, value: &Vec<StructuralPathSegment>) -> Result<(), CodecError> {
@@ -852,6 +863,21 @@ impl Field<String> for Text {
     }
     fn read(reader: &mut Reader<'_>) -> Result<String, CodecError> {
         reader.string("wire text")
+    }
+}
+
+// A pair is just its two existing field encodings in order. Reuse those
+// codecs for tuple-valued data rather than defining another domain marker.
+impl<Left, Right, LeftField: Field<Left>, RightField: Field<Right>> Field<(Left, Right)>
+    for (LeftField, RightField)
+{
+    fn write(writer: &mut Writer, value: &(Left, Right)) -> Result<(), CodecError> {
+        LeftField::write(writer, &value.0)?;
+        RightField::write(writer, &value.1)
+    }
+
+    fn read(reader: &mut Reader<'_>) -> Result<(Left, Right), CodecError> {
+        Ok((LeftField::read(reader)?, RightField::read(reader)?))
     }
 }
 

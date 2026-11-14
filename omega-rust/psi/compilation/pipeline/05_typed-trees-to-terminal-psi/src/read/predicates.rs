@@ -23,10 +23,15 @@ kept by the owner's invariant windows, with nothing added here.
 the domain being defined" (domains.md, "Operands"), so it is read at the
 plain carrier.
 
-Served: a scalar carrier. A domain with predicates on a data carrier is
-refused where the type is read (`declared_domain`): a predicate over the
-fields of a value that is itself a local or a formal has no owning data
-type to keep its window.
+On a data carrier (`domain Player::Alive requires self.health > 0`) the
+clauses name fields beneath `self`, so a field `player: Player in Alive`
+owes `self.player.health > 0` as a clause of its owner, kept by the owner's
+windows like any other. A data value in such a domain that is itself a
+formal or a result has no owner whose clauses it joins, and its predicates
+would need a window of their own, so each is refused by name
+(`signature_predicates`), as are a cast that adds such a domain
+(`read::casts`), a case payload, an array element and a partial write
+inside such a value (`read::authority`).
 */
 
 use semantic_vocabulary::{
@@ -161,14 +166,22 @@ impl Program<'_> {
                 added.requires.push((clause, text));
             }
         }
+        // A record result's predicates would be guarantees over the fields
+        // of the returned value; nothing states them yet, so such a result
+        // is refused rather than promised nothing.
+        if let Some((value_type, _)) = result
+            && !matches!(value_type, ValueType::Scalar(..))
+            && !self.predicates(id, value_type.qualification())?.is_empty()
+        {
+            return unserved("result of a data type in a domain with predicates");
+        }
         if let Some((ValueType::Scalar(scalar_type, qualification), value)) = result {
             let subject = ScalarTerm::Value {
                 id: value,
                 scalar_type,
             };
-            // The result's own name is refused in an authored clause of a
-            // qualified result (`ResultTerm::Absent`); the domain's clause
-            // names the value through its `self`.
+            // A domain's clause names the value through its own `self`, not
+            // through the surrounding callable's reserved result.
             let exit = ClauseScope {
                 result: ResultTerm::Absent("result in a domain predicate"),
                 ..*exit
@@ -310,25 +323,32 @@ impl Program<'_> {
         }
         let carrier = self.value_type(id, definition.target_type)?;
         self.declared_domain(id, definition.symbol, carrier)?;
-        let (ValueType::Scalar(scalar_type, _), Some(domains)) = (
-            carrier,
-            crate::body::DomainSet::EMPTY.with(definition.symbol),
-        ) else {
+        let Some(domains) = crate::body::DomainSet::EMPTY.with(definition.symbol) else {
             return Err(refuse(
                 id,
                 Construct::Machine,
-                Unserved::Declaration("domain with predicates on a carrier that is not a scalar"),
+                Unserved::Declaration("domain identity"),
             ));
         };
-        self.cast_predicates(
-            id,
-            Qualification {
-                policy: None,
-                domains,
-            },
-            scalar_type,
-        )
-        .map(|_| ())
+        let qualification = Qualification {
+            policy: None,
+            domains,
+        };
+        match carrier {
+            ValueType::Scalar(scalar_type, _) => self
+                .cast_predicates(id, qualification, scalar_type)
+                .map(|_| ()),
+            // A record's clauses name its fields beneath `self`, read as
+            // they are for a field of an owner in the domain.
+            ValueType::Record(record, _, regions) => self
+                .field_predicates(id, &[], ValueType::Record(record, qualification, regions))
+                .map(|_| ()),
+            ValueType::Rigid(_) => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Declaration("domain with predicates on a type parameter"),
+            )),
+        }
     }
 
     /// What a field's domains add to the `requires` of the data type that
@@ -359,8 +379,13 @@ impl Program<'_> {
             return Ok(Vec::new());
         }
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Declaration(what)));
-        let Some(plain @ ValueType::Scalar(..)) = value_type.qualified(Qualification::NONE) else {
-            return unserved("field of a data type in a domain with predicates");
+        // `self` is the field at the carrier the domain is declared on: a
+        // scalar's clause names it, a record's names fields beneath it
+        // (`self.health`), each a field of the owner one step deeper.
+        let Some(plain @ (ValueType::Scalar(..) | ValueType::Record(..))) =
+            value_type.qualified(Qualification::NONE)
+        else {
+            return unserved("field of a type parameter in a domain with predicates");
         };
         let Some(root) = crate::body::self_place() else {
             return unserved("self place identity");

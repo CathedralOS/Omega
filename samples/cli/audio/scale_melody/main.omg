@@ -14,12 +14,9 @@ use omega::language::core::FilesystemNamespaceMutation;
 // Expected output contains: scale_melody: played scale_melody.wav
 
 use omega::language::core::ProcessExit;
-use omega_language_std::process_exit;
-use omega_language_std::posix_filesystem_host;
-use omega_language_std::windows_filesystem_host;
 use wav_output::wav_output::WavOutput;
 use audio_playback::audio_playback::AudioPlayback;
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::narrow_i64_to_i32_wrapping;
 use omega::language::core::widen_i32_to_i64;
 

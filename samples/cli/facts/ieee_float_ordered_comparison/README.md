@@ -15,15 +15,15 @@ Every place performs the same operation: establish or transport a bounded IEEE `
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
 | Root | [`main.omg`](main.omg) | — | Direct float sub-interval delivery into window contract |
-| Local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | The bounded reading is stored in a local variable before passing to `verify_window` |
-| Field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | A record field carries the bounded reading into window verification |
-| Parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | The bounded reading is passed as an explicit machine parameter |
-| Call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | A machine call returns the bounded reading directly into window verification |
-| Match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Both match arms produce the bounded reading joining into window verification |
-| Const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Named constants define the interval bounds proving the downstream contract |
-| A nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | A successor machine receives the bounded reading and verifies the downstream window |
-| Another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | A forwarding machine forwards the bounded reading to the verifying machine |
-| Another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Each of four target bodies forwards the bounded reading to `verify_window` |
+| Local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | The bounded reading is stored in a local variable before passing to `verify_window` |
+| Field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | A record field carries the bounded reading into window verification |
+| Parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | The bounded reading is passed as an explicit machine parameter |
+| Call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | A machine call returns the bounded reading directly into window verification |
+| Match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | Both match arms produce the bounded reading joining into window verification |
+| Const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | Named constants define the interval bounds proving the downstream contract |
+| A nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | A successor machine receives the bounded reading and verifies the downstream window |
+| Another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | A forwarding machine forwards the bounded reading to the verifying machine |
+| Another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | Each of four target bodies forwards the bounded reading to `verify_window` |
 
 ### Verification commands
 
@@ -55,15 +55,15 @@ omega --check samples/cli/facts/ieee_float_ordered_comparison/<place>/invalid/ma
 
 | Place | Reject twin | Obligation class | Authored diagnostic fragment |
 | --- | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | Contract precondition | `cannot prove requires contract for call verify_window` |
 
 ## Pinned fixtures
 

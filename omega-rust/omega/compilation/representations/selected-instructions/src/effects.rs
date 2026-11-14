@@ -13,7 +13,7 @@ pub use catalog::{
     MachineEffectCatalogValidationError, MachineEffectDeclaration, MachineEncodedControlEffect,
     MachineEncodedEffects, MachineEncodedMemoryEffect, MachineEncodedStackEffect,
     MachineEncodedTrapBehavior, MachineIdentityBytes, MachineLatencyKnowledge, MachineMemoryEffect,
-    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior, ValidatedMachineEffectCatalog,
+    MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior, PreparedMachineEffectCatalog,
     alternative_family_tag, canonical_machine_effect_catalog, encode_machine_alternative_identity,
     encode_machine_alternative_key_identity, encode_machine_encoded_effects_identity,
     machine_effect_catalog_identity, saturating_family_tag, trapping_family_tag,

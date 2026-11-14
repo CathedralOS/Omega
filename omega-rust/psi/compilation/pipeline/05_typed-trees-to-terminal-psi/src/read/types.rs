@@ -103,6 +103,9 @@ impl Program<'_> {
                     ));
                 }
                 match typed.symbols.builtin_type_atom(*symbol) {
+                    Some(BuiltinTypeAtom::Address) if self.descriptor_storage => Ok(
+                        ScalarType::Integer(IntegerType::supported_address_representation()),
+                    ),
                     Some(atom) => atom_type(atom, id),
                     None => unserved("nominal type"),
                 }
@@ -280,6 +283,38 @@ impl Program<'_> {
     /// A formal's, local's, result's or field's type: a record when the
     /// type is a `Named` data declaration, else whatever the scalar route
     /// says, including its refusals.
+    /// Describe the actual carrier without interpreting or establishing its
+    /// declared domains. Full qualification remains in the ABI/source contract.
+    pub(super) fn storage_carrier(
+        &self,
+        id: MachineId,
+        mut handle: TypeReferenceHandle,
+    ) -> Checked<TypeReferenceHandle> {
+        if !self.descriptor_storage {
+            return Ok(handle);
+        }
+        let mut visiting = Vec::new();
+        loop {
+            if !self
+                .typed
+                .type_reference_table
+                .contains_type_reference(handle)
+                || visiting.contains(&handle)
+            {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Type("invalid constrained storage carrier"),
+                ));
+            }
+            visiting.push(handle);
+            match self.typed.type_reference_table.type_reference(handle) {
+                TypeReferenceNode::Constrained { base_type, .. } => handle = *base_type,
+                _ => return Ok(handle),
+            }
+        }
+    }
+
     /// `value_type` where a byte view in a domain is served: a data field's
     /// type and a cast's result type (`view_type`).
     pub(super) fn qualified_view_type(
@@ -433,10 +468,34 @@ impl Program<'_> {
         base_type: TypeReferenceHandle,
         constraints: arena::HandleSpan<typed_trees::types::TypeConstraintNode>,
     ) -> Checked<ValueType> {
+        let carrier = self.value_type(id, base_type)?;
+        let qualification = self.type_qualification(id, carrier, constraints)?;
+        for domain in qualification.domains.members() {
+            if !carrier.qualification().domains.contains(domain) {
+                self.declared_domain(id, domain, carrier)?;
+            }
+        }
+        carrier.qualified(qualification).ok_or_else(|| {
+            refuse(
+                id,
+                Construct::Machine,
+                Unserved::Type("domain on a type parameter"),
+            )
+        })
+    }
+
+    /// Read the qualification once for both type formation and casts. Type
+    /// formation admits new domains; a clause cast can only retain domains
+    /// already checked on its operand.
+    fn type_qualification(
+        &self,
+        id: MachineId,
+        carrier: ValueType,
+        constraints: arena::HandleSpan<typed_trees::types::TypeConstraintNode>,
+    ) -> Checked<Qualification> {
         use numerics::arithmetic::ArithmeticDomain;
         use typed_trees::types::{DomainConstraintSubject, TypeConstraintNode};
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Type(what)));
-        let carrier = self.value_type(id, base_type)?;
         let mut qualification = carrier.qualification();
         let typed = self.typed;
         for constraint in typed.type_reference_table.constraints(constraints) {
@@ -462,10 +521,10 @@ impl Program<'_> {
                 TypeConstraintNode::Domain(domain)
                     if domain.subject == DomainConstraintSubject::Declared =>
                 {
+                    self.named_domain(id, domain)?;
                     if !domain.arguments.is_empty() {
                         return unserved("constrained by a domain applied at arguments");
                     }
-                    self.declared_domain(id, domain.symbol, carrier)?;
                     let Some(domains) = qualification.domains.with(domain.symbol) else {
                         return unserved(
                             "constrained by one domain twice or by more than four declared domains",
@@ -481,10 +540,104 @@ impl Program<'_> {
                 }
             }
         }
-        match carrier.qualified(qualification) {
-            Some(qualified) => Ok(qualified),
-            None => unserved("domain on a type parameter"),
+        Ok(qualification)
+    }
+
+    /// Read a scalar domain cast's result without forming a new domain or
+    /// storage representation. Its carrier and retained domains must come
+    /// from the already checked operand; additions need establishment proof.
+    pub(super) fn scalar_domain_cast_type(
+        &self,
+        id: MachineId,
+        handle: TypeReferenceHandle,
+        before: ValueType,
+    ) -> Checked<ValueType> {
+        let after = self.qualified_scalar_type(id, handle)?;
+        if before.qualified(Qualification::NONE) != after.qualified(Qualification::NONE) {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("domain cast entry that changes the carrier"),
+            ));
         }
+        if !after
+            .qualification()
+            .domains
+            .is_subset_of(&before.qualification().domains)
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("domain establishment in a clause term"),
+            ));
+        }
+        Ok(after)
+    }
+
+    fn qualified_scalar_type(
+        &self,
+        id: MachineId,
+        handle: TypeReferenceHandle,
+    ) -> Checked<ValueType> {
+        if handle.is_valid() {
+            match self.typed.type_reference_table.type_reference(handle) {
+                TypeReferenceNode::Constrained {
+                    base_type,
+                    constraints,
+                } => {
+                    let carrier = self.qualified_scalar_type(id, *base_type)?;
+                    let qualification = self.type_qualification(id, carrier, *constraints)?;
+                    return carrier.qualified(qualification).ok_or_else(|| {
+                        refuse(
+                            id,
+                            Construct::Machine,
+                            Unserved::Type("domain on a type parameter"),
+                        )
+                    });
+                }
+                TypeReferenceNode::Named { symbol, .. } => {
+                    if let Some((_, bound @ ValueType::Scalar(..))) =
+                        self.scope.iter().find(|(binder, _)| binder == symbol)
+                    {
+                        return Ok(*bound);
+                    }
+                }
+                _ => {}
+            }
+        }
+        self.scalar_type(id, handle).map(ValueType::plain)
+    }
+
+    /// Rejects a type whose domain name nothing in the program has, in this
+    /// source or any library: `state_contracts.md`, "Statements after a call
+    /// that never returns": "an unknown machine name or malformed type is an
+    /// error wherever it appears". A name typing did not bind but that
+    /// something has (a domain of another carrier, two visible candidates)
+    /// is left to `declared_domain`, which refuses what it does not read.
+    fn named_domain(
+        &self,
+        id: MachineId,
+        domain: &typed_trees::types::DomainConstraint,
+    ) -> Checked<()> {
+        if self.typed.domain_definition(domain.symbol).is_some() {
+            return Ok(());
+        }
+        let Some(written) = domain.source_selection else {
+            return Ok(());
+        };
+        let name = domain.name.as_str();
+        let leaf = name.rsplit("::").next().unwrap_or(name);
+        if self.typed.names_nothing_has(vec![leaf]).is_empty() {
+            return Ok(());
+        }
+        Err(crate::reject(
+            id,
+            crate::SourceOrigin::of(written.source_span),
+            format!(
+                "this type names the domain `{name}`, which nothing in the program declares: \
+                 an unknown name in a type is an error wherever it appears"
+            ),
+        ))
     }
 
     /// Whether the checker reads the declared domain `domain` on `carrier`:
@@ -532,12 +685,9 @@ impl Program<'_> {
         if self.value_type(id, definition.target_type)? != plain {
             return unserved("constrained by a domain declared on another carrier");
         }
-        // A predicate over the fields of a data value has no owning
-        // contract to join when that value is a local or a formal
-        // (`predicates`); only a scalar's is stated yet.
-        if super::authority::has_predicates(definition) && !matches!(plain, ValueType::Scalar(..)) {
-            return unserved("constrained by a domain with predicates on a data carrier");
-        }
+        // A domain's predicates are judged where the place declared in it
+        // has a contract to join (`predicates`); each place without one
+        // refuses them there by name.
         Ok(())
     }
 

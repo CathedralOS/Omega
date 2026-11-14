@@ -1,6 +1,7 @@
 // Expected exit: 0.
 // Expected output contains: placement mask=0005 cost=0004 score=0012
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 use domain::search;
 use data::fixtures;
 data Main { }

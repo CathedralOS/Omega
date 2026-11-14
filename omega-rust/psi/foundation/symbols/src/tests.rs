@@ -2069,6 +2069,29 @@ mod provenance {
     }
 
     #[test]
+    fn module_less_sibling_files_keep_their_own_same_spelled_declarations() {
+        // Each module-less file selects its own declaration before a sibling's,
+        // so two such files declaring one name are not duplicates.
+        let (symbols, authored) =
+            sourced_symbol_table([(SourceOrigin::User, None), (SourceOrigin::User, None)]);
+        assert!(symbols.source_scopes_separate(authored[0], authored[1]));
+
+        // Files declaring one named module share its namespace: the same
+        // spelling in both stays one scope and is a duplicate.
+        let (mut symbols, authored) =
+            sourced_symbol_table([(SourceOrigin::User, None), (SourceOrigin::User, None)]);
+        for declaration in &authored {
+            let span = symbols
+                .symbol_source_span(*declaration)
+                .expect("authored span");
+            symbols
+                .register_source_module(span.source_id, [("shared", span)])
+                .expect("module");
+        }
+        assert!(!symbols.source_scopes_separate(authored[0], authored[1]));
+    }
+
+    #[test]
     fn generated_toolchain_symbols_retain_toolchain_origin_without_package_identity() {
         let (mut symbols, authored) = sourced_symbol_table([(SourceOrigin::Toolchain, None)]);
         let generated = symbols.insert_generated_root_from(
@@ -2523,5 +2546,29 @@ mod integer_types {
         let carrier = table.builtin_atom_symbol(seven).unwrap();
         assert_ne!(carrier, declared);
         assert_eq!(table.builtin_type_atom(carrier), Some(seven));
+    }
+
+    #[test]
+    fn the_integer_family_heads_are_installed_once_and_are_not_carriers() {
+        use numerics::integer_carrier::IntegerSign;
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        builder.insert_children(root, builtin_type_symbols());
+        let mut table = builder.finish();
+        assert_eq!(table.integer_family_symbol(IntegerSign::Unsigned), None);
+        table.install_integer_families();
+        let unsigned = table.integer_family_symbol(IntegerSign::Unsigned).unwrap();
+        let signed = table.integer_family_symbol(IntegerSign::Signed).unwrap();
+        assert_ne!(unsigned, signed);
+        assert_eq!(table.integer_family(unsigned), Some(IntegerSign::Unsigned));
+        assert_eq!(table.integer_family(signed), Some(IntegerSign::Signed));
+        assert_eq!(table.builtin_type_atom(unsigned), None);
+        table.install_integer_families();
+        assert_eq!(table.root_children_named("u").count(), 1);
+        assert_eq!(table.root_children_named("i").count(), 1);
+        let word = table
+            .builtin_atom_symbol(BuiltinTypeAtom::Integer(FixedInteger::unsigned(32)))
+            .unwrap();
+        assert_eq!(table.integer_family(word), None);
     }
 }

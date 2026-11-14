@@ -4,6 +4,7 @@ catalog, operation signatures, and overflow/rounding semantics.
 */
 
 use numerics::arithmetic::ArithmeticDomain;
+use numerics::integer_carrier::{FixedInteger, IntegerSign};
 use numerics::literals::FloatFormat;
 use symbols::BuiltinFunction;
 
@@ -34,28 +35,53 @@ macro_rules! tagged_vocabulary {
     };
 }
 
-tagged_vocabulary!(
-    "Closed numeric vocabulary: declaration order is the canonical encoded order.",
-    "Canonical tag of a numeric type.",
-    NumericType,
-    numeric_type_tag
-    {
-        I8 => "i8" = 0,
-        I16 => "i16" = 1,
-        I32 => "i32" = 2,
-        I64 => "i64" = 3,
-        U8 => "u8" = 4,
-        U16 => "u16" = 5,
-        U32 => "u32" = 6,
-        U64 => "u64" = 7,
-        F32 => "f32" = 8,
-        F64 => "f64" = 9,
-    }
-);
+/// Numeric signatures retain the integer's complete meaning independently of realization limits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum NumericType {
+    Integer(FixedInteger),
+    F32,
+    F64,
+}
 
 impl NumericType {
+    pub const ENCODED_SIZE: usize = 10;
+
     pub const fn is_float(self) -> bool {
         matches!(self, Self::F32 | Self::F64)
+    }
+
+    /// Fixed-size metadata preserves all widths without constructing their values or bounds.
+    pub fn canonical_encoding(self) -> [u8; Self::ENCODED_SIZE] {
+        let mut bytes = [0; Self::ENCODED_SIZE];
+        match self {
+            Self::Integer(carrier) => {
+                bytes[1] = u8::from(carrier.is_signed());
+                bytes[2..].copy_from_slice(&carrier.width().to_le_bytes());
+            }
+            Self::F32 => bytes[0] = 1,
+            Self::F64 => bytes[0] = 2,
+        }
+        bytes
+    }
+
+    pub fn from_canonical_encoding(bytes: [u8; Self::ENCODED_SIZE]) -> Option<Self> {
+        let value = match bytes[0] {
+            0 => {
+                let sign = match bytes[1] {
+                    0 => IntegerSign::Unsigned,
+                    1 => IntegerSign::Signed,
+                    _ => return None,
+                };
+                Self::Integer(FixedInteger::new(
+                    sign,
+                    u64::from_le_bytes(bytes[2..].try_into().ok()?),
+                )?)
+            }
+            1 => Self::F32,
+            2 => Self::F64,
+            _ => return None,
+        };
+        (value.canonical_encoding() == bytes).then_some(value)
     }
 }
 
@@ -421,13 +447,17 @@ impl NumericIntrinsic {
         })
     }
 
-    pub fn canonical_encoding(self) -> Option<[u8; 4]> {
+    pub const ENCODED_SIZE: usize = 4 + 2 * NumericType::ENCODED_SIZE;
+    const SECOND_TYPE_OFFSET: usize = 4 + NumericType::ENCODED_SIZE;
+
+    pub fn canonical_encoding(self) -> Option<[u8; Self::ENCODED_SIZE]> {
         self.signature()?;
         let format_tag = |format| match format {
             FloatFormat::F32 => 0,
             FloatFormat::F64 => 1,
         };
-        Some(match self {
+        let mut bytes = [0; Self::ENCODED_SIZE];
+        let header = match self {
             Self::Builtin { function, format } => {
                 let row =
                     FLOAT_OPERATIONS
@@ -450,39 +480,55 @@ impl NumericIntrinsic {
             Self::IntegerComparison {
                 operation,
                 integer_type,
-            } => [
-                2,
-                primitive_integer_comparison_operation_tag(operation),
-                numeric_type_tag(integer_type),
-                0,
-            ],
+            } => {
+                bytes[4..Self::SECOND_TYPE_OFFSET]
+                    .copy_from_slice(&integer_type.canonical_encoding());
+                [
+                    2,
+                    primitive_integer_comparison_operation_tag(operation),
+                    0,
+                    0,
+                ]
+            }
             Self::Negation(format) => [3, format_tag(format), 0, 0],
             Self::Conversion {
                 source,
                 target,
                 domain,
-            } => [
-                4,
-                numeric_type_tag(source),
-                numeric_type_tag(target),
-                match domain {
-                    ArithmeticDomain::Exact => 0,
-                    ArithmeticDomain::Wrapping => 1,
-                    ArithmeticDomain::Saturating => 2,
-                    ArithmeticDomain::Trapping => 3,
-                },
-            ],
-        })
+            } => {
+                bytes[4..Self::SECOND_TYPE_OFFSET].copy_from_slice(&source.canonical_encoding());
+                bytes[Self::SECOND_TYPE_OFFSET..].copy_from_slice(&target.canonical_encoding());
+                [
+                    4,
+                    match domain {
+                        ArithmeticDomain::Exact => 0,
+                        ArithmeticDomain::Wrapping => 1,
+                        ArithmeticDomain::Saturating => 2,
+                        ArithmeticDomain::Trapping => 3,
+                    },
+                    0,
+                    0,
+                ]
+            }
+        };
+        bytes[..4].copy_from_slice(&header);
+        Some(bytes)
     }
 
-    pub fn from_canonical_encoding(bytes: [u8; 4]) -> Option<Self> {
-        let [kind, first, second, third] = bytes;
+    pub fn from_canonical_encoding(bytes: [u8; Self::ENCODED_SIZE]) -> Option<Self> {
+        let [kind, first, second, _]: [u8; 4] = bytes[..4].try_into().ok()?;
         let format = |tag| match tag {
             0 => Some(FloatFormat::F32),
             1 => Some(FloatFormat::F64),
             _ => None,
         };
-        let numeric = |tag: u8| NumericType::ALL.get(usize::from(tag)).copied();
+        let numeric = |offset| {
+            NumericType::from_canonical_encoding(
+                bytes[offset..offset + NumericType::ENCODED_SIZE]
+                    .try_into()
+                    .ok()?,
+            )
+        };
         let meaning = match kind {
             0 => {
                 let (_, _, _, f32_function, f64_function) =
@@ -502,13 +548,13 @@ impl NumericIntrinsic {
             },
             2 => Self::IntegerComparison {
                 operation: *PrimitiveIntegerComparisonOperation::ALL.get(usize::from(first))?,
-                integer_type: numeric(second)?,
+                integer_type: numeric(4)?,
             },
             3 => Self::Negation(format(first)?),
             4 => Self::Conversion {
-                source: numeric(first)?,
-                target: numeric(second)?,
-                domain: match third {
+                source: numeric(4)?,
+                target: numeric(Self::SECOND_TYPE_OFFSET)?,
+                domain: match first {
                     0 => ArithmeticDomain::Exact,
                     1 => ArithmeticDomain::Wrapping,
                     2 => ArithmeticDomain::Saturating,
@@ -534,32 +580,9 @@ impl NumericIntrinsic {
 
 impl NumericType {
     pub fn scalar_type(self) -> Option<semantic_vocabulary::ScalarType> {
-        use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, IntegerType, ScalarType};
+        use semantic_vocabulary::{IeeeFloatFormat, IntegerType, ScalarType};
         match self {
-            Self::I8 => Some(ScalarType::Integer(
-                IntegerType::new(IntegerSign::Signed, 8).ok()?,
-            )),
-            Self::I16 => Some(ScalarType::Integer(
-                IntegerType::new(IntegerSign::Signed, 16).ok()?,
-            )),
-            Self::I32 => Some(ScalarType::Integer(
-                IntegerType::new(IntegerSign::Signed, 32).ok()?,
-            )),
-            Self::I64 => Some(ScalarType::Integer(
-                IntegerType::new(IntegerSign::Signed, 64).ok()?,
-            )),
-            Self::U8 => Some(ScalarType::Integer(
-                IntegerType::new(IntegerSign::Unsigned, 8).ok()?,
-            )),
-            Self::U16 => Some(ScalarType::Integer(
-                IntegerType::new(IntegerSign::Unsigned, 16).ok()?,
-            )),
-            Self::U32 => Some(ScalarType::Integer(
-                IntegerType::new(IntegerSign::Unsigned, 32).ok()?,
-            )),
-            Self::U64 => Some(ScalarType::Integer(
-                IntegerType::new(IntegerSign::Unsigned, 64).ok()?,
-            )),
+            Self::Integer(carrier) => IntegerType::from_fixed(carrier).map(ScalarType::Integer),
             Self::F32 => Some(ScalarType::IeeeFloat(IeeeFloatFormat::Binary32)),
             Self::F64 => Some(ScalarType::IeeeFloat(IeeeFloatFormat::Binary64)),
         }
@@ -567,34 +590,24 @@ impl NumericType {
 }
 
 fn numeric_primitive(namespace: &str) -> Option<NumericType> {
-    Some(match namespace {
-        "F32" => NumericType::F32,
-        "F64" => NumericType::F64,
-        "I8" => NumericType::I8,
-        "I16" => NumericType::I16,
-        "I32" => NumericType::I32,
-        "I64" => NumericType::I64,
-        "U8" => NumericType::U8,
-        "U16" => NumericType::U16,
-        "U32" => NumericType::U32,
-        "U64" => NumericType::U64,
-        _ => return None,
-    })
+    match namespace {
+        "F32" => return Some(NumericType::F32),
+        "F64" => return Some(NumericType::F64),
+        _ => {}
+    }
+    let (sign, digits) = if let Some(digits) = namespace.strip_prefix('I') {
+        (IntegerSign::Signed, digits)
+    } else {
+        (IntegerSign::Unsigned, namespace.strip_prefix('U')?)
+    };
+    FixedInteger::from_decimal_digits(sign, digits).map(NumericType::Integer)
 }
 
 fn conversion_operand(name: &str) -> Option<NumericType> {
     Some(match name {
         "f32" => NumericType::F32,
         "f64" => NumericType::F64,
-        "i8" => NumericType::I8,
-        "i16" => NumericType::I16,
-        "i32" => NumericType::I32,
-        "i64" => NumericType::I64,
-        "u8" => NumericType::U8,
-        "u16" => NumericType::U16,
-        "u32" => NumericType::U32,
-        "u64" => NumericType::U64,
-        _ => return None,
+        _ => NumericType::Integer(FixedInteger::from_decimal_spelling(name)?),
     })
 }
 
@@ -636,15 +649,72 @@ mod tests {
                 excess.push(Some(row.operand));
                 assert!(!row.accepts(excess.into_iter(), Some(row.result)));
                 let mut wrong_operand = parameters.clone();
-                wrong_operand[0] = Some(NumericType::I32);
+                wrong_operand[0] = Some(NumericType::Integer(FixedInteger::signed(32)));
                 assert!(!row.accepts(wrong_operand.into_iter(), Some(row.result)));
                 assert!(!row.accepts(
                     parameters.iter().copied(),
-                    Some(NumericResult::Primitive(NumericType::I32))
+                    Some(NumericResult::Primitive(NumericType::Integer(
+                        FixedInteger::signed(32)
+                    )))
                 ));
                 assert!(!row.accepts(parameters.iter().copied(), None));
             }
         }
+    }
+
+    #[test]
+    fn unusual_width_numeric_intrinsics_retain_exact_conversion_meaning() {
+        for (namespace, name) in [("F32", "from_u13"), ("I257", "from_f64")] {
+            let row = NamedNumericIntrinsic::resolve(namespace, name, ArithmeticDomain::Exact)
+                .expect("numeric signatures retain arbitrary integer widths");
+            assert_eq!(
+                NumericIntrinsic::from_canonical_encoding(
+                    row.execution.canonical_encoding().unwrap()
+                ),
+                Some(row.execution)
+            );
+            assert!(row.accepts([Some(row.operand)].into_iter(), Some(row.result)));
+            assert!(!row.accepts([None].into_iter(), Some(row.result)));
+        }
+    }
+
+    #[test]
+    fn integer_width_encoding_preserves_sign_and_refuses_malformed_types() {
+        for width in [1, 13, 128, 257, u64::MAX] {
+            for integer in [FixedInteger::signed(width), FixedInteger::unsigned(width)] {
+                let value = NumericType::Integer(integer);
+                let bytes = value.canonical_encoding();
+                assert_eq!(NumericType::from_canonical_encoding(bytes), Some(value));
+                let meaning = NumericIntrinsic::IntegerComparison {
+                    operation: PrimitiveIntegerComparisonOperation::Less,
+                    integer_type: value,
+                };
+                let encoded = meaning.canonical_encoding().unwrap();
+                assert_eq!(
+                    NumericIntrinsic::from_canonical_encoding(encoded),
+                    Some(meaning)
+                );
+                let mut invalid = bytes;
+                invalid[1] = 2;
+                assert_eq!(NumericType::from_canonical_encoding(invalid), None);
+                invalid = bytes;
+                invalid[2..].fill(0);
+                assert_eq!(NumericType::from_canonical_encoding(invalid), None);
+            }
+        }
+        let mut padded_float = NumericType::F32.canonical_encoding();
+        padded_float[9] = 1;
+        assert_eq!(NumericType::from_canonical_encoding(padded_float), None);
+        assert!(
+            NumericType::Integer(FixedInteger::unsigned(13))
+                .scalar_type()
+                .is_some()
+        );
+        assert!(
+            NumericType::Integer(FixedInteger::unsigned(257))
+                .scalar_type()
+                .is_none()
+        );
     }
 
     #[test]
@@ -654,7 +724,7 @@ mod tests {
                 "F32",
                 "from_i64",
                 ArithmeticDomain::Wrapping,
-                NumericType::I64,
+                NumericType::Integer(FixedInteger::signed(64)),
                 NumericType::F32,
                 ArithmeticDomain::Exact,
             ),
@@ -671,7 +741,7 @@ mod tests {
                 "from_f64",
                 ArithmeticDomain::Saturating,
                 NumericType::F64,
-                NumericType::I32,
+                NumericType::Integer(FixedInteger::signed(32)),
                 ArithmeticDomain::Saturating,
             ),
             (
@@ -679,7 +749,7 @@ mod tests {
                 "from_f32",
                 ArithmeticDomain::Trapping,
                 NumericType::F32,
-                NumericType::U8,
+                NumericType::Integer(FixedInteger::unsigned(8)),
                 ArithmeticDomain::Trapping,
             ),
         ] {

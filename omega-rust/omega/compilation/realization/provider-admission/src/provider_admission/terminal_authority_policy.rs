@@ -2,7 +2,7 @@
 Receiving-realization terminal-authority policy construction and classification.
 
 `TerminalAuthorityPolicy` classifies role-tagged terminal mechanisms across the
-closed compiler intrinsic inventory, the committed parameterized caller-RAM
+closed compiler intrinsic inventory, committed width-indexed numeric families, and the caller-RAM
 scalar access family (`Read`/`Write` with nonzero contract and placement
 commitments), and explicit normalized-foreign, table, syscall, or
 checked-physical rows.
@@ -47,11 +47,14 @@ pub(crate) use external_mechanisms::{
 };
 pub use host_cohorts::{filesystem_host_permission_rows, time_host_permission_rows};
 
-pub(crate) const TERMINAL_AUTHORITY_POLICY_VERSION: u32 = 10;
+pub(crate) const TERMINAL_AUTHORITY_POLICY_VERSION: u32 = 11;
 const POLICY_COMMITMENT_DOMAIN: &[u8] = b"omega.terminal-authority.policy.v3\0";
-const PARAMETERIZED_POLICY_FAMILY_COUNT: u32 = 1;
+const PARAMETERIZED_POLICY_FAMILY_COUNT: u32 = 3;
 const ACCESS_CALLER_RAM_SCALAR_POLICY_V1: &[u8] =
     b"omega.compiler-policy.placed-caller-ram-scalar.v1\0";
+const INTEGER_COMPARISON_POLICY_V1: &[u8] = b"omega.compiler-policy.integer-width-comparison.v1\0";
+const FLOAT_CONVERSION_POLICY_V1: &[u8] =
+    b"omega.compiler-policy.integer-width-float-conversion.v1\0";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAuthorityPolicyRow {
@@ -279,7 +282,34 @@ pub fn current_terminal_authority_policy() -> TerminalAuthorityPolicy {
 fn classify_parameterized_intrinsic(
     mechanism: CompilerIntrinsicExecutionIdentity,
 ) -> Option<TerminalAuthorityDisposition> {
+    use language_semantics::numeric_intrinsics::NumericIntrinsic;
     match mechanism {
+        CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
+            operation,
+            integer_type,
+        } if (NumericIntrinsic::IntegerComparison {
+            operation,
+            integer_type,
+        })
+        .signature()
+        .is_some() =>
+        {
+            Some(TerminalAuthorityDisposition::from_classes([]))
+        }
+        CompilerIntrinsicExecutionIdentity::NamedFloatConversion {
+            source,
+            target,
+            domain,
+        } if (NumericIntrinsic::Conversion {
+            source,
+            target,
+            domain,
+        })
+        .signature()
+        .is_some() =>
+        {
+            Some(TerminalAuthorityDisposition::from_classes([]))
+        }
         CompilerIntrinsicExecutionIdentity::AccessorScalarAccess {
             contract,
             placement_commitment,
@@ -298,6 +328,17 @@ fn encode_parameterized_commitment(hasher: &mut DomainDigestEncoder) {
     hasher.raw(ACCESS_CALLER_RAM_SCALAR_POLICY_V1);
     hasher.raw(&[32, 32, 4, 2, 0, 2]);
     hasher.raw(&0_u32.to_be_bytes());
+    // Numeric families classify exact checked signatures; arbitrary widths do not
+    // imply that a target can execute them or supply any object authority.
+    for family in [INTEGER_COMPARISON_POLICY_V1, FLOAT_CONVERSION_POLICY_V1] {
+        hasher.raw(&(family.len() as u32).to_be_bytes());
+        hasher.raw(family);
+        hasher.raw(
+            &(language_semantics::numeric_intrinsics::NumericType::ENCODED_SIZE as u32)
+                .to_be_bytes(),
+        );
+        hasher.raw(&0_u32.to_be_bytes());
+    }
 }
 
 fn complete_policy_commitment(explicit_rows: &[TerminalAuthorityPolicyRow]) -> [u8; 32] {
@@ -343,4 +384,53 @@ fn encode_mechanism(hasher: &mut DomainDigestEncoder, mechanism: TerminalMechani
             .to_be_bytes(),
     );
     hasher.raw(&bytes);
+}
+
+#[cfg(test)]
+mod integer_width_tests {
+    use super::*;
+    use effects::{
+        CompilerNumericType as Numeric, CompilerPrimitiveIntegerComparisonOperation as Comparison,
+    };
+    use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
+
+    #[test]
+    fn integer_width_families_classify_only_valid_numeric_meanings() {
+        let policy = current_terminal_authority_policy();
+        for width in [1, 13, 257, u64::MAX] {
+            for integer in [FixedInteger::signed(width), FixedInteger::unsigned(width)] {
+                for mechanism in [
+                    CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
+                        operation: Comparison::Less,
+                        integer_type: Numeric::Integer(integer),
+                    },
+                    CompilerIntrinsicExecutionIdentity::NamedFloatConversion {
+                        source: Numeric::F64,
+                        target: Numeric::Integer(integer),
+                        domain: ArithmeticDomain::Saturating,
+                    },
+                ] {
+                    assert!(policy.classify(mechanism).unwrap().classes().is_empty());
+                }
+            }
+        }
+        for mechanism in [
+            CompilerIntrinsicExecutionIdentity::PrimitiveIntegerComparison {
+                operation: Comparison::Less,
+                integer_type: Numeric::F32,
+            },
+            CompilerIntrinsicExecutionIdentity::NamedFloatConversion {
+                source: Numeric::F64,
+                target: Numeric::Integer(FixedInteger::unsigned(13)),
+                domain: ArithmeticDomain::Wrapping,
+            },
+            CompilerIntrinsicExecutionIdentity::NamedFloatConversion {
+                source: Numeric::F32,
+                target: Numeric::F32,
+                domain: ArithmeticDomain::Exact,
+            },
+        ] {
+            assert!(policy.classify(mechanism).is_err());
+        }
+    }
 }

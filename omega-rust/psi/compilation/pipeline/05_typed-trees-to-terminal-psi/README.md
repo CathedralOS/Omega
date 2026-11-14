@@ -39,6 +39,11 @@ and [places](src/lower/places.rs) (roots, projections, the write log, record
 and case construction, field and payload reads, whole copies, the dispatch
 terminator).
 
+Expression evaluation returns either a value or an explicit ended-path outcome.
+Calls, projections and constructors propagate that outcome in evaluation order;
+branch owners retain whichever paths still reach their join. A genuine refusal
+stays an error, independent of its diagnostic text.
+
 ## The subset
 
 Machines with one state and a complete body whose formals, locals and result
@@ -62,11 +67,10 @@ form the kernel denotes a false integer equality by; a `requires` or
 `crash Trap;` and `crash Abort;`; guarded transition arms; and returns. A call
 of a machine that may return is an operation wherever it stands, and carries
 the callee's crash routes when it publishes any. A call of a machine with no
-normal completion is served only in terminal position (an arm target or a
-call statement), where it becomes the block's no-normal invocation.
+normal completion becomes the block's no-normal invocation wherever it occurs.
+The surrounding evaluation stops on that path; other branch arrivals remain.
 Everything else is refused with `RefusalReason::Unsupported` and a detail
-naming the construct (`expression match`, `type reference`, `call no-normal
-call inside an expression`, ...): a reference outside [References](#references), slice, generic, callable value, suspension, assembly, float,
+naming the construct (`type reference`, ...): a reference outside [References](#references), slice, generic, callable value, suspension, assembly, float,
 domain, cast that names a domain, or service reach is never skipped, approximated or passed through. A
 refusal anywhere in the compilation refuses the whole compilation.
 
@@ -100,10 +104,13 @@ decided by the request, not by where source lives". The roots are, in
 5. every machine those call, in discovery order, whichever package declares
    it.
 
-A selected data type is resolved as a record. A selection of anything else
-(a trait, a requirement, an operator family) is refused as `declaration Build
-selection that is not a machine or a data type`: a provider is judged
-against what it provides as a supply, never as a bare selected declaration.
+A selected data type is resolved as a record. A native binding also selects
+its exact boundary requirement and declaring trait: the reader checks the
+requirement's signature and contracts and retains the trait's service identity.
+Declaration checking does not install a provider or permit calls to another
+package's private requirement. Actual calls retain visibility and operational
+checks; providers are judged separately as supplies. Other selected declarations,
+including ordinary traits and operator families, are refused.
 
 A supply (`Supply { slot, provider }`) names a boundary trait or one of its
 requirements and the provider chosen for it: a Build selection, or the supply
@@ -1140,8 +1147,12 @@ the contract the place declared in the domain already has, with the domain's
 | a field of a data type | `requires` clauses of that data type over `self.field`, owed by its constructions, stores and zero establishment and kept by its invariant windows |
 | the result of `value as +D` | the invariant of the block the cast continues in (`ExpressionKind::Establish`, `lower/control.rs` `prove_membership`): the jump into it owes the clauses as an `ArrivalInvariant` at the cast, and the block's one parameter is the result |
 
-Served for a scalar carrier. A domain with predicates on a data carrier, on a
-borrowed formal, on a case payload or on an array element is refused by name.
+On a data carrier the clauses name fields beneath `self`, so a field
+`player: Player in Alive` of `domain Player::Alive requires self.health > 0`
+owes `self.player.health > 0` among its owner's clauses. A formal or a result
+whose data type carries such a domain has no owner to join and is refused by
+name, as are a cast that adds one, a borrowed formal, a case payload and an
+array element in a domain with predicates.
 
 Lowering mints one `DataDomain` obligation per owed clause, at the point
 before the operation that owes it

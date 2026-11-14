@@ -35,9 +35,11 @@
 //! none or with several rejects the program
 //! (wiki/spec/build/provider_selection.md, "Missing, duplicate, incompatible,
 //! or unadmitted selected supply rejects rather than choosing a body by
-//! spelling or source order"). The chosen supply then needs its provider plan
-//! checked against the slot; that plan has no producer on this route yet, so
-//! `SettledTargetSupply::plans` refuses each chosen supply by name.
+//! spelling or source order"). Each chosen provider then forms one provider
+//! plan for the slot it supplies (`SettledTargetSupply::plans`): a checked
+//! adapter row for every requirement of the slot's schema, each naming the
+//! machine the accepted module states as that provider's candidate for that
+//! requirement.
 
 use build_time_evaluation::provider_declarations::{
     ProviderSelection, ProviderSelectionSubject, TargetProviderDefaults,
@@ -370,27 +372,234 @@ impl SettledTargetSupply {
         &self.requirements
     }
 
-    /// The provider plans of the chosen supplies: none for a module that
-    /// demands nothing. A chosen supply needs its provider checked against
-    /// the slot and a calling plan for the selected target; neither has a
-    /// producer on this route, so each is refused by name.
-    pub fn plans(&self) -> Result<Vec<effects::provider_plan::ProviderPlan>, Vec<Diagnostic>> {
+    /// The provider plans of the chosen supplies, one for each provider
+    /// chosen for a slot: none for a module that demands nothing.
+    ///
+    /// provider_selection.md: "A selected plan must cover its complete schema
+    /// and apply to the target", and plans "rejoin exact slot, realizing
+    /// machine, provider value, schema, and requirement owners". So a plan
+    /// has a checked adapter row for every requirement of the slot's schema,
+    /// reached or not, each naming the machine the accepted module states as
+    /// the chosen provider's candidate for that requirement. The provider is
+    /// the declaration the module states for the machine settlement found for
+    /// a reached requirement (`SettledRequirement::realization`), so the plan
+    /// names the provider that was judged and nothing is looked up by name.
+    /// A requirement of the schema with no such candidate, or with several,
+    /// refuses the plan naming the requirement.
+    pub fn plans(
+        &self,
+        planning: SupplyPlanning<'_>,
+    ) -> Result<Vec<backend_plan::TerminalTargetProviderPlan>, Vec<Diagnostic>> {
         if self.requirements.is_empty() {
             return Ok(Vec::new());
         }
-        Err(self
-            .requirements
-            .iter()
-            .map(|requirement| {
-                Diagnostic::error(format!(
-                    "no product route yet: provider settlement for `{}`: `{}` is supplied by `{}`, and no provider or calling plan can be formed for a selected provider on this route",
-                    self.target.as_deref().unwrap_or("<unscoped>"),
+        let target = self.target.as_deref().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "provider settlement lost its deployment target",
+            )]
+        })?;
+        // One plan for each provider chosen for a slot, however many of the
+        // slot's requirements the target reaches.
+        let mut chosen = Vec::<(symbols::SymbolHandle, Vec<&SettledRequirement>)>::new();
+        let mut refusals = Vec::new();
+        for requirement in &self.requirements {
+            let selection = &requirement.supply.selection;
+            let ProviderSelectionSubject::BoundaryTrait(slot) = &selection.subject else {
+                refusals.push(Diagnostic::error(format!(
+                    "no product route yet: provider settlement for `{target}`: `{}` is supplied by `{}` through a selection of {}, and a provider plan is formed only for a selection of a whole boundary trait",
                     requirement.reached.name,
-                    requirement.supply.selection.provider_type.authored_path,
-                ))
-            })
-            .collect())
+                    selection.provider_type.authored_path,
+                    match selection.subject {
+                        ProviderSelectionSubject::BoundaryRequirement(_) => "one requirement",
+                        _ => "an operator family",
+                    },
+                )));
+                continue;
+            };
+            match chosen.iter_mut().find(|(known, rows)| {
+                *known == slot.symbol
+                    && rows[0].supply.selection.provider_type.symbol
+                        == selection.provider_type.symbol
+            }) {
+                Some((_, rows)) => rows.push(requirement),
+                None => chosen.push((slot.symbol, vec![requirement])),
+            }
+        }
+        let mut plans = Vec::with_capacity(chosen.len());
+        for (slot, requirements) in chosen {
+            match slot_plan(target, slot, &requirements, &planning) {
+                Ok(plan) => plans.push(plan),
+                Err(refusal) => refusals.push(refusal),
+            }
+        }
+        if !refusals.is_empty() {
+            return Err(refusals);
+        }
+        Ok(plans)
     }
+}
+
+/// What the plans of the chosen supplies are formed from.
+pub struct SupplyPlanning<'a> {
+    /// The accepted module the supply was settled on: the provider
+    /// candidates it states are what each plan's rows name.
+    pub module: &'a TerminalModule,
+    /// The schema of each slot a chosen provider supplies
+    /// (`AcceptedTerminalSource::slot_schema`).
+    pub schemas: &'a [SlotSchema],
+}
+
+/// The complete schema of one boundary trait a provider may be chosen for.
+#[derive(Debug, Clone)]
+pub struct SlotSchema {
+    pub slot: symbols::SymbolHandle,
+    pub surface: std::sync::Arc<effects::provider_plan::ServiceSurface>,
+}
+
+/// The plan of the one provider chosen for `slot`, which supplies each of
+/// `requirements` (all reached on `target`, all with that provider).
+fn slot_plan(
+    target: &str,
+    slot: symbols::SymbolHandle,
+    requirements: &[&SettledRequirement],
+    planning: &SupplyPlanning<'_>,
+) -> Result<backend_plan::TerminalTargetProviderPlan, Diagnostic> {
+    use effects::provider_plan::{
+        ProviderBinding, ProviderIdentityTable, ProviderPlan, ProviderPlanRow, ServiceSchema,
+    };
+    let module = planning.module;
+    let text = |identity: terminal_psi::TerminalIdentityIndex| module.identities.text(identity);
+    let first = requirements[0];
+    let selection = &first.supply.selection;
+    let provider = &selection.provider_type;
+    let refuse =
+        |what: String| Diagnostic::error(format!("provider settlement for `{target}`: {what}"));
+    let schema = planning
+        .schemas
+        .iter()
+        .find(|schema| schema.slot == slot)
+        .ok_or_else(|| {
+            refuse(format!(
+                "the slot `{}` names has no provider schema",
+                first.reached.name
+            ))
+        })?;
+    // The provider's declaration is the one the module states for the
+    // machine settlement found for each reached requirement.
+    let mut owner = None;
+    for requirement in requirements {
+        let machine = requirement.realization.ok_or_else(|| {
+            refuse(format!(
+                "`{}` is supplied by `{}`, which the accepted module does not hold as a judged provider",
+                requirement.reached.name, provider.authored_path
+            ))
+        })?;
+        let stated = module
+            .provider_candidates
+            .iter()
+            .find(|candidate| {
+                candidate.boundary == requirement.reached.boundary
+                    && candidate.candidate == machine
+                    && text(candidate.provider_identity) == Some(provider.canonical_path.as_str())
+            })
+            .ok_or_else(|| {
+                refuse(format!(
+                    "the accepted module states no candidate of `{}` for `{}`",
+                    provider.authored_path, requirement.reached.name
+                ))
+            })?;
+        match owner {
+            None => owner = Some(stated.provider_declaration.clone()),
+            Some(ref known) if *known == stated.provider_declaration => {}
+            Some(_) => {
+                return Err(refuse(format!(
+                    "`{}` states candidates of `{}` under two declarations",
+                    first.reached.name, provider.authored_path
+                )));
+            }
+        }
+    }
+    let owner = owner.ok_or_else(|| refuse("a chosen provider supplies nothing".to_owned()))?;
+    let surface = &schema.surface;
+    let mut identities = ProviderIdentityTable::default();
+    let mut rows = Vec::with_capacity(surface.methods.len());
+    for method in &surface.methods {
+        let requirement = surface.identity_text(method.requirement_identity);
+        let mut candidates = module.provider_candidates.iter().filter(|candidate| {
+            candidate.provider_declaration == owner
+                && text(candidate.source_requirement_identity) == Some(requirement)
+        });
+        let named = format!("{}::{}", method.requirement_owner, method.name);
+        let candidate = match (candidates.next(), candidates.next()) {
+            (Some(candidate), None) => candidate,
+            (None, _) => {
+                return Err(refuse(format!(
+                    "`{}` supplies `{named}` with no checked machine the accepted module states",
+                    provider.authored_path
+                )));
+            }
+            (Some(_), Some(_)) => {
+                return Err(refuse(format!(
+                    "`{}` supplies `{named}` with more than one checked machine",
+                    provider.authored_path
+                )));
+            }
+        };
+        let machine = text(candidate.source_candidate_identity)
+            .filter(|machine| !machine.is_empty())
+            .ok_or_else(|| {
+                refuse(format!(
+                    "the machine `{}` supplies `{named}` with has no callable identity",
+                    provider.authored_path
+                ))
+            })?;
+        let requirement = identities.intern(requirement);
+        rows.push(ProviderPlanRow {
+            method: method.name.clone(),
+            requirement_identity: requirement,
+            declared_requirement_identity: requirement,
+            calling_signature: None,
+            requirement_lifetime_partition: Vec::new(),
+            admitted_same_stack_bytes: 0,
+            binding: ProviderBinding::CheckedAdapter {
+                machine_identity: identities.intern(machine),
+                machine_package_identity: candidate.source_candidate_package_identity,
+            },
+        });
+    }
+    let plan = ProviderPlan {
+        name: crate::satisfies_plan_name(
+            target,
+            surface.identity_text(surface.trait_name),
+            &provider.canonical_path,
+        ),
+        provider_type: provider.canonical_path.clone(),
+        provider_type_package_identity: provider.package,
+        target: target.to_owned(),
+        schema: ServiceSchema::from_declaration(std::sync::Arc::clone(surface)),
+        identities,
+        rows,
+        origin_package_identity: provider.package,
+        ..ProviderPlan::default()
+    };
+    let errors = plan.validate_against_schema();
+    if !errors.is_empty() {
+        return Err(refuse(errors.join("; ")));
+    }
+    let provider_declaration = text(owner.identity())
+        .filter(|declaration| !declaration.is_empty())
+        .ok_or_else(|| {
+            refuse(format!(
+                "`{}` has no declaration identity in the accepted module",
+                provider.authored_path
+            ))
+        })?
+        .to_owned();
+    Ok(backend_plan::TerminalTargetProviderPlan {
+        row_numeric_realizations: vec![None; plan.rows.len()],
+        provider_declaration: Some(provider_declaration),
+        plan,
+    })
 }
 
 fn refuse(target: &str, demand: &str) -> Diagnostic {
@@ -427,9 +636,11 @@ fn unplanned_demands(module: &TerminalModule) -> Vec<&'static str> {
             !module.external_providers.is_empty(),
             "an external provider realization",
         ),
+        // A chosen provider's candidates are what its plan's rows name
+        // (`SettledTargetSupply::plans`); an instance of a generic
+        // requirement has no plan here yet.
         (
-            !module.provider_candidates.is_empty()
-                || !module.provider_instance_requirements.is_empty(),
+            !module.provider_instance_requirements.is_empty(),
             "a provider instance",
         ),
         (

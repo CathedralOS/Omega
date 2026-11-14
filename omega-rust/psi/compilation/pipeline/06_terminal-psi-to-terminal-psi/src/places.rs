@@ -531,9 +531,12 @@ struct BoundPayload<'a> {
 pub(crate) struct Storage<'a> {
     machine: MachineId,
     lowered: &'a TerminalMachine,
+    module: &'a terminal_psi::TerminalModule,
     types: &'a [StructuralTypeDeclaration],
     graph: &'a Graph,
     initial_contents: Vec<Option<ValueId>>,
+    /// Bound actual operations and structural edge bindings once per machine.
+    reaching_budget: usize,
     log: Vec<Logged>,
     /// Shared descriptor replay owns storage aliasing. This is local checker
     /// scratch over the same canonical machine closure, never source evidence.
@@ -548,7 +551,7 @@ impl<'a> Storage<'a> {
     pub(crate) fn new(
         machine: MachineId,
         lowered: &'a TerminalMachine,
-        types: &'a [StructuralTypeDeclaration],
+        module: &'a terminal_psi::TerminalModule,
         domains: &'a IdTable<StructuralTypeId, Vec<Proposition>>,
         graph: &'a Graph,
         tables: &MachineTables,
@@ -558,12 +561,28 @@ impl<'a> Storage<'a> {
         // First, because every lineage below is read through the place
         // table's parent links.
         log::places_are_interned(machine, tables)?;
+        let reaching_budget = lowered
+            .blocks
+            .iter()
+            .map(|block| {
+                block.operations.len()
+                    + block
+                        .terminator
+                        .successor_block_arguments()
+                        .iter()
+                        .map(|arguments| arguments.len())
+                        .sum::<usize>()
+            })
+            .sum::<usize>()
+            + 1;
         let mut storage = Self {
             machine,
             lowered,
-            types,
+            module,
+            types: &module.structural_types,
             graph,
             initial_contents: initial_contents(machine, tables)?,
+            reaching_budget,
             log: Vec::new(),
             references,
             domains,
@@ -1260,8 +1279,14 @@ impl<'a> Storage<'a> {
                 }
                 _ => Err(self.foreign(concerns, "a result place on a machine with none")),
             },
-            StructuralPlaceKind::BlockParameter { .. }
-            | StructuralPlaceKind::ProviderAttachment { .. }
+            StructuralPlaceKind::BlockParameter { block, position } => self
+                .block(block)?
+                .structural_parameters
+                .get(usize::try_from(position).unwrap_or(usize::MAX))
+                .filter(|parameter| parameter.position == position && parameter.place == root)
+                .map(|parameter| parameter.structural_type)
+                .ok_or_else(|| self.foreign(concerns, "a block formal's place has no declaration")),
+            StructuralPlaceKind::ProviderAttachment { .. }
             | StructuralPlaceKind::TrivialAffineLocal { .. } => {
                 Err(self.unsupported(concerns, "a root place kind outside this route"))
             }
@@ -2023,6 +2048,97 @@ impl<'a> Storage<'a> {
                 supply(self.supplied(tables, index, asked, budget, concerns)?);
                 continue;
             }
+            // A block formal is a new owner of the selected edge's actual
+            // value. Follow that exact region before the edge consumes it;
+            // do not invent initial contents or pick one predecessor's value.
+            if let StructuralPlaceKind::BlockParameter {
+                block: owner,
+                position,
+            } = self.root_kind(asked_root(asked), concerns)?
+                && owner == block
+            {
+                let target = self.block(block)?;
+                let position = usize::try_from(position)
+                    .map_err(|_| self.foreign(concerns, "a block formal position exceeds usize"))?;
+                let parameter = target.structural_parameters.get(position).ok_or_else(|| {
+                    self.foreign(concerns, "a block formal is outside its telescope")
+                })?;
+                if parameter.place != asked_root(asked)
+                    || usize::try_from(parameter.position).ok() != Some(position)
+                {
+                    return Err(self.foreign(concerns, "a block formal has another owner"));
+                }
+                // A transfer establishes a whole value, as a whole store
+                // closes any window on the destination. A window on its
+                // source is owed at the edge's ordinary consumption point.
+                if matches!(asked, Asked::Window { .. }) {
+                    supply(Reached::Closed);
+                    continue;
+                }
+                let mut predecessors = self.graph.predecessors(block)?.to_vec();
+                predecessors.sort_unstable();
+                predecessors.dedup();
+                let mut found = false;
+                for predecessor in predecessors {
+                    let terminator = &self.block(predecessor)?.terminator;
+                    let successors = terminator.successor_edges();
+                    let bindings = terminator.successor_block_arguments();
+                    if successors.len() != bindings.len() {
+                        return Err(
+                            self.foreign(concerns, "an edge has no complete binding roster")
+                        );
+                    }
+                    for ((edge, into), arguments) in successors.into_iter().zip(bindings) {
+                        if into != block {
+                            continue;
+                        }
+                        found = true;
+                        if arguments.len() != target.structural_parameters.len() {
+                            return Err(self.foreign(
+                                Construct::Edge(edge),
+                                "structural edge arguments differ from the target telescope",
+                            ));
+                        }
+                        let argument = &arguments[position];
+                        if !terminal_psi::structural_access_covers(
+                            argument.access,
+                            parameter.access,
+                        ) {
+                            return Err(self.foreign(
+                                Construct::Edge(edge),
+                                "a structural edge argument has insufficient access",
+                            ));
+                        }
+                        let mut source = self.argument(argument, Construct::Edge(edge))?;
+                        if !matches!(self.shape(&source, Construct::Edge(edge))?,
+                            Shape::Typed(actual) if actual == parameter.structural_type)
+                        {
+                            return Err(self.foreign(
+                                Construct::Edge(edge),
+                                "a structural edge argument has another type",
+                            ));
+                        }
+                        source.segments.extend_from_slice(&asked.place().segments);
+                        let asked = match asked {
+                            Asked::Contents(_) => Asked::Contents(&source),
+                            Asked::Case(_) => Asked::Case(&source),
+                            Asked::Window { .. } => unreachable!("windows close at the binding"),
+                        };
+                        supply(self.reaching(
+                            tables,
+                            asked,
+                            predecessor,
+                            usize::MAX,
+                            budget,
+                            concerns,
+                        )?);
+                    }
+                }
+                if !found {
+                    return Err(self.foreign(concerns, "a block formal has no incoming binding"));
+                }
+                continue;
+            }
             if block == self.graph.entry() {
                 supply(
                     match (asked, self.root_kind(asked_root(asked), concerns)?) {
@@ -2083,12 +2199,7 @@ impl<'a> Storage<'a> {
     }
 
     fn budget(&self) -> usize {
-        self.lowered
-            .blocks
-            .iter()
-            .map(|block| block.operations.len())
-            .sum::<usize>()
-            + 1
+        self.reaching_budget
     }
 
     /// The equation a read establishes on its normal successor:

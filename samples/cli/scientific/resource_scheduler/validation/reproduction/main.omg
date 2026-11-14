@@ -1,6 +1,6 @@
 // Complete current-main reproduction: a guarded successor borrows a local
 // fixed byte array. The same source is required to print the actual bytes.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { choice: i32; }
 machine Main::main(main: &mut Main) reaches Console {
     let bytes: [u8; 4] = "TEST";

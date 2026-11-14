@@ -5,21 +5,21 @@ mapping every AArch64 register-constraint key and normalized foreign call to its
 exact encoded register, flag, memory, stack, control-flow, and trap effects.
 */
 
-use register_model::{TargetRegisterEnvironmentConstraintKeys, ValidatedRegisterConstraintCatalog};
+use register_model::{PreparedRegisterConstraintCatalog, TargetRegisterEnvironmentConstraintKeys};
 use selected_instructions::{
     MachineAlternative, MachineAlternativeApplicability, MachineAlternativeKey, MachineBarrier,
     MachineCallEffect, MachineCleanupEffect, MachineEffectCatalog, MachineEffectDeclaration,
     MachineEncodedControlEffect, MachineEncodedEffects, MachineEncodedMemoryEffect,
-    MachineEncodedStackEffect, MachineEncodedTrapBehavior, MachineLatencyKnowledge,
-    MachineMemoryEffect, MachineSemanticKind, MachineSizeKnowledge, MachineTrapBehavior,
-    SelectedConstraintKeys, isa_machine_effect_catalog_plumbing,
+    MachineEncodedTrapBehavior, MachineLatencyKnowledge, MachineMemoryEffect, MachineSemanticKind,
+    MachineSizeKnowledge, MachineTrapBehavior, SelectedConstraintKeys,
+    isa_machine_effect_catalog_plumbing,
 };
 use target::{Architecture, NativeTarget, ObjectFormat};
 
 use crate::saturating_forms::SaturatingRealization;
 
 mod scalar_call {
-    use register_model::{RegisterConstraintKey, ValidatedRegisterConstraintCatalog};
+    use register_model::{PreparedRegisterConstraintCatalog, RegisterConstraintKey};
     use selected_instructions::{
         MachineAlternative, MachineAlternativeApplicability, MachineAlternativeKey, MachineBarrier,
         MachineCallEffect, MachineCleanupEffect, MachineEffectDeclaration,
@@ -31,7 +31,7 @@ mod scalar_call {
     pub(super) fn declaration(
         semantic: MachineSemanticKind,
         constraint: RegisterConstraintKey,
-        constraints: &ValidatedRegisterConstraintCatalog,
+        constraints: &PreparedRegisterConstraintCatalog,
     ) -> MachineEffectDeclaration {
         let row = constraints
             .catalog()
@@ -270,7 +270,7 @@ isa_machine_effect_catalog_plumbing!(
 
 pub fn aarch64_machine_effect_catalog(
     target: NativeTarget,
-    constraints: &ValidatedRegisterConstraintCatalog,
+    constraints: &PreparedRegisterConstraintCatalog,
 ) -> Result<MachineEffectCatalog, Aarch64MachineEffectCatalogValidationError> {
     if target.architecture != Architecture::Aarch64
         || constraints.architecture() != Architecture::Aarch64
@@ -377,7 +377,7 @@ pub fn aarch64_machine_effect_catalog(
                         MachineSemanticKind::ReturnAggregate | MachineSemanticKind::ReturnScalar
                     ) {
                         let mut returned =
-                            declaration(MachineSemanticKind::ReturnScalar, &selected_keys);
+                            declaration(MachineSemanticKind::ReturnScalar, &selected_keys)?;
                         returned.semantic = semantic;
                         returned.constraint = constraint;
                         returned.alternatives[0].key.family = semantic.into();
@@ -392,7 +392,7 @@ pub fn aarch64_machine_effect_catalog(
                     ) {
                         scalar_call_declaration(semantic, constraint, constraints)
                     } else {
-                        declaration(semantic, &selected_keys)
+                        declaration(semantic, &selected_keys)?
                     },
                 )
             })
@@ -617,12 +617,12 @@ macro_rules! form_alternative {
 fn declaration(
     semantic: MachineSemanticKind,
     keys: &SelectedConstraintKeys,
-) -> MachineEffectDeclaration {
-    MachineEffectDeclaration {
+) -> Result<MachineEffectDeclaration, Aarch64MachineEffectCatalogValidationError> {
+    Ok(MachineEffectDeclaration {
         semantic,
         constraint: keys
             .for_semantic(semantic)
-            .expect("required AArch64 machine semantic has a constraint"),
+            .ok_or(Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch)?,
         memory: if let MachineSemanticKind::AccessorScalarAccess(form) = semantic {
             if form.write {
                 MachineMemoryEffect::WritePointerV1
@@ -704,403 +704,312 @@ fn declaration(
         },
         call: MachineCallEffect::NoneV1,
         cleanup: MachineCleanupEffect::NoneV1,
-        alternatives: form_alternative!(semantic.into(), size(semantic), encoded_effects(semantic)),
-    }
+        alternatives: form_alternative!(
+            semantic.into(),
+            size(semantic),
+            encoded_effects(semantic)?
+        ),
+    })
 }
 
-fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
+/// Classifies operands and implicit effects together, including explicit flag-transparent forms.
+fn encoded_effects(
+    semantic: MachineSemanticKind,
+) -> Result<MachineEncodedEffects, Aarch64MachineEffectCatalogValidationError> {
+    use MachineSemanticKind as S;
     let physical = crate::aarch64_physical_register_model();
     let units = |name: &str| {
         physical
             .view_named(name)
-            .unwrap_or_else(|| panic!("canonical AArch64 model declares {name}"))
-            .units
-            .clone()
+            .map(|view| view.units.clone())
+            .ok_or(Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch)
     };
-    if semantic == MachineSemanticKind::Crash {
-        return selected_instructions::MachineEncodedEffects::crash_v1(&units("pc"));
-    }
     let view = |name: &str| {
         physical
             .view_named(name)
-            .unwrap_or_else(|| panic!("canonical AArch64 model declares {name}"))
-            .id
+            .map(|view| view.id)
+            .ok_or(Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch)
     };
-    let (reads, writes) = match semantic {
-        MachineSemanticKind::AccessorScalarAccess(form) => {
+    let plain = MachineEncodedEffects::fallthrough_v1;
+    let memory = |reads, writes, memory| {
+        let mut effects = plain(reads, writes);
+        effects.memory = memory;
+        effects.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+        effects
+    };
+    let bulk = |reads, writes, footprint| {
+        let mut effects = memory(reads, writes, footprint);
+        effects.implicit_unit_clobbers = units("nzcv")?;
+        Ok::<_, Aarch64MachineEffectCatalogValidationError>(effects)
+    };
+    let load = |byte_count, writes| {
+        memory(
+            vec![0],
+            writes,
+            MachineEncodedMemoryEffect::ReadPointerV1 {
+                pointer_operand: 0,
+                byte_count,
+            },
+        )
+    };
+    Ok(match semantic {
+        S::Crash => MachineEncodedEffects::crash_v1(&units("pc")?),
+        S::SystemRegisterRead => crate::selected_form_encoding::register_access::effects(true),
+        S::SystemRegisterWrite => crate::selected_form_encoding::register_access::effects(false),
+        S::MemoryFence => MachineEncodedEffects::catalog_fence_v1(),
+        S::AtomicFence => MachineEncodedEffects::atomic_fence_v1(),
+        S::AtomicAccess(form) => crate::selected_form_encoding::atomic::effects(form),
+        S::NearestIeeeFloatArithmetic(form) => {
+            crate::selected_form_encoding::ieee_float_arithmetic::effects(form)
+        }
+        S::FloatResultPolicy(form) => {
+            crate::selected_form_encoding::float_result_policy::effects(form)
+        }
+        S::AccessorScalarAccess(form) => {
             if form.write {
-                (vec![0, 1], vec![])
+                memory(
+                    vec![0, 1],
+                    vec![],
+                    MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
+                )
             } else {
-                (vec![0], vec![1])
+                load(u16::from(form.bytes), vec![1])
             }
         }
-        MachineSemanticKind::PortRegisterRead
-        | MachineSemanticKind::PortRegisterWrite
-        | MachineSemanticKind::ModelSpecificRead
-        | MachineSemanticKind::ModelSpecificWrite
-        | MachineSemanticKind::ProcessorHalt
-        | MachineSemanticKind::InterruptControl
-        | MachineSemanticKind::ControlRegisterRead
-        | MachineSemanticKind::GlobalDescriptorTableLoad
-        | MachineSemanticKind::GlobalDescriptorTableStore
-        | MachineSemanticKind::TaskRegisterActivate
-        | MachineSemanticKind::InstalledInterruptCpuCheck
-        | MachineSemanticKind::InstalledInterruptTaskCommit
-        | MachineSemanticKind::InstalledInterruptTablePublication
-        | MachineSemanticKind::TaskRegisterRead
-        | MachineSemanticKind::CodeSegmentReload
-        | MachineSemanticKind::DataSegmentReload
-        | MachineSemanticKind::SegmentSelectorRead
-        | MachineSemanticKind::ControlRegisterWrite
-        | MachineSemanticKind::PortWrite => unreachable!("x86 port I/O has no AArch64 constraint"),
-        MachineSemanticKind::SystemRegisterRead => {
-            return crate::selected_form_encoding::register_access::effects(true);
-        }
-        MachineSemanticKind::SystemRegisterWrite => {
-            return crate::selected_form_encoding::register_access::effects(false);
-        }
-        MachineSemanticKind::MemoryFence => return MachineEncodedEffects::catalog_fence_v1(),
-        MachineSemanticKind::AtomicFence => return MachineEncodedEffects::atomic_fence_v1(),
-        MachineSemanticKind::LoadEncodedScalar => (vec![0, 1], vec![2, 3, 4, 5]),
-        MachineSemanticKind::StoreEncodedScalar => (vec![0, 1, 2], vec![3, 4, 5]),
-        MachineSemanticKind::AtomicAccess(form) => {
-            return crate::selected_form_encoding::atomic::effects(form);
-        }
-        MachineSemanticKind::NearestIeeeFloatArithmetic(form) => {
-            return crate::selected_form_encoding::ieee_float_arithmetic::effects(form);
-        }
-        MachineSemanticKind::FloatResultPolicy(form) => {
-            return crate::selected_form_encoding::float_result_policy::effects(form);
-        }
-        MachineSemanticKind::PrivilegedCrash => {
-            unreachable!("AArch64 has no privileged termination key")
-        }
-        MachineSemanticKind::Crash => (Vec::new(), Vec::new()),
-        MachineSemanticKind::CopyBytes => (vec![0, 1, 2], vec![3, 4]),
-        MachineSemanticKind::ZeroBytes => (vec![0, 1], vec![2]),
-        MachineSemanticKind::ScanByteSequence => (vec![0, 1], vec![2, 3, 4]),
-        MachineSemanticKind::CompareByteSequences => (vec![0, 1, 2, 3], vec![4, 5, 6, 7]),
-        MachineSemanticKind::LoadPacked3
-        | MachineSemanticKind::LoadPacked5
-        | MachineSemanticKind::LoadPacked6
-        | MachineSemanticKind::LoadPacked7 => (vec![0], vec![1, 2]),
-        MachineSemanticKind::StorePacked => (vec![0, 1], vec![2]),
-        MachineSemanticKind::Load8Indexed => (vec![0, 1], vec![2]),
-        MachineSemanticKind::CompareI64Zero => (vec![0], vec![]),
-        MachineSemanticKind::CompareI64Immediate => (vec![0], vec![]),
-        MachineSemanticKind::CompareI64 => (vec![0, 1], vec![]),
-        MachineSemanticKind::MaterializeI64 => (vec![], vec![0]),
-        MachineSemanticKind::ImageAddress => (vec![], vec![0]),
-        MachineSemanticKind::MaterializeBooleanEqual
-        | MachineSemanticKind::MaterializeBooleanU64LessThan
-        | MachineSemanticKind::MaterializeBooleanI64LessThan
-        | MachineSemanticKind::MaterializeBooleanU64LessOrEqual
-        | MachineSemanticKind::MaterializeBooleanI64LessOrEqual => (vec![], vec![0]),
-        MachineSemanticKind::Float32ToBits
-        | MachineSemanticKind::Float64ToBits
-        | MachineSemanticKind::BitsToFloat32
-        | MachineSemanticKind::BitsToFloat64
-        | MachineSemanticKind::CopyI64
-        | MachineSemanticKind::Load8
-        | MachineSemanticKind::Load16
-        | MachineSemanticKind::Load32
-        | MachineSemanticKind::Load64
-        | MachineSemanticKind::AddressOffset
-        | MachineSemanticKind::ZeroExtendU8
-        | MachineSemanticKind::ZeroExtendU16
-        | MachineSemanticKind::SignExtendI8
-        | MachineSemanticKind::SignExtendI16
-        | MachineSemanticKind::SignExtendI32
-        | MachineSemanticKind::ZeroExtendU32 => (vec![0], vec![1]),
-        MachineSemanticKind::ExactDivideU64
-        | MachineSemanticKind::ExactRemainderU64
-        | MachineSemanticKind::WrappingRemainderI64
-        | MachineSemanticKind::WrappingDivideI64
-        | MachineSemanticKind::ExactDivideI64
-        | MachineSemanticKind::ExactRemainderI64 => (vec![0, 1], vec![2]),
-        MachineSemanticKind::SaturatingAdd(_)
-        | MachineSemanticKind::SaturatingSubtract(_)
-        | MachineSemanticKind::SaturatingDivide(_)
-        | MachineSemanticKind::SaturatingRemainder(_)
-        | MachineSemanticKind::SaturatingMultiply(_) => {
-            let realization = SaturatingRealization::of_semantic(semantic)
-                .expect("saturating semantics have a realization");
-            (
-                vec![0, 1],
-                (2..realization.operand_count() as u16).collect(),
-            )
-        }
-        MachineSemanticKind::BitwiseNotI64 => (vec![0], vec![1]),
-        MachineSemanticKind::ByteViewAddress
-        | MachineSemanticKind::BitwiseAndI64
-        | MachineSemanticKind::BitwiseOrI64
-        | MachineSemanticKind::BitwiseXorI64
-        | MachineSemanticKind::WrappingAddI64
-        | MachineSemanticKind::WrappingSubtractI64
-        | MachineSemanticKind::WrappingMultiplyI64
-        | MachineSemanticKind::WrappingShiftLeftI64
-        | MachineSemanticKind::WrappingShiftRightI64
-        | MachineSemanticKind::WrappingShiftRightU64
-        | MachineSemanticKind::ExactShiftLeftI64
-        | MachineSemanticKind::ExactShiftRightI64
-        | MachineSemanticKind::ExactShiftRightU64
-        | MachineSemanticKind::ExactAddI64
-        | MachineSemanticKind::ExactSubtractI64
-        | MachineSemanticKind::ExactMultiplyI64 => (vec![0, 1], vec![2]),
-        MachineSemanticKind::ExactAddI64Immediate
-        | MachineSemanticKind::ExactSubtractI64Immediate => (vec![0], vec![1]),
-        MachineSemanticKind::ConditionalBranchNonZero
-        | MachineSemanticKind::ConditionalBranchU64LessThan
-        | MachineSemanticKind::ConditionalBranchI64LessThan
-        | MachineSemanticKind::ReturnScalar
-        | MachineSemanticKind::ReturnAggregate
-        | MachineSemanticKind::Jump
-        | MachineSemanticKind::ReturnUnit => (vec![], vec![]),
-        MachineSemanticKind::Store64 => (vec![0], vec![1]),
-        MachineSemanticKind::Store => (vec![0, 1], vec![]),
-        MachineSemanticKind::FrameAddress => (vec![], vec![0]),
-        MachineSemanticKind::HostedExitProcessI32
-        | MachineSemanticKind::HostedReadByte
-        | MachineSemanticKind::SaveFloatingControl
-        | MachineSemanticKind::RestoreFloatingControl
-        | MachineSemanticKind::HostedWriteByteI32
-        | MachineSemanticKind::CallUnit => {
-            panic!("memory and Unit call forms are not admitted on this target")
-        }
-        MachineSemanticKind::CallScalar
-        | MachineSemanticKind::InvokeNoNormal
-        | MachineSemanticKind::CallAggregate
-        | MachineSemanticKind::NormalizedForeignCall => {
-            panic!("scalar calls use their dedicated declaration")
-        }
-        MachineSemanticKind::TrappingInteger(_) => {
-            panic!("Trapping forms use their dedicated declaration")
-        }
-    };
-    let (implicit_uses, implicit_defs, trap, control) = match semantic {
-        MachineSemanticKind::CopyBytes
-        | MachineSemanticKind::ZeroBytes
-        | MachineSemanticKind::ScanByteSequence
-        | MachineSemanticKind::LoadEncodedScalar
-        | MachineSemanticKind::StoreEncodedScalar
-        | MachineSemanticKind::CompareByteSequences => (
-            vec![],
-            vec![],
-            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            MachineEncodedControlEffect::FallThroughV1,
-        ),
-        MachineSemanticKind::MaterializeBooleanEqual
-        | MachineSemanticKind::MaterializeBooleanU64LessThan
-        | MachineSemanticKind::MaterializeBooleanI64LessThan
-        | MachineSemanticKind::MaterializeBooleanU64LessOrEqual
-        | MachineSemanticKind::MaterializeBooleanI64LessOrEqual => (
-            units("nzcv"),
-            vec![],
-            MachineEncodedTrapBehavior::NeverV1,
-            MachineEncodedControlEffect::FallThroughV1,
-        ),
-        MachineSemanticKind::ExactDivideU64
-        | MachineSemanticKind::ExactRemainderU64
-        | MachineSemanticKind::WrappingRemainderI64
-        | MachineSemanticKind::WrappingDivideI64
-        | MachineSemanticKind::ExactDivideI64
-        | MachineSemanticKind::ExactRemainderI64 => (
-            vec![],
-            vec![],
-            MachineEncodedTrapBehavior::NeverV1,
-            MachineEncodedControlEffect::FallThroughV1,
-        ),
-        MachineSemanticKind::SaturatingAdd(_)
-        | MachineSemanticKind::SaturatingSubtract(_)
-        | MachineSemanticKind::SaturatingDivide(_)
-        | MachineSemanticKind::SaturatingRemainder(_)
-        | MachineSemanticKind::SaturatingMultiply(_) => (
-            vec![],
-            if SaturatingRealization::of_semantic(semantic)
-                .expect("saturating semantics have a realization")
-                .defines_nzcv()
-            {
-                units("nzcv")
-            } else {
-                vec![]
-            },
-            MachineEncodedTrapBehavior::NeverV1,
-            MachineEncodedControlEffect::FallThroughV1,
-        ),
-        MachineSemanticKind::CompareI64Zero
-        | MachineSemanticKind::CompareI64
-        | MachineSemanticKind::CompareI64Immediate => (
-            vec![],
-            units("nzcv"),
-            MachineEncodedTrapBehavior::NeverV1,
-            MachineEncodedControlEffect::FallThroughV1,
-        ),
-        MachineSemanticKind::Jump => (
-            units("pc"),
-            units("pc"),
-            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            MachineEncodedControlEffect::UnconditionalRelativeBranchV1,
-        ),
-        MachineSemanticKind::ConditionalBranchNonZero
-        | MachineSemanticKind::ConditionalBranchU64LessThan
-        | MachineSemanticKind::ConditionalBranchI64LessThan => {
-            let mut uses = units("nzcv");
-            uses.extend(units("pc"));
-            uses.sort_unstable();
-            uses.dedup();
-            (
-                uses,
-                units("pc"),
-                MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-                MachineEncodedControlEffect::ConditionalRelativeBranchV1,
-            )
-        }
-        MachineSemanticKind::ReturnScalar | MachineSemanticKind::ReturnUnit => (
-            units("x30"),
-            units("pc"),
-            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            MachineEncodedControlEffect::ReturnIndirectRegisterV1 {
-                target: view("x30"),
-            },
-        ),
-        MachineSemanticKind::AccessorScalarAccess(_)
-        | MachineSemanticKind::Load8
-        | MachineSemanticKind::Load16
-        | MachineSemanticKind::Load32
-        | MachineSemanticKind::Load64
-        | MachineSemanticKind::Load8Indexed
-        | MachineSemanticKind::LoadPacked3
-        | MachineSemanticKind::LoadPacked5
-        | MachineSemanticKind::LoadPacked6
-        | MachineSemanticKind::LoadPacked7
-        | MachineSemanticKind::StorePacked
-        | MachineSemanticKind::Store => (
-            vec![],
-            vec![],
-            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
-            MachineEncodedControlEffect::FallThroughV1,
-        ),
-        MachineSemanticKind::Store64 | MachineSemanticKind::FrameAddress => (
-            units("sp"),
-            vec![],
-            if semantic == MachineSemanticKind::Store64 {
-                MachineEncodedTrapBehavior::MayArchitecturalFaultV1
-            } else {
-                MachineEncodedTrapBehavior::NeverV1
-            },
-            MachineEncodedControlEffect::FallThroughV1,
-        ),
-        _ => (
-            vec![],
-            vec![],
-            MachineEncodedTrapBehavior::NeverV1,
-            MachineEncodedControlEffect::FallThroughV1,
-        ),
-    };
-    MachineEncodedEffects {
-        external_operand_reads: reads,
-        external_operand_writes: writes,
-        implicit_unit_uses: implicit_uses,
-        implicit_unit_defs: implicit_defs,
-        implicit_unit_clobbers: if matches!(
-            semantic,
-            MachineSemanticKind::CopyBytes
-                | MachineSemanticKind::ZeroBytes
-                | MachineSemanticKind::ScanByteSequence
-                | MachineSemanticKind::LoadEncodedScalar
-                | MachineSemanticKind::StoreEncodedScalar
-                | MachineSemanticKind::CompareByteSequences
-        ) {
-            units("nzcv")
-        } else {
-            vec![]
-        },
-        memory: if let MachineSemanticKind::AccessorScalarAccess(form) = semantic {
-            if form.write {
-                MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 }
-            } else {
-                MachineEncodedMemoryEffect::ReadPointerV1 {
-                    pointer_operand: 0,
-                    byte_count: u16::from(form.bytes),
-                }
-            }
-        } else if semantic == MachineSemanticKind::CopyBytes {
+        S::CopyBytes => bulk(
+            vec![0, 1, 2],
+            vec![3, 4],
             MachineEncodedMemoryEffect::CopyBytesV1 {
                 source_pointer_operand: 0,
                 destination_pointer_operand: 1,
                 count_operand: 2,
-            }
-        } else if semantic == MachineSemanticKind::ZeroBytes {
+            },
+        )?,
+        S::ZeroBytes => bulk(
+            vec![0, 1],
+            vec![2],
             MachineEncodedMemoryEffect::ZeroBytesV1 {
                 destination_pointer_operand: 0,
                 count_operand: 1,
-            }
-        } else if semantic == MachineSemanticKind::LoadEncodedScalar {
-            MachineEncodedMemoryEffect::ReadEncodedScalarV1 {
-                pointer_operand: 0,
-                codec_operand: 1,
-            }
-        } else if semantic == MachineSemanticKind::StoreEncodedScalar {
-            MachineEncodedMemoryEffect::WriteEncodedScalarV1 {
-                pointer_operand: 0,
-                codec_operand: 1,
-            }
-        } else if semantic == MachineSemanticKind::ScanByteSequence {
+            },
+        )?,
+        S::ScanByteSequence => bulk(
+            vec![0, 1],
+            vec![2, 3, 4],
             MachineEncodedMemoryEffect::ScanByteSequenceV1 {
                 base_pointer_operand: 0,
                 count_operand: 1,
-            }
-        } else if semantic == MachineSemanticKind::CompareByteSequences {
+            },
+        )?,
+        S::CompareByteSequences => bulk(
+            vec![0, 1, 2, 3],
+            vec![4, 5, 6, 7],
             MachineEncodedMemoryEffect::CompareByteSequencesV1 {
                 left_base_operand: 0,
                 left_count_operand: 1,
                 right_base_operand: 2,
                 right_count_operand: 3,
-            }
-        } else if matches!(
-            semantic,
-            MachineSemanticKind::Load8
-                | MachineSemanticKind::Load16
-                | MachineSemanticKind::Load32
-                | MachineSemanticKind::Load64
-        ) || packed_load_width(semantic).is_some()
-        {
-            MachineEncodedMemoryEffect::ReadPointerV1 {
+            },
+        )?,
+        S::LoadEncodedScalar => bulk(
+            vec![0, 1],
+            vec![2, 3, 4, 5],
+            MachineEncodedMemoryEffect::ReadEncodedScalarV1 {
                 pointer_operand: 0,
-                byte_count: match semantic {
-                    MachineSemanticKind::Load8 => 1,
-                    MachineSemanticKind::Load16 => 2,
-                    MachineSemanticKind::Load32 => 4,
-                    MachineSemanticKind::LoadPacked3 => 3,
-                    MachineSemanticKind::LoadPacked5 => 5,
-                    MachineSemanticKind::LoadPacked6 => 6,
-                    MachineSemanticKind::LoadPacked7 => 7,
-                    _ => 8,
-                },
-            }
-        } else if semantic == MachineSemanticKind::Load8Indexed {
+                codec_operand: 1,
+            },
+        )?,
+        S::StoreEncodedScalar => bulk(
+            vec![0, 1, 2],
+            vec![3, 4, 5],
+            MachineEncodedMemoryEffect::WriteEncodedScalarV1 {
+                pointer_operand: 0,
+                codec_operand: 1,
+            },
+        )?,
+        S::Load8 => load(1, vec![1]),
+        S::Load16 => load(2, vec![1]),
+        S::Load32 => load(4, vec![1]),
+        S::Load64 => load(8, vec![1]),
+        S::LoadPacked3 => load(3, vec![1, 2]),
+        S::LoadPacked5 => load(5, vec![1, 2]),
+        S::LoadPacked6 => load(6, vec![1, 2]),
+        S::LoadPacked7 => load(7, vec![1, 2]),
+        S::Load8Indexed => memory(
+            vec![0, 1],
+            vec![2],
             MachineEncodedMemoryEffect::ReadIndexedPointerV1 {
                 pointer_operand: 0,
                 index_operand: 1,
                 byte_count: 1,
+            },
+        ),
+        S::Store => memory(
+            vec![0, 1],
+            vec![],
+            MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
+        ),
+        S::StorePacked => memory(
+            vec![0, 1],
+            vec![2],
+            MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
+        ),
+        S::Store64 => {
+            let mut effects = memory(
+                vec![0],
+                vec![1],
+                MachineEncodedMemoryEffect::WriteFrameStorageV1 {
+                    stack_pointer: view("sp")?,
+                    byte_count: 8,
+                },
+            );
+            effects.implicit_unit_uses = units("sp")?;
+            effects
+        }
+        S::FrameAddress => {
+            let mut effects = plain(vec![], vec![0]);
+            effects.implicit_unit_uses = units("sp")?;
+            effects
+        }
+        S::CompareI64Zero | S::CompareI64Immediate | S::CompareI64 => {
+            let reads = if semantic == S::CompareI64 {
+                vec![0, 1]
+            } else {
+                vec![0]
+            };
+            let mut effects = plain(reads, vec![]);
+            effects.implicit_unit_defs = units("nzcv")?;
+            effects
+        }
+        S::MaterializeBooleanEqual
+        | S::MaterializeBooleanU64LessThan
+        | S::MaterializeBooleanI64LessThan
+        | S::MaterializeBooleanU64LessOrEqual
+        | S::MaterializeBooleanI64LessOrEqual => {
+            let mut effects = plain(vec![], vec![0]);
+            effects.implicit_unit_uses = units("nzcv")?;
+            effects
+        }
+        S::MaterializeI64 | S::ImageAddress => plain(vec![], vec![0]),
+        S::Float32ToBits
+        | S::Float64ToBits
+        | S::BitsToFloat32
+        | S::BitsToFloat64
+        | S::CopyI64
+        | S::AddressOffset
+        | S::ZeroExtendU8
+        | S::ZeroExtendU16
+        | S::SignExtendI8
+        | S::SignExtendI16
+        | S::SignExtendI32
+        | S::ZeroExtendU32
+        | S::BitwiseNotI64
+        | S::ExactAddI64Immediate
+        | S::ExactSubtractI64Immediate => plain(vec![0], vec![1]),
+        S::SaturatingAdd(_)
+        | S::SaturatingSubtract(_)
+        | S::SaturatingDivide(_)
+        | S::SaturatingRemainder(_)
+        | S::SaturatingMultiply(_) => {
+            let realization = SaturatingRealization::of_semantic(semantic)
+                .ok_or(Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch)?;
+            let mut effects = plain(
+                vec![0, 1],
+                (2..realization.operand_count() as u16).collect(),
+            );
+            if realization.defines_nzcv() {
+                effects.implicit_unit_defs = units("nzcv")?;
             }
-        } else if semantic == MachineSemanticKind::Store64 {
-            MachineEncodedMemoryEffect::WriteFrameStorageV1 {
-                stack_pointer: view("sp"),
-                byte_count: 8,
+            effects
+        }
+        S::ExactDivideU64
+        | S::ExactRemainderU64
+        | S::WrappingRemainderI64
+        | S::WrappingDivideI64
+        | S::ExactDivideI64
+        | S::ExactRemainderI64
+        | S::ByteViewAddress
+        | S::BitwiseAndI64
+        | S::BitwiseOrI64
+        | S::BitwiseXorI64
+        | S::WrappingAddI64
+        | S::WrappingSubtractI64
+        | S::WrappingMultiplyI64
+        | S::WrappingShiftLeftI64
+        | S::WrappingShiftRightI64
+        | S::WrappingShiftRightU64
+        | S::ExactShiftLeftI64
+        | S::ExactShiftRightI64
+        | S::ExactShiftRightU64
+        | S::ExactAddI64
+        | S::ExactSubtractI64
+        | S::ExactMultiplyI64 => plain(vec![0, 1], vec![2]),
+        S::Jump
+        | S::ConditionalBranchNonZero
+        | S::ConditionalBranchU64LessThan
+        | S::ConditionalBranchI64LessThan => {
+            let mut effects = plain(vec![], vec![]);
+            effects.implicit_unit_uses = units("pc")?;
+            if semantic != S::Jump {
+                effects.implicit_unit_uses.extend(units("nzcv")?);
+                effects.implicit_unit_uses.sort_unstable();
+                effects.implicit_unit_uses.dedup();
             }
-        } else if matches!(
-            semantic,
-            MachineSemanticKind::Store | MachineSemanticKind::StorePacked
-        ) {
-            MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 }
-        } else {
-            MachineEncodedMemoryEffect::NoneV1
-        },
-        stack: MachineEncodedStackEffect::UnchangedV1,
-        trap,
-        control,
-    }
+            effects.implicit_unit_defs = units("pc")?;
+            effects.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+            effects.control = if semantic == S::Jump {
+                MachineEncodedControlEffect::UnconditionalRelativeBranchV1
+            } else {
+                MachineEncodedControlEffect::ConditionalRelativeBranchV1
+            };
+            effects
+        }
+        S::ReturnScalar | S::ReturnAggregate | S::ReturnUnit => {
+            let mut effects = plain(vec![], vec![]);
+            effects.implicit_unit_uses = units("x30")?;
+            effects.implicit_unit_defs = units("pc")?;
+            effects.trap = MachineEncodedTrapBehavior::MayArchitecturalFaultV1;
+            effects.control = MachineEncodedControlEffect::ReturnIndirectRegisterV1 {
+                target: view("x30")?,
+            };
+            effects
+        }
+        // Foreign/call/trapping forms need context owned by their dedicated declaration.
+        // x86-only semantics have no AArch64 realization.
+        S::HostedExitProcessI32
+        | S::HostedReadByte
+        | S::SaveFloatingControl
+        | S::RestoreFloatingControl
+        | S::HostedWriteByteI32
+        | S::CallUnit
+        | S::CallScalar
+        | S::InvokeNoNormal
+        | S::CallAggregate
+        | S::NormalizedForeignCall
+        | S::TrappingInteger(_)
+        | S::PrivilegedCrash
+        | S::PortRegisterRead
+        | S::PortRegisterWrite
+        | S::ModelSpecificRead
+        | S::ModelSpecificWrite
+        | S::ProcessorHalt
+        | S::InterruptControl
+        | S::ControlRegisterRead
+        | S::ControlRegisterWrite
+        | S::GlobalDescriptorTableLoad
+        | S::GlobalDescriptorTableStore
+        | S::TaskRegisterActivate
+        | S::TaskRegisterRead
+        | S::InstalledInterruptCpuCheck
+        | S::InstalledInterruptTaskCommit
+        | S::InstalledInterruptTablePublication
+        | S::CodeSegmentReload
+        | S::DataSegmentReload
+        | S::SegmentSelectorRead
+        | S::PortWrite => {
+            return Err(Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch);
+        }
+    })
 }
 
 fn size(semantic: MachineSemanticKind) -> MachineSizeKnowledge {
@@ -1205,8 +1114,8 @@ mod tests {
         AARCH64_COPY_I64, AARCH64_DARWIN_RETURN, AARCH64_DARWIN_RETURN_UNIT, AARCH64_SUBTRACT_I64,
         Aarch64MachineEffectCatalogValidationError, Architecture, MachineAlternativeApplicability,
         MachineBarrier, MachineCallEffect, MachineEncodedControlEffect, MachineEncodedEffects,
-        MachineEncodedStackEffect, MachineSemanticKind, MachineSizeKnowledge, NativeTarget,
-        ObjectFormat, ValidatedRegisterConstraintCatalog, aarch64_machine_effect_catalog,
+        MachineSemanticKind, MachineSizeKnowledge, NativeTarget, ObjectFormat,
+        PreparedRegisterConstraintCatalog, aarch64_machine_effect_catalog,
         validate_aarch64_machine_effect_catalog,
     };
     use crate::{
@@ -1214,8 +1123,64 @@ mod tests {
         aarch64_register_constraint_catalog, validate_aarch64_register_constraint_catalog,
     };
     use register_model::validate_physical_register_model;
+    use selected_instructions::MachineEncodedStackEffect;
 
-    fn constraints() -> ValidatedRegisterConstraintCatalog {
+    #[test]
+    fn effect_classification_keeps_operand_and_implicit_effects_together() {
+        let physical = aarch64_physical_register_model();
+        let flags = physical.view_named("nzcv").unwrap().units.clone();
+        let comparison = super::encoded_effects(MachineSemanticKind::CompareI64).unwrap();
+        assert_eq!(comparison.external_operand_reads, [0, 1]);
+        assert_eq!(comparison.implicit_unit_defs, flags);
+
+        let subtract = super::encoded_effects(MachineSemanticKind::WrappingSubtractI64).unwrap();
+        assert_eq!(subtract.external_operand_reads, [0, 1]);
+        assert_eq!(subtract.external_operand_writes, [2]);
+        assert!(subtract.implicit_unit_uses.is_empty());
+        assert!(subtract.implicit_unit_defs.is_empty());
+        assert!(subtract.implicit_unit_clobbers.is_empty());
+
+        let copied = super::encoded_effects(MachineSemanticKind::CopyBytes).unwrap();
+        assert_eq!(copied.external_operand_reads, [0, 1, 2]);
+        assert_eq!(copied.implicit_unit_clobbers, flags);
+        assert_eq!(
+            copied.trap,
+            super::MachineEncodedTrapBehavior::MayArchitecturalFaultV1
+        );
+        assert!(matches!(
+            copied.memory,
+            super::MachineEncodedMemoryEffect::CopyBytesV1 { .. }
+        ));
+
+        let loaded = super::encoded_effects(MachineSemanticKind::LoadPacked5).unwrap();
+        assert_eq!(loaded.external_operand_writes, [1, 2]);
+        assert!(matches!(
+            loaded.memory,
+            super::MachineEncodedMemoryEffect::ReadPointerV1 { byte_count: 5, .. }
+        ));
+        let returned = super::encoded_effects(MachineSemanticKind::ReturnScalar).unwrap();
+        assert!(matches!(
+            returned.control,
+            MachineEncodedControlEffect::ReturnIndirectRegisterV1 { .. }
+        ));
+    }
+
+    #[test]
+    fn effect_classification_requires_context_and_rejects_other_architecture() {
+        for semantic in [
+            MachineSemanticKind::CallScalar,
+            MachineSemanticKind::NormalizedForeignCall,
+            MachineSemanticKind::PortWrite,
+            MachineSemanticKind::PrivilegedCrash,
+        ] {
+            assert!(matches!(
+                super::encoded_effects(semantic),
+                Err(Aarch64MachineEffectCatalogValidationError::TargetSemanticMismatch)
+            ));
+        }
+    }
+
+    fn constraints() -> PreparedRegisterConstraintCatalog {
         let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
         validate_aarch64_register_constraint_catalog(
             aarch64_register_constraint_catalog(&physical),

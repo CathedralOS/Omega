@@ -192,10 +192,11 @@ pub(crate) fn boundary_internal_call_exists(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn derive_boundary_internal_call_child(
+    pass: crate::physical::PhysicalEvidencePass,
     module: &terminal_psi::TerminalModule,
     terminal: terminal_psi::TerminalPsiIdentity,
     object: &image_emission::ObjectArtifact,
-    image: &image::EmittedImageOutput,
+    image: &[u8],
     occurrence: &OptimizedBoundaryOccurrence,
     projection: NativeOptimizationProjectionIdentity,
     requirement_identity: &str,
@@ -406,7 +407,7 @@ pub(crate) fn derive_boundary_internal_call_child(
         .text_bytes()
         .get(opcode..end)
         .ok_or("selected boundary internal call is outside object text")?;
-    validate_destination(target.architecture, opcode, bytes, callee.text_offset)?;
+    pass.verify(|| validate_destination(target.architecture, opcode, bytes, callee.text_offset))?;
     let mut attribution = object.semantic_code_attribution().iter().filter(|row| {
         row.machine == function.machine
             && row.attribution.site == semantic_site
@@ -437,8 +438,8 @@ pub(crate) fn derive_boundary_internal_call_child(
     let final_image_span = object_span;
     let machine_bytes = span(function.bytes(object), machine_span)?;
     let object_bytes = span(object.text_bytes(), object_span)?;
-    let final_image_bytes = span(&image.final_text_bytes, final_image_span)?;
-    if machine_bytes != object_bytes || object_bytes != final_image_bytes {
+    let final_image_bytes = span(image, final_image_span)?;
+    if pass.is_receiver() && (machine_bytes != object_bytes || object_bytes != final_image_bytes) {
         return Err("selected boundary internal call bytes changed across physical custody");
     }
 

@@ -8,8 +8,9 @@ nothing else names (`places::record`), the call takes that root whole and
 owned, and the root's home is retired on the edge into the call's
 continuation. A loan for a borrowed formal passes the lent place itself,
 with the loan's access, and mints one `Loan` obligation; an exclusive loan
-leaves the lent place with contents this machine cannot name once the call
-returns. Scalar and record arguments are evaluated in one left-to-right
+initially invalidates the lent place as a whole. After all bodies are lowered,
+their published write frames retain facts about provably untouched fields.
+Scalar and record arguments are evaluated in one left-to-right
 order (calls_and_outcomes.md: "Mixed scalar and structural operands share
 that order; they do not form two separately evaluated lists") and then
 travel in Terminal Psi's two lanes.
@@ -26,11 +27,209 @@ use terminal_check_tables::{
 };
 use terminal_psi::{OperationKind, StructuralAccess, StructuralArgument, Terminator};
 
-use super::{Lowering, Value};
+use super::{Evaluation, Lowering, Reached, Value};
 use crate::body::{Expression, ExpressionKind, ValueType};
 use crate::canonical;
 use crate::outcome::Outcome;
 use crate::{SourceOrigin, Unserved, refuse};
+
+/// A call need not replace every field it borrows. Once every body has its
+/// canonical operations, publish the inferred frames and use those same
+/// effects in the existing write log. This changes which old contents are
+/// invalidated; it never supplies a new field value.
+pub(crate) fn publish_write_frames(
+    diagnostic: MachineId,
+    module: &mut terminal_psi::TerminalModule,
+    tables: &mut terminal_check_tables::CheckTables,
+) -> Checked<()> {
+    use semantic_vocabulary::CanonicalStructuralPathSegment;
+    use terminal_check_tables::bindings::{self, Content, Segment, WriteRow};
+
+    let problem = |machine, concerns, detail: String| Refusal {
+        reason: RefusalReason::ForeignIdentity,
+        machine,
+        concerns,
+        detail,
+    };
+    let frames = terminal_semantics::borrowed_storage::inferred_write_frames(module)
+        .map_err(|detail| problem(diagnostic, Construct::Machine, detail))?;
+    for machine in &mut module.machines {
+        machine.contract.published_writes = frames
+            .get(machine.id)
+            .ok_or_else(|| {
+                problem(
+                    machine.id,
+                    Construct::Machine,
+                    "write frame has no owner".to_owned(),
+                )
+            })?
+            .clone();
+    }
+    for machine in &module.machines {
+        let id = machine.id;
+        let tables = tables.machines.get_mut(id).ok_or_else(|| {
+            problem(
+                id,
+                Construct::Machine,
+                "write frame has no checking tables".to_owned(),
+            )
+        })?;
+        // Operation identities can be emitted in a different order from
+        // allocation. Index only actual operations, rather than allocating
+        // scratch up to the largest possible identity.
+        let mut writes: Vec<_> = machine
+            .operations()
+            .map(|operation| (operation.id, Vec::new()))
+            .collect();
+        writes.sort_unstable_by_key(|(operation, _)| *operation);
+        for (_, row) in tables.writes.iter() {
+            let ProgramPoint::AfterOperation(operation) = row.at else {
+                return Err(problem(
+                    id,
+                    Construct::Place(row.place),
+                    "a lowered storage write is not at its operation".to_owned(),
+                ));
+            };
+            let position = writes
+                .binary_search_by_key(&operation, |(operation, _)| *operation)
+                .map_err(|_| {
+                    problem(
+                        id,
+                        Construct::Operation(operation),
+                        "a write names a missing operation".to_owned(),
+                    )
+                })?;
+            writes[position].1.push(*row);
+        }
+        let mut revised = Vec::with_capacity(tables.writes.len());
+        for operation in machine.operations() {
+            let position = writes
+                .binary_search_by_key(&operation.id, |(operation, _)| *operation)
+                .map_err(|_| {
+                    problem(
+                        id,
+                        Construct::Operation(operation.id),
+                        "write-frame operation disappeared".to_owned(),
+                    )
+                })?;
+            let old = &writes[position].1;
+            let Some(regions) = terminal_semantics::borrowed_storage::call_write_regions(
+                module, machine, operation,
+            )
+            .map_err(|detail| problem(id, Construct::Operation(operation.id), detail))?
+            else {
+                revised.extend_from_slice(old);
+                continue;
+            };
+            if old.iter().any(|row| row.content != Content::Overwritten) {
+                return Err(problem(
+                    id,
+                    Construct::Operation(operation.id),
+                    "a call write has unexpected scalar or move contents".to_owned(),
+                ));
+            }
+            let at = ProgramPoint::AfterOperation(operation.id);
+            if let Some(result) = operation.result.structural() {
+                let place = tables.roots.get(result.place).copied().ok_or_else(|| {
+                    problem(
+                        id,
+                        Construct::Operation(operation.id),
+                        "a call result has no exact root".to_owned(),
+                    )
+                })?;
+                revised.push(WriteRow {
+                    place,
+                    at,
+                    content: Content::Overwritten,
+                });
+            }
+            for region in regions {
+                let root = region.root.ok_or_else(|| {
+                    problem(
+                        id,
+                        Construct::Operation(operation.id),
+                        "a known write frame has no storage root".to_owned(),
+                    )
+                })?;
+                let structural_type = machine.structural_place_type(root).ok_or_else(|| {
+                    problem(
+                        id,
+                        Construct::Operation(operation.id),
+                        "a written root has no structural type".to_owned(),
+                    )
+                })?;
+                let path = terminal_semantics::canonical_static_projection(
+                    module.structural_types.iter(),
+                    structural_type,
+                    &region.projection.path,
+                )
+                .map(|(path, _)| path)
+                .or_else(|| {
+                    terminal_semantics::canonical_primitive_read_path(
+                        module.structural_types.iter(),
+                        structural_type,
+                        &region.projection.path,
+                    )
+                })
+                .ok_or_else(|| {
+                    problem(
+                        id,
+                        Construct::Operation(operation.id),
+                        "a written region has no exact inline storage path".to_owned(),
+                    )
+                })?;
+                let mut place = tables.roots.get(root).copied().ok_or_else(|| {
+                    problem(
+                        id,
+                        Construct::Operation(operation.id),
+                        "a written region has no exact root".to_owned(),
+                    )
+                })?;
+                for segment in path {
+                    let segment = match segment {
+                        CanonicalStructuralPathSegment::Field(field) => Segment::Field(field),
+                        CanonicalStructuralPathSegment::FixedIndex(index) => {
+                            Segment::FixedIndex(index)
+                        }
+                        CanonicalStructuralPathSegment::Case(case) => Segment::Case(case),
+                        CanonicalStructuralPathSegment::Referent => {
+                            return Err(problem(
+                                id,
+                                Construct::Operation(operation.id),
+                                "a write frame crosses an unserved referent".to_owned(),
+                            ));
+                        }
+                    };
+                    place = bindings::intern_projection(id, &mut tables.places, place, segment)?;
+                }
+                revised.push(WriteRow {
+                    place,
+                    at,
+                    content: Content::Overwritten,
+                });
+            }
+        }
+        for (_, row) in tables.writes.iter() {
+            tables
+                .places
+                .get_mut(row.place)
+                .ok_or_else(|| {
+                    problem(
+                        id,
+                        Construct::Place(row.place),
+                        "a storage write has no exact place".to_owned(),
+                    )
+                })?
+                .writes
+                .clear();
+        }
+        tables.writes = semantic_vocabulary::IdTable::default();
+        for row in revised {
+            bindings::record_write(id, &mut tables.places, &mut tables.writes, row)?;
+        }
+    }
+    Ok(())
+}
 
 /// Staged storage ends after the call, whether its value was transferred or
 /// its captured descriptor was lent. The argument lanes keep those distinct.
@@ -75,7 +274,7 @@ impl Lowering<'_> {
         &mut self,
         callee: semantic_vocabulary::TargetMachineCallable,
         arguments: &[Expression],
-    ) -> Checked<Arguments> {
+    ) -> Evaluation<Arguments> {
         let signature = self.signatures.get(callee, self.id)?;
         let mut evaluated = Arguments {
             actuals: Vec::with_capacity(arguments.len()),
@@ -103,7 +302,7 @@ impl Lowering<'_> {
                 if signature.borrowed(position).map(|formal| formal.access) != Some(*access) {
                     return Err(self.internal("a loan for a formal that is not borrowed alike"));
                 }
-                let lent = self.lend(place, *access, home.as_deref())?;
+                let lent = continuing!(self.lend(place, *access, home.as_deref()));
                 evaluated.actuals.push(Actual::Place(lent.place));
                 evaluated.structural.push(lent.argument);
                 evaluated.loans.push((lent.place, *access, lent.lender));
@@ -114,7 +313,7 @@ impl Lowering<'_> {
             }
             match argument.result {
                 Some(ValueType::Record(_, _, _)) => {
-                    let root = self.record(argument)?;
+                    let root = continuing!(self.record(argument));
                     evaluated
                         .actuals
                         .push(Actual::Place(self.exact_root(root)?));
@@ -124,13 +323,13 @@ impl Lowering<'_> {
                     evaluated.homes.push(ArgumentHome::Transferred(root));
                 }
                 Some(ValueType::Scalar(..) | ValueType::Rigid(_)) | None => {
-                    let value = self.scalar(argument)?;
+                    let value = continuing!(self.scalar(argument));
                     evaluated.actuals.push(Actual::Value(value));
                     evaluated.scalars.push(value);
                 }
             }
         }
-        Ok(evaluated)
+        Ok(Reached::Value(evaluated))
     }
 
     fn structural_arguments(
@@ -234,9 +433,9 @@ impl Lowering<'_> {
         callee: semantic_vocabulary::TargetMachineCallable,
         arguments: &[Expression],
         source: SourceOrigin,
-    ) -> Checked<()> {
+    ) -> Evaluation<()> {
         let signature = self.signatures.get(callee, self.id)?;
-        let arguments = self.arguments(callee, arguments)?;
+        let arguments = continuing!(self.arguments(callee, arguments));
         let routes = match callee {
             semantic_vocabulary::TargetMachineCallable::Machine(callee) => {
                 &self.outcome(callee)?.crash_routes[..]
@@ -291,8 +490,8 @@ impl Lowering<'_> {
         let structural_arguments =
             self.structural_arguments(arguments.structural, ExecutionSite::Block(site), source)?;
         match callee {
-            semantic_vocabulary::TargetMachineCallable::Machine(callee) => {
-                self.terminate(Terminator::InvokeNoNormal {
+            semantic_vocabulary::TargetMachineCallable::Machine(callee) => self
+                .terminate(Terminator::InvokeNoNormal {
                     edge,
                     static_reach_binding: None,
                     callee,
@@ -304,7 +503,7 @@ impl Lowering<'_> {
                     requirement_obligations: requirements,
                     crash_continuations,
                 })
-            }
+                .map(Reached::Value),
             semantic_vocabulary::TargetMachineCallable::Boundary(boundary) => {
                 let semantic_vocabulary::BoundaryCompletion::External(kind) =
                     self.signatures.completion(boundary, self.id)?
@@ -341,6 +540,7 @@ impl Lowering<'_> {
                     // route mints no claim, so none is definitely live.
                     frontier_lower_bound: Vec::new(),
                 })
+                .map(Reached::Value)
             }
         }
     }
@@ -393,17 +593,17 @@ impl Lowering<'_> {
         designated: Option<crate::body::DesignatedOperands>,
         result: Option<ValueType>,
         source: SourceOrigin,
-    ) -> Checked<Value> {
+    ) -> Evaluation<Value> {
         // A call with no normal completion is a terminator
         // (`invoke_no_normal`) and has no value: the path it lies on ends at
         // it, and so does the evaluation of whatever holds it
-        // (`Lowering::end_path`).
+        // (the explicit Ended evaluation outcome).
         if !self.completes_normally(callable)? {
             if designated.is_some() {
                 return Err(self.internal("designated operands on a call that never returns"));
             }
-            self.invoke_no_normal(callable, arguments, source)?;
-            return Err(self.end_path(source));
+            continuing!(self.invoke_no_normal(callable, arguments, source));
+            return Ok(Reached::Ended(source));
         }
         if matches!(
             callable,
@@ -427,7 +627,7 @@ impl Lowering<'_> {
         {
             return Err(self.internal("designated operands on a call that is no boundary call"));
         }
-        let arguments = self.arguments(callable, arguments)?;
+        let arguments = continuing!(self.arguments(callable, arguments));
         let routes = match callable {
             semantic_vocabulary::TargetMachineCallable::Machine(callee) => {
                 &self.outcome(callee)?.crash_routes[..]
@@ -555,6 +755,6 @@ impl Lowering<'_> {
             let homes: Vec<_> = arguments.homes.iter().map(ArgumentHome::place).collect();
             self.retire_homes(&homes, source)?;
         }
-        Ok(value)
+        Ok(Reached::Value(value))
     }
 }

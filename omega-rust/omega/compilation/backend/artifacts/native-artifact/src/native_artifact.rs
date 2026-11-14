@@ -10,7 +10,6 @@ artifact identities (`NativeArtifactIdentity`).
 */
 
 use ::boundary_applications::TerminalBoundaryApplicationCoverage;
-use abstract_operations::AbstractOperationPlan;
 use diagnostics::Diagnostic;
 use effects::{
     SelectedExternalRequirementApplication, SelectedProviderPlanFacts,
@@ -19,8 +18,7 @@ use effects::{
 };
 use image_emission::{ExecutableImageEmissionRequest, RequestedExecutableImage};
 use installation_evidence::ProviderExecutionEvidence;
-use optimization_core::{OptimizationUnitIdentity, OptimizedAbstractPlanProjectionIdentity};
-use terminal_psi::{TerminalIdentityTable, TerminalModule, TerminalPsiIdentity};
+use terminal_psi::{TerminalIdentityTable, TerminalModule};
 use terminal_psi_to_abstract_operations::provider_admission::AdmittedNativeProviders;
 
 mod dynamic_elf;
@@ -32,7 +30,8 @@ mod tests;
 
 use crate::physical::{
     self, NativePhysicalEvidence, NativePhysicalEvidenceDerivation, NativePhysicalEvidenceGap,
-    ValidatedOptimizedNativePhysicalEvidenceScope, canonical_usize, derive_physical_evidence,
+    PhysicalEvidencePass, ValidatedOptimizedNativePhysicalEvidenceScope, canonical_usize,
+    derive_physical_evidence,
 };
 use crate::publication::publication_digest;
 pub use dynamic_elf::{DynamicElfNativeArtifact, DynamicElfNativeArtifactIdentity};
@@ -175,6 +174,15 @@ impl RequestedNativeArtifact {
     ) -> Result<Self, Vec<Diagnostic>> {
         let terminal_authority_closure_review =
             providers.terminal_authority_closure_review().clone();
+        let coverage = boundary_application_coverage.as_ref().ok_or_else(|| {
+            crate::native_artifact_error(
+                "physical publication",
+                "missing boundary-application coverage",
+            )
+        })?;
+        let physical_evidence_scope =
+            NativePhysicalEvidenceScope::from_fragment_publication(coverage, &published.object)
+                .map_err(|reason| crate::native_artifact_error("physical publication", reason))?;
         Self::emit(NativeArtifactEmissionParts {
             target,
             psi_artifact: terminal,
@@ -195,7 +203,7 @@ impl RequestedNativeArtifact {
                 .terminal_authority_permission_policy_identity,
             terminal_authority_closure_review,
             boundary_application_coverage,
-            physical_evidence_scope: published.physical_evidence_scope,
+            physical_evidence_scope,
         })
     }
 
@@ -462,11 +470,12 @@ impl<Image> NativeArtifactParts<Image> {
         final_image_symbol_digest: [u8; 32],
     ) -> Result<NativePhysicalEvidenceDerivation, &'static str> {
         derive_physical_evidence(
+            PhysicalEvidencePass::Receiver,
             &self.physical_evidence_scope,
-            &self.psi_artifact,
+            self.psi_artifact.view().into(),
             self.target,
             &self.object,
-            image_output,
+            &image_output.final_text_bytes,
             final_image_symbol_digest,
             &self.selected_provider_plans,
             &self.provider_executions,
@@ -489,11 +498,12 @@ impl NativeArtifact {
         parts: &NativeArtifactEmissionParts,
     ) -> Result<NativePhysicalEvidenceDerivation, &'static str> {
         derive_physical_evidence(
+            PhysicalEvidencePass::Publication,
             &parts.physical_evidence_scope,
-            &parts.psi_artifact,
+            parts.psi_artifact.view().into(),
             parts.target,
             &parts.object,
-            parts.image.output(),
+            &parts.image.output().final_text_bytes,
             *parts.image.final_image_symbol_digest().as_bytes(),
             &parts.selected_provider_plans,
             &parts.provider_executions,
@@ -728,31 +738,16 @@ pub enum NativePhysicalEvidenceScope {
 }
 
 impl NativePhysicalEvidenceScope {
-    #[expect(
-        dead_code,
-        reason = "unwired, not superseded: native-artifact physical/mod.rs and TASKS_OPTIMIZER.md PIPELINE-OWNER-CONSOLIDATION"
-    )]
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn from_validated_fragment_publication(
-        final_plan: &AbstractOperationPlan,
-        terminal: TerminalPsiIdentity,
-        validation: OptimizedAbstractPlanProjectionIdentity,
-        final_unit: OptimizationUnitIdentity,
+    pub(crate) fn from_fragment_publication(
         boundary_application_coverage: &TerminalBoundaryApplicationCoverage,
-        source: &object_file::StagedOptimizedRelocationFreeObjectContainer,
         object: &image_emission::ObjectArtifact,
     ) -> Result<Self, &'static str> {
         let coverage_identity =
             boundary_application_coverage_identity(Some(boundary_application_coverage))
-                .expect("present boundary-application coverage has an identity");
+                .ok_or("present boundary-application coverage has no identity")?;
         physical::derive_fragment_publication_scope(
-            final_plan,
-            terminal,
-            validation,
-            final_unit,
             boundary_application_coverage,
             coverage_identity,
-            source,
             object,
         )
         .map(Self::ValidatedOptimizedProjection)

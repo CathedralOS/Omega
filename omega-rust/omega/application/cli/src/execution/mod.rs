@@ -602,3 +602,40 @@ fn compare_interpretation(
         }
     }
 }
+
+#[cfg(test)]
+mod comparison_tests {
+    use super::{InterpreterComparison, ProcessExitObservation, compare_interpretation};
+    use terminal_runtime::TerminalRuntimeError;
+
+    #[test]
+    fn native_inspection_failure_fails_comparison() {
+        let comparison = compare_interpretation(
+            ProcessExitObservation::Exited(0),
+            Some(Err(TerminalRuntimeError::NativeArtifactInspection(
+                "corrupt instruction evidence".to_owned(),
+            ))),
+        );
+        let InterpreterComparison::Failed(diagnostics) = comparison else {
+            panic!("invalid evidence must fail even when native exits zero: {comparison:?}");
+        };
+        assert_eq!(diagnostics.len(), 1);
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("corrupt instruction evidence")
+        );
+    }
+
+    #[test]
+    fn absent_host_capability_still_declines_comparison() {
+        let comparison = compare_interpretation(
+            ProcessExitObservation::Exited(0),
+            Some(Err(TerminalRuntimeError::MissingProvision {
+                capability: "runtime-provider-installation",
+                reason: "absent".to_owned(),
+            })),
+        );
+        assert!(matches!(comparison, InterpreterComparison::Declined(_)));
+    }
+}

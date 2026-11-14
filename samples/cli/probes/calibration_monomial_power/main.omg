@@ -2,7 +2,7 @@
 // Expected output contains: 1 10 100
 // Feature powers for one calibration setting. x^0 is 1. For Degree >= 1,
 // x^Degree is x * step<Degree - 1>(x), where step<0> is 1 and step<1> is x.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Basis<const Degree: u64> requires Degree <= 2 {
     setting: i64 in Wrapping;

@@ -1,0 +1,13 @@
+# Source-text reads (include_str!/read_to_string of .rs or .toml) per file.
+# Counts may only fall: express the rule as a dependency in
+# `cargo xtask check-boundary`, a type or visibility, or a test that runs code.
+# Written by `cargo xtask check-rules --update-source-reads`.
+26 omega-rust/omega/build-system/orchestration/src/build_boundary.rs
+36 omega-rust/omega/compilation/compiler/src/product_boundary.rs
+4 omega-rust/omega/compilation/native-compiler/src/pipeline_boundary.rs
+1 omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/lib.rs
+1 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/output.rs
+7 omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/register_allocation.rs
+5 omega-rust/omega/interpreter/terminal-runtime/src/runtime_boundary.rs
+3 omega-rust/psi/foundation/access-plans/src/tests.rs
+1 omega-rust/psi/interpreter/terminal-interpreter/src/embedding.rs

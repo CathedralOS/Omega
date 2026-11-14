@@ -3,7 +3,8 @@
 // ADD08: event-driven propagation, pulse cancellation, exhaustive steady truth.
 // Calendar slots hold zero=absent, one=false, two=true. One gate can schedule
 // at most one value per timestamp. Equal-time deliveries use ascending node ID.
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 use model::netlist;
 
 data Main {

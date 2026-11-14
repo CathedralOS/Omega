@@ -16,8 +16,9 @@ and `dropped by`. Delete it when implementation and acceptance are complete.
 ## Decisions
 
 - Checked bodies infer omitted reach from calls. Bodyless non-boundary
-  requirements defer it to selected implementations. Bare `reaches` promises
-  empty; a named row supplies a finite ceiling. No originating `reaches _`
+  requirements defer it to selected implementations. `reaches none` promises
+  empty; a named row supplies a finite ceiling; bare `reaches` with no value
+  is malformed. No originating `reaches _`
   form or explicit service-row generic parameter is added.
 - Structural and nominal static machine binders, and conformance evidence
   members, all contribute row projections. Conformance projections retain
@@ -64,8 +65,8 @@ published summaries, library customers and existing suites before closing it.
    schema versions, wire tables and codecs together. Existing empty-bound
    metadata must never be silently reinterpreted as open. This docs change
    assigns no new wire tags and changes no serialized bytes.
-5. Audit omitted library and example requirements by their contracts. Add bare
-   `reaches` wherever generic proof/evaluation or API guarantees require an
+5. Audit omitted library and example requirements by their contracts. Add
+   `reaches none` wherever generic proof/evaluation or API guarantees require an
    empty row. Inspect algebra and relation laws, float and ordering operations,
    equality, conversions, content predicates and layout requirements. Do not
    assume every conversion or callback must be service-free. `core/algebra.omg`
@@ -88,7 +89,7 @@ published summaries, library customers and existing suites before closing it.
 | Closed callers | Substitute first: a Console-only selection fits `reaches Console`; the same call fails under empty or incompatible ceilings. |
 | Requirement defaults | Omission defers; `reaches none` requires empty; finite rows bound selections. Boundary omission and originating `reaches _` reject. |
 | Proof use | Generic propositions and evaluation cannot assume omitted reach is empty; explicit service-free requirements preserve existing admission. |
-| Runtime values | Close static dependencies before fitting a finite callable type. Omitted runtime reach stays empty; unresolved row leakage rejects. |
+| Runtime values | Close static dependencies before fitting a finite callable type. Omitted runtime reach rejects as an open contract; `reaches none` states empty; unresolved row leakage rejects. |
 | Other axes | Preserve suspension/blocking ceilings and markers, termination, crashes, access, custody and actual authority requirements. |
 | Publication | Renaming binders preserves normalized identity; changing open/finite policy or a selected published contract invalidates dependent records. Test codec round trips and stale/missing dependencies. |
 | Installation | Resolve every static projection to a finite row; reject unresolved or disallowed services. Do not manufacture provider selection or capability grants. |

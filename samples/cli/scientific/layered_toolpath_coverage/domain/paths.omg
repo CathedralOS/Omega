@@ -1,6 +1,6 @@
 use domain::model;
 use domain::report;
-use omega_language_std::console;
+use omega_language_std::Console;
 // Scan maximal occupied runs. Gaps end deposition and cause travel to the next run.
 machine magnitude(value: i32 in Wrapping) -> i32 in Wrapping {
     transition value < 0 { true -> (0 - value) _ -> value }

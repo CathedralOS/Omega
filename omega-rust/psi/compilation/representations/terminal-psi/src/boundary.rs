@@ -552,8 +552,14 @@ pub(crate) mod conformances {
             identities: &mut crate::TerminalIdentityTableBuilder,
         ) -> Vec<crate::TerminalIdentityIndex> {
             vec![
-                identities.intern("named(integer-const(16))"),
-                identities.intern("named(integer-const(4))"),
+                identities.intern(
+                    &language_semantics::const_value::FiniteScalarValue::Integer(16)
+                        .canonical_identity(),
+                ),
+                identities.intern(
+                    &language_semantics::const_value::FiniteScalarValue::Integer(4)
+                        .canonical_identity(),
+                ),
             ]
         }
 
@@ -1431,7 +1437,7 @@ pub(crate) mod dynamic_dispatch {
         pub slot: u32,
         pub declaring_trait_identity: TerminalIdentityIndex,
         pub requirement_identity: TerminalIdentityIndex,
-        pub family_tuple: Vec<String>,
+        pub family_tuple: Vec<language_semantics::const_value::FiniteScalarValue>,
         pub scalar_parameters: Vec<ScalarType>,
         pub structural_parameters: Vec<TerminalDynamicStructuralFormal>,
         pub entry_claim_paths: Vec<TerminalDynamicClaimPath>,

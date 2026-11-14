@@ -12,15 +12,15 @@ accompanied by `<place>/invalid/` reject twins:
 | Place | Positive Program | Invalid Reject Twin | Carrier / Transport |
 | --- | --- | --- | --- |
 | root | [main.omg](main.omg) | — | checked assembly helper establishes bound and discharges subtraction directly |
-| local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | checked assembly result bound to a local variable |
-| field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | checked assembly result stored in and projected from record field |
-| parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | checked assembly result passed as an explicit machine parameter |
-| call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | checked assembly result returned across call boundary |
-| match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | checked assembly result preserved across match convergence join |
-| const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | checked assembly result subtracted against named constant |
-| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | checked assembly result passed as an argument across state machine transition |
-| another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | checked assembly result forwarded through another machine |
-| another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | checked assembly result consumed across target-scoped machine bodies |
+| local | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | checked assembly result bound to a local variable |
+| field | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | checked assembly result stored in and projected from record field |
+| parameter | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | checked assembly result passed as an explicit machine parameter |
+| call result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | checked assembly result returned across call boundary |
+| match join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | checked assembly result preserved across match convergence join |
+| const name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | checked assembly result subtracted against named constant |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | checked assembly result passed as an argument across state machine transition |
+| another machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | checked assembly result forwarded through another machine |
+| another target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | checked assembly result consumed across target-scoped machine bodies |
 
 Run each place with `omega run <place>/main.omg`.
 

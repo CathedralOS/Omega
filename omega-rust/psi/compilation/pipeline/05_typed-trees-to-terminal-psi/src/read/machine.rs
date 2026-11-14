@@ -201,8 +201,32 @@ impl<'t> Program<'t> {
         })
     }
 
+    /// Checking a declaration does not call its bare name. A boundary
+    /// conformer is checked under its declared slot, without publishing a
+    /// direct entry that a source call could use.
+    pub(super) fn subject_machine(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
+        let diagnostic = self.next_identity()?;
+        let (declared, _) = self.declaration(diagnostic, symbol)?;
+        if let Some((owner, requirement)) = self.conformer_requirement(diagnostic, declared)?
+            && self
+                .typed
+                .trait_definition_by_symbol(owner)
+                .is_some_and(|owner| owner.is_boundary)
+        {
+            return self.provider(symbol, owner, requirement.symbol);
+        }
+        self.machine(symbol)
+    }
+
     /// The `MachineId` of a callee, reading its signature the first time.
     pub fn machine(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
+        if self.descriptor_storage {
+            return Err(refuse(
+                self.next_identity()?,
+                Construct::Machine,
+                Unserved::Declaration("machine admission after storage metadata"),
+            ));
+        }
         let diagnostic = self.next_identity()?;
         let (declared, _) = self.declaration(diagnostic, symbol)?;
         if let Some((owner, _)) = self.conformer_requirement(diagnostic, declared)?
@@ -274,6 +298,13 @@ impl<'t> Program<'t> {
         reading: Reading,
     ) -> Checked<MachineId> {
         let id = self.next_identity()?;
+        if self.descriptor_storage {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Declaration("machine admission after storage metadata"),
+            ));
+        }
         let (machine, _) = self.declaration(id, symbol)?;
         let bound = self
             .conformer_requirement(id, machine)?
@@ -322,6 +353,13 @@ impl<'t> Program<'t> {
         symbol: SymbolHandle,
         reading: Reading,
     ) -> Checked<()> {
+        if self.descriptor_storage {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Declaration("machine admission after storage metadata"),
+            ));
+        }
         let outer = std::mem::take(&mut self.scope);
         // An elided lifetime in the signature is a fresh parameter of this
         // machine, which each call instantiates (`regions::Elision`).
@@ -400,9 +438,37 @@ impl<'t> Program<'t> {
         declaring_trait: SymbolHandle,
         requirement: SymbolHandle,
         arguments: &[semantic_vocabulary::ScalarTerm],
+        implementation: SymbolHandle,
     ) -> Checked<MachineId> {
         let id = self.next_identity()?;
-        let declared = self.declared_requirement(id, declaring_trait, requirement)?;
+        let mut declared = self.declared_requirement(id, declaring_trait, requirement)?;
+        // An owning body's unique map is also the witness's application.
+        // Recover that same prepared contract rather than checking a bare
+        // generic declaration or borrowing another implementation's scope.
+        if let Some(machine) = self.typed.machine_by_symbol(implementation)
+            && let Some((owner, applied)) = self.conformer_requirement(id, machine)?
+        {
+            if owner != declaring_trait || applied.symbol != requirement {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Machine("conformance witness cannot rebind a declared requirement"),
+                ));
+            }
+            declared = applied;
+        } else if self
+            .typed
+            .trait_definition_by_symbol(declaring_trait)
+            .is_some_and(|owner| {
+                !owner.type_parameters.is_empty() || !owner.lifetime_parameters.is_empty()
+            })
+        {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("witness needs its exact closed trait application"),
+            ));
+        }
         self.witnessed_signature(declared, arguments)
     }
 
@@ -453,83 +519,97 @@ impl<'t> Program<'t> {
         Ok(id)
     }
 
-    /// Whether every contract on `state` only restates a domain one of its
-    /// formals' declared types carries: `requires distance in Km` for
-    /// `distance: i32 in Km`, which typing writes on the state for each
-    /// qualified formal. domains.md, "Carrier-exact membership": a
-    /// parameter `value: T in D` "gives the body the fact `value in D`".
-    ///
-    /// The formal's type already says it, so such a contract adds nothing
-    /// to read: the type is what a caller must supply, and the domain's
-    /// predicates join the entry clauses from the type (`predicates`). Any
-    /// other contract on a state stays refused.
-    fn contracts_restate_formal_domains(&self, state: &typed_trees::state::State) -> bool {
+    /// A formal's declared qualification already requires this exact domain.
+    /// Typing records that membership as a contract for both states and
+    /// bodyless requirements. It adds no new predicate here: formal type
+    /// checking enforces the domain, and `signature_predicates` supplies its
+    /// value facts. A fact about another value or domain still needs checking.
+    fn fact_restates_formal_domain(
+        &self,
+        formals: &[StateParameter],
+        fact: &typed_trees::domain::ProofFact,
+    ) -> bool {
         use typed_trees::domain::ProofFact;
         use typed_trees::expression::ExpressionNode;
-        use typed_trees::signature::SignatureContractKind;
         use typed_trees::types::{DomainConstraintSubject, TypeConstraintNode, TypeReferenceNode};
         let typed = self.typed;
-        let carries = |mut reference: typed_trees::types::TypeReferenceHandle,
-                       domain: SymbolHandle| {
-            // A reference formal's domains are its referent's: `seal: &Seal in
-            // Issued` lends a `Seal in Issued`.
-            while reference.is_valid()
-                && let TypeReferenceNode::Reference { referee, .. } =
-                    typed.type_reference_table.type_reference(reference)
-            {
-                reference = *referee;
-            }
-            while reference.is_valid()
-                && let TypeReferenceNode::Constrained {
+        let ProofFact::Membership(membership) = fact else {
+            return false;
+        };
+        if !membership.domain_symbol.is_valid()
+            || !membership.domain_arguments.is_empty()
+            || !typed.expression_table.expression_is_valid(membership.value)
+            || typed
+                .domain_definition(membership.domain_symbol)
+                .is_none_or(|domain| {
+                    // An unapplied authored membership keeps its selected
+                    // symbol even when it has no interned instance ID. An
+                    // instance ID that is present must agree with that symbol.
+                    membership.semantic_domain != language_semantics::SemanticDomainId::NULL
+                        && domain.semantic_id != membership.semantic_domain
+                })
+        {
+            return false;
+        }
+        let ExpressionNode::Name(path) = typed.expression_table.expression(membership.value) else {
+            return false;
+        };
+        if path.static_application.is_valid()
+            || path.reserved_result_of.is_valid()
+            || typed.expression_table.name_path_members(path.members).len() != 1
+        {
+            return false;
+        }
+        let Some(formal) = path
+            .resolved_symbol()
+            .and_then(|symbol| formals.iter().find(|parameter| parameter.symbol == symbol))
+        else {
+            return false;
+        };
+        let mut reference = formal.type_reference;
+        while reference.is_valid() {
+            match typed.type_reference_table.type_reference(reference) {
+                // Qualification of a borrowed formal belongs to its referent.
+                TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+                TypeReferenceNode::Constrained {
                     base_type,
                     constraints,
-                } = typed.type_reference_table.type_reference(reference)
-            {
-                if typed
-                    .type_reference_table
-                    .constraints(*constraints)
-                    .iter()
-                    .any(|constraint| {
-                        matches!(constraint, TypeConstraintNode::Domain(listed)
-                            if listed.subject == DomainConstraintSubject::Declared
-                                && listed.symbol == domain)
-                    })
-                {
-                    return true;
+                } => {
+                    if typed
+                        .type_reference_table
+                        .constraints(*constraints)
+                        .iter()
+                        .any(|constraint| {
+                            matches!(constraint, TypeConstraintNode::Domain(domain)
+                            if domain.subject == DomainConstraintSubject::Declared
+                                && domain.symbol == membership.domain_symbol
+                                && domain.arguments.is_empty())
+                        })
+                    {
+                        return true;
+                    }
+                    reference = *base_type;
                 }
-                reference = *base_type;
+                _ => return false,
             }
-            false
-        };
+        }
+        false
+    }
+
+    /// State clauses outside their formals' existing membership remain
+    /// unserved. The shared contract reader applies the same membership rule
+    /// when reading a machine or requirement's ordinary `requires` clauses.
+    fn contracts_restate_formal_domains(&self, state: &typed_trees::state::State) -> bool {
+        let typed = self.typed;
         typed.state_contracts(state).iter().all(|contract| {
-            contract.kind == SignatureContractKind::Requires
+            contract.kind == typed_trees::signature::SignatureContractKind::Requires
+                && contract.binding.is_none()
                 && typed
                     .proof_facts
                     .span_or_empty(contract.facts)
                     .iter()
                     .all(|fact| {
-                        let ProofFact::Membership(membership) = fact else {
-                            return false;
-                        };
-                        if !membership.domain_symbol.is_valid()
-                            || !membership.domain_arguments.is_empty()
-                            || !typed.expression_table.expression_is_valid(membership.value)
-                        {
-                            return false;
-                        }
-                        let ExpressionNode::Name(path) =
-                            typed.expression_table.expression(membership.value)
-                        else {
-                            return false;
-                        };
-                        let Some(formal) = path.resolved_symbol() else {
-                            return false;
-                        };
-                        typed.expression_table.name_path_members(path.members).len() == 1
-                            && typed.state_parameters(state).iter().any(|parameter| {
-                                parameter.symbol == formal
-                                    && carries(parameter.type_reference, membership.domain_symbol)
-                            })
+                        self.fact_restates_formal_domain(typed.state_parameters(state), fact)
                     })
         })
     }
@@ -997,28 +1077,44 @@ impl<'t> Program<'t> {
         id: MachineId,
         machine: &'t Machine,
     ) -> Checked<Option<(SymbolHandle, &'t StateSignature)>> {
+        let typed = self.typed;
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
         let context = match self.declared_requirement_origin(id, machine)? {
             Some(context) => context,
             None => {
-                let Some((_, row)) = self.typed.owned_conformance_realization(machine.symbol)
+                let Some((implementation, row)) =
+                    typed.owned_conformance_realization(machine.symbol)
                 else {
                     return Ok(None);
                 };
-                (
-                    row.declaring_trait,
-                    self.declared_requirement(id, row.declaring_trait, row.requirement)?,
-                )
+                // The same exact map/row query closes named calls. Its
+                // prepared signature retains the complete trait application;
+                // the map's own open telescope remains unavailable.
+                let Some((owner, selected, requirement)) = typed
+                    .named_conformance_member(implementation.symbol, row.requirement)
+                    .map_err(unserved)?
+                else {
+                    return Err(unserved("conformer lost its exact owning requirement"));
+                };
+                let [entry] = typed.machine_states(machine) else {
+                    return Err(unserved("conformer without one owned entry state"));
+                };
+                if owner.symbol != implementation.symbol
+                    || selected != row
+                    || entry.symbol != row.realization_state
+                {
+                    return Err(unserved("conformer disagrees with its exact owning row"));
+                }
+                (row.declaring_trait, requirement)
             }
         };
         let (owner, requirement) = context;
-        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
         let definition = self
             .typed
             .trait_definition_by_symbol(owner)
             .ok_or_else(|| unserved("conformer lost its originating trait declaration"))?;
         self.requirement_termination(id, requirement)?;
-        if !definition.type_parameters.is_empty()
-            || !definition.lifetime_parameters.is_empty()
+        if !definition.lifetime_parameters.is_empty()
             || !definition.conformance_bounds.is_empty()
             || !definition.requires.is_empty()
             || definition.refines.is_some()
@@ -1027,6 +1123,22 @@ impl<'t> Program<'t> {
             return Err(unserved(
                 "declared requirement needs its complete trait application",
             ));
+        }
+        // Substituting a type does not establish an original parameter's
+        // storage, multiplicity or static-value obligations. Only ordinary
+        // unconstrained type parameters are served by this applied context.
+        if span(
+            &typed.data_type_parameters,
+            definition.type_parameters,
+            id,
+            "trait type parameter span",
+        )?
+        .iter()
+        .any(|parameter| {
+            !matches!(parameter.kind, typed_trees::data::TypeParameterKind::Type)
+                || parameter.bounds != typed_trees::data::DataProperties::default()
+        }) {
+            return Err(unserved("applied trait parameter eligibility"));
         }
         if machine.is_public && !definition.is_public {
             return Err(unserved("conformer is more visible than its requirement"));
@@ -1234,6 +1346,29 @@ impl<'t> Program<'t> {
         requirement: &'t StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<(Signature, MachineNames)> {
+        let (signature, names) = self.declared_requirement_signature(id, requirement, arguments)?;
+        // These callable and witness uses cannot yet carry operational proof.
+        // Do not treat declared suspension or blocking as absent.
+        if requirement.suspends || requirement.blocks {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine("suspends or blocks"),
+            ));
+        }
+        Ok((signature, names))
+    }
+
+    /// Read the types, logical clauses and ceilings of a requirement.
+    /// Boundary publication retains its suspension and blocking flags on the
+    /// checked declaration, and an actual call still owes their proof. Other
+    /// consumers use `requirement_signature`, which refuses unsupported effects.
+    pub(super) fn declared_requirement_signature(
+        &mut self,
+        id: MachineId,
+        requirement: &'t StateSignature,
+        arguments: &[semantic_vocabulary::ScalarTerm],
+    ) -> Checked<(Signature, MachineNames)> {
         // As a machine's: an elided lifetime is a fresh parameter of the
         // requirement, which each call instantiates (`regions::Elision`).
         let elision = std::mem::replace(
@@ -1313,9 +1448,6 @@ impl<'t> Program<'t> {
         {
             return unserved("service reach bound by an installation");
         }
-        if requirement.suspends || requirement.blocks {
-            return unserved("suspends or blocks");
-        }
         let (mut signature, mut names) = self.contract(
             id,
             requirement.symbol,
@@ -1377,9 +1509,8 @@ impl<'t> Program<'t> {
             slots.push(Slot {
                 symbol: formal.symbol,
                 value_type,
-                // What a clause reader needs to know of the binding mode: a
-                // guarantee or a crash route guard may not name a formal
-                // the body can replace (`ClauseScope::formal_fields`).
+                // Retain the declared working-binding mode. Contract scalar
+                // names use their immutable input ValueIds regardless of it.
                 assignable: mutable_formal(formal, access),
                 homed: false,
                 erased: is_erased,
@@ -1450,16 +1581,10 @@ impl<'t> Program<'t> {
         };
         let exit = ClauseScope {
             result: match result {
-                // A policy-qualified result is named as its stored value.
-                Some(ValueType::Scalar(scalar_type, qualification))
-                    if qualification.domains.is_empty() =>
-                {
-                    ResultTerm::Named(result_value, scalar_type, qualification.policy)
-                }
-                // domains.md, "Operands": a builtin operator or comparison
-                // takes unqualified operands, in `ensures` too.
-                Some(ValueType::Scalar(..)) => {
-                    ResultTerm::Absent("result that carries a declared domain")
+                // Keep the result's qualification until an operator or cast
+                // consumes it, just as for an input or a field.
+                Some(ValueType::Scalar(scalar_type, qualification)) => {
+                    ResultTerm::Named(result_value, scalar_type, qualification)
                 }
                 // A returned field belongs to the declared result root,
                 // allocated after the structural formals by lowering.
@@ -1498,6 +1623,9 @@ impl<'t> Program<'t> {
                 // for `u32`.
                 SignatureContractKind::Requires => {
                     for fact in facts {
+                        if self.fact_restates_formal_domain(formals, fact) {
+                            continue;
+                        }
                         let expression = self.fact(id, fact)?;
                         if self.states_nothing(id, expression)? {
                             continue;
@@ -1925,6 +2053,13 @@ impl<'t> Program<'t> {
     /// lifetimes its types name (lifetimes.md: a named data application
     /// must "use binders declared in the lexical owner").
     pub fn body(&mut self, id: MachineId) -> Checked<Body> {
+        if self.descriptor_storage {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Declaration("body admission after storage metadata"),
+            ));
+        }
         let symbol = *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
         let owner = std::mem::replace(&mut self.lifetime_owner, symbol);
         let read = self.read_body(id, symbol);

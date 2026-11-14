@@ -503,6 +503,24 @@ impl Storage<'_> {
                 // the lent place; a shared one lets it store nothing.
                 // loans.md: "Borrowed arguments continue to denote the
                 // original storage".
+                if let Some(regions) = terminal_semantics::borrowed_storage::call_write_regions(
+                    self.module,
+                    self.lowered,
+                    operation,
+                )
+                .map_err(|detail| self.foreign(concerns, &detail))?
+                {
+                    for region in regions {
+                        let root = region.root.ok_or_else(|| {
+                            self.foreign(concerns, "a known call write region has no root")
+                        })?;
+                        rows.push((
+                            self.stored_at(root, &region.projection.path, concerns)?,
+                            Stored::Established,
+                        ));
+                    }
+                    return Ok(rows);
+                }
                 for argument in kind.structural_arguments() {
                     match argument.access {
                         StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow => {

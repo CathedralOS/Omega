@@ -9,15 +9,15 @@ Every place performs the same operation: define bounded signed 64-bit input `raw
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | (root) | [`main.omg`](main.omg) | — | root 64-bit signed bitwise XOR evaluation |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | both the bounded signed i64 operand and its bitwise XOR result are transported through local bindings |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the bitwise XOR result is stored and loaded through a record field |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the bitwise XOR result is forwarded as a machine parameter |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the bitwise XOR result is returned from a callee invocation |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms yield the bitwise XOR result so the joined binding preserves the bounds |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | a named constant operand is bitwise XORed with 15i64 |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a state transition forwards the bitwise XOR result to a successor machine |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine transports the bitwise XOR result through an intermediate machine call |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body computes the 64-bit signed bitwise XOR and verifies the bounds |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | both the bounded signed i64 operand and its bitwise XOR result are transported through local bindings |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the bitwise XOR result is stored and loaded through a record field |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the bitwise XOR result is forwarded as a machine parameter |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | the bitwise XOR result is returned from a callee invocation |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | both match arms yield the bitwise XOR result so the joined binding preserves the bounds |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | a named constant operand is bitwise XORed with 15i64 |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a state transition forwards the bitwise XOR result to a successor machine |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | a forwarding machine transports the bitwise XOR result through an intermediate machine call |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each hosted target body computes the 64-bit signed bitwise XOR and verifies the bounds |
 
 Every positive place and the root `main.omg` probe binds `ProgramEntry` for
 `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, carries an
@@ -56,15 +56,15 @@ omega --check samples/cli/facts/signed_64bit_bitwise_xor_bound/<place>/invalid/m
 
 | Place | Reject Twin | Obligation Class | Authored Diagnostic Fragment |
 | --- | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | Contract precondition | `cannot prove requires contract for call verify_xored` |
 
 The same nine twins are also mirrored under `invalid/<place>/` with an authored
 `expected.txt`, so the invalid controls are discoverable by both the per-place

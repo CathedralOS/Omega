@@ -19,15 +19,15 @@ Pins are `tests/omega/{pass,fail}/facts/checked_asm_fence_contracts_through_*`.
 | Place | Positive | Reject twin |
 | --- | --- | --- |
 | root | [source](main.omg) | [invented clobber](invalid/main.omg) |
-| local | [source](local/main.omg) | [invented clobber](local/invalid/main.omg) |
-| field | [source](field/main.omg) | [invented clobber](field/invalid/main.omg) |
-| parameter | [source](parameter/main.omg) | [invented clobber](parameter/invalid/main.omg) |
-| call_result | [source](call_result/main.omg) | [invented clobber](call_result/invalid/main.omg) |
-| match_join | [source](match_join/main.omg) | [invented clobber](match_join/invalid/main.omg) |
-| const_name | [source](const_name/main.omg) | [invented clobber](const_name/invalid/main.omg) |
-| other_state | [source](other_state/main.omg) | [invented clobber](other_state/invalid/main.omg) |
-| other_machine | [source](other_machine/main.omg) | [invented clobber](other_machine/invalid/main.omg) |
-| target_body | [source](target_body/main.omg) | [invented clobber](target_body/invalid/main.omg) |
+| local | [source](local/main.omg) | [invented clobber](invalid_local/main.omg) |
+| field | [source](field/main.omg) | [invented clobber](invalid_field/main.omg) |
+| parameter | [source](parameter/main.omg) | [invented clobber](invalid_parameter/main.omg) |
+| call_result | [source](call_result/main.omg) | [invented clobber](invalid_call_result/main.omg) |
+| match_join | [source](match_join/main.omg) | [invented clobber](invalid_match_join/main.omg) |
+| const_name | [source](const_name/main.omg) | [invented clobber](invalid_const_name/main.omg) |
+| other_state | [source](other_state/main.omg) | [invented clobber](invalid_other_state/main.omg) |
+| other_machine | [source](other_machine/main.omg) | [invented clobber](invalid_other_machine/main.omg) |
+| target_body | [source](target_body/main.omg) | [invented clobber](invalid_target_body/main.omg) |
 
 
 - Establishment: the caller proves input == 37; entry and exit assertions are

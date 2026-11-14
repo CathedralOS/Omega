@@ -228,8 +228,8 @@ pub struct MachineDischarge {
     /// open, in block and operation order.
     pub windows: Vec<WindowUse>,
     /// Joins whose inferred predicate some arrival could not establish. Each
-    /// predicate was replaced by `Truth`, which every arrival establishes,
-    /// so the join contributes nothing downstream (`joins`).
+    /// loses its inferred facts; its original declared predicate, if any,
+    /// remains mandatory (`joins`).
     pub weakened_joins: Vec<BlockId>,
     /// Each loan that may not be formed, with what it conflicts with. Its
     /// row's verdict is the `Conflict` refusal.
@@ -380,6 +380,25 @@ fn discharge_inner(
     knowledge: Knowledge,
     carried: &[Carried<'_>],
 ) -> Checked<Discharge> {
+    // A caller may retain old contents only outside the callee's actual
+    // writes. Check every published frame before summaries or knowledge can
+    // use it. Low-level proof reconstruction still states a conditional
+    // judgment; this whole-module route owns admission of those premises.
+    terminal_semantics::borrowed_storage::validate_write_frames(&elaboration.module).map_err(
+        |detail| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                elaboration
+                    .module
+                    .machines
+                    .first()
+                    .map(|machine| machine.id)
+                    .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity")),
+                Construct::Machine,
+                &detail,
+            )
+        },
+    )?;
     // Results before inputs: what a helper returns is a fact its caller
     // may pass on to the next private helper, whose inferred input
     // condition is described from the caller's facts.
@@ -545,7 +564,6 @@ fn machine(
     branches: &[terminal_check_tables::program::Branch],
 ) -> Checked<MachineDischarge> {
     let machines = &module.machines;
-    let structural_types = &module.structural_types;
     let invariants = &module.scalar_block_invariants;
     let lowered = terminal_machine(machines, id, id)?;
     if !tables.knowledge.is_empty() {
@@ -564,14 +582,14 @@ fn machine(
     } = prepare(module, domains, id, tables, knowledge)?;
     let references = std::cell::RefCell::new(
         terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
-            structural_types,
+            &module.structural_types,
             &reference_graph,
         ),
     );
     let storage = places::Storage::new(
         id,
         lowered,
-        structural_types,
+        module,
         domains,
         &graph,
         tables,
@@ -1229,14 +1247,14 @@ pub(crate) fn prepare(
     if fill {
         let references = std::cell::RefCell::new(
             terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
-                structural_types,
+                &module.structural_types,
                 &reference_graph,
             ),
         );
         let storage = places::Storage::new(
             id,
             lowered,
-            structural_types,
+            module,
             domains,
             &graph,
             tables,

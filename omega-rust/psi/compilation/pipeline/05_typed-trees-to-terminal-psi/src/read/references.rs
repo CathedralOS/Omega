@@ -121,6 +121,7 @@ impl Program<'_> {
             return Ok(Some(ValueType::Record(id, qualification, regions)));
         }
         let id = self.records.push(RecordType {
+            owns_linear_claim: false,
             copyable: access == StructuralAccess::SharedBorrow,
             identity,
             shape,

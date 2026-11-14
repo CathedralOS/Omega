@@ -29,7 +29,7 @@ The match join observes distinct true/false markers while preserving the same
 foreign operation. The const place names the original numeric inputs; a foreign
 operation is not a constant initializer.
 
-Every place and the root has a twin at `invalid/main.omg`. It removes only the
+Every place and the root has a twin at `../invalid_arrays/main.omg`. It removes only the
 outer `Division`'s `[copy]`; `Word` and its byte array stay copyable. The repeated
 whole-value use in `receive` must reject with `holds no value`. Exact nine-place
 pairs are pinned under

@@ -37,15 +37,15 @@ each language construct:
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
 | root | [main.omg](main.omg) | — | direct local form with the match inline |
-| local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | owned local |
-| field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | owned record member |
-| parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | owned machine parameter |
-| call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | checked result guarantee |
-| match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | common completed owned-member fact |
-| const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | named payload constants |
-| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | state-local owned backing |
-| another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | forwarded machine parameters |
-| another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | ordinary `apply` implementations selected by target-keyed Build rows |
+| local | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | owned local |
+| field | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | owned record member |
+| parameter | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | owned machine parameter |
+| call result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | checked result guarantee |
+| match join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | common completed owned-member fact |
+| const name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | named payload constants |
+| a nested machine | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | state-local owned backing |
+| another machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | forwarded machine parameters |
+| another target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | ordinary `apply` implementations selected by target-keyed Build rows |
 
 Twins keep the match, the selected arm and the write through the exclusive
 view, then replace the selected source (`chosen`, or `pair.chosen` for
@@ -140,7 +140,7 @@ nine twins exit 1 with their pinned fragment.
 
 ```sh
 omega run --both samples/cli/facts/descriptor_payload_exclusive_loan/local/main.omg   # exit 0, native exit 0, interp exit: 0
-omega --check samples/cli/facts/descriptor_payload_exclusive_loan/local/invalid/main.omg   # exit 1, the loan diagnostic
+omega --check samples/cli/facts/descriptor_payload_exclusive_loan/invalid_local/main.omg   # exit 1, the loan diagnostic
 python3 tools/sample_gate.py --filter cli/facts/descriptor_payload_exclusive_loan --cli <omega>          # 19/19 checked, 9 intended rejections matched
 python3 tools/sample_native_gate.py --filter cli/facts/descriptor_payload_exclusive_loan --cli <omega>   # 10/10 meet oracle, 9/9 controls match
 python3 tools/corpus_gate.py --filter descriptor_payload_exclusive_loan

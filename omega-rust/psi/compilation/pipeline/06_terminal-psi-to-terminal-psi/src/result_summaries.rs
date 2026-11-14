@@ -290,7 +290,7 @@ fn summarize(
     let storage = crate::places::Storage::new(
         id,
         lowered,
-        &module.structural_types,
+        module,
         &elaboration.domains,
         &prepared.graph,
         &scratch,

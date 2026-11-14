@@ -2,7 +2,7 @@
 // Checked quotient operations over custody-free copy representatives.
 
 use omega::language::core::Equivalence;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Representative [copy] { value: i32; }
 

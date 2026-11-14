@@ -12,15 +12,15 @@ One sentence: `Closed literal argument 3i32 in Quotient::lift satisfies represen
 
 | Place | Positive witness | Invalid control | Corpus pass fixture | Corpus fail fixture |
 | --- | --- | --- | --- | --- |
-| Local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | `pass/facts/quotient_closed_literal_through_local_exit` | `fail/facts/quotient_closed_literal_through_local_rejected` |
-| Field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | `pass/facts/quotient_closed_literal_through_field_exit` | `fail/facts/quotient_closed_literal_through_field_rejected` |
-| Parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | `pass/facts/quotient_closed_literal_through_parameter_exit` | `fail/facts/quotient_closed_literal_through_parameter_rejected` |
-| Call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | `pass/facts/quotient_closed_literal_through_call_result_exit` | `fail/facts/quotient_closed_literal_through_call_result_rejected` |
-| Match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | `pass/facts/quotient_closed_literal_through_match_join_exit` | `fail/facts/quotient_closed_literal_through_match_join_rejected` |
-| Const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | `pass/facts/quotient_closed_literal_through_const_name_exit` | `fail/facts/quotient_closed_literal_through_const_name_rejected` |
-| Nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | `pass/facts/quotient_closed_literal_through_other_state_exit` | `fail/facts/quotient_closed_literal_through_other_state_rejected` |
-| Other machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | `pass/facts/quotient_closed_literal_through_other_machine_exit` | `fail/facts/quotient_closed_literal_through_other_machine_rejected` |
-| Target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | `pass/facts/quotient_closed_literal_through_target_body_exit` | `fail/facts/quotient_closed_literal_through_target_body_rejected` |
+| Local | [local/main.omg](local/main.omg) | [invalid_local/main.omg](invalid_local/main.omg) | `pass/facts/quotient_closed_literal_through_local_exit` | `fail/facts/quotient_closed_literal_through_local_rejected` |
+| Field | [field/main.omg](field/main.omg) | [invalid_field/main.omg](invalid_field/main.omg) | `pass/facts/quotient_closed_literal_through_field_exit` | `fail/facts/quotient_closed_literal_through_field_rejected` |
+| Parameter | [parameter/main.omg](parameter/main.omg) | [invalid_parameter/main.omg](invalid_parameter/main.omg) | `pass/facts/quotient_closed_literal_through_parameter_exit` | `fail/facts/quotient_closed_literal_through_parameter_rejected` |
+| Call result | [call_result/main.omg](call_result/main.omg) | [invalid_call_result/main.omg](invalid_call_result/main.omg) | `pass/facts/quotient_closed_literal_through_call_result_exit` | `fail/facts/quotient_closed_literal_through_call_result_rejected` |
+| Match join | [match_join/main.omg](match_join/main.omg) | [invalid_match_join/main.omg](invalid_match_join/main.omg) | `pass/facts/quotient_closed_literal_through_match_join_exit` | `fail/facts/quotient_closed_literal_through_match_join_rejected` |
+| Const name | [const_name/main.omg](const_name/main.omg) | [invalid_const_name/main.omg](invalid_const_name/main.omg) | `pass/facts/quotient_closed_literal_through_const_name_exit` | `fail/facts/quotient_closed_literal_through_const_name_rejected` |
+| Nested machine | [other_state/main.omg](other_state/main.omg) | [invalid_other_state/main.omg](invalid_other_state/main.omg) | `pass/facts/quotient_closed_literal_through_other_state_exit` | `fail/facts/quotient_closed_literal_through_other_state_rejected` |
+| Other machine | [other_machine/main.omg](other_machine/main.omg) | [invalid_other_machine/main.omg](invalid_other_machine/main.omg) | `pass/facts/quotient_closed_literal_through_other_machine_exit` | `fail/facts/quotient_closed_literal_through_other_machine_rejected` |
+| Target body | [target_body/main.omg](target_body/main.omg) | [invalid_target_body/main.omg](invalid_target_body/main.omg) | `pass/facts/quotient_closed_literal_through_target_body_exit` | `fail/facts/quotient_closed_literal_through_target_body_rejected` |
 
 The root [main.omg](main.omg) is another existing witness for the same automatic lift with the closed literal `3i32`.
 
@@ -34,6 +34,6 @@ The root [main.omg](main.omg) is another existing witness for the same automatic
 
 ## Validation status
 
-Positive acceptance requires `omega run --both` with exit `0` on all four hosted targets, plus the intended rejection for every invalid twin. Exact-source runs or applicable retained evidence must identify the producer and target under `tools/testing.md`.
+Positive acceptance requires `omega run --both` with exit `0` on all four hosted targets, plus the intended rejection for every invalid twin. Exact-source runs or applicable retained evidence must identify the producer and target under `tools/docs/testing.md`.
 
 This source migration retains source, operand, Build, mirror and twin-difference audits. It does not supply compiler proof or runtime acceptance. The changed corpus fixtures still need clean recording on the integrated producer. Historical Linux x86-64 observations belong to the legacy source recorded by those runs; they do not establish that this migrated source passed. Check their consumer-based applicability before any reuse.

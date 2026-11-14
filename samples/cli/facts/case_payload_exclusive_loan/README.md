@@ -7,15 +7,15 @@ Every place carries the same construct and operation: one `match` on a single ev
 | Place | Positive Project | Reject Twin | Transport Mechanism |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) with [`build.omg`](build.omg) | — | canonical root witness (the `local` program under the row's root `build.omg`) |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | the loan is taken over two local `Slot` bindings inside `main` |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | the payloads are record fields (`pair.chosen.value`) |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | the loan is taken in a callee over `&mut Slot` parameters |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | the sources arrive as `present(value)` call results |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | the sources are produced by reconverging match joins |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the initial and unselected payload values are named constants |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine `pick` takes the loan and consumes it |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `forward` relays the loan to `apply` on a separate machine |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each target's Build row selects an ordinary `apply` implementation that takes the loan |
+| local | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) | the loan is taken over two local `Slot` bindings inside `main` |
+| field | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) | the payloads are record fields (`pair.chosen.value`) |
+| parameter | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | the loan is taken in a callee over `&mut Slot` parameters |
+| call result | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | the sources arrive as `present(value)` call results |
+| match join | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | the sources are produced by reconverging match joins |
+| const name | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | the initial and unselected payload values are named constants |
+| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | a successor machine `pick` takes the loan and consumes it |
+| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | `forward` relays the loan to `apply` on a separate machine |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | each target's Build row selects an ordinary `apply` implementation that takes the loan |
 
 ## Execution
 
@@ -46,15 +46,15 @@ Each place has an `invalid/` twin that breaks only the exclusive-loan obligation
 
 | Place | Twin | Pinned Diagnostic Fragment (verbatim) |
 | --- | --- | --- |
-| local | [`local/invalid/main.omg`](local/invalid/main.omg) | ``statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)`` |
-| field | [`field/invalid/main.omg`](field/invalid/main.omg) | ``statement 3 mutates `pair.chosen` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 5)`` |
-| parameter | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | ``statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)`` |
-| call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | ``statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)`` |
-| match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | ``statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)`` |
-| const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | ``statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)`` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | ``statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3)`` |
-| another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | ``statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)`` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | ``statement 2 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)`` (two diagnostics, one per implementation) |
+| local | [`invalid_local/main.omg`](invalid_local/main.omg) | ``statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)`` |
+| field | [`invalid_field/main.omg`](invalid_field/main.omg) | ``statement 3 mutates `pair.chosen` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 5)`` |
+| parameter | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) | ``statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)`` |
+| call result | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) | ``statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)`` |
+| match join | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) | ``statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)`` |
+| const name | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) | ``statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)`` |
+| a nested machine | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) | ``statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3)`` |
+| another machine | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) | ``statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)`` |
+| another target body | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) | ``statement 2 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)`` (two diagnostics, one per implementation) |
 
 ## Pinned Fixtures
 

@@ -78,7 +78,7 @@ use terminal_psi::{
 };
 use terminal_semantics::CollectionExtent;
 
-use super::{Lowering, Value};
+use super::{Evaluation, Lowering, Reached, Value};
 use crate::body::{
     Body, Expression, ExpressionKind, RecordField, RecordType, Statement, StorageShape, Target,
     ValueType,
@@ -311,10 +311,10 @@ pub(crate) fn declare<'a>(
             quotient_carrier: None,
             id,
             identity: identities.intern(&record.identity),
-            owns_linear_claim: false,
+            owns_linear_claim: record.owns_linear_claim,
             copyable: record.copyable,
-            no_code_affine_cleanup: true,
-            descriptor_cleanup: true,
+            no_code_affine_cleanup: !record.owns_linear_claim,
+            descriptor_cleanup: !record.owns_linear_claim,
             shape,
             scalar_restriction: None,
         });
@@ -799,47 +799,22 @@ impl<'a> Lowering<'a> {
         terminal_check_tables::row(&self.tables.roots, place, self.id, Construct::Machine).copied()
     }
 
-    fn place_row(&mut self, place: ExactPlaceId) -> Checked<&mut PlaceRow> {
-        let id = self.id;
-        self.tables
-            .places
-            .get_mut(place)
-            .ok_or(terminal_check_tables::Refusal {
-                reason: terminal_check_tables::RefusalReason::ForeignIdentity,
-                machine: id,
-                concerns: Construct::Place(place),
-                detail: String::from("place is past the end of this machine"),
-            })
-    }
-
-    /// The projection of `parent` by `field`, interned: one row per
-    /// `(parent, field)` pair, found by binary search of the parent's sorted
-    /// children.
     fn project(&mut self, parent: ExactPlaceId, segment: Segment) -> Checked<ExactPlaceId> {
-        let found = self
-            .place_row(parent)?
-            .children
-            .binary_search_by_key(&segment, |(segment, _)| *segment);
-        match found {
-            Ok(position) => Ok(self.place_row(parent)?.children[position].1),
-            Err(position) => {
-                let child = self.tables.places.push(PlaceRow {
-                    origin: PlaceOrigin::Projection { parent, segment },
-                    children: Vec::new(),
-                    writes: Vec::new(),
-                });
-                self.place_row(parent)?
-                    .children
-                    .insert(position, (segment, child));
-                Ok(child)
-            }
-        }
+        terminal_check_tables::bindings::intern_projection(
+            self.id,
+            &mut self.tables.places,
+            parent,
+            segment,
+        )
     }
 
     fn write(&mut self, place: ExactPlaceId, at: ProgramPoint, content: Content) -> Checked<()> {
-        let write = self.tables.writes.push(WriteRow { place, at, content });
-        self.place_row(place)?.writes.push(write);
-        Ok(())
+        terminal_check_tables::bindings::record_write(
+            self.id,
+            &mut self.tables.places,
+            &mut self.tables.writes,
+            WriteRow { place, at, content },
+        )
     }
 
     /// A scalar leaf's initial logical value: supplied at entry for a formal,
@@ -1099,7 +1074,7 @@ impl<'a> Lowering<'a> {
         })
     }
 
-    fn index_step(&mut self, owner: StructuralTypeId, expression: &Expression) -> Checked<Step> {
+    fn index_step(&mut self, owner: StructuralTypeId, expression: &Expression) -> Evaluation<Step> {
         let (_, CollectionExtent::Fixed(length)) = self.array_element(owner)? else {
             return Err(self.internal("sequence index needs its actual current length"));
         };
@@ -1119,12 +1094,12 @@ impl<'a> Lowering<'a> {
             }
             None => None,
         };
-        let selector = self.scalar(expression)?;
-        Ok(Step::Index {
+        let selector = continuing!(self.scalar(expression));
+        Ok(Reached::Value(Step::Index {
             owner,
             selector,
             fixed,
-        })
+        }))
     }
 
     /// Emits an operation whose result is a fresh record root.
@@ -1164,7 +1139,7 @@ impl<'a> Lowering<'a> {
         )
     }
 
-    fn located(&mut self, expression: &Expression) -> Checked<Located> {
+    fn located(&mut self, expression: &Expression) -> Evaluation<Located> {
         let Some(ValueType::Record(record, _, _)) = expression.result else {
             return Err(self.internal("a scalar expression is used as a record"));
         };
@@ -1182,18 +1157,18 @@ impl<'a> Lowering<'a> {
                     return Err(self.internal("a saved subject has another type than its capture"));
                 }
                 at.fresh = false;
-                Ok(at)
+                Ok(Reached::Value(at))
             }
             ExpressionKind::Slot(slot) => {
                 let bound = *self.slot_mut(*slot)?;
                 match bound {
-                    Some(Bound::Record(root)) => Ok(Located {
+                    Some(Bound::Record(root)) => Ok(Reached::Value(Located {
                         root,
                         place: self.exact_root(root)?,
                         path: Vec::new(),
                         record,
                         fresh: false,
-                    }),
+                    })),
                     Some(Bound::Scalar(_) | Bound::Home(_) | Bound::Erased(_)) => {
                         Err(self.internal("a scalar slot is used as a record"))
                     }
@@ -1201,7 +1176,7 @@ impl<'a> Lowering<'a> {
                 }
             }
             ExpressionKind::Field { base, field } => {
-                let mut at = self.located(base)?;
+                let mut at = continuing!(self.located(base));
                 let step = Step::Field {
                     owner: at.record,
                     field: *field,
@@ -1209,10 +1184,10 @@ impl<'a> Lowering<'a> {
                 at.place = self.step(at.place, step)?;
                 at.path.push(step);
                 at.record = record;
-                Ok(at)
+                Ok(Reached::Value(at))
             }
             ExpressionKind::Payload { base, case, field } => {
-                let mut at = self.located(base)?;
+                let mut at = continuing!(self.located(base));
                 let step = Step::Payload {
                     owner: at.record,
                     case: *case,
@@ -1221,29 +1196,30 @@ impl<'a> Lowering<'a> {
                 at.place = self.step(at.place, step)?;
                 at.path.push(step);
                 at.record = record;
-                Ok(at)
+                Ok(Reached::Value(at))
             }
             ExpressionKind::Index { base, index } => {
-                let mut at = self.located(base)?;
+                let mut at = continuing!(self.located(base));
                 let (element, _) = self.array_element(at.record)?;
                 if element != record {
                     return Err(self.internal("an indexed value has another element storage type"));
                 }
-                let step = self.index_step(at.record, index)?;
+                let step = continuing!(self.index_step(at.record, index));
                 at.place = self.step(at.place, step)?;
                 at.path.push(step);
                 at.record = record;
-                Ok(at)
+                Ok(Reached::Value(at))
             }
             ExpressionKind::Array { elements } => {
-                let (root, place) = self.establish_array(record, elements, expression.source)?;
-                Ok(Located {
+                let (root, place) =
+                    continuing!(self.establish_array(record, elements, expression.source));
+                Ok(Reached::Value(Located {
                     root,
                     place,
                     path: Vec::new(),
                     record,
                     fresh: true,
-                })
+                }))
             }
             ExpressionKind::ByteLiteral(bytes) => {
                 if !matches!(self.record_type(record)?.shape,
@@ -1273,64 +1249,92 @@ impl<'a> Lowering<'a> {
                     ProgramPoint::AfterOperation(operation),
                     Content::Overwritten,
                 )?;
-                Ok(Located {
+                Ok(Reached::Value(Located {
                     root,
                     place,
                     path: Vec::new(),
                     record,
                     fresh: true,
-                })
+                }))
             }
             ExpressionKind::Record { fields } => {
-                let (root, place) = self.establish(record, fields, expression.source)?;
-                Ok(Located {
+                let (root, place) = continuing!(self.establish(record, fields, expression.source));
+                Ok(Reached::Value(Located {
                     root,
                     place,
                     path: Vec::new(),
                     record,
                     fresh: true,
-                })
+                }))
             }
             ExpressionKind::Case { case, fields } => {
                 let (root, place) =
-                    self.establish_case(record, *case, fields, expression.source)?;
-                Ok(Located {
+                    continuing!(self.establish_case(record, *case, fields, expression.source));
+                Ok(Reached::Value(Located {
                     root,
                     place,
                     path: Vec::new(),
                     record,
                     fresh: true,
-                })
+                }))
             }
             ExpressionKind::Call {
                 callee,
                 arguments,
                 designated,
             } => {
-                match self.call(
+                match continuing!(self.call(
                     *callee,
                     arguments,
                     *designated,
                     expression.result,
                     expression.source,
-                )? {
-                    Value::Record(root) => Ok(Located {
+                )) {
+                    Value::Record(root) => Ok(Reached::Value(Located {
                         root,
                         place: self.exact_root(root)?,
                         path: Vec::new(),
                         record,
                         fresh: true,
-                    }),
+                    })),
                     Value::Scalar(_) | Value::Unit => {
                         Err(self.internal("a record call produced no record"))
                     }
                 }
             }
+            ExpressionKind::Match {
+                capture,
+                subject,
+                arms,
+                default,
+            } => {
+                let result_type = expression
+                    .result
+                    .ok_or_else(|| self.internal("a data match has no complete result type"))?;
+                let Value::Record(root) = continuing!(self.match_value(
+                    subject,
+                    arms,
+                    default.as_deref(),
+                    result_type,
+                    expression.source,
+                    *capture,
+                )) else {
+                    return Err(
+                        self.internal("a data match did not produce its structural parameter")
+                    );
+                };
+                Ok(Reached::Value(Located {
+                    root,
+                    place: self.exact_root(root)?,
+                    path: Vec::new(),
+                    record,
+                    fresh: true,
+                }))
+            }
             ExpressionKind::Integer(_)
             | ExpressionKind::Boolean(_)
             | ExpressionKind::IsCase { .. }
             | ExpressionKind::CollectionMeasure { .. }
-            | ExpressionKind::Match { .. }
             | ExpressionKind::Strict { .. }
             | ExpressionKind::Not(_)
             | ExpressionKind::BitwiseNot(_)
@@ -1368,7 +1372,7 @@ impl<'a> Lowering<'a> {
                 // A persistent reference borrows the original storage. The
                 // descriptor snapshot used for a call argument expires with
                 // that call and cannot become this reference's backing.
-                let captured = self.capture_place(place, home.as_deref())?;
+                let captured = continuing!(self.capture_place(place, home.as_deref()));
                 let lent = self.captured_loan(place, *access, captured, None)?;
                 let operation = self.operation_identity(expression.source);
                 let before = self.here()?;
@@ -1403,23 +1407,23 @@ impl<'a> Lowering<'a> {
                     ProgramPoint::AfterOperation(operation),
                     Content::Overwritten,
                 )?;
-                Ok(Located {
+                Ok(Reached::Value(Located {
                     root,
                     place,
                     path: Vec::new(),
                     record,
                     fresh: true,
-                })
+                }))
             }
             ExpressionKind::Referent(_) => {
-                let (root, path, place, _) = self.capture_place(expression, None)?;
-                Ok(Located {
+                let (root, path, place, _) = continuing!(self.capture_place(expression, None));
+                Ok(Reached::Value(Located {
                     root,
                     path,
                     place,
                     record,
                     fresh: false,
-                })
+                }))
             }
         }
     }
@@ -1429,10 +1433,10 @@ impl<'a> Lowering<'a> {
     /// a slot or member path is copied only with declared copy permission.
     /// Otherwise `MoveStructuralValue` vacates exactly that region; its
     /// continuation owns any remaining cleanup and home retirement.
-    pub(super) fn record(&mut self, expression: &Expression) -> Checked<PlaceId> {
-        let at = self.located(expression)?;
+    pub(super) fn record(&mut self, expression: &Expression) -> Evaluation<PlaceId> {
+        let at = continuing!(self.located(expression));
         if at.fresh && at.path.is_empty() {
-            return Ok(at.root);
+            return Ok(Reached::Value(at.root));
         }
         let moving = !self.record_type(at.record)?.copyable;
         if moving && self.borrowed_roots.contains(&at.root) {
@@ -1484,7 +1488,7 @@ impl<'a> Lowering<'a> {
                 self.retire_homes(&[], expression.source)?;
             }
         }
-        Ok(root)
+        Ok(Reached::Value(root))
     }
 
     /// A named affine local has its own home: the initializer transfers into
@@ -1492,13 +1496,13 @@ impl<'a> Lowering<'a> {
     /// Capture all operands before the continuation can dispose the previous
     /// binding. The admitted plain slice stores no persistent reference
     /// descriptors, so rebinding has no retained loan of the previous home.
-    pub(super) fn bind_record(&mut self, expression: &Expression) -> Checked<PlaceId> {
+    pub(super) fn bind_record(&mut self, expression: &Expression) -> Evaluation<PlaceId> {
         let Some(ValueType::Record(record, _, _)) = expression.result else {
             return Err(self.internal("a scalar initializer is used as a record"));
         };
-        let value = self.record(expression)?;
+        let value = continuing!(self.record(expression));
         if self.record_type(record)?.copyable {
-            return Ok(value);
+            return Ok(Reached::Value(value));
         }
         self.retire_homes(&[], expression.source)?;
         let reserve = self.operation_identity(expression.source);
@@ -1527,7 +1531,7 @@ impl<'a> Lowering<'a> {
             Content::Overwritten,
         )?;
         self.retire_homes(&[value], expression.source)?;
-        Ok(home)
+        Ok(Reached::Value(home))
     }
 
     /// The place a loan lends, as the call passes it: the lent place's root
@@ -1548,7 +1552,7 @@ impl<'a> Lowering<'a> {
         place: &Expression,
         access: language_core::ReferenceAccess,
         home_identity: Option<&str>,
-    ) -> Checked<Lent> {
+    ) -> Evaluation<Lent> {
         let value_type = place
             .result
             .ok_or_else(|| self.internal("a loan of a Unit value"))?;
@@ -1579,7 +1583,7 @@ impl<'a> Lowering<'a> {
                     Unserved::Call("shared-view descriptor without copy permission"),
                 ));
             }
-            let root = self.record(place)?;
+            let root = continuing!(self.record(place));
             (
                 root,
                 Vec::new(),
@@ -1588,10 +1592,12 @@ impl<'a> Lowering<'a> {
                 Some(root),
             )
         } else {
-            let (root, steps, exact, actual) = self.capture_place(place, home_identity)?;
+            let (root, steps, exact, actual) =
+                continuing!(self.capture_place(place, home_identity));
             (root, steps, exact, actual, None)
         };
         self.captured_loan(place, access, (root, steps, exact, actual), temporary)
+            .map(Reached::Value)
     }
 
     fn captured_loan(
@@ -1630,7 +1636,7 @@ impl<'a> Lowering<'a> {
         &mut self,
         expression: &Expression,
         home_identity: Option<&str>,
-    ) -> Checked<(PlaceId, Vec<Step>, ExactPlaceId, ValueType)> {
+    ) -> Evaluation<(PlaceId, Vec<Step>, ExactPlaceId, ValueType)> {
         let captured = match &expression.kind {
             ExpressionKind::Slot(slot) => {
                 let value_type = self.slot_type(*slot)?;
@@ -1659,7 +1665,7 @@ impl<'a> Lowering<'a> {
                 (root, Vec::new(), self.exact_root(root)?, value_type)
             }
             ExpressionKind::Referent(descriptor) => {
-                let mut at = self.located(descriptor)?;
+                let mut at = continuing!(self.located(descriptor));
                 let StorageShape::Reference { referent, .. } = self.record_type(at.record)?.shape
                 else {
                     return Err(self.internal("a reference crossing lost its descriptor type"));
@@ -1677,7 +1683,7 @@ impl<'a> Lowering<'a> {
             }
             ExpressionKind::Field { base, field } => {
                 let (root, mut steps, parent, ValueType::Record(owner, _, _)) =
-                    self.capture_place(base, None)?
+                    continuing!(self.capture_place(base, None))
                 else {
                     return Err(self.internal("a field place crosses scalar storage"));
                 };
@@ -1692,20 +1698,20 @@ impl<'a> Lowering<'a> {
             }
             ExpressionKind::Index { base, index } => {
                 let (root, mut steps, parent, ValueType::Record(owner, _, _)) =
-                    self.capture_place(base, None)?
+                    continuing!(self.capture_place(base, None))
                 else {
                     return Err(self.internal("an indexed place crosses scalar storage"));
                 };
                 let (element, _) = self.array_element(owner)?;
                 let value_type = self.storage_value_type(element)?;
-                let step = self.index_step(owner, index)?;
+                let step = continuing!(self.index_step(owner, index));
                 let exact = self.step(parent, step)?;
                 steps.push(step);
                 (root, steps, exact, value_type)
             }
             ExpressionKind::Payload { base, case, field } => {
                 let (root, mut steps, parent, ValueType::Record(owner, _, _)) =
-                    self.capture_place(base, None)?
+                    continuing!(self.capture_place(base, None))
                 else {
                     return Err(self.internal("a payload place crosses scalar storage"));
                 };
@@ -1720,7 +1726,7 @@ impl<'a> Lowering<'a> {
                 (root, steps, exact, value_type)
             }
             ExpressionKind::SavedSubject(_) => {
-                let at = self.located(expression)?;
+                let at = continuing!(self.located(expression));
                 if at.fresh {
                     return Err(self.internal("a capture names newly produced storage"));
                 }
@@ -1734,7 +1740,7 @@ impl<'a> Lowering<'a> {
         {
             return Err(self.internal("a captured place has another declared type"));
         }
-        Ok(captured)
+        Ok(Reached::Value(captured))
     }
 
     /// A home for an SSA scalar holding `value`: one `EstablishPrimitiveLocal`
@@ -1773,7 +1779,7 @@ impl<'a> Lowering<'a> {
         record: StructuralTypeId,
         fields: &[(usize, Expression)],
         source: SourceOrigin,
-    ) -> Checked<(PlaceId, ExactPlaceId)> {
+    ) -> Evaluation<(PlaceId, ExactPlaceId)> {
         let declared = self.record_type(record)?.fields();
         let mut operands: Vec<Option<Operand>> = vec![None; declared.len()];
         for (position, operand) in fields {
@@ -1782,8 +1788,8 @@ impl<'a> Lowering<'a> {
                 .ok_or_else(|| self.internal("a literal names a field past its record"))?;
             let evaluated = match field.value_type {
                 ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
-                ValueType::Scalar(..) => Operand::Scalar(self.scalar(operand)?),
-                ValueType::Record(_, _, _) => Operand::Record(self.record(operand)?),
+                ValueType::Scalar(..) => Operand::Scalar(continuing!(self.scalar(operand))),
+                ValueType::Record(_, _, _) => Operand::Record(continuing!(self.record(operand))),
             };
             if operands[*position].replace(evaluated).is_some() {
                 return Err(self.internal("a literal names a field twice"));
@@ -1829,7 +1835,7 @@ impl<'a> Lowering<'a> {
                 Operand::Record(_) => self.write(leaf, at, Content::Overwritten)?,
             }
         }
-        Ok((root, exact))
+        Ok(Reached::Value((root, exact)))
     }
 
     fn establish_array(
@@ -1837,7 +1843,7 @@ impl<'a> Lowering<'a> {
         array: StructuralTypeId,
         elements: &[Expression],
         source: SourceOrigin,
-    ) -> Checked<(PlaceId, ExactPlaceId)> {
+    ) -> Evaluation<(PlaceId, ExactPlaceId)> {
         let (element_type, length) = self.array_element(array)?;
         if let CollectionExtent::Fixed(length) = length
             && u64::try_from(elements.len()).ok() != Some(length)
@@ -1852,7 +1858,7 @@ impl<'a> Lowering<'a> {
             }
             operands.push(match value_type {
                 ValueType::Scalar(..) => {
-                    let value = self.scalar(element)?;
+                    let value = continuing!(self.scalar(element));
                     if length == CollectionExtent::StoredLength {
                         let identity = self.record_type(element_type)?.identity.as_str();
                         Operand::Record(self.establish_home(
@@ -1865,7 +1871,7 @@ impl<'a> Lowering<'a> {
                         Operand::Scalar(value)
                     }
                 }
-                ValueType::Record(_, _, _) => Operand::Record(self.record(element)?),
+                ValueType::Record(_, _, _) => Operand::Record(continuing!(self.record(element))),
                 ValueType::Rigid(_) => return Err(self.internal("a rigid array element")),
             });
         }
@@ -1918,7 +1924,7 @@ impl<'a> Lowering<'a> {
         // element operands remain on the constructor operation; they are not
         // fixed-index source places beneath that descriptor.
         if length == CollectionExtent::StoredLength {
-            return Ok((root, exact));
+            return Ok(Reached::Value((root, exact)));
         }
         for (index, operand) in operands.into_iter().enumerate() {
             let index = u64::try_from(index)
@@ -1933,7 +1939,7 @@ impl<'a> Lowering<'a> {
                 },
             )?;
         }
-        Ok((root, exact))
+        Ok(Reached::Value((root, exact)))
     }
 
     /// `S::C { p: x }`: the payload operands in authored order, then one
@@ -1952,7 +1958,7 @@ impl<'a> Lowering<'a> {
         case: usize,
         fields: &[(usize, Expression)],
         source: SourceOrigin,
-    ) -> Checked<(PlaceId, ExactPlaceId)> {
+    ) -> Evaluation<(PlaceId, ExactPlaceId)> {
         let selected = self.case_of(record, case)?;
         let declared = &selected.fields;
         let mut operands: Vec<Option<Operand>> = vec![None; declared.len()];
@@ -1962,8 +1968,8 @@ impl<'a> Lowering<'a> {
                 .ok_or_else(|| self.internal("a literal names a field past its case"))?;
             let evaluated = match field.value_type {
                 ValueType::Rigid(_) => return Err(self.internal("a field of a rigid type")),
-                ValueType::Scalar(..) => Operand::Scalar(self.scalar(operand)?),
-                ValueType::Record(_, _, _) => Operand::Record(self.record(operand)?),
+                ValueType::Scalar(..) => Operand::Scalar(continuing!(self.scalar(operand))),
+                ValueType::Record(_, _, _) => Operand::Record(continuing!(self.record(operand))),
             };
             if operands[*position].replace(evaluated).is_some() {
                 return Err(self.internal("a literal names a field twice"));
@@ -2013,7 +2019,7 @@ impl<'a> Lowering<'a> {
                 }
             }
         }
-        Ok((root, exact))
+        Ok(Reached::Value((root, exact)))
     }
 
     /// `subject in S::C`: one `StructuralCaseMembership` on the sum the
@@ -2025,8 +2031,8 @@ impl<'a> Lowering<'a> {
         subject: &Expression,
         case: usize,
         source: SourceOrigin,
-    ) -> Checked<Value> {
-        let at = self.located(subject)?;
+    ) -> Evaluation<Value> {
+        let at = continuing!(self.located(subject));
         let case = self.case_of(at.record, case)?.id;
         self.name_entry(at.root, at.place, ValueType::record(at.record))?;
         let operation = self.operation_identity(source);
@@ -2040,6 +2046,7 @@ impl<'a> Lowering<'a> {
                 case,
             },
         )
+        .map(Reached::Value)
     }
 
     /// Ends the open block in the `StructuralCase` that observes the sum
@@ -2066,8 +2073,8 @@ impl<'a> Lowering<'a> {
         wildcard: bool,
         source: SourceOrigin,
         capture: Option<arena::Handle<typed_trees::expression::CompletedValueCapture>>,
-    ) -> Checked<(Vec<(BlockId, Chosen)>, Option<(BlockId, Chosen)>)> {
-        let at = self.located(subject)?;
+    ) -> Evaluation<(Vec<(BlockId, Chosen)>, Option<(BlockId, Chosen)>)> {
+        let at = continuing!(self.located(subject));
         let data = self.record_type(at.record)?;
         if data.cases().is_empty() {
             return Err(self.internal("a dispatch on storage that is no sum"));
@@ -2165,7 +2172,7 @@ impl<'a> Lowering<'a> {
             path,
             cases: edges,
         })?;
-        Ok((blocks, rest))
+        Ok(Reached::Value((blocks, rest)))
     }
 
     /// The scalar payload field `field` of case `case` of the sum `base`
@@ -2183,8 +2190,8 @@ impl<'a> Lowering<'a> {
         field: usize,
         scalar_type: ScalarType,
         source: SourceOrigin,
-    ) -> Checked<Value> {
-        let at = self.located(base)?;
+    ) -> Evaluation<Value> {
+        let at = continuing!(self.located(base));
         let bound = self
             .selected
             .iter()
@@ -2192,7 +2199,7 @@ impl<'a> Lowering<'a> {
             .find(|chosen| chosen.place == at.place && chosen.case == Some(case))
             .and_then(|chosen| chosen.parameters.get(field).copied().flatten());
         if let Some(value) = bound {
-            return Ok(Value::Scalar(value));
+            return Ok(Reached::Value(Value::Scalar(value)));
         }
         // The one `Case` step a read's carrier may hold is its last.
         if at
@@ -2215,6 +2222,7 @@ impl<'a> Lowering<'a> {
         let mut steps = at.path;
         steps.push(step);
         self.read_projected_scalar(at.root, leaf, &steps, scalar_type, source)
+            .map(Reached::Value)
     }
 
     fn read_projected_scalar(
@@ -2243,9 +2251,10 @@ impl<'a> Lowering<'a> {
         &mut self,
         expression: &Expression,
         scalar_type: ScalarType,
-    ) -> Checked<Value> {
-        let (root, steps, exact, _) = self.capture_place(expression, None)?;
+    ) -> Evaluation<Value> {
+        let (root, steps, exact, _) = continuing!(self.capture_place(expression, None));
         self.read_projected_scalar(root, exact, &steps, scalar_type, expression.source)
+            .map(Reached::Value)
     }
 
     pub(super) fn read_field(
@@ -2254,8 +2263,8 @@ impl<'a> Lowering<'a> {
         field: usize,
         scalar_type: ScalarType,
         source: SourceOrigin,
-    ) -> Checked<Value> {
-        let at = self.located(base)?;
+    ) -> Evaluation<Value> {
+        let at = continuing!(self.located(base));
         let step = Step::Field {
             owner: at.record,
             field,
@@ -2264,6 +2273,7 @@ impl<'a> Lowering<'a> {
         let mut steps = at.path;
         steps.push(step);
         self.read_projected_scalar(at.root, leaf, &steps, scalar_type, source)
+            .map(Reached::Value)
     }
 
     pub(super) fn read_index(
@@ -2272,13 +2282,14 @@ impl<'a> Lowering<'a> {
         index: &Expression,
         scalar_type: ScalarType,
         source: SourceOrigin,
-    ) -> Checked<Value> {
-        let at = self.located(base)?;
-        let step = self.index_step(at.record, index)?;
+    ) -> Evaluation<Value> {
+        let at = continuing!(self.located(base));
+        let step = continuing!(self.index_step(at.record, index));
         let leaf = self.step(at.place, step)?;
         let mut steps = at.path;
         steps.push(step);
         self.read_projected_scalar(at.root, leaf, &steps, scalar_type, source)
+            .map(Reached::Value)
     }
 
     pub(super) fn measure_collection(
@@ -2286,14 +2297,14 @@ impl<'a> Lowering<'a> {
         base: &Expression,
         measure: typed_trees::expression::CollectionMeasure,
         source: SourceOrigin,
-    ) -> Checked<Value> {
+    ) -> Evaluation<Value> {
         if measure != typed_trees::expression::CollectionMeasure::Length {
             return Err(self.internal("a collection measure has no canonical operation"));
         }
         // Locating evaluates a call or constructor base exactly once. Naming
         // the metadata beneath its actual descriptor lets the same write
         // history distinguish the initial extent from a replacement's.
-        let at = self.located(base)?;
+        let at = continuing!(self.located(base));
         if !matches!(
             self.record_type(at.record)?.shape,
             StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
@@ -2321,6 +2332,7 @@ impl<'a> Lowering<'a> {
                 },
             },
         )
+        .map(Reached::Value)
     }
 
     /// `let x: T;`. The operations are the ones the current pipeline emits,
@@ -2469,10 +2481,10 @@ impl<'a> Lowering<'a> {
         destination: &Expression,
         value: &Expression,
         source: SourceOrigin,
-    ) -> Checked<()> {
+    ) -> Evaluation<()> {
         // Capturing visits the destination before the right-hand side and
         // retains each selector's exact SSA value in the existing Step roster.
-        let (root, steps, place, expected) = self.capture_place(destination, None)?;
+        let (root, steps, place, expected) = continuing!(self.capture_place(destination, None));
         if steps.is_empty() && matches!(expected, ValueType::Record(_, _, _)) {
             return Err(self.internal("a whole record assignment must rebind its local"));
         }
@@ -2492,7 +2504,7 @@ impl<'a> Lowering<'a> {
         match expected {
             ValueType::Rigid(_) => Err(self.internal("a store into rigid storage")),
             ValueType::Scalar(..) => {
-                let stored = self.scalar(value)?;
+                let stored = continuing!(self.scalar(value));
                 let operation = self.operation_identity(source);
                 self.owe_domains(operation, owed, source)?;
                 let kind = if let Some(Step::Field { .. }) = steps.last() {
@@ -2531,9 +2543,10 @@ impl<'a> Lowering<'a> {
                     ProgramPoint::AfterOperation(operation),
                     Content::Value(stored),
                 )
+                .map(Reached::Value)
             }
             ValueType::Record(stored, _, _) => {
-                let constructed = self.record(value)?;
+                let constructed = continuing!(self.record(value));
                 let operation = self.operation_identity(source);
                 self.owe_domains(operation, owed, source)?;
                 let mut storage =
@@ -2572,6 +2585,7 @@ impl<'a> Lowering<'a> {
                     ProgramPoint::AfterOperation(operation),
                     Content::Overwritten,
                 )
+                .map(Reached::Value)
             }
         }
     }
@@ -2748,6 +2762,7 @@ mod tests {
         let machine = MachineId::new(1).unwrap();
         let mut types = IdTable::default();
         let wrapping_id = types.push(RecordType {
+            owns_linear_claim: false,
             copyable: true,
             identity: "wrapping-u32".into(),
             shape: StorageShape::PrimitiveScalar {
@@ -2757,6 +2772,7 @@ mod tests {
             requires: Vec::new(),
         });
         types.push(RecordType {
+            owns_linear_claim: false,
             copyable: true,
             identity: "wrapping-elements".into(),
             shape: StorageShape::FixedArray {

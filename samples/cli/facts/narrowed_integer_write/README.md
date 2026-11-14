@@ -20,15 +20,15 @@ in an unrelated generic library declaration.
 
 | Place | Transport | Reject twin |
 | --- | --- | --- |
-| [local](local/main.omg) | Local scalar [invalid](local/invalid/main.omg) |
-| [field](field/main.omg) | Owned record field [invalid](field/invalid/main.omg) |
-| [parameter](parameter/main.omg) | Forwarded call parameter [invalid](parameter/invalid/main.omg) |
-| [call result](call_result/main.omg) | Completed identity result [invalid](call_result/invalid/main.omg) |
-| [match join](match_join/main.omg) | Both normal-return arms, including an inline result [invalid](match_join/invalid/main.omg) |
-| [const name](const_name/main.omg) | Named static value [invalid](const_name/invalid/main.omg) |
-| [other state](other_state/main.omg) | Nested machine arrival [invalid](other_state/invalid/main.omg) |
-| [other machine](other_machine/main.omg) | Generic forwarding with a separate type binder [invalid](other_machine/invalid/main.omg) |
-| [target body](target_body/main.omg) | Build-selected named implementation of a requirement [invalid](target_body/invalid/main.omg) |
+| [local](local/main.omg) | Local scalar [invalid](invalid_local/main.omg) |
+| [field](field/main.omg) | Owned record field [invalid](invalid_field/main.omg) |
+| [parameter](parameter/main.omg) | Forwarded call parameter [invalid](invalid_parameter/main.omg) |
+| [call result](call_result/main.omg) | Completed identity result [invalid](invalid_call_result/main.omg) |
+| [match join](match_join/main.omg) | Both normal-return arms, including an inline result [invalid](invalid_match_join/main.omg) |
+| [const name](const_name/main.omg) | Named static value [invalid](invalid_const_name/main.omg) |
+| [other state](other_state/main.omg) | Nested machine arrival [invalid](invalid_other_state/main.omg) |
+| [other machine](other_machine/main.omg) | Generic forwarding with a separate type binder [invalid](invalid_other_machine/main.omg) |
+| [target body](target_body/main.omg) | Build-selected named implementation of a requirement [invalid](invalid_target_body/main.omg) |
 
 Each place has an `invalid/main.omg` twin and a corresponding pin under
 `tests/omega/{pass,fail}/facts/narrowed_integer_write_through_<place>_*`.

@@ -21,14 +21,15 @@ things it did now has one owner, and this file only sequences them:
    while it serves no program, no Build program reaches the checker.
 2. Which packages' declarations the Build may select. That is decided on the
    accepted module, whose declarations carry their package custody, by
-   Terminal installation. It has no admission for a Build activation yet, so
-   a request that carries package authority is refused after judgment; the
-   authority is never dropped.
-3. Constants and provider plans. This admission evaluates no constant, so it
-   discharges none: the Product's pending work stays whole, and a Build
-   program that reads an unevaluated constant is refused by the checker. It
-   selects no provider plan; `BuildProviderPlans::admit` holds the published
-   module's actual demand against that empty selection before anything runs.
+   Terminal installation before execution. The provider preparation retains
+   the package authority and admits the actual invocation closure against it;
+   host effects remain a separate admission, not a pure-evaluation exemption.
+3. Constants and provider plans. Source preparation evaluates demanded Build
+   constants through their accepted invocations. Their charges still need a
+   settlement owner across the Build activation, so new invocation records
+   reach an explicit refusal below. The original Product pending work stays
+   whole. No provider plan is selected here; `BuildProviderPlans::admit` holds
+   the published module's actual demand against that selection before it runs.
 */
 
 use artifacts::compile_timings::StageMeta;
@@ -60,13 +61,12 @@ recorded value, which is checked here on the frontier itself and never
 assumed from how either frontier was typed. Then the Product has no pending
 work for it and reads what Build read.
 
-Everything else needs the evaluator that owns pending constant work
-(`build_time_evaluation::PreCheckEvaluation`), which serves no job yet, and
-is refused naming the constant: a fold under provider plans, a constant the
-rejoined frontier no longer declares or has not evaluated, and one whose
-value there differs. That evaluator replaces the refusal: it receives the
-rejoined frontier, the Build entry there and the package inputs the Build
-was admitted under.
+Everything else needs its own evaluation request on this rejoined frontier
+and is refused naming the constant: a fold under provider plans, a constant
+the frontier no longer declares or has not evaluated, and one whose value
+there differs. Computed values from another Build context cannot supply that
+request's receipt. The rejoin needs the actual frontier, its Build entry and
+the package inputs under which that new request is admitted.
 */
 pub fn settle_rejoined_build_slice(
     constants: &compilation_products::BuildConstants,
@@ -130,6 +130,7 @@ pub(crate) fn prepare_admitted_build(
     typed: &typed_trees::TypedTrees,
     entry: symbols::SymbolHandle,
     packages: Option<&PackageCompilationInputs>,
+    anonymous_source: Option<&package_compilation::AnonymousSourceCapture>,
     dependency_activation: bool,
     timings: &mut artifacts::compile_timings::CompileTimings,
 ) -> Result<
@@ -142,6 +143,11 @@ pub(crate) fn prepare_admitted_build(
 > {
     let mut accounting = build_time_evaluation::SourceCompletionAccounting::default();
     let result = (|| -> Result<_, Vec<Diagnostic>> {
+        if packages.is_some() && anonymous_source.is_some() {
+            return Err(vec![Diagnostic::error(
+                "Build scope cannot combine anonymous source custody with supplied package inputs",
+            )]);
+        }
         // A dependency's Build executed for its consumer checks what its entry
         // reaches and never promotes the dependency to a subject
         // (`wiki/spec/build/validation_subjects.md`, "Orchestration").
@@ -149,6 +155,7 @@ pub(crate) fn prepare_admitted_build(
             (!dependency_activation).then(|| packages.map(PackageCompilationInputs::root));
         let accepted = timings.record_result(BUILD_SOURCE_JUDGMENT, || {
             let compilation = psi_compiler::TerminalSourceCompilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: subject.as_slice(),
                 purpose: source::DependencyScope::Build,
@@ -159,7 +166,13 @@ pub(crate) fn prepare_admitted_build(
             let source = psi_compiler::SourcePreparationRequest {
                 program: typed.clone(),
                 accounting: Default::default(),
-                admission: psi_compiler::SourceAdmission::default(),
+                admission: psi_compiler::SourceAdmission {
+                    invocation_sources: anonymous_source.map(|capture| {
+                        Arc::new(capture.clone())
+                            as Arc<dyn build_time_evaluation::InvocationSourceConsent>
+                    }),
+                    ..Default::default()
+                },
                 compilation,
             }
             .prepare();
@@ -187,21 +200,16 @@ pub(crate) fn prepare_admitted_build(
                 terminal_codec::TerminalPublication::Invocation,
             )
         })?;
-        if packages.is_some() {
-            return Err(vec![Diagnostic::error(
-                "no product route yet: the accepted Build program has no declaration-selection admission for its package authority",
-            )]);
-        }
-        // Nothing is folded here (point 3 above), and the names come from the
-        // accepted module, so a later frontier can tell there is nothing to
-        // settle without assuming how this admission was reached.
+        // Only admissions without invocation records pass the guard above.
+        // Names and recorded values come from that accepted module rather
+        // than an assumption about how a later frontier was typed.
         let constants = compilation_products::BuildConstants {
             folded_under_providers: false,
             read: accepted.constants_read(),
         };
         Ok((
             Arc::new(accepted),
-            super::provider_execution::BuildProviderPlans::default(),
+            super::provider_execution::BuildProviderPlans::for_packages(packages),
             constants,
         ))
     })();

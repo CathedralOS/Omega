@@ -23,15 +23,15 @@ supply no proof to `inspect`'s earlier obligation.
 
 | Place | Positive | Reject twin | Restoration scalar |
 | --- | --- | --- | --- |
-| Local | [source](local/main.omg) | [source](local/invalid/main.omg) | Local binding |
-| Field | [source](field/main.omg) | [source](field/invalid/main.omg) | `Replacement.value` |
-| Parameter | [source](parameter/main.omg) | [source](parameter/invalid/main.omg) | Exact entry contract |
-| Call result | [source](call_result/main.omg) | [source](call_result/invalid/main.omg) | Identity result |
-| Match join | [source](match_join/main.omg) | [source](match_join/invalid/main.omg) | Both identity/marker arms |
-| Const name | [source](const_name/main.omg) | [source](const_name/invalid/main.omg) | `RESTORING` |
-| Nested machine | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) | Nested identity result |
-| Another machine | [source](other_machine/main.omg) | [source](other_machine/invalid/main.omg) | `Other::identity` |
-| Selected body | [source](target_body/main.omg) | [source](target_body/invalid/main.omg) | Selected implementation |
+| Local | [source](local/main.omg) | [source](invalid_local/main.omg) | Local binding |
+| Field | [source](field/main.omg) | [source](invalid_field/main.omg) | `Replacement.value` |
+| Parameter | [source](parameter/main.omg) | [source](invalid_parameter/main.omg) | Exact entry contract |
+| Call result | [source](call_result/main.omg) | [source](invalid_call_result/main.omg) | Identity result |
+| Match join | [source](match_join/main.omg) | [source](invalid_match_join/main.omg) | Both identity/marker arms |
+| Const name | [source](const_name/main.omg) | [source](invalid_const_name/main.omg) | `RESTORING` |
+| Nested machine | [source](other_state/main.omg) | [source](invalid_other_state/main.omg) | Nested identity result |
+| Another machine | [source](other_machine/main.omg) | [source](invalid_other_machine/main.omg) | `Other::identity` |
+| Selected body | [source](target_body/main.omg) | [source](invalid_target_body/main.omg) | Selected implementation |
 
 Each twin changes only zero to all-one restoration bits. The parameter twin
 changes its matching exact contract and both inputs together. All explicit

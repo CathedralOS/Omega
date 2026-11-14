@@ -30,6 +30,8 @@ mod request;
 mod scalar_completion;
 
 #[cfg(test)]
+mod physical_publication_tests;
+#[cfg(test)]
 mod pipeline_boundary;
 
 pub use application::{TerminalApplication, admit_package_permissions};
@@ -48,6 +50,7 @@ pub use terminal_psi_to_abstract_operations::provider_admission::{
     SourceEvaluatedImportSettlement, TerminalAuthorityPermissionPolicy,
 };
 pub use terminal_psi_to_abstract_operations::{
-    ComponentExportInput, ComponentNativeInputs, decode_installation_assumptions,
+    BoundaryApplicationSettlement, ComponentExportInput, ComponentNativeInputs,
+    NativeProgramEntrySettlement, TerminalNativeProposalRequest, decode_installation_assumptions,
     encode_installation_assumptions, retain_native_derivation_inputs,
 };

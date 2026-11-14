@@ -88,7 +88,7 @@ Frozen gate: all accepted and at least 20% lower aggregate time than BOTH baseli
 Result: failed (13.3% versus normal, 19.3% versus lexical). Mandatory AGENTS.md was
 retained. Both selectors supplied two documents capped at 5,500 characters each;
 candidate excerpts used first/last 1,000 characters. These caps did not equalize
-actual context lengths. The docs case selected `tools/testing.md` under Jev but
+actual context lengths. The docs case selected `tools/docs/testing.md` under Jev but
 not lexical ranking; its near-equal assisted times do not isolate that document's
 causal benefit.
 
@@ -221,7 +221,7 @@ matched the per-query supplied text after whitespace normalization.
 The concrete lexical miss is useful: a question about removed **work-claim**
 tickets received the **landing-queue** document. Devin selected the expected
 answer but cited a different registry's retained-history rule. Jev supplied
-`tools/claims.md`, and Devin cited the requested registry's actual rule. Exact
+`tools/docs/claims.md`, and Devin cited the requested registry's actual rule. Exact
 quote matching and answer-key accuracy both missed this provenance error.
 
 The old excerpts yielded four safe unknowns plus three correct choices with

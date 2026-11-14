@@ -41,6 +41,7 @@ mod constant_entries {
 }
 #[derive(Default)]
 pub struct SourceAdmission<'request> {
+    pub invocation_sources: Option<Arc<dyn build_time_evaluation::InvocationSourceConsent>>,
     pub external_roots: &'request [symbols::SymbolHandle],
     pub completion: typed_trees::boundary_completions::SourceCompletionAdmission<'request>,
     pub representations: ProductRepresentationInput<'request>,
@@ -136,10 +137,11 @@ impl SourcePreparationRequest<'_> {
                 self.admission.layout_selection_authority.clone(),
             )?;
             constant_entries::retain_evaluation_entries(&mut program)?;
-            build_time_evaluation::evaluate_constant_initializers(
+            build_time_evaluation::evaluate_constant_initializers_with_source_consent(
                 &mut program,
                 self.compilation,
                 self.admission.layout_selection_authority,
+                self.admission.invocation_sources,
                 &mut accounting,
             )?;
             build_time_evaluation::validate_constant_evaluations(&program, &accounting).map_err(
@@ -181,6 +183,7 @@ mod tests {
             program: typed_trees::TypedTrees::default(),
             accounting: Default::default(),
             compilation: crate::TerminalSourceCompilation {
+                declaration_metadata: &[],
                 entries: &[],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,
@@ -202,6 +205,7 @@ mod tests {
             program: typed_trees::TypedTrees::default(),
             accounting: Default::default(),
             compilation: crate::TerminalSourceCompilation {
+                declaration_metadata: &[],
                 entries: &[],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,
@@ -289,6 +293,7 @@ mod tests {
                 program: typed_trees::TypedTrees::default(),
                 accounting: Default::default(),
                 compilation: crate::TerminalSourceCompilation {
+                    declaration_metadata: &[],
                     entries: &[],
                     subjects: &[],
                     purpose: source::DependencyScope::Product,
@@ -339,6 +344,7 @@ mod tests {
             program: typed_trees::TypedTrees::default(),
             accounting: Default::default(),
             compilation: crate::TerminalSourceCompilation {
+                declaration_metadata: &[],
                 entries: &[],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,

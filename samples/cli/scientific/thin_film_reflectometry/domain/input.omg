@@ -1,7 +1,8 @@
 // Bounded plain decimal scanner: optional minus, 1–12 digits, optional dot
 // with digits on both sides. No exponent, NaN or infinity spelling is accepted.
 // The total budget includes separators. EOF after a complete token is valid.
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 use omega::language::core::F64::from_i32;
 public data Reader { consumed: i32; }
 public data Number [copy] { valid: bool; value: f64; }

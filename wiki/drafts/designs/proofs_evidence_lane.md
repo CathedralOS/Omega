@@ -11,23 +11,22 @@ authorized starting it ahead of route one's gate. It is scoped the way the
 
 The new checker refuses every program that writes a proof. An `[erased]`
 binding, a theorem cited for its conclusion, a named proposition, an identity
-claim or a quotient is `Unsupported` today, so the whole program falls back to
-the current checker. This lane lets the checker on the lowered form hold those
+claim or a quotient is `Unsupported` today, so the compilation is refused.
+This lane lets the checker on the lowered form hold those
 constructs: each lowers by structure, and each obligation it creates is
 decided by the one prover with a certificate the proof kernel checks. The
 lane adds no second prover and no assumed fact.
 
-Most of the lane's programs cannot enter the subset by this lane alone. The
-probe below shows why: a proof fixture usually has no program entry, or
-prints, borrows or uses generic data. So the lane is measured the way the
-places lane was: by the refusals it removes, by agreement on the programs
-that do enter, and by tests on closed bodies for the rest.
+Most of the lane's programs cannot enter the subset by this lane alone: a
+proof program often has no program entry, or prints, borrows or uses generic
+data. So the lane is measured by the refusals it removes and by tests on
+closed bodies for the rest.
 
 ## Scope
 
 ### In, by slice
 
-Each slice lands on its own with its own measured agreement. The order is
+Each slice lands on its own. The order is
 by dependency: a later slice uses what an earlier one built.
 
 | Slice | Source construct | Lowered form | Specification |
@@ -83,64 +82,22 @@ construct. Nothing is skipped.
   quotient operation is named by its symbol. Where the typed trees hold one
   only as a spelling, the slice repairs the stage that lost it or refuses.
 
-## The corpus slice
-
-**The probe was stopped part-way when the lane was paused on 2026-11-11;
-these counts are partial.** It ran `typed_trees_to_terminal_psi_corpus`, built at `main` `2df885a2a`
-with `CARGO_PROFILE_DEV_OPT_LEVEL=1`, on a cloud Linux x86_64 VM with 4 CPUs,
-three at a time. The selection is the 375 `pass/` and `run/` fixtures outside
-`facts/` that use one of the lane's constructs (`[erased]`, `core::Identity`,
-a quotient, a `proposition` or a parameterized top-level `let`) or sit in
-`proofs/`, `relevance/` or `math/`. 289 of the 375 completed, in name order;
-the last 86 were not run. The probe reports only the first refusal of each
-closure.
-
-| Probe stage | Fixtures |
-| --- | ---: |
-| refused | 162 |
-| no program entry | 79 |
-| current checker failed (so no typed trees) | 37 |
-| ran (already inside the subset) | 11 |
-
-First refusals, top six:
-
-| Refusal | Fixtures | In this lane |
-| --- | ---: | --- |
-| `machine service reach` | 65 | no |
-| `type data with custody` | 27 | no (ownership) |
-| `type constrained` | 23 | no (domains) |
-| `type addr` | 8 | no |
-| `type fixed array` | 7 | no (collections) |
-| `contract clause that is not a comparison or conjunction` | 6 | yes (slices 6, 7 and 10) |
-
-Only 3 first refusals are the ones slice 1 removes (`parameter erased
-parameter` 2, `statement erased local` 1). How many programs enter was not
-estimated: the screen by reading that the places plan did has not been done
-here. What the counts already say is that 79 of 289 bind no entry and 65 are
-stopped at service reach, so few of the lane's programs can enter until
-those two are served by their owners.
-
 ## Measures and acceptance
 
-Each slice reports, as route one's measures do:
+Each slice reports:
 
-1. **Agreement.** Every corpus program the slice brings into the subset is
-   checked by both routes, and each disagreement is classified. Target: no
-   program the specification accepts is rejected, and nothing false is
-   accepted.
-2. **Kernel-checked evidence** per obligation kind, with its denominator.
-3. **Decisions keyed on text: 0. Silent drops: 0. Routes per obligation
+1. **Kernel-checked evidence** per obligation kind, with its denominator.
+2. **Decisions keyed on text: 0. Silent drops: 0. Routes per obligation
    kind: 1.**
-4. **Lines added**, route production code and tests apart.
-5. **A must-reject twin** for each construct, differing only in the
+3. **Lines added**, route production code and tests apart.
+4. **A must-reject twin** for each construct, differing only in the
    construct's own input.
-6. **The error the programmer sees.** For every `fail/` fixture the slice
-   handles: how many the new route rejects at all; of those, how many
-   messages contain the fixture's pinned `expected.txt` fragment or name the
-   same obligation; and of those, how many point at the source construct the
-   current checker's diagnostic names, at another site, or are `Unpositioned`
-   with a reason. Each miss is listed and explained. Where a construct's
-   lowered form does not carry enough to name its source, the slice says so.
+5. **The error the programmer sees.** For every must-reject program the slice
+   handles: whether the new route rejects it, whether the message names the
+   failing obligation, and whether it points at the source construct, at
+   another site, or is `Unpositioned` with a reason. Each miss is listed and
+   explained. Where a construct's lowered form does not carry enough to name
+   its source, the slice says so.
 
 A proof found once may be carried forward, and every consumer checks it
 again against its own goal (`specialization-certificate-reuse`;

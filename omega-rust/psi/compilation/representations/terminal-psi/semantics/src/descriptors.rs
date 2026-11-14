@@ -8592,6 +8592,13 @@ pub mod descriptor_results {
                         &DescriptorPayloadTarget::Storage(original.clone()),
                     )
                 };
+                let writes = |machine: &DescriptorMachine, at| {
+                    let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(
+                        &types,
+                        std::slice::from_ref(machine),
+                    );
+                    analysis.storage_writes(machine.id, at)
+                };
                 machine.payload_invalidations.insert(
                     position(2),
                     vec![Some(super::super::DescriptorContentsQuery::from_location(
@@ -8599,6 +8606,7 @@ pub mod descriptor_results {
                     ))],
                 );
                 assert!(preserved(&machine).is_ok());
+                assert_eq!(writes(&machine, position(2)).unwrap(), Some(vec![other]));
                 machine.payload_invalidations.insert(
                     position(2),
                     vec![Some(super::super::DescriptorContentsQuery::from_location(
@@ -8606,15 +8614,26 @@ pub mod descriptor_results {
                     ))],
                 );
                 assert!(preserved(&machine).is_err());
+                assert_eq!(
+                    writes(&machine, position(2)).unwrap(),
+                    Some(vec![original.clone()])
+                );
                 machine
                     .payload_invalidations
                     .insert(position(2), vec![None]);
                 assert!(preserved(&machine).is_err());
+                assert_eq!(writes(&machine, position(2)).unwrap(), None);
                 machine.payload_invalidations.clear();
                 machine
                     .payload_invalidations
                     .insert(position(5), vec![None]);
                 assert!(preserved(&machine).is_ok());
+                assert_eq!(writes(&machine, position(2)).unwrap(), Some(Vec::new()));
+                assert_eq!(writes(&machine, position(5)).unwrap(), None);
+                assert_eq!(
+                    writes(&machine, position(99)).unwrap_err(),
+                    "storage write has no operation or edge cut"
+                );
             }
 
             #[test]
@@ -11539,6 +11558,27 @@ pub mod descriptor_results {
                             path,
                             field,
                         )?;
+                        if let Some(index) = path.iter().position(|segment| {
+                            matches!(segment, StructuralPathSegment::RuntimeIndex { .. })
+                        }) {
+                            let collection = crate::runtime_structural_path_tip(
+                                module.structural_types.iter(),
+                                *graph.place_types.get(&root)?,
+                                &path[..index],
+                            )?;
+                            if matches!(collection.shape, StructuralTypeShape::FixedArray { .. }) {
+                                // Any element may be written. Keep the array
+                                // region rather than enumerating its extent;
+                                // the complete destination was checked above.
+                                return descriptor_contents_query(
+                                    &module.structural_types,
+                                    root,
+                                    *graph.place_types.get(&root)?,
+                                    &path[..index],
+                                    None,
+                                );
+                            }
+                        }
                         if field.is_none() {
                             let selected = crate::runtime_structural_path_tip(
                                 module.structural_types.iter(),
@@ -11588,6 +11628,12 @@ pub mod descriptor_results {
                         } => {
                             payload_writes.push(payload_query(*destination, path, None));
                         }
+                        OperationKind::MoveStructuralValue { source } => {
+                            payload_writes.push(payload_query(source.place, &source.path, None));
+                        }
+                        OperationKind::MoveStructuralField { source, path, .. } => {
+                            payload_writes.push(payload_query(*source, path, None));
+                        }
                         OperationKind::StructuralScalarFieldStore {
                             destination,
                             path,
@@ -11611,6 +11657,12 @@ pub mod descriptor_results {
                             payload_writes.push(payload_query(*destination, path, Some(*field)));
                         }
                         OperationKind::StructuralByteViewFieldStore {
+                            destination,
+                            path,
+                            field,
+                            ..
+                        }
+                        | OperationKind::StoreStructuralField {
                             destination,
                             path,
                             field,
@@ -11671,27 +11723,44 @@ pub mod descriptor_results {
                         } if event.modifies_resident() => {
                             payload_writes.push(payload_query(*place, path, None));
                         }
-                        _ => {}
+                        OperationKind::AtomicAccess { .. }
+                        | OperationKind::AtomicFence { .. }
+                        | OperationKind::StorageAddress { .. }
+                        | OperationKind::StructuralLeafCopy { .. }
+                        | OperationKind::StructuralCaseLeafCopy { .. }
+                        | OperationKind::EstablishStructuralLocal { .. }
+                        | OperationKind::EstablishZeroedStructural { .. } => {}
+                        kind if kind.declared_invocation().is_some() => {}
+                        kind => {
+                            let tag = crate::OperationSemanticTag::for_operation(kind);
+                            let scalar = crate::operation_semantic_row(kind)
+                                .ok()?
+                                .goal_free_scalar_leaf()
+                                .is_some()
+                                || crate::ProofBearingScalarSemanticRow::ALL
+                                    .iter()
+                                    .any(|row| row.tag() == tag);
+                            let structural =
+                                crate::StructuralEffectSemanticRow::ALL.iter().any(|row| {
+                                    row.tag() == tag
+                                        && row.schema().external_effect()
+                                            == crate::StructuralEffectExternalEffect::None
+                                });
+                            if !scalar && !structural {
+                                // A semantic family not represented by this
+                                // storage flow cannot publish an empty frame.
+                                payload_writes.push(None);
+                            }
+                        }
                     }
                     if !payload_writes.is_empty() {
                         graph.payload_invalidations.insert(position, payload_writes);
                     }
                     let direct_call = match &operation.kind {
-                        OperationKind::CallUnit {
-                            callee,
-                            structural_arguments,
-                            ..
+                        kind if terminal_psi::direct_call_parts(kind).is_some() => {
+                            let call = terminal_psi::direct_call_parts(kind)?;
+                            Some((call.callee, call.structural_arguments))
                         }
-                        | OperationKind::CallStructuralScalar {
-                            callee,
-                            structural_arguments,
-                            ..
-                        }
-                        | terminal_psi::call_structural_pair_pattern!(
-                            callee,
-                            structural_arguments,
-                            ..
-                        ) => Some((*callee, structural_arguments)),
                         OperationKind::BoundaryCall {
                             boundary,
                             structural_arguments,
@@ -11700,7 +11769,9 @@ pub mod descriptor_results {
                             let mut selections =
                                 selected_calls.iter().filter(|(head, _)| head == boundary);
                             match (selections.next(), selections.next()) {
-                                (Some((_, callee)), None) => Some((*callee, structural_arguments)),
+                                (Some((_, callee)), None) => {
+                                    Some((*callee, structural_arguments.as_slice()))
+                                }
                                 (None, None) => None,
                                 _ => return None,
                             }
@@ -12416,8 +12487,6 @@ pub mod descriptor_results {
                                 .filter(|declaration| declaration.id == *boundary);
                             if let (Some(declaration), None) =
                                 (declarations.next(), declarations.next())
-                                && (!declaration.reference_outputs.is_empty()
-                                    || !declaration.result_reference_regions.is_empty())
                                 && slot_kind != DescriptorSlotKind::AccessOrigins
                             {
                                 graph.calls.insert(
@@ -12610,6 +12679,10 @@ pub mod descriptor_results {
                         structural_arguments,
                         ..
                     } => {
+                        // These invocations can write before terminating.
+                        // Their absent normal result is not an empty frame;
+                        // no selected terminal-call frame is represented here.
+                        graph.unresolved_contents_writes.insert(position);
                         for argument in structural_arguments {
                             if let Some(source) = location(argument.place, &argument.path, None) {
                                 step.inputs.push(source);

@@ -1400,7 +1400,11 @@ pub(crate) mod structural_signature_wire {
             if !reader.boolean()? {
                 return Ok(None);
             }
-            let bytes = [reader.u8()?, reader.u8()?, reader.u8()?, reader.u8()?];
+            let mut bytes =
+                [0; language_semantics::numeric_intrinsics::NumericIntrinsic::ENCODED_SIZE];
+            for byte in &mut bytes {
+                *byte = reader.u8()?;
+            }
             language_semantics::numeric_intrinsics::NumericIntrinsic::from_canonical_encoding(bytes)
                 .map(Some)
                 .ok_or({

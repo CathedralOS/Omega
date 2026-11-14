@@ -79,10 +79,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "allocation-observation"
-version = "0.1.0"
-
-[[package]]
 name = "ambient-authority"
 version = "0.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -449,6 +445,7 @@ dependencies = [
  "package-manager",
  "package-source",
  "platform-custody",
+ "program-entry-plan",
  "proof-admission",
  "provider-planning",
  "provider-selection",
@@ -1202,12 +1199,14 @@ version = "0.1.0"
 dependencies = [
  "abstract-operations-to-abstract-operations",
  "abstract-operations-to-target-operations",
+ "arena",
  "backend-plan",
  "boundary-applications",
  "calling-conventions",
  "component-description",
  "diagnostics",
  "effects",
+ "function-identity",
  "image-emission",
  "installation-evidence",
  "machine-code",
@@ -1352,7 +1351,6 @@ dependencies = [
 name = "omega-bench"
 version = "0.1.0"
 dependencies = [
- "allocation-observation",
  "bounded-process",
  "libc",
  "serde",
@@ -2230,8 +2228,11 @@ dependencies = [
  "language-semantics",
  "numerics",
  "source",
+ "source-files-to-tokens",
  "symbol-resolved-trees",
  "symbols",
+ "syntax-trees-to-symbol-resolved-trees",
+ "tokens-to-syntax-trees",
  "typed-trees",
 ]
 

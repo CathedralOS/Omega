@@ -12,7 +12,7 @@
 // not merely a nonzero exit or another crash. See README.md for running this
 // sample; it deliberately has no ordinary exit-code oracle.
 // Warnings that this computation always overflows are expected.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { x: i32 in Trapping; }
 machine Main::main(main: &mut Main) reaches Console {
     main.x = 2147483647;

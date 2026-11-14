@@ -69,15 +69,15 @@ same endpoint types.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| Local | [local](local/main.omg) | [corrupted decoder](local/invalid/main.omg) |
-| Field | [field](field/main.omg) | [corrupted decoder](field/invalid/main.omg) |
-| Parameter | [parameter](parameter/main.omg) | [corrupted decoder](parameter/invalid/main.omg) |
-| Call result | [call_result](call_result/main.omg) | [corrupted decoder](call_result/invalid/main.omg) |
-| Match join | [match_join](match_join/main.omg) | [corrupted decoder](match_join/invalid/main.omg) |
-| Constant | [const_name](const_name/main.omg) | [corrupted decoder](const_name/invalid/main.omg) |
-| Nested machine | [other_state](other_state/main.omg) | [corrupted decoder](other_state/invalid/main.omg) |
-| Other machine | [other_machine](other_machine/main.omg) | [corrupted decoder](other_machine/invalid/main.omg) |
-| Selected implementation | [target_body](target_body/main.omg) | [corrupted decoder](target_body/invalid/main.omg) |
+| Local | [local](local/main.omg) | [corrupted decoder](invalid_local/main.omg) |
+| Field | [field](field/main.omg) | [corrupted decoder](invalid_field/main.omg) |
+| Parameter | [parameter](parameter/main.omg) | [corrupted decoder](invalid_parameter/main.omg) |
+| Call result | [call_result](call_result/main.omg) | [corrupted decoder](invalid_call_result/main.omg) |
+| Match join | [match_join](match_join/main.omg) | [corrupted decoder](invalid_match_join/main.omg) |
+| Constant | [const_name](const_name/main.omg) | [corrupted decoder](invalid_const_name/main.omg) |
+| Nested machine | [other_state](other_state/main.omg) | [corrupted decoder](invalid_other_state/main.omg) |
+| Other machine | [other_machine](other_machine/main.omg) | [corrupted decoder](invalid_other_machine/main.omg) |
+| Selected implementation | [target_body](target_body/main.omg) | [corrupted decoder](invalid_target_body/main.omg) |
 
 Each project binds `ProgramEntry` for all four hosted targets and declares exit 0.
 The nine positive programs and nine decoder-only controls are mirrored under

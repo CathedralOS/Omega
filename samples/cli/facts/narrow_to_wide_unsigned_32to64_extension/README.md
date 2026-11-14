@@ -23,15 +23,15 @@ Each twin authors `expected.txt` carrying the fragment ``may overflow `u64` ``.
 | Place | Project | Transport | Positive Witness | Reject Twin |
 | --- | --- | --- | --- | --- |
 | root | `.` | canonical root witness zero-extending bounded u32 local into u64 and discharging exact 64-bit subtractions | [`main.omg`](main.omg) | - |
-| local | `local/` | the bounded u32 is zero-extended to a u64 local variable before discharging subtraction | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) |
-| field | `field/` | the bounded u32 is wrapped in a NarrowCarrier record field before extraction and extension to u64 | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) |
-| parameter | `parameter/` | a helper machine receives the zero-extended u64 scalar as an explicit parameter under contract | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) |
-| call result | `call_result/` | a producer machine returns the zero-extended u64 scalar under postcondition ensures result >= 70000u64 && result <= 90000u64 | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) |
-| match join | `match_join/` | both branches of a boolean match expression yield the zero-extended u64 scalar before subtraction | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) |
-| const name | `const_name/` | named constant BASE_NARROW defines a bounded u32 operand before zero-extension | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) |
-| a nested machine | `other_state/` | an terminal machine transfer transfers the zero-extended u64 scalar to a successor machine with entry contract | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
-| another machine | `other_machine/` | an associated Relay machine zero-extends and forwards the u64 scalar to the caller under postcondition | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) |
-| another target body | `target_body/` | each of the four hosted target bodies zero-extends the u32 scalar and discharges subtraction | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) |
+| local | `local/` | the bounded u32 is zero-extended to a u64 local variable before discharging subtraction | [`local/main.omg`](local/main.omg) | [`invalid_local/main.omg`](invalid_local/main.omg) |
+| field | `field/` | the bounded u32 is wrapped in a NarrowCarrier record field before extraction and extension to u64 | [`field/main.omg`](field/main.omg) | [`invalid_field/main.omg`](invalid_field/main.omg) |
+| parameter | `parameter/` | a helper machine receives the zero-extended u64 scalar as an explicit parameter under contract | [`parameter/main.omg`](parameter/main.omg) | [`invalid_parameter/main.omg`](invalid_parameter/main.omg) |
+| call result | `call_result/` | a producer machine returns the zero-extended u64 scalar under postcondition ensures result >= 70000u64 && result <= 90000u64 | [`call_result/main.omg`](call_result/main.omg) | [`invalid_call_result/main.omg`](invalid_call_result/main.omg) |
+| match join | `match_join/` | both branches of a boolean match expression yield the zero-extended u64 scalar before subtraction | [`match_join/main.omg`](match_join/main.omg) | [`invalid_match_join/main.omg`](invalid_match_join/main.omg) |
+| const name | `const_name/` | named constant BASE_NARROW defines a bounded u32 operand before zero-extension | [`const_name/main.omg`](const_name/main.omg) | [`invalid_const_name/main.omg`](invalid_const_name/main.omg) |
+| a nested machine | `other_state/` | an terminal machine transfer transfers the zero-extended u64 scalar to a successor machine with entry contract | [`other_state/main.omg`](other_state/main.omg) | [`invalid_other_state/main.omg`](invalid_other_state/main.omg) |
+| another machine | `other_machine/` | an associated Relay machine zero-extends and forwards the u64 scalar to the caller under postcondition | [`other_machine/main.omg`](other_machine/main.omg) | [`invalid_other_machine/main.omg`](invalid_other_machine/main.omg) |
+| another target body | `target_body/` | each of the four hosted target bodies zero-extends the u32 scalar and discharges subtraction | [`target_body/main.omg`](target_body/main.omg) | [`invalid_target_body/main.omg`](invalid_target_body/main.omg) |
 
 ## Execution
 
@@ -55,15 +55,15 @@ All 10 samples report `native exit 0` and `interp exit: 0`.
 Each place carries a fact-sensitive reject twin at `<place>/invalid/main.omg` where the narrow bound is widened to `90001u32` (`90001u64`), causing exact subtraction `90000u64 - wide` to fail closed. Check each twin with:
 
 ```sh
-omega --check samples/cli/facts/narrow_to_wide_unsigned_32to64_extension/local/invalid/main.omg
-omega --check samples/cli/facts/narrow_to_wide_unsigned_32to64_extension/field/invalid/main.omg
-omega --check samples/cli/facts/narrow_to_wide_unsigned_32to64_extension/parameter/invalid/main.omg
-omega --check samples/cli/facts/narrow_to_wide_unsigned_32to64_extension/call_result/invalid/main.omg
-omega --check samples/cli/facts/narrow_to_wide_unsigned_32to64_extension/match_join/invalid/main.omg
-omega --check samples/cli/facts/narrow_to_wide_unsigned_32to64_extension/const_name/invalid/main.omg
-omega --check samples/cli/facts/narrow_to_wide_unsigned_32to64_extension/other_state/invalid/main.omg
-omega --check samples/cli/facts/narrow_to_wide_unsigned_32to64_extension/other_machine/invalid/main.omg
-omega --check samples/cli/facts/narrow_to_wide_unsigned_32to64_extension/target_body/invalid/main.omg
+omega --check samples/cli/facts/narrow_to_wide_unsigned_32to64_extension/invalid_local/main.omg
+omega --check samples/cli/facts/narrow_to_wide_unsigned_32to64_extension/invalid_field/main.omg
+omega --check samples/cli/facts/narrow_to_wide_unsigned_32to64_extension/invalid_parameter/main.omg
+omega --check samples/cli/facts/narrow_to_wide_unsigned_32to64_extension/invalid_call_result/main.omg
+omega --check samples/cli/facts/narrow_to_wide_unsigned_32to64_extension/invalid_match_join/main.omg
+omega --check samples/cli/facts/narrow_to_wide_unsigned_32to64_extension/invalid_const_name/main.omg
+omega --check samples/cli/facts/narrow_to_wide_unsigned_32to64_extension/invalid_other_state/main.omg
+omega --check samples/cli/facts/narrow_to_wide_unsigned_32to64_extension/invalid_other_machine/main.omg
+omega --check samples/cli/facts/narrow_to_wide_unsigned_32to64_extension/invalid_target_body/main.omg
 ```
 
 Every reject twin fails closed with:

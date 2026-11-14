@@ -8,7 +8,7 @@
 // 100 and 2 are nonzero; the parity branch tests the exponent's low bit.
 // Expected exit: 87.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 // Each constant divisor is provably nonzero. The changing algorithm values
 // are explicit state inputs; no application object retains scratch storage.

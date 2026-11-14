@@ -90,7 +90,9 @@ fn existing_intrinsic_variants_still_round_trip() {
         ),
         Execution::NamedFloatNegation(FloatFormat::F64),
         Execution::NamedFloatConversion {
-            source: CompilerNumericType::I32,
+            source: CompilerNumericType::Integer(numerics::integer_carrier::FixedInteger::signed(
+                32,
+            )),
             target: CompilerNumericType::F32,
             domain: ArithmeticDomain::Trapping,
         },
@@ -103,7 +105,9 @@ fn existing_intrinsic_variants_still_round_trip() {
         Execution::HostedReadByte,
         Execution::PrimitiveIntegerComparison {
             operation: CompilerPrimitiveIntegerComparisonOperation::LessOrEqual,
-            integer_type: CompilerNumericType::U64,
+            integer_type: CompilerNumericType::Integer(
+                numerics::integer_carrier::FixedInteger::unsigned(64),
+            ),
         },
         Execution::ProgramImageRetainedSuffixStart,
         Execution::ProgramStorageEntry,
@@ -121,8 +125,49 @@ fn existing_intrinsic_variants_still_round_trip() {
         assert_eq!(recover(&bytes), Ok(value));
     }
     // A valid numeric tag is still insufficient for an integer-only operation.
-    assert_eq!(recover(&[7, 0, 8]), Err(Error::InvalidTag));
+    let mut float_comparison = vec![7, 0];
+    float_comparison.extend(CompilerNumericType::F32.canonical_encoding());
+    assert_eq!(recover(&float_comparison), Err(Error::InvalidTag));
     assert_eq!(recover(&[0, 255, 255]), Err(Error::InvalidTag));
+}
+
+#[test]
+fn integer_width_intrinsic_evidence_round_trips_and_refuses_malformed_metadata() {
+    use numerics::{arithmetic::ArithmeticDomain, integer_carrier::FixedInteger};
+    use provider_planning::{
+        CompilerNumericType as Numeric, CompilerPrimitiveIntegerComparisonOperation as Comparison,
+    };
+    for width in [1, 13, 64, 257, u64::MAX] {
+        for integer in [FixedInteger::signed(width), FixedInteger::unsigned(width)] {
+            for value in [
+                Execution::PrimitiveIntegerComparison {
+                    operation: Comparison::Less,
+                    integer_type: Numeric::Integer(integer),
+                },
+                Execution::NamedFloatConversion {
+                    source: Numeric::F64,
+                    target: Numeric::Integer(integer),
+                    domain: ArithmeticDomain::Exact,
+                },
+            ] {
+                let bytes = encode(&value);
+                assert_eq!(recover(&bytes), Ok(value));
+                for length in 0..bytes.len() {
+                    assert_eq!(recover(&bytes[..length]), Err(Error::UnexpectedEnd));
+                }
+            }
+        }
+    }
+    let value = Execution::PrimitiveIntegerComparison {
+        operation: Comparison::Less,
+        integer_type: Numeric::Integer(FixedInteger::unsigned(13)),
+    };
+    let mut bytes = encode(&value);
+    bytes[3] = 2;
+    assert_eq!(recover(&bytes), Err(Error::InvalidValue));
+    let mut bytes = encode(&value);
+    bytes[4..].fill(0);
+    assert_eq!(recover(&bytes), Err(Error::InvalidValue));
 }
 
 #[test]

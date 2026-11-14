@@ -28,15 +28,14 @@ use isa_x86_64::{
     x86_64_preservation_convention_for_target,
 };
 use register_model::{
-    PhysicalRegisterModel, PreservationConvention, RegisterConstraintKey,
-    RegisterInstructionConstraint, RegisterUnitId, RegisterView,
-    ValidatedRegisterConstraintCatalog,
+    PhysicalRegisterModel, PreparedRegisterConstraintCatalog, PreservationConvention,
+    RegisterConstraintKey, RegisterInstructionConstraint, RegisterUnitId, RegisterView,
 };
 use selected_instructions::{
     MachineAlternative, MachineAlternativeApplicability, MachineEffectCatalog,
     MachineEffectCatalogValidationError, MachineEffectDeclaration, MachineEncodedEffects,
     MachineEncodedMemoryEffect, MachineEncodedStackEffect, MachineEncodedTrapBehavior,
-    MachineSemanticKind, SelectedConstraintKeys, ValidatedMachineEffectCatalog,
+    MachineSemanticKind, PreparedMachineEffectCatalog, SelectedConstraintKeys,
 };
 use target::{Architecture, NativeTarget};
 
@@ -156,7 +155,7 @@ fn abi_case_context(
 ) -> (
     &register_model::PhysicalRegisterModel,
     &PreservationConvention,
-    ValidatedMachineEffectCatalog,
+    PreparedMachineEffectCatalog,
     selected_instructions::SelectedConstraintKeys,
 ) {
     (
@@ -198,8 +197,8 @@ fn units_for_names(model: &PhysicalRegisterModel, names: &[&str]) -> Vec<Registe
 
 fn validated_effects(
     case: ScalarAbiCase,
-    constraints: &ValidatedRegisterConstraintCatalog,
-) -> ValidatedMachineEffectCatalog {
+    constraints: &PreparedRegisterConstraintCatalog,
+) -> PreparedMachineEffectCatalog {
     match case.target.architecture {
         Architecture::X86_64 => validate_x86_64_machine_effect_catalog(
             case.target,
@@ -218,7 +217,7 @@ fn validated_effects(
 
 fn produced_effects(
     case: ScalarAbiCase,
-    constraints: &ValidatedRegisterConstraintCatalog,
+    constraints: &PreparedRegisterConstraintCatalog,
 ) -> MachineEffectCatalog {
     match case.target.architecture {
         Architecture::X86_64 => x86_64_machine_effect_catalog(case.target, constraints).unwrap(),
@@ -247,7 +246,7 @@ fn flags_view(model: &PhysicalRegisterModel, case: ScalarAbiCase) -> &RegisterVi
 }
 
 fn binds_catalog_provenance(
-    catalog: &ValidatedMachineEffectCatalog,
+    catalog: &PreparedMachineEffectCatalog,
     case: ScalarAbiCase,
     environment: &ValidatedTargetRegisterEnvironment,
     keys: SelectedConstraintKeys,
@@ -279,7 +278,7 @@ fn sole_alternative(
 
 fn row_and_declaration<'a>(
     environment: &'a ValidatedTargetRegisterEnvironment,
-    catalog: &'a ValidatedMachineEffectCatalog,
+    catalog: &'a PreparedMachineEffectCatalog,
     key: RegisterConstraintKey,
     semantic: MachineSemanticKind,
 ) -> (
@@ -299,7 +298,7 @@ fn row_and_declaration<'a>(
 }
 
 fn declared_pairs(
-    catalog: &ValidatedMachineEffectCatalog,
+    catalog: &PreparedMachineEffectCatalog,
     owns: impl Fn(&MachineEffectDeclaration) -> bool,
 ) -> BTreeSet<(RegisterConstraintKey, MachineSemanticKind)> {
     catalog
@@ -351,9 +350,9 @@ enum EffectRejection {
 
 fn validate_effects(
     case: ScalarAbiCase,
-    constraints: &ValidatedRegisterConstraintCatalog,
+    constraints: &PreparedRegisterConstraintCatalog,
     catalog: MachineEffectCatalog,
-) -> Result<ValidatedMachineEffectCatalog, EffectRejection> {
+) -> Result<PreparedMachineEffectCatalog, EffectRejection> {
     match case.target.architecture {
         Architecture::X86_64 => validate_x86_64_machine_effect_catalog(
             case.target,

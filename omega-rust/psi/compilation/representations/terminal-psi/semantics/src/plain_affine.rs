@@ -361,6 +361,9 @@ fn live_entries(machine: &TerminalMachine) -> Result<Vec<IdSet<PlaceId>>, Error>
                     before.insert(valid(used)?);
                 }
             }
+            for parameter in &block.structural_parameters {
+                before.remove(valid(parameter.place)?);
+            }
             let old = live
                 .get_mut(index(block.id.get())?)
                 .ok_or(Error::malformed("block is outside the machine"))?;
@@ -562,9 +565,29 @@ fn analyze(
                 };
                 (result.structural_type, false, false)
             }
-            StructuralPlaceKind::BlockParameter { .. }
-            | StructuralPlaceKind::ProviderAttachment { .. } => {
-                return Err(Error::unsupported("affine block or provider storage"));
+            StructuralPlaceKind::BlockParameter { block, position } => {
+                let parameter = machine
+                    .blocks
+                    .get(index(block.get())?)
+                    .filter(|candidate| candidate.id == block)
+                    .and_then(|block| {
+                        usize::try_from(position)
+                            .ok()
+                            .and_then(|position| block.structural_parameters.get(position))
+                    })
+                    .filter(|parameter| parameter.place == place.id)
+                    .ok_or(Error::malformed(
+                        "block parameter place has no exact destination header",
+                    ))?;
+                if parameter.access != StructuralAccess::Owned {
+                    return Err(Error::unsupported(
+                        "borrowed structural block parameter storage",
+                    ));
+                }
+                (parameter.structural_type, true, false)
+            }
+            StructuralPlaceKind::ProviderAttachment { .. } => {
+                return Err(Error::unsupported("affine provider storage"));
             }
         };
         let declaration = types
@@ -796,16 +819,6 @@ impl Analysis<'_> {
                     true,
                 )?;
             }
-            Terminator::Jump {
-                structural_arguments,
-                ..
-            } => {
-                for argument in structural_arguments {
-                    if self.root(argument.place)?.is_some() {
-                        return Err(Error::unsupported("affine block successor arguments"));
-                    }
-                }
-            }
             Terminator::InvokeNoNormal {
                 structural_arguments,
                 ..
@@ -818,20 +831,9 @@ impl Analysis<'_> {
                     self.argument(&mut state, argument, site, true)?;
                 }
             }
-            Terminator::Conditional {
-                when_true,
-                when_false,
-                ..
-            } => {
-                for edge in [when_true, when_false] {
-                    for argument in &edge.structural_arguments {
-                        if self.root(argument.place)?.is_some() {
-                            return Err(Error::unsupported("affine block successor arguments"));
-                        }
-                    }
-                }
-            }
-            Terminator::Return { .. }
+            Terminator::Jump { .. }
+            | Terminator::Conditional { .. }
+            | Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
             | Terminator::Crash { .. } => {}
         }
@@ -845,8 +847,22 @@ impl Analysis<'_> {
         }
         // Edge IDs are machine-wide and untrusted here. Index only the
         // actual local successors, never allocate up to a serialized raw ID.
-        let mut targets = block.terminator.successor_edges();
-        targets.sort_by_key(|(edge, _)| *edge);
+        let successors = block.terminator.successor_edges();
+        let arguments = block.terminator.successor_block_arguments();
+        if successors.len() != arguments.len() {
+            return Err(Error::malformed(
+                "successor bindings have no complete edge roster",
+            ));
+        }
+        let mut targets = successors
+            .into_iter()
+            .zip(arguments)
+            .map(|((edge, target), arguments)| (edge, target, arguments))
+            .collect::<Vec<_>>();
+        targets.sort_by_key(|(edge, _, _)| *edge);
+        if targets.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+            return Err(Error::malformed("successor edge has two binding rosters"));
+        }
         let rosters = block.terminator.cleanup_rosters().collect::<Vec<_>>();
         let mut arrivals = Vec::with_capacity(rosters.len());
         for (ordinal, (edge, supplied)) in rosters.iter().copied().enumerate() {
@@ -865,10 +881,15 @@ impl Analysis<'_> {
             } else {
                 state.clone()
             };
-            let target = targets
-                .binary_search_by_key(&edge, |(edge, _)| *edge)
+            let successor = targets
+                .binary_search_by_key(&edge, |(edge, _, _)| *edge)
                 .ok()
-                .map(|position| targets[position].1);
+                .map(|position| targets[position]);
+            let target = successor.map(|(_, target, _)| target);
+            if let Some((_, target, arguments)) = successor {
+                self.capture_successor(machine, &mut outgoing, edge, target, arguments)
+                    .map_err(|error| error.at(Site::Edge(edge)))?;
+            }
             let needed = target
                 .map(|target| index(target.get()).map(|index| &live[index]))
                 .transpose()?;
@@ -915,6 +936,10 @@ impl Analysis<'_> {
             }
             retained.reverse();
             outgoing.active = retained;
+            if let Some(target) = target {
+                self.establish_successor(machine, &mut outgoing, target)
+                    .map_err(|error| error.at(Site::Edge(edge)))?;
+            }
             arrivals.push(Arrival {
                 edge,
                 target,
@@ -923,6 +948,103 @@ impl Analysis<'_> {
             });
         }
         Ok(arrivals)
+    }
+
+    /// Capture every selected successor operand before disposing the old
+    /// frontier. Binding destination names happens only after that cleanup,
+    /// including when an edge reuses its source names or swaps two owners.
+    fn capture_successor(
+        &mut self,
+        machine: &TerminalMachine,
+        state: &mut State,
+        edge: EdgeId,
+        target: semantic_vocabulary::BlockId,
+        arguments: &[StructuralArgument],
+    ) -> Result<(), Error> {
+        let target = machine
+            .blocks
+            .get(index(target.get())?)
+            .filter(|block| block.id == target)
+            .ok_or(Error::malformed("successor target is outside the machine"))?;
+        if target.structural_parameters.len() != arguments.len() {
+            return Err(Error::malformed(
+                "structural successor arguments differ from the target telescope",
+            ));
+        }
+        for (position, (argument, parameter)) in arguments
+            .iter()
+            .zip(&target.structural_parameters)
+            .enumerate()
+        {
+            if usize::try_from(parameter.position).ok() != Some(position)
+                || !terminal_psi::structural_access_covers(argument.access, parameter.access)
+            {
+                return Err(Error::malformed(
+                    "structural successor parameter has no exact access or position",
+                ));
+            }
+            let source = machine
+                .structural_place_type(argument.place)
+                .ok_or(Error::malformed(
+                    "structural successor argument has no source type",
+                ))?;
+            if crate::runtime_structural_path_tip(self.types.iter(), source, &argument.path)
+                .is_none_or(|selected| selected.id != parameter.structural_type)
+            {
+                return Err(Error::malformed(
+                    "structural successor argument differs from its parameter type",
+                ));
+            }
+        }
+        for (argument, parameter) in arguments.iter().zip(&target.structural_parameters) {
+            self.argument(
+                state,
+                argument,
+                Site::Edge(edge),
+                parameter.access == StructuralAccess::Owned,
+            )?;
+        }
+        Ok(())
+    }
+
+    fn establish_successor(
+        &self,
+        machine: &TerminalMachine,
+        state: &mut State,
+        target: semantic_vocabulary::BlockId,
+    ) -> Result<(), Error> {
+        let target = machine
+            .blocks
+            .get(index(target.get())?)
+            .filter(|block| block.id == target)
+            .ok_or(Error::malformed("successor target is outside the machine"))?;
+        // No surviving obligation may be overwritten by a destination name.
+        // Check the whole telescope before installing any of its values.
+        for parameter in &target.structural_parameters {
+            if self.root(parameter.place)?.is_some_and(|root| root.owned)
+                && state.regions[index(parameter.place.get())?].is_some()
+            {
+                return Err(Error::malformed(
+                    "structural successor overwrites an allocated owner",
+                ));
+            }
+        }
+        for parameter in &target.structural_parameters {
+            self.establish(state, parameter.place, true)?;
+        }
+        Ok(())
+    }
+
+    fn establish(&self, state: &mut State, place: PlaceId, initialized: bool) -> Result<(), Error> {
+        let Some(root) = self.root(place)? else {
+            return Ok(());
+        };
+        let region = &mut state.regions[index(place.get())?];
+        if root.owned && region.is_none() {
+            state.active.push(place);
+        }
+        *region = Some(Region::new(initialized));
+        Ok(())
     }
 
     fn storage_use(
@@ -1135,18 +1257,12 @@ impl Analysis<'_> {
                 }
             }
         }
-        if let Some(result) = operation.result.as_structural()
-            && self.root(result.place)?.is_some()
-        {
-            if self.root(result.place)?.is_some_and(|root| root.owned)
-                && state.regions[index(result.place.get())?].is_none()
-            {
-                state.active.push(result.place);
-            }
-            state.regions[index(result.place.get())?] = Some(Region::new(!matches!(
-                operation.kind,
-                Op::EstablishStructuralLocal {}
-            )));
+        if let Some(result) = operation.result.as_structural() {
+            self.establish(
+                state,
+                result.place,
+                !matches!(operation.kind, Op::EstablishStructuralLocal {}),
+            )?;
         }
         Ok(())
     }
@@ -1513,7 +1629,307 @@ impl Analysis<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use semantic_vocabulary::StructuralFieldId;
+    use semantic_vocabulary::{StructuralFieldId, StructuralPlaceKind};
+
+    fn id<T: semantic_vocabulary::PsiSemanticId>(raw: u64) -> T {
+        T::new(raw).unwrap()
+    }
+
+    fn transferring(
+        sources: &[StructuralTypeId],
+        destinations: &[StructuralTypeId],
+        arguments: Vec<StructuralArgument>,
+    ) -> TerminalMachine {
+        use terminal_psi::{
+            Block, BoundaryParameterKind, MachineContract, StructuralParameterDeclaration,
+            StructuralPlaceDeclaration, Terminator,
+        };
+        let parameter = |place, position, structural_type| StructuralParameterDeclaration {
+            place,
+            position,
+            structural_type,
+            multiplicity: terminal_psi::StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
+        };
+        let mut contract = MachineContract::empty(id(1));
+        contract.structural_parameters = sources
+            .iter()
+            .enumerate()
+            .map(|(position, ty)| parameter(id(position as u64 + 1), position as u32, *ty))
+            .collect();
+        contract.parameter_order = vec![BoundaryParameterKind::Structural; sources.len()];
+        let entry = Block::plain(
+            id(1),
+            Vec::new(),
+            Terminator::Jump {
+                edge: id(1),
+                target: id(2),
+                arguments: Vec::new(),
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: arguments,
+                cleanup_actions: Vec::new(),
+            },
+        );
+        let mut target = Block::plain(
+            id(2),
+            Vec::new(),
+            Terminator::ReturnUnit {
+                edge: id(2),
+                cleanup_actions: Vec::new(),
+            },
+        );
+        target.structural_parameters = destinations
+            .iter()
+            .enumerate()
+            .map(|(position, ty)| {
+                parameter(
+                    id((sources.len() + position) as u64 + 1),
+                    position as u32,
+                    *ty,
+                )
+            })
+            .collect();
+        let structural_places = contract
+            .structural_parameters
+            .iter()
+            .map(|parameter| StructuralPlaceDeclaration {
+                id: parameter.place,
+                kind: StructuralPlaceKind::Parameter {
+                    position: parameter.position,
+                },
+            })
+            .chain(target.structural_parameters.iter().map(|parameter| {
+                StructuralPlaceDeclaration {
+                    id: parameter.place,
+                    kind: StructuralPlaceKind::BlockParameter {
+                        block: id(2),
+                        position: parameter.position,
+                    },
+                }
+            }))
+            .collect();
+        TerminalMachine {
+            assembly_target_requirement: terminal_psi::RegisterTargetApplicability::Any,
+            id: id(1),
+            attachment: None,
+            nominal_cleanup_subject: None,
+            ranked_scc: None,
+            structural_places,
+            block_entry_claims: Vec::new(),
+            loan_completions: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: id(1),
+            blocks: vec![entry, target],
+            contract,
+        }
+    }
+
+    fn field_argument(field: u32) -> StructuralArgument {
+        StructuralArgument {
+            place: id(1),
+            path: vec![StructuralPathSegment::Field(
+                terminal_psi::TerminalIdentityIndex(field),
+            )],
+            access: StructuralAccess::Owned,
+        }
+    }
+
+    #[test]
+    fn successor_values_are_captured_before_source_cleanup_and_destination_binding() {
+        use terminal_psi::Terminator;
+        let types = reconvergence_types();
+        let mut machine = transferring(
+            &[id(2)],
+            &[id(3), id(3)],
+            vec![field_argument(3), field_argument(4)],
+        );
+        let planned = plan(&machine, &types).unwrap();
+        assert!(planned.unavailable.is_empty());
+        assert_eq!(
+            planned.cleanup,
+            vec![
+                (id(1), vec![TerminalAffineCleanupAction::RetireHome(id(1))]),
+                (
+                    id(2),
+                    vec![
+                        TerminalAffineCleanupAction::DiscardRoot(id(3)),
+                        TerminalAffineCleanupAction::DiscardRoot(id(2))
+                    ]
+                ),
+            ]
+        );
+        let Terminator::Jump {
+            cleanup_actions, ..
+        } = &mut machine.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        *cleanup_actions = planned.cleanup[0].1.clone();
+        let Terminator::ReturnUnit {
+            cleanup_actions, ..
+        } = &mut machine.blocks[1].terminator
+        else {
+            unreachable!()
+        };
+        *cleanup_actions = planned.cleanup[1].1.clone();
+        verify(&machine, &types).unwrap();
+        let Terminator::Jump {
+            cleanup_actions, ..
+        } = &mut machine.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        cleanup_actions.clear();
+        assert!(
+            verify(&machine, &types).is_err(),
+            "the source's empty home still needs its own retirement"
+        );
+
+        let duplicate = transferring(
+            &[id(2)],
+            &[id(3), id(3)],
+            vec![field_argument(3), field_argument(3)],
+        );
+        assert!(
+            !plan(&duplicate, &types).unwrap().unavailable.is_empty(),
+            "one projected owner cannot supply both parameters"
+        );
+        let short = transferring(&[id(2)], &[id(3), id(3)], vec![field_argument(3)]);
+        assert!(plan(&short, &types).is_err());
+        let mut borrowed = field_argument(3);
+        borrowed.access = StructuralAccess::SharedBorrow;
+        assert!(plan(&transferring(&[id(2)], &[id(3)], vec![borrowed]), &types).is_err());
+        let mut borrowed_source = transferring(&[id(2)], &[id(3)], vec![field_argument(3)]);
+        borrowed_source.contract.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+        borrowed_source.contract.structural_parameters[0].multiplicity =
+            terminal_psi::StructuralMultiplicity::Unrestricted;
+        assert!(matches!(
+            plan(&borrowed_source, &types),
+            Err(Error::Unsupported {
+                detail: "owned extraction from borrowed storage",
+                ..
+            })
+        ));
+        let mut foreign = types.to_vec();
+        let mut same_layout = foreign[2].clone();
+        same_layout.id = id(4);
+        same_layout.identity = terminal_psi::TerminalIdentityIndex(4);
+        foreign.push(same_layout);
+        assert!(
+            plan(
+                &transferring(&[id(2)], &[id(4)], vec![field_argument(3)]),
+                &foreign
+            )
+            .is_err(),
+            "matching bytes do not establish nominal type identity"
+        );
+    }
+
+    #[test]
+    fn a_successor_keeps_the_transferred_field_out_of_its_sources_disposal() {
+        let types = reconvergence_types();
+        let planned = plan(
+            &transferring(&[id(2)], &[id(3)], vec![field_argument(3)]),
+            &types,
+        )
+        .unwrap();
+        assert!(planned.unavailable.is_empty());
+        assert_eq!(
+            planned.cleanup,
+            vec![
+                (
+                    id(1),
+                    vec![
+                        TerminalAffineCleanupAction::DiscardResidual(
+                            terminal_psi::StructuralAffineDiscard {
+                                place: id(1),
+                                path: field_argument(4).path,
+                                structural_type: id(3),
+                            }
+                        ),
+                        TerminalAffineCleanupAction::RetireHome(id(1))
+                    ]
+                ),
+                (id(2), vec![TerminalAffineCleanupAction::DiscardRoot(id(2))]),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_backedge_captures_both_swapped_owners_before_rebinding_their_names() {
+        use terminal_psi::{
+            Block, BoundaryParameterKind, SuccessorEdge, Terminator, ValueDeclaration,
+        };
+        let types = reconvergence_types();
+        let mut machine = transferring(
+            &[id(3), id(3)],
+            &[id(3), id(3)],
+            vec![
+                StructuralArgument::whole(id(1), StructuralAccess::Owned),
+                StructuralArgument::whole(id(2), StructuralAccess::Owned),
+            ],
+        );
+        machine.contract.parameters.push(ValueDeclaration {
+            id: id(1),
+            scalar_type: semantic_vocabulary::ScalarType::Boolean,
+            qualifications: semantic_vocabulary::ScalarQualificationSetId::ZERO,
+        });
+        machine
+            .contract
+            .parameter_order
+            .insert(0, BoundaryParameterKind::Scalar);
+        let edge = |raw, target, structural_arguments| SuccessorEdge {
+            edge: id(raw),
+            target: id(target),
+            arguments: Vec::new(),
+            erased_arguments: Vec::new(),
+            erased_proof_arguments: Vec::new(),
+            structural_arguments,
+            cleanup_actions: Vec::new(),
+        };
+        machine.blocks[1].terminator = Terminator::Conditional {
+            condition: id(1),
+            when_true: edge(
+                2,
+                2,
+                vec![
+                    StructuralArgument::whole(id(4), StructuralAccess::Owned),
+                    StructuralArgument::whole(id(3), StructuralAccess::Owned),
+                ],
+            ),
+            when_false: edge(3, 3, Vec::new()),
+        };
+        machine.blocks.push(Block::plain(
+            id(3),
+            Vec::new(),
+            Terminator::ReturnUnit {
+                edge: id(4),
+                cleanup_actions: Vec::new(),
+            },
+        ));
+        let planned = plan(&machine, &types).unwrap();
+        assert!(planned.unavailable.is_empty());
+        assert_eq!(
+            planned.cleanup,
+            vec![(
+                id(3),
+                vec![
+                    TerminalAffineCleanupAction::DiscardRoot(id(4)),
+                    TerminalAffineCleanupAction::DiscardRoot(id(3))
+                ]
+            )]
+        );
+        let Terminator::Conditional { when_true, .. } = &mut machine.blocks[1].terminator else {
+            unreachable!()
+        };
+        when_true.structural_arguments[1] = when_true.structural_arguments[0].clone();
+        assert!(!plan(&machine, &types).unwrap().unavailable.is_empty());
+    }
 
     fn field(raw: u64) -> Segment {
         Segment::Field(StructuralFieldId::new(raw).unwrap())

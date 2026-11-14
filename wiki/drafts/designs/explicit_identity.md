@@ -87,6 +87,5 @@ fixtures where required. Acceptance includes:
   and matching-host native execution. Exercise existing nine-place witnesses
   with both engines and retain exact provenance across package boundaries.
 
-Review all changed corpus outcomes against a fixed base and record only clean
-committed sources. Measure proof-checking and generated-code effects; this
-ratification claims neither a mechanical-only migration nor a measured speedup.
+Measure proof-checking and generated-code effects; this ratification claims
+neither a mechanical-only migration nor a measured speedup.

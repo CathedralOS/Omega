@@ -1,6 +1,6 @@
 // Expected exit: 0
 // Expected output contains: planar_truss_elasticity
-use omega_language_std::console;
+use omega_language_std::Console;
 use io::input;
 use io::decode;
 use io::report;

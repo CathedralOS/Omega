@@ -9,5 +9,5 @@ linux_arm64 boundary machine ProcessExitNativeProvider::exit_process(return_code
     satisfies ProcessExit::exit_process;
 
 linux_arm64 machine ProcessExitNativeProvider::provider_defaults(defaults: &mut ProcessExitNativeProvider) {
-    ProcessExitNativeProvider::select_provider<ProcessExit, ProcessExitNativeProvider>(defaults);
+    ProcessExitNativeProvider::select_provider<ProcessExit, NativeProcessExit>(defaults);
 }

@@ -14,9 +14,10 @@ initialize:
     run: |
       # mbx is Mr Boxington, the shared Cargo build cache AGENTS.md builds with:
       # https://mr-boxington.jdx.dev/ (source https://github.com/jdx/mr-boxington).
-      # Same pinned, checksum-checked release as tools/agent_setup.sh.
+      # Same checksum-checked release as tools/agent_setup.sh, pinned in
+      # tools/mbx-version, read relative to the checkout this step runs in.
       export PATH="$HOME/.cargo/bin:$PATH"
-      version=1.29.2
+      version=$(tr -d "[:space:]" < tools/mbx-version)
       archive=mbx-$(uname -m)-unknown-linux-gnu.tar.gz
       release=https://github.com/jdx/mr-boxington/releases/download/v$version
       work=$(mktemp -d)
@@ -51,4 +52,4 @@ knowledge:
       One crate test: mbx nextest run -p <crate> <filter>. Compiler behavior: a test on the changed code, with any program it reads kept under tests/fixtures/
       Bootstrap gates: sh tools/bootstrap/check-chain-hygiene.sh ; sh tests/bootstrap/alpha-beta-edge.sh --edge
   - name: landing
-    contents: Publish only through python3 tools/landing.py (status/enqueue/claim/publish/release); see tools/landing.md. Never push main directly.
+    contents: Publish only through python3 tools/landing.py (status/enqueue/claim/publish/release); see tools/docs/landing.md. Never push main directly.

@@ -33,9 +33,10 @@ use terminal_psi::OperationKind;
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn derive_admitted_provider_settlement_child(
+    pass: crate::physical::PhysicalEvidencePass,
     module: &terminal_psi::TerminalModule,
     object: &image_emission::ObjectArtifact,
-    image: &image::EmittedImageOutput,
+    image: &[u8],
     occurrence: &OptimizedBoundaryOccurrence,
     projection: NativeOptimizationProjectionIdentity,
     requirement_identity: &str,
@@ -96,6 +97,7 @@ pub(crate) fn derive_admitted_provider_settlement_child(
     }
     let port_effect = match &settlement.realization {
         BoundaryRealization::MetadataOnlyPort(realization) => Some(metadata_port_effect_custody(
+            pass,
             module,
             object,
             image,
@@ -110,6 +112,7 @@ pub(crate) fn derive_admitted_provider_settlement_child(
         )?),
         BoundaryRealization::DirectPortReadU8(realization) => {
             direct_port_read_custody(
+                pass,
                 object,
                 image,
                 occurrence,
@@ -123,8 +126,11 @@ pub(crate) fn derive_admitted_provider_settlement_child(
             None
         }
         BoundaryRealization::LinuxWriteLine(_) => {
-            if !linux_write_line_custody_is_exact(target, settlement, function.bytes(object))
-                || function.unit_stack.is_none()
+            if !linux_write_line_custody_is_exact(
+                target,
+                settlement,
+                pass.is_receiver().then(|| function.bytes(object)),
+            ) || function.unit_stack.is_none()
                 || function.scalar_stack.is_some()
                 || !matches!(operation.result, terminal_psi::OperationResult::Unit)
                 || !declaration.result.is_unit()
@@ -167,8 +173,8 @@ pub(crate) fn derive_admitted_provider_settlement_child(
     let final_image_span = object_span;
     let machine_bytes = span(function.bytes(object), machine_span)?;
     let object_bytes = span(object.text_bytes(), object_span)?;
-    let final_image_bytes = span(&image.final_text_bytes, final_image_span)?;
-    if machine_bytes != object_bytes || object_bytes != final_image_bytes {
+    let final_image_bytes = span(image, final_image_span)?;
+    if pass.is_receiver() && (machine_bytes != object_bytes || object_bytes != final_image_bytes) {
         return Err("installed D41 settlement bytes changed across physical custody");
     }
     let object_end = installed

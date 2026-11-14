@@ -175,8 +175,9 @@ check on it does not count.
 ### No `.omg` file bloat
 
 `samples/cli/facts/` is a **frozen finite set**, and `tests/omega/` is gone.
-`cargo xtask check-rules` rejects any new `.omg` file under
-`samples/cli/facts/`, rejects any new file under `tests/omega/`, and caps new
+`cargo xtask check-rules` rejects any change that grows the number of `.omg`
+files under `samples/cli/facts/` (moving them within it is allowed), rejects any
+new file under `tests/omega/`, and caps new
 `.omg` files anywhere in the repository at **at most 6 per PR**
 (`MAX_NEW_OMG_FILES = 6`). Pin a repair with a test on the changed code and,
 when it needs a program, at most a single focused positive/negative pair kept
@@ -223,7 +224,8 @@ and [omega-rust/pipeline.md](omega-rust/pipeline.md):
 `mbx` ([Mr Boxington](https://github.com/jdx/mr-boxington)) is **mandatory** for
 all Rust builds, Clippy checks, and test runs. Direct `cargo build`, `cargo test`,
 `cargo clippy`, or `cargo run` fallback is forbidden. If `mbx` is missing or older
-than `1.29.0`, install or update it immediately before building:
+than the version pinned in `tools/mbx-version`, install or update it
+immediately before building (run these from the checkout root):
 
 - **Linux / macOS / Cloud containers:**
   ```bash
@@ -231,10 +233,10 @@ than `1.29.0`, install or update it immediately before building:
   ```
 - **Windows PowerShell:**
   ```powershell
-  $v = "1.29.2"; Invoke-WebRequest "https://github.com/jdx/mr-boxington/releases/download/v$v/mbx-x86_64-pc-windows-msvc.zip" -OutFile "$env:TEMP\mbx.zip"; Expand-Archive "$env:TEMP\mbx.zip" "$HOME\.cargo\bin" -Force; mbx setup --yes; mbx xtask doctor
+  $v = (Get-Content tools/mbx-version).Trim(); Invoke-WebRequest "https://github.com/jdx/mr-boxington/releases/download/v$v/mbx-x86_64-pc-windows-msvc.zip" -OutFile "$env:TEMP\mbx.zip"; Expand-Archive "$env:TEMP\mbx.zip" "$HOME\.cargo\bin" -Force; mbx setup --yes; mbx xtask doctor
   ```
 
-See [tools/testing.md](tools/testing.md) for full details. Always close stdin
+See [tools/docs/testing.md](tools/docs/testing.md) for full details. Always close stdin
 with `< /dev/null` on non-interactive `omega` invocations so
 background processes never hang on open stdin:
 
@@ -265,7 +267,7 @@ run.
 
 Builds, test runs and compiled programs from every local agent share one
 machine. Before the first build on a host you share with its owner or with
-other agents, apply the [host build budget](tools/build_slot.md): cap the total
+other agents, apply the [host build budget](tools/docs/build_slot.md): cap the total
 load of all agents so the machine never reaches 100%, run at the lowest
 operating-system priority on a workstation its owner is using, and write the
 budget into every worker prompt. On the test VMs, run one heavy job per machine
@@ -300,9 +302,9 @@ refuses a second build or test run while one is active.
   Generalize the touched operation across all value placements and delete the
   superseded code path in the same commit.
 - **Data-oriented storage:** Dense IDs index flat tables (`Vec` / slice), not
-  `HashMap`/`BTreeMap` (`tools/dense_id_maps.txt`). Derived data is computed
+  `HashMap`/`BTreeMap` (`tools/ratchets/dense_id_maps.txt`). Derived data is computed
   once by its stage owner and passed forward, never re-parsed from source text
-  (`tools/source_text_reads.txt`) or cached in ad-hoc mutable maps (`tools/cache_state.txt`).
+  (`tools/ratchets/source_text_reads.txt`) or cached in ad-hoc mutable maps (`tools/ratchets/cache_state.txt`).
   This applies to membership sets too, including collections whose key type is
   inferred. Validate arena ownership and handle generations before indexing by
   slot. Size scratch storage to the operation's actual domain: a query over a
@@ -391,8 +393,8 @@ reads the allowed lanes from this table:
   only when the task needs something newer. Release finished slots with
   `cargo xtask worktree release` or `cargo xtask worktree clean`. Push via
   `git push origin HEAD:refs/heads/work/<lane>-<topic>`.
-- **No `.omg` bloat (`MAX_NEW_OMG_FILES = 6`):** Never add `.omg` files under
-  `samples/cli/facts/`, never add a file under `tests/omega/`, and never add
+- **No `.omg` bloat (`MAX_NEW_OMG_FILES = 6`):** Never grow the `.omg` files
+  under `samples/cli/facts/`, never add a file under `tests/omega/`, and never add
   more than 6 `.omg` files in a PR.
 - **No direct pushes to `main` and no chasing `main`:** Land only through
   squash-merged PRs. Rebase only on actual conflicts or

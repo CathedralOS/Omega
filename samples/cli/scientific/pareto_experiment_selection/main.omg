@@ -3,7 +3,7 @@ use domain::model;
 use domain::selection;
 use input::numbers;
 use report::render;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 machine Application::main(application: &mut Application) reaches Console {
     let count: Parsed = block read_number();

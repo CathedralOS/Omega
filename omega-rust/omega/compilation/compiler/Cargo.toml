@@ -27,6 +27,7 @@ build-settings = { path = "../../build-system/build-settings" }
 build-output = { path = "../../packages/build-output" }
 package-compilation = { path = "../../packages/package-compilation" }
 provider-planning = { path = "../realization/provider-planning" }
+program-entry-plan = { path = "../backend/plans/program-entry-plan" }
 trust-model = { path = "../realization/trust-model" }
 boundary-applications = { path = "../backend/artifacts/boundary-applications" }
 calling-conventions = { path = "../backend/calling-conventions" }
@@ -44,6 +45,7 @@ target = { path = "../backend/target" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
 terminal-check-tables = { path = "../../../psi/compilation/representations/terminal-psi/check-tables" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
+terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-installation = { path = "../../../psi/compilation/terminal-installation" }
 target-operations = { path = "../representations/target-operations" }
@@ -81,7 +83,6 @@ bounded-process = { path = "../../foundation/bounded-process" }
 orchestration = { path = "../../build-system/orchestration" }
 terminal-runtime = { path = "../../interpreter/terminal-runtime" }
 numerics = { path = "../../../psi/foundation/numerics" }
-terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }
 terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
 access-plans = { path = "../../../psi/foundation/access-plans" }
 extents = { path = "../../../psi/foundation/extents" }
@@ -187,6 +188,10 @@ path = "tests/lowered_route_governance.rs"
 name = "lowered_route_publication"
 path = "tests/lowered_route_publication.rs"
 
+[[test]]
+name = "program_entry_product"
+path = "tests/program_entry_product.rs"
+
 # The lowered route's rejection messages contain each fixture's pinned
 # fragment.
 [[test]]
@@ -204,6 +209,12 @@ path = "tests/lowered_route_generics.rs"
 [[test]]
 name = "lowered_route_qualified"
 path = "tests/lowered_route_qualified.rs"
+
+# A value-position `match` on an integer or Boolean subject is judged on the
+# lowered form: each arm is checked knowing its test held.
+[[test]]
+name = "lowered_route_scalar_match"
+path = "tests/lowered_route_scalar_match.rs"
 
 [[test]]
 name = "package_review"

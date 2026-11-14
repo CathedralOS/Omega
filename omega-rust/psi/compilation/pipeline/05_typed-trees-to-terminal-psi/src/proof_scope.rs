@@ -58,6 +58,57 @@ pub(crate) fn declare(typed: &TypedTrees, elaboration: &mut Elaboration) -> Chec
             .map_err(|_| "proof call has no exact emitted declaration")?;
         Ok(declarations[position].1)
     };
+    // Each boundary requirement the module declares is a declaration of the
+    // scope too, after the machines, so a call of it is an edge of the
+    // caller's summary and a selected provider's body is reached through it
+    // (`ProofApplications::membership`, which follows `provider_candidates`
+    // from the requirement to the body a target installs).
+    let mut boundaries = Vec::with_capacity(elaboration.module.boundary_machines.len());
+    for boundary in &elaboration.module.boundary_machines {
+        let Some(callable) = &boundary.declaration else {
+            continue;
+        };
+        let id = u32::try_from(declarations.len() + boundaries.len())
+            .ok()
+            .and_then(|position| position.checked_add(1))
+            .map(ProofDeclarationId)
+            .ok_or_else(|| {
+                refuse(
+                    MachineId::new(1).expect("1 is nonzero"),
+                    Construct::Machine,
+                    Unserved::Declaration("proof declaration coordinate overflow"),
+                )
+            })?;
+        scope
+            .declarations
+            .insert(ProofScopeDeclaration::Callable(callable.source.clone()));
+        scope.callables.insert(ProofCallableAssociation::Callable {
+            declaration: id,
+            callable: TargetMachineCallable::Boundary(boundary.id),
+        });
+        boundaries.push((boundary.id, id));
+    }
+    let boundary_for = |boundary: semantic_vocabulary::BoundaryMachineId| {
+        boundaries
+            .iter()
+            .find_map(|(declared, id)| (*declared == boundary).then_some(*id))
+            .ok_or_else(|| "proof call has no exact emitted boundary declaration".to_owned())
+    };
+    for candidate in &elaboration.module.provider_candidates {
+        let requirement = boundary_for(candidate.boundary);
+        let realization = declaration_for(candidate.candidate);
+        let (Ok(requirement), Ok(realization)) = (requirement, realization) else {
+            return Err(refuse(
+                candidate.candidate,
+                Construct::Machine,
+                Unserved::Declaration("provider candidate without its proof declarations"),
+            ));
+        };
+        scope
+            .plan
+            .provider_candidates
+            .insert((requirement, realization));
+    }
     for machine in &elaboration.module.machines {
         let id = declaration_for(machine.id).map_err(|_| {
             refuse(
@@ -84,6 +135,9 @@ pub(crate) fn declare(typed: &TypedTrees, elaboration: &mut Elaboration) -> Chec
             .as_ref()
             .expect("declarations were checked above");
         let mut calls = Vec::new();
+        // Boundary calls follow the direct calls, so the ordinal of a direct
+        // call in the summary is its ordinal among the machine's direct calls.
+        let mut boundary_calls = Vec::new();
         let mut cleanup = Vec::new();
         let mut unavailable = None;
         for block in &machine.blocks {
@@ -91,6 +145,15 @@ pub(crate) fn declare(typed: &TypedTrees, elaboration: &mut Elaboration) -> Chec
                 if let Some(callee) = operation.kind.direct_callee() {
                     match declaration_for(callee) {
                         Ok(callee) => calls.push(ProofApplicationCall {
+                            callee,
+                            ..ProofApplicationCall::default()
+                        }),
+                        Err(reason) => unavailable = Some(reason),
+                    }
+                }
+                if let OperationKind::BoundaryCall { boundary, .. } = &operation.kind {
+                    match boundary_for(*boundary) {
+                        Ok(callee) => boundary_calls.push(ProofApplicationCall {
                             callee,
                             ..ProofApplicationCall::default()
                         }),
@@ -132,6 +195,7 @@ pub(crate) fn declare(typed: &TypedTrees, elaboration: &mut Elaboration) -> Chec
                 }
             }
         }
+        calls.extend(boundary_calls);
         // A generated static selection needs its complete applied declaration
         // authority, not just the direct body the lowered call reaches.
         if elaboration
