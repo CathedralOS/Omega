@@ -115,8 +115,12 @@ pub(super) fn scalar_atom(scalar: ScalarType, machine: MachineId) -> Checked<Bui
                 })?,
             )
         }
-        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => BuiltinTypeAtom::F32,
-        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => BuiltinTypeAtom::F64,
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary32) => {
+            BuiltinTypeAtom::F32
+        }
+        ScalarType::IeeeFloat(semantic_vocabulary::IeeeFloatFormat::Binary64) => {
+            BuiltinTypeAtom::F64
+        }
     })
 }
 
