@@ -314,9 +314,10 @@ PolicyCharge = interpret(UsageRecord, selected cost policy)
 
 Changing accounting weights does not invalidate a semantically unchanged
 result. Missing telemetry may require remeasurement without invalidating that
-result. A cache hit replacing work in the current build graph receives its
-recorded logical charge, so warm and cold builds make the same hard-ceiling
-decision. Linking an already-built dependency does not charge its historical
+result. Reusing a result within the current build graph charges its recorded
+logical charge, so reuse cannot change a hard-ceiling decision. Results are not
+reused across builds under [compiler storage](../build/compiler_storage.md).
+Linking an already-built dependency does not charge its historical
 production cost.
 
 Published proof-only contracts retain their propositions, exact subjects,

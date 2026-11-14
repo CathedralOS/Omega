@@ -225,7 +225,7 @@ and artifact prerequisites; splitting scopes must not hide a scheduling cycle.
 
 Source bytes may be acquired once, but checked instances, aliases, target
 selection, provider choices, generated bundles, and evaluation results cannot
-be shared merely because the bytes match. Cache/admission keys bind package
+be shared merely because the bytes match. Reuse/admission keys bind package
 instance, purpose (build or product), host/evaluator and selected target facts,
 dependencies, inputs, and policy. Never reuse host-generated configuration or
 provider plans as target evidence. A helper may receive the intended product
@@ -574,7 +574,9 @@ authority. Source acquisition and compiled code may be shared only where their
 actual checked identities permit it. Build results, generated code and effects
 are not shared merely because package bytes or aliases match. Joining produced
 variants still requires compatible exact product identities; separate execution
-does not authorize merging contradictory generated declarations.
+does not authorize merging contradictory generated declarations. Reuse happens
+within one build invocation; Build results are not stored for later invocations
+under [compiler storage](compiler_storage.md).
 
 Before reusing an execution result, prove applicability to the exact code,
 purpose, execution profile, configuration, selected providers, actual backing
@@ -585,14 +587,14 @@ Content-identical immutable snapshots may share bytes without sharing grants,
 writer custody or live activation identities. A library-supplied changeset or
 hash alone is not an authority or replay receipt. Product reuse is not evidence
 that the Build ran again and cannot silently omit required observable effects.
-Materializing cached files or applying retained changes still requires the
+Materializing reused files or applying retained changes still requires the
 destination's actual authority and the selected conflict/failure contract.
 
-Mutable/live backing is not an immutable cache input. Capture an adequate
-immutable observation closure under its actual authority, or decline persistent
-result reuse when applicability cannot be established. Resource or host failures
-cannot be relabeled as stable NotFound/EOF observations. No persistent scratch
-cache becomes implicitly readable. Different contexts are ordinary supported
+Mutable/live backing is not an immutable reuse input. Capture an adequate
+immutable observation closure under its actual authority, or decline result
+reuse when applicability cannot be established. Resource or host failures
+cannot be relabeled as stable NotFound/EOF observations. No scratch file becomes
+implicitly readable. Different contexts are ordinary supported
 occurrences, not a conflict that must always be detected before the package's
 first-ever activation. Each occurrence and each newly reached continuation is
 admitted before its own effects; earlier authorized execution has no rollback.
@@ -816,7 +818,7 @@ Run actual acquisition, multi-file build execution, and generated-source checks,
 not just dependency-parser tests. Exercise snapshot/staging isolation and failure
 paths on Windows and macOS; source inspection is not a host execution pass.
 Compare two packages using the same input and output names to detect cross-build
-leakage, and test same-package dual-purpose cache entries with different targets.
+leakage, and test same-package dual-purpose reuse with different targets.
 
 ## Migration and retirement
 
@@ -845,7 +847,7 @@ with a separate build-tool-package route. These examples validate usability and
 enforcement. They may expose a new design choice; raise any semantic or trust
 amendment in [owner questions](../../../OWNER_QUESTIONS.md) before relying on it.
 
-Live-host grant extension, persistent writable caches, symbolic generated-root
+Live-host grant extension, symbolic generated-root
 binding, concurrent filesystem operations, dependency inference from imports,
 and native plugin execution are deferred. This leaves code generation and
 topology composition usable without requiring a virtual operating system or
