@@ -7763,19 +7763,24 @@ pub(crate) mod nodes {
         identities: &terminal_psi::TerminalIdentityTable,
     ) -> Result<(), LegalizationError> {
         let types = plan.geometry();
+        let scalar_shape = |scalar| {
+            plan.closed_scalar(scalar)
+                .and_then(calling_conventions::ValueShape::for_closed_scalar)
+        };
         let optimized = function_inputs.function();
         let (terminator, body) = block
             .nodes
             .split_last()
             .ok_or(LegalizationError::custody())?;
         for (position, parameter) in block.parameters.iter().enumerate() {
-            if (integer_type(parameter.scalar_type).is_none()
-                && !(matches!(
-                    parameter.scalar_type,
-                    ScalarType::Boolean | ScalarType::IeeeFloat(_)
-                ))
-                && !(matches!(parameter.scalar_type, ScalarType::Integer(_))
-                    && scalar_shape(parameter.scalar_type).is_some()))
+            if plan.closed_scalar(parameter.scalar_type).is_none()
+                || (integer_type(parameter.scalar_type).is_none()
+                    && !(matches!(
+                        parameter.scalar_type,
+                        ScalarType::Boolean | ScalarType::IeeeFloat(_)
+                    ))
+                    && !(matches!(parameter.scalar_type, ScalarType::Integer(_))
+                        && scalar_shape(parameter.scalar_type).is_some()))
                 || parameter.site
                     != (ValueDefinitionSite::BlockParameter {
                         block: block.id,
@@ -7786,6 +7791,13 @@ pub(crate) mod nodes {
             }
         }
         for (position, node) in body.iter().enumerate() {
+            if node
+                .definitions
+                .iter()
+                .any(|definition| plan.closed_scalar(definition.scalar_type).is_none())
+            {
+                return Err(LegalizationError::custody());
+            }
             if !node
                 .operation
                 .runtime_indices()
@@ -8552,11 +8564,13 @@ pub(crate) mod nodes {
                     target_type,
                     ..
                 } => {
-                    if terminal_semantics::ScalarRepresentationViewPair::classify(
-                        *source_type,
-                        *target_type,
-                    )
-                    .is_none()
+                    if plan.closed_scalar(*source_type).is_none()
+                        || plan.closed_scalar(*target_type).is_none()
+                        || terminal_semantics::ScalarRepresentationViewPair::classify(
+                            *source_type,
+                            *target_type,
+                        )
+                        .is_none()
                         || function_inputs.value_type(*operand) != Some(*source_type)
                     {
                         return Err(LegalizationError::custody());
@@ -8569,7 +8583,9 @@ pub(crate) mod nodes {
                     target_type,
                     ..
                 } => {
-                    if !exact_cast_has_native_carriers(*source_type, *target_type)
+                    if plan.closed_integer(*source_type).is_none()
+                        || plan.closed_integer(*target_type).is_none()
+                        || !exact_cast_has_native_carriers(*source_type, *target_type)
                         || function_inputs.value_type(*operand)
                             != Some(ScalarType::Integer(*source_type))
                     {
@@ -8700,6 +8716,16 @@ pub(crate) fn match_input(
     let native = descriptor_inputs.native();
     let plan = descriptor_inputs.plan();
     let unit = descriptor_inputs.unit();
+    // Check semantic SSA declarations at their existing function/block/node
+    // owners, before an independent metadata classifier can interpret them.
+    // Generated native transport registers are outside these source tables.
+    if optimized
+        .parameters
+        .iter()
+        .any(|parameter| plan.closed_scalar(parameter.scalar_type).is_none())
+    {
+        return Err(LegalizationError::custody());
+    }
     primitive_locals::validate(optimized, unit.geometry())?;
     let call_plan = if aggregate_results::uses(optimized) {
         aggregate_results::header(target, abstracted, optimized, native.target, plan)?
