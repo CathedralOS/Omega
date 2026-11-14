@@ -2604,6 +2604,85 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn inferred_boolean_subjects_execute_without_relaxing_operand_checks() {
+        // The caller keeps both outcomes of each predicate. A Boolean result
+        // type neither assumes the predicate nor grants a case or domain fact.
+        let cases = program(
+            "data Choice { case A; case B; }
+             machine answer(value: Choice) -> u64 {
+                 transition value in Choice::A { true -> 41u64 _ -> 0u64 }
+             }",
+        );
+        for (case, expected) in [("A", 41), ("B", 0)] {
+            assert_eq!(
+                run(
+                    &cases,
+                    &[BuildTimeValue::Case {
+                        variant: case.into(),
+                        payload: Vec::new(),
+                    }],
+                    &mut psi_work::WorkMeter::unbounded(),
+                )
+                .expect("the actual case test chooses its arm"),
+                BuildTimeValue::Int(expected),
+            );
+        }
+        let mut refused = psi_work::WorkMeter::unbounded();
+        let error = run(
+            &cases,
+            &[BuildTimeValue::Case {
+                variant: "Other".into(),
+                payload: Vec::new(),
+            }],
+            &mut refused,
+        )
+        .expect_err("a Boolean case test cannot create another case");
+        assert!(error.contains("not declared by formal"), "{error}");
+        assert_eq!(refused.usage().total_units(), 0);
+
+        let membership = program(
+            "domain u64::Small requires self <= 8;
+             machine answer(value: u64) -> u64 {
+                 transition value in Small { true -> 41u64 _ -> 0u64 }
+             }",
+        );
+        for (value, expected) in [(0, 41), (8, 41), (9, 0)] {
+            assert_eq!(
+                run(
+                    &membership,
+                    &[BuildTimeValue::Int(value)],
+                    &mut psi_work::WorkMeter::unbounded(),
+                )
+                .expect("the actual domain predicate chooses its arm"),
+                BuildTimeValue::Int(expected),
+            );
+        }
+        let negated =
+            program("machine answer(value: bool) -> bool { let inverted = !value; inverted }");
+        for value in [false, true] {
+            assert_eq!(
+                run(
+                    &negated,
+                    &[BuildTimeValue::Bool(value)],
+                    &mut psi_work::WorkMeter::unbounded(),
+                )
+                .expect("an inferred Boolean local keeps its actual value"),
+                BuildTimeValue::Bool(!value),
+            );
+        }
+        let invalid = program(
+            "machine answer(value: u64) -> u64 {
+                 transition !value { true -> 41u64 _ -> 0u64 }
+             }",
+        );
+        let mut refused = psi_work::WorkMeter::unbounded();
+        let error = run(&invalid, &[BuildTimeValue::Int(0)], &mut refused)
+            .expect_err("a Boolean result does not turn an integer operand into Bool");
+        assert!(error.contains("unary operand type"), "{error}");
+        assert_eq!(refused.usage().total_units(), 0);
+    }
+
+    #[test]
     fn source_jobs_prove_requires_at_the_actual_arguments_before_execution() {
         let entry = program("machine answer(value: u64) -> u64 requires value > 0 { value }");
         let mut meter = psi_work::WorkMeter::unbounded();
