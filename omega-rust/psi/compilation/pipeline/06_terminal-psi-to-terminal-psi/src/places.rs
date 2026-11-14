@@ -491,6 +491,8 @@ pub(crate) struct Storage<'a> {
     types: &'a [StructuralTypeDeclaration],
     graph: &'a Graph,
     initial_contents: Vec<Option<ValueId>>,
+    /// Bound actual operations and structural edge bindings once per machine.
+    reaching_budget: usize,
     log: Vec<Logged>,
     /// The `requires` clauses of each data type, by its identity
     /// (`Elaboration::domains`).
@@ -510,12 +512,27 @@ impl<'a> Storage<'a> {
         // First, because every lineage below is read through the place
         // table's parent links.
         log::places_are_interned(machine, tables)?;
+        let reaching_budget = lowered
+            .blocks
+            .iter()
+            .map(|block| {
+                block.operations.len()
+                    + block
+                        .terminator
+                        .successor_block_arguments()
+                        .iter()
+                        .map(|arguments| arguments.len())
+                        .sum::<usize>()
+            })
+            .sum::<usize>()
+            + 1;
         let mut storage = Self {
             machine,
             lowered,
             types,
             graph,
             initial_contents: initial_contents(machine, tables)?,
+            reaching_budget,
             log: Vec::new(),
             domains,
         };
@@ -1896,14 +1913,12 @@ impl<'a> Storage<'a> {
                     supply(Reached::Closed);
                     continue;
                 }
-                let mut predecessors = Vec::new();
+                let mut predecessors = self.graph.predecessors(block)?.to_vec();
+                predecessors.sort_unstable();
+                predecessors.dedup();
                 let mut found = false;
-                for predecessor in self.graph.predecessors(block)? {
-                    if predecessors.contains(predecessor) {
-                        continue;
-                    }
-                    predecessors.push(*predecessor);
-                    let terminator = &self.block(*predecessor)?.terminator;
+                for predecessor in predecessors {
+                    let terminator = &self.block(predecessor)?.terminator;
                     let successors = terminator.successor_edges();
                     let bindings = terminator.successor_block_arguments();
                     if successors.len() != bindings.len() {
@@ -1950,7 +1965,7 @@ impl<'a> Storage<'a> {
                         supply(self.reaching(
                             tables,
                             asked,
-                            *predecessor,
+                            predecessor,
                             usize::MAX,
                             budget,
                             concerns,
@@ -2022,20 +2037,7 @@ impl<'a> Storage<'a> {
     }
 
     fn budget(&self) -> usize {
-        self.lowered
-            .blocks
-            .iter()
-            .map(|block| {
-                block.operations.len()
-                    + block
-                        .terminator
-                        .successor_block_arguments()
-                        .iter()
-                        .map(|arguments| arguments.len())
-                        .sum::<usize>()
-            })
-            .sum::<usize>()
-            + 1
+        self.reaching_budget
     }
 
     /// The equation a read establishes on its normal successor:
