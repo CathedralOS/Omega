@@ -102,3 +102,37 @@ Now Form B is homed on `u64::Distance`, so `a + b` resolves.
 qualified operator declared outside the domain's module?
 
 **Until answered.** The compiler homes Form B on `u64::Distance`.
+
+### Q2 - How does a caller in another verification unit know a machine never returns?
+
+Decision name: `published-no-return`.
+
+**Customer.** A library helper whose every path exits or crashes (an `abort`
+or `fail` machine in `std`) called from an application. Under
+[statements after a call that never returns](wiki/spec/language/state_contracts.md#statements-after-a-call-that-never-returns)
+the caller's continuation is unreachable only when checked evidence excludes
+normal return; without that evidence the caller must still prove everything
+after the call, including a result it can never produce.
+
+**Gap.** [Local call summaries](wiki/spec/language/state_contracts.md#local-call-summaries)
+says that across a verification-unit boundary a call uses the published
+contract, that extra result and state guarantees are authored rather than
+exported from the body, and lists what a published contract retains from
+inference: reach, write frames, ownership, borrow-origin, validity and callback
+dependencies. Absence of normal return is not in that list, and
+`code-after-no-return-call` introduces no `never` type or keyword. The pages
+give no way to author it, and do not say it is retained. The canonical
+`ProcessExit::exit_process` requirement is covered by
+[process exit](wiki/spec/language/process_exit.md); an ordinary machine wrapping
+it is not. Pages checked: those two, plus "Verification-unit boundary" and
+"Unreachable branches" in `state_contracts.md`.
+
+**Question.** Across a unit boundary, is a machine's lack of any normal return
+(a) authored with an existing construct, `ensures false`, which under partial
+correctness already means no normal return can occur; (b) retained
+automatically in the published contract like inferred reach; or (c) not
+visible, so the caller treats non-return as unknown?
+
+**Until answered.** The checker uses every machine's body-derived outcome
+regardless of unit (behaviour that predates the rule, kept by #2983). That is
+(b) in effect and is wider than the unit rule as written.
