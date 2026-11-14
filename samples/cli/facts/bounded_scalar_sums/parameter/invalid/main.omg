@@ -1,7 +1,12 @@
 // Bounded u64 operands a <= 50 and b <= 50 make the exact sum
 // a + b fit result <= 100; no Wrapping domain and no as.
 // Place: parameter (invalid twin). Plain u64 parameters do not prove an exact sum.
-machine add(a: u64, b: u64) -> u64 {
+// `requires true` insists on every u64 input: a private machine that omits
+// `requires` would infer the bound its sum needs from its callers instead
+// (state_contracts.md, "Private entry inference").
+machine add(a: u64, b: u64) -> u64
+    requires true
+{
     a + b
 }
 

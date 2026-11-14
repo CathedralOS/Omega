@@ -73,6 +73,25 @@ pub struct MachineSources {
     /// cast owes as written. The lowered form holds only the block's
     /// invariant; a diagnostic about the arrival names the domain.
     pub memberships: Vec<(BlockId, String)>,
+    /// The statements lowering left out because the call before them never
+    /// returns, one row per such call (`lower`, `body`). The lowered form
+    /// holds nothing of them, so the advisory warning about them is read
+    /// from here (`Elaboration::unreachable_statements`).
+    pub unreachable: Vec<Unreachable>,
+}
+
+/// Executable statements written after a call that never returns.
+/// `wiki/spec/language/state_contracts.md`, "Statements after a call that
+/// never returns": "the call has no normal successor. Executable statements
+/// written after it on that path are unreachable, not inherently erroneous".
+/// `statement` is the first of them and `call` the call before it: "Issue
+/// one advisory warning at the first unreachable executable statement, with
+/// a note locating the call that prevents continuation, not one per
+/// following statement."
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Unreachable {
+    pub statement: SourceOrigin,
+    pub call: SourceOrigin,
 }
 
 /// One requirement a chosen provider supplies and the machine of the module
@@ -222,4 +241,34 @@ pub struct ConformanceWitness {
 /// Symbolic root of a data invariant, substituted before observing storage.
 pub fn self_place() -> Option<semantic_vocabulary::PlaceId> {
     semantic_vocabulary::PlaceId::new(1)
+}
+
+impl Elaboration {
+    /// The unreachable statements this program's authored machines hold,
+    /// each with its machine, in machine order.
+    ///
+    /// A machine whose declaration says it was generated to close a static
+    /// application is left out: what is unreachable there may be so only
+    /// for that application's arguments (state_contracts.md:
+    /// "Unreachability arises only through generic specialization or
+    /// compile-time selection: accepted; no warning solely for that
+    /// specialization"). A generic machine whose statements are unreachable
+    /// as written says so in its own check form, where its parameters are
+    /// rigid and a requirement is called through its interface contract.
+    pub fn unreachable_statements(&self) -> impl Iterator<Item = (MachineId, Unreachable)> + '_ {
+        self.sources
+            .iter()
+            .filter(|(machine, _)| {
+                !self.module.machines.iter().any(|declared| {
+                    declared.id == *machine
+                        && declared
+                            .declaration
+                            .as_ref()
+                            .is_some_and(|declaration| declaration.specialization.is_some())
+                })
+            })
+            .flat_map(|(machine, sources)| {
+                sources.unreachable.iter().map(move |row| (machine, *row))
+            })
+    }
 }

@@ -13,6 +13,9 @@ pub struct AcceptedTerminalSource {
     closure: Box<AcceptedClosure>,
     correspondence: typed_trees_to_terminal_psi::SourceCorrespondence,
     publication: terminal_codec::TerminalPublication,
+    /// What the route says about the accepted source without refusing it
+    /// (`advisories`), in the order the parts were judged.
+    advisories: Vec<Diagnostic>,
 }
 
 /// One boundary requirement an accepted module declares.
@@ -38,13 +41,23 @@ impl AcceptedTerminalSource {
         let prepared =
             typed_trees_to_terminal_psi::prepare_compilation(&source, compilation, publication);
         let verdicts = terminal_psi_to_terminal_psi::judge_compilation(prepared.program);
+        let advisories = advisories(&verdicts);
         let closure = accept_compilation(verdicts)?;
         Ok(Self {
             source,
             closure,
             correspondence: prepared.source,
             publication,
+            advisories,
         })
+    }
+
+    /// The advisory diagnostics of the accepted compilation: warnings and
+    /// their notes, none of which is an error. They are data on the
+    /// accepted judgment for whoever reports the compilation; nothing here
+    /// prints them and no later stage reads them.
+    pub fn advisories(&self) -> &[Diagnostic] {
+        &self.advisories
     }
 
     /// Binds source companions to this exact accepted code owner. The Build
@@ -112,8 +125,7 @@ impl AcceptedTerminalSource {
             })
             .collect();
         // The published module is the elaboration's module, so the rows
-        // name the artifact's own operations. Native formations stay empty:
-        // the reader refuses the native binding that would need one.
+        // name the artifact's own operations and original source formations.
         let companions =
             crate::build_companions::produce(&self.source, elaboration, &self.correspondence)
                 .map_err(|diagnostic| vec![diagnostic])?;
@@ -130,7 +142,7 @@ impl AcceptedTerminalSource {
             companions.bindings,
             companions.declarations,
             companions.queries,
-            Vec::new(),
+            companions.native_formations,
         );
         let build_requests = crate::TerminalBuildRequests::new(program.view(), companions.requests);
         let build_filesystem =
@@ -302,6 +314,36 @@ impl AcceptedTerminalSource {
     }
 }
 
+/// The advisories of every accepted part: the entry closure and each
+/// generic check form. One authored machine may be judged in more than one
+/// part, and its advisory is the same in each, so an advisory already listed
+/// is not listed again.
+fn advisories(verdicts: &[Result<RouteVerdict, CompilationRefusal>]) -> Vec<Diagnostic> {
+    let mut advisories: Vec<Diagnostic> = Vec::new();
+    for verdict in verdicts {
+        let Ok(RouteVerdict::Accepted(accepted)) = verdict else {
+            continue;
+        };
+        // A warning and the note after it are one advisory.
+        let part = accepted.advisories();
+        let mut rest = &part[..];
+        while !rest.is_empty() {
+            let length = 1 + rest[1..]
+                .iter()
+                .take_while(|diagnostic| {
+                    diagnostic.severity == diagnostics::DiagnosticSeverity::Note
+                })
+                .count();
+            let (advisory, after) = rest.split_at(length);
+            if !advisories.windows(length).any(|listed| listed == advisory) {
+                advisories.extend_from_slice(advisory);
+            }
+            rest = after;
+        }
+    }
+    advisories
+}
+
 fn accept_compilation(
     verdicts: Vec<Result<RouteVerdict, CompilationRefusal>>,
 ) -> Result<Box<AcceptedClosure>, Vec<Diagnostic>> {
@@ -316,6 +358,7 @@ fn accept_compilation(
             }
             Ok(RouteVerdict::Rejected {
                 formations,
+                violations,
                 unproved,
                 unestablished,
                 conflicts,
@@ -323,6 +366,7 @@ fn accept_compilation(
             }) => {
                 let before = diagnostics.len();
                 diagnostics.extend(formations.iter().map(|entry| entry.reject_diagnostic()));
+                diagnostics.extend(violations.iter().map(|entry| entry.reject_diagnostic()));
                 for entry in unproved.iter().filter(|entry| !entry.cause.is_incomplete()) {
                     diagnostics.push(entry.reject_diagnostic());
                     diagnostics.extend(entry.opening_diagnostic());

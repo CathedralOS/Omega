@@ -49,7 +49,7 @@ machine build_entry(name: &[u8], second: &[u8]) { let kept: &[u8] = pick(name, s
 machine pick<'a, 'b>(view: &'a [u8], other: &'b [u8]) -> &'a [u8] { other }
 "#
         ),
-        "typing arm value type"
+        "rejected"
     );
 }
 

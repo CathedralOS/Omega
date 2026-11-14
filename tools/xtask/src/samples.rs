@@ -801,7 +801,7 @@ fn failure_report(sample: &str, reason: &str, evidence: &Path) -> String {
 }
 
 pub fn run(args: &[String]) -> Result<(), u8> {
-    let repo = repo_root();
+    let repo = repo_root()?;
     let mut filters: Vec<String> = Vec::new();
     let mut facts_only = false;
     let mut programs_only = false;

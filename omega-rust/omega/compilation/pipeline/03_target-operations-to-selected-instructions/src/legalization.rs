@@ -264,12 +264,12 @@ pub(crate) mod runtime_indices {
         collection_projection, reference_formation_geometry, runtime_projection_elements,
     };
     use legalized_operations::LegalizedRuntimeIndexOperand;
-    use optimization_unit::{PsiOptimizationFunction, PsiOptimizationUnit};
+    use optimization_unit::PsiOptimizationFunction;
     use semantic_vocabulary::{OperationId, ScalarType, StructuralTypeId, ValueId};
 
     pub(crate) fn operands(
         optimized: &PsiOptimizationFunction,
-        unit: &PsiOptimizationUnit,
+        unit: &crate::native_geometry::NativeUnit<'_>,
         owner: impl Into<optimization_unit::PsiProvenance>,
         elements: &[RuntimeElement],
     ) -> Result<Vec<LegalizedRuntimeIndexOperand>, LegalizationError> {
@@ -316,11 +316,11 @@ pub(crate) mod runtime_indices {
 
     pub(crate) fn projection(
         optimized: &PsiOptimizationFunction,
-        unit: &PsiOptimizationUnit,
+        unit: &crate::native_geometry::NativeUnit<'_>,
         owner: impl Into<optimization_unit::PsiProvenance>,
         root: StructuralTypeId,
         path: &[terminal_psi::StructuralPathSegment],
-        declarations: &[terminal_psi::StructuralTypeDeclaration],
+        declarations: &crate::native_geometry::NativeGeometry<'_>,
     ) -> Result<Vec<LegalizedRuntimeIndexOperand>, LegalizationError> {
         if !path.iter().any(|segment| {
             matches!(
@@ -343,7 +343,7 @@ pub(crate) mod runtime_indices {
 
     pub(crate) fn reference_source(
         optimized: &PsiOptimizationFunction,
-        unit: &PsiOptimizationUnit,
+        unit: &crate::native_geometry::NativeUnit<'_>,
         operation: OperationId,
         source: &terminal_psi::StructuralArgument,
     ) -> Result<Vec<LegalizedRuntimeIndexOperand>, LegalizationError> {
@@ -352,14 +352,14 @@ pub(crate) mod runtime_indices {
             Some((terminal_psi::StructuralPathSegment::Referent, prefix)) => prefix,
             _ => source.path.as_slice(),
         };
-        let geometry = reference_formation_geometry(root, path, &unit.structural_types)
+        let geometry = reference_formation_geometry(root, path, unit.geometry())
             .ok_or(LegalizationError::custody())?;
         operands(optimized, unit, operation, &geometry.elements)
     }
 
     pub(crate) fn collection_view(
         optimized: &PsiOptimizationFunction,
-        unit: &PsiOptimizationUnit,
+        unit: &crate::native_geometry::NativeUnit<'_>,
         operation: OperationId,
         source: &terminal_psi::StructuralArgument,
     ) -> Result<Vec<LegalizedRuntimeIndexOperand>, LegalizationError> {
@@ -377,7 +377,7 @@ pub(crate) mod runtime_indices {
             }
             _ => &source.path,
         };
-        let (_, _, elements) = collection_projection(root, path, &unit.structural_types)
+        let (_, _, elements) = collection_projection(root, path, unit.geometry())
             .ok_or(LegalizationError::custody())?;
         operands(optimized, unit, operation, &elements)
     }
@@ -486,6 +486,13 @@ pub(crate) fn audit_target_operation_plan(
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
 ) -> Result<(), LegalizationError> {
+    let plan_geometry =
+        crate::native_geometry::NativeGeometry::new(&abstract_plan.structural_types)
+            .map_err(|_| LegalizationError::custody())?;
+    let unit_geometry = crate::native_geometry::NativeGeometry::new(&unit.structural_types)
+        .map_err(|_| LegalizationError::custody())?;
+    let abstract_plan = &crate::native_geometry::NativeInput::new(abstract_plan, &plan_geometry);
+    let unit = &crate::native_geometry::NativeInput::new(unit, &unit_geometry);
     source::validate_source_custody(target, abstract_plan, unit)?;
     scalar_graph_input::normalized_foreign::validate_native_callback_roster(target)?;
     let descriptor_inputs =

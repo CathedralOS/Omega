@@ -35,9 +35,11 @@ mod places;
 mod predicates;
 mod reflection;
 mod regions;
+mod rejections;
 mod services;
 mod source_records;
 mod statements;
+mod storage_path;
 mod subjects;
 mod transitions;
 mod types;
@@ -57,6 +59,9 @@ pub(crate) struct Program<'t> {
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
     pub signatures: IdTable<MachineId, Signature>,
+    /// A subject requirement is a declaration, never an executable machine.
+    pub declaration_signatures: IdTable<semantic_vocabulary::ContractId, Signature>,
+    pub declaration_symbols: IdTable<semantic_vocabulary::ContractId, SymbolHandle>,
     /// Only this root of a refinement witness exposes the member's own
     /// body contract. Every named call, including recursion, uses its route.
     implementation_body: Option<MachineId>,
@@ -216,6 +221,8 @@ impl<'t> Program<'t> {
             typed,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
+            declaration_signatures: IdTable::default(),
+            declaration_symbols: IdTable::default(),
             implementation_body: None,
             boundary_symbols: IdTable::default(),
             boundary_signatures: IdTable::default(),

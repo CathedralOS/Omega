@@ -69,12 +69,13 @@ fn exceeded(text: &str) -> Vec<String> {
     match judged(text) {
         RouteVerdict::Rejected {
             formations,
+            violations,
             unproved,
             unestablished,
             conflicts,
             exceeded,
         } => {
-            assert!(formations.is_empty() && unproved.is_empty());
+            assert!(formations.is_empty() && unproved.is_empty() && violations.is_empty());
             assert!(unestablished.is_empty() && conflicts.is_empty());
             exceeded.iter().map(|entry| entry.message()).collect()
         }
@@ -104,7 +105,12 @@ fn rows(accepted: &crate::AcceptedClosure, position: u64) -> (Vec<String>, Vec<S
             .collect::<Vec<_>>()
     };
     (
-        names(&machine.declared_service_reach),
+        names(
+            machine
+                .declared_service_reach
+                .as_deref()
+                .unwrap_or_default(),
+        ),
         names(&machine.published_service_ceiling),
     )
 }

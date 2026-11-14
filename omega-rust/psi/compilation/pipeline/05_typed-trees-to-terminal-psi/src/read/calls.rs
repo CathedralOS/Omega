@@ -13,7 +13,7 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpress
 use typed_trees::references::StaticArgumentCall;
 use typed_trees::statement::TableCall;
 
-use super::expressions::names_storage;
+use super::storage_path::{names_storage, root_slot};
 use super::{Program, Slot, symbol_kind};
 use crate::body::{Expression, ExpressionKind, ValueType};
 use crate::{SourceOrigin, Unserved, refuse};
@@ -507,16 +507,15 @@ impl<'t> Program<'t> {
     /// it names rides beside it to the operation lowering emits.
     ///
     /// Only an operation of the toolchain's own selection protocol receives
-    /// one: the Build host hands the reference to no other callee. The two
-    /// selections whose host row needs more than the reference are refused
-    /// by name rather than published without it.
+    /// one: the Build host hands the reference to no other callee. Publication
+    /// joins native bindings to their checked structural locator carrier.
     fn designate(
         &self,
         id: MachineId,
         selection: arena::Handle<typed_trees::expression::BuildSelectionRequest>,
         read: &mut Expression,
     ) -> Checked<()> {
-        use language_semantics::declaration_selection::{BuildOperation, BuildSelectionRequest};
+        use language_semantics::declaration_selection::BuildSelectionRequest;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let Some(request) = self
             .typed
@@ -552,12 +551,6 @@ impl<'t> Program<'t> {
             // boundaries that application covers.
             BuildSelectionRequest::ProviderReadiness(_) => {
                 return unserved("Build provider readiness needs its requirement application");
-            }
-            // Its host row carries the locator value's shape.
-            BuildSelectionRequest::Declaration(declaration)
-                if declaration.operation == BuildOperation::NativeBinding =>
-            {
-                return unserved("native Build binding needs its locator shape");
             }
             BuildSelectionRequest::Entry(_)
             | BuildSelectionRequest::Declaration(_)
@@ -1192,10 +1185,21 @@ impl<'t> Program<'t> {
         for ((declared, _, _), actual) in formals.iter().zip(&read) {
             let formal = self.substitute(*declared, &bound);
             if !self.agrees(actual.result, formal) {
-                return Err(refuse(
+                // The typed trees give a borrow no span of its own; the
+                // place it lends is the authored argument.
+                let at = match (&actual.kind, actual.source) {
+                    (ExpressionKind::Borrow { place, .. }, SourceOrigin::Unpositioned(_)) => {
+                        place.source
+                    }
+                    _ => actual.source,
+                };
+                return Err(self.mistyped(
                     id,
-                    Construct::Machine,
-                    Unserved::Typing("argument types"),
+                    at,
+                    super::rejections::Destination::Parameter,
+                    Some(formal),
+                    actual.result,
+                    "argument types",
                 ));
             }
         }
@@ -1332,12 +1336,7 @@ impl<'t> Program<'t> {
         }
         // The binding whose storage the place is in: through fields,
         // elements, case payloads and the subject a match saved.
-        let captures: Vec<_> = self
-            .captures
-            .iter()
-            .map(|(capture, subject)| (*capture, subject))
-            .collect();
-        let Some(slot) = root_slot(id, &place, &captures)? else {
+        let Some(slot) = root_slot(id, &place, &self.captures)? else {
             return unserved("borrow of a value that is not a place");
         };
         // A binding's mutability is a source rule the lowered form does not
@@ -1386,67 +1385,6 @@ impl<'t> Program<'t> {
             },
             lender_text,
         ))
-    }
-}
-
-/// Resolve a captured subject through this reader's already-authenticated
-/// match scope. A missing, duplicated or cyclic capture cannot grant access.
-fn captured_subject<'a>(
-    id: MachineId,
-    capture: arena::Handle<typed_trees::expression::CompletedValueCapture>,
-    captures: &[(
-        arena::Handle<typed_trees::expression::CompletedValueCapture>,
-        &'a Expression,
-    )],
-) -> Checked<&'a Expression> {
-    let mut found = captures.iter().filter(|(known, _)| *known == capture);
-    let Some((_, subject)) = found.next() else {
-        return Err(refuse(
-            id,
-            Construct::Machine,
-            Unserved::Call("saved subject outside its match capture"),
-        ));
-    };
-    if found.next().is_some() {
-        return Err(refuse(
-            id,
-            Construct::Machine,
-            Unserved::Call("ambiguous saved subject capture"),
-        ));
-    }
-    Ok(subject)
-}
-
-/// The slot whose storage a place expression names. Captured index operands
-/// have already run; following their base retains storage provenance only.
-fn root_slot<'a>(
-    id: MachineId,
-    mut place: &'a Expression,
-    captures: &[(
-        arena::Handle<typed_trees::expression::CompletedValueCapture>,
-        &'a Expression,
-    )],
-) -> Checked<Option<usize>> {
-    let mut followed = 0;
-    loop {
-        match &place.kind {
-            ExpressionKind::Slot(slot) => return Ok(Some(*slot)),
-            ExpressionKind::Field { base, .. }
-            | ExpressionKind::Payload { base, .. }
-            | ExpressionKind::Index { base, .. } => place = base,
-            ExpressionKind::SavedSubject(capture) => {
-                followed += 1;
-                if followed > captures.len() {
-                    return Err(refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Call("cyclic saved subject capture"),
-                    ));
-                }
-                place = captured_subject(id, *capture, captures)?;
-            }
-            _ => return Ok(None),
-        }
     }
 }
 

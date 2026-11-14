@@ -76,8 +76,8 @@ pub use terminal_check_tables::compilation::{
 };
 pub use verdict::{
     AcceptedClosure, CompilationRefusal, ConflictingUse, ConsumptionSite, ExceededReach,
-    PublicationError, RoutePublication, RouteVerdict, UnestablishedUse, UnprovedObligation, judge,
-    judge_compilation,
+    PublicationError, RoutePublication, RouteVerdict, RuleViolation, UnestablishedUse,
+    UnprovedObligation, judge, judge_compilation,
 };
 
 #[cfg(test)]

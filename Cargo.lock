@@ -1778,6 +1778,7 @@ version = "0.1.0"
 dependencies = [
  "compiler-storage",
  "diagnostics",
+ "language-core",
  "language-semantics",
  "semantic-vocabulary",
  "source",
@@ -1791,6 +1792,7 @@ dependencies = [
  "tokens-to-syntax-trees",
  "typed-trees",
  "typed-trees-to-terminal-psi",
+ "typed-trees-to-typed-trees",
 ]
 
 [[package]]

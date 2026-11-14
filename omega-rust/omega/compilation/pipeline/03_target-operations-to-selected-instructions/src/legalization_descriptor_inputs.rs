@@ -1,5 +1,5 @@
-use abstract_operations::{AbstractOperation, AbstractOperationPlan};
-use optimization_unit::{OptimizationNode, PsiOptimizationFunction, PsiOptimizationUnit};
+use abstract_operations::AbstractOperation;
+use optimization_unit::{OptimizationNode, PsiOptimizationFunction};
 use optimization_unit_semantics::descriptor_results::{
     optimized_catalog_graph, optimized_reference_catalog_graph_with_boundary_preservation,
 };
@@ -13,8 +13,8 @@ use terminal_semantics::descriptor_results::DescriptorMachine;
 // observations and effects are still computed separately for every function.
 pub(crate) struct DescriptorInputs<'a> {
     native: &'a TargetOperationPlan,
-    plan: &'a AbstractOperationPlan,
-    unit: &'a PsiOptimizationUnit,
+    plan: &'a crate::native_geometry::NativePlan<'a>,
+    unit: &'a crate::native_geometry::NativeUnit<'a>,
     views: OnceCell<Option<Vec<DescriptorMachine>>>,
     references: OnceCell<Option<Vec<DescriptorMachine>>>,
 }
@@ -22,8 +22,8 @@ pub(crate) struct DescriptorInputs<'a> {
 impl<'a> DescriptorInputs<'a> {
     pub(crate) fn new(
         native: &'a TargetOperationPlan,
-        plan: &'a AbstractOperationPlan,
-        unit: &'a PsiOptimizationUnit,
+        plan: &'a crate::native_geometry::NativePlan<'a>,
+        unit: &'a crate::native_geometry::NativeUnit<'a>,
     ) -> Self {
         Self {
             native,
@@ -37,10 +37,10 @@ impl<'a> DescriptorInputs<'a> {
     pub(crate) fn native(&self) -> &'a TargetOperationPlan {
         self.native
     }
-    pub(crate) fn plan(&self) -> &'a AbstractOperationPlan {
+    pub(crate) fn plan(&self) -> &'a crate::native_geometry::NativePlan<'a> {
         self.plan
     }
-    pub(crate) fn unit(&self) -> &'a PsiOptimizationUnit {
+    pub(crate) fn unit(&self) -> &'a crate::native_geometry::NativeUnit<'a> {
         self.unit
     }
 
@@ -50,7 +50,7 @@ impl<'a> DescriptorInputs<'a> {
                 optimized_catalog_graph(
                     &self.unit.functions,
                     &self.unit.boundary_machines,
-                    &self.plan.structural_types,
+                    self.plan.geometry(),
                     &self.unit.dynamic_dispatch,
                     |caller, node| self.operation(caller, node),
                 )
@@ -64,7 +64,7 @@ impl<'a> DescriptorInputs<'a> {
                 optimized_reference_catalog_graph_with_boundary_preservation(
                     &self.unit.functions,
                     &self.unit.boundary_machines,
-                    &self.plan.structural_types,
+                    self.plan.geometry(),
                     &self.unit.dynamic_dispatch,
                     |caller, node| self.operation(caller, node),
                     |caller, node| self.preserves_boundary(caller, node),
@@ -142,7 +142,7 @@ impl<'a> DescriptorInputs<'a> {
             && target_operations::descriptor_input_guard(
                 declaration,
                 binding,
-                &self.plan.structural_types,
+                self.plan.geometry(),
                 |buffer| {
                     self.native
                         .borrowed_storage_layouts

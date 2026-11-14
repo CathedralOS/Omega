@@ -366,10 +366,13 @@ impl Program<'_> {
             (actual, expected) => actual == expected,
         };
         if !agreed {
-            return Err(refuse(
+            return Err(self.mistyped(
                 id,
-                Construct::Machine,
-                Unserved::Typing("arm value type"),
+                target.source,
+                super::rejections::Destination::Result,
+                result,
+                target.result,
+                "arm value type",
             ));
         }
         Ok(Target::Value(target))

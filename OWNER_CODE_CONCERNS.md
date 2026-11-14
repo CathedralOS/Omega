@@ -87,13 +87,6 @@ framework or a list of features that remain unimplemented.
 - Cost: a correct program is rejected, not refused as unsupported, and the message blames the author. Passing a stored view needs a form that copies the descriptor out before the exclusive loan is formed
 - Reported: 2026-11-13, Claude Code, while lending case payloads
 
-### Four walks from a place to its root in the reader, each with its own list of steps
-- Category: one idea, several implementations
-- Where: `05_typed-trees-to-terminal-psi/src/read/calls.rs` (`root_slot`), `read/statements.rs` (the assignment target loop), `read/authority.rs` (`written_through`), `read/expressions.rs` (`names_storage`)
-- Saw: `lent` had a fifth, which stopped at a case payload and at a saved match subject though `root_slot` beside it walked both; that was the whole of `call borrow of a case payload`. `written_through` stopped at a saved subject, so an exclusive loan of a payload of `match holder.field` authorized no write through `holder`
-- Cost: each new step kind (payload, saved subject) is taught to one walk at a time, and the ones that are missed either refuse a served program or skip an authority check
-- Reported: 2026-11-13, Claude Code, while lending case payloads
-
 ### Whether a type is a scalar is decided twice, once by its spelling and once by its symbol
 - Category: one idea, several implementations
 - Where: `typed-trees/src/type_system.rs` (`TypeReferenceNode::primitive_type` calls `PrimitiveType::from_name(name)`; `type_symbol` returns no symbol when the name spells a primitive); `05_typed-trees-to-terminal-psi/src/read/types.rs` (`atom_type` through `SymbolTable::builtin_type_atom`); `symbol-resolved-trees/src/type_system_and_names.rs` (a second `PrimitiveType` with its own `from_name`)
@@ -199,13 +192,6 @@ framework or a list of features that remain unimplemented.
 - Cost: the surviving producer and consumers agree by spelling rather than a shared typed value; a reader that misses the form fails only at run time (`None`, or "dynamic family tuple identity is not an integer constant").
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Structural size and alignment is computed three times, and each copy aligns a wide integer to 8 alone but 16 as a field
-- Category: one idea, several implementations
-- Where: `omega-rust/omega/compilation/backend/calling-conventions/src/terminal_layout.rs:398`, `:407`, `:458`; `.../calling-conventions/src/structural_shapes.rs:478`, `:487`, `:534`; `omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact.rs:4568`, `:4954`, `:4962`
-- Saw: three hand-written walks over the same structural type declarations in two crates; in all three a standalone integer scalar gets `next_power_of_two().min(8)` and the same integer as a record field gets `.min(16)`
-- Cost: a layout fix has to be made three times, and the 8 or 16 answer depends on which function is asked, so the copies agree with each other while possibly disagreeing with the ABI
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### A structural path segment has five hand-written byte encoders with three different numberings
 - Category: one idea, several implementations
 - Where: `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/identity.rs:213` and `.../optimization-unit/src/ownership.rs:171`, `.../selected-instructions/src/effects/program/identity.rs:476`, `.../selected-instructions/src/plan_identity.rs:606`, `.../target-operations/legalized-operations/src/identity/structural_types.rs:208`
@@ -241,12 +227,12 @@ framework or a list of features that remain unimplemented.
 - Cost: a new instruction kind that misses the effect table is declared effect-free and passes validation by construction; "validated catalog" reads as an independent check and is not one
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Every obligation becomes an "accepted" fact, and no later stage can tell a proven one from an unproven one
+### Native lowering accepts module bytes without artifact-bound host producer trust
 - Category: a verdict with nothing behind it
-- Where: `omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/verified_unit.rs:194-400` and `:412-425`; readers at `.../01_.../src/rules.rs`, `.../03_target-operations-to-selected-instructions/src/legalization.rs:234-244`
-- Saw: `source_checked_obligation_facts` pushes one `AcceptedObligationFact` per obligation reference; the proof fingerprint is 32 zero bytes unless a seal names it, and the comment says no module the current pipeline produces has seals; the only readers of the fingerprint are a measurement printout, the identity hash and one equality against a proof question; stage 03 takes the first matching fact and needs only that it exists
-- Cost: the names "accepted" and "source checked" read as proof; stages 01 and 03 remove or omit runtime checks on the strength of a fact that only records that an obligation was stated
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
+- Where: `00_terminal-psi-to-abstract-operations/src/artifact_admission.rs` (`lower_artifact`), `abstract-operations/verified-input/src/lib.rs` (`VerifiedPsiOptimizationInput::lowered`), and `01_abstract-operations-to-abstract-operations/src/verified_unit.rs` (`source_checked_obligation_facts`)
+- Saw: the public byte-lowering route canonically decodes a module and can produce accepted obligation facts without an artifact-bound host producer-trust witness. Zero proof fingerprints are not themselves the defect: `product.md#publication-and-separate-consumption` permits reuse of a trusted producer's judgments without transported derivations.
+- Cost: an embedding caller can reach native optimization with asserted obligations but no explicit authorization of their producer; repair the ingress trust boundary under `PSI-CLAIM-ADMISSION`, not by replaying proofs on every trusted internal stage handoff.
+- Reported: 2026-11-12, Claude Code; narrowed against the ratified execution-admission contract by Codex on 2026-11-13 while auditing accepted facts
 
 ### A default compile seals the native artifact without running the replay, and a failed replay under `--both` is reported as declined
 - Category: a verdict with nothing behind it
@@ -382,10 +368,10 @@ framework or a list of features that remain unimplemented.
 - Reported: 2026-11-13, Claude Code, while writing the bundled library's crash ceilings
 
 ### Typing lets a bare literal be stored into a field declared in a domain
-- Category: a verdict with nothing behind it
-- Where: `03_symbol-resolved-trees-to-typed-trees` (assignment typing); `05_typed-trees-to-terminal-psi/src/read/authority.rs` (`Access::Replace`); `compiler/tests/build_value_protection.rs` (`replacing_the_seal_is_not_accepted`)
-- Saw: `Sealed { seal: Seal { } }` is refused by typing ("record literal field type") because a literal is the bare carrier, but `builder.seal = BuildSeal { };` passes typing. The program is stopped only because the lowered-form checker refuses every replacement of a policy-governed value. For a domain with no policy the store of a bare carrier into a qualified field would reach the checker with nothing refusing it
-- Cost: the rule "the supplied expression's static type must carry exactly the domains the destination declares" has two owners for construction and one accidental owner for assignment; when plans are evaluated and a writer is admitted, the assignment form loses its only guard
+- Category: one idea built twice
+- Where: `03_symbol-resolved-trees-to-typed-trees` (assignment typing); `05_typed-trees-to-terminal-psi/src/read/rejections.rs` (`mistyped`)
+- Saw: `Sealed { seal: Seal { } }` is refused by typing ("record literal field type") because a literal is the bare carrier, but `builder.seal = BuildSeal { };`, a plain argument for a qualified parameter and a plain value for a qualified result all pass typing. The lowered-form reader now rejects each by the rule (one carrier, two domain sets), so nothing is accepted, but typing checks the rule for one form and the reader for all of them
+- Cost: "the supplied expression's static type must carry exactly the domains the destination declares" has two owners with different coverage and different wording, so the same mistake reads differently by where it is written
 - Reported: 2026-11-13, Claude Code, while declaring the seal that protects the compiler-owned `Build`
 
 ### Build selection calls are found and published by the spelling of their protocol operation
@@ -395,9 +381,9 @@ framework or a list of features that remain unimplemented.
 - Cost: the host row's operation is decided twice from text, and the native binding cannot be closed at its locator type by the pass that closes every other application until typing records that application on the call
 - Reported: 2026-11-13, Claude Code, while closing boundary requirements at the types their calls apply
 
-### A reused xtask binary audits the checkout that built it
-- Category: a verdict about the wrong source
-- Where: `tools/xtask/src/main.rs:37` (`repo_root`), consumed by rules, formatting and boundary checks
-- Saw: `repo_root()` uses build-time `CARGO_MANIFEST_DIR`; invoking worker-21's binary from worker-20 reported worker-21's uncommitted geometry changes rather than inspecting worker-20
-- Cost: reused tooling can silently validate another checkout. Resolve an explicit workspace or invocation directory at the command boundary; retain executable-relative locations only for resources that actually belong to the executable
-- Reported: 2026-11-13, Codex, while validating explicit targetless scalar evaluation; final checks use a binary built in the affected worktree
+### A call of a machine nothing declares is refused as "not supported yet", not as an error
+- Category: a verdict with nothing behind it
+- Where: `typed-trees/src/deferred_refusals.rs` (`DeferredRequest::UnresolvedCallTarget`); `05_typed-trees-to-terminal-psi/src/read.rs` (raises the row as `RefusalReason::Unsupported`); `compiler/tests/route_probe.rs` (`an_unknown_machine_after_a_call_that_never_returns_is_not_accepted`)
+- Saw: typing records a call whose name no declaration answers as a deferred row beside rows for constructs no pass serves yet, and the reader raises every row the same way. `undeclared_machine(x);` in a program's own machine therefore reaches the user as "not supported yet ... with no claim that it is wrong" and never as a rejection
+- Cost: a misspelled machine name reads as a compiler limitation; state_contracts.md ("an unknown machine name or malformed type is an error wherever it appears") is met only in that the program is not accepted, and the outcome word is `not-supported` where it should be `rejected`
+- Reported: 2026-11-13, Claude Code, while accepting statements after a call that never returns

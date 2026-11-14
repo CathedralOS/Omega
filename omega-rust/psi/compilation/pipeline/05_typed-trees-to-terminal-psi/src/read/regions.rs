@@ -351,7 +351,7 @@ impl Program<'_> {
 
     /// `region` with every decided variable followed to what it was decided
     /// as.
-    fn resolved(&self, mut region: Region) -> Region {
+    pub(super) fn resolved(&self, mut region: Region) -> Region {
         while let Region::Variable(variable) = region {
             match self
                 .region_variables

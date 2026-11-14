@@ -3,10 +3,9 @@
 # flat tables (AGENTS.md conventions).
 # Written by `python tools/check_rules.py --update-dense-id-maps`.
 3 omega-rust/omega/compilation/backend/artifacts/component-description/src/component_description.rs
-22 omega-rust/omega/compilation/backend/calling-conventions/src/structural_shapes.rs
 1 omega-rust/omega/compilation/backend/calling-conventions/src/terminal_layout.rs
 2 omega-rust/omega/compilation/backend/images/image-emission/src/function_fragments.rs
-17 omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact.rs
+8 omega-rust/omega/compilation/backend/images/image-emission/src/object_artifact.rs
 1 omega-rust/omega/compilation/backend/runtime/installation-evidence/src/lib.rs
 4 omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/lowering.rs
 4 omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/lowering_scalars.rs

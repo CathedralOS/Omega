@@ -10,6 +10,14 @@ selection, execution evidence and platform details. The
 work; [.github/workflows/](../.github/workflows/) defines what is implemented.
 Older qualification procedures below do not reinstate retired checks.
 
+Repository-dependent `xtask` commands default to the nearest Omega workspace
+containing their invocation directory, even when the binary was built elsewhere.
+Run them inside the checkout you intend to inspect; outside one, commands needing a
+repository refuse instead of falling back to the build checkout. Existing
+command-specific paths such as `fmt --repository` and
+`rust-producer-omission --root` still select their explicit inputs. `fmt` already
+uses its invocation directory by default and keeps that behavior.
+
 ## Validation scope
 
 Prove the thing you built with tests on the changed code, then a very small
