@@ -290,6 +290,6 @@ fn a_requirement_signature_retains_operational_promises_without_an_executable_bo
         // executable call. Invocation acknowledgements and ceilings are checked
         // by the ordinary lowered-form checker.
         let refused = program.body(identity).unwrap_err();
-        assert_eq!(refused.detail, "target is not a machine declaration");
+        assert_eq!(refused.detail, "call target is not a machine declaration");
     }
 }
