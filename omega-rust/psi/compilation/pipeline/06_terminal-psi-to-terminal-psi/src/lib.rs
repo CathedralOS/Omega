@@ -60,6 +60,7 @@ mod entry_inputs;
 mod graph;
 mod joins;
 mod known;
+mod machine_inputs;
 mod minted;
 mod operational;
 mod places;
@@ -397,8 +398,13 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
     result_summaries::infer(elaboration, &mut unreached)?;
     entry_inputs::infer(elaboration, &mut unreached)?;
     result_summaries::infer(elaboration, &mut unreached)?;
-    let branches: Vec<(MachineId, terminal_check_tables::program::Branch)> =
-        elaboration.authored_branches().collect();
+    let inputs = machine_inputs::PreparedMachineInputs::new(
+        &elaboration.module,
+        &elaboration.sources,
+        &elaboration.tables.machines,
+        &elaboration.requirements,
+        carried,
+    );
     let module = &elaboration.module;
     let mut machines = IdTable::default();
     let identities: Vec<MachineId> = elaboration.tables.machines.keys().collect();
@@ -414,7 +420,8 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
         // A requirement has a contract and no body, so nothing about it is
         // decided here. Its guarantees are each selected implementation's to
         // prove; leaving them without a verdict would read as vacuously held.
-        if elaboration.requirements.contains(&id) {
+        let inputs = inputs.for_machine(id)?;
+        if inputs.requirement {
             machines.push(MachineDischarge {
                 verdicts: tables.obligations.map(|obligation, _| {
                     Err(refusal(
@@ -439,12 +446,8 @@ fn discharge_inner(elaboration: &mut Elaboration, carried: &[Carried<'_>]) -> Ch
             id,
             tables,
             &beyond,
-            carried.iter().find(|carried| carried.specialization == id),
-            &branches
-                .iter()
-                .filter(|(machine, _)| *machine == id)
-                .map(|(_, branch)| *branch)
-                .collect::<Vec<_>>(),
+            inputs.carried.map(|position| &carried[position]),
+            inputs.branches,
         )?);
     }
     Ok(Discharge { machines })

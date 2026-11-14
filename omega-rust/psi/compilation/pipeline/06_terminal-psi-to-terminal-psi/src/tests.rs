@@ -46,6 +46,7 @@ mod inferred_bounds;
 mod lifetime_elision;
 mod lifetime_generics;
 mod loan_regions;
+mod machine_inputs;
 mod machine_lifetimes;
 mod mathematical_clauses;
 mod mutable_formals;

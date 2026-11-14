@@ -199,13 +199,6 @@ framework or a list of features that remain unimplemented.
 - Cost: A small continuation can copy unrelated typed storage and cannot return independent body output. Separate immutable declaration/type storage from owned body tables; publish selected replacements through stable handles without flattening unrelated bodies. A shared-snapshot continuation must retain untouched storage, exact authority/context identities and refusal behavior. Measure copied bytes and peak memory; keep signature and inferred-summary dependencies explicit. See the [draft body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
 - Reported: 2026-11-14, Codex, while comparing Squalr-inspired pipeline proposals at `c445e89a1eead`
 
-### Each machine check searches the complete branch and carried-proof lists
-- Category: re-deriving
-- Where: [per-machine discharge inputs](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs#L417)
-- Saw: after shared summary/input inference, discharge collects every authored branch, then filters and allocates that list separately for each machine. It also searches `carried` from the beginning for each specialization. The producer already supplies the machine identity on each row.
-- Cost: Each local check repeatedly scans other machines' metadata. Group branches into stable machine ranges and prepare carried-proof associations once, sized to the actual domain; borrow slices in each check. Preserve order, absence behavior, association meaning and kernel admission. Pin cross-machine isolation and empty groups and count preparation visits as machines grow. Final machine checks are a parallelism candidate only after inference inputs settle. See the [draft checking inputs design](wiki/drafts/designs/compiler_work_ownership.md#experiments-and-acceptance).
-- Reported: 2026-11-14, Codex, while comparing Squalr-inspired pipeline proposals at `c445e89a1eead`
-
 ### The standard library declares two public things named `DarwinClock`
 - Category: one idea, several implementations
 - Where: [source/library/std/macos_gui.omg:586](source/library/std/macos_gui.omg#L586) (`public boundary trait DarwinClock`) and [source/library/std/targets/macos_arm64/clock_impl.omg:26](source/library/std/targets/macos_arm64/clock_impl.omg#L26) (`public DarwinClock satisfies Clock`)
