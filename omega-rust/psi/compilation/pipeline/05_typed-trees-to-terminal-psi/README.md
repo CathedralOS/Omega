@@ -100,10 +100,13 @@ decided by the request, not by where source lives". The roots are, in
 5. every machine those call, in discovery order, whichever package declares
    it.
 
-A selected data type is resolved as a record. A selection of anything else
-(a trait, a requirement, an operator family) is refused as `declaration Build
-selection that is not a machine or a data type`: a provider is judged
-against what it provides as a supply, never as a bare selected declaration.
+A selected data type is resolved as a record. A native binding also selects
+its exact boundary requirement and declaring trait: the reader checks the
+requirement's signature and contracts and retains the trait's service identity.
+Declaration checking does not install a provider or permit calls to another
+package's private requirement. Actual calls retain visibility and operational
+checks; providers are judged separately as supplies. Other selected declarations,
+including ordinary traits and operator families, are refused.
 
 A supply (`Supply { slot, provider }`) names a boundary trait or one of its
 requirements and the provider chosen for it: a Build selection, or the supply

@@ -46,6 +46,7 @@ mod mutable_formals;
 mod owned_dispatch;
 mod proof_scope;
 mod provider_supplies;
+mod qualified_terms;
 mod ranges;
 mod reach;
 mod references;

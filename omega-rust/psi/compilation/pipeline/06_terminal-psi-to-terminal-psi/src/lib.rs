@@ -228,8 +228,8 @@ pub struct MachineDischarge {
     /// open, in block and operation order.
     pub windows: Vec<WindowUse>,
     /// Joins whose inferred predicate some arrival could not establish. Each
-    /// predicate was replaced by `Truth`, which every arrival establishes,
-    /// so the join contributes nothing downstream (`joins`).
+    /// loses its inferred facts; its original declared predicate, if any,
+    /// remains mandatory (`joins`).
     pub weakened_joins: Vec<BlockId>,
     /// Each loan that may not be formed, with what it conflicts with. Its
     /// row's verdict is the `Conflict` refusal.
