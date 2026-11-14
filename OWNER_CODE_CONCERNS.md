@@ -79,6 +79,7 @@ framework or a list of features that remain unimplemented.
 - Saw: `machine poke(builder: &Build) { Build::bind(builder, linux_x86_64::ProgramEntry, main); }` is accepted, while `Build::application` through `&Build` is rejected for its mutable receiver. The shared-reference controls of `build_activation_borrow` (`invalid_field`, `invalid_parameter`, `invalid_call_result`, `invalid_other_state`, `invalid_other_machine`, `invalid_target_body`) therefore run their Builds, binding through a stored `&Build`, and stop only in their products. The sample README expects binding to need `&mut Build`; no spec page states which access `Build::bind` needs
 - Cost: those six controls cannot show their intended rejection; `Build::bind`'s receiver access needs a spec sentence and then the matching protocol signature
 - Reported: 2026-11-14, Claude Code (worker-14), while making the Build hold its lent reference in a record
+
 ### Parsing and native completion choose their worker budgets independently
 - Category: one idea, several implementations
 - Where: [parser worker pool](omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/parser.rs#L113), [native executor queue](omega-rust/omega/build-system/orchestration/src/compile/native_completion/queue.rs#L10), [prepared machine lowering loop](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lib.rs#L862)
