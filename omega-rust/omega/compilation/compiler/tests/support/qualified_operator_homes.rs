@@ -105,7 +105,9 @@ fn domain_operators_cross_package_boundaries_without_importing_their_module() {
             let artifact = product.artifact();
             let evidence = product.evidence().expect("actual accepted operation seals");
             assert_eq!(evidence.module, artifact.view().identity());
-            assert!(!evidence.seals.is_empty());
+            // Total wrapping arithmetic and predicate-free domains need no
+            // safety/contract seal. The separate requires twin pins a real
+            // call obligation without changing this program to manufacture one.
             let entry = product
                 .native_realization_proposal()
                 .unwrap()
