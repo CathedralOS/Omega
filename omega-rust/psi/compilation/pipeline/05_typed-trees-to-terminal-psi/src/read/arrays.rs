@@ -161,9 +161,22 @@ impl Program<'_> {
         machine: MachineId,
         slots: &[Slot],
         indexed: &TableIndexedExpression,
-        source: SourceOrigin,
+        handle: ExpressionHandle,
+        expected: Option<ValueType>,
     ) -> Checked<Expression> {
-        let base = self.expression(machine, slots, indexed.collection, None)?;
+        let source = SourceOrigin::of(self.typed.expression_table.source_span(handle));
+        // A range preserves the backing region of its operand. Context can
+        // instantiate that region (including immutable literal backing), but
+        // never selects an operator or grants mutable access.
+        let hint = expected.filter(|value| matches!(value, ValueType::Record(row, _, _)
+            if matches!(self.records.get(*row).map(|row| &row.shape), Some(StorageShape::ByteSequence(carrier)) if carrier.is_shared_readable_view())));
+        let hint = matches!(
+            self.node(machine, indexed.index)?,
+            typed_trees::expression::ExpressionNode::Range(_)
+        )
+        .then_some(hint)
+        .flatten();
+        let base = self.expression(machine, slots, indexed.collection, hint)?;
         let Some(array) = self.opened(machine, base.result, Access::Read)? else {
             return Err(refuse(
                 machine,
@@ -172,6 +185,11 @@ impl Program<'_> {
             ));
         };
         if self.is_readable_byte_view(machine, array)? {
+            if let typed_trees::expression::ExpressionNode::Range(range) =
+                self.node(machine, indexed.index)?
+            {
+                return self.byte_subslice(machine, slots, base, range, handle, source);
+            }
             return self.byte_element(machine, slots, base, indexed.index, source);
         }
         let (element, extent) = self.array_element(machine, array)?;

@@ -274,12 +274,14 @@ fn selected_native_declarations_preserve_each_operational_flag() {
 fn a_flagged_requirement_still_needs_its_operational_witness() {
     for (suspends, blocks) in [(true, false), (false, true)] {
         let fixture = Fixture::with_effects(true, suspends, blocks);
-        let (_, requirement) = fixture
-            .typed
-            .trait_machine_signature(fixture.requirement)
-            .unwrap();
         let refused = Program::new(&fixture.typed, false)
-            .witnessed_signature(requirement, &[])
+            .witnessed(
+                fixture.owner,
+                fixture.requirement,
+                &[],
+                fixture.helper,
+                None,
+            )
             .unwrap_err();
         assert_eq!(refused.detail, "machine suspends or blocks");
     }

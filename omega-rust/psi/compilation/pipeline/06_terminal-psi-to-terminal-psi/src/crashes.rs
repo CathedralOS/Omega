@@ -123,7 +123,7 @@ fn operation_site(
         )
     };
     let inputs = found
-        .and_then(|operation| operation.kind.declared_invocation())
+        .and_then(|operation| operation.declared_invocation())
         .ok_or_else(refuse)?;
     let guard = match inputs.callee {
         TargetMachineCallable::Machine(_) => {

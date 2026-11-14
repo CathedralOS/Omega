@@ -253,6 +253,32 @@ pub(crate) mod statement {
                 )));
             }
 
+            // Hoisted operands keep the same selected meaning as authored
+            // expressions. A collection's length is a u64 observation, not a
+            // nominal field to look up on the collection's element type.
+            if matches!(
+                expressions.expression(initial_value),
+                ExpressionNode::Member(_)
+            ) {
+                let lowered = crate::expressions::expression::lower_executable_expression_handle(
+                    lowerer,
+                    initial_value,
+                )?;
+                if lowerer
+                    .typed_trees
+                    .expression_table
+                    .member_node(lowered)
+                    .is_some_and(|member| {
+                        member.selection
+                            == typed::expression::MemberSelection::CollectionMeasure(
+                                typed::expression::CollectionMeasure::Length,
+                            )
+                    })
+                {
+                    return builtin_primitive_type(lowerer, symbols::BuiltinTypeAtom::U64, "u64");
+                }
+            }
+
             match expressions.expression(initial_value) {
         ExpressionNode::Call(call)
             if language_core::data_layout_queries::is_data_layout_query_spelling(

@@ -536,6 +536,7 @@ pub use bytes::byte_sequence_predicates::{
     indexed_byte_store_goal, machine_scalar_constant_origin, pure_byte_qualifications,
     scalar_array_qualifications_hold, scalar_constant_value, shared_byte_field_copy_predicates,
 };
+pub use bytes::operation_bounds::operation_safety_goal;
 pub use calls::call_composition::{
     BorrowedReferentPresentation, CallArgumentRule, CallCompositionSchema,
     CallCompositionSemanticRow, CallCrashRule, CallEvidenceRule, CallFrontierRule, CallOutcomeRule,

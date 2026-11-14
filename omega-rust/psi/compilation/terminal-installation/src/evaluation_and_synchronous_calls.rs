@@ -618,6 +618,7 @@ pub(crate) mod compiler_evaluation {
                         },
                     )],
                     contract: terminal_psi::MachineContract {
+                        selected_application: None,
                         declaration: None,
                         parameters: vec![terminal_psi::ValueDeclaration {
                             id: ValueId::FIRST,
@@ -952,7 +953,7 @@ pub(crate) mod compiler_evaluation {
         let mut effects = CompilerEvaluationEffects::default();
         let mut closure_violation = None;
         let selection_violation = require_invocation_selections(
-            scope,
+            artifact.module(),
             &closure,
             root,
             requester,
@@ -1062,7 +1063,7 @@ pub(crate) mod compiler_evaluation {
             .ok_or("declaration admission entry has no selected target body")?;
         let invocation = compiler_invocation_scope(scope, target, providers, root)?;
         require_invocation_selections(
-            scope,
+            artifact.module(),
             &invocation.closure,
             root,
             requester,
@@ -1071,7 +1072,7 @@ pub(crate) mod compiler_evaluation {
         )
     }
 
-    fn require_invocation_selections(
+    fn require_scope_selections(
         scope: &ProofApplicationScope,
         closure: &semantic_vocabulary::proof_applications::ProofApplicationReachability<
             ProofDeclarationId,
@@ -1100,10 +1101,72 @@ pub(crate) mod compiler_evaluation {
                 )?;
             }
         }
+        Ok(())
+    }
+
+    fn require_invocation_selections(
+        module: &terminal_psi::TerminalModule,
+        closure: &semantic_vocabulary::proof_applications::ProofApplicationReachability<
+            ProofDeclarationId,
+        >,
+        root: ProofDeclarationId,
+        requester: DeclarationCustody,
+        authority: Option<&dyn DeclarationSelectionAuthority>,
+        source_consent: Option<(
+            terminal_codec::TerminalExecutionView<'_>,
+            &dyn InvocationSourceSelection,
+        )>,
+    ) -> Result<(), String> {
+        let scope = &module.scalar_applications.proof_scope;
+        require_scope_selections(scope, closure, root, requester, authority, source_consent)?;
+        let selected = selected_call_request_sources(module, closure)?;
         for edge in &closure.invocations {
             if !edge.provider && !edge.static_delegation {
                 let source = declaration(scope, edge.source.machine())?;
                 let target = declaration(scope, edge.target.machine())?;
+                if let Some(ordinal) = edge.call_ordinal {
+                    let key = (edge.source.machine(), ordinal);
+                    if let Ok(position) = selected
+                        .binary_search_by_key(&key, |(caller, ordinal, _, _)| (*caller, *ordinal))
+                    {
+                        let (_, _, callee, supplier) = selected[position];
+                        if callee != edge.target.machine() {
+                            return Err("selected invocation names another canonical call".into());
+                        }
+                        let (
+                            DeclarationCustody::Package(caller),
+                            DeclarationCustody::Package(body),
+                        ) = (source.custody, target.custody)
+                        else {
+                            return Err("selected invocation lost its exact package custody".into());
+                        };
+                        let requests = source.selections.as_ref().map_err(Clone::clone)?;
+                        for request in [
+                            semantic_vocabulary::compiler_evaluation::DeclarationAuthorityRequest {
+                                requester: caller,
+                                owner: supplier,
+                            },
+                            semantic_vocabulary::compiler_evaluation::DeclarationAuthorityRequest {
+                                requester: supplier,
+                                owner: body,
+                            },
+                        ] {
+                            if requests
+                                .binary_search_by_key(
+                                    &(request.requester, request.owner),
+                                    |request| (request.requester, request.owner),
+                                )
+                                .is_err()
+                            {
+                                return Err("selected invocation lost its supplier's admitted source-selection requests".into());
+                            }
+                        }
+                        // These exact requests were admitted above. The source
+                        // chose the map; its supplier chose this body. Do not
+                        // charge that physical edge as a new authored choice.
+                        continue;
+                    }
+                }
                 require_invocation_selection(
                     (source.custody, Some(edge.source.machine())),
                     (target.custody, edge.target.machine()),
@@ -1113,6 +1176,144 @@ pub(crate) mod compiler_evaluation {
             }
         }
         Ok(())
+    }
+
+    // Source call summaries put direct calls before boundary calls. Prepare
+    // that same canonical order once, retaining the exact public application;
+    // an unrelated call or a global body membership cannot supply this join.
+    fn selected_call_request_sources(
+        module: &terminal_psi::TerminalModule,
+        closure: &semantic_vocabulary::proof_applications::ProofApplicationReachability<
+            ProofDeclarationId,
+        >,
+    ) -> Result<
+        Vec<(
+            ProofDeclarationId,
+            usize,
+            ProofDeclarationId,
+            semantic_vocabulary::PackageKeyIdentity,
+        )>,
+        String,
+    > {
+        use terminal_semantics::closed_conformances::{
+            declaration_package, dispatch_application, dispatch_applications,
+        };
+        let scope = &module.scalar_applications.proof_scope;
+        let mut declarations = scope
+            .callables
+            .iter()
+            .filter_map(|(_, row)| match row {
+                terminal_psi::ProofCallableAssociation::Callable {
+                    declaration,
+                    callable: TargetMachineCallable::Machine(machine),
+                } => Some((*machine, *declaration)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        declarations.sort_unstable();
+        if declarations.windows(2).any(|rows| rows[0].0 == rows[1].0) {
+            return Err("selected invocation has ambiguous emitted declaration custody".into());
+        }
+        let mut bodies = declarations
+            .iter()
+            .map(|(machine, declaration)| (*declaration, *machine))
+            .collect::<Vec<_>>();
+        bodies.sort_unstable();
+        if bodies.windows(2).any(|rows| rows[0].0 == rows[1].0) {
+            return Err("selected invocation has competing body associations".into());
+        }
+        let mut custodies = closure
+            .machines
+            .iter()
+            .map(|&declaration_id| {
+                declaration(scope, declaration_id).map(|facts| (declaration_id, facts.custody))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        custodies.sort_unstable_by_key(|(declaration, _)| *declaration);
+        let custody = |declaration| {
+            custodies
+                .binary_search_by_key(&declaration, |(declared, _)| *declared)
+                .map(|position| custodies[position].1)
+                .map_err(|_| "selected invocation has no reached declaration custody")
+        };
+        let applications = dispatch_applications(module);
+        let mut selected = Vec::new();
+        for &caller in &closure.machines {
+            let position = bodies
+                .binary_search_by_key(&caller, |(declaration, _)| *declaration)
+                .map_err(|_| "selected invocation lost its canonical caller")?;
+            let machine = module
+                .machine(bodies[position].1)
+                .ok_or("selected invocation lost its caller body")?;
+            let before = selected.len();
+            for (ordinal, call) in machine.module_invocations().enumerate() {
+                let Some(required) = call.inputs.required_contract else {
+                    continue;
+                };
+                let public = module
+                    .invocation_machine_contract(call.inputs.callee, Some(required))
+                    .ok_or("selected invocation lost its exact public/body association")?;
+                let dispatch = public
+                    .selected_application
+                    .as_ref()
+                    .ok_or("selected invocation lost its closed application")?;
+                let application =
+                    dispatch_application(&applications, machine.id, dispatch, call.inputs.callee)
+                        .map_err(str::to_owned)?;
+                let position = declarations
+                    .binary_search_by_key(&call.inputs.callee, |(machine, _)| *machine)
+                    .map_err(|_| "selected invocation lost its callee declaration")?;
+                let target = declarations[position].1;
+                if let (DeclarationCustody::Package(source), DeclarationCustody::Package(body)) =
+                    (custody(caller)?, custody(target)?)
+                    && source != body
+                {
+                    selected.push((caller, ordinal, target, application.declaration_identity));
+                }
+            }
+            if selected.len() != before {
+                let requests = declaration(scope, caller)?
+                    .selections
+                    .as_ref()
+                    .map_err(Clone::clone)?;
+                if requests.windows(2).any(|pair| {
+                    (pair[0].requester, pair[0].owner) >= (pair[1].requester, pair[1].owner)
+                }) {
+                    return Err("selected invocation requests are not in canonical order".into());
+                }
+            }
+        }
+        let mut identities = selected
+            .iter()
+            .map(|(_, _, _, identity)| *identity)
+            .collect::<Vec<_>>();
+        identities.sort_unstable();
+        identities.dedup();
+        let packages = identities
+            .into_iter()
+            .map(|identity| {
+                declaration_package(module, identity)
+                    .map(|package| (identity, package))
+                    .map_err(str::to_owned)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut requests = Vec::new();
+        for (caller, ordinal, target, identity) in selected {
+            let position = packages
+                .binary_search_by_key(&identity, |(identity, _)| *identity)
+                .map_err(|_| "selected invocation lost its declaration package")?;
+            if let Some(package) = packages[position].1 {
+                let source = custody(caller)?;
+                let body = custody(target)?;
+                if source != DeclarationCustody::Package(package)
+                    && body != DeclarationCustody::Package(package)
+                {
+                    requests.push((caller, ordinal, target, package));
+                }
+            }
+        }
+        requests.sort_unstable();
+        Ok(requests)
     }
 
     #[test]
@@ -1141,6 +1342,8 @@ pub(crate) mod compiler_evaluation {
             calls: Vec::new(),
             invocations: Vec::new(),
         };
+        // This model has no invocation edges: it checks root custody and
+        // source requests. Actual call associations use the source control.
         let check = |facts: Result<CompilerEvaluationDeclaration, String>| {
             let mut scope = ProofApplicationScope::default();
             scope
@@ -1150,7 +1353,7 @@ pub(crate) mod compiler_evaluation {
                     compiler_evaluation: facts,
                     ..Default::default()
                 });
-            require_invocation_selections(
+            require_scope_selections(
                 &scope,
                 &closure,
                 root,
@@ -1313,45 +1516,28 @@ pub(crate) mod compiler_evaluation {
         owner: DeclarationCustody,
         authority: Option<&dyn DeclarationSelectionAuthority>,
     ) -> Result<(), String> {
-        match (requester, owner) {
-            (DeclarationCustody::Missing, _) | (_, DeclarationCustody::Missing) => {
-                Err("build-time invocation lacks compiler-owned source/package provenance".into())
-            }
-            // Exact checked selections bind the contract closure before lowering.
-            // Its retained role never grants a package caller a default std edge.
-            (DeclarationCustody::ToolchainContract, DeclarationCustody::Package(_))
-            | (DeclarationCustody::Package(_), DeclarationCustody::ToolchainContract) => {
-                Err("build-time invocation crosses closed-contract/package custody".into())
-            }
-            (DeclarationCustody::ToolchainContract, DeclarationCustody::ToolchainContract) => {
-                Ok(())
-            }
-            (DeclarationCustody::Toolchain, _) | (_, DeclarationCustody::Toolchain) => Ok(()),
-            (DeclarationCustody::Package(requester), DeclarationCustody::Package(owner))
-                if requester == owner =>
-            {
-                Ok(())
-            }
-            (DeclarationCustody::Package(requester), DeclarationCustody::Package(owner))
-                if authority.is_some_and(|authority| {
-                    authority.allows_declaration_selection(requester, owner)
-                }) =>
-            {
-                Ok(())
-            }
-            (DeclarationCustody::Package(requester), DeclarationCustody::Package(owner)) => {
-                let authority = authority
-                    .ok_or("build-time invocation has no direct dependency selection authority")?;
-                Err(format!(
-                    "build-time invocation selects package {} from package {} without direct dependency authority",
-                    authority.package_label(owner),
-                    authority.package_label(requester)
-                ))
-            }
-            (DeclarationCustody::UnownedUser, _) | (_, DeclarationCustody::UnownedUser) => Err(
-                "build-time invocation has user source without reconciled package custody".into(),
-            ),
+        let Some(request) =
+            semantic_vocabulary::compiler_evaluation::declaration_authority_request(
+                requester, owner,
+            )
+            .map_err(str::to_owned)?
+        else {
+            return Ok(());
+        };
+        if request.requester == request.owner
+            || authority.is_some_and(|authority| {
+                authority.allows_declaration_selection(request.requester, request.owner)
+            })
+        {
+            return Ok(());
         }
+        let authority = authority
+            .ok_or("build-time invocation has no direct dependency selection authority")?;
+        Err(format!(
+            "build-time invocation selects package {} from package {} without direct dependency authority",
+            authority.package_label(request.owner),
+            authority.package_label(request.requester),
+        ))
     }
 
     #[test]

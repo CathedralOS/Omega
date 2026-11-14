@@ -6,7 +6,7 @@
 //! source tail call retains its interface on the jump which reuses its frame.
 //! Inferred contracts are the least fixed point of those same call envelopes.
 
-use semantic_vocabulary::{MachineId, TargetMachineCallable};
+use semantic_vocabulary::{ContractId, MachineId, TargetMachineCallable};
 use terminal_check_tables::{Checked, Construct, RefusalReason};
 use terminal_psi::{CallAcknowledgement, CallOrigin, CallSite, TerminalMachine, Terminator};
 
@@ -16,6 +16,7 @@ use crate::{Elaboration, refusal};
 struct Call {
     site: CallSite,
     callee: TargetMachineCallable,
+    required_contract: Option<ContractId>,
     acknowledgement: CallAcknowledgement,
     tail: bool,
 }
@@ -62,10 +63,11 @@ fn calls(elaboration: &Elaboration, machine: &TerminalMachine) -> Checked<Vec<Ca
     let mut calls = Vec::new();
     for block in &machine.blocks {
         for operation in &block.operations {
-            if let Some(inputs) = operation.kind.declared_invocation() {
+            if let Some(inputs) = operation.declared_invocation() {
                 calls.push(Call {
                     site: CallSite::Operation(operation.id),
                     callee: inputs.callee,
+                    required_contract: inputs.required_contract,
                     acknowledgement: CallAcknowledgement::default(),
                     tail: false,
                 });
@@ -75,6 +77,7 @@ fn calls(elaboration: &Elaboration, machine: &TerminalMachine) -> Checked<Vec<Ca
             calls.push(Call {
                 site: CallSite::Edge(block.terminator.edge()),
                 callee: inputs.callee,
+                required_contract: inputs.required_contract,
                 acknowledgement: CallAcknowledgement::default(),
                 tail: false,
             });
@@ -122,6 +125,7 @@ fn calls(elaboration: &Elaboration, machine: &TerminalMachine) -> Checked<Vec<Ca
             calls.push(Call {
                 site: row.site,
                 callee: callee.id.into(),
+                required_contract: None,
                 acknowledgement: CallAcknowledgement::default(),
                 tail: true,
             });
@@ -171,8 +175,22 @@ pub(crate) fn judge(elaboration: &Elaboration) -> Checked<()> {
         .iter()
         .map(|(machine, _)| declared(machine).map(|bound| bound.unwrap_or(false)))
         .collect();
-    let envelope = |callee, summaries: &[[bool; 2]], caller, site| -> Checked<[bool; 2]> {
-        match callee {
+    let envelope = |call: &Call, summaries: &[[bool; 2]], caller, site| -> Checked<[bool; 2]> {
+        if let (TargetMachineCallable::Machine(body), Some(required)) =
+            (call.callee, call.required_contract)
+        {
+            let contract = module
+                .invocation_machine_contract(body, Some(required))
+                .ok_or_else(|| {
+                    fault(
+                        caller,
+                        site,
+                        "selected call has no matching public operational contract",
+                    )
+                })?;
+            return Ok([contract.published_may_suspend, contract.published_may_block]);
+        }
+        match call.callee {
             TargetMachineCallable::Machine(id) => index(id)
                 .map(|position| summaries[position])
                 .ok_or_else(|| fault(caller, site, "operational callee is unavailable")),
@@ -193,7 +211,7 @@ pub(crate) fn judge(elaboration: &Elaboration) -> Checked<()> {
         for (position, (machine, calls)) in machines.iter().enumerate() {
             let mut contributes = [false; 2];
             for call in calls {
-                let flags = envelope(call.callee, &inferred, machine.id, at(call.site))?;
+                let flags = envelope(call, &inferred, machine.id, at(call.site))?;
                 for axis in 0..2 {
                     contributes[axis] |= flags[axis];
                 }
@@ -247,7 +265,7 @@ pub(crate) fn judge(elaboration: &Elaboration) -> Checked<()> {
                     });
                 refusal(RefusalReason::Violation(span), machine.id, site, detail)
             };
-            let flags = envelope(call.callee, &inferred, machine.id, site)?;
+            let flags = envelope(call, &inferred, machine.id, site)?;
             let ack = call.acknowledgement;
             if ack.origin == CallOrigin::Authored
                 && ack.acknowledges_suspend

@@ -550,6 +550,7 @@ fn an_invocation_row_for_a_call_the_machine_does_not_make_is_refused() {
     let verdict = with_fault(program, |elaboration| {
         let constant = elaboration.module.machines[0].blocks[0].operations[0].id;
         entry_tables(elaboration).invocations.push(InvocationRow {
+            required_contract: None,
             site: InvocationSite::Operation(constant),
             callee: Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(id(2))),
             actuals: vec![Actual::Value(id(1))],

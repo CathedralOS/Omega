@@ -190,6 +190,9 @@ impl Lowering<'_> {
             ExpressionKind::ByteElement { base, index } => {
                 self.read_byte_element(base, index, source)
             }
+            ExpressionKind::ByteSubslice { .. } => {
+                Err(self.internal("a byte descriptor is used as a scalar"))
+            }
             ExpressionKind::Payload { base, case, field } => {
                 let scalar_type = self.result_type(expression)?;
                 self.read_payload(base, *case, *field, scalar_type, source)
@@ -299,14 +302,17 @@ impl Lowering<'_> {
             } => self.short_circuit(*conjunction, left, right),
             ExpressionKind::Call {
                 callee,
+                required_contract,
+                source_call,
                 arguments,
                 designated,
             } => self.call(
                 *callee,
+                *required_contract,
                 arguments,
                 *designated,
                 expression.result,
-                source,
+                (source, *source_call),
                 expression.call_context.unwrap_or_default(),
             ),
         }
