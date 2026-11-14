@@ -26,6 +26,11 @@ use crate::canonical::{self, Repeated};
 use crate::{Binder, MachineNames, SourceOrigin, Unserved, refuse};
 use source::SourceSpan;
 
+enum RequirementValues<'a> {
+    Bound(&'a [semantic_vocabulary::ScalarTerm]),
+    Rigid,
+}
+
 /// A refusal of what `declaration` writes between `<` and `>`, by the rule
 /// it broke and the declaration's name.
 fn refuse_parameters(
@@ -619,7 +624,11 @@ impl<'t> Program<'t> {
         expected: Option<&'t StateSignature>,
     ) -> Checked<MachineId> {
         let id = self.next_identity()?;
-        let (signature, names) = self.requirement_signature(id, declared, arguments)?;
+        let (signature, names) = if self.rigid && arguments.is_empty() {
+            self.applied_requirement_signature(id, declared, RequirementValues::Rigid)?
+        } else {
+            self.requirement_signature(id, declared, arguments)?
+        };
         // The owning-row query chooses the witness contract. A selected call
         // must agree with it; the call cannot replace the body's requirement
         // or supply a different public contract to make the witness pass.
@@ -872,6 +881,11 @@ impl<'t> Program<'t> {
     }
 
     fn machine_shape(&self, id: MachineId, machine: &Machine, reading: &Reading) -> Checked<()> {
+        let reading = if self.rigid && matches!(reading, Reading::Implementation) {
+            &Reading::GenericEntry
+        } else {
+            reading
+        };
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
         if self
             .typed
@@ -1089,6 +1103,7 @@ impl<'t> Program<'t> {
                 declaring_trait: definition.symbol,
                 requirement: requirement.symbol,
                 implementation: machine.symbol,
+                value_arguments: Vec::new(),
             });
         }
         Ok(witnesses)
@@ -1301,7 +1316,9 @@ impl<'t> Program<'t> {
         // either its formal or result type can be read. Shape preparation
         // emits no storage, regions or types; the one ordinary read below
         // must reproduce this exact allocation.
-        let prepared = if matches!(reading, Reading::GenericEntry) {
+        let prepared = if matches!(reading, Reading::GenericEntry)
+            || (self.rigid && matches!(reading, Reading::Implementation))
+        {
             Some(self.prepare_width_scope(id, machine, state)?)
         } else {
             None
@@ -1372,7 +1389,8 @@ impl<'t> Program<'t> {
         if matches!(reading, Reading::Closed | Reading::Provider)
             && let Some((owner, requirement)) = self.conformer_requirement(id, machine)?
         {
-            let (routed, routed_names) = self.requirement_signature(id, requirement, &[])?;
+            let arguments = self.conformer_value_arguments(id, machine, requirement)?;
+            let (routed, routed_names) = self.requirement_signature(id, requirement, &arguments)?;
             self.same_conformer_shape(id, &signature, &routed, machine.symbol)?;
             // There is one executable entry: its caller-facing contract is
             // the requirement's. The member's own clauses remain owed by
@@ -1394,6 +1412,7 @@ impl<'t> Program<'t> {
                 declaring_trait: owner,
                 requirement: requirement.symbol,
                 implementation: machine.symbol,
+                value_arguments: arguments,
             };
             if !self.conformance_witnesses.contains(&witness) {
                 self.conformance_witnesses.push(witness);
@@ -1601,7 +1620,12 @@ impl<'t> Program<'t> {
         if !requires && !ensures {
             return Ok(());
         }
-        let (inherited, inherited_names) = self.requirement_signature(id, requirement, &[])?;
+        let (inherited, inherited_names) = if self.rigid && self.is_generic_template(machine) {
+            self.applied_requirement_signature(id, requirement, RequirementValues::Rigid)?
+        } else {
+            let arguments = self.conformer_value_arguments(id, machine, requirement)?;
+            self.requirement_signature(id, requirement, &arguments)?
+        };
         self.same_conformer_shape(id, signature, &inherited, machine.symbol)?;
         if requires {
             // Implicit formal-domain obligations remain alongside inherited
@@ -1637,6 +1661,78 @@ impl<'t> Program<'t> {
             }
         }
         Ok(())
+    }
+
+    /// Reuse the generated member's exact invocation bindings when advertising
+    /// its public requirement. The two declarations have distinct binder IDs;
+    /// their ordered, carrier-checked telescope supplies the correspondence.
+    fn conformer_value_arguments(
+        &self,
+        id: MachineId,
+        machine: &Machine,
+        requirement: &StateSignature,
+    ) -> Checked<Vec<semantic_vocabulary::ScalarTerm>> {
+        let required = self.requirement_binders(id, requirement)?;
+        if required.is_empty() {
+            return Ok(Vec::new());
+        }
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        let application = self
+            .typed
+            .machine_instantiation(machine.symbol)
+            .map_err(unserved)?
+            .ok_or_else(|| unserved("member lost its exact value application"))?;
+        let template = self
+            .typed
+            .machine_by_symbol(application.template())
+            .ok_or_else(|| unserved("member application lost its template"))?;
+        let parameters = self.typed.machine_callable_parameters(template);
+        let binders = self.value_binder_correspondence(id, &required, &parameters)?;
+        let binding = application.binding_application();
+        if !self
+            .typed
+            .expression_table
+            .static_machine_application_is_valid(binding)
+            || self
+                .typed
+                .expression_table
+                .static_machine_application(binding)
+                .binding_declaration
+                != template.symbol
+        {
+            return Err(unserved(
+                "member application belongs to another declaration",
+            ));
+        }
+        self.bound_scalar_values(id, &binders, binding)
+    }
+
+    pub(super) fn value_binder_correspondence(
+        &self,
+        id: MachineId,
+        required: &[(SymbolHandle, semantic_vocabulary::ScalarType)],
+        parameters: &[typed_trees::data::TypeParameter],
+    ) -> Checked<Vec<(SymbolHandle, semantic_vocabulary::ScalarType)>> {
+        let unserved = |what| refuse(id, Construct::Machine, Unserved::Machine(what));
+        if parameters.len() != required.len() {
+            return Err(unserved(
+                "member and requirement have different value telescopes",
+            ));
+        }
+        let mut binders = Vec::with_capacity(required.len());
+        for (parameter, &(_, expected)) in parameters.iter().zip(required) {
+            let typed_trees::data::TypeParameterKind::Const { type_reference } = parameter.kind
+            else {
+                return Err(unserved(
+                    "member invocation parameter is not a static value",
+                ));
+            };
+            if self.scalar_type(id, type_reference)? != expected {
+                return Err(unserved("member value parameter has another carrier"));
+            }
+            binders.push((parameter.symbol, expected));
+        }
+        Ok(binders)
     }
 
     /// The value parameters of a trait requirement, in declaration order,
@@ -1710,6 +1806,15 @@ impl<'t> Program<'t> {
         requirement: &'t StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<(Signature, MachineNames)> {
+        self.applied_requirement_signature(id, requirement, RequirementValues::Bound(arguments))
+    }
+
+    fn applied_requirement_signature(
+        &mut self,
+        id: MachineId,
+        requirement: &'t StateSignature,
+        arguments: RequirementValues<'_>,
+    ) -> Checked<(Signature, MachineNames)> {
         // These are the declaration's parameters, not a new family whenever
         // another call reads its header. Each invocation later substitutes
         // them with its own actual regions (`call_of`).
@@ -1746,7 +1851,7 @@ impl<'t> Program<'t> {
         &mut self,
         id: MachineId,
         requirement: &'t StateSignature,
-        arguments: &[semantic_vocabulary::ScalarTerm],
+        arguments: RequirementValues<'_>,
     ) -> Checked<(Signature, MachineNames)> {
         self.served(id, requirement.symbol)?;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Machine(what)));
@@ -1781,19 +1886,37 @@ impl<'t> Program<'t> {
             ));
         }
         let binders = self.requirement_binders(id, requirement)?;
-        if binders.len() != arguments.len()
-            || binders
-                .iter()
-                .zip(arguments)
-                .any(|((_, scalar_type), literal)| literal.scalar_type() != *scalar_type)
-        {
-            return unserved("value arguments that are not the requirement's parameters");
-        }
-        let bound: Vec<_> = binders
-            .iter()
-            .map(|(symbol, _)| *symbol)
-            .zip(arguments.iter().cloned())
-            .collect();
+        let (rigid, bound) = match arguments {
+            RequirementValues::Bound(arguments) => {
+                if binders.len() != arguments.len()
+                    || binders
+                        .iter()
+                        .zip(arguments)
+                        .any(|((_, scalar_type), value)| value.scalar_type() != *scalar_type)
+                {
+                    return unserved("value arguments that are not the requirement's parameters");
+                }
+                (
+                    Vec::new(),
+                    binders
+                        .iter()
+                        .map(|(symbol, _)| *symbol)
+                        .zip(arguments.iter().cloned())
+                        .collect::<Vec<_>>(),
+                )
+            }
+            RequirementValues::Rigid => (
+                binders
+                    .iter()
+                    .map(|(symbol, scalar_type)| ValueBinder {
+                        symbol: *symbol,
+                        name: self.typed.symbols.name(*symbol).to_owned(),
+                        scalar_type: *scalar_type,
+                    })
+                    .collect(),
+                Vec::new(),
+            ),
+        };
         if requirement.is_default || !requirement.native_callback_parameters.is_empty() {
             return unserved("default or native-callback requirement");
         }
@@ -1814,7 +1937,7 @@ impl<'t> Program<'t> {
             Declarer::Requirement {
                 declares_no_crash_route: requirement.declares_no_crash_route,
             },
-            &[],
+            &rigid,
             &bound,
         )?;
         signature.invokes =

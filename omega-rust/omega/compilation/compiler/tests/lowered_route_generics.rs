@@ -149,7 +149,11 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
         stopped => panic!("the actual source must reach full compilation preparation: {stopped:?}"),
     };
     assert_eq!(prepared.forms.len(), 1);
-    assert_eq!(prepared.witnesses.len(), 2);
+    assert_eq!(
+        prepared.witnesses.len(),
+        4,
+        "both declared conformances and both applied selections retain their witnesses"
+    );
     assert_eq!(prepared.selection_witnesses.len(), 2);
     let closure = prepared.closure.as_ref().unwrap();
     let first = semantic_vocabulary::MachineId::new(1).unwrap();
@@ -175,13 +179,24 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
             "the actual selected member, never another matching requirement witness"
         );
     }
+    for witness in &prepared.witnesses {
+        let witness = witness.as_ref().expect("every retained witness elaborates");
+        assert!(
+            closure.selections.iter().any(|selected| {
+                witness.machines.get(first) == Some(&selected.requirement)
+                    && witness.value_arguments.get(first) == Some(&selected.value_arguments)
+                    && witness.machines.get(second) == closure.machines.get(selected.implementation)
+            }),
+            "each declaration or applied witness checks an actual selected member"
+        );
+    }
 
     let verdicts =
         terminal_psi_to_terminal_psi::judge_compilation(TerminalCompilation::Prepared(prepared));
     assert_eq!(
         verdicts.len(),
-        4,
-        "closure, generic form and both actual witnesses"
+        6,
+        "closure, generic form, both declared and both applied witnesses"
     );
     assert!(
         matches!(verdicts.first(), Some(Ok(RouteVerdict::Accepted(_)))),
@@ -233,7 +248,22 @@ fn a_failed_actual_refinement_is_kept_by_the_whole_source_driver() {
             other => panic!("the actual witness must be judged, not omitted: {other:?}"),
         }
     }
-    assert_eq!((accepted, rejected), (1, 1));
+    assert_eq!((accepted, rejected), (2, 2));
+    assert!(
+        matches!(verdicts[1], Ok(RouteVerdict::Accepted(_))),
+        "the public generic form remains valid: {:?}",
+        verdicts[1]
+    );
+    for witnesses in verdicts[2..].chunks_exact(2) {
+        assert_eq!(
+            witnesses
+                .iter()
+                .filter(|verdict| matches!(verdict, Ok(RouteVerdict::Accepted(_))))
+                .count(),
+            1,
+            "the declared and applied groups each retain one failed actual witness"
+        );
+    }
 
     // Publication must refuse the same source even if its first closure
     // passed: an actual selected member's failed witness remains decisive.
