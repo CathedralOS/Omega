@@ -3857,8 +3857,16 @@ mod routed_scalar_tests {
     fn empty_issuer_set_round_trips_without_authorizing_fresh_membership() {
         let mut denied = module();
         denied.scalar_qualifications.domains[0].establishment_routes = Some(Vec::new());
-        assert!(encode_module(&denied).is_err());
-        assert!(decode_module(&encode_raw(&denied).unwrap()).is_err());
+        // Encoding trusts its stage producer. Receiving formation validation,
+        // rather than serialization, must refuse this unchanged fresh result.
+        let encoded = encode_module(&denied).unwrap();
+        let error = decode_module(&encoded)
+            .expect_err("an empty issuer set cannot establish fresh membership");
+        assert!(
+            matches!(error, crate::CodecError::MalformedScalarReturnFoundation { ref reason, .. }
+            if reason.contains("origin authorized=false") && reason.contains("issuer=None")),
+            "{error:?}"
+        );
 
         denied.machines[0].parameters[0].qualifications = ScalarQualificationSetId::new(1);
         denied.machines[0].declaration.as_mut().unwrap().callable = TerminalIdentityIndex(2);
@@ -3881,7 +3889,13 @@ mod routed_scalar_tests {
 
         let mut detached = denied;
         detached.machines[0].parameters[0].qualifications = ScalarQualificationSetId::ZERO;
-        assert!(decode_module(&encode_raw(&detached).unwrap()).is_err());
+        let error = decode_module(&encode_raw(&detached).unwrap())
+            .expect_err("forwarding needs actual existing membership on its unchanged source");
+        assert!(
+            matches!(error, crate::CodecError::MalformedScalarReturnFoundation { ref reason, .. }
+            if reason.contains("origin authorized=false")),
+            "{error:?}"
+        );
     }
 
     #[test]
