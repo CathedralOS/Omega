@@ -12,7 +12,7 @@ call-plan identity.
 */
 
 use crate::callback_materializations::CallbackMaterialization;
-use semantic_vocabulary::{IntegerType, ScalarType};
+use semantic_vocabulary::{ClosedIntegerType, ClosedScalarType, IntegerType, ScalarType};
 use target::Architecture;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -149,6 +149,12 @@ pub struct ValueShape {
 
 impl ValueShape {
     pub fn for_integer(integer: IntegerType) -> Option<Self> {
+        Self::for_closed_integer(integer.try_into().ok()?)
+    }
+
+    /// Geometry reads an already closed width. A symbolic checking carrier
+    /// must pass the fallible metadata boundary above before reaching it.
+    pub fn for_closed_integer(integer: ClosedIntegerType) -> Option<Self> {
         if integer.is_address() && integer.bits() == 64 {
             return Some(Self::integer(8, 8));
         }
@@ -167,16 +173,16 @@ impl ValueShape {
     /// The spec leaves integer alignment to the target's layout selection, so
     /// the caps (8 here, 16 for [`Self::field_integer`]) are placeholders that
     /// every structural walk must share; they live only in this pair.
-    pub fn standalone_integer(integer: IntegerType) -> Self {
+    pub fn standalone_integer(integer: ClosedIntegerType) -> Self {
         Self::rounded_integer(integer, 8)
     }
 
     /// The same integer as a structural record field: alignment capped at 16.
-    pub fn field_integer(integer: IntegerType) -> Self {
+    pub fn field_integer(integer: ClosedIntegerType) -> Self {
         Self::rounded_integer(integer, 16)
     }
 
-    fn rounded_integer(integer: IntegerType, alignment_cap: u16) -> Self {
+    fn rounded_integer(integer: ClosedIntegerType, alignment_cap: u16) -> Self {
         let bytes = integer.bits().div_ceil(8);
         Self::integer(
             u32::from(bytes),
@@ -185,10 +191,14 @@ impl ValueShape {
     }
 
     pub fn for_scalar(scalar_type: ScalarType) -> Option<Self> {
+        Self::for_closed_scalar(scalar_type.try_into().ok()?)
+    }
+
+    pub fn for_closed_scalar(scalar_type: ClosedScalarType) -> Option<Self> {
         match scalar_type {
-            ScalarType::Boolean => Some(Self::integer(1, 1)),
-            ScalarType::IeeeFloat(format) => Some(Self::float(format.byte_size())),
-            ScalarType::Integer(integer) => Self::for_integer(integer),
+            ClosedScalarType::Boolean => Some(Self::integer(1, 1)),
+            ClosedScalarType::IeeeFloat(format) => Some(Self::float(format.byte_size())),
+            ClosedScalarType::Integer(integer) => Self::for_closed_integer(integer),
         }
     }
 
@@ -762,10 +772,13 @@ macro_rules! register_or_stack_pair_pattern {
 #[cfg(test)]
 mod integer_shape_tests {
     use super::ValueShape;
-    use semantic_vocabulary::{IntegerSign, IntegerType};
+    use semantic_vocabulary::{
+        ClosedIntegerType, ClosedScalarType, IeeeFloatFormat, IntegerSign, IntegerType, MachineId,
+        ScalarType, ValueId, WidthParameter,
+    };
 
-    fn unsigned(bits: u16) -> IntegerType {
-        IntegerType::new(IntegerSign::Unsigned, bits).expect("test width is valid")
+    fn unsigned(bits: u16) -> ClosedIntegerType {
+        ClosedIntegerType::new(IntegerSign::Unsigned, bits).expect("test width is valid")
     }
 
     #[test]
@@ -784,6 +797,48 @@ mod integer_shape_tests {
                 ValueShape::integer(size, field),
                 "field u{bits}"
             );
+        }
+    }
+
+    #[test]
+    fn raw_shape_queries_require_closure_and_preserve_the_native_abi_floor() {
+        let parameter = WidthParameter {
+            owner: MachineId::new(1).unwrap(),
+            value: ValueId::new(2).unwrap(),
+        };
+        for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+            let symbolic = IntegerType::parameterized(sign, parameter);
+            assert_eq!(ValueShape::for_integer(symbolic), None);
+            assert_eq!(ValueShape::for_scalar(ScalarType::Integer(symbolic)), None);
+            for bits in [1, 8, 13, 16, 24, 32, 64, 128] {
+                let raw = IntegerType::new(sign, bits).unwrap();
+                let closed = ClosedIntegerType::try_from(raw).unwrap();
+                let expected = matches!(bits, 8 | 16 | 32 | 64)
+                    .then(|| ValueShape::integer(u32::from(bits / 8), bits / 8));
+                assert_eq!(ValueShape::for_integer(raw), expected);
+                assert_eq!(ValueShape::for_closed_integer(closed), expected);
+            }
+        }
+        for bits in [24, 32, 64, 128] {
+            let address = ClosedIntegerType::address(bits).unwrap();
+            assert_eq!(
+                ValueShape::for_closed_integer(address),
+                (bits == 64).then(|| ValueShape::integer(8, 8))
+            );
+        }
+        for (scalar, expected) in [
+            (ClosedScalarType::Boolean, ValueShape::integer(1, 1)),
+            (
+                ClosedScalarType::IeeeFloat(IeeeFloatFormat::Binary32),
+                ValueShape::float(4),
+            ),
+            (
+                ClosedScalarType::IeeeFloat(IeeeFloatFormat::Binary64),
+                ValueShape::float(8),
+            ),
+        ] {
+            assert_eq!(ValueShape::for_closed_scalar(scalar), Some(expected));
+            assert_eq!(ValueShape::for_scalar(scalar.as_checking()), Some(expected));
         }
     }
 }
