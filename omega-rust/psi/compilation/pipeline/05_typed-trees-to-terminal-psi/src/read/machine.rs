@@ -2575,7 +2575,10 @@ impl<'t> Program<'t> {
                 }
                 StatementNode::Expression(expression) => {
                     let expected = if last { signature.result } else { None };
-                    let expression = self.expression(id, &slots, *expression, expected)?;
+                    let mut expression = self.expression(id, &slots, *expression, expected)?;
+                    // The expression is the whole statement, or the machine's
+                    // terminal expression: both are suspension positions.
+                    crate::operational::boundary(&mut expression);
                     match (last, signature.result) {
                         (true, Some(result)) => {
                             if !self.agrees(expression.result, result) {

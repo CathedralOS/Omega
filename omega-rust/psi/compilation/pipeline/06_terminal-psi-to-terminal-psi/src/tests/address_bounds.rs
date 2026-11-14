@@ -51,3 +51,33 @@ machine build_entry() { sized(1); }"
         "contract runtime value in a mathematical term without embed"
     );
 }
+
+/// counts_and_addresses.md: an `addr` is "interpreted under the selected
+/// target's address model" and "grants no storage or access authority". A
+/// value of it is carried and compared like any scalar. Arithmetic on it
+/// relates counts to addresses under a fit proof this route does not form,
+/// and "neither arbitrary value-to-address conversions nor the inverse"
+/// follow from an address, so both are refused by name.
+#[test]
+fn an_address_is_carried_and_compared_and_not_computed_with() {
+    let using = |body: &str| {
+        format!(
+            "machine probe(base: addr, limit: addr) -> bool {{ {body} }}
+machine build_entry(base: addr, limit: addr) {{ let seen: bool = probe(base, limit); }}"
+        )
+    };
+    assert_eq!(verdict(&using("base == limit")), "accepted");
+    assert_eq!(
+        verdict(&using("let held: addr = base; held < limit")),
+        "accepted"
+    );
+    assert_eq!(verdict(&using("base == 64")), "accepted");
+    assert_eq!(
+        verdict(&using("(base + limit) == limit")),
+        "expression arithmetic on an address"
+    );
+    assert_eq!(
+        verdict(&using("(base as u64) == 64")),
+        "expression cast to or from an address"
+    );
+}
