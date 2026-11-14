@@ -201,7 +201,11 @@ fn a_provider_that_does_not_refine_its_requirement_is_not_accepted() {
         "Service::go",
     )
     .unwrap_err();
-    assert!(weaker.starts_with("part 1 rejected"), "{weaker}");
+    // The runtime body itself now owes the requirement's advertised
+    // result <= 11, so it fails before its separate refinement witness.
+    assert!(weaker.starts_with("part 0 rejected"), "{weaker}");
+    assert!(weaker.contains("ensures contract"), "{weaker}");
+    assert!(weaker.contains("result <= 11"), "{weaker}");
     // Its own body does not keep its own contract: the provider is judged
     // as a root, not taken at its word.
     let broken = supplied(&program(CONTRACT, CONTRACT, "value + 2"), "Service::go").unwrap_err();

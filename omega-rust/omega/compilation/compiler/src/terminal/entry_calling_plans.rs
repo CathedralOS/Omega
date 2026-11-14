@@ -343,7 +343,6 @@ pub(crate) fn prepare(
     let storage_entry = storage_entry
         .with_physical_contract(physical_contract)
         .map_err(|reason| failure(reason.to_string()))?;
-    accounting.validate_charges().map_err(failure)?;
     Ok(SelectedProgramEntryCallingPlans {
         semantic_calling_application,
         physical_calling_application,
