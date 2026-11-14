@@ -3322,3 +3322,7 @@ mod access_plan_construction;
 #[cfg(test)]
 #[path = "source_jobs/sequence_values.rs"]
 mod sequence_values;
+
+#[cfg(test)]
+#[path = "source_jobs/borrowed_views.rs"]
+mod borrowed_views;

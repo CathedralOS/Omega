@@ -795,23 +795,29 @@ impl<'t> Program<'t> {
     /// passes here, as an entry, a Build selection, a subject declaration or
     /// a callee, so a declaration with a row is never read through.
     pub(super) fn served(&self, id: MachineId, declaration: SymbolHandle) -> Checked<()> {
-        match self.typed.deferred_refusal(declaration) {
-            None => Ok(()),
-            // A form that is an error in every program, found while typing
-            // saw the whole program, is raised here as a rejection. The
-            // statement holding it may never be lowered (one after a call
-            // that never returns), so this is the only place it is seen.
-            Some(row) if row.request.is_violation() => Err(crate::reject(
+        let Some(row) = self.typed.deferred_refusal(declaration) else {
+            return Ok(());
+        };
+        // Violations remain errors even when their statement is unreachable;
+        // an unsupported preparation request remains an unavailable judgment.
+        let mut refusal = if row.request.is_violation() {
+            crate::reject(
                 id,
                 crate::SourceOrigin::of(row.source_span),
                 row.request.construct(),
-            )),
-            Some(row) => Err(refuse(
+            )
+        } else {
+            refuse(
                 id,
                 Construct::Machine,
                 Unserved::Declaration(row.request.construct()),
-            )),
+            )
+        };
+        if !row.detail.is_empty() {
+            refusal.detail.push_str(": ");
+            refusal.detail.push_str(&row.detail);
         }
+        Err(refusal)
     }
 
     pub(super) fn declaration(

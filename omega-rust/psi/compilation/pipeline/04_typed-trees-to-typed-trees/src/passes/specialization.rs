@@ -108,12 +108,13 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
                 });
             match served {
                 Ok(()) => {}
-                Err(Stop::Unserved) => {
+                Err(Stop::Unserved(detail)) => {
                     let span = site.source_span(program);
-                    program.record_deferred_refusal(
+                    program.record_deferred_refusal_with_detail(
                         holder,
                         DeferredRequest::StaticApplication,
                         span,
+                        detail.unwrap_or(""),
                     );
                 }
                 Err(Stop::Rejected(message)) => {
@@ -132,7 +133,7 @@ pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
 /// Why one application was left as typing wrote it.
 enum Stop {
     /// A request this pass does not serve yet; nothing was changed for it.
-    Unserved,
+    Unserved(Option<&'static str>),
     /// The application is wrong as the author wrote it.
     Rejected(String),
     /// The trees broke an invariant while a machine was being generated.
@@ -299,6 +300,19 @@ fn serve(
         .expression_table
         .static_machine_application_arguments(applied.application)
         .to_vec();
+    if let Some((declaration, _)) = entered_machine(program, applied.target)
+        && program
+            .machine_by_symbol(declaration)
+            .is_some_and(|machine| {
+                machine.supply_mode == language_semantics::MachineSupplyMode::Boundary
+                    && machine.has_bodyless_signature()
+            })
+    {
+        program
+            .prepare_bodyless_callable_application(applied.application, applied.target)
+            .map_err(|reason| Stop::Unserved(Some(reason)))?;
+        return Ok(());
+    }
     if arguments.is_empty() {
         return Ok(());
     }
@@ -346,7 +360,7 @@ fn serve(
         return Ok(());
     }
     if parameters.len() != arguments.len() {
-        return Err(Stop::Unserved);
+        return Err(Stop::Unserved(None));
     }
     let mut operands = Vec::with_capacity(parameters.len());
     for ((parameter, kind), argument) in parameters.iter().zip(&arguments) {
@@ -396,34 +410,34 @@ fn enter_generated(
     instances: &symbols::SymbolMap<Option<usize>>,
 ) -> Served<()> {
     let Some(Some(index)) = instances.get(&callee) else {
-        return Err(Stop::Unserved);
+        return Err(Stop::Unserved(None));
     };
     let row = &program.machine_specializations[*index];
     let Some(template) = program.machine_by_symbol(row.template) else {
-        return Err(Stop::Unserved);
+        return Err(Stop::Unserved(None));
     };
     let parameters = program.machine_callable_parameters(template);
     let table = &program.expression_table;
     let selection = table.static_machine_application(row.binding_application);
     let Some((owner, _)) = entered_machine(program, selection.registration_operation) else {
-        return Err(Stop::Unserved);
+        return Err(Stop::Unserved(None));
     };
     let Some(source) = program.machine_by_symbol(owner) else {
-        return Err(Stop::Unserved);
+        return Err(Stop::Unserved(None));
     };
     // The selection belongs to the original enclosing declaration, not an
     // unrelated application with equal rendered arguments.
     if row.template_parameters != source.type_parameters
         || program.symbols.get(callee).generated_from != row.template
     {
-        return Err(Stop::Unserved);
+        return Err(Stop::Unserved(None));
     }
     let mut lexical = row.template;
     while lexical.is_valid() && lexical != owner {
         lexical = program.symbols.get(lexical).parent;
     }
     if lexical != owner {
-        return Err(Stop::Unserved);
+        return Err(Stop::Unserved(None));
     }
     let source_parameters = program.machine_callable_parameters(source);
     let operands = bound_arguments(
@@ -449,13 +463,13 @@ fn bound_arguments(
     arguments: &[StaticMachineArgument],
 ) -> Served<Vec<Operand>> {
     if parameters.len() != arguments.len() || parameters != source_parameters {
-        return Err(Stop::Unserved);
+        return Err(Stop::Unserved(None));
     }
     let table = &program.expression_table;
     let actual_arguments = table.static_machine_application_arguments(selection);
     let bindings = table.static_machine_application_bindings(selection);
     if actual_arguments.len() != bindings.len() || bindings.len() != source_parameters.len() {
-        return Err(Stop::Unserved);
+        return Err(Stop::Unserved(None));
     }
     let mut selected = symbols::SymbolMap::default();
     for (binding, argument) in bindings.iter().zip(actual_arguments) {
@@ -463,23 +477,23 @@ fn bound_arguments(
             .insert(binding.parameter, argument.clone())
             .is_some()
         {
-            return Err(Stop::Unserved);
+            return Err(Stop::Unserved(None));
         }
     }
     for parameter in source_parameters {
         if !selected.contains_key(&parameter.symbol) {
-            return Err(Stop::Unserved);
+            return Err(Stop::Unserved(None));
         }
     }
     let mut operands = Vec::with_capacity(parameters.len());
     for (parameter, argument) in parameters.iter().zip(arguments) {
         let Some(actual) = selected.get(&parameter.symbol) else {
-            return Err(Stop::Unserved);
+            return Err(Stop::Unserved(None));
         };
         let operand = Operand::read(program, parameter.symbol, &parameter.kind, argument)?;
         let existing = Operand::read(program, parameter.symbol, &parameter.kind, actual)?;
         if operand.is_open(program) || operand.identity != existing.identity {
-            return Err(Stop::Unserved);
+            return Err(Stop::Unserved(None));
         }
         operands.push(operand);
     }
@@ -515,7 +529,7 @@ fn bind_requirement(
         return Ok(());
     }
     if parameters.len() != arguments.len() {
-        return Err(Stop::Unserved);
+        return Err(Stop::Unserved(None));
     }
     let mut operands = Vec::with_capacity(parameters.len());
     for ((parameter, kind), argument) in parameters.iter().zip(arguments) {
@@ -563,7 +577,7 @@ fn apply_requirement(
         || !requirement.lifetime_parameters.is_empty()
         || parameters.len() != arguments.len()
     {
-        return Err(Stop::Unserved);
+        return Err(Stop::Unserved(None));
     }
     let environment =
         typed_trees::trait_definition::AppliedTraitScope::abstract_scope(owner).environment();
@@ -583,7 +597,7 @@ fn apply_requirement(
         .registration_operation
         != applied.target
     {
-        return Err(Stop::Unserved);
+        return Err(Stop::Unserved(None));
     }
     table
         .static_machine_application_mut(applied.application)
@@ -591,7 +605,7 @@ fn apply_requirement(
     table.set_static_machine_application_lifetimes(applied.application, applied.target, &[]);
     let closed = program
         .instantiate_requirement_application(&environment, applied.target, &[], applied.application)
-        .map_err(|_| Stop::Unserved)?;
+        .map_err(|_| Stop::Unserved(None))?;
     site.enter(program, closed);
     Ok(())
 }
@@ -667,7 +681,7 @@ impl Operand {
             // own reading of the argument; none is built yet.
             TypeParameterKind::Value { .. }
             | TypeParameterKind::Machine { .. }
-            | TypeParameterKind::Proposition { .. } => return Err(Stop::Unserved),
+            | TypeParameterKind::Proposition { .. } => return Err(Stop::Unserved(None)),
         };
         Ok(Self {
             parameter,
@@ -737,7 +751,7 @@ fn closed_scalar(
             .primitive_type(parameter_type)
             .and_then(typed_trees::types::PrimitiveType::landed_landing_fixed);
         let (true, Some(landed_type)) = (*argument == only_a_literal, landed_type) else {
-            return Err(Stop::Unserved);
+            return Err(Stop::Unserved(None));
         };
         let landing = numerics::literals::IntegerLanding {
             landed_type,
@@ -746,7 +760,7 @@ fn closed_scalar(
         return match literal.landing() {
             None => Ok(Scalar::Literal(literal.with_landing(landing))),
             Some(stated) if stated == landing => Ok(Scalar::Literal(literal.clone())),
-            Some(_) => Err(Stop::Unserved),
+            Some(_) => Err(Stop::Unserved(None)),
         };
     }
     let symbol = argument.symbol;
@@ -757,7 +771,7 @@ fn closed_scalar(
     {
         return Ok(Scalar::Parameter(symbol));
     }
-    Err(Stop::Unserved)
+    Err(Stop::Unserved(None))
 }
 
 /// Whether a static argument is a name and nothing else, so that replacing
@@ -793,7 +807,7 @@ fn named_implementation(
         || !symbol.is_valid()
         || !program.symbols.symbols().nodes().is_valid(symbol)
     {
-        return Err(Stop::Unserved);
+        return Err(Stop::Unserved(None));
     }
     match program.symbols.get(symbol).kind {
         SymbolKind::ConformanceParameter => Ok(symbol),
@@ -805,7 +819,7 @@ fn named_implementation(
                 .iter()
                 .filter(|bound| bound.binder == parameter);
             let (Some(bound), None) = (bounds.next(), bounds.next()) else {
-                return Err(Stop::Unserved);
+                return Err(Stop::Unserved(None));
             };
             let plain = program.conformance_by_symbol(symbol).is_some_and(|named| {
                 named.trait_symbol == bound.trait_symbol
@@ -817,11 +831,11 @@ fn named_implementation(
                     && program.conformance_type_parameters(named).is_empty()
             });
             if !plain {
-                return Err(Stop::Unserved);
+                return Err(Stop::Unserved(None));
             }
             Ok(program.implementation_value_head(symbol))
         }
-        _ => Err(Stop::Unserved),
+        _ => Err(Stop::Unserved(None)),
     }
 }
 
@@ -847,16 +861,16 @@ fn selections(program: &TypedTrees, operands: &[Operand]) -> Served<Vec<Selectio
             .declaration()
             .and_then(|declaration| program.conformance_by_symbol(declaration))
         else {
-            return Err(Stop::Unserved);
+            return Err(Stop::Unserved(None));
         };
         let placeholders = program
             .symbols
             .child_handles(operand.parameter)
-            .ok_or(Stop::Unserved)?;
+            .ok_or(Stop::Unserved(None))?;
         for placeholder in placeholders {
             let Ok(Some(requirement)) = program.evidence_requirement_declaration(placeholder)
             else {
-                return Err(Stop::Unserved);
+                return Err(Stop::Unserved(None));
             };
             // A requirement's own value parameters are bound at each call
             // through it (`bind_requirement`); any other parameter of its
@@ -875,17 +889,17 @@ fn selections(program: &TypedTrees, operands: &[Operand]) -> Served<Vec<Selectio
                 || !requirement.lifetime_parameters.is_empty()
                 || !requirement.conformance_bounds.is_empty()
             {
-                return Err(Stop::Unserved);
+                return Err(Stop::Unserved(None));
             }
             let mut rows = implementation
                 .rows
                 .iter()
                 .filter(|row| row.requirement == requirement.symbol);
             let (Some(row), None) = (rows.next(), rows.next()) else {
-                return Err(Stop::Unserved);
+                return Err(Stop::Unserved(None));
             };
             if !row.realization_machine.is_valid() || !row.realization_state.is_valid() {
-                return Err(Stop::Unserved);
+                return Err(Stop::Unserved(None));
             }
             selected.push(Selection {
                 placeholder,
@@ -927,16 +941,16 @@ fn named_type(
             )
             && program
                 .prepare_data_application_view(reference)
-                .map_err(|_| Stop::Unserved)?
+                .map_err(|_| Stop::Unserved(None))?
         {
             return Ok(reference);
         }
-        return Err(Stop::Unserved);
+        return Err(Stop::Unserved(None));
     }
     let only_a_name = only_a_name(program, argument) && argument.const_literal.is_none();
     let symbol = argument.symbol;
     if !only_a_name || !symbol.is_valid() || !program.symbols.symbols().nodes().is_valid(symbol) {
-        return Err(Stop::Unserved);
+        return Err(Stop::Unserved(None));
     }
     let plain = match program.symbols.get(symbol).kind {
         SymbolKind::BuiltinType | SymbolKind::TypeParameter => true,
@@ -948,7 +962,7 @@ fn named_type(
         _ => false,
     };
     let Some(name) = argument.path.last().filter(|_| plain) else {
-        return Err(Stop::Unserved);
+        return Err(Stop::Unserved(None));
     };
     Ok(program
         .type_reference_table
@@ -981,7 +995,9 @@ fn bind(
 /// exist. Runtime values remain explicit parameters; this supplies only the
 /// enclosing declaration's already selected static context.
 fn template(program: &TypedTrees, symbol: SymbolHandle) -> Served<Vec<(Machine, State)>> {
-    let root = program.machine_by_symbol(symbol).ok_or(Stop::Unserved)?;
+    let root = program
+        .machine_by_symbol(symbol)
+        .ok_or(Stop::Unserved(None))?;
     let parameters = program
         .machine_callable_parameters(root)
         .into_iter()
@@ -1002,13 +1018,17 @@ fn template(program: &TypedTrees, symbol: SymbolHandle) -> Served<Vec<(Machine, 
                 .iter()
                 .any(|parameter| parameters.get(&parameter.symbol) != Some(parameter))
         {
-            return Err(Stop::Unserved);
+            return Err(Stop::Unserved(None));
         }
         if holds_expression(program, &types) {
-            return Err(Stop::Unserved);
+            return Err(Stop::Unserved(None));
         }
         for owner in [machine.symbol, state.symbol] {
-            for child in program.symbols.child_handles(owner).ok_or(Stop::Unserved)? {
+            for child in program
+                .symbols
+                .child_handles(owner)
+                .ok_or(Stop::Unserved(None))?
+            {
                 if program.symbols.get(child).kind == SymbolKind::Machine {
                     pending.push(child);
                 }
@@ -1026,7 +1046,7 @@ fn copied_parts(
     program: &TypedTrees,
     symbol: SymbolHandle,
 ) -> Served<(Machine, State, Vec<TypeReferenceHandle>)> {
-    let unserved = Err(Stop::Unserved);
+    let unserved = Err(Stop::Unserved(None));
     let Some(machine) = program.machine_by_symbol(symbol) else {
         return unserved;
     };
@@ -1275,7 +1295,7 @@ fn copy_declarations(
         ));
     }
     if !embedded.is_empty() {
-        return Err(Stop::Unserved);
+        return Err(Stop::Unserved(None));
     }
     let type_start = program.type_reference_table.type_reference_count() + 1;
     let expression_start = program.expression_table.expression_count() + 1;

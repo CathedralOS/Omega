@@ -22,7 +22,7 @@ pub(super) fn serve(
     let call = call.clone();
     let Some((owner, row, _)) = program
         .named_conformance_call_member(&call)
-        .map_err(|_| Stop::Unserved)?
+        .map_err(|_| Stop::Unserved(None))?
     else {
         return Ok(false);
     };
@@ -30,7 +30,7 @@ pub(super) fn serve(
         return Ok(false);
     }
     if !row.source.owns_realization() {
-        return Err(Stop::Unserved);
+        return Err(Stop::Unserved(None));
     }
     if captures
         .get(program, &call)
@@ -46,43 +46,43 @@ pub(super) fn serve(
     // Nested captures need their own authenticated enclosing association;
     // never publish unassociated declarations copied from the owned body.
     let [(original, original_state)] = parts.as_slice() else {
-        return Err(Stop::Unserved);
+        return Err(Stop::Unserved(None));
     };
     if original_state.symbol != expected_state || !original.type_parameters.is_empty() {
-        return Err(Stop::Unserved);
+        return Err(Stop::Unserved(None));
     }
     let normalized_template_identity = program
         .machine_callable_identity_text(original)
-        .ok_or(Stop::Unserved)?;
+        .ok_or(Stop::Unserved(None))?;
     let typed_trees::types::TypeReferenceNode::Generic { arguments, .. } = program
         .type_reference_table
         .type_reference(call.requirement_application)
     else {
-        return Err(Stop::Unserved);
+        return Err(Stop::Unserved(None));
     };
     let arguments = program
         .type_reference_table
         .type_reference_handles(*arguments)
         .to_vec();
     if arguments.len() != parameters.len() {
-        return Err(Stop::Unserved);
+        return Err(Stop::Unserved(None));
     }
     let mut operands = Vec::with_capacity(parameters.len());
     for (parameter, reference) in parameters.iter().zip(arguments) {
         let mut argument = program
             .static_operand_from_type_reference(reference)
-            .map_err(|_| Stop::Unserved)?;
+            .map_err(|_| Stop::Unserved(None))?;
         argument.type_reference = reference;
         let operand = Operand::read(program, parameter.symbol, &parameter.kind, &argument)?;
         if operand.is_open(program) {
-            return Err(Stop::Unserved);
+            return Err(Stop::Unserved(None));
         }
         operands.push(operand);
     }
     let application = program
         .prepare_named_conformance_application(&call)
         .map_err(Stop::Defect)?
-        .ok_or(Stop::Unserved)?;
+        .ok_or(Stop::Unserved(None))?;
     let binding_application = application.callable_application;
     let copied = copy_declarations(program, declared, &operands)?;
     let parameters = program

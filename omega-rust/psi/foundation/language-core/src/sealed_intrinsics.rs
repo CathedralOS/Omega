@@ -56,8 +56,7 @@ pub enum SealedIntrinsic {
     TaskRuntimeStart,
     /// `TaskRuntime::try_start` in core `task.omg`.
     TaskRuntimeTryStart,
-    /// Core `layout.omg`'s `Access` template, the only data from which
-    /// placed scalar accessors are generated.
+    /// Core `layout.omg`'s existing restricted scalar accessor template.
     PlacedAccessorTemplate,
     /// std `console.omg`'s `ByteRead`, the result type of `Console::read_byte`.
     HostedByteRead,
@@ -451,6 +450,24 @@ const ROWS: &[SealedIntrinsicRow] = &[
     ),
     row(
         "layout.omg",
+        "Access::view",
+        CORE_LAYOUT,
+        lifecycle(PlacementOperation::View, PlacementContent::Resident),
+    ),
+    row(
+        "layout.omg",
+        "Access::view_mut",
+        CORE_LAYOUT,
+        lifecycle(PlacementOperation::View, PlacementContent::Resident),
+    ),
+    row(
+        "layout.omg",
+        "Access::view_resident_mut",
+        CORE_LAYOUT,
+        lifecycle(PlacementOperation::View, PlacementContent::Resident),
+    ),
+    row(
+        "layout.omg",
         "Access::initialize_from_profile",
         CORE_LAYOUT,
         lifecycle(PlacementOperation::Initialize, PlacementContent::Resident),
@@ -493,7 +510,7 @@ const ROWS: &[SealedIntrinsicRow] = &[
     ),
     row(
         "layout.omg",
-        "Access",
+        "Accessor",
         CORE_LAYOUT,
         SealedIntrinsic::PlacedAccessorTemplate,
     ),
