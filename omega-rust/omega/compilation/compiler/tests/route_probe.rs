@@ -1452,7 +1452,7 @@ fn a_builtin_type_name_is_read_by_its_role() {
             "const count: u64 = 13;\n\
              machine f(count: u64, items: [u8; count]) -> u64 { count }\n\
              machine main() { }\n",
-            "count",
+            "is a runtime value",
         ),
     ] {
         let stopped = {
