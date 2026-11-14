@@ -22,7 +22,17 @@ parameters, control_flow.md):
   definitions available on the arrival edge (the same substitution
   `ValueEqualityTransport` performs);
 - each fact available on the arrival edge but not at the join, transported
-  through those definitions into its denotation.
+  through those definitions into its denotation;
+- each preceding join's predicate that names a value this edge fixes to a
+  literal, read with that value fixed. `a && b && c` is two joins, and the
+  first's result is free again at the second; on the edge where it is true
+  the first's predicate is the one alternative that produced it, and that
+  is what the second join can still say.
+
+What a formal's storage held at entry is in the scope beside the formals: it
+is one value for the whole invocation, and a read no store reaches is defined
+as it, so a guard over a formal's fields crosses a join as a guard over the
+formals does.
 
 A part that still names a value outside the scope is left out, which only
 weakens the disjunct. Each arrival's obligation is then that predicate under
@@ -128,13 +138,16 @@ fn predicate_row(tables: &MachineTables, block: BlockId) -> Option<KnowledgeId> 
         .map(|(row, _)| row)
 }
 
-/// Whether every value `proposition` names is a machine formal or a
-/// parameter of `block`: the predicate scope of control_flow.md.
+/// Whether every value `proposition` names is a machine formal, what a
+/// formal's storage held at entry, or a parameter of `block`: the predicate
+/// scope of control_flow.md. fact_validity.md binds entry hypotheses to
+/// "exact invocation formals or structural entry paths", and an entry
+/// content is such a path's one value for the whole invocation.
 fn in_scope(tables: &MachineTables, block: BlockId, proposition: &Proposition) -> bool {
     let mut inside = true;
     proposition.visit_value_ids(|value| {
         inside &= match tables.values.get(value).map(|row| row.origin) {
-            Some(ValueOrigin::MachineParameter { .. }) => true,
+            Some(ValueOrigin::MachineParameter { .. } | ValueOrigin::EntryContent { .. }) => true,
             Some(ValueOrigin::BlockParameter { block: owner, .. }) => owner == block,
             _ => false,
         };
@@ -285,7 +298,16 @@ fn describe(
         available.push((row.justification, proposition, path));
     }
     // The definitions transport substitutes: operation equations whose
-    // subject is Boolean or whose definition is a literal.
+    // subject is Boolean, whose definition is a literal, or whose definition
+    // is what a formal's storage held at entry (a read that no store
+    // reaches: its result is that content, which the join can name).
+    let entry_content = |term: &ScalarTerm| {
+        matches!(term, ScalarTerm::Value { id, .. }
+        if matches!(
+            tables.values.get(*id).map(|row| row.origin),
+            Some(ValueOrigin::EntryContent { .. })
+        ))
+    };
     let equations: Vec<&Proposition> = available
         .iter()
         .filter(|(justification, proposition, _)| {
@@ -298,6 +320,7 @@ fn describe(
                                 definition,
                                 ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_)
                             )
+                            || entry_content(definition)
                 )
         })
         .map(|(_, proposition, _)| *proposition)
@@ -309,6 +332,34 @@ fn describe(
             _ => None,
         })
         .collect();
+    // What this edge fixes: a value it knows equal to a literal and that no
+    // operation defines, which is a preceding join's result under the guard
+    // that chose this edge. A fact that names such a value says more here
+    // than it does at the join, where the value is free again.
+    let fixed: Vec<&Proposition> = available
+        .iter()
+        .filter(|(justification, proposition, path)| {
+            *path
+                && !matches!(justification, Justification::OperationSemantics(_))
+                && matches!(
+                    proposition,
+                    Proposition::Equal(
+                        ScalarTerm::Value { id, .. },
+                        ScalarTerm::Integer { .. } | ScalarTerm::Boolean(_)
+                    ) if !definitions.iter().any(|(subject, _)| subject == id)
+                )
+        })
+        .map(|(_, proposition, _)| *proposition)
+        .collect();
+    let names_fixed = |proposition: &Proposition| {
+        let mut named = false;
+        proposition.visit_value_ids(|value| {
+            named |= fixed.iter().any(|equation| {
+                matches!(equation, Proposition::Equal(ScalarTerm::Value { id, .. }, _) if *id == value)
+            });
+        });
+        named
+    };
     let mut parts = Vec::new();
     let renaming: Vec<_> = arguments
         .iter()
@@ -327,7 +378,26 @@ fn describe(
         ));
     }
     for (justification, proposition, path) in &available {
-        if !path || matches!(justification, Justification::OperationSemantics(_)) {
+        if matches!(justification, Justification::OperationSemantics(_)) {
+            continue;
+        }
+        if !path {
+            // Known at the join too, so it is restated only for what this
+            // edge adds to it: a preceding join's predicate, read with that
+            // join's result fixed, is the one alternative that produced it.
+            if matches!(justification, Justification::BlockInvariant { .. })
+                && names_fixed(proposition)
+                && let Ok(denotation) = check_value_equality_denotation(
+                    context,
+                    proposition,
+                    equations.iter().chain(&fixed).copied(),
+                )
+                && let Some(denotation) = rename(&denotation, &renaming)
+            {
+                parts.push(project(&denotation, &mut |atom| {
+                    in_scope(tables, join.id, atom).then(|| atom.clone())
+                }));
+            }
             continue;
         }
         // Keep a predicate that already crosses under the exact argument

@@ -247,12 +247,11 @@ impl Program<'_> {
                         other => conjuncts.push(other),
                     }
                 }
-                // A data clause keeps its authored order: it is never
-                // encoded, and a conjunct that tests the case guards the
-                // conjuncts that project its payload.
-                if scope.subject.is_some() {
-                    return Ok(Proposition::Conjunction(conjuncts));
-                }
+                // A data clause is published with its type, so it takes the
+                // canonical order too. A conjunct that tests the case still
+                // guards the conjuncts that project its payload wherever it
+                // stands: substitution decides a connective by any one part
+                // (`substitute_clause`).
                 return canonical::clauses(conjuncts, Repeated::Refuse, id)
                     .map(Proposition::Conjunction);
             }
@@ -264,7 +263,8 @@ impl Program<'_> {
                         other => disjuncts.push(other),
                     }
                 }
-                return Ok(Proposition::Disjunction(disjuncts));
+                return canonical::clauses(disjuncts, Repeated::Refuse, id)
+                    .map(Proposition::Disjunction);
             }
             BinaryOperator::Equal
             | BinaryOperator::Less
@@ -308,7 +308,6 @@ impl Program<'_> {
         }
         let ordered = matches!(left_type, ScalarType::Integer(_));
         match comparison {
-            BinaryOperator::Equal if scope.subject.is_some() => Ok(Proposition::Equal(left, right)),
             BinaryOperator::Equal => canonical::equal(left, right, id),
             _ if !ordered => unserved("ordering of Booleans"),
             BinaryOperator::Less => Ok(Proposition::LessThan(left, right)),
