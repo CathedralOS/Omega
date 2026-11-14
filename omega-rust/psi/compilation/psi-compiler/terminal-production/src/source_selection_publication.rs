@@ -275,17 +275,34 @@ impl Questions<'_> {
                 if !typed.statement_table.statement_is_valid(statement) {
                     return Err(refused("invocation source statement is stale"));
                 }
-                let call = typed
-                    .statement_table
-                    .statement(statement)
-                    .as_call()
-                    .ok_or_else(|| refused("emitted invocation source is no call statement"))?;
-                (
-                    call.runtime_call,
-                    call.static_machine_parameter,
-                    call.static_requirement_dispatch.as_ref(),
-                    call.target_symbol,
-                )
+                match typed.statement_table.statement(statement) {
+                    typed_trees::statement::StatementNode::Call(call) => (
+                        call.runtime_call,
+                        call.static_machine_parameter,
+                        call.static_requirement_dispatch.as_ref(),
+                        call.target_symbol,
+                    ),
+                    typed_trees::statement::StatementNode::Transition(transition) => {
+                        if !typed
+                            .statement_table
+                            .transition_target_is_valid(transition.target)
+                        {
+                            return Err(refused("invocation source transition target is stale"));
+                        }
+                        let typed_trees::statement::TransitionTargetNode::Named {
+                            path,
+                            static_machine_parameter,
+                            ..
+                        } = typed.statement_table.transition_target(transition.target)
+                        else {
+                            return Err(refused(
+                                "emitted invocation source is no named transition call",
+                            ));
+                        };
+                        (None, *static_machine_parameter, None, path.symbol)
+                    }
+                    _ => return Err(refused("emitted invocation source is no call statement")),
+                }
             }
         };
         match target {

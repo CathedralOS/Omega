@@ -2470,6 +2470,15 @@ impl<'t> Program<'t> {
                 ));
             }
             let last = position + 1 == statements.len();
+            let handle = state
+                .statement_nodes
+                .handle_at(u32::try_from(position).map_err(|_| {
+                    refuse(
+                        id,
+                        Construct::Machine,
+                        Unserved::Statement("statement position exceeds its source arena"),
+                    )
+                })?);
             let read = match statement {
                 StatementNode::Assembly(_) => {
                     return Err(refuse(
@@ -2487,18 +2496,6 @@ impl<'t> Program<'t> {
                 }
                 StatementNode::Assignment(assignment) => self.assignment(id, &slots, assignment)?,
                 StatementNode::Call(call) => {
-                    let handle =
-                        state
-                            .statement_nodes
-                            .handles()
-                            .nth(position)
-                            .ok_or_else(|| {
-                                refuse(
-                                    id,
-                                    Construct::Machine,
-                                    Unserved::Statement("call has no exact statement occurrence"),
-                                )
-                            })?;
                     let called = self.call_statement_at(id, &slots, handle)?;
                     if !call.discards_result {
                         undiscarded(id, &called)?;
@@ -2559,8 +2556,12 @@ impl<'t> Program<'t> {
                 // A case arm starts a dispatch over a sum, which takes the
                 // whole run of arms and completes the machine.
                 StatementNode::Transition(transition) if self.case_arm(transition) => {
-                    let (dispatch, taken) =
-                        self.dispatch(id, &slots, &statements[position..], signature.result)?;
+                    let (dispatch, taken) = self.dispatch(
+                        id,
+                        &slots,
+                        state.statement_nodes.handles().skip(position),
+                        signature.result,
+                    )?;
                     completed = true;
                     position += taken.saturating_sub(1);
                     dispatch
@@ -2579,8 +2580,7 @@ impl<'t> Program<'t> {
                         position += 1;
                         continue;
                     }
-                    let (guard, target) =
-                        self.transition(id, &slots, transition, signature.result)?;
+                    let (guard, target) = self.transition(id, &slots, handle, signature.result)?;
                     let guard = if decided == Some(true) {
                         statically_completed = true;
                         None
