@@ -5667,7 +5667,7 @@ pub(crate) struct SpelledIntegers {
 }
 
 impl SpelledIntegers {
-    fn install(&self, symbols: &mut SymbolTable) {
+    pub(crate) fn install(&self, symbols: &mut SymbolTable) {
         symbols.install_integer_types(self.carriers.iter().copied());
         if self.family_heads {
             symbols.install_integer_families();
@@ -5675,7 +5675,7 @@ impl SpelledIntegers {
     }
 }
 
-fn spelled_integers(syntax: &syntax_trees::SyntaxTrees) -> SpelledIntegers {
+pub(crate) fn spelled_integers(syntax: &syntax_trees::SyntaxTrees) -> SpelledIntegers {
     use syntax_trees::expression::ExpressionNode;
     use syntax_trees::types::TypeReferenceNode;
     let mut carriers = Vec::new();

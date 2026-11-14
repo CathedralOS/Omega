@@ -1473,6 +1473,12 @@ fn a_builtin_type_name_is_read_by_its_role() {
              machine main() { let r: u32 = i(3); }\n",
         ),
         (
+            "ordinary_data_named_never",
+            "data Never { value: u32; }\n\
+             machine read(value: Never) -> u32 { value.value }\n\
+             machine main() { let result: u32 = read(Never { value: 7 }); }\n",
+        ),
+        (
             "invalid_family_spelling_as_value",
             "machine main() { let u0: u32 = 4; }\n",
         ),

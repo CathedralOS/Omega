@@ -69,31 +69,32 @@ pub struct VerifiedPsiOptimizationInput {
     evidence: ObligationEvidence,
 }
 
-/// Where an input's obligation evidence came from.
+/// Optional seals retained beside an already host-authorized input.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ObligationEvidence {
-    /// Lowered from bytes: an artifact, or a module a cache rebuilt from bytes
-    /// (`CanonicalTerminalArtifact::from_bytes`). Terminal Psi's bytes carry
-    /// no evidence, so every accepted fact keeps the zero fingerprint. This is
-    /// never an error, and no seal can be attached to such an input.
-    ReadFromBytes,
-    /// Seals produced beside the exact in-memory module this input was
-    /// lowered from (`lower_module_with_evidence`). They are lost on any
-    /// byte round trip.
-    InMemory(Vec<terminal_codec::ObligationEvidenceSeal>),
+    /// Checked judgments are reused under host authorization without local
+    /// seals. Accepted facts retain zero seal fingerprints; that is not a
+    /// missing producer-trust decision.
+    NoSeals,
+    /// Seals supplied for the exact authorized module. They remain separate
+    /// from host trust and are not recovered from the canonical envelope.
+    Retained(Vec<terminal_codec::ObligationEvidenceSeal>),
 }
 
 impl VerifiedPsiOptimizationInput {
-    /// The input Omega 00 retains as soon as it has lowered `plan` from
-    /// `module`: no selections, callbacks or interrupts admitted yet, and
-    /// evidence read from bytes. Omega 00 fills the rest through the
+    /// Retains a lowered plan beside the exact host-authorized artifact.
+    /// No selections, callbacks, interrupts or optional seals are admitted yet.
+    /// Omega 00 fills the rest through the
     /// `retain_*` and `attach_*` methods as each admission step succeeds.
     pub fn lowered(
         plan: AbstractOperationPlan,
-        module: terminal_codec::ClosedTerminalModule,
+        artifact: terminal_installation::AuthorizedTerminalArtifact,
         target_machine_selections: Option<AdmittedTargetMachineSelections>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, &'static str> {
+        if plan.psi != artifact.artifact().view().identity() {
+            return Err("lowered plan belongs to another host-authorized artifact");
+        }
+        Ok(Self {
             native_execution_scope: None,
             selected_provider_closure: None,
             scalar_applications: None,
@@ -104,7 +105,7 @@ impl VerifiedPsiOptimizationInput {
             admitted_installed_interrupts:
                 provider_admission::AdmittedInstalledInterruptCohort::empty(plan.psi),
             plan,
-            context: VerifiedPsiOptimizationContext { module },
+            context: VerifiedPsiOptimizationContext { artifact },
             admitted_assumed_bindings: Vec::new(),
             target_machine_selections,
             target_layout_selections: None,
@@ -113,8 +114,8 @@ impl VerifiedPsiOptimizationInput {
             selected_provider_requirement_identities: terminal_psi::TerminalIdentityTable::from(
                 Vec::new(),
             ),
-            evidence: ObligationEvidence::ReadFromBytes,
-        }
+            evidence: ObligationEvidence::NoSeals,
+        })
     }
 
     /// Records the selected entry call, layouts and scalar applications that
@@ -194,11 +195,8 @@ impl VerifiedPsiOptimizationInput {
 
     /// Attaches seals produced beside this exact in-memory module; the caller
     /// has checked that they name this module's identity.
-    pub fn attach_in_memory_evidence(
-        &mut self,
-        seals: Vec<terminal_codec::ObligationEvidenceSeal>,
-    ) {
-        self.evidence = ObligationEvidence::InMemory(seals);
+    pub fn retain_evidence_seals(&mut self, seals: Vec<terminal_codec::ObligationEvidenceSeal>) {
+        self.evidence = ObligationEvidence::Retained(seals);
     }
 
     pub fn into_plan(self) -> AbstractOperationPlan {
@@ -209,12 +207,12 @@ impl VerifiedPsiOptimizationInput {
         &self.evidence
     }
 
-    /// The seals Omega 01 checks before it fills accepted facts'
-    /// fingerprints; none for an input read from bytes.
+    /// The optional seals Omega 01 checks before it fills accepted facts'
+    /// fingerprints; host authorization does not require local seals.
     pub fn evidence_seals(&self) -> &[terminal_codec::ObligationEvidenceSeal] {
         match &self.evidence {
-            ObligationEvidence::ReadFromBytes => &[],
-            ObligationEvidence::InMemory(seals) => seals,
+            ObligationEvidence::NoSeals => &[],
+            ObligationEvidence::Retained(seals) => seals,
         }
     }
 
@@ -248,7 +246,7 @@ impl VerifiedPsiOptimizationInput {
             native_execution_scope: self.native_execution_scope,
             selected_provider_closure: self.selected_provider_closure,
             program_entry: self.selected_program_entry_call,
-            module: self.context.module,
+            artifact: self.context.artifact,
             assumed_bindings: self.admitted_assumed_bindings,
             target_machine_selections: self.target_machine_selections,
             native_callbacks: self.admitted_native_callbacks,
@@ -309,16 +307,20 @@ use terminal_installation::admitted_boundary_member as target_family_member;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedPsiOptimizationContext {
-    module: terminal_codec::ClosedTerminalModule,
+    artifact: terminal_installation::AuthorizedTerminalArtifact,
 }
 
 impl VerifiedPsiOptimizationContext {
     pub fn module(&self) -> &terminal_psi::TerminalModule {
-        self.module.module()
+        self.artifact.artifact().semantic_module()
     }
 
-    pub const fn closed_module(&self) -> &terminal_codec::ClosedTerminalModule {
-        &self.module
+    pub fn closed_module(&self) -> &terminal_codec::ClosedTerminalModule {
+        self.artifact.artifact().closed_module()
+    }
+
+    pub const fn authorization(&self) -> &terminal_installation::AuthorizedTerminalArtifact {
+        &self.artifact
     }
 }
 
@@ -331,7 +333,7 @@ pub struct AdmittedLoweringFacts {
     entry: semantic_vocabulary::MachineId,
     native_execution_scope: Option<std::sync::Arc<NativeExecutionScope>>,
     selected_provider_closure: Option<[u8; 32]>,
-    module: terminal_codec::ClosedTerminalModule,
+    artifact: terminal_installation::AuthorizedTerminalArtifact,
     program_entry: Option<SelectedProgramEntryCall>,
     assumed_bindings: Vec<InstalledAssumedBindingEvidence>,
     target_machine_selections: Option<AdmittedTargetMachineSelections>,
@@ -345,7 +347,10 @@ impl AdmittedLoweringFacts {
         plan: &AbstractOperationPlan,
         target: target::NativeTarget,
     ) -> Result<(), &'static str> {
-        if self.terminal != plan.psi || self.entry != plan.entry {
+        if self.terminal != plan.psi
+            || self.entry != plan.entry
+            || self.artifact.artifact().view().identity() != self.terminal
+        {
             return Err("lowering facts belong to another Terminal program or entry");
         }
         if let Some(selections) = &self.target_machine_selections {
@@ -392,11 +397,15 @@ impl AdmittedLoweringFacts {
     }
 
     pub fn module(&self) -> &terminal_psi::TerminalModule {
-        self.module.module()
+        self.artifact.artifact().semantic_module()
     }
 
-    pub const fn closed_module(&self) -> &terminal_codec::ClosedTerminalModule {
-        &self.module
+    pub fn closed_module(&self) -> &terminal_codec::ClosedTerminalModule {
+        self.artifact.artifact().closed_module()
+    }
+
+    pub const fn authorization(&self) -> &terminal_installation::AuthorizedTerminalArtifact {
+        &self.artifact
     }
 
     pub const fn program_entry(&self) -> Option<&SelectedProgramEntryCall> {

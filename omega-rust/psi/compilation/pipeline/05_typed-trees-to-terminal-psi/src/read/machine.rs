@@ -921,9 +921,11 @@ impl<'t> Program<'t> {
         if machine.generic_data_template.is_valid() {
             return unserved("generic data template");
         }
-        if machine.spelling.is_some() {
-            return unserved("operator spelling");
-        }
+        // A token spelling associates this ordinary declaration with a source
+        // operator occurrence. Typing prepares its unique closed selection as
+        // a call, retaining the authored choice and ordered operands. The
+        // spelling contributes no receiver or checking evidence: read this
+        // complete machine's signature, contracts and body by the same path.
         // An unselected target family is also a boundary. Report the missing
         // target decision before the generic boundary-body refusal.
         if machine.target.is_some()

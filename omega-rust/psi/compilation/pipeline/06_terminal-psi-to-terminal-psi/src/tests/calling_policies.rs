@@ -468,7 +468,7 @@ ensures result == 9
         terminal_semantics::descriptor_results::terminal_reference_graph_from(
             &incomplete, [unserved_id]
         ),
-        Err(terminal_semantics::descriptor_results::DescriptorGraphError::IncompleteMachine(id))
+        Err(terminal_semantics::descriptor_results::DescriptorGraphError::IncompleteMachine { machine: id, .. })
             if id == unserved_id
     ));
     let mut dependent = incomplete.clone();

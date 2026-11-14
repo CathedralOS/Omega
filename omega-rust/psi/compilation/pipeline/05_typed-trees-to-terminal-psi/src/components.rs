@@ -29,9 +29,21 @@ use crate::body::{
 };
 use crate::{Unserved, refuse};
 
-/// The members of each machine's call component in `MachineId` order; empty
-/// for a machine on no cycle.
-pub(crate) type Components = IdTable<MachineId, Vec<MachineId>>;
+mod graph;
+pub(crate) use graph::Components;
+
+/// All call occurrences in body order, grouped by caller without one allocation
+/// per machine. Graph discovery and cycle admission borrow the same occurrences.
+struct CallGraph {
+    sites: Vec<CallSite>,
+    offsets: Vec<usize>,
+}
+
+impl CallGraph {
+    fn calls(&self, machine: usize) -> &[CallSite] {
+        &self.sites[self.offsets[machine]..self.offsets[machine + 1]]
+    }
+}
 
 /// One call in a body: its callee, and whether its result completes the
 /// caller.
@@ -50,45 +62,33 @@ pub(crate) fn components(
     signatures: &IdTable<MachineId, Signature>,
 ) -> Checked<Components> {
     let count = bodies.len();
-    let mut calls: Vec<Vec<CallSite>> = Vec::with_capacity(count);
+    let mut calls = CallGraph {
+        sites: Vec::with_capacity(count),
+        offsets: Vec::with_capacity(count + 1),
+    };
+    calls.offsets.push(0);
     for (machine, body) in bodies.iter() {
-        let mut sites = Vec::new();
-        statements(&body.statements, &mut sites);
-        if sites.iter().any(|site| index(site.callee) >= count) {
+        let start = calls.sites.len();
+        statements(&body.statements, &mut calls.sites);
+        if calls.sites[start..]
+            .iter()
+            .any(|site| index(site.callee) >= count)
+        {
             return Err(refuse(
                 machine,
                 Construct::Machine,
                 Unserved::Call("callee outside the module"),
             ));
         }
-        calls.push(sites);
+        calls.offsets.push(calls.sites.len());
     }
-    // `reaches[a][b]`: a chain of one or more calls leads from `a` to `b`.
-    // ponytail: dense n x n reachability by one walk per machine; Tarjan's
-    // components if closures grow to thousands of machines.
-    let mut reaches = vec![vec![false; count]; count];
-    for (start, row) in reaches.iter_mut().enumerate() {
-        let mut pending: Vec<usize> = calls[start].iter().map(|site| index(site.callee)).collect();
-        while let Some(next) = pending.pop() {
-            if !std::mem::replace(&mut row[next], true) {
-                pending.extend(calls[next].iter().map(|site| index(site.callee)));
-            }
-        }
-    }
-    let on_cycle = |machine: usize| reaches[machine][machine];
-    let mut table = Components::default();
+    let machines: Vec<_> = bodies.keys().collect();
+    let table = Components::discover(&calls, &machines);
     for (machine, body) in bodies.iter() {
         let this = index(machine);
         let signature =
             terminal_check_tables::row(signatures, machine, machine, Construct::Machine)?;
-        let members: Vec<MachineId> = if on_cycle(this) {
-            bodies
-                .keys()
-                .filter(|other| reaches[this][index(*other)] && reaches[index(*other)][this])
-                .collect()
-        } else {
-            Vec::new()
-        };
+        let members = table.members(machine)?;
         let unserved = |what| Err(refuse(machine, Construct::Machine, what));
         // A witness is the component's ranking, and a promise must be
         // checked against what the machine derives. Neither is read yet, so
@@ -98,8 +98,7 @@ pub(crate) fn components(
             Termination::Silent => {}
             Termination::Witnessed => return unserved(Unserved::Contract("ranking witness")),
             Termination::Promised => {
-                if on_cycle(this) || (0..count).any(|other| reaches[this][other] && on_cycle(other))
-                {
+                if table.reaches_cycle(this) {
                     return unserved(Unserved::Contract("termination promise over a call cycle"));
                 }
             }
@@ -107,15 +106,15 @@ pub(crate) fn components(
         if !members.is_empty() {
             // A frame-reusing jump cannot yet retain the public call's exact
             // invocation association. Keep that contract instead of erasing it.
-            if calls[this]
-                .iter()
-                .any(|site| site.required_contract.is_some() && members.contains(&site.callee))
-            {
+            if calls.calls(this).iter().any(|site| {
+                site.required_contract.is_some() && table.same_component(this, index(site.callee))
+            }) {
                 return unserved(Unserved::Call("selected public contract on a call cycle"));
             }
-            if calls[this]
+            if calls
+                .calls(this)
                 .iter()
-                .any(|site| !site.terminal && members.contains(&site.callee))
+                .any(|site| !site.terminal && table.same_component(this, index(site.callee)))
             {
                 return unserved(Unserved::Call("recursion outside a terminal position"));
             }
@@ -157,7 +156,6 @@ pub(crate) fn components(
                 return unserved(Unserved::Contract("guarded crash route on a call cycle"));
             }
         }
-        table.push(members);
     }
     Ok(table)
 }

@@ -593,6 +593,23 @@ impl Program<'_> {
             {
                 (row, regions)
             }
+            // data_and_literals.md, "Quoted bytes": "A quoted literal
+            // contains bytes, has ordinary shared byte-view type `&[u8]`".
+            // A scalar is never that type, so the literal is wrong for a
+            // scalar place in every program. A record destination (another
+            // view, a view under a domain) stays a refusal.
+            Some(ValueType::Scalar(scalar, _)) => {
+                return Err(crate::reject(
+                    machine,
+                    source,
+                    format!(
+                        "this quoted literal is a shared view of bytes, `&[u8]`, and the place \
+                         it is supplied to holds a `{}`: a quoted literal has the byte-view \
+                         type and no other",
+                        super::rejections::scalar_named(scalar)
+                    ),
+                ));
+            }
             Some(_) => {
                 return Err(refuse(
                     machine,

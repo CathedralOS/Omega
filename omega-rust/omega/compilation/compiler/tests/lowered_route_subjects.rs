@@ -10,6 +10,8 @@
 //! from every declaration of every subject, including unused ones". So each
 //! program must be rejected or reported as unsupported by the route, and
 //! none may be accepted.
+#[path = "support/artifact_trust.rs"]
+mod artifact_trust;
 #[path = "support/unbuilt_frontier.rs"]
 mod unbuilt_frontier;
 
@@ -1190,9 +1192,9 @@ fn mutable_contract_inputs_publish_and_execute_without_runtime_snapshots() {
         publication.artifact.semantic_module(),
         &closure.elaboration.module
     );
-    let input = terminal_psi_to_abstract_operations::lower_module_with_evidence(
-        publication.artifact.semantic_module(),
-        publication.seals.clone(),
+    let input = terminal_psi_to_abstract_operations::lower_artifact(
+        &artifact_trust::authorize(&publication.artifact),
+        Some(publication.seals.clone()),
     )
     .expect("Omega 00 retains the original-input guarantees")
     .into_optimization_artifact()

@@ -190,3 +190,87 @@ fn invalid_contract_arithmetic_is_not_an_implementation_gap() {
         "contract policy operator in a clause term that owes a condition before it is total"
     );
 }
+
+/// expressions.md: "Dot access remains data-field projection; it does not
+/// select or invoke a machine", and state_contracts.md: "Syntax, name
+/// resolution, types and declaration validity are checked as usual". A name
+/// after the dot that is no field of the record's declaration names nothing,
+/// read or stored through; its twin names a declared field.
+#[test]
+fn a_member_that_is_no_field_of_its_record_is_rejected() {
+    let program = |statement: &str| {
+        format!(
+            "data Settings {{ quiet: bool; level: u32; }}\n\
+             machine configure(settings: &mut Settings) -> u32 {{\n    {statement}\n}}\n"
+        )
+    };
+    accepted(&program("settings.level"));
+    accepted(&program("settings.quiet = true; settings.level"));
+    let rule = "data `Settings` has no field `bogus`";
+    rejected(&program("settings.bogus"), rule);
+    rejected(&program("settings.bogus = 1; settings.level"), rule);
+    rejected(
+        &program("settings.quiet = settings.bogus; settings.level"),
+        rule,
+    );
+}
+
+/// data_and_literals.md, "Quoted bytes": "A quoted literal contains bytes,
+/// has ordinary shared byte-view type `&[u8]`". Supplied to a place that
+/// holds a scalar it is another type, wherever it is supplied; its twin
+/// supplies a value of the scalar.
+#[test]
+fn a_quoted_literal_supplied_to_a_scalar_place_is_rejected() {
+    let program = |stored: &str, passed: &str| {
+        format!(
+            "data Settings {{ quiet: bool; level: u32; }}\n\
+             machine take(level: u32) {{ }}\n\
+             machine configure(settings: &mut Settings) {{\n    \
+             settings.quiet = {stored};\n    take({passed});\n}}\n"
+        )
+    };
+    accepted(&program("true", "7"));
+    rejected(
+        &program("\"yes\"", "7"),
+        "this quoted literal is a shared view of bytes, `&[u8]`, and the place it is supplied \
+         to holds a `bool`",
+    );
+    rejected(
+        &program("true", "\"seven\""),
+        "this quoted literal is a shared view of bytes, `&[u8]`, and the place it is supplied \
+         to holds a `u32`",
+    );
+}
+
+/// data_and_literals.md: "Case values always use their carrier-qualified
+/// member path". `Light` has the cases `On` and `Off`; `Light::Dim` names
+/// nothing it declares.
+#[test]
+fn a_case_path_its_sum_does_not_declare_is_rejected() {
+    let program = |case: &str| {
+        format!(
+            "data Light {{ case On; case Off; }}\nmachine pick() -> Light {{\n    \
+             Light::{case}\n}}\n"
+        )
+    };
+    accepted(&program("On"));
+    rejected(&program("Dim"), "data `Light` has no member `Dim`");
+}
+
+/// data_and_literals.md: "A sum value is written as a case literal", and
+/// "data does not own machine declarations. Collisions reject". The twin
+/// writes the same case as its literal.
+#[test]
+fn a_case_called_like_a_machine_is_rejected() {
+    let program = |value: &str| {
+        format!(
+            "data Level {{ case Set(value: u16); case Unset; }}\nmachine pick() -> Level {{\n    \
+             {value}\n}}\n"
+        )
+    };
+    accepted(&program("Level::Set { value: 7 }"));
+    rejected(
+        &program("Level::Set(7)"),
+        "this call names a case of a sum, and a case is not a machine",
+    );
+}

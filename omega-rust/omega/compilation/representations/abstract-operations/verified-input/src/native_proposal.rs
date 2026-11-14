@@ -662,7 +662,7 @@ pub use proposal::{TerminalNativeProposalRequest, project_terminal_native_realiz
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct RetainedTerminalArtifact {
-    artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
+    artifact: terminal_installation::AuthorizedTerminalArtifact,
     native_realization_proposal: Option<TerminalNativeRealizationProposal>,
     /// The evidence seals produced beside this exact in-memory artifact by
     /// the checker on the lowered form. Terminal Psi's bytes carry no
@@ -672,7 +672,7 @@ pub struct RetainedTerminalArtifact {
 
 impl RetainedTerminalArtifact {
     pub fn new_with_native_realization_proposal(
-        artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
+        artifact: terminal_installation::AuthorizedTerminalArtifact,
         native_realization_proposal: TerminalNativeRealizationProposal,
     ) -> Self {
         Self {
@@ -689,7 +689,7 @@ impl RetainedTerminalArtifact {
         evidence: Option<std::sync::Arc<terminal_codec::EvidenceSeals>>,
     ) -> Result<Self, Vec<Diagnostic>> {
         if let Some(evidence) = &evidence {
-            validate_operation_evidence(&self.artifact, evidence)?;
+            validate_operation_evidence(self.artifact.artifact(), evidence)?;
         }
         self.evidence = evidence;
         Ok(self)
@@ -700,10 +700,14 @@ impl RetainedTerminalArtifact {
     }
 
     pub fn artifact(&self) -> &terminal_codec::CanonicalTerminalArtifact {
-        &self.artifact
+        self.artifact.artifact()
     }
 
     pub fn shared_artifact(&self) -> &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact> {
+        self.artifact.shared_artifact()
+    }
+
+    pub const fn authorization(&self) -> &terminal_installation::AuthorizedTerminalArtifact {
         &self.artifact
     }
 
@@ -714,7 +718,7 @@ impl RetainedTerminalArtifact {
     pub fn into_parts(
         self,
     ) -> (
-        std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
+        terminal_installation::AuthorizedTerminalArtifact,
         Option<TerminalNativeRealizationProposal>,
     ) {
         (self.artifact, self.native_realization_proposal)

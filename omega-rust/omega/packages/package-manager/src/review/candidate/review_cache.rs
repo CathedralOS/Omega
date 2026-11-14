@@ -20,7 +20,7 @@ use std::process::id;
 mod key;
 mod record_codec;
 
-pub(crate) use key::{compiled_review_key, compiled_review_key_with_identity};
+pub(crate) use key::compiled_review_key;
 
 use key::{lineage_digest, resolution_digest};
 use package_compilation::{
