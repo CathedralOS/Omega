@@ -1814,18 +1814,21 @@ pub mod borrowed_storage {
                 return Err("write-frame machines are not at their declared positions".to_owned());
             }
         }
-        let mut graph = match crate::descriptor_results::terminal_graph_closure(
+        let mut graph = Vec::new();
+        for row in crate::descriptor_results::terminal_graph_rows(
             module,
             module.machines.iter().map(|machine| machine.id),
             DescriptorSlotKind::BorrowedStorage,
             &[],
         ) {
-            Ok(graph) => graph,
-            Err(DescriptorGraphError::IncompleteMachine(_)) => return Ok(frames),
-            Err(DescriptorGraphError::MissingOrAmbiguousMachine(machine)) => {
-                return Err(format!("write frame has no unique machine {machine:?}"));
+            match row {
+                Ok(body) => graph.push(body),
+                Err(DescriptorGraphError::IncompleteMachine(_)) => {}
+                Err(DescriptorGraphError::MissingOrAmbiguousMachine(machine)) => {
+                    return Err(format!("write frame has no unique machine {machine:?}"));
+                }
             }
-        };
+        }
         // Later local summaries may strengthen scalar entry and result facts.
         // They must not silently narrow a published storage-effect contract.
         // Retain the actual alias/custody flow and infer a conservative frame
@@ -1837,7 +1840,15 @@ pub mod borrowed_storage {
         }
         let mut analysis =
             DescriptorAnalysis::with_borrowed_storage_slots(&module.structural_types, &graph);
-        for machine in &module.machines {
+        for body in &graph {
+            // The frame roster above checked dense module positions before
+            // graph construction, so this is the same original body owner.
+            let position = usize::try_from(body.id.get() - 1)
+                .map_err(|_| "write-frame machine position cannot be represented")?;
+            let machine = module
+                .machines
+                .get(position)
+                .ok_or("write-frame source machine disappeared")?;
             let Some(written) = analysis
                 .write_frame(machine.id)
                 .map_err(|detail| format!("write frame for {:?}: {detail}", machine.id))?
