@@ -398,9 +398,8 @@ fn a_selected_call_keeps_its_public_blocking_envelope() {
     // possibility of blocking and the source acknowledgement of that call.
     const SOURCE: &str = r#"
         trait Probe { machine wait() -> u32 blocks; }
-        Named satisfies Probe {
-            machine wait() -> u32 blocks false { 7 }
-        }
+        machine implementation() -> u32 blocks false { 7 }
+        Named satisfies Probe { Probe::wait = implementation; }
         machine main() -> u32 blocks { block Named::wait() }
     "#;
     let verdicts = selected_verdicts(SOURCE);
