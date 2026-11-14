@@ -73,6 +73,41 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Parsing and native completion choose their worker budgets independently
+- Category: one idea, several implementations
+- Where: [parser worker pool](omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/parser.rs#L113), [native executor queue](omega-rust/omega/build-system/orchestration/src/compile/native_completion/queue.rs#L10), [prepared machine lowering loop](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lib.rs#L862)
+- Saw: parsing owns a separately configured Rayon pool; native completion owns up to four executors, including its caller. Neither receives an invocation-wide worker or live-memory budget. This establishes separate admission policies, not measured overlap or oversubscription. Psi 05 already prepares shared signatures, outcomes and records before each `lower::machine` returns its own `Lowered` output.
+- Cost: adding a pool at each newly separable stage would multiply resource limits and retain more intermediate state. Put admission at the outer independent-work boundary: use product/target jobs when they supply enough work; otherwise trial bounded machine batches at the existing Psi 05 loop. Keep body walks, obligation loops and nested compilation sequential inside an admitted job; reuse the execution budget rather than spawning workers beneath workers. Retain deterministic machine/contract IDs, assembly and refusal order. Compare one worker with several on large and tiny units, including assembly time, peak live bytes and maximum active workers, before extending that placement to other stages.
+- Reported: 2026-11-14, Codex, while comparing Squalr-inspired pipeline proposals at `c445e89a1eead`; threading placement is a proposed experiment, not a measured speedup
+
+### Logical-module discovery discards a full parse that source admission repeats
+- Category: re-deriving
+- Where: [logical inventory parsing](omega-rust/omega/packages/package-compilation/src/source/source_imports/logical.rs#L185), [inventory output](omega-rust/omega/packages/package-compilation/src/source/source_imports/logical.rs#L211), [selected-source parsing](omega-rust/omega/packages/package-compilation/src/source/source_assembly.rs#L949)
+- Saw: discovery runs the ordinary lexer/parser over the owner's eligible captured files, retains only each path and module name, and drops the syntax. Selected files are then parsed again after admission; source reselection also parses under fresh consumer coordinates. Those fresh coordinates protect source ownership and selection ledgers, but the syntax work is repeated over unchanged bytes.
+- Cost: a selected file pays for syntax construction during discovery and again for compilation. Retain immutable syntax and its module/import index within the invocation, separately from each semantic source instance's owner, scope, stratum and bindings. Rejoin source-relative locations without sharing declaration authority or discovery IDs with checked sources. Pin parse counts and distinct Build/Product selection identities, changed-input behavior and diagnostic locations; measure retained memory as well as avoided parsing so keeping unused discovery trees does not erase the gain. No persistent compiler cache is permitted.
+- Reported: 2026-11-14, Codex, while comparing Squalr-inspired pipeline proposals at `c445e89a1eead`
+
+### Call-component discovery builds all-pairs reachability to answer component questions
+- Category: re-deriving
+- Where: [call-component discovery](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/components.rs#L69), [component consumer](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower.rs#L117)
+- Saw: `components` allocates an N-by-N Boolean reachability table and walks the call graph from every machine. It then constructs the same component-member vector for each member of a cycle. Consumers need component membership and whether a machine can reach a cycle, not arbitrary all-pairs paths.
+- Cost: sparse call graphs incur quadratic retained reachability and repeated traversals before lowering. Compute strongly connected components once, retain one ordered member span per component plus a machine-to-component table, and propagate cycle reachability over the component DAG. Preserve machine-ID refusal order, terminal-call and selected-contract restrictions, and termination-promise checks. Exercise an acyclic chain, self-cycle, mutual cycle and acyclic caller reaching a cycle; measure graph preparation separately from the code a cyclic component must actually emit.
+- Reported: 2026-11-14, Codex, while comparing Squalr-inspired pipeline proposals at `c445e89a1eead`
+
+### Completing selected bodies can copy the retained typed program
+- Category: re-deriving
+- Where: [retained-body completion](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L810), [shared typing loop](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L1596), [arena cloning](omega-rust/psi/foundation/arena/src/arena.rs#L624)
+- Saw: `SeededTypingBase` holds `Arc<TypedTrees>`, but body completion calls `Arc::unwrap_or_clone(retained.typed)` and feeds the candidate to one mutable `Lowerer`. When another snapshot retains that Arc, cloning copies owned arena vectors even if only a small selected body set changes. Sharing the outer Arc does not make the stored tables independently owned.
+- Cost: a small continuation can copy unrelated typed storage, and the mutable program container prevents independent body outputs. Keep immutable declaration/type pages and independently owned body tables, publishing selected replacements through a directory of stable handles rather than cloning or flattening every body. Represent dependencies on signatures, constant values and checked summaries explicitly; authored contracts alone do not eliminate inferred-summary or recursive-group dependencies. Preserve full validation subjects, exact context/authority identity and canonical publication. A focused shared-snapshot continuation must retain untouched body storage and rejection behavior; measure copied bytes and peak memory. Independent storage does not authorize nested parallelism.
+- Reported: 2026-11-14, Codex, while comparing Squalr-inspired pipeline proposals at `c445e89a1eead`
+
+### Each machine check searches the complete branch and carried-proof lists
+- Category: re-deriving
+- Where: [per-machine discharge inputs](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs#L417)
+- Saw: after shared summary/input inference, discharge collects every authored branch, then filters and allocates that list separately for each machine. It also searches `carried` from the beginning for each specialization. The producer already supplies the machine identity on each row.
+- Cost: preparing local checks repeatedly scans unrelated machines' metadata. Group branch rows once into stable machine ranges and prepare the carried-proof association once, with storage sized to its actual domain. Borrow those slices in each check. Preserve within-machine order, absence behavior and the existing association's meaning; keep shared inference before this boundary and retain kernel admission of every reused certificate. Check cross-machine isolation and empty groups, and count preparation visits as machine count grows. This is an input-preparation repair, not a reason to create a task per branch or obligation.
+- Reported: 2026-11-14, Codex, while comparing Squalr-inspired pipeline proposals at `c445e89a1eead`
+
 ### The standard library declares two public things named `DarwinClock`
 - Category: one idea, several implementations
 - Where: [source/library/std/macos_gui.omg:586](source/library/std/macos_gui.omg#L586) (`public boundary trait DarwinClock`) and [source/library/std/targets/macos_arm64/clock_impl.omg:26](source/library/std/targets/macos_arm64/clock_impl.omg#L26) (`public DarwinClock satisfies Clock`)
