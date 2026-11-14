@@ -402,7 +402,7 @@ pub fn elaborate_witness(
     implementation: SymbolHandle,
 ) -> Checked<Elaboration> {
     let mut program = read::Program::new(typed, false);
-    let entry = program.witnessed(declaring_trait, requirement, arguments)?;
+    let entry = program.witnessed(declaring_trait, requirement, arguments, implementation)?;
     let callee = program.implementation(implementation, declaring_trait, requirement)?;
     elaborate_witness_call(program, entry, callee)
 }
