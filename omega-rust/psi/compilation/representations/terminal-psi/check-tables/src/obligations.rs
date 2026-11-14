@@ -16,7 +16,7 @@ and a row in the crate README. It never adds a table or a key form.
 use language_core::{Multiplicity, ReferenceAccess};
 use semantic_vocabulary::{
     BlockId, ClaimId, CrashCause, CycleComponentId, DomainSemanticId, EdgeId, ObligationId,
-    OperationId,
+    OperationId, ValueId,
 };
 
 use crate::{ExactPlaceId, InvocationId, ProgramPoint};
@@ -77,6 +77,12 @@ pub enum ObligationKind {
     EstablishmentDebt { place: ExactPlaceId },
 
     // Proof questions.
+    /// A used static integer width is positive at its owning entry.
+    /// `wiki/spec/language/numeric_values.md`, "Width-indexed integers":
+    /// "Generic formation proves positivity under the declaration's static
+    /// requirements." The subject is the actual const u64 input, not a
+    /// runtime formal or a value supplied by a current specialization.
+    IntegerWidthPositive { parameter: ValueId },
     /// One callee `requires` clause at one invocation, by position.
     /// `wiki/spec/terminal-psi/fact_validity.md`: "Call coverage reconstructs
     /// one exact obligation for every callee `requires` clause."
