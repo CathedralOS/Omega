@@ -172,6 +172,57 @@ mod tests {
     }
 
     #[test]
+    fn build_source_consent_keeps_the_actual_capture_purpose_and_root() {
+        use build_time_evaluation::InvocationSourceConsent;
+        let root = PathBuf::from("/anonymous");
+        let text = "machine local() {}";
+        let tree = Arc::new(snapshot("build.omg", text.as_bytes()));
+        let mut filesystem = source::SourceFileSystem::default();
+        filesystem
+            .add_capture(root.clone(), Arc::clone(&tree))
+            .unwrap();
+        let mut sources = source::SourceMap::default();
+        let id = sources
+            .add_checked_instance(
+                root.join("build.omg"),
+                text,
+                root.clone(),
+                None,
+                source::SourceOrigin::User,
+                source::SourceResolutionStratum::Base,
+                source::DependencyScope::Build,
+            )
+            .source_id;
+        let sources = Arc::new(sources);
+        let capture = AnonymousSourceCapture {
+            root,
+            capture: tree,
+            filesystem,
+            semantic_dependencies: Vec::new(),
+            sources: Arc::clone(&sources),
+            toolchain_contract_custody: Default::default(),
+        };
+        let span = source::SourceSpan::new(id, source::Span::new(0, text.len()));
+        assert!(capture.allows_selection(&sources, span, span, source::DependencyScope::Build));
+        assert!(sources.get(id).unwrap().package_identity.is_none());
+        assert!(!capture.allows_selection(&sources, span, span, source::DependencyScope::Product));
+        let foreign = Arc::new(sources.as_ref().clone());
+        assert!(!capture.allows_selection(&foreign, span, span, source::DependencyScope::Build));
+        let outside = source::SourceSpan::new(id, source::Span::new(0, text.len() + 1));
+        assert!(!capture.allows_selection(&sources, span, outside, source::DependencyScope::Build));
+        let missing = source::SourceSpan::new(source::SourceId(usize::MAX), span.span);
+        assert!(!capture.allows_selection(&sources, span, missing, source::DependencyScope::Build));
+        let mut another_root = capture;
+        another_root.root = PathBuf::from("/another-root");
+        assert!(!another_root.allows_selection(
+            &sources,
+            span,
+            span,
+            source::DependencyScope::Build
+        ));
+    }
+
+    #[test]
     fn canonical_record_retains_source_and_core_without_instance_order() {
         let source = snapshot("library.omg", b"public data Token {}");
         let owner = derive(&source, [[1; 32], [2; 32]]).unwrap();
