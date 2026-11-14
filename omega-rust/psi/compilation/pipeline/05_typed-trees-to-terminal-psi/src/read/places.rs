@@ -310,7 +310,12 @@ impl Program<'_> {
         self.lifetime_owner = enclosing;
         self.elision = elision;
         self.resolving.pop();
-        let (fields, field_symbols, cases, case_symbols) = read?;
+        let (fields, field_symbols, cases, case_symbols) = read.map_err(|mut refusal| {
+            refusal.detail.push_str(&format!(
+                " while reading the record application `{identity}`"
+            ));
+            refusal
+        })?;
         let mut mint = |fields: Vec<(String, ValueType)>| {
             let mut declared = Vec::with_capacity(fields.len());
             for (identity, value_type) in fields {

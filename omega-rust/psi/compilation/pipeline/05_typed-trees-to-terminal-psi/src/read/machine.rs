@@ -2614,7 +2614,9 @@ impl<'t> Program<'t> {
                     continue;
                 }
                 StatementNode::LocalData(local) => {
-                    let (slot, statement) = self.local(id, &slots, local)?;
+                    let (slot, statement) = self.local(id, &slots, local).map_err(|refusal| {
+                        self.read_failure_at(refusal, local.symbol, "the local binding")
+                    })?;
                     if let Some(truth) = self.static_truth(local.initial_value) {
                         self.static_truths.push((local.symbol, truth));
                     }
