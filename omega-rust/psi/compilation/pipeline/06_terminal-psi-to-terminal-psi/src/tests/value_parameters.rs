@@ -310,3 +310,113 @@ fn actual_width_carry_refuses_a_foreign_owner_or_disagreeing_value_carriers() {
         "one width binder was accepted at two widths"
     );
 }
+
+fn width_form_without_discharge(
+    requires_positive: bool,
+) -> typed_trees_to_terminal_psi::Elaboration {
+    let mut machine = width_identity();
+    if !requires_positive {
+        machine.requires.clear();
+    }
+    let mut form = lower(vec![machine]).unwrap();
+    form.value_parameters.push(1);
+    form
+}
+
+#[test]
+fn a_width_question_cannot_turn_a_runtime_input_into_a_static_width() {
+    let form = width_form_without_discharge(true);
+    crate::minted::width_questions_are_minted(&form).unwrap();
+    let mut runtime = form.clone();
+    *runtime.value_parameters.get_mut(id(1)).unwrap() = 0;
+    assert!(crate::minted::width_questions_are_minted(&runtime).is_err());
+    let mut foreign = form;
+    foreign.module.machines[0].contract.parameters[0].scalar_type =
+        ScalarType::Integer(IntegerType::parameterized(
+            IntegerSign::Unsigned,
+            semantic_vocabulary::WidthParameter {
+                owner: id(2),
+                value: id(2),
+            },
+        ));
+    assert!(crate::minted::width_questions_are_minted(&foreign).is_err());
+}
+
+#[test]
+fn width_questions_are_exact_and_cannot_move_after_the_entry() {
+    let form = width_form_without_discharge(true);
+    let (obligation, row) = form
+        .tables
+        .machines
+        .get(id(1))
+        .unwrap()
+        .obligations
+        .iter()
+        .find(|(_, row)| matches!(row.kind, ObligationKind::IntegerWidthPositive { .. }))
+        .map(|(obligation, row)| (obligation, *row))
+        .expect("lowering emits width formation");
+    let mut omitted = form.clone();
+    omitted
+        .tables
+        .machines
+        .get_mut(id(1))
+        .unwrap()
+        .obligations
+        .remove(obligation);
+    assert!(crate::minted::width_questions_are_minted(&omitted).is_err());
+    let mut duplicate = form.clone();
+    duplicate
+        .tables
+        .machines
+        .get_mut(id(1))
+        .unwrap()
+        .obligations
+        .push(row);
+    assert!(crate::minted::width_questions_are_minted(&duplicate).is_err());
+    let mut moved = form.clone();
+    moved
+        .tables
+        .machines
+        .get_mut(id(1))
+        .unwrap()
+        .obligations
+        .get_mut(obligation)
+        .unwrap()
+        .created_at = ProgramPoint::Edge(id(1));
+    assert!(crate::minted::width_questions_are_minted(&moved).is_err());
+    let mut extra = form;
+    extra
+        .tables
+        .machines
+        .get_mut(id(1))
+        .unwrap()
+        .obligations
+        .get_mut(obligation)
+        .unwrap()
+        .kind = ObligationKind::IntegerWidthPositive { parameter: id(1) };
+    assert!(crate::minted::width_questions_are_minted(&extra).is_err());
+}
+
+#[test]
+fn a_width_body_needs_its_own_positive_width_proof() {
+    let mut valid = width_form_without_discharge(true);
+    let found = discharge(&mut valid).unwrap();
+    assert!(
+        verdicts(&valid, &found, 1, |kind| matches!(
+            kind,
+            ObligationKind::IntegerWidthPositive { .. }
+        ))
+        .iter()
+        .all(|(_, verdict)| verdict.is_ok())
+    );
+    let mut missing = width_form_without_discharge(false);
+    let found = discharge(&mut missing).unwrap();
+    let questions = verdicts(&missing, &found, 1, |kind| {
+        matches!(kind, ObligationKind::IntegerWidthPositive { .. })
+    });
+    assert_eq!(questions.len(), 1);
+    assert!(
+        questions[0].1.is_err(),
+        "positive callers cannot establish a generic type's width"
+    );
+}

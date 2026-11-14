@@ -380,6 +380,7 @@ fn discharge_inner(
     knowledge: Knowledge,
     carried: &[Carried<'_>],
 ) -> Checked<Discharge> {
+    minted::width_questions_are_minted(elaboration)?;
     // A caller may retain old contents only outside the callee's actual
     // writes. Check every published frame before summaries or knowledge can
     // use it. Low-level proof reconstruction still states a conditional
@@ -1791,6 +1792,18 @@ fn stated_goal(
 ) -> Checked<Proposition> {
     let concerns = Construct::Obligation(obligation);
     match *kind {
+        ObligationKind::IntegerWidthPositive { parameter } => {
+            let integer = semantic_vocabulary::IntegerType::new(
+                semantic_vocabulary::IntegerSign::Unsigned,
+                64,
+            )
+            .expect("u64 is a supported carrier");
+            Ok(Proposition::LessThan(
+                ScalarTerm::integer(integer, semantic_vocabulary::IntegerValue::Unsigned(0))
+                    .expect("zero is a u64 value"),
+                ScalarTerm::value(parameter, ScalarType::Integer(integer)),
+            ))
+        }
         ObligationKind::OperationSafety { site } => storage.safety_goal(site, obligation, types),
         ObligationKind::CallRequirement { invocation, clause } => {
             let row = terminal_check_tables::row(

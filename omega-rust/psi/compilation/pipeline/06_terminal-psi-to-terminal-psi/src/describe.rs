@@ -45,6 +45,21 @@ pub(crate) fn unproved(
 ) -> String {
     let names = elaboration.names.get(machine);
     match kind {
+        ObligationKind::IntegerWidthPositive { parameter } => {
+            let binder = tables
+                .values
+                .get(parameter)
+                .and_then(|row| match row.origin {
+                    terminal_check_tables::values::ValueOrigin::MachineParameter { position } => {
+                        names.and_then(|names| names.formals.get(usize::try_from(position).ok()?))
+                    }
+                    _ => None,
+                });
+            match binder {
+                Some(binder) => format!("cannot prove integer width `{binder}` is positive"),
+                None => String::from("cannot prove integer width is positive"),
+            }
+        }
         ObligationKind::CallRequirement { invocation, clause } => {
             let callee = tables
                 .invocations
