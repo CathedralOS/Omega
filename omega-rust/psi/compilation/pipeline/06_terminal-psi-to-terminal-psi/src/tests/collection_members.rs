@@ -96,6 +96,33 @@ fn another_views_extent_cannot_justify_this_length() {
 }
 
 #[test]
+fn a_copied_view_keeps_its_formals_extent_without_an_extra_source_read() {
+    let result = judged(
+        r#"
+machine entry<'a>(items: &'a [u8]) -> u64 requires items.len > 0 {
+    let local: &'a [u8] = items;
+    local.len - 1
+}
+"#,
+    );
+    let super::RouteVerdict::Accepted(accepted) = result else {
+        panic!("{result:?}")
+    };
+    let machine = &accepted.elaboration.module.machines[0];
+    let reads: Vec<_> = machine
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .filter_map(|operation| match &operation.kind {
+            terminal_psi::OperationKind::ByteSequenceLength { source } => Some(source),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(reads.len(), 1);
+    assert_ne!(reads[0].place, machine.structural_parameters[0].place);
+}
+
+#[test]
 fn replacing_a_stored_descriptor_cannot_reuse_its_old_extent() {
     let result = judged(
         r#"

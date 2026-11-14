@@ -868,6 +868,24 @@ impl<'a> Lowering<'a> {
                 if let StorageShape::PrimitiveScalar { scalar_type, .. } = data.shape {
                     return self.entry_content(place, scalar_type).map(drop);
                 }
+                if matches!(
+                    data.shape,
+                    StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(
+                            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+                        ),
+                    })
+                ) {
+                    let extent = self.project(place, Segment::Extent)?;
+                    let scalar_type = ScalarType::Integer(
+                        semantic_vocabulary::IntegerType::new(
+                            semantic_vocabulary::IntegerSign::Unsigned,
+                            64,
+                        )
+                        .expect("u64 is valid"),
+                    );
+                    return self.entry_content(extent, scalar_type).map(drop);
+                }
                 for field in data.fields() {
                     let leaf = self.project(place, Segment::Field(field.id))?;
                     self.entry_leaves(leaf, field.value_type)?;
@@ -2105,8 +2123,8 @@ impl<'a> Lowering<'a> {
             semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
                 .expect("u64 is valid"),
         );
-        let extent = self.project(at.place, Segment::Extent)?;
-        self.name_entry(at.root, extent, ValueType::plain(scalar_type))?;
+        self.name_entry(at.root, at.place, ValueType::record(at.record))?;
+        self.project(at.place, Segment::Extent)?;
         let operation = self.operation_identity(source);
         let path = self.storage_path(&at.path, ExecutionSite::Operation(operation), source)?;
         self.emit(

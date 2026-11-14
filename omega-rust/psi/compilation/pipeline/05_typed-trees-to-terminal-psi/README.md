@@ -1007,7 +1007,9 @@ base and emits `ByteSequenceLength` on that descriptor and path. Input
 requirements name its `ViewExtent`; the checker binds that to the formal's
 entry snapshot and follows descriptor stores and mutable calls before
 equating any fresh observation to it. Saved scalar values retain their
-original meaning. See [byte observations](../../../../../wiki/spec/terminal-psi/byte_views.md#values-and-observations).
+original meaning. Whole descriptor reads and copies name the same entry
+metadata through the ordinary leaf mechanism; only formal roots receive
+entry values. See [byte observations](../../../../../wiki/spec/terminal-psi/byte_views.md#values-and-observations).
 Fixed-array measurement, range/index lowering and call requirements needing
 extent substitution still require their own served operations. Source storage
 cycles remain refused; the storage checker's backedge control tests its actual
