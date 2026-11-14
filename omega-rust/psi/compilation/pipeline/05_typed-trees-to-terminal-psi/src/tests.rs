@@ -1541,6 +1541,7 @@ fn designated_operands_on_a_machine_call_are_refused() {
     *designated = Some(crate::body::DesignatedOperands {
         request: arena::Handle::invalid(),
         selecting: id(1),
+        readiness: None,
     });
     let twin = |statement| {
         try_lower(

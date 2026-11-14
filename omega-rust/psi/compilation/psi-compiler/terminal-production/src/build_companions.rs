@@ -227,10 +227,40 @@ fn binding(
     let native_locator = (action == TerminalBuildBindingOperation::BindNative)
         .then(|| native_locator(source, elaboration, correspondence, call))
         .transpose()?;
+    // The awaited requirement, as the module states it: the trait by its
+    // exact owner, its application by the service row, and the receiving
+    // slots by the boundaries that service owns. A Build that calls none
+    // of the requirements has no slot for a provider to fill.
     let request = request.clone().map_requirement(|_| {
-        Err(refused(
-            "Build provider readiness needs its requirement application",
-        ))
+        let service = designated
+            .readiness
+            .ok_or_else(|| refused("Build provider readiness lost its requirement application"))?;
+        let declaration = correspondence
+            .readiness
+            .iter()
+            .find(|(awaited, _)| *awaited == service)
+            .map(|(_, declaration)| declaration.clone())
+            .ok_or_else(|| refused("Build provider readiness lost its requirement declaration"))?;
+        let application = elaboration
+            .module
+            .services
+            .iter()
+            .find(|row| row.id == service)
+            .map(|row| row.identity)
+            .ok_or_else(|| refused("Build provider readiness names an unpublished service"))?;
+        let mut boundaries = elaboration
+            .module
+            .boundary_machines
+            .iter()
+            .filter(|boundary| boundary.owning_service == Some(service))
+            .map(|boundary| boundary.id)
+            .collect::<Vec<_>>();
+        boundaries.sort_unstable();
+        Ok(crate::TerminalBuildProviderRequirement {
+            declaration,
+            application,
+            boundaries,
+        })
     })?;
     let selecting = elaboration
         .machines
