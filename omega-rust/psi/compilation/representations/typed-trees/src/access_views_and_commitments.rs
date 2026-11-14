@@ -181,7 +181,10 @@ pub(crate) mod access_views {
                 application: crate::static_applications::StaticMachineApplicationHandle,
             ) -> Result<&'program crate::static_applications::StaticMachineApplication, Diagnostic>
             {
-                if !application.is_valid() {
+                if !program
+                    .expression_table
+                    .static_machine_application_is_valid(application)
+                {
                     return Err(Diagnostic::error(
                         "placement execution lost its retained invocation application",
                     ));
@@ -201,14 +204,9 @@ pub(crate) mod access_views {
                 application: crate::static_applications::StaticMachineApplicationHandle,
                 parameters: &[crate::data::TypeParameter],
             ) -> Result<Vec<(symbols::SymbolHandle, TypeReferenceHandle)>, Diagnostic> {
-                let expected = if self.operation == AccessLifecycleOperation::Relocate {
-                    4
-                } else {
-                    3
-                };
-                if parameters.len() != expected {
+                if parameters.len() != self.type_parameter_count()? {
                     return Err(Diagnostic::error(
-                        "placement execution lost its original policy/schema/supply-role binders",
+                        "placement execution lost its complete type and supply-role binders",
                     ));
                 }
                 let bindings = program.static_machine_application_bindings(application);
@@ -231,7 +229,12 @@ pub(crate) mod access_views {
                                 ..
                             }),
                             None,
-                        ) if reference.is_valid() => Ok((parameter, *reference)),
+                        ) if program
+                            .type_reference_table
+                            .contains_type_reference(*reference) =>
+                        {
+                            Ok((parameter, *reference))
+                        }
                         _ => Err(Diagnostic::error(
                             "placement execution lost an exact invocation-owned type operand",
                         )),
@@ -266,7 +269,93 @@ pub(crate) mod access_views {
                         .data_type_parameters
                         .span_or_empty(specialization.template_parameters),
                 )?;
+                // A full View is not a policy/schema pair. Its selected
+                // domain plan must be evaluated before it can supply either
+                // interpretation; prototype metadata cannot replace that join.
+                if self.operation == AccessLifecycleOperation::View {
+                    return Err(Diagnostic::error(
+                        "placement View requires its evaluated qualified-domain interpretation",
+                    ));
+                }
+                if self.content == AccessContentShape::Resident {
+                    self.storage_semantic_type(program, bindings[2].1, bindings[1].1)?;
+                }
                 Ok((bindings[0].1, bindings[1].1))
+            }
+
+            /// Keep the independent storage selection alongside the owned
+            /// semantic value. This checks correspondence only; it supplies
+            /// no evaluated layout, policy, profile or resident claim.
+            pub fn invocation_storage(
+                &self,
+                program: &TypedTrees,
+                owner: symbols::SymbolHandle,
+                application: crate::static_applications::StaticMachineApplicationHandle,
+            ) -> Result<TypeReferenceHandle, Diagnostic> {
+                if self.content != AccessContentShape::Resident
+                    || self.operation == AccessLifecycleOperation::View
+                {
+                    return Err(Diagnostic::error(
+                        "placement operation has no independent owned-value storage argument",
+                    ));
+                }
+                let bindings = self.source_invocation_bindings(program, owner, application)?;
+                let storage = bindings[2].1;
+                self.storage_semantic_type(program, storage, bindings[1].1)?;
+                Ok(storage)
+            }
+
+            fn storage_semantic_type(
+                &self,
+                program: &TypedTrees,
+                storage: TypeReferenceHandle,
+                semantic: TypeReferenceHandle,
+            ) -> Result<(), Diagnostic> {
+                if !program
+                    .type_reference_table
+                    .contains_type_reference(storage)
+                    || !program
+                        .type_reference_table
+                        .contains_type_reference(semantic)
+                {
+                    return Err(Diagnostic::error(
+                        "placement storage lost its retained storage or semantic operand",
+                    ));
+                }
+                let selected = program.layout_storage_arguments(storage).ok_or_else(|| {
+                    Diagnostic::error(
+                        "placement storage lost its exact core LayoutStorage application",
+                    )
+                })?;
+                if !program
+                    .type_reference_table
+                    .contains_type_reference(selected.semantic_type)
+                    || program.normalized_type_identity(selected.semantic_type)
+                        != program.normalized_type_identity(semantic)
+                {
+                    return Err(Diagnostic::error(
+                        "placement storage denotes a different semantic value type",
+                    ));
+                }
+                Ok(())
+            }
+
+            fn type_parameter_count(&self) -> Result<usize, Diagnostic> {
+                match (self.content, self.operation) {
+                    (AccessContentShape::Resident, AccessLifecycleOperation::View) => Ok(2),
+                    (
+                        AccessContentShape::Resident,
+                        AccessLifecycleOperation::Initialize | AccessLifecycleOperation::MoveOut,
+                    ) => Ok(4),
+                    (
+                        AccessContentShape::Run,
+                        AccessLifecycleOperation::Initialize | AccessLifecycleOperation::MoveOut,
+                    ) => Ok(3),
+                    (AccessContentShape::Run, AccessLifecycleOperation::Relocate) => Ok(4),
+                    _ => Err(Diagnostic::error(
+                        "placement operation has no declared content/type-argument correspondence",
+                    )),
+                }
             }
 
             pub fn profile_role(
@@ -290,17 +379,18 @@ pub(crate) mod access_views {
                 let parameters = program
                     .data_type_parameters
                     .span_or_empty(specialization.template_parameters);
-                let expected = if self.operation == AccessLifecycleOperation::Relocate {
-                    4
-                } else {
-                    3
+                let first_role = match (self.content, self.operation) {
+                    (AccessContentShape::Resident, AccessLifecycleOperation::View) => 1,
+                    (AccessContentShape::Resident, _) => 3,
+                    (AccessContentShape::Run, _) => 2,
                 };
-                if parameters.len() != expected || role_position >= expected - 2 {
+                let expected = self.type_parameter_count()?;
+                if parameters.len() != expected || role_position >= expected - first_role {
                     return Err(Diagnostic::error(
                         "placement execution lost its original supply-role binder",
                     ));
                 }
-                let role = &parameters[2 + role_position];
+                let role = &parameters[first_role + role_position];
                 let mut bindings = program
                     .static_machine_application_bindings(specialization.binding_application)
                     .iter()
@@ -345,6 +435,13 @@ pub(crate) mod access_views {
                 else {
                     return Ok(None);
                 };
+                // Ordinary source borrows use their retained Source/View
+                // prototype. They are not the private profile-backed memory
+                // operation and cannot supply a profile receipt by sharing
+                // its sealed operation family.
+                if program.access_borrow_factory(declaration).is_some() {
+                    return Ok(None);
+                }
                 let content = match content {
                     PlacementContent::Resident => AccessContentShape::Resident,
                     PlacementContent::Run => AccessContentShape::Run,
@@ -396,13 +493,19 @@ pub(crate) mod access_views {
                 {
                     return Err(malformed("lost its complete operation parameter roster"));
                 }
-                Ok(Some(Self {
+                let execution = Self {
                     operation,
                     content,
                     machine: machine.symbol,
                     state: state.symbol,
                     template: declaration,
-                }))
+                };
+                if program.machine_type_parameters(template).len()
+                    != execution.type_parameter_count()?
+                {
+                    return Err(malformed("lost its complete original type-argument roster"));
+                }
+                Ok(Some(execution))
             }
         }
     }

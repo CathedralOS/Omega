@@ -502,27 +502,23 @@ public boundary trait ResourceProfileSupply<Role> {
     machine profile(storage: &Extent in Granted) -> ResourceProfile reaches none crashes none;
 }
 
-// Settled access-view identity and recovery vocabulary. `Access<P, T>` is an
-// opaque compiler-derived view of `T` under access policy `P`; it narrows and
-// never grants. These ordinary result carriers add no access, storage,
-// provider, or domain authority. Declaration order is the canonical runtime
-// tag and payload order. Resident content remains owned by its exact qualified
-// Extent; a borrowed access view retains only a loan of that owner.
-public boundary data Access<P, T>;
+// View operations name the complete qualified result type as an ordinary
+// type argument. Access is only their namespace; it is not a source wrapper
+// around that type. Realization must join its exact domain policy, independent
+// selected layout, live content, backing and source loan before returning it.
+public boundary data Access;
 
-// Borrowed View over already initialized ordinary RAM. The compiler checks the
-// exact applied P/T geometry and content relation and retains the original
-// source loan. Neither declaration supplies an extent, device capability,
-// resource profile or stronger access than the source borrow.
-public boundary machine Access::view<P, T>(source: &T) -> &Access<P, T>;
-public boundary machine Access::view_mut<P, T>(source: &mut T) -> &mut Access<P, T>;
+// Ordinary RAM retains its actual source type and loan. A different View
+// argument is a request to check that correspondence, never a coercion or an
+// authority grant from these declarations alone.
+public boundary machine Access::view<Source, View>(source: &Source) -> &View;
+public boundary machine Access::view_mut<Source, View>(source: &mut Source) -> &mut View;
 
-// This view interprets existing resident content rather than the Extent's two
-// geometry fields. It retains the exact P/T claim, backing and profile receipt;
-// ending the view releases its loan, not the resident or its storage grant.
-public boundary machine Access::view_resident_mut<P, T>(
-    storage: &mut Extent in Granted & Resident<P, T>
-) -> &mut Access<P, T>;
+// Resident interpretation retains the exact content claim as well as the
+// complete qualified View. Retiring the result loan cannot retire that claim.
+public boundary machine Access::view_resident_mut<P, Source, View>(
+    storage: &mut Extent in Granted & Resident<P, Source>
+) -> &mut View;
 
 public data AccessOutcome<View, Returned, Reason> {
     case Ready(view: View);
@@ -542,45 +538,45 @@ public data AccessBorrowReturn {}
 // Vacant. The selected call supplies compatibility for this exact qualified
 // range, while the result retains the original storage loan. A numeric address
 // or a constructed ResourceProfile is not a substitute for either input.
-public machine Access::view_extent<'storage, P, T, Role>(
+public machine Access::view_extent<'storage, View, Role>(
     storage: &'storage Extent in Granted
 ) -> AccessOutcome<
-    &'storage Access<P, T>, AccessBorrowReturn, AccessInitializationFailure
+    &'storage View, AccessBorrowReturn, AccessInitializationFailure
 >
 reaches ResourceProfileSupply
 invokes ResourceProfileSupply
 {
     let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(storage);
-    Access::view_from_profile<P, T, Role>(storage, &profile)
+    Access::view_from_profile<View, Role>(storage, &profile)
 }
 
-boundary machine Access::view_from_profile<'storage, P, T, Role>(
+boundary machine Access::view_from_profile<'storage, View, Role>(
     storage: &'storage Extent in Granted,
     profile: &ResourceProfile
 ) -> AccessOutcome<
-    &'storage Access<P, T>, AccessBorrowReturn, AccessInitializationFailure
+    &'storage View, AccessBorrowReturn, AccessInitializationFailure
 >;
 
 // The exclusive counterpart carries the same interpretation and original
 // profile occurrence. Its reference ceiling, not a second lifecycle or a
 // geometry-based permission, allows the placement's admitted writes.
-public machine Access::view_extent_mut<'storage, P, T, Role>(
+public machine Access::view_extent_mut<'storage, View, Role>(
     storage: &'storage mut Extent in Granted
 ) -> AccessOutcome<
-    &'storage mut Access<P, T>, AccessBorrowReturn, AccessInitializationFailure
+    &'storage mut View, AccessBorrowReturn, AccessInitializationFailure
 >
 reaches ResourceProfileSupply
 invokes ResourceProfileSupply
 {
     let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(storage);
-    Access::view_mut_from_profile<P, T, Role>(storage, &profile)
+    Access::view_mut_from_profile<View, Role>(storage, &profile)
 }
 
-boundary machine Access::view_mut_from_profile<'storage, P, T, Role>(
+boundary machine Access::view_mut_from_profile<'storage, View, Role>(
     storage: &'storage mut Extent in Granted,
     profile: &ResourceProfile
 ) -> AccessOutcome<
-    &'storage mut Access<P, T>, AccessBorrowReturn, AccessInitializationFailure
+    &'storage mut View, AccessBorrowReturn, AccessInitializationFailure
 >;
 
 // Dynamic incompatibility is ordinary data. Malformed admitted assertions,
@@ -622,6 +618,9 @@ public boundary trait AccessLifecycle<P, T> {
     crashes none;
 }
 
+// Storage is the independent LayoutStorage<T, Layout> application, not an
+// owned T wrapper. Realization must authenticate its denoted T and exact
+// placement, preserving the semantic value and Resident<P, T> lineage.
 // Ordinary provider orchestration keeps profile selection, call ordering and
 // ownership transport in the language. The private primitives are the memory
 // operations, not substitutes for the selected profile invocation. Their
@@ -629,7 +628,7 @@ public boundary trait AccessLifecycle<P, T> {
 // result before treating the profile as admitted supply. The private operation
 // borrows that result: passing plain profile data by value would make an
 // independent copy, which carries no selected-call origin.
-public NativeAccess<P, T, Role> satisfies AccessLifecycle<P, T> {
+public NativeAccess<P, T, Storage, Role> satisfies AccessLifecycle<P, T> {
     machine initialize(
         storage: Extent in Granted & Vacant,
         value: T
@@ -643,7 +642,7 @@ public NativeAccess<P, T, Role> satisfies AccessLifecycle<P, T> {
         let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(
             &storage as &Extent in Granted
         );
-        Access::initialize_from_profile<P, T, Role>(storage, value, &profile)
+        Access::initialize_from_profile<P, T, Storage, Role>(storage, value, &profile)
     }
 
     machine move_out(storage: Extent in Granted & Resident<P, T>)
@@ -655,7 +654,7 @@ public NativeAccess<P, T, Role> satisfies AccessLifecycle<P, T> {
         let profile: ResourceProfile = ResourceProfileSupply<Role>::profile(
             &storage as &Extent in Granted
         );
-        Access::extract_resident<P, T, Role>(storage, &profile)
+        Access::extract_resident<P, T, Storage, Role>(storage, &profile)
     }
 }
 
@@ -663,7 +662,7 @@ public NativeAccess<P, T, Role> satisfies AccessLifecycle<P, T> {
 // Privacy supplies no profile or backing authority: compiler realization still
 // requires the exact admitted call, live claim and actual allocation. They
 // cannot interpret a constructed profile or an Extent's descriptor as bytes.
-boundary machine Access::initialize_from_profile<P, T, Role>(
+boundary machine Access::initialize_from_profile<P, T, Storage, Role>(
     storage: Extent in Granted & Vacant,
     value: T,
     profile: &ResourceProfile
@@ -673,7 +672,7 @@ boundary machine Access::initialize_from_profile<P, T, Role>(
     AccessInitializationFailure
 >;
 
-boundary machine Access::extract_resident<P, T, Role>(
+boundary machine Access::extract_resident<P, T, Storage, Role>(
     storage: Extent in Granted & Resident<P, T>,
     profile: &ResourceProfile
 ) -> AccessExtraction<Extent in Granted & Vacant, T>;
