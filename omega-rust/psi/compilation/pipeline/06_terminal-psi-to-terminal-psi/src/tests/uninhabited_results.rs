@@ -360,7 +360,11 @@ fn scalar_postcondition_call(
 ) {
     use semantic_vocabulary::InvocationSite;
     let module = &accepted.elaboration.module;
-    assert_eq!(module.machines.len(), 2, "there is no synthetic wrapper");
+    assert_eq!(
+        module.machines.len(),
+        if actual.is_some() { 3 } else { 2 },
+        "only main, stop, and the conditional body's authored crash arm are lowered",
+    );
     let stop = accepted
         .elaboration
         .names
@@ -458,7 +462,8 @@ fn a_conditional_public_postcondition_uses_the_actual_boolean_argument() {
     for actual in [true, false] {
         let source = format!(
             "public machine stop(fatal: bool) -> u32 ensures !fatal crashes Trap {{ \
-             transition fatal {{ true -> crash Trap false -> 7u32 }} }} \
+             transition fatal {{ true -> fail() false -> 7u32 }} \
+             machine fail() -> u32 crashes Trap {{ crash Trap; }} }} \
              machine main() -> u32 crashes Trap {{ stop({actual}) }}"
         );
         scalar_postcondition_call(&accepted(&source), Some(actual), actual);
