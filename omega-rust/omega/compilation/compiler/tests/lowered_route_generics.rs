@@ -671,9 +671,9 @@ fn the_default_product_publishes_width_parameter_identity() {
             .expect_err("the identity body cannot justify an unequal result guarantee");
             let diagnostics = failure.into_diagnostics();
             assert!(
-                diagnostics.iter().any(|diagnostic| diagnostic
-                    .message
-                    .contains("cannot prove ensures contract")),
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("cannot prove ensures contract")),
                 "{diagnostics:#?}"
             );
         })
