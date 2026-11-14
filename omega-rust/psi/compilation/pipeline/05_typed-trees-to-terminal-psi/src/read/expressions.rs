@@ -267,26 +267,36 @@ impl<'t> Program<'t> {
                 {
                     return self.case_test(id, slots, binary.left, case, source);
                 }
+                // A quoted literal is a byte view whatever its partner is
+                // (data_and_literals.md, "Quoted bytes"), so it is read
+                // with no scalar expected: which operator two such operands
+                // select is decided below, not where the literal lands.
+                let quoted = (
+                    matches!(self.node(id, binary.left)?, ExpressionNode::String(_)),
+                    matches!(self.node(id, binary.right)?, ExpressionNode::String(_)),
+                );
+                let operand = |quoted: bool, hint: Option<ScalarType>| {
+                    hint.filter(|_| !quoted).map(ValueType::plain)
+                };
                 let (left, right) = if self.wholly_anonymous(binary.left) {
                     let right =
-                        self.expression(id, slots, binary.right, hint.map(ValueType::plain))?;
+                        self.expression(id, slots, binary.right, operand(quoted.1, hint))?;
                     let partner = right.result.and_then(ValueType::scalar);
                     let left = self.expression(
                         id,
                         slots,
                         binary.left,
-                        hint.or(partner).map(ValueType::plain),
+                        operand(quoted.0, hint.or(partner)),
                     )?;
                     (left, right)
                 } else {
-                    let left =
-                        self.expression(id, slots, binary.left, hint.map(ValueType::plain))?;
+                    let left = self.expression(id, slots, binary.left, operand(quoted.0, hint))?;
                     let partner = left.result.and_then(ValueType::scalar);
                     let right = self.expression(
                         id,
                         slots,
                         binary.right,
-                        hint.or(partner).map(ValueType::plain),
+                        operand(quoted.1, hint.or(partner)),
                     )?;
                     (left, right)
                 };
