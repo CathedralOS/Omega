@@ -251,26 +251,19 @@ impl<'t> Program<'t> {
         }
     }
 
-    /// A declaration qualifier only completes the callee's name; it is not
-    /// an implicit receiver or a source of arguments. Both a trait requirement
-    /// and a machine attached under a data declaration keep that same rule:
-    /// `Counter::clear(&mut counter)` names the machine `Counter::clear` and
-    /// passes it one argument. machines.md, "Static declarations and
-    /// explicit state": "Every argument, including context and
-    /// capabilities, is ordinary and explicit." The two are compared as
-    /// symbols, and the qualifier is the declaration itself, never a
-    /// value of the type, so no receiver is passed. Any other qualifier or
-    /// receiver stays refused.
-    pub(super) fn names_carrier(&self, target: SymbolHandle, qualifier: SymbolHandle) -> bool {
+    /// A boundary trait qualifier identifies its exact requirement; it adds
+    /// no receiver or argument (machines.md, "Static declarations and
+    /// explicit state"). Ordinary module qualification is already resolved
+    /// in the target symbol and does not use this receiver-shaped route.
+    pub(super) fn names_requirement(&self, target: SymbolHandle, qualifier: SymbolHandle) -> bool {
         if !qualifier.is_valid() || !target.is_valid() {
             return false;
         }
-        if let Some((owner, requirement)) = self.typed.trait_machine_signature(target) {
-            return owner.is_boundary && requirement.symbol == target && owner.symbol == qualifier;
-        }
-        self.entered_machine(target)
-            .and_then(|machine| self.typed.machine_by_symbol(machine))
-            .is_some_and(|machine| machine.attached_data_symbol == qualifier)
+        self.typed
+            .trait_machine_signature(target)
+            .is_some_and(|(owner, requirement)| {
+                owner.is_boundary && requirement.symbol == target && owner.symbol == qualifier
+            })
     }
 
     /// The checked named row retains its public requirement and exact body
@@ -404,6 +397,14 @@ impl<'t> Program<'t> {
     ) -> Checked<()> {
         use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
+        // Admit the selected declaration before interpreting the call's
+        // qualifier. A retired data-owned target is invalid source, not an
+        // unsupported receiver call. Requirements keep their separate owner.
+        if self.typed.symbols.symbols().nodes().is_valid(target)
+            && let Some(machine) = self.entered_machine(target)
+        {
+            self.declaration(id, machine)?;
+        }
         // The author named a declaration; where stage 04 generated the
         // machine a static application of it selects, the call targets that
         // generated machine and the selection still names the declaration.
@@ -575,9 +576,8 @@ impl<'t> Program<'t> {
             &call.machine_arguments,
         )?;
         self.direct_selection(id, call.target_symbol, call.authored_call_selection, None)?;
-        // A receiver that is the callee's data type by name, and nothing
-        // beneath it, is part of the callee's name (`names_carrier`); any
-        // other is a value passed outside the argument list.
+        // A boundary qualifier names a requirement without supplying a
+        // receiver. An actual value outside the argument list is refused.
         let receiver = call.receiver_root_symbol.is_valid()
             || call.receiver_symbol.is_valid()
             || !call.receiver.is_empty();
@@ -585,7 +585,7 @@ impl<'t> Program<'t> {
         let qualified = named.is_some()
             || (call.receiver_root_symbol == call.receiver_symbol
                 && call.receiver.len() == 1
-                && self.names_carrier(call.target_symbol, call.receiver_symbol));
+                && self.names_requirement(call.target_symbol, call.receiver_symbol));
         if receiver && !qualified {
             return unserved("receiver call");
         }
@@ -710,15 +710,14 @@ impl<'t> Program<'t> {
         {
             return unserved("compiler operation call");
         }
-        // A receiver that is the callee's data type by name is part of the
-        // callee's name (`names_carrier`); any other is a value passed
-        // outside the argument list.
+        // A boundary qualifier names a requirement; an actual receiver
+        // would supply an undeclared argument and is refused.
         let named = self.named_expression_target(id, call)?;
         let qualified = named.is_some()
             || (call.receiver.is_valid()
                 && matches!(
                     self.node(id, call.receiver)?,
-                    ExpressionNode::Name(path) if self.names_carrier(call.target_symbol, path.symbol)
+                    ExpressionNode::Name(path) if self.names_requirement(call.target_symbol, path.symbol)
                 ));
         if (call.receiver.is_valid() && !qualified)
             || (call.requirement_application.is_valid() && named.is_none())
@@ -781,7 +780,7 @@ impl<'t> Program<'t> {
             .expression_table
             .name_path_node(call.receiver)
             .map_or_else(SymbolHandle::invalid, |path| path.symbol);
-        if (call.receiver.is_valid() && !self.names_carrier(call.target_symbol, namespace))
+        if (call.receiver.is_valid() && !self.names_requirement(call.target_symbol, namespace))
             || call.build_selection.is_valid()
             || call.static_requirement_dispatch.is_some()
             || call.requirement_application.is_valid()
@@ -1726,10 +1725,9 @@ impl<'t> Program<'t> {
     /// is not public. Which package a declaration belongs to is the package
     /// of the source file its symbol was declared in, as for subjects
     /// (`subjects`); a declaration with no source file cannot be placed and
-    /// is refused. The typed trees can hold such a call: the deleted checker
-    /// rejected it after them, where a product selected the callee, so a
-    /// reader that took every resolved call as permitted would accept a
-    /// program that reaches into a dependency's private machine.
+    /// is refused. Resolution supplies identity, not permission: modules.md,
+    /// "Visibility" makes independently nameable machines private unless
+    /// public, regardless of their qualifier or argument types.
     pub(super) fn visible_to(&self, id: MachineId, callee: SymbolHandle) -> Checked<()> {
         let is_public = self
             .typed

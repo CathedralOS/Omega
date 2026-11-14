@@ -1937,11 +1937,31 @@ mod source_queries {
         }
 
         pub fn is_build_prelude_symbol(&self, symbol: SymbolHandle) -> bool {
-            self.symbol_source_span(symbol)
+            self.symbol_provenance_source_span(symbol)
                 .and_then(|span| self.source_file(span))
                 .is_some_and(|file| {
+                    // The producer emits root data/protocol declarations and
+                    // ordinary code modules as one virtual-source bundle.
+                    let mut components = file.path.components();
+                    let unit = match components.next() {
+                        Some(std::path::Component::Normal(unit)) if components.next().is_none() => {
+                            unit.to_str()
+                        }
+                        _ => None,
+                    };
                     file.origin == source::SourceOrigin::Toolchain
-                        && file.path == std::path::Path::new("<build-prelude>")
+                        && unit.is_some_and(|unit| {
+                            unit == "<build-prelude>"
+                                || unit
+                                    .strip_prefix("<build-prelude:")
+                                    .and_then(|module| module.strip_suffix('>'))
+                                    .is_some_and(|module| {
+                                        !module.is_empty()
+                                            && module.bytes().all(|byte| {
+                                                byte.is_ascii_alphanumeric() || byte == b'_'
+                                            })
+                                    })
+                        })
                 })
         }
 

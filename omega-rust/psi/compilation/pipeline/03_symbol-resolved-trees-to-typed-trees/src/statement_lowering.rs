@@ -69,9 +69,8 @@ pub(crate) mod statement {
         ) -> Result<StatementNode, Diagnostic> {
             if let Some(operation) = crate::expressions::product_queries::operation(
                 lowerer.source_trees,
-                call.receiver_symbol,
                 call.target_symbol,
-                call.target.as_str(),
+                (!call.receiver.is_empty()).then_some(call.receiver_symbol),
             ) {
                 if !call.machine_arguments.is_empty() || !call.evidence_arguments.is_empty() {
                     return Err(Diagnostic::error(

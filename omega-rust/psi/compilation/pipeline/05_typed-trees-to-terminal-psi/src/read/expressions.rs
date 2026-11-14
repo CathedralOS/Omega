@@ -200,9 +200,9 @@ impl<'t> Program<'t> {
             ExpressionNode::Name(path) => {
                 self.undeclared_data_member(id, path, source)?;
                 let slot = self.slot_of(id, slots, path)?;
-                // The deleted checker rejected this program ("erased
-                // parameter ... has no runtime value"); this route does not
-                // own that rejection yet, so the closure falls back to it.
+                // An erased binding supplies no executable value. This
+                // reader does not materialize it; unsupported classification
+                // still prevents artifact acceptance.
                 if slots[slot].erased {
                     return unserved("runtime use of an erased binding");
                 }
@@ -1016,11 +1016,9 @@ fn binary_expression(
     // domain"). Two different policies select no operator ("incompatible
     // policies do not mix implicitly").
     //
-    // The plain partner is served when it is a literal, the case that
-    // sentence names. Whether a plain *binding* is one too is open
-    // (`OWNER_QUESTIONS.md`, decision `policy-operator-plain-operand`):
-    // the sentence reads that way, and the deleted checker rejected it as
-    // mixed arithmetic domains.
+    // The reader currently serves a plain partner only when it is a literal.
+    // Policy-domain signatures also permit a plain binding of the same
+    // carrier; that implementation gap is tracked by OPERATION-ARITHMETIC-POLICY.
     let carried = |value_type| match value_type {
         // domains.md, "Operands": builtin operators take unqualified
         // operands only. An arithmetic policy is the one qualification that

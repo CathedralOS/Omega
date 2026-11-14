@@ -433,8 +433,8 @@ pub struct UnprovedObligation {
     pub cause: UnprovedCause,
     /// The prover's or kernel's own account. Diagnostic text only.
     pub detail: String,
-    /// What was not proved, in the deleted checker's words for the same
-    /// obligation (`describe`): for example "cannot prove requires contract
+    /// What was not proved, using the source correspondence (`describe`):
+    /// for example "cannot prove requires contract
     /// for call halve from run: count > 1". Diagnostic text only.
     pub statement: String,
     /// For a data type's clause that was not proved again where an open
@@ -471,9 +471,8 @@ impl UnprovedObligation {
     /// is false.
     pub fn message(&self) -> String {
         match self.consumed {
-            // The statement is a sentence in the deleted checker's words and
-            // closes with its period, as that checker's message does, so a
-            // pinned fragment that ends the sentence matches either.
+            // Keep the unproved condition a complete sentence, with its
+            // search cause separate from the authored obligation.
             None => format!(
                 "{} ({}: {})",
                 closed_sentence(&self.statement),
@@ -702,8 +701,8 @@ pub struct ConflictingUse {
     pub conflict: crate::LoanConflict,
     /// Where the call that forms it arises in the source.
     pub site: SourceOrigin,
-    /// What the conflict is, in the deleted checker's words where it has
-    /// them. Diagnostic text only.
+    /// What the conflict is, naming the callee and binding when retained.
+    /// Diagnostic text only.
     pub statement: String,
 }
 
@@ -722,7 +721,7 @@ impl ConflictingUse {
     }
 }
 
-/// The statement of one conflict, in the deleted checker's words: "state
+/// The statement of one conflict: "state
 /// `two` receives `y` as mutable more than once", where `two` is the
 /// callee as declared. The callee's name and the lent binding come from the
 /// reader's names; without them the statement names no binding.
