@@ -45,6 +45,7 @@ pub fn reverify(
     obligation: ObligationId,
     saved: &CertificateEnvelope,
 ) -> Checked<Evidence> {
+    crate::minted::width_questions_are_minted(elaboration)?;
     let module = &elaboration.module;
     let domains = &elaboration.domains;
     let tables = elaboration
@@ -122,6 +123,7 @@ pub fn reverify_at_call(
     clause: u32,
     saved: &CertificateEnvelope,
 ) -> Checked<AcceptedFact> {
+    crate::minted::width_questions_are_minted(elaboration)?;
     let concerns = Construct::Invocation(invocation);
     let refuse = |reason, detail| refusal(reason, caller, concerns, detail);
     let tables = terminal_check_tables::row(
@@ -733,6 +735,8 @@ pub fn reverify_specialization(
     specialization: MachineId,
     selections: &[Selection<'_>],
 ) -> Checked<Vec<(ObligationId, Checked<Evidence>)>> {
+    crate::minted::width_questions_are_minted(generic)?;
+    crate::minted::width_questions_are_minted(consumer)?;
     let module = &consumer.module;
     let domains = &consumer.domains;
     let tables = consumer

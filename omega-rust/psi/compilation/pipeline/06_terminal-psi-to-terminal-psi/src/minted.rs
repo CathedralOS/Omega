@@ -68,6 +68,151 @@ fn index(raw: u64) -> usize {
     usize::try_from(raw - 1).unwrap_or(usize::MAX)
 }
 
+/// Checks this question family's complete subjects before input or result
+/// inference can use the module. A question carries no positivity fact: its
+/// goal still goes through the ordinary prover and proof kernel.
+pub(crate) fn width_questions_are_minted(
+    elaboration: &terminal_check_tables::program::Elaboration,
+) -> Checked<()> {
+    let inventory = terminal_check_tables::obligations::integer_width_parameters(
+        &elaboration.module,
+    )
+    .map_err(|(machine, detail)| {
+        refusal(
+            RefusalReason::ForeignIdentity,
+            machine,
+            Construct::Machine,
+            detail,
+        )
+    })?;
+    if inventory.len() != elaboration.module.machines.len() {
+        let machine = elaboration
+            .module
+            .machines
+            .first()
+            .map(|machine| machine.id)
+            .or_else(|| inventory.first().map(|(machine, _)| *machine))
+            .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity"));
+        return Err(refusal(
+            RefusalReason::ForeignIdentity,
+            machine,
+            Construct::Machine,
+            "width subjects do not cover the module's actual machine roster",
+        ));
+    }
+    let u64_type = ScalarType::Integer(
+        semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
+            .expect("u64 is a supported carrier"),
+    );
+    for (lowered, (machine, mut parameters)) in elaboration.module.machines.iter().zip(inventory) {
+        if lowered.id != machine {
+            return Err(refusal(
+                RefusalReason::ForeignIdentity,
+                machine,
+                Construct::Machine,
+                "width subjects do not follow the module's actual machine roster",
+            ));
+        }
+        let foreign =
+            |concerns, detail| refusal(RefusalReason::ForeignIdentity, machine, concerns, detail);
+        let tables =
+            elaboration.tables.machines.get(machine).ok_or_else(|| {
+                foreign(Construct::Machine, "width subjects have no machine tables")
+            })?;
+        let mut questions = tables
+            .obligations
+            .iter()
+            .filter_map(|(obligation, row)| {
+                let ObligationKind::IntegerWidthPositive { parameter } = row.kind else {
+                    return None;
+                };
+                Some((parameter, obligation, row.created_at))
+            })
+            .collect::<Vec<_>>();
+        questions.sort_unstable_by_key(|(parameter, _, _)| *parameter);
+        parameters.sort_unstable();
+        if questions.len() != parameters.len() {
+            return Err(foreign(
+                Construct::Machine,
+                "integer width questions do not match the exact used width parameters",
+            ));
+        }
+        for (parameter, (question_parameter, obligation, point)) in
+            parameters.into_iter().zip(questions)
+        {
+            let concerns = Construct::Obligation(obligation);
+            if question_parameter != parameter || point != ProgramPoint::BlockEntry(lowered.entry) {
+                return Err(foreign(
+                    concerns,
+                    "an integer width question has a foreign subject or entry point",
+                ));
+            }
+            let count = elaboration
+                .value_parameters
+                .get(machine)
+                .copied()
+                .unwrap_or(0);
+            let Some(start) = lowered.parameters.len().checked_sub(count) else {
+                return Err(foreign(
+                    concerns,
+                    "static value parameter count exceeds the actual scalar inputs",
+                ));
+            };
+            let mut inputs = lowered
+                .parameters
+                .iter()
+                .enumerate()
+                .filter(|(_, input)| input.id == parameter);
+            let (Some((position, input)), None) = (inputs.next(), inputs.next()) else {
+                return Err(foreign(
+                    concerns,
+                    "a width does not name one actual machine input",
+                ));
+            };
+            let row = tables.values.get(parameter).ok_or_else(|| {
+                foreign(
+                    Construct::Value(parameter),
+                    "a width parameter has no value row",
+                )
+            })?;
+            if position < start
+                || input.scalar_type != u64_type
+                || row.scalar_type != u64_type
+                || row.rigid.is_some()
+                || !matches!(row.origin, ValueOrigin::MachineParameter { position: origin } if usize::try_from(origin).ok() == Some(position))
+            {
+                return Err(foreign(
+                    concerns,
+                    "a width parameter is not an actual proof-static u64 input",
+                ));
+            }
+        }
+    }
+    // No body outside the actual module may smuggle a question into tables.
+    // This visits only machines with this question family, without allocating
+    // a table up to the largest raw machine identity.
+    for (machine, tables) in elaboration.tables.machines.iter() {
+        if tables
+            .obligations
+            .iter()
+            .any(|(_, row)| matches!(row.kind, ObligationKind::IntegerWidthPositive { .. }))
+            && !elaboration
+                .module
+                .machines
+                .iter()
+                .any(|lowered| lowered.id == machine)
+        {
+            return Err(refusal(
+                RefusalReason::ForeignIdentity,
+                machine,
+                Construct::Machine,
+                "an integer width question belongs to no actual module machine",
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Where each edge of a terminator goes, as the edge table must state it.
 fn successors(terminator: &Terminator) -> Vec<(EdgeId, Destination)> {
     match terminator {
@@ -300,6 +445,19 @@ pub(crate) fn follow_the_lowered_form(
         invocations: vec![false; tables.invocations.len()],
     };
 
+    // The whole-module prepass already reconstructed this family's exact
+    // subjects and static-binder custody before inference. Claim those rows
+    // here so the ordinary per-machine site walk cannot move their point.
+    for (obligation, row) in tables.obligations.iter() {
+        if matches!(row.kind, ObligationKind::IntegerWidthPositive { .. }) {
+            minted.claim(
+                obligation,
+                row.kind,
+                ProgramPoint::BlockEntry(lowered.entry),
+            )?;
+        }
+    }
+
     // Every edge of a terminator has its own row, which goes where the
     // terminator does. A row no terminator owns is left alone: it can only
     // add a way into its destination, which takes dominance away and adds a
@@ -529,7 +687,8 @@ pub(crate) fn follow_the_lowered_form(
             | ObligationKind::NormalGuarantee { .. }
             | ObligationKind::PublishedGuarantee { .. }
             | ObligationKind::ArrivalInvariant { .. }
-            | ObligationKind::CrashCoverage { .. } => {
+            | ObligationKind::CrashCoverage { .. }
+            | ObligationKind::IntegerWidthPositive { .. } => {
                 if !minted.obligations[index(obligation.get())] {
                     return Err(minted.foreign(
                         concerns,
