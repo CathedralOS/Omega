@@ -5,7 +5,7 @@
 //! Unknown contracts and cycles alone prove nothing. The reverse dependency graph
 //! propagates each exclusion once, including through cycles with a real false seed.
 
-use semantic_vocabulary::{Proposition, StructuralTypeId};
+use semantic_vocabulary::{Proposition, ScalarTerm, ScalarType, StructuralTypeId, ValueId};
 use terminal_psi::{StructuralFieldDeclaration, StructuralTypeDeclaration, StructuralTypeShape};
 
 /// A borrowed view of one completed type family. Rows have strictly increasing
@@ -33,19 +33,58 @@ pub trait TypeContracts {
 /// alone. An unproved atom/comparison is unknown, even if its type is unserved.
 /// This is also usable for a named domain's already-instantiated predicates.
 pub fn predicates_are_false(predicates: &[Proposition]) -> bool {
-    predicates
-        .iter()
-        .any(|predicate| constant_truth(predicate) == Some(false))
+    predicates_are_false_with(predicates, |_| None)
 }
 
-fn constant_truth(predicate: &Proposition) -> Option<bool> {
+/// Substitute only the caller's known Boolean actuals for the visible contract's
+/// exact formal value IDs. The resolver is scoped to that contract: it must map
+/// actual parameters (including real erased scalar formals), never look up an
+/// arbitrary callee ID in the caller's value table. Result and foreign IDs must
+/// remain unknown even when their numbers collide with caller-side constants.
+///
+/// This reads no body or name and proves no integer, rigid-type or storage fact.
+/// It does not change the result type or supply termination/crash authority.
+pub fn predicates_are_false_with(
+    predicates: &[Proposition],
+    mut boolean_value: impl FnMut(ValueId) -> Option<bool>,
+) -> bool {
+    predicates
+        .iter()
+        .any(|predicate| constant_truth(predicate, &mut boolean_value) == Some(false))
+}
+
+fn boolean_term_value(
+    term: &ScalarTerm,
+    boolean_value: &mut impl FnMut(ValueId) -> Option<bool>,
+) -> Option<bool> {
+    match term {
+        ScalarTerm::Boolean(value) => Some(*value),
+        ScalarTerm::Value {
+            id,
+            scalar_type: ScalarType::Boolean,
+        } => boolean_value(*id),
+        ScalarTerm::BooleanNot { operand } => Some(!boolean_term_value(operand, boolean_value)?),
+        ScalarTerm::BooleanEqual { left, right } => Some(
+            boolean_term_value(left, boolean_value)? == boolean_term_value(right, boolean_value)?,
+        ),
+        _ => None,
+    }
+}
+
+fn constant_truth(
+    predicate: &Proposition,
+    boolean_value: &mut impl FnMut(ValueId) -> Option<bool>,
+) -> Option<bool> {
     match predicate {
         Proposition::Truth => Some(true),
         Proposition::Falsehood => Some(false),
+        Proposition::Equal(left, right) => Some(
+            boolean_term_value(left, boolean_value)? == boolean_term_value(right, boolean_value)?,
+        ),
         Proposition::Conjunction(parts) => {
             let mut all_true = true;
             for part in parts {
-                match constant_truth(part) {
+                match constant_truth(part, boolean_value) {
                     Some(false) => return Some(false),
                     Some(true) => {}
                     None => all_true = false,
@@ -56,7 +95,7 @@ fn constant_truth(predicate: &Proposition) -> Option<bool> {
         Proposition::Disjunction(parts) => {
             let mut all_false = true;
             for part in parts {
-                match constant_truth(part) {
+                match constant_truth(part, boolean_value) {
                     Some(true) => return Some(true),
                     Some(false) => {}
                     None => all_false = false,
@@ -67,11 +106,16 @@ fn constant_truth(predicate: &Proposition) -> Option<bool> {
         Proposition::Implication {
             premise,
             conclusion,
-        } => match (constant_truth(premise), constant_truth(conclusion)) {
-            (Some(false), _) | (_, Some(true)) => Some(true),
-            (Some(true), Some(false)) => Some(false),
-            _ => None,
-        },
+        } => {
+            match (
+                constant_truth(premise, boolean_value),
+                constant_truth(conclusion, boolean_value),
+            ) {
+                (Some(false), _) | (_, Some(true)) => Some(true),
+                (Some(true), Some(false)) => Some(false),
+                _ => None,
+            }
+        }
         _ => None,
     }
 }
@@ -616,5 +660,123 @@ mod tests {
             premise: Box::new(Proposition::Truth),
             conclusion: Box::new(Proposition::Falsehood),
         }]));
+    }
+
+    fn boolean_value(raw: u64) -> ScalarTerm {
+        ScalarTerm::Value {
+            id: ValueId::new(raw).unwrap(),
+            scalar_type: ScalarType::Boolean,
+        }
+    }
+
+    #[test]
+    fn a_visible_boolean_postcondition_uses_only_scoped_known_actuals() {
+        let formal = ValueId::new(1).unwrap();
+        let clause = Proposition::Equal(
+            ScalarTerm::BooleanNot {
+                operand: Box::new(boolean_value(1)),
+            },
+            ScalarTerm::Boolean(true),
+        );
+        assert!(predicates_are_false_with(
+            std::slice::from_ref(&clause),
+            |id| (id == formal).then_some(true)
+        ));
+        assert!(!predicates_are_false_with(
+            std::slice::from_ref(&clause),
+            |id| (id == formal).then_some(false)
+        ));
+        assert!(!predicates_are_false_with(
+            std::slice::from_ref(&clause),
+            |_| None
+        ));
+        assert!(!predicates_are_false(std::slice::from_ref(&clause)));
+        assert!(predicates_are_false(&[Proposition::Equal(
+            ScalarTerm::Boolean(true),
+            ScalarTerm::Boolean(false)
+        )]));
+    }
+
+    #[test]
+    fn result_or_foreign_ids_do_not_become_actuals_by_numeric_collision() {
+        let formal = ValueId::new(1).unwrap();
+        let caller_constant = ValueId::new(2).unwrap();
+        // Caller value2 is true, but contract value2 is its RESULT, not a
+        // formal. Only the actual parameter mapping may consult that constant.
+        let formal_actual = [(formal, caller_constant)];
+        let resolve = |id| {
+            let (_, actual) = formal_actual.iter().find(|(formal, _)| *formal == id)?;
+            (*actual == caller_constant).then_some(true)
+        };
+        for raw in [2, 99] {
+            assert!(!predicates_are_false_with(
+                &[Proposition::Equal(
+                    boolean_value(raw),
+                    ScalarTerm::Boolean(false)
+                )],
+                resolve
+            ));
+        }
+        assert!(predicates_are_false_with(
+            &[Proposition::Equal(
+                boolean_value(1),
+                ScalarTerm::Boolean(false)
+            )],
+            resolve
+        ));
+    }
+
+    #[test]
+    fn boolean_equal_and_connectives_preserve_unknown_alternatives() {
+        let equal = ScalarTerm::BooleanEqual {
+            left: Box::new(boolean_value(1)),
+            right: Box::new(ScalarTerm::Boolean(true)),
+        };
+        let condition = Proposition::Equal(equal, ScalarTerm::Boolean(false));
+        assert!(predicates_are_false_with(
+            std::slice::from_ref(&condition),
+            |_| Some(true)
+        ));
+        assert!(!predicates_are_false_with(
+            std::slice::from_ref(&condition),
+            |_| Some(false)
+        ));
+        let unknown = Proposition::Atom(PropositionId::new(1).unwrap());
+        assert!(!predicates_are_false_with(
+            &[Proposition::Disjunction(vec![
+                condition.clone(),
+                unknown.clone()
+            ])],
+            |_| Some(true)
+        ));
+        assert!(predicates_are_false_with(
+            &[Proposition::Conjunction(vec![condition, unknown])],
+            |_| Some(true)
+        ));
+    }
+
+    #[test]
+    fn integer_and_unresolved_width_terms_never_enter_the_boolean_resolver() {
+        use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, WidthParameter};
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let unresolved = IntegerType::parameterized(
+            IntegerSign::Unsigned,
+            WidthParameter {
+                owner: MachineId::new(1).unwrap(),
+                value: ValueId::new(2).unwrap(),
+            },
+        );
+        for integer in [integer, unresolved] {
+            let clause = Proposition::Equal(
+                ScalarTerm::Value {
+                    id: ValueId::new(1).unwrap(),
+                    scalar_type: ScalarType::Integer(integer),
+                },
+                ScalarTerm::Boolean(false),
+            );
+            assert!(!predicates_are_false_with(&[clause], |_| panic!(
+                "an integer is not a Boolean formal"
+            )));
+        }
     }
 }
