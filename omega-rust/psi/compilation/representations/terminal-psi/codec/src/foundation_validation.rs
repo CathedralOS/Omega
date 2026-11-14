@@ -10096,15 +10096,19 @@ fn validate_declaration_contracts(module: &TerminalModule) -> Result<(), CodecEr
     use semantic_vocabulary::{PropositionContext, StructuralPlaceKind};
     use terminal_psi::TerminalMachineResult;
 
-    let mut identities = module
-        .declaration_contracts
+    // Existing bodies are addressed by MachineId, even when an older producer
+    // reused a contract coordinate. A new declaration-only coordinate must
+    // never alias one of those body-owned contracts.
+    let mut body_contracts = module
+        .machines
         .iter()
-        .map(|contract| contract.id)
-        .chain(module.machines.iter().map(|machine| machine.contract.id))
+        .map(|machine| machine.contract.id)
         .collect::<Vec<_>>();
-    identities.sort_unstable();
-    if identities.windows(2).any(|pair| pair[0] == pair[1]) {
-        return malformed("callable contracts repeat a declaration identity");
+    body_contracts.sort_unstable();
+    for contract in &module.declaration_contracts {
+        if body_contracts.binary_search(&contract.id).is_ok() {
+            return malformed("bodyless contract aliases a body-owned contract identity");
+        }
     }
     for contract in module
         .declaration_contracts

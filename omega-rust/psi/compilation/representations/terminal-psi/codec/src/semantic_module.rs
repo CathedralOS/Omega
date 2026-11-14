@@ -3919,6 +3919,7 @@ mod routed_scalar_tests {
         let mut public = module.machines[0].contract.clone();
         public.id = required;
         public.declaration.as_mut().unwrap().parameter_types = vec![TerminalIdentityIndex(3)];
+        public.declaration.as_mut().unwrap().result_type = TerminalIdentityIndex(3);
         public.requires = vec![Proposition::Truth];
         public.ensures.clear();
         public.termination = semantic_vocabulary::Termination::Terminates;
