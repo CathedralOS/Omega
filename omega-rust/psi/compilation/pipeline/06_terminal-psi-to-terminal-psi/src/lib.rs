@@ -2016,19 +2016,42 @@ fn decide(
     unreached: &[ValueId],
 ) -> Checked<Evidence> {
     let hypotheses = hypotheses(graph, tables, id, obligation, point)?;
-    let mut prover = prove::Prover::new(
+    let certificate = search_certificate(
         context,
+        &tables.values,
+        id,
+        obligation,
+        &goal,
         &hypotheses.assumptions,
         &hypotheses.axioms,
-        &tables.values,
         relations,
-    );
-    let proof = prover.prove(&goal).map_err(|reason| {
+        unreached,
+    )?;
+    verify(context, id, obligation, goal, hypotheses, certificate)
+}
+
+/// Declaration formation and executable obligations search the same proof
+/// rules. Their callers provide the exact typed inputs and independent facts;
+/// the resulting certificate still needs the kernel's acceptance.
+#[allow(clippy::too_many_arguments)]
+fn search_certificate(
+    context: &PropositionContext,
+    values: &dyn known::ProofValues,
+    id: MachineId,
+    obligation: ObligationId,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    axioms: &[Proposition],
+    relations: bool,
+    unreached: &[ValueId],
+) -> Checked<CertificateEnvelope> {
+    let mut prover = prove::Prover::new(context, assumptions, axioms, values, relations);
+    let proof = prover.prove(goal).map_err(|reason| {
         // Classified by the goal's form, not by which search path failed
         // last, so the outcome does not depend on search order: the form as
         // written, and the form of the operations that define the values it
         // names (`prove::reach`).
-        let cause = if prover.has_rules_for(&goal) && !prover.beyond_rules(&goal, unreached) {
+        let cause = if prover.has_rules_for(goal) && !prover.beyond_rules(goal, unreached) {
             UnprovedCause::NoDerivation
         } else {
             UnprovedCause::NoRuleForGoalForm
@@ -2043,12 +2066,11 @@ fn decide(
             "obligation identity is not an evidence identity",
         )
     })?;
-    let certificate = CertificateEnvelope {
+    Ok(CertificateEnvelope {
         identity,
         proof_system_marker: ProofSystemMarker::CURRENT,
         proof,
-    };
-    verify(context, id, obligation, goal, hypotheses, certificate)
+    })
 }
 
 fn unproved(
@@ -2122,9 +2144,8 @@ pub(crate) fn hypotheses(
     })
 }
 
-/// Has the kernel decide `certificate` for `goal` under `hypotheses`. The
-/// only acceptance path: an obligation is discharged exactly when this
-/// returns evidence.
+/// Keep the actual program-point dependencies beside the kernel's accepted
+/// certificate so a later consumer can reconstruct the same judgment.
 pub(crate) fn verify(
     context: &PropositionContext,
     id: MachineId,
@@ -2133,15 +2154,44 @@ pub(crate) fn verify(
     hypotheses: Hypotheses,
     certificate: CertificateEnvelope,
 ) -> Checked<Evidence> {
-    let fact = verify_obligation(
+    let fact = verify_certificate(
+        context,
+        id,
+        obligation,
+        &goal,
+        &hypotheses.assumptions,
+        &hypotheses.axioms,
+        &certificate,
+    )?;
+    Ok(Evidence {
+        goal,
+        assumptions: hypotheses.assumption_rows,
+        axioms: hypotheses.axiom_rows,
+        certificate,
+        fact,
+    })
+}
+
+/// Every searched or retained certificate reaches this kernel call before it
+/// can justify a declaration or an executable obligation.
+fn verify_certificate(
+    context: &PropositionContext,
+    id: MachineId,
+    obligation: ObligationId,
+    goal: &Proposition,
+    assumptions: &[Proposition],
+    axioms: &[Proposition],
+    certificate: &CertificateEnvelope,
+) -> Checked<AcceptedFact> {
+    verify_obligation(
         context,
         &Obligation {
             id: obligation,
             proposition: goal.clone(),
             class: ObligationClass::Derivable,
         },
-        &hypotheses.assumptions,
-        &hypotheses.axioms,
+        assumptions,
+        axioms,
         EvidenceRoute::CertificateDerived(certificate.clone()),
     )
     .map_err(|error| {
@@ -2151,13 +2201,6 @@ pub(crate) fn verify(
             UnprovedCause::KernelRefused,
             format!("kernel {error:?}"),
         )
-    })?;
-    Ok(Evidence {
-        goal,
-        assumptions: hypotheses.assumption_rows,
-        axioms: hypotheses.axiom_rows,
-        certificate,
-        fact,
     })
 }
 

@@ -20,6 +20,30 @@ use semantic_vocabulary::{
 use terminal_check_tables::values::{ValueOrigin, ValueRow};
 use terminal_psi::PrimitiveJudgment;
 
+/// Declaration terms have logical inputs even when they have no executable
+/// producer. The prover borrows their types and observation status from the
+/// owner that supplies the inputs.
+pub(crate) trait ProofValues {
+    fn count(&self) -> usize;
+    fn scalar_type(&self, value: ValueId) -> Option<ScalarType>;
+    fn is_storage_content(&self, value: ValueId) -> bool;
+}
+
+impl ProofValues for IdTable<ValueId, ValueRow> {
+    fn count(&self) -> usize {
+        self.len()
+    }
+
+    fn scalar_type(&self, value: ValueId) -> Option<ScalarType> {
+        self.get(value).map(|row| row.scalar_type)
+    }
+
+    fn is_storage_content(&self, value: ValueId) -> bool {
+        self.get(value)
+            .is_some_and(|row| matches!(row.origin, ValueOrigin::StorageContent { .. }))
+    }
+}
+
 /// One hypothesis or one conjunct of it, with the node that yields it.
 pub(crate) struct Fact {
     pub(crate) proposition: Proposition,
@@ -137,7 +161,7 @@ impl Known {
         context: &PropositionContext,
         assumptions: &[Proposition],
         axioms: &[Proposition],
-        values: &IdTable<ValueId, ValueRow>,
+        values: &dyn ProofValues,
     ) -> Self {
         let mut facts = Vec::new();
         for (index, assumption) in assumptions.iter().enumerate() {
@@ -175,11 +199,7 @@ impl Known {
                         // checked separately against the owning root.
                         ScalarTerm::Value { id, .. } => {
                             subject.scalar_type() == ScalarType::Boolean
-                                || (fact.axiom.is_some()
-                                    && matches!(
-                                        values.get(*id).map(|row| row.origin),
-                                        Some(ValueOrigin::StorageContent { .. })
-                                    ))
+                                || (fact.axiom.is_some() && values.is_storage_content(*id))
                         }
                         // Actual integer operation equations retain their
                         // selected meaning. The kernel's transport lifts exact
@@ -201,7 +221,10 @@ impl Known {
             equations,
             definitions: IdTable::default(),
         };
-        let mut defined = values.map(|_, _| None);
+        let mut defined = IdTable::default();
+        for _ in 0..values.count() {
+            defined.push(None);
+        }
         for (index, (equation, _)) in result.equations.iter().enumerate() {
             if let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = equation
                 && let Some(defined) = defined.get_mut(*id)

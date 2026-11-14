@@ -50,12 +50,11 @@ use semantic_vocabulary::{
     IdTable, IntegerCarrier, IntegerMathTerm, IntegerType, IntegerValue, Proposition,
     PropositionContext, ScalarTerm, ScalarType, ValueId,
 };
-use terminal_check_tables::values::ValueRow;
 
 mod ranges;
 mod reach;
 
-use crate::known::{Fact, is_branch_fact};
+use crate::known::{Fact, ProofValues, is_branch_fact};
 
 /// Why no certificate was built. Diagnostic only.
 pub(crate) type Unproven = &'static str;
@@ -265,7 +264,7 @@ pub(crate) struct Prover<'a> {
     context: &'a PropositionContext,
     assumptions: &'a [Proposition],
     axioms: &'a [Proposition],
-    values: &'a IdTable<ValueId, ValueRow>,
+    values: &'a dyn ProofValues,
     facts: Vec<Fact>,
     /// Checked definitions for transport: Boolean values, literals, exact
     /// initial-content aliases, and semantic integer expressions retaining
@@ -400,7 +399,7 @@ impl<'a> Prover<'a> {
         context: &'a PropositionContext,
         assumptions: &'a [Proposition],
         axioms: &'a [Proposition],
-        values: &'a IdTable<ValueId, ValueRow>,
+        values: &'a dyn ProofValues,
         relations: bool,
     ) -> Self {
         #[cfg(test)]
@@ -420,7 +419,7 @@ impl<'a> Prover<'a> {
             equations,
             definitions,
             transport,
-            bounds: (0..values.len())
+            bounds: (0..values.count())
                 .map(|_| [Slot::Unknown, Slot::Unknown])
                 .collect(),
             relations,
@@ -545,8 +544,7 @@ impl<'a> Prover<'a> {
         &mut self,
         value: ValueId,
     ) -> (Option<IntegerValue>, Option<IntegerValue>) {
-        let Some(ScalarType::Integer(integer)) = self.values.get(value).map(|row| row.scalar_type)
-        else {
+        let Some(ScalarType::Integer(integer)) = self.values.scalar_type(value) else {
             return (None, None);
         };
         // A rigid width has no concrete endpoint. Reporting bounds here
@@ -1112,7 +1110,7 @@ impl<'a> Prover<'a> {
     /// subtract results ordered against their left operand. Each step is a
     /// node the kernel checks; the path is chained by order transitivity.
     fn relation(&mut self, from: &ScalarTerm, to: &ScalarTerm, strict: bool) -> Option<ProofNode> {
-        let mut visited: Vec<[bool; 2]> = vec![[false; 2]; self.values.len()];
+        let mut visited: Vec<[bool; 2]> = vec![[false; 2]; self.values.count()];
         let mut queue: std::collections::VecDeque<(ScalarTerm, ProofNode, bool)> =
             self.steps(from).into_iter().collect();
         while let Some((at, proof, at_strict)) = queue.pop_front() {
@@ -1311,7 +1309,7 @@ impl<'a> Prover<'a> {
     }
 
     fn search(&mut self, value: ValueId, direction: Direction) -> Option<Bound> {
-        let ScalarType::Integer(integer) = self.values.get(value)?.scalar_type else {
+        let ScalarType::Integer(integer) = self.values.scalar_type(value)? else {
             return None;
         };
         let subject = ScalarTerm::value(value, ScalarType::Integer(integer));
