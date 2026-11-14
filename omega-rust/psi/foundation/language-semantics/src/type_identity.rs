@@ -354,7 +354,7 @@ mod grammar {
     ) -> Result {
         let form = reader.production::<TypeForm>()?;
         visitor.enter_type(form)?;
-        let result = (|| match form {
+        let result = match form {
             TypeForm::Unit => scoped(visitor, |_| Ok(())),
             TypeForm::Nominal => compound(reader, visitor, nominal),
             TypeForm::CompilerType => compound(reader, visitor, compiler_type),
@@ -412,7 +412,7 @@ mod grammar {
                 }
             }),
             TypeForm::IndexExpression => compound(reader, visitor, index::expression),
-        })();
+        };
         visitor.leave_type(form);
         result
     }
