@@ -68,6 +68,48 @@ machine build_entry(session: &mut Session) { session.ready = true; }
     );
 }
 
+/// A field states the lifetime arguments of the data it names, behind a
+/// reference too. lifetimes.md: a named data application must "match the
+/// declaration's lifetime arity" and "use binders declared in the lexical
+/// owner". `&'activation mut Session` leaves out which of its owner's
+/// lifetimes the session's own views live for; it is refused by name rather
+/// than read at `Session`'s own binder, which is not the field owner's. The
+/// same record stating `Session<'storage>` is accepted, holding the borrow
+/// a signature elides into it.
+#[test]
+fn a_field_states_the_lifetimes_of_data_it_names_behind_a_reference() {
+    let holder = |field: &str, binders: &str| {
+        format!(
+            "data Session<'storage> {{ ready: bool; name: &'storage [u8]; }}\n\
+             data Holder<{binders}> {{ session: {field}; }}\n\
+             machine hold<{binders}>(session: {field}) -> Holder<{binders}> {{ Holder {{ session: session }} }}\n\
+             machine mark(session: &mut Session) {{ session.ready = true; }}\n\
+             machine build_entry(session: &mut Session) {{\n    \
+             let held: Holder = hold(session);\n    \
+             mark(held.session);\n}}\n"
+        )
+    };
+    for (field, binders) in [
+        ("&'activation mut Session", "'activation"),
+        ("Session", "'activation"),
+    ] {
+        assert_eq!(
+            refusal(&holder(field, binders)),
+            "typing data field that elides a lifetime argument",
+            "{field}"
+        );
+    }
+    let verdict = judge_build(&holder(
+        "&'activation mut Session<'storage>",
+        "'activation, 'storage",
+    ))
+    .unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("{verdict:?}")
+    };
+    accepted.publish_invocation().unwrap();
+}
+
 /// Eliding a lifetime relates nothing but an elided result to its one input
 /// (`an_elided_result_is_at_the_region_of_the_one_input`). lifetimes.md: "A signature does not
 /// authorize returning unrelated storage merely because its type has the same

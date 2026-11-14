@@ -1,5 +1,5 @@
-data Configuration<'activation> { builder: &'activation mut Build; }
-machine wrap<'activation>(builder: &'activation mut Build) -> Configuration<'activation> {
+data Configuration<'activation, 'storage> { builder: &'activation mut Build<'storage>; }
+machine wrap<'activation, 'storage>(builder: &'activation mut Build<'storage>) -> Configuration<'activation, 'storage> {
     Configuration { builder: builder }
 }
 machine bind_configuration(configuration: &mut Configuration) {

@@ -272,10 +272,19 @@ impl Program<'_> {
 /// by name or position."
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Elision {
-    /// Inside a data declaration: the declaration's own parameters. A field
-    /// that elides one is refused before this is asked
-    /// (`places::declared_field`).
+    /// Outside any signature, local or data declaration: an elided
+    /// application keeps the regions its own declaration names.
     Declaration,
+    /// Inside a data declaration's fields and payloads. lifetimes.md gives
+    /// elision to a signature ("For an elided output, one unambiguous
+    /// reference input supplies the relation") and says of a named data
+    /// application that it must "match the declaration's lifetime arity" and
+    /// "use binders declared in the lexical owner", so a field states the
+    /// lifetime arguments of every data it names, directly or behind a
+    /// reference (`&'activation mut Build<'storage>`). An elided one is
+    /// refused (`elided_regions`); it never takes the named declaration's own
+    /// binders, which are not the field's owner's.
+    Members,
     /// In a machine's or requirement's inputs: each elided position is a
     /// fresh lifetime parameter of that declaration, which a call
     /// instantiates like a named one.
@@ -293,10 +302,10 @@ pub(crate) enum Elision {
 impl Program<'_> {
     /// The region one elided position stands for here, or `None` where an
     /// elided lifetime keeps the region its own declaration names
-    /// (`Elision::Declaration`).
+    /// (`Elision::Declaration`, and a reference's own lifetime in a field).
     pub(crate) fn elided_region(&mut self, id: MachineId) -> Checked<Option<Region>> {
         match self.elision {
-            Elision::Declaration => Ok(None),
+            Elision::Declaration | Elision::Members => Ok(None),
             Elision::Inputs(owner) => Ok(Some(self.mint_lifetime(owner))),
             Elision::Result(owner) => match self.machine_lifetimes(owner).as_slice() {
                 [only] => Ok(Some(Region::Parameter(*only))),
@@ -352,6 +361,13 @@ impl Program<'_> {
         data: SymbolHandle,
     ) -> Checked<Vec<Region>> {
         let own = self.own_regions(data);
+        if self.elision == Elision::Members && !own.is_empty() {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Typing("data field that elides a lifetime argument"),
+            ));
+        }
         let mut regions = Vec::with_capacity(own.len());
         for declared in own {
             regions.push(self.elided_region(id)?.unwrap_or(declared));

@@ -209,3 +209,63 @@ machine wrong(builder: &mut Build) {
         "owned extraction from borrowed storage",
     );
 }
+
+/// What a borrowed Build may be kept in: a record holding the lent
+/// `&mut Build`, with every lifetime the field names stated
+/// (`wiki/spec/language/lifetimes.md`: a named data application must "match
+/// the declaration's lifetime arity"). A borrow is not a copy, so the seal
+/// stays where the toolchain issued it, and the Build can be driven through
+/// the record as through the parameter.
+const CONFIGURATION: &str = "\
+data Configuration<'activation, 'storage> { builder: &'activation mut Build<'storage>; }
+machine wrap<'activation, 'storage>(builder: &'activation mut Build<'storage>) -> Configuration<'activation, 'storage> {
+    Configuration { builder: builder }
+}
+";
+
+#[test]
+fn a_record_holding_the_lent_build_drives_it() {
+    let machines = format!(
+        "{CONFIGURATION}machine configure(builder: &mut Build) {{
+    let mut configuration: Configuration = wrap(builder);
+    bind_through(&mut configuration);
+}}
+machine bind_through(configuration: &mut Configuration) {{
+    Build::bind(configuration.builder, linux_arm64::ProgramEntry, main);
+}}
+"
+    );
+    assert_eq!(refusals("held", &machines), Vec::<String>::new());
+}
+
+/// A borrow is not a copy and cannot widen what it was lent: a record that
+/// keeps only shared access to the Build cannot hand it to an operation that
+/// writes the Build. Taking the Build or its seal out of a loan is refused
+/// by the tests above.
+#[test]
+fn a_record_holding_shared_access_to_the_build_cannot_write_it() {
+    rejected_with(
+        "held_shared",
+        "data Viewed<'activation, 'storage> { builder: &'activation Build<'storage>; }
+machine wrong(viewed: &mut Viewed) {
+    Build::application(viewed.builder, \"renamed\");
+}
+",
+        "the caller lends only immutable access to this argument",
+    );
+}
+
+/// A field that leaves out the Build's own lifetime does not say which of
+/// its owner's lifetimes the Build's views live for, and is refused by name.
+#[test]
+fn a_record_eliding_the_builds_lifetime_is_refused_by_name() {
+    refused_with(
+        "held_elided",
+        "data Configuration<'activation> { builder: &'activation mut Build; }
+machine wrap<'activation>(builder: &'activation mut Build) -> Configuration<'activation> {
+    Configuration { builder: builder }
+}
+",
+        "data field that elides a lifetime argument",
+    );
+}
