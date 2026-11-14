@@ -171,9 +171,13 @@ public machine LayoutPlan::place_private(plan: LayoutPlan, representation: Field
     plan
 }
 
-// Access-policy vocabulary (wiki/spec/resources/access.md). `LayoutPlan` owns
-// representation and geometry with no access rights; `AccessPlan` contains one
-// `LayoutPlan`, per-field operation decisions and required boundary reach.
+use omega::language::core::reflect::TypeSchema;
+use omega::language::core::reflect::CallableInfo;
+use omega::language::core::reflect::FieldInfo;
+
+// Access-policy vocabulary (wiki/spec/resources/access.md). LayoutPlan owns
+// geometry; AccessPlan retains a semantic schema, explicit issuance choice,
+// caller restrictions, observation demands and required boundary reach.
 // These records are ordinary library data: the compiler evaluates policy
 // machines and independently validates their returned values, but source code
 // cannot construct lowering authority from the records alone.
@@ -267,7 +271,7 @@ public data FieldAccess {
 }
 
 public data AccessFieldEntry {
-    key: u64;
+    field: FieldInfo;
     access: FieldAccess;
 }
 
@@ -278,233 +282,141 @@ public data BoundaryReach requires service_count <= 32 {
     service_count: u64;
 }
 
-// One access plan contains its layout plan, exactly one decision per
-// runtime-relevant schema field, and the static boundary reach its admitted
-// operations require. Fixed capacity is a bootstrap carrier only: the compiler
-// requires exactly `field_count` canonical schema decisions and ignores the
-// zero tail. Constructing this record grants no reach, backing or authority.
-public data AccessPlan requires field_count <= 32 {
-    layout: LayoutPlan;
+// A policy states its issuer choice explicitly. The first case is the
+// ordinary zero value, so omitted or zeroed issuance permits nobody.
+public data Issuance {
+    case Only(routes: [CallableInfo]);
+    case Unrestricted;
+}
+
+// A region describes a semantic subject or member, independently of layout.
+// The receiving validator authenticates its schema and member correspondence.
+public data AccessRegion {
+    case Subject(schema: TypeSchema);
+    case Field(field: FieldInfo);
+}
+
+public data AccessCallerRule {
+    region: AccessRegion;
+    callers: [CallableInfo];
+}
+
+// Access policies describe restrictions and observation demands. Geometry is
+// selected separately through FixedLayout; neither result supplies backing.
+// Counts bound private construction storage, not semantic identities. Active
+// rows must be validated in full; overflow is rejected, never truncated.
+public data AccessPlan
+requires field_count <= 32, reader_count <= 32, writer_count <= 32
+{
+    schema: TypeSchema;
+    issuance: Issuance;
     fields: [AccessFieldEntry; 32];
     field_count: u64;
+    readers: [AccessCallerRule; 32];
+    reader_count: u64;
+    writers: [AccessCallerRule; 32];
+    writer_count: u64;
     reach: BoundaryReach;
 }
 
-// The inaccessible seed is the only source constructor for a fresh access
-// decision set. It retains the supplied layout, starts with empty required
-// reach, and seeds one inaccessible decision for each distinct schema-field
-// key appearing in the layout's entries, so several fragments of one field
-// seed one decision and erased bindings (which have no entries) seed none.
-// The seed observes keys only; the compiler's final validator independently
-// requires complete schema coverage, so a field omitted by both the layout
-// and this seed is rejected rather than silently absent.
-public machine AccessPlan::inaccessible(layout: LayoutPlan) -> AccessPlan {
-    let mut fields: [AccessFieldEntry; 32];
-    let mut reach: BoundaryReach;
-    AccessPlan::seed_bounded(
-        AccessPlan { layout: layout, fields: fields, field_count: 0, reach: reach },
-        0,
-        4096
-    )
-}
-
-// The helper makes the finite entry walk's ordinary termination witness
-// explicit. The step budget is library policy, not part of the public access-plan
-// surface; 64 entries times a 32-slot duplicate search never exhausts it, and
-// an exhausted walk returns the partial seed for final validation to reject.
-// Every cyclic participant names the same rank. Lexical nesting does not make
-// the enclosing machine's witness a witness for the nested call component.
-machine AccessPlan::seed_bounded(plan: AccessPlan, index: u64, remaining_steps: u64) -> AccessPlan
-terminates by remaining_steps
-requires index <= 64 && remaining_steps >= 1 && remaining_steps <= 4096
+// A new plan adds no reader/writer restriction, observation demand or reach.
+// Its explicit issuance choice is independent of those empty axes.
+public machine AccessPlan::new(schema: &TypeSchema, issuance: Issuance) -> AccessPlan
+reaches none
+crashes none
+terminates
+ensures result.field_count == 0, result.reader_count == 0,
+    result.writer_count == 0, result.reach.service_count == 0
 {
-    transition { _ -> seed(plan, index, remaining_steps) }
-
-    machine seed(plan: AccessPlan, index: u64, remaining_steps: u64) -> AccessPlan
-    terminates by remaining_steps
-    requires index <= 64 && remaining_steps >= 1 && remaining_steps <= 4096
-    {
-        transition remaining_steps > 1 && index < plan.layout.entry_count && index < 64 {
-            true -> examine(plan, index, remaining_steps - 1)
-            _ -> (plan)
-        }
-    }
-
-    machine examine(plan: AccessPlan, index: u64, remaining_steps: u64) -> AccessPlan
-    terminates by remaining_steps
-    requires index <= 63 && remaining_steps >= 1 && remaining_steps <= 4096
-    {
-        let key: u64 = plan.layout.entries[index].key;
-        transition { _ -> search(plan, index, key, 0, remaining_steps) }
-    }
-
-    machine search(
-        plan: AccessPlan,
-        index: u64,
-        key: u64,
-        slot: u64,
-        remaining_steps: u64
-    ) -> AccessPlan
-    terminates by remaining_steps
-    requires index <= 63 && slot <= 32 && remaining_steps >= 1 && remaining_steps <= 4096
-    {
-        let field_count: u64 = plan.field_count;
-        transition {
-            remaining_steps > 1 && slot < field_count && slot < 32 -> compare(plan, index, key, slot, remaining_steps - 1)
-            remaining_steps > 1 && field_count < 32 -> append(plan, index, key, field_count, remaining_steps - 1)
-            _ -> (plan)
-        }
-    }
-
-    machine compare(
-        plan: AccessPlan,
-        index: u64,
-        key: u64,
-        slot: u64,
-        remaining_steps: u64
-    ) -> AccessPlan
-    terminates by remaining_steps
-    requires index <= 63 && slot <= 31 && remaining_steps >= 1 && remaining_steps <= 4096
-    {
-        transition {
-            remaining_steps > 1 && plan.fields[slot].key == key -> seed(plan, index + 1, remaining_steps - 1)
-            remaining_steps > 1 -> search(plan, index, key, slot + 1, remaining_steps - 1)
-            _ -> (plan)
-        }
-    }
-
-    machine append(
-        plan: AccessPlan,
-        index: u64,
-        key: u64,
-        field_count: u64,
-        remaining_steps: u64
-    ) -> AccessPlan
-    terminates by remaining_steps
-    requires index <= 63 && field_count <= 31 && remaining_steps >= 1 && remaining_steps <= 4096
-    {
-        let mut updated: AccessPlan = plan;
-        updated.fields[field_count] = AccessFieldEntry { key: key, access: FieldAccess::Inaccessible };
-        updated.field_count = field_count + 1;
-        transition { _ -> seed(updated, index + 1, remaining_steps) }
+    let fields: [AccessFieldEntry; 32];
+    let readers: [AccessCallerRule; 32];
+    let writers: [AccessCallerRule; 32];
+    let reach: BoundaryReach;
+    AccessPlan {
+        schema: TypeSchema { storage: schema.storage },
+        issuance: issuance,
+        fields: fields, field_count: 0,
+        readers: readers, reader_count: 0,
+        writers: writers, writer_count: 0,
+        reach: reach
     }
 }
 
-// Functional replacement keeps policy construction expression-oriented. It
-// changes the decision for an existing key; it does not authorize an unknown
-// field. A key outside the seed is deliberately retained as an extra entry so
-// compiler validation rejects it rather than silently ignoring an authored
-// mistake.
-public machine AccessPlan::with(plan: AccessPlan, key: u64, access: FieldAccess) -> AccessPlan {
-    AccessPlan::with_bounded(plan, key, access, 128)
+// Each call appends an independent restriction. Empty callers deny that
+// region, while no row adds no restriction. Parent and repeated rules remain
+// separate so normalization must intersect them rather than replace a row.
+public machine AccessPlan::allow_readers(plan: &mut AccessPlan, region: AccessRegion, callers: [CallableInfo])
+reaches none
+crashes none
+terminates
+requires plan.reader_count < 32
+{
+    let index: u64 = plan.reader_count;
+    plan.readers[index] = AccessCallerRule { region: region, callers: callers };
+    plan.reader_count = index + 1;
 }
 
-// Required static boundary reach for the plan's admitted operations. Naming a
-// service here demands it; it never grants reach or edits a machine's reach row.
-public machine AccessPlan::with_reach(plan: AccessPlan, reach: BoundaryReach) -> AccessPlan {
+public machine AccessPlan::allow_readers(plan: &mut AccessPlan, field: FieldInfo, callers: [CallableInfo])
+reaches none
+crashes none
+terminates
+requires plan.reader_count < 32
+{
+    AccessPlan::allow_readers(plan, AccessRegion::Field { field: field }, callers);
+}
+
+public machine AccessPlan::allow_writers(plan: &mut AccessPlan, region: AccessRegion, callers: [CallableInfo])
+reaches none
+crashes none
+terminates
+requires plan.writer_count < 32
+{
+    let index: u64 = plan.writer_count;
+    plan.writers[index] = AccessCallerRule { region: region, callers: callers };
+    plan.writer_count = index + 1;
+}
+
+public machine AccessPlan::allow_writers(plan: &mut AccessPlan, field: FieldInfo, callers: [CallableInfo])
+reaches none
+crashes none
+terminates
+requires plan.writer_count < 32
+{
+    AccessPlan::allow_writers(plan, AccessRegion::Field { field: field }, callers);
+}
+
+// Appending preserves repeated demands for the same field. Normalization must
+// satisfy every row; construction does not replace an inherited restriction.
+public machine AccessPlan::observe(plan: &mut AccessPlan, field: FieldInfo, access: FieldAccess)
+reaches none
+crashes none
+terminates
+requires plan.field_count < 32
+{
+    let index: u64 = plan.field_count;
+    plan.fields[index] = AccessFieldEntry { field: field, access: access };
+    plan.field_count = index + 1;
+}
+
+public machine AccessPlan::with_reach(plan: AccessPlan, reach: BoundaryReach) -> AccessPlan
+reaches none
+crashes none
+terminates
+{
     let mut updated: AccessPlan = plan;
     updated.reach = reach;
     updated
 }
 
-// The helper makes the finite search's ordinary termination witness explicit.
-// The step budget is compiler/library policy, not part of the public access-plan surface.
-machine AccessPlan::with_bounded(
-    plan: AccessPlan,
-    key: u64,
-    access: FieldAccess,
-    remaining_steps: u64
-) -> AccessPlan
-terminates by remaining_steps
-requires remaining_steps >= 1 && remaining_steps <= 128
-{
-    transition { _ -> seek(plan, key, access, 0, remaining_steps) }
-
-    machine seek(
-        plan: AccessPlan,
-        key: u64,
-        access: FieldAccess,
-        index: u64,
-        remaining_steps: u64
-    ) -> AccessPlan
-    terminates by remaining_steps
-    requires index <= 32 && remaining_steps >= 1 && remaining_steps <= 128
-    {
-        transition remaining_steps > 1 && index < plan.field_count && index < 32 {
-            true -> inspect(plan, key, access, index, remaining_steps - 1)
-            _ -> invalid(plan, key, access)
-        }
+public IssuedBy<const R: CallableInfo> satisfies AccessPolicy {
+    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
+        AccessPlan::new(&schema, Issuance::Only { routes: [R] })
     }
+}
 
-    machine inspect(
-        plan: AccessPlan,
-        key: u64,
-        access: FieldAccess,
-        index: u64,
-        remaining_steps: u64
-    ) -> AccessPlan
-    terminates by remaining_steps
-    requires index <= 31 && remaining_steps >= 1 && remaining_steps <= 128
-    {
-        transition {
-            remaining_steps > 1 && plan.fields[index].key == key -> replace(plan, key, access, index)
-            remaining_steps > 1 -> advance(plan, key, access, index, remaining_steps - 1)
-            _ -> invalid(plan, key, access)
-        }
-    }
-
-    machine replace(
-        plan: AccessPlan,
-        key: u64,
-        access: FieldAccess,
-        index: u64
-    ) -> AccessPlan
-    requires index <= 31
-    {
-        let mut updated: AccessPlan = plan;
-        updated.fields[index] = AccessFieldEntry { key: key, access: access };
-        updated
-    }
-
-    machine advance(
-        plan: AccessPlan,
-        key: u64,
-        access: FieldAccess,
-        index: u64,
-        remaining_steps: u64
-    ) -> AccessPlan
-    terminates by remaining_steps
-    requires index <= 31 && remaining_steps >= 1 && remaining_steps <= 128
-    {
-        transition remaining_steps > 1 {
-            true -> seek(plan, key, access, index + 1, remaining_steps - 1)
-            _ -> invalid(plan, key, access)
-        }
-    }
-
-    machine invalid(
-        plan: AccessPlan,
-        key: u64,
-        access: FieldAccess
-    ) -> AccessPlan {
-        let mut rejected: AccessPlan = plan;
-        rejected.fields[0] = AccessFieldEntry { key: key, access: access };
-        let field_count: u64 = rejected.field_count;
-        transition field_count < 32 {
-            true -> grow_invalid(rejected, field_count)
-            _ -> (rejected)
-        }
-    }
-
-    machine grow_invalid(
-        plan: AccessPlan,
-        field_count: u64
-    ) -> AccessPlan
-    requires field_count <= 31
-    {
-        let mut rejected: AccessPlan = plan;
-        rejected.field_count = field_count + 1;
-        rejected
+public IssuedByAny<const N: u64, const Routes: [CallableInfo; N]> satisfies AccessPolicy {
+    machine plan(schema: TypeSchema) -> AccessPlan reaches none crashes none terminates {
+        AccessPlan::new(&schema, Issuance::Only { routes: Routes })
     }
 }
 
@@ -882,7 +794,8 @@ public trait FixedLayout<T> {
 // An access policy evaluates one complete `AccessPlan` from the reflected
 // schema. It may call ordinary layout policies and helpers; such a call returns
 // plan data, not a validation certificate. The compiler independently validates
-// layout, field coverage, operations and reach of the returned plan.
+// semantic regions, issuance, operations and reach of the returned plan,
+// then joins the independently validated layout and backing supply.
 public trait AccessPolicy {
-    machine plan(schema: Schema) -> AccessPlan;
+    machine plan(schema: TypeSchema) -> AccessPlan;
 }
