@@ -3,8 +3,9 @@
 The build activation is one machine named `build` whose first parameter
 is pinned to the spelling `builder: &mut Build`. The parameter NAME is
 part of the contract — `context: &mut Build` rejects identically to a
-missing parameter. A declared return type is accepted (this sample
-returns `i32`; the value is discarded).
+missing parameter. The entry returns nothing
+([Build declarations](../../../../wiki/spec/build/declarations.md#project-role):
+"A simple entry remains `machine build(builder: &mut Build)`").
 
 Controls pin the enforced shape:
 
