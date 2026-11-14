@@ -921,8 +921,8 @@ impl<'t> Program<'t> {
             &binders,
             &[],
         )?;
-        self.inherit_logical_contract(id, machine, &mut signature, &mut names)?;
         signature.termination = self.termination(id, machine)?;
+        self.inherit_requirement_contract(id, machine, &mut signature, &mut names)?;
         // A machine's header clauses belong to the machine declaration; its
         // formals belong to its one state, which `contract` was given.
         signature.reaches = self.reach_ceiling(id, machine.symbol)?;
@@ -993,11 +993,7 @@ impl<'t> Program<'t> {
             .typed
             .trait_definition_by_symbol(owner)
             .ok_or_else(|| unserved("conformer lost its originating trait declaration"))?;
-        if requirement.termination_guarantee != TerminationGuarantee::NoGuarantee {
-            return Err(unserved(
-                "declared requirement needs its progress-refinement proof",
-            ));
-        }
+        self.requirement_termination(id, requirement)?;
         if !definition.type_parameters.is_empty()
             || !definition.lifetime_parameters.is_empty()
             || !definition.conformance_bounds.is_empty()
@@ -1088,13 +1084,13 @@ impl<'t> Program<'t> {
         Ok(())
     }
 
-    /// An inline conformer's body is checked under its requirement, unlike
-    /// a selection row that attaches a route to an independently valid body
-    /// (conformances.md, "Binding a machine to a requirement"). Read the
-    /// requirement with its own symbols, then retain the logical clauses by
-    /// formal position. Written member clauses still owe refinement; omitted
-    /// operational ceilings keep their separate inference rules.
-    fn inherit_logical_contract(
+    /// An owning body inherits missing logical clauses and progress from
+    /// its requirement. A selection row supplies no body context
+    /// (conformances.md, "Binding a machine to a requirement"). Logical
+    /// clauses retain formal positions; progress is owed by the actual body.
+    /// Written clauses still owe refinement, and omitted operational
+    /// ceilings retain their separate inference rules.
+    fn inherit_requirement_contract(
         &mut self,
         id: MachineId,
         machine: &'t Machine,
@@ -1104,6 +1100,9 @@ impl<'t> Program<'t> {
         let Some((_, requirement)) = self.conformer_requirement(id, machine)? else {
             return Ok(());
         };
+        if matches!(signature.termination, Termination::Silent) {
+            signature.termination = self.requirement_termination(id, requirement)?;
+        }
         let clauses = span(
             &self.typed.signature_contracts,
             machine.contracts,
@@ -1223,7 +1222,9 @@ impl<'t> Program<'t> {
         );
         let read = self.read_requirement_signature(id, requirement, arguments);
         self.elision = elision;
-        read
+        let (mut signature, names) = read?;
+        signature.termination = self.requirement_termination(id, requirement)?;
+        Ok((signature, names))
     }
 
     fn read_requirement_signature(
@@ -1616,6 +1617,27 @@ impl<'t> Program<'t> {
             },
             names,
         ))
+    }
+
+    /// A requirement publishes its authored promise even when the selected
+    /// body omits the clause (termination.md). Conditional promises need
+    /// their actual premise evidence; existing body checks prove a bare promise.
+    fn requirement_termination(
+        &self,
+        id: MachineId,
+        requirement: &StateSignature,
+    ) -> Checked<Termination> {
+        match &requirement.termination_guarantee {
+            TerminationGuarantee::NoGuarantee => Ok(Termination::Silent),
+            TerminationGuarantee::Terminates { premises } if premises.is_empty() => {
+                Ok(Termination::Promised)
+            }
+            TerminationGuarantee::Terminates { .. } => Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Contract("requirement termination needs its actual progress premises"),
+            )),
+        }
     }
 
     /// What the header says about ending, from the plan stage 02 fills once
