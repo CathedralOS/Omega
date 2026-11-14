@@ -24,7 +24,8 @@ and bitmasks in two's-complement form.
 
 use crate::BuildTimeValue;
 use semantic_vocabulary::{
-    CanonicalStructuralPathSegment as Path, IntegerValue, ScalarType, StructuralTypeId,
+    CanonicalStructuralPathSegment as Path, ClosedScalarType, IntegerValue, ScalarType,
+    StructuralTypeId,
 };
 use terminal_interpreter::{
     TerminalBoundaryStorageValue, TerminalInstance, TerminalProgram, TerminalScalarValue,
@@ -32,12 +33,23 @@ use terminal_interpreter::{
 };
 use terminal_psi::{StructuralFieldDeclaration, StructuralFieldType, StructuralTypeShape};
 
+// Runtime widths come from the exact published program. This lookup never
+// resolves a binder or closes an independently supplied type at a use site.
+fn closed_module<'program>(
+    program: &'program TerminalProgram<'_>,
+) -> Result<&'program terminal_codec::ClosedTerminalModule, String> {
+    program.closed_module().map_err(|error| {
+        format!("Terminal value requires its published closed type owner: {error:?}")
+    })
+}
+
 pub fn input_contents(
     program: &TerminalProgram<'_>,
     argument_index: u32,
     structural_type: StructuralTypeId,
     value: &BuildTimeValue,
 ) -> Result<TerminalStructuralContents, String> {
+    closed_module(program)?;
     let mut values = Vec::new();
     write_structural(
         program,
@@ -126,7 +138,7 @@ fn write_structural(
             Ok(())
         }
         (StructuralTypeShape::PrimitiveScalar(scalar), _) => {
-            write_scalar(*scalar, *scalar, value, path, values)
+            write_scalar(program, *scalar, *scalar, value, path, values)
         }
         _ => Err("Terminal input is not a plain value of its exact formal shape".into()),
     }
@@ -184,7 +196,7 @@ fn write_fields(
                     .as_ref()
                     .and_then(|storage| storage.stored_scalar())
                     .unwrap_or(scalar);
-                write_scalar(scalar, stored, value, path, values)
+                write_scalar(program, scalar, stored, value, path, values)
             }
         };
         path.pop();
@@ -195,34 +207,58 @@ fn write_fields(
 
 /// Convert one scalar argument to the entry parameter's declared scalar type.
 pub fn scalar_argument(
+    program: &TerminalProgram<'_>,
     scalar: ScalarType,
     value: &BuildTimeValue,
 ) -> Result<TerminalScalarValue, String> {
-    scalar_value(scalar, value)
+    scalar_value(closed_module(program)?, scalar, value)
 }
 
-fn scalar_value(scalar: ScalarType, value: &BuildTimeValue) -> Result<TerminalScalarValue, String> {
-    Ok(match (scalar, value) {
-        (ScalarType::Boolean, BuildTimeValue::Bool(value)) => TerminalScalarValue::Boolean(*value),
-        (ScalarType::Integer(integer), BuildTimeValue::Int(value)) if integer.bits() <= 64 => {
-            TerminalScalarValue::Integer {
-                scalar_type: integer,
-                value: if integer.sign() == semantic_vocabulary::IntegerSign::Signed {
-                    IntegerValue::Signed(i128::from(*value))
-                } else {
-                    IntegerValue::Unsigned(u128::from(*value as u64))
-                },
-            }
+fn scalar_value(
+    owner: &terminal_codec::ClosedTerminalModule,
+    scalar: ScalarType,
+    value: &BuildTimeValue,
+) -> Result<TerminalScalarValue, String> {
+    let closed = owner.closed_types().scalar(scalar).map_err(|error| {
+        format!("Terminal input scalar is not in its published type owner: {error:?}")
+    })?;
+    Ok(match (scalar, closed, value) {
+        (ScalarType::Boolean, ClosedScalarType::Boolean, BuildTimeValue::Bool(value)) => {
+            TerminalScalarValue::Boolean(*value)
         }
+        (
+            ScalarType::Integer(raw),
+            ClosedScalarType::Integer(integer),
+            BuildTimeValue::Int(value),
+        ) if integer.bits() <= 64 => TerminalScalarValue::Integer {
+            scalar_type: raw,
+            value: if integer.sign() == semantic_vocabulary::IntegerSign::Signed {
+                IntegerValue::Signed(i128::from(*value))
+            } else {
+                IntegerValue::Unsigned(u128::from(*value as u64))
+            },
+        },
         _ => return Err("Terminal input scalar differs from its declared logical type".into()),
     })
 }
 
 /// Convert a returned scalar to the compiler's value vocabulary.
-pub fn scalar_result(value: TerminalScalarValue) -> Result<BuildTimeValue, String> {
+pub fn scalar_result(
+    program: &TerminalProgram<'_>,
+    value: TerminalScalarValue,
+) -> Result<BuildTimeValue, String> {
+    let owner = closed_module(program)?;
     match value {
         TerminalScalarValue::Boolean(value) => Ok(BuildTimeValue::Bool(value)),
-        TerminalScalarValue::Integer { value, scalar_type } if scalar_type.bits() <= 64 => {
+        TerminalScalarValue::Integer { value, scalar_type } => {
+            let integer = owner.closed_types().integer(scalar_type).map_err(|error| {
+                format!("Terminal result scalar is not in its published type owner: {error:?}")
+            })?;
+            if integer.bits() > 64 {
+                return Err(
+                    "Terminal result scalar is outside the compiler-owned vocabulary".into(),
+                );
+            }
             integer_value(value)
         }
         _ => Err("Terminal result scalar is outside the compiler-owned vocabulary".into()),
@@ -241,13 +277,21 @@ fn integer_value(value: IntegerValue) -> Result<BuildTimeValue, String> {
 }
 
 fn write_scalar(
+    program: &TerminalProgram<'_>,
     scalar: ScalarType,
     stored_scalar: ScalarType,
     value: &BuildTimeValue,
     path: &[Path],
     values: &mut Vec<TerminalBoundaryStorageValue>,
 ) -> Result<(), String> {
-    let value = scalar_value(scalar, value)?;
+    let owner = closed_module(program)?;
+    owner
+        .closed_types()
+        .scalar(stored_scalar)
+        .map_err(|error| {
+            format!("Terminal stored scalar is not in its published type owner: {error:?}")
+        })?;
+    let value = scalar_value(owner, scalar, value)?;
     values.push(TerminalBoundaryStorageValue {
         path: path.to_vec(),
         contents: TerminalStorageContents::Scalar {
@@ -266,6 +310,7 @@ pub fn result_value(
         &BuildTimeValue,
     )],
 ) -> Result<BuildTimeValue, String> {
+    closed_module(instance.program())?;
     if opaque_inputs.windows(2).any(|pair| {
         (pair[0].0.opaque_identity, pair[0].0.structural_type)
             >= (pair[1].0.opaque_identity, pair[1].0.structural_type)
@@ -410,6 +455,7 @@ pub fn read_leaf(
     instance: &TerminalInstance<'_, '_>,
     path: &[Path],
 ) -> Result<BuildTimeValue, String> {
+    closed_module(instance.program())?;
     match instance
         .observe_result(path)
         .map_err(|error| format!("Terminal result contents: {error:?}"))?
@@ -422,13 +468,8 @@ pub fn read_leaf(
             Ok(BuildTimeValue::Text(copied))
         }
         TerminalStorageObservationValue::Storage(TerminalStorageContents::Scalar {
-            value: TerminalScalarValue::Boolean(value),
-            ..
-        }) => Ok(BuildTimeValue::Bool(value)),
-        TerminalStorageObservationValue::Storage(TerminalStorageContents::Scalar {
-            value: TerminalScalarValue::Integer { value, scalar_type },
-            ..
-        }) if scalar_type.bits() <= 64 => integer_value(value),
+            value, ..
+        }) => scalar_result(instance.program(), value),
         _ => Err("Terminal result leaf is outside the compiler-owned vocabulary".into()),
     }
 }

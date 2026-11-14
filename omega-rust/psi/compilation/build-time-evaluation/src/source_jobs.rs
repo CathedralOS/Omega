@@ -363,7 +363,7 @@ impl PreparedBuildMachineEntry {
                 Ok(crate::BuildTimeValue::Unit)
             }
             TerminalExecutionStatus::Complete(TerminalExecutionResult::Scalar(value)) => {
-                crate::terminal_values::scalar_result(value)
+                crate::terminal_values::scalar_result(instance.program(), value)
             }
             TerminalExecutionStatus::Complete(
                 TerminalExecutionResult::Structural(_)
