@@ -32,11 +32,10 @@ const TARGETS: [(&str, &str); 4] = [
 /// Judge the actual source roots as the normal compile-time invocation does.
 /// Keep the full verdict so rejection controls can pin its real obligation.
 fn prepared(
-    text: &str,
+    typed: typed_trees::TypedTrees,
     roots: &[&str],
     publication: terminal_codec::TerminalPublication,
 ) -> terminal_check_tables::compilation::TerminalCompilation {
-    let typed = typed(text);
     let entries: Vec<_> = typed
         .machines()
         .iter()
@@ -66,7 +65,7 @@ fn prepared(
 
 fn judged(text: &str, roots: &[&str]) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
     crate::judge_compilation(prepared(
-        text,
+        typed(text),
         roots,
         terminal_codec::TerminalPublication::Invocation,
     ))
@@ -350,8 +349,11 @@ ensures result == 9
     pair.right
 }
 "#;
+    // A portable artifact needs actual package-owned source. Use the same
+    // retained test package loader as the existing provider controls; do not
+    // give an anonymous invocation a portable identity after preparation.
     let input = prepared(
-        source,
+        super::build_purpose::frontier_of(source, "machine build_entry() { }"),
         &["root"],
         terminal_codec::TerminalPublication::Portable,
     );
@@ -505,7 +507,7 @@ ensures result == 9
         "let saved: u64 = pair.right; pair.right = value; pair.right = saved;",
     );
     let restored = prepared(
-        &restored,
+        super::build_purpose::frontier_of(&restored, "machine build_entry() { }"),
         &["update"],
         terminal_codec::TerminalPublication::Portable,
     );
