@@ -3,7 +3,8 @@
 //! Discovery uses the normal parser in a separate syntax forest. Its coordinates
 //! and declarations never join a checked source cohort: the selected paths go
 //! through the ordinary scope, owner and stratum admission afterwards. This cache
-//! records only module membership, not visibility or declaration resolution.
+//! records module membership and operator declaration units, not visibility or
+//! declaration resolution.
 
 use super::frontier::RegisteredPackageRoot;
 use diagnostics::Diagnostic;
@@ -23,6 +24,7 @@ pub(crate) struct LogicalSourceInventory {
 struct LogicalSourceUnit {
     path: PathBuf,
     module: Vec<String>,
+    declares_operator_family: bool,
 }
 
 pub(crate) trait LogicalSourceDiscovery {
@@ -85,7 +87,11 @@ impl LogicalSourceDiscovery for Vec<RegisteredPackageRoot> {
         Ok(inventory
             .units
             .iter()
-            .filter(|unit| unit.module == selected.module)
+            // Closed families are declared across their owning package, even
+            // when their lexical module is not imported. Acquire those units
+            // through the same Product queue; this grants no namespace exposure
+            // or authority and leaves exact home/duplicate checks to resolution.
+            .filter(|unit| unit.module == selected.module || unit.declares_operator_family)
             .map(|unit| unit.path.clone())
             .collect())
     }
@@ -190,7 +196,12 @@ impl LogicalSourceInventory {
         };
         for unit in parsed.sources.span_or_empty(parsed.batch) {
             let mut module = None;
+            let mut declares_operator_family = false;
             for item in &unit.root_items {
+                if matches!(syntax.root_item(*item), Item::Machine(machine) if machine.spelling.is_some())
+                {
+                    declares_operator_family = true;
+                }
                 if let Item::Module(declaration) = syntax.root_item(*item) {
                     if module.is_some() {
                         return Err(vec![Diagnostic::error(format!(
@@ -211,6 +222,7 @@ impl LogicalSourceInventory {
             result.units.push(LogicalSourceUnit {
                 path: unit.path.clone(),
                 module: module.unwrap_or_default(),
+                declares_operator_family,
             });
         }
         Ok(result)
@@ -312,6 +324,39 @@ mod tests {
                 .unwrap(),
             ["child.omg", "deep.omg", "root.omg"].map(|path| capture_root().join(path))
         );
+    }
+
+    #[test]
+    fn product_declaration_inventory_includes_unimported_operator_homes() {
+        let filesystem = captured(&[
+            ("root.omg", "machine main() {}"),
+            ("units.omg", "module units; public domain u32::Distance;"),
+            (
+                "operators.omg",
+                "module operations; use units; public machine + Distance::add(left: u32 in Distance, right: u32 in Distance) -> u32 in Distance { left }",
+            ),
+            ("ordinary.omg", "module unrelated; machine helper() {}"),
+            (
+                "child/foreign.omg",
+                "module foreign; public machine + Unknown::add(value: u32) {}",
+            ),
+            ("build.omg", "not Product syntax"),
+        ]);
+        let root = capture_root();
+        let mut owners = Vec::<RegisteredPackageRoot>::new();
+        assert_eq!(
+            owners
+                .siblings(
+                    &root,
+                    &root.join("units.omg"),
+                    &filesystem,
+                    vec![root.join("child")]
+                )
+                .unwrap(),
+            ["operators.omg", "units.omg"].map(|path| root.join(path)),
+            "family declarations must enter normal Product admission even without a namespace import",
+        );
+        assert_eq!(owners.len(), 1, "reuse the actual owner's cached inventory");
     }
 
     #[test]

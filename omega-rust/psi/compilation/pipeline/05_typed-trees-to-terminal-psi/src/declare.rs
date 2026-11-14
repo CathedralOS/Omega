@@ -535,7 +535,7 @@ fn application(
                     .type_identity_text(typed.package_qualified_type_identity(*type_reference))
                     .filter(|text| !text.is_empty())
                     .ok_or("an application's value parameter type has no identity")?;
-                let is_bool = typed.type_reference_table.primitive_type(*type_reference)
+                let is_bool = typed.primitive_type_reference(*type_reference)
                     == Some(typed_trees::types::PrimitiveType::Bool);
                 match (&argument.const_literal, argument.closed_boolean()) {
                     (Some(literal), None) if !is_bool => {

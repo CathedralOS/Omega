@@ -775,7 +775,7 @@ fn closed_scalar(
     parameter_type: TypeReferenceHandle,
     argument: &StaticMachineArgument,
 ) -> Served<Scalar> {
-    let primitive = program.type_reference_table.primitive_type(parameter_type);
+    let primitive = program.primitive_type_reference(parameter_type);
     if primitive == Some(typed_trees::types::PrimitiveType::Bool)
         && let Some(value) = argument.closed_boolean()
     {

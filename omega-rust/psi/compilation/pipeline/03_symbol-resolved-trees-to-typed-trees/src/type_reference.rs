@@ -3351,7 +3351,7 @@ pub(crate) fn retain_type_reference_selection(
     };
     if !name.is_source_backed()
         || !symbol.is_valid()
-        || resolved::types::PrimitiveType::from_name(name.as_str()).is_some()
+        || source_trees.symbols.builtin_type_atom(symbol).is_some()
     {
         return Ok(());
     }
