@@ -2034,6 +2034,7 @@ mod value_expressions {
                         inherited_data_members: None,
                         owned_data: &[],
                         prior_statements: if has_prior { &prior } else { &[] },
+                        contract_result_data: SymbolHandle::invalid(),
                         data_definitions: &program.roots.data_definitions,
                         type_aliases: &program.roots.type_aliases,
                         conformances: &program.roots.conformances,
