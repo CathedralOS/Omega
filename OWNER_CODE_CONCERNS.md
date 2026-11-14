@@ -87,10 +87,10 @@ framework or a list of features that remain unimplemented.
 - Cost: a package type spelled like a primitive has to be taught to both routes, and the two can disagree about one type reference. The width spellings were taught to both (`u13` is a name to typing and an installed builtin symbol to the checker), which made them agree without removing the second route. Typing still lets two mismatches through that only the checker stops, as `not-supported` instead of a typing error: `machine f(value: u1) -> bool { value }` (`typing arm value type`) and a suffixed literal outside its carrier such as `1i1` or `8192u13` (`integer literal outside its type`)
 - Reported: 2026-11-13, Claude Code, while replacing the eight integer names with a sign and a width
 
-### Three vocabularies still list eight integer widths by name
+### Numeric operations still collapse integer metadata to fixed-width rosters
 - Category: branch per shape
-- Where: `language-semantics/src/numeric_intrinsics.rs` (`NumericType`, published in Terminal Psi); `numerics/src/float_semantics.rs` (the integer side of float conversions); `omega/packages/review-evidence` (`primitive_type_row`, one wire tag per width)
-- Saw: the front end now states an integer as a sign and a width, and these three convert that pair back into one of eight variants at their door, refusing the rest. Stage 02's const evaluator (`preparation_const_evaluation.rs`) keys carriers by type-name strings and folds in `i128`, so it serves widths to 64 bits for shifts and 127 for ranges
+- Where: `language-semantics/src/numeric_intrinsics.rs` (`NumericType`, published in Terminal Psi); `numerics/src/float_semantics.rs` (the integer side of float conversions)
+- Saw: the front end states an integer as a sign and a width, and these convert that pair back into one of eight variants at their door, refusing the rest. Stage 02's const evaluator (`preparation_const_evaluation.rs`) keys carriers by type-name strings and folds in `i128`, so it serves widths to 64 bits for shifts and 127 for ranges
 - Cost: every width beyond the eight stops at whichever of these it meets first, and each is a published or cross-stage vocabulary that needs its own versioned change
 - Reported: 2026-11-13, Claude Code, while replacing the eight integer names with a sign and a width
 
@@ -164,25 +164,11 @@ framework or a list of features that remain unimplemented.
 - Cost: a source repair spends hours in producer checking before its executable cases run; these measurements belong to the old checker being removed, and cannot stand for seed-chain or replacement-checker performance
 - Reported: 2026-11-12, Codex, while finishing bootstrap compiler construction and storage PRs #2782 and #2788
 
-### "Does this access cover that one" is written eight times with five different answers
-- Category: one idea, several implementations
-- Where: `omega-rust/psi/interpreter/terminal-interpreter/src/storage_references.rs:4455`; `omega-rust/psi/compilation/representations/terminal-psi/src/ownership.rs:62`; `omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/references.rs:887`; `omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions/src/legalization_reference_custody.rs:4600` and `selection.rs:877`; `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs:5124` and `:14940`; `omega-rust/omega/interpreter/terminal-runtime/src/execution/host_imports/native_provider/reference_outputs.rs:350`
-- Saw: four copies agree (equal, or `Owned` covers all, or `MutableBorrow` covers shared and write-only), and the stage 02 and stage 03 legalization copies are the same text; `unit_validation.rs:5124` drops write-only; `selection.rs:877` lets owned or mutable cover shared only; `reference_outputs.rs:350` lets mutable cover shared and gives `Owned` nothing extra; `ownership.rs:62` never admits an `Owned` request
-- Cost: nothing at any site says whether its table differs on purpose, so a fix to one rule cannot be checked against the others, and stage 03's audit of stage 02 shares the copied table, so it cannot catch a mistake in it
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### Resolution selects an implicit entry by name in one place and child order in another
 - Category: one idea, several implementations
 - Where: `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/selection.rs` (`resolve_realizations`, `call_custody_source`)
 - Saw: implicit realization selection chooses the state named like the machine's last segment, then `entry`; source-less call custody requires the first State child. The former Build and checker copies are gone, but these two selectors remain.
 - Cost: implicit entry selection and source custody can disagree when name order differs from child order; consolidate their exact entry relationship rather than restoring the deleted selectors.
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### Integer const identities are formatted and parsed as text across representations
-- Category: one idea, several implementations
-- Where: `omega-rust/psi/compilation/representations/typed-trees/src/calls_and_control_flow.rs` and `src/lib.rs`; `omega-rust/psi/interpreter/terminal-interpreter/src/engine_calls.rs` (`family_tuple_member_value`)
-- Saw: the string `named(integer-const(N))` is made with `format!`, then each reader strips the prefix and suffix by hand and parses an `i128`; the Terminal interpreter picks a dynamic family member this way, and `terminal-psi/src/boundary.rs:555-556` interns two such strings as literals
-- Cost: the surviving producer and consumers agree by spelling rather than a shared typed value; a reader that misses the form fails only at run time (`None`, or "dynamic family tuple identity is not an integer constant").
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### The default ranking view is derived differently in resolution and typing
@@ -192,12 +178,6 @@ framework or a list of features that remain unimplemented.
 - Cost: two stages own the same default with different selection rules; new rankable carriers can acquire different defaults depending on which stage first recognizes them.
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### The "independent" unit validator gets its expected values from the constructor it is checking
-- Category: re-deriving
-- Where: `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/unit_validation.rs:2654`, `:2670`, `:2375`, against `.../optimization-unit/src/construction.rs:527-608` and `:612-741`
-- Saw: `expected_definitions`, `expected_uses` and `expected_ownership` call `optimization_unit::operation_definition`, `operation_uses` and `operation_ownership`, the functions that built the unit; the first two end in a wildcard arm (`_ => None`, `_ => Vec::new()`); the crate header (`semantics/src/lib.rs:4`) calls this "independent semantic and rewrite validation"
-- Cost: an operation the constructor forgets to list is missed identically on both sides, so the comparison passes and the next agent trusts a check that cannot fail for that case
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### Register and machine-effect catalogs are validated by rebuilding them with the builder that made them
 - Category: re-deriving
@@ -253,13 +233,6 @@ framework or a list of features that remain unimplemented.
 - Where: `omega-rust/omega/compilation/compiler/src/product_boundary.rs`, `omega-rust/omega/build-system/orchestration/src/build_boundary.rs`, `omega-rust/omega/compilation/native-compiler/src/pipeline_boundary.rs`, `omega-rust/omega/compilation/realization/provider-planning/src/source_guards.rs`, `omega-rust/omega/compilation/backend/plans/program-entry-plan/src/source_guards.rs`, `omega-rust/psi/foundation/access-plans/src/tests.rs`, `omega-rust/psi/interpreter/terminal-interpreter/src/embedding.rs`
 - Saw: these tests assert that source strings are present, absent or ordered, rather than exercise the owned operation or dependency boundary. The compiler guards pinned fields of the deleted custody and had to lose those assertions when it was removed; they never established that custody had a producer. The stage-05 guards themselves are gone.
 - Cost: harmless renaming breaks tests while equivalent forbidden behavior can pass under another spelling. Move actual dependency rules to the boundary checker and use behavior tests for custody and execution claims; do not mechanically preserve old strings or test totals.
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
-### Proof questions are read, validated and hashed in five places and written in none
-- Category: zombie machinery
-- Where: `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/src/proof.rs:193`, `:305`, `:545`; `.../src/construction.rs:73`; `.../src/identity.rs:2269`; readers at `pipeline/01_abstract-operations-to-abstract-operations/src/value_ranges.rs:180`, `.../semantics/src/current_value_ranges.rs:215` and `:325`, `.../semantics/src/unit_validation.rs:1174` and `:9710`
-- Saw: `proof_questions` is set to `Vec::new()` at its only two initialisers; `ProofQuestion::new` has no caller in `omega-rust/`, tests included; `ProofQuestionIndexError` is never constructed; the stage 01 value-range rule skips unless it finds exactly one matching question
-- Cost: the proof-backed value-range rule and its validator twin can never fire, and they look like the place where proof evidence reaches the back end
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### Physical evidence is never derived in production, yet about 10,000 lines exist to derive and replay it

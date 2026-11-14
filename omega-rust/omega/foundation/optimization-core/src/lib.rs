@@ -68,11 +68,11 @@ pub use optimization_core::identities::{
     OptimizedOperatorOccurrenceIdentity, OptimizedOrdinaryCallableEntryManifestIdentity,
     OptimizedTerminalOrdinaryCallableEntryIdentity, OwnershipFrontierFactIdentity,
     PostAllocationOptimizationManifestIdentity, PreAllocationOptimizationCompletionIdentity,
-    PrePhysicalOptimizationManifestIdentity, ProofQuestionIdentity,
-    RelocationFreeObjectContainerIdentity, RelocationFreeObjectPlanIdentity,
-    ScalarConstantFactIdentity, SelectedLoweringOptimizationCompletionIdentity,
-    TargetCostModelIdentity, TerminalRelocationFreeTextSectionIdentity,
-    TransformationLedgerIdentity, ValueRangeFactIdentity,
+    PrePhysicalOptimizationManifestIdentity, RelocationFreeObjectContainerIdentity,
+    RelocationFreeObjectPlanIdentity, ScalarConstantFactIdentity,
+    SelectedLoweringOptimizationCompletionIdentity, TargetCostModelIdentity,
+    TerminalRelocationFreeTextSectionIdentity, TransformationLedgerIdentity,
+    ValueRangeFactIdentity,
 };
 pub(crate) use optimization_core::manifest::OptimizationFactReferenceDecodeError;
 pub use optimization_core::manifest::{

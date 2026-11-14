@@ -4457,14 +4457,4 @@ impl TerminalExecution<'_> {
     }
 }
 
-pub(crate) fn access_covers(available: StructuralAccess, requested: StructuralAccess) -> bool {
-    available == requested
-        || available == StructuralAccess::Owned
-        || matches!(
-            (available, requested),
-            (
-                StructuralAccess::MutableBorrow,
-                StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
-            )
-        )
-}
+pub(crate) use terminal_psi::structural_access_covers as access_covers;

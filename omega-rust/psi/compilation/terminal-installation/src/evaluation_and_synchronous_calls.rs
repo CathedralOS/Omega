@@ -1465,7 +1465,7 @@ pub(crate) mod synchronous_calls {
                     } else {
                         unrelated
                     },
-                    family_tuple: vec![slot.to_string()],
+                    family_tuple: vec![terminal_psi::FiniteScalarValue::Integer(i128::from(slot))],
                     scalar_parameters: Vec::new(),
                     structural_parameters: Vec::new(),
                     entry_claim_paths: Vec::new(),

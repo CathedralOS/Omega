@@ -172,6 +172,97 @@ fn unit(plan: &AbstractOperationPlan) -> PsiOptimizationUnit {
 }
 
 #[test]
+fn constant_ranges_drive_comparisons_and_reject_forged_bounds() {
+    use crate::rules::sparse_conditional_constant_propagation::{
+        IntegerLessThanRangeConstantRule, IntegerLessThanRangeRangeRule,
+    };
+    use optimization_unit::value_range_fact_identity;
+    use optimization_unit_semantics::{
+        validate_current_value_range_fact_at, validate_psi_rewrite_candidate,
+    };
+    use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+
+    let mut plan = case_plan();
+    plan.structural_types = Default::default();
+    let function = &mut plan.functions[0];
+    function.parameters.clear();
+    function.structural_parameters.clear();
+    function.block_entries = vec![AbstractBlockEntry {
+        block: block(1),
+        structural_parameters: Vec::new(),
+        parameters: Vec::new(),
+        operation_offset: 0,
+    }];
+    let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+    function.operations = vec![
+        O::IntegerConstant {
+            psi_operation: OperationId::new(1).unwrap(),
+            result: ValueId::new(1).unwrap(),
+            scalar_type: integer,
+            value: IntegerValue::Unsigned(5),
+        },
+        O::IntegerConstant {
+            psi_operation: OperationId::new(2).unwrap(),
+            result: ValueId::new(2).unwrap(),
+            scalar_type: integer,
+            value: IntegerValue::Unsigned(10),
+        },
+        O::IntegerLessThan {
+            psi_operation: OperationId::new(3).unwrap(),
+            result: ValueId::new(3).unwrap(),
+            left: ValueId::new(1).unwrap(),
+            right: ValueId::new(2).unwrap(),
+        },
+        O::Return {
+            psi_edge: EdgeId::new(1).unwrap(),
+            result: ValueId::new(3).unwrap(),
+            value: ValueId::new(3).unwrap(),
+            scalar_type: ScalarType::Boolean,
+            cleanup_actions: Vec::new(),
+        },
+    ];
+    let unit = unit(&plan);
+    let ranges = crate::value_ranges::value_ranges(&unit);
+    let fact = ranges
+        .facts
+        .iter()
+        .find(|fact| fact.value == ValueId::new(1).unwrap())
+        .unwrap();
+    assert!(validate_current_value_range_fact_at(&unit, fact, unit.entry, block(1), 2).is_ok());
+    let mut forged = fact.clone();
+    forged.maximum = IntegerValue::Unsigned(99);
+    forged.identity = value_range_fact_identity(
+        forged.value,
+        forged.scalar_type,
+        forged.minimum,
+        forged.maximum,
+        &forged.support,
+        &forged.valid_in,
+    )
+    .unwrap();
+    assert!(validate_current_value_range_fact_at(&unit, &forged, unit.entry, block(1), 2).is_err());
+
+    let verify = |rule: &dyn PsiOptimizationRule| {
+        let mut analyses = AnalysisRevision::bind(&unit).unwrap();
+        let candidates = rule
+            .propose(
+                &unit,
+                analyses
+                    .require_all(rule.contract().required_analyses())
+                    .unwrap(),
+            )
+            .unwrap();
+        assert_eq!(candidates.len(), 1);
+        assert!(
+            matches!(candidates[0].patch_ref(), PsiRewritePatch::ReplaceBooleanOperationWithConstant(patch) if patch.constant)
+        );
+        assert!(validate_psi_rewrite_candidate(&unit, &candidates[0]).is_ok());
+    };
+    verify(&IntegerLessThanRangeConstantRule);
+    verify(&IntegerLessThanRangeRangeRule);
+}
+
+#[test]
 fn case_successors_drive_reachability_and_dominance() {
     let unit = unit(&case_plan());
     let graph = control_flow(&unit);

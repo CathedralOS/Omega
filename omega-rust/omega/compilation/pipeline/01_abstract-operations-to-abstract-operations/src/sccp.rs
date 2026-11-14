@@ -641,9 +641,7 @@ pub(crate) mod range_against_constant {
     use optimization_core::{
         AnalysisKind, AnalysisSet, OptimizationRuleContract, OptimizationSafetyClass,
     };
-    use optimization_unit::{
-        IntegerEvaluationWitness, PsiOptimizationUnit, PsiRewriteCandidate, ValueRangeSupport,
-    };
+    use optimization_unit::{IntegerEvaluationWitness, PsiOptimizationUnit, PsiRewriteCandidate};
     use semantic_vocabulary::{IntegerType, IntegerValue};
 
     use super::IntegerRangeComparisonKind;
@@ -744,10 +742,6 @@ pub(crate) mod range_against_constant {
                 fact.valid_in.machine == function.machine
                     && fact.value == range_value
                     && fact.scalar_type == scalar_type
-                    && matches!(
-                        fact.support,
-                        ValueRangeSupport::AcceptedOperationProof { .. }
-                    )
                     && ranges.fact_applies_at(fact, unit, function.machine, block, node_index)
             })?;
             let constant = evaluate(
@@ -808,9 +802,7 @@ pub(crate) mod range_against_range {
     use optimization_core::{
         AnalysisKind, AnalysisSet, OptimizationRuleContract, OptimizationSafetyClass,
     };
-    use optimization_unit::{
-        IntegerEvaluationWitness, PsiOptimizationUnit, PsiRewriteCandidate, ValueRangeSupport,
-    };
+    use optimization_unit::{IntegerEvaluationWitness, PsiOptimizationUnit, PsiRewriteCandidate};
     use semantic_vocabulary::{IntegerType, IntegerValue};
 
     use super::IntegerRangePairComparisonKind;
@@ -891,10 +883,6 @@ pub(crate) mod range_against_range {
                     fact.valid_in.machine == function.machine
                         && fact.value == value
                         && fact.scalar_type == scalar_type
-                        && matches!(
-                            fact.support,
-                            ValueRangeSupport::AcceptedOperationProof { .. }
-                        )
                         && ranges.fact_applies_at(fact, unit, function.machine, block, node_index)
                 })
             };

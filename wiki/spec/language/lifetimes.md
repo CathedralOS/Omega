@@ -39,10 +39,12 @@ general authored outlives bounds or higher-ranked whole-conformance arguments.
 
 ## Returned views
 
-An explicit result lifetime relates its reference leaves to the corresponding
-input lifetime. The source must supply the result's declared access and remain
-live for the result's use. A signature does not authorize returning unrelated
-storage merely because its type has the same lifetime spelling.
+An explicit result lifetime that an input carries relates its reference leaves
+to the corresponding input lifetime. One that no input carries is
+[chosen by the caller](#caller-chosen-result-lifetimes). The source must supply
+the result's declared access and remain live for the result's use. A signature
+does not authorize returning unrelated storage merely because its type has the
+same lifetime spelling.
 
 An admitted foreign boundary may establish a provider-owned reference under its
 complete safe contract, including through an output slot. Its backing need not
@@ -56,6 +58,11 @@ A qualified machine name, parameter name, or first-argument position grants no
 priority among possible sources. Several unnamed carried
 references do not become one source merely because they occupy one parameter.
 Ambiguous elision requires an explicit relation, not a guess by name or position.
+With no eligible reference input, the elided lifetime is one
+[caller-chosen](#caller-chosen-result-lifetimes) lifetime. References inside
+input aggregates count as inputs, and an input whose reference frontier is
+unresolved, such as one of generic type, is not an input without references:
+elision there requires an explicit relation.
 
 Returned carriers preserve their complete structural lifetime frontier through
 nested records, active sum payloads, fixed arrays, qualifications and concrete
@@ -73,6 +80,52 @@ result-to-input relation. A template-dependent frontier is not an empty one;
 discarding the result cannot excuse missing call admission. General outlives
 syntax and broader multiple-source result relations are not supplied by the
 single-source elision rule. Unresolved loans cannot be omitted.
+
+### Caller-chosen result lifetimes
+
+Named decision: `image-storage-result-lifetime`, ratified 2026-11-13.
+
+A lifetime that a machine binds and no input carries is chosen independently by
+each caller: the call instantiates it from the result's use, as a quoted literal
+takes the lifetime its use requires. The body must establish every returned view
+for every admissible choice, including its backing, access and retention. It
+cannot assume the choice coincides with an input lifetime, and checking never
+shortens the promised lifetime to fit a local or input borrow. Instantiating a
+lifetime creates neither backing nor retention authority.
+
+```omega
+machine package_name() -> &[u8] { "my_library" }
+
+machine kind_name<'name>(value: &Value) -> &'name [u8] { "record" }
+
+machine leak<'name>(text: &[u8]) -> &'name [u8] { text }   // Rejected.
+```
+
+`package_name` has no reference input, so its elided result lifetime is chosen
+by the caller. `kind_name` binds one explicitly, so its result does not keep
+`value` borrowed. `leak` rejects because `text` is valid only for its own input
+lifetime. What qualifies is the backing a view denotes, not the form of the
+returning expression: a literal, a subslice of one, a choice between such views,
+and a view projected from another caller-chosen result all qualify. A view of
+local storage does not, even when empty.
+
+A [quoted literal](data_and_literals.md#quoted-bytes) satisfies every choice
+because its image storage is retained for every accepted use. Where that image
+can be reclaimed independently of the caller, the
+[era custody rules](../build/component_publication.md#returned-values-and-custody)
+decide whether the backing is retained: a view whose backing exists only while
+one loaded image is held instead relates to an input that retains it, through
+an ordinary lifetime parameter. There is no `'static`, image or component
+lifetime constant.
+
+A published signature retains whether each result lifetime is input-related or
+caller-chosen. Forwarding, generic matching, requirement refinement and callable
+construction preserve that distinction. A callable already instantiated at one
+lifetime does not become one returning at any lifetime chosen later; this adds
+no runtime lifetime-polymorphic callable values beyond the
+[invocation-lifetime families](generics.md#invocation-lifetime-families). A
+bodyless requirement or admitted boundary that promises a caller-chosen result
+must establish backing for every choice under its contract.
 
 ## Carried-loan transport
 

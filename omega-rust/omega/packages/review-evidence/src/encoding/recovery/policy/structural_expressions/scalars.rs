@@ -11,7 +11,7 @@ use crate::record::PackageReviewIntegerRange;
 use crate::record::PackageReviewScalarExpression;
 
 use super::Error;
-use super::tags::{integer_binary, primitive_type_name};
+use super::tags::integer_binary;
 
 pub(in crate::encoding::recovery) fn scalar_expression(
     reader: &mut Reader<'_>,
@@ -36,7 +36,7 @@ pub(in crate::encoding::recovery) fn scalar_expression(
                 canonical_text: reader.string()?,
                 landing: reader.option(|reader| {
                     Ok(PackageReviewIntegerLiteralLanding {
-                        landed_type: primitive_type_name(reader)?,
+                        landed_type: primitive_type(reader)?,
                         arithmetic_domain: match reader.string()?.as_str() {
                             "Exact" => PackageReviewArithmeticDomain::Exact,
                             "Wrapping" => PackageReviewArithmeticDomain::Wrapping,

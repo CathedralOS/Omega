@@ -12,7 +12,6 @@ s!(OptimizationCandidateIdentity => b"omega.optimization-candidate-identity.v1\0
 s!(ScalarConstantFactIdentity => b"omega.scalar-constant-fact-identity.v1\0");
 s!(ValueRangeFactIdentity => b"omega.value-range-fact-identity.v1\0");
 s!(AcceptedObligationFactIdentity => b"omega.accepted-obligation-fact-identity.v1\0");
-canonical_identity!(ProofQuestionIdentity, b"omega.proof-question-identity.v1\0");
 s!(OwnershipFrontierFactIdentity => b"omega.ownership-frontier-fact-identity.v1\0");
 s!(OptimizationRuleSetIdentity => b"omega.optimization-rule-set-identity.v1\0");
 impl OptimizationRuleSetIdentity {

@@ -2946,7 +2946,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 .ok_or(malformed())?;
             let actuals = family_actuals
                 .iter()
-                .map(|actual| self.family_actual_integer(*actual))
+                .map(|actual| self.family_actual_value(*actual))
                 .collect::<Result<Vec<_>, _>>()?;
             let mut matched = None;
             for (index, candidate) in interface_slots
@@ -2965,9 +2965,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                         .family_tuple
                         .iter()
                         .zip(&actuals)
-                        .all(|(identity, actual)| {
-                            family_tuple_member_value(identity) == Some(*actual)
-                        })
+                        .all(|(value, actual)| value == actual)
                 {
                     matched = Some(u32::try_from(index).map_err(|_| malformed())?);
                     break;
@@ -3695,28 +3693,179 @@ impl<'artifact> TerminalExecution<'artifact> {
 }
 
 impl TerminalExecution<'_> {
-    fn family_actual_integer(
+    fn family_actual_value(
         &self,
         actual: semantic_vocabulary::ValueId,
-    ) -> Result<i128, TerminalInterpretError> {
+    ) -> Result<terminal_psi::FiniteScalarValue, TerminalInterpretError> {
+        use terminal_psi::FiniteScalarValue;
         match self.values.get(&actual).copied() {
             Some(crate::boundary::values::TerminalScalarValue::Integer {
                 value: semantic_vocabulary::IntegerValue::Signed(value),
                 ..
-            }) => Ok(value),
+            }) => Ok(FiniteScalarValue::Integer(value)),
             Some(crate::boundary::values::TerminalScalarValue::Integer {
                 value: semantic_vocabulary::IntegerValue::Unsigned(value),
                 ..
-            }) => i128::try_from(value).map_err(|_| malformed()),
+            }) => i128::try_from(value)
+                .map(FiniteScalarValue::Integer)
+                .map_err(|_| malformed()),
+            Some(crate::boundary::values::TerminalScalarValue::Boolean(value)) => {
+                Ok(FiniteScalarValue::Boolean(value))
+            }
             Some(_) => Err(malformed()),
             None => Err(TerminalInterpretError::VerifiedValueMissing(actual)),
         }
     }
 }
 
-fn family_tuple_member_value(identity: &str) -> Option<i128> {
-    identity
-        .strip_prefix("named(integer-const(")
-        .and_then(|inner| inner.strip_suffix("))"))
-        .and_then(|inner| inner.parse::<i128>().ok())
+#[cfg(test)]
+mod finite_family_tests {
+    use super::*;
+    use crate::boundary::results::TerminalExecutionResult;
+    use crate::boundary::values::TerminalScalarValue;
+    use semantic_vocabulary::{
+        IntegerSign, IntegerType, IntegerValue, MachineId, OperationId, ValueId,
+    };
+    use terminal_psi::FiniteScalarValue;
+    use terminal_psi::{
+        BoundaryMachineResult, Operation, OperationResult, TerminalDynamicInterface,
+        TerminalDynamicSlot, TerminalDynamicTable,
+    };
+
+    struct NoEffects;
+    impl TerminalEffectHandler for NoEffects {
+        fn handle_effect(&mut self, _: &TerminalEffect) -> Result<(), TerminalEffectRejection> {
+            Err(TerminalEffectRejection::new(
+                "unexpected family-call effect",
+            ))
+        }
+    }
+
+    fn integer(value: i128) -> TerminalScalarValue {
+        TerminalScalarValue::Integer {
+            scalar_type: IntegerType::new(IntegerSign::Signed, 128).unwrap(),
+            value: IntegerValue::Signed(value),
+        }
+    }
+
+    #[test]
+    fn finite_family_dispatch_uses_typed_values_and_refuses_absent_members() {
+        let selector = ValueId::new(1).unwrap();
+        let actual = ValueId::new(2).unwrap();
+        let operation = Operation::unsuspended(
+            OperationId::new(1).unwrap(),
+            OperationResult::Unit,
+            OperationKind::CallDynamic {
+                selector,
+                interface: 0,
+                slot: 0,
+                arguments: Vec::new(),
+                family_actuals: vec![actual],
+                erased_arguments: Vec::new(),
+                erased_proof_arguments: Vec::new(),
+                structural_arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+            },
+        );
+        let mut program = frames::tests::empty_program();
+        let module = std::sync::Arc::get_mut(&mut program)
+            .unwrap()
+            .fixture_module_mut();
+        let mut identities = std::mem::take(&mut module.identities).into_builder();
+        let identity = identities.intern("finite family interface");
+        let requirement_identity = identities.intern("finite family requirement");
+        let implementation_identity = identities.intern("finite family implementation");
+        module.identities = identities.snapshot();
+        let values = [
+            FiniteScalarValue::Integer(-4),
+            FiniteScalarValue::Integer(16),
+            FiniteScalarValue::Boolean(false),
+        ];
+        let mut rows = Vec::new();
+        for index in 0..values.len() {
+            let mut callee = module.machines[0].clone();
+            callee.id = MachineId::new(index as u64 + 2).unwrap();
+            rows.push(Some(callee.id));
+            module.machines.push(callee);
+        }
+        module.machines[0].blocks[0]
+            .operations
+            .push(operation.clone());
+        module
+            .dynamic_dispatch
+            .interfaces
+            .push(TerminalDynamicInterface {
+                id: 0,
+                identity,
+                slots: values
+                    .iter()
+                    .enumerate()
+                    .map(|(index, value)| TerminalDynamicSlot {
+                        slot: index as u32,
+                        declaring_trait_identity: identity,
+                        requirement_identity,
+                        family_tuple: vec![*value],
+                        scalar_parameters: Vec::new(),
+                        structural_parameters: Vec::new(),
+                        entry_claim_paths: Vec::new(),
+                        result: BoundaryMachineResult::Unit,
+                        result_claim_paths: Vec::new(),
+                        result_reference_regions: Vec::new(),
+                    })
+                    .collect(),
+            });
+        module.dynamic_dispatch.tables.push(TerminalDynamicTable {
+            id: 0,
+            interface: 0,
+            implementation_identity,
+            rows,
+        });
+        for (value, selected) in [
+            (integer(-4), Some(2)),
+            (integer(16), Some(3)),
+            (TerminalScalarValue::Boolean(false), Some(4)),
+            (integer(0), None),
+            (integer(5), None),
+            (TerminalScalarValue::Boolean(true), None),
+        ] {
+            let mut execution = TerminalExecution::start_with_program(
+                program.clone(),
+                &[],
+                crate::TerminalStructuralInputs::default(),
+                None,
+                None,
+            )
+            .unwrap();
+            execution
+                .values
+                .insert(
+                    selector,
+                    TerminalScalarValue::Integer {
+                        scalar_type: IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+                        value: IntegerValue::Unsigned(0),
+                    },
+                )
+                .unwrap();
+            execution.values.insert(actual, value).unwrap();
+            let result = execution.execute_call_dynamic(&operation, &program);
+            if let Some(selected) = selected {
+                assert!(matches!(result, Ok(OperationFlow::Redispatch)));
+                assert_eq!(execution.current_machine, MachineId::new(selected).unwrap());
+                assert!(matches!(
+                    execution
+                        .resume(&mut psi_work::WorkMeter::with_budget(16), &mut NoEffects)
+                        .unwrap(),
+                    TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+                ));
+            } else {
+                assert!(matches!(
+                    result,
+                    Err(TerminalInterpretError::VerifiedOperationMalformed)
+                ));
+                assert_eq!(execution.current_machine, MachineId::new(1).unwrap());
+            }
+        }
+    }
 }

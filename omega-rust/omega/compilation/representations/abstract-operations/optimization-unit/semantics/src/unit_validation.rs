@@ -1173,12 +1173,6 @@ mod catalogs {
         {
             return Err(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch);
         }
-        if unit.proof_questions.iter().any(|question| {
-            let machine = question.owner.machine();
-            !machines.contains_key(&machine) && !pruned.contains(&machine)
-        }) {
-            return Err(OptimizationUnitValidationError::ProofQuestionIndexMismatch);
-        }
         let mut boundary_machines = BTreeMap::new();
         for boundary in &unit.boundary_machines {
             if boundary_machines.insert(boundary.id, boundary).is_some() {
@@ -2373,9 +2367,6 @@ pub(crate) mod derived_metadata {
             }
         }
     }
-    mod ownership {
-        pub(crate) use optimization_unit::operation_ownership as expected_ownership;
-    }
     mod places {
         use crate::OptimizationUnitValidationError;
         use abstract_operations::AbstractOperation as O;
@@ -2644,44 +2635,14 @@ pub(crate) mod derived_metadata {
             }
         }
     }
-    mod values {
-        use optimization_unit::{ValueDefinition, ValueDefinitionSite, ValueUse};
-        use semantic_vocabulary::BlockId;
-
-        pub(crate) fn expected_definitions(
-            operation: &abstract_operations::AbstractOperation,
-            block: BlockId,
-            node: u32,
-        ) -> Vec<ValueDefinition> {
-            let definition = optimization_unit::operation_definition(operation);
-            definition
-                .into_iter()
-                .map(|(value, scalar_type)| ValueDefinition {
-                    value,
-                    scalar_type,
-                    site: ValueDefinitionSite::Node { block, node },
-                })
-                .collect()
-        }
-
-        pub(crate) fn expected_uses(
-            operation: &abstract_operations::AbstractOperation,
-            block: BlockId,
-            node: u32,
-        ) -> Vec<ValueUse> {
-            optimization_unit::operation_uses(operation)
-                .into_iter()
-                .map(|value| ValueUse { value, block, node })
-                .collect()
-        }
-    }
+    pub(crate) use crate::operation_metadata::{
+        expected_definitions, expected_ownership, expected_uses,
+    };
     pub(crate) use control_flow::is_terminator;
     pub(crate) use edges::{expected_edges, successors_match_operation};
     pub(crate) use optimization_unit::dominators;
-    pub(crate) use ownership::expected_ownership;
     pub(crate) use places::{function_has_claim, reconstruct_declared_places};
     pub(crate) use provenance::{expected_provenance, provenance_matches_operation};
-    pub(crate) use values::{expected_definitions, expected_uses};
 
     pub(crate) fn validate_places_and_claims(
         function: &PsiOptimizationFunction,
@@ -5123,12 +5084,7 @@ pub(crate) mod function_structure {
         StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Integer(integer))
         if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8 && !integer.is_address()))
         }
-        fn covers(actual: StructuralAccess, requested: StructuralAccess) -> bool {
-            actual == requested
-                || actual == StructuralAccess::Owned
-                || actual == StructuralAccess::MutableBorrow
-                    && requested == StructuralAccess::SharedBorrow
-        }
+        use terminal_psi::structural_access_covers as covers;
 
         pub(super) fn valid_whole(
             function: &PsiOptimizationFunction,
@@ -5598,8 +5554,7 @@ pub(crate) mod function_structure {
     pub use byte_views::declared_descriptor_home;
     mod control_flow {
         use crate::unit_validation::derived_metadata::{
-            expected_definitions, expected_ownership, expected_uses, is_terminator,
-            provenance_matches_operation, successors_match_operation,
+            is_terminator, provenance_matches_operation, successors_match_operation,
         };
         use crate::{OperationSite, OptimizationUnitValidationError};
         use optimization_unit::PsiOptimizationFunction;
@@ -5689,11 +5644,8 @@ pub(crate) mod function_structure {
                     let node_index =
                         u32::try_from(index).expect("unit node index was built as u32");
                     if !provenance_matches_operation(&node.operation, &node.provenance)
-                        || node.definitions
-                            != expected_definitions(&node.operation, block.id, node_index)
-                        || node.uses != expected_uses(&node.operation, block.id, node_index)
+                        || !crate::operation_metadata::metadata_matches(node, block.id, node_index)
                         || !successors_match_operation(&node.operation, &node.successors)
-                        || node.ownership != expected_ownership(&node.operation)
                     {
                         return Err(OptimizationUnitValidationError::OperationMetadataMismatch(
                             OperationSite::new(function.machine, block.id, node_index),
@@ -9682,7 +9634,6 @@ mod identity_indexes {
         recompute_psi_optimization_unit_identity,
     };
     use psi_work::WorkSchedule;
-    use std::collections::BTreeSet;
 
     pub(super) fn validate_identity_and_fact_indexes(
         unit: &PsiOptimizationUnit,
@@ -9707,16 +9658,6 @@ mod identity_indexes {
             })
         {
             return Err(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch);
-        }
-        let mut proof_question_identities = BTreeSet::new();
-        let mut proof_question_owners = BTreeSet::new();
-        if unit.proof_questions.iter().any(|question| {
-            question.terminal_psi != unit.psi
-                || !question.has_canonical_identity()
-                || !proof_question_identities.insert(question.identity)
-                || !proof_question_owners.insert((question.owner, question.obligation))
-        }) {
-            return Err(OptimizationUnitValidationError::ProofQuestionIndexMismatch);
         }
         if unit.ownership_frontier_facts.iter().any(|fact| {
             fact.psi != unit.psi
@@ -14940,17 +14881,7 @@ pub(crate) mod references {
             })
     }
 
-    pub(crate) fn access_covers(authority: StructuralAccess, requested: StructuralAccess) -> bool {
-        authority == requested
-            || matches!(
-                (authority, requested),
-                (StructuralAccess::Owned, _)
-                    | (
-                        StructuralAccess::MutableBorrow,
-                        StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
-                    )
-            )
-    }
+    pub(crate) use terminal_psi::structural_access_covers as access_covers;
 
     pub(crate) fn leaf_access_within(
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,

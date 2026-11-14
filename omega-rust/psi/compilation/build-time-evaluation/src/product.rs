@@ -524,6 +524,7 @@ pub mod provider_declarations {
                         origin,
                         None,
                         CompositionMode::Fused,
+                        super::ProviderForm::DefaultClosure,
                     )
                     .map_err(|diagnostic| vec![diagnostic.with_source_span(call.source_span)])?;
                     if let Some(existing) = selections
@@ -565,8 +566,27 @@ pub mod provider_declarations {
         }
     }
 
+    /// What may stand in the Provider position of a selection.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(super) enum ProviderForm {
+        /// A choice a Build makes: a static record a named implementation
+        /// constructs. provider_selection.md, "Declaration and choice": "A
+        /// data type or runtime provider descriptor is not such a value."
+        StaticRecord,
+        /// A default a target package declares: a named implementation, or
+        /// the data type that owns the package's provider closure, whose
+        /// attached machines each state the requirement they satisfy
+        /// (`boundary machine Provider::exit_process(...) satisfies
+        /// ProcessExit::exit_process`). The bundled library declares every
+        /// one of its defaults this way, so refusing the form refuses every
+        /// program; it stays served until the library is moved to named
+        /// implementations (`TASKS.md`, **STATIC-MACHINE-MIGRATION**).
+        DefaultClosure,
+    }
+
     /// Classifies the slot, checks the provider is a declaration that can
-    /// provide, and states the selection with its authored origin.
+    /// provide in `provider_form`, and states the selection with its
+    /// authored origin.
     pub(super) fn form(
         context: ProviderPlanningContext<'_>,
         slot: ProviderSelectionIdentity,
@@ -574,6 +594,7 @@ pub mod provider_declarations {
         origin: BuildSelectionOrigin,
         target: Option<ProductTarget>,
         composition_mode: CompositionMode,
+        provider_form: ProviderForm,
     ) -> Result<ProviderSelection, Diagnostic> {
         use symbols::SymbolKind;
         let typed = context.typed;
@@ -635,7 +656,9 @@ pub mod provider_declarations {
             .conformances()
             .iter()
             .find(|definition| definition.symbol == provider.symbol);
-        if implementation.is_none() {
+        let owns_default_closure = provider_form == ProviderForm::DefaultClosure
+            && typed.symbols.get(provider.symbol).kind == SymbolKind::Data;
+        if implementation.is_none() && !owns_default_closure {
             return Err(Diagnostic::error(format!(
                 "provider selection `{}` is not a static operation record from a named implementation; a data type is not a provider value",
                 provider.authored_path
@@ -854,6 +877,25 @@ mod tests {
                 "Service".to_owned(),
                 "NativeProvider".to_owned()
             )])
+        );
+    }
+
+    /// The bundled library's form: the default names the data type that owns
+    /// the provider closure, as `std` does for every target
+    /// (`ProcessExitNativeProvider::select_provider<ProcessExit,
+    /// ProcessExitNativeProvider>(defaults)`). It is a default, so it is read;
+    /// the same data type chosen by a Build is refused
+    /// (`provider_selection_tests`).
+    #[test]
+    fn a_provider_default_may_name_the_data_type_that_owns_its_closure() {
+        assert_eq!(
+            provider_defaults_of(&format!(
+                "{SLOT}machine Native::provider_defaults(defaults: &mut Native) {{
+    Native::select_provider<Service, Native>(defaults);
+}}
+"
+            )),
+            Ok(vec![(None, "Service".to_owned(), "Native".to_owned())])
         );
     }
 

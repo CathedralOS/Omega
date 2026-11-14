@@ -26,7 +26,6 @@ mod error {
         },
         PropositionCodec(CodecError),
         FactIndex(optimization_unit::AcceptedObligationFactIndexError),
-        ProofQuestionIndex(optimization_unit::ProofQuestionIndexError),
         MissingStructuralCatalogMachine(MachineId),
         /// An evidence seal does not match the operation obligation it names:
         /// its parts changed after sealing, the operation is not in the module,
@@ -71,12 +70,6 @@ mod error {
     {
         fn from(error: optimization_unit::AcceptedObligationFactIndexError) -> Self {
             Self::FactIndex(error)
-        }
-    }
-
-    impl From<optimization_unit::ProofQuestionIndexError> for VerifiedPsiOptimizationUnitBuildError {
-        fn from(error: optimization_unit::ProofQuestionIndexError) -> Self {
-            Self::ProofQuestionIndex(error)
         }
     }
 }

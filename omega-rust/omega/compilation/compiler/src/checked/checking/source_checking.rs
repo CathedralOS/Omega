@@ -39,8 +39,8 @@ pub(crate) fn check_product_source(
         // The Build's own provider selections are supplies of this compilation
         // whether or not the program reaches their slots: each chosen provider
         // is judged against the slot it names. A target package's defaults join
-        // only when settlement chooses them for a requirement the accepted
-        // module reaches (`PreparedProductTarget::capture`).
+        // below, when a target chooses them for a requirement its entries reach
+        // (`judge_supplied_product`).
         let supplies = build
             .provider_selections
             .iter()
@@ -176,6 +176,26 @@ pub(crate) fn check_product_source(
                 },
             );
         }
+        // The Product has one module for every target, so the providers each
+        // target chooses are judged in it before anything is published. The
+        // judgment kept is that module's: the verdict, the demand of each target
+        // and the publication are all read from it.
+        let supplied =
+            crate::checked::judge_supplied_product(crate::checked::ProductSupplySource {
+                program: &program,
+                roster: &roster,
+                accepted: &accepted_source,
+                build: &build.provider_selections,
+                defaults: &provider_defaults,
+            })
+            .map_err(|mut diagnostics| {
+                if let Some(sources) = symbol_sources.as_deref() {
+                    super::attribute_diagnostics(&mut diagnostics, sources, package_inputs);
+                }
+                diagnostics
+            })?;
+        let accepted_source = supplied.accepted.unwrap_or(accepted_source);
+        let roster = supplied.roster;
         let sources = Arc::new(build_sources.seal(&program, package_inputs)?);
         let provider_inventory = Arc::new(
             typed_trees::provider_declarations::PreparedProviderInventory::new(

@@ -22,7 +22,7 @@ impl<'t> Program<'t> {
     /// Read a bodyless boundary through the same formal and contract owner as
     /// a machine. Its distinct target identity prevents a source declaration
     /// from standing in for an executable provider body.
-    fn boundary(
+    pub(super) fn boundary(
         &mut self,
         caller: MachineId,
         target: SymbolHandle,

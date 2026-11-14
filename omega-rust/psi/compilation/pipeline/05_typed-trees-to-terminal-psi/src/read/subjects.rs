@@ -31,7 +31,8 @@ its symbol was declared in, never from a path or a name:
   which checks it before it runs, and that activation's compilation claims
   the subject's Build declarations and none of its Product declarations.
 - A user file is a subject only when its package identity is requested.
-  An explicit `None` subject selects standalone user source. An empty request
+  An explicit `None` subject selects standalone user source: every user file,
+  whatever identity its completed Build derived for it. An empty request
   selects no full-package or standalone subject.
 - A declaration with no source file cannot be placed, so it is refused.
 */
@@ -107,10 +108,20 @@ impl Program<'_> {
 
     /// Makes every declaration the Build's selections name a root, whichever
     /// package declares it. A selected machine is read like an entry and a
-    /// selected data type is resolved as a record. A selection of anything
-    /// else (a trait, a requirement, an operator family) is refused here: a
-    /// provider is judged against what it provides as a `Supply`
-    /// (`supplied_slots`), never as a bare selected declaration.
+    /// selected data type is resolved as a record.
+    ///
+    /// A native binding (`Build::bind<Host::tick>(builder, target, locator)`)
+    /// claims the requirement it names and the boundary trait that declares
+    /// it. The binding says where the requirement is found; neither has a
+    /// body to judge. The requirement is read as the boundary it is, by the
+    /// one reader every call of it takes, so its signature and declared
+    /// ceilings are held to the same rules whether or not this compilation
+    /// calls it. The trait is read as the service it declares.
+    ///
+    /// A selection of anything else (a trait that is no boundary, an
+    /// operator family) is refused here. A provider is judged against what
+    /// it provides as a `Supply` (`supplied_slots`), never as a bare
+    /// selected declaration.
     pub fn selected_declarations(
         &mut self,
         entry: MachineId,
@@ -123,11 +134,25 @@ impl Program<'_> {
                 self.fixed_inputs.push(machine);
             } else if self.data_declaration(*symbol).is_some() {
                 self.record(entry, *symbol)?;
+            } else if typed
+                .trait_machine_signature(*symbol)
+                .is_some_and(|(owner, requirement)| {
+                    owner.is_boundary && requirement.symbol == *symbol
+                })
+            {
+                self.boundary(entry, *symbol)?;
+            } else if let Some(owner) = typed
+                .trait_definition_by_symbol(*symbol)
+                .filter(|owner| owner.is_boundary)
+            {
+                self.declared_service(entry, owner)?;
             } else {
                 return Err(refuse(
                     entry,
                     Construct::Machine,
-                    Unserved::Declaration("Build selection that is not a machine or a data type"),
+                    Unserved::Declaration(
+                        "Build selection that is not a machine, a data type or a boundary",
+                    ),
                 ));
             }
         }
@@ -203,6 +228,14 @@ impl Program<'_> {
                 let root = self.provider(machine.symbol, owner.symbol, requirement)?;
                 if !self.fixed_inputs.contains(&root) {
                     self.fixed_inputs.push(root);
+                }
+                let supplied = crate::SuppliedRequirement {
+                    provider: supply.provider,
+                    requirement,
+                    machine: root,
+                };
+                if !self.supplied.contains(&supplied) {
+                    self.supplied.push(supplied);
                 }
                 // A machine that states `satisfies` already owes this row
                 // (`satisfied_requirements`), and two supplies may name one

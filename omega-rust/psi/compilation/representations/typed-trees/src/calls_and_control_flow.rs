@@ -636,23 +636,16 @@ pub mod calls {
     }
     pub mod finite_family {
         use crate::TypedTrees;
-        use crate::escape;
         use crate::expression::BinaryOperator;
         use crate::expression::ExpressionNode::Binary;
         use crate::expression::ExpressionNode::Name;
         use crate::signature::StateSignature;
         use crate::types;
-
-        #[derive(Debug, Clone, PartialEq, Eq)]
-        pub struct FamilyValue {
-            pub identity: String,
-            pub display: String,
-        }
+        use language_semantics::const_value::FiniteScalarValue;
 
         #[derive(Debug, Clone, PartialEq, Eq)]
         pub struct FamilyTuple {
-            pub identities: Box<[String]>,
-            pub display: Box<[String]>,
+            pub values: Box<[FiniteScalarValue]>,
         }
 
         #[derive(Debug, Clone, PartialEq, Eq)]
@@ -782,7 +775,7 @@ pub mod calls {
             ) -> FamilyProbe {
                 let mut tuples = Vec::new();
                 for alternative in self.binary_chain_leaves(root, BinaryOperator::Or) {
-                    let mut assignments: Vec<Option<FamilyValue>> = vec![None; binders.len()];
+                    let mut assignments: Vec<Option<FiniteScalarValue>> = vec![None; binders.len()];
                     for conjunct in self.binary_chain_leaves(alternative, BinaryOperator::And) {
                         let Some((binder_index, value)) =
                             self.equality_assignment(owner, binders, conjunct)
@@ -813,12 +806,19 @@ pub mod calls {
                         .map(|value| value.expect("complete alternative tuple"))
                         .collect::<Vec<_>>();
                     tuples.push(FamilyTuple {
-                        identities: tuple.iter().map(|value| value.identity.clone()).collect(),
-                        display: tuple.iter().map(|value| value.display.clone()).collect(),
+                        values: tuple.into_boxed_slice(),
                     });
                 }
-                tuples.sort_by(|left, right| left.identities.cmp(&right.identities));
-                tuples.dedup_by(|left, right| left.identities == right.identities);
+                // Preserve the published roster ordering while keeping the
+                // scalar values, rather than reparsing keys for later checks.
+                tuples.sort_by_cached_key(|tuple| {
+                    tuple
+                        .values
+                        .iter()
+                        .map(|value| value.canonical_identity())
+                        .collect::<Vec<_>>()
+                });
+                tuples.dedup_by(|left, right| left.values == right.values);
                 FamilyProbe::Finite {
                     arity: binders.len(),
                     tuples,
@@ -849,7 +849,7 @@ pub mod calls {
                 owner: symbols::SymbolHandle,
                 binders: &[&crate::data::TypeParameter],
                 expression: crate::expression::ExpressionHandle,
-            ) -> Option<(usize, FamilyValue)> {
+            ) -> Option<(usize, FiniteScalarValue)> {
                 let Binary(binary) = self.expression_table.expression(expression) else {
                     return None;
                 };
@@ -871,7 +871,7 @@ pub mod calls {
                     | crate::data::TypeParameterKind::Value { type_reference } => *type_reference,
                     _ => return None,
                 };
-                self.value_fits_carrier(carrier, &value.identity)
+                self.value_fits_carrier(carrier, value)
                     .then_some((binder, value))
             }
 
@@ -898,26 +898,18 @@ pub mod calls {
                 &self,
                 owner: symbols::SymbolHandle,
                 expression: crate::expression::ExpressionHandle,
-            ) -> Option<FamilyValue> {
+            ) -> Option<FiniteScalarValue> {
                 match self.expression_table.expression(expression) {
                     crate::expression::ExpressionNode::Integer(literal) => {
                         let value = literal
                             .value_i64()
                             .map(i128::from)
                             .or_else(|| literal.value_u64().map(i128::from))?;
-                        Some(FamilyValue {
-                            identity: integer_const_identity(value),
-                            display: value.to_string(),
-                        })
+                        Some(FiniteScalarValue::Integer(value))
                     }
-                    crate::expression::ExpressionNode::Boolean(value) => Some(FamilyValue {
-                        identity: canonical_const_identity(
-                            "bool",
-                            &language_semantics::const_value::CanonicalConstValue::boolean(*value)
-                                .encoding,
-                        ),
-                        display: value.to_string(),
-                    }),
+                    crate::expression::ExpressionNode::Boolean(value) => {
+                        Some(FiniteScalarValue::Boolean(*value))
+                    }
                     Name(path) => {
                         let members = self.expression_table.name_path_members(path.members);
                         let [member] = members else { return None };
@@ -939,28 +931,7 @@ pub mod calls {
                             declaration.evaluated_value.as_ref()?.encoding()?.to_owned(),
                             member.as_str(),
                         );
-                        match value.decode_encoding()? {
-                    language_semantics::const_value::DecodedCanonicalConstValue::Integer {
-                        value,
-                        ..
-                    } => Some(FamilyValue {
-                        identity: integer_const_identity(value),
-                        display: value.to_string(),
-                    }),
-                    language_semantics::const_value::DecodedCanonicalConstValue::Boolean(value) => {
-                        Some(FamilyValue {
-                            identity: canonical_const_identity(
-                                "bool",
-                                &language_semantics::const_value::CanonicalConstValue::boolean(
-                                    value,
-                                )
-                                .encoding,
-                            ),
-                            display: value.to_string(),
-                        })
-                    }
-                    _ => None,
-                }
+                        FiniteScalarValue::from_decoded(&value.decode_encoding()?)
                     }
                     _ => None,
                 }
@@ -969,37 +940,18 @@ pub mod calls {
             fn value_fits_carrier(
                 &self,
                 carrier: types::TypeReferenceHandle,
-                identity: &str,
+                value: FiniteScalarValue,
             ) -> bool {
                 let Some(primitive) = self.primitive_type_reference(carrier) else {
                     return false;
                 };
-                if let Some(value) = identity
-                    .strip_prefix("named(integer-const(")
-                    .and_then(|inner| inner.strip_suffix("))"))
-                    .and_then(|inner| inner.parse::<i128>().ok())
-                {
-                    return primitive_integer_range(primitive)
-                        .is_some_and(|(low, high)| low <= value && value <= high);
+                match value {
+                    FiniteScalarValue::Integer(value) => primitive
+                        .integer_bounds()
+                        .is_some_and(|(low, high)| low <= value && value <= high),
+                    FiniteScalarValue::Boolean(_) => primitive == types::PrimitiveType::Bool,
                 }
-                primitive == types::PrimitiveType::Bool
             }
-        }
-
-        pub fn integer_const_identity(value: i128) -> String {
-            format!("named(integer-const({value}))")
-        }
-
-        pub fn canonical_const_identity(type_name: &str, encoding: &str) -> String {
-            format!(
-                "named(canonical-const(type({}),encoding({})))",
-                escape(type_name),
-                escape(encoding)
-            )
-        }
-
-        fn primitive_integer_range(primitive: types::PrimitiveType) -> Option<(i128, i128)> {
-            primitive.integer_bounds()
         }
     }
     pub(crate) mod operand_order {

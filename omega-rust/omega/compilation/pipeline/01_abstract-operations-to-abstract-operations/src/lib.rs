@@ -98,8 +98,7 @@ pub mod test_support {
     pub use crate::run_psi_pipeline;
 
     pub use crate::analyses::{
-        AnalysisRevision, ValueRangeFact, ValueRangeScope, ValueRangeSupport,
-        value_range_fact_identity,
+        AnalysisRevision, ValueRangeFact, ValueRangeSupport, value_range_fact_identity,
     };
 
     pub use crate::pass_manager::{OptimizationRunUsage, PsiOptimizationCommit};

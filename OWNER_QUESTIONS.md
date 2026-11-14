@@ -137,35 +137,32 @@ visible, so the caller treats non-return as unknown?
 regardless of unit (behaviour that predates the rule, kept by #2983). That is
 (b) in effect and is wider than the unit rule as written.
 
-### Q3 - What lifetime does a returned view of a quoted literal have when the machine takes no reference?
+### Q3 - What becomes of the fact samples whose dependency package was removed?
 
-Decision name: `image-storage-result-lifetime`.
+Decision name: `fact-sample-dependency-packages`.
 
-**Customer.** A helper that names a fixed byte string for several callers:
-`machine package_name() -> &[u8] { "my_library" }`, called as
-`Build::package(builder, package_name())`. The Build scripts of
-`samples/cli/facts/recorded_build_role/` and
-`samples/cli/facts/required_output_path/` are written this way, and any
-library that publishes a name, a path or a message table would be.
+**Customer.** Three families of `samples/cli/facts/` exist to show a
+capability across a package boundary: `build_target_provider`,
+`dependency_type_qualified_call` and `component_scalar_lending`. Each place's
+Build registers a dependency in a folder beside it
+(`Source::Path { location: "reading_provider" }`, `"lib"`, `"producer"`).
 
-**Gap.** [Quoted bytes](wiki/spec/language/data_and_literals.md#quoted-bytes)
-says a literal's "runtime shared view refers to immutable image storage, not a
-invocation-local owner", so the view outlives the call that returns it.
-[Returned views](wiki/spec/language/lifetimes.md#returned-views) relates a
-result to an input: "For an elided output, one unambiguous reference input
-supplies the relation." A machine with no reference input has no input to
-supply it, and the pages name no lifetime for image storage that a result
-could be written at (no `'static` or `'image` binder exists). Pages checked:
-those two, plus "Binders and source applications" and "Carried-loan
-transport" in `lifetimes.md`.
+**Gap.** #1841 ("deduplicate facts corpus and freeze new fact additions")
+removed those folders, 216 files, as duplicates of each other, and left the
+Builds that name them. Every program of the three families, about 55 with
+their `invalid/` twins, is refused before its Build finishes: `cannot
+establish canonical external source path`. The same change froze the
+directory: `cargo xtask check-rules` rejects any new `.omg` file under
+`samples/cli/facts/`, so the folders cannot be put back there, and a shared
+copy elsewhere would be new sample design, not a repair. This is repository
+content and its freeze rule, which no agent may change; no page of
+`wiki/spec/` is involved.
 
-**Question.** For a result view whose machine takes no reference, is the
-elided lifetime (a) image storage, so the result may only be a view of a
-literal (or of another such result) and is valid for any use; (b) an error,
-with a named lifetime for image storage added for the author to write; or
-(c) an error with no such lifetime, so a fixed byte string is passed down
-from a caller that holds the literal instead of returned?
+**Question.** (a) Restore one shared dependency package per family outside
+the frozen directory and point each place's Build at it (six new `.omg`
+files); (b) delete the three families, since a sample that cannot have its
+dependency shows nothing; or (c) leave them refused?
 
-**Until answered.** The lowered-form checker refuses the machine by name
-(`typing result lifetime that no argument is a view of`), with no claim that
-the program is wrong.
+**Until answered.** The samples stay as they are and are refused at source
+discovery. They are the largest group of programs that still stops in its
+Build.

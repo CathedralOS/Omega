@@ -51,4 +51,7 @@ pub use package_compilation::{
 };
 pub use package_review::{PackageReviewFailure, PackageReviewProduct, PackageReviewSource};
 pub(crate) use target_preparation::{PreparedProductTarget, selected_supplies};
-pub use target_preparation::{SuppliedTarget, TargetSupplySource, prepare_supplied_target};
+pub use target_preparation::{
+    ProductSupplySource, SuppliedProduct, TargetSupplySource, judge_supplied_product,
+    prepare_supplied_target,
+};

@@ -32,14 +32,14 @@ pub struct ConstantRead {
     pub value: Option<language_core::constant_value::EvaluatedConstant>,
 }
 
-/// One boundary requirement a machine of an accepted module calls.
+/// One boundary requirement an accepted module declares.
 ///
 /// `boundary` is the callable the module declares for it, `requirement` the
 /// source declaration of that callable and `slot` the boundary trait that
 /// owns the requirement: the two declarations a provider selection can name.
 /// `name` is the authored `Trait::requirement` spelling, for messages only.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ReachedBoundaryRequirement {
+pub struct DeclaredBoundaryRequirement {
     pub boundary: semantic_vocabulary::BoundaryMachineId,
     pub requirement: symbols::SymbolHandle,
     pub slot: symbols::SymbolHandle,
@@ -142,12 +142,12 @@ impl AcceptedTerminalSource {
                 .symbol_source_span(self.source.symbols.authored_origin(*symbol));
             provenance.name(machine, name.machine.clone(), span);
         }
-        let entry = self.entry().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "no product route yet: accepted source module has no machine entry",
-            )]
-        })?;
-        let provenance = provenance.for_root(&elaboration.module, entry, None);
+        // A declaration module has no entry: every machine keeps its name,
+        // and there is no call chain from a root to record.
+        let provenance = match self.entry() {
+            Some(entry) => provenance.for_root(&elaboration.module, entry, None),
+            None => provenance,
+        };
         let applications = custody
             .applications
             .iter()
@@ -260,18 +260,21 @@ impl AcceptedTerminalSource {
             .collect()
     }
 
-    /// The boundary requirements this accepted module's machines call, in
-    /// the order the module declares them.
+    /// The boundary requirements this accepted module declares, in the
+    /// order the module declares them.
     ///
-    /// The module holds the closure of its entry and nothing else, and it
-    /// declares a boundary callable exactly when a machine of that closure
-    /// calls one, so these are the requirements a product of this module
-    /// needs a provider for. An empty answer is a statement about the
-    /// artifact: its entry reaches no boundary requirement. Each row is
-    /// rejoined to the source declaration the elaboration lowered it from.
-    pub fn boundary_requirements_reached(
+    /// The module declares a boundary callable exactly when one of its
+    /// machines calls one. Its machines are the closure of every root of
+    /// the compilation: the entries, the subject's declarations and the
+    /// providers chosen for every target. So a declared requirement is not
+    /// yet a demand on any one target: which of them a target must supply
+    /// is decided by following its entries through the providers that
+    /// target chose (`supplied_requirements`, and
+    /// `provider_planning::target_supply`). Each row is rejoined to the
+    /// source declaration the elaboration lowered it from.
+    pub fn boundary_requirements_declared(
         &self,
-    ) -> Result<Vec<ReachedBoundaryRequirement>, Diagnostic> {
+    ) -> Result<Vec<DeclaredBoundaryRequirement>, Diagnostic> {
         let elaboration = &self.closure.elaboration;
         let lost = |detail: &str| {
             Diagnostic::error(format!(
@@ -283,7 +286,7 @@ impl AcceptedTerminalSource {
                 "differ from the requirements the module was lowered from",
             ));
         }
-        let mut reached = Vec::with_capacity(elaboration.boundaries.len());
+        let mut declared = Vec::with_capacity(elaboration.boundaries.len());
         for (boundary, symbol) in elaboration.boundaries.iter() {
             if elaboration.module.boundary_machine(boundary).is_none() {
                 return Err(lost("omit a requirement the module was lowered from"));
@@ -293,14 +296,33 @@ impl AcceptedTerminalSource {
                 .trait_machine_signature(*symbol)
                 .filter(|(owner, requirement)| owner.is_boundary && requirement.symbol == *symbol)
                 .ok_or_else(|| lost("lost the boundary trait that owns a requirement"))?;
-            reached.push(ReachedBoundaryRequirement {
+            declared.push(DeclaredBoundaryRequirement {
                 boundary,
                 requirement: *symbol,
                 slot: owner.symbol,
                 name: format!("{}::{}", owner.name.as_str(), requirement.name.as_str()),
             });
         }
-        Ok(reached)
+        Ok(declared)
+    }
+
+    /// The machine of this module each chosen provider gives each
+    /// requirement of the slot it supplies.
+    pub fn supplied_requirements(&self) -> &[typed_trees_to_terminal_psi::SuppliedRequirement] {
+        &self.closure.elaboration.supplied
+    }
+
+    /// The machine of this module that elaborates the source machine
+    /// `declaration`, when the module holds it.
+    pub fn machine_of(
+        &self,
+        declaration: symbols::SymbolHandle,
+    ) -> Option<semantic_vocabulary::MachineId> {
+        self.closure
+            .elaboration
+            .machines
+            .iter()
+            .find_map(|(machine, symbol)| (*symbol == declaration).then_some(machine))
     }
 
     /// The module the route judged and accepted, as publication emits it.
