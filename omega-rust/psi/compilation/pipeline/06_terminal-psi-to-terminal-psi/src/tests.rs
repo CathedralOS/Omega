@@ -26,6 +26,7 @@ mod address_bounds;
 mod applications;
 mod arithmetic_policies;
 mod arrays;
+mod borrowed_restoration;
 mod boundary_calls;
 mod build_purpose;
 mod byte_domains;

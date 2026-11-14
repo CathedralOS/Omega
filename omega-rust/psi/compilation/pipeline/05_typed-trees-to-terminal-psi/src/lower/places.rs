@@ -1657,7 +1657,17 @@ impl<'a> Lowering<'a> {
             return Ok(Reached::Value(at.root));
         }
         let moving = !self.record_type(at.record)?.copyable;
-        if moving && self.borrowed_roots.contains(&at.root) {
+        // ownership.md, "Borrowed-storage invariant windows": "An owned move
+        // out of a place reached through `&mut` may temporarily leave that
+        // place unestablished." The move below vacates exactly that place;
+        // whether it holds a value again where the borrow returns to its
+        // owner is the checker's judgment of the lowered machine, not a
+        // claim made here. A shared formal lends no such window, and the
+        // whole referent is never taken from its owner.
+        if moving
+            && self.borrowed_roots.contains(&at.root)
+            && (at.path.is_empty() || !self.exclusive_roots.contains(&at.root))
+        {
             return Err(refuse(
                 self.id,
                 Construct::Machine,

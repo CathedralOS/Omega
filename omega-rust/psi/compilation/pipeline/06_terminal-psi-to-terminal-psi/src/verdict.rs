@@ -953,8 +953,14 @@ fn examine(
                 machine: machine.id,
                 at,
                 site: Some(source_of(sources, machine.id, at).map_err(Err)?),
-                detail: "owned storage is used after its value was transferred or consumed"
-                    .to_owned(),
+                detail: if unavailable.unrestored {
+                    "an owned value was moved out of borrowed storage, and the place does not \
+                     hold a value again where the machine returns the borrow: a replacement \
+                     must be stored into the vacant place on every path that leaves the machine"
+                } else {
+                    "owned storage is used after its value was transferred or consumed"
+                }
+                .to_owned(),
                 declared: None,
             });
         }
