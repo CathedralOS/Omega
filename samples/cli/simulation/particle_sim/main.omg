@@ -20,7 +20,7 @@
 //
 // Expected exit: 70.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Particle [copy] {
     position: f64;

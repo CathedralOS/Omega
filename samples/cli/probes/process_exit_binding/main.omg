@@ -4,8 +4,7 @@
 // ProcessExit` grants output authority and the terminal outcome
 // through the exact canonical requirement with its i32 status.
 use omega::language::core::ProcessExit;
-use omega_language_std::process_exit;
-use omega_language_std::console;
+use omega_language_std::Console;
 machine dbl(x: i32) -> i32
 requires
     0 <= x && x <= 1000

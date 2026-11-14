@@ -1,5 +1,5 @@
 // Complete negative control: unconstrained denominator cannot prove nonzero.
-use omega_language_std::console;
+use omega_language_std::Console;
 machine unsafe_center(moment: i64, force: i64) -> i64 { moment / force }
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {

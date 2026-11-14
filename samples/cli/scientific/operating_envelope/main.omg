@@ -2,7 +2,7 @@
 // The generic sample harness supplies EOF; it must reject a missing packet.
 // Expected exit: 2.
 // Expected output contains: invalid input
-use omega_language_std::console;
+use omega_language_std::Console;
 use input;
 use geometry;
 use output;

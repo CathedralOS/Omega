@@ -1,5 +1,5 @@
 // Complete reproduction: conversions are owned by an ordinary domain module.
-use omega_language_std::console;
+use omega_language_std::Console;
 use calculation;
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {

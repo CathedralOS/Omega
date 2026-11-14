@@ -3,7 +3,7 @@
 // the closing input buffer are invocation-local values.
 // Expected exit: 0.
 // Expected output contains: 16
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::narrow_i32_to_u8_trapping;
 
 domain [u8; 16]::Ascii

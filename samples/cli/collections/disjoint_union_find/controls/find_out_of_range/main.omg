@@ -1,7 +1,7 @@
 // Intended-invalid control: calling DisjointSet::find on an out-of-range
 // element (64, violating element < 64) must be rejected at compile time.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data DisjointSet {
     parent: [u64; 64];

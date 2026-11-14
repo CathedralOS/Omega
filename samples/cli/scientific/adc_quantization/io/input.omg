@@ -1,6 +1,7 @@
 // Tokens are bounded signed decimal integers. 2001 = malformed, 2002 = EOF.
 // Neither sentinel is an admitted physical setting or sample.
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 use omega::language::core::widen_i32_to_i64;
 
 public machine number() -> i64 in Wrapping reaches Console

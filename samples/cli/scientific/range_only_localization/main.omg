@@ -1,6 +1,7 @@
 // Expected exit: 0.
 // Expected output contains: status unique
-use omega_language_std::console;
+use omega_language_std::Console;
+use omega_language_std::LineReadResult;
 use geometry::model;
 use input::parser;
 use output::report;

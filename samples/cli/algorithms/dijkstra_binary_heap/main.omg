@@ -13,7 +13,7 @@
 // Expected exit: 154 = shortest-distance sum (150) + path hops (4).
 // Distances from 0: [0, 4, 2, 9, 11, 14, 15, 17, 20, 21, 22, 15];
 // path 11 <- 4 <- 3 <- 1 <- 0.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Heap<T> { items: [T; 16]; len: u64; }
 

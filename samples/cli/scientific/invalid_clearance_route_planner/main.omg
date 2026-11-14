@@ -1,5 +1,5 @@
 // Complete intended-invalid control: an unguarded ordinal cannot index six nodes.
-use omega_language_std::console;
+use omega_language_std::Console;
 use nodes;
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {

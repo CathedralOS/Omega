@@ -1,7 +1,7 @@
 // Intended-invalid control for dijkstra_binary_heap: `pop_heap`'s
 // `requires h.len >= 1` must reject a caller that never established the
 // heap is non-empty — `main.heap.len` is 0 here, so the pop is unproven.
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Heap<T> { items: [T; 16]; len: u64; }
 data Popped<T [copy]> [copy] { value: T; }

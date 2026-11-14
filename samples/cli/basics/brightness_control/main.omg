@@ -7,7 +7,7 @@
 // main issues `SetLevel { level: 65 }`, so the controller settles at 65.
 // Expected exit: 65.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Command 
     requires ((self in Command::SetLevel) && (self.level >= 0 && self.level <= 100)) || ((self in Command::Dim) && (self.amount >= 0 && self.amount <= 10)) || (self in Command::Off)
