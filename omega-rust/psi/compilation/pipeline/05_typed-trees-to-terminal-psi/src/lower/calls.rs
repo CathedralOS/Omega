@@ -195,43 +195,7 @@ impl Lowering<'_> {
         })
     }
 
-    /// The callee and arguments of a call in terminal position whose callee
-    /// has no normal completion; such a call is the block's terminator.
-    pub(super) fn no_normal<'e>(
-        &self,
-        expression: &'e Expression,
-    ) -> Checked<Option<(semantic_vocabulary::TargetMachineCallable, &'e [Expression])>> {
-        match &expression.kind {
-            ExpressionKind::Call {
-                callee, arguments, ..
-            } if !self.completes_normally(*callee)? => Ok(Some((*callee, arguments))),
-            ExpressionKind::Call { .. }
-            | ExpressionKind::SavedSubject(_)
-            | ExpressionKind::Integer(_)
-            | ExpressionKind::ByteLiteral(_)
-            | ExpressionKind::Boolean(_)
-            | ExpressionKind::Slot(_)
-            | ExpressionKind::Array { .. }
-            | ExpressionKind::Index { .. }
-            | ExpressionKind::Record { .. }
-            | ExpressionKind::Case { .. }
-            | ExpressionKind::Payload { .. }
-            | ExpressionKind::IsCase { .. }
-            | ExpressionKind::Match { .. }
-            | ExpressionKind::Field { .. }
-            | ExpressionKind::CollectionMeasure { .. }
-            | ExpressionKind::Strict { .. }
-            | ExpressionKind::Not(_)
-            | ExpressionKind::BitwiseNot(_)
-            | ExpressionKind::Cast(_)
-            | ExpressionKind::Requalify(_)
-            | ExpressionKind::Establish { .. }
-            | ExpressionKind::ShortCircuit { .. }
-            | ExpressionKind::Borrow { .. } => Ok(None),
-        }
-    }
-
-    /// A call with no normal completion, in terminal position: the
+    /// A call with no normal completion, wherever it is written: the
     /// arguments, then the invocation as the block's terminator, with the
     /// callee's routes substituted as its crash continuations and one
     /// `CrashCoverage` obligation per surviving cause at this site. One
@@ -247,7 +211,7 @@ impl Lowering<'_> {
     /// retired, restored or cleaned up on its edge (terminal-psi
     /// ownership.md: process exit "creates no return value, consumption
     /// receipt, cleanup successor, or post-exit frontier").
-    pub(super) fn invoke_no_normal(
+    fn invoke_no_normal(
         &mut self,
         callee: semantic_vocabulary::TargetMachineCallable,
         arguments: &[Expression],
@@ -412,14 +376,16 @@ impl Lowering<'_> {
         result: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Value> {
-        // A call with no normal completion is a terminator (`invoke_no_normal`)
-        // and has no value, so an expression cannot hold one.
+        // A call with no normal completion is a terminator
+        // (`invoke_no_normal`) and has no value: the path it lies on ends at
+        // it, and so does the evaluation of whatever holds it
+        // (`Lowering::end_path`).
         if !self.completes_normally(callable)? {
-            return Err(refuse(
-                self.id,
-                self.current.map_or(Construct::Machine, Construct::Block),
-                Unserved::Call("no-normal call inside an expression"),
-            ));
+            if designated.is_some() {
+                return Err(self.internal("designated operands on a call that never returns"));
+            }
+            self.invoke_no_normal(callable, arguments, source)?;
+            return Err(self.end_path(source));
         }
         if matches!(
             callable,

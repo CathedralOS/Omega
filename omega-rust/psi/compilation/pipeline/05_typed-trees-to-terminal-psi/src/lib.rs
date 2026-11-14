@@ -134,7 +134,7 @@ pub struct Supply {
 }
 
 pub use terminal_check_tables::program::{
-    ConformanceWitness, Elaboration, MachineSources, Selected, SourceOrigin, Unpositioned,
+    Branch, ConformanceWitness, Elaboration, MachineSources, Selected, SourceOrigin, Unpositioned,
     Unreachable,
 };
 
