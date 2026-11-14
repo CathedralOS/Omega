@@ -4037,7 +4037,7 @@ pub mod types {
                     Some(Self::Integer(FixedInteger::unsigned(32)))
                 }
                 name if name.starts_with("AtomicU64#AccessField<") => Some(Self::U64),
-                name => FixedInteger::from_builtin_name(name).map(Self::Integer),
+                name => FixedInteger::from_decimal_spelling(name).map(Self::Integer),
             }
         }
 
@@ -4276,11 +4276,23 @@ pub mod types {
             assert_eq!(address.landed_landing(), Some(LandedIntegerType::Addr));
             assert_eq!(address.landed_landing_fixed(), None);
 
-            for name in ["u", "i", "u0", "u13", "i1", "u128", "U32", "usize", "u032"] {
+            for name in ["u", "i", "u0", "U32", "usize", "u032"] {
                 assert_eq!(PrimitiveType::from_name(name), None, "{name}");
             }
+            /* Every width is a name; `u1` is an integer, never `bool`. */
+            for (name, carrier) in [
+                ("u13", FixedInteger::unsigned(13)),
+                ("i1", FixedInteger::signed(1)),
+                ("u1", FixedInteger::unsigned(1)),
+                ("u128", FixedInteger::unsigned(128)),
+                ("i257", FixedInteger::signed(257)),
+            ] {
+                let primitive = PrimitiveType::from_name(name).unwrap();
+                assert_eq!(primitive, PrimitiveType::Integer(carrier), "{name}");
+                assert_ne!(primitive, PrimitiveType::Bool, "{name}");
+            }
             /* A width with no native scalar has no byte size to hand out. */
-            let odd = PrimitiveType::Integer(FixedInteger::unsigned(13));
+            let odd = PrimitiveType::from_name("u13").unwrap();
             assert_eq!(odd.scalar_byte_size(), None);
             assert_eq!(odd.name(), "u13");
             assert_eq!(odd.integer_bounds(), Some((0, 8191)));

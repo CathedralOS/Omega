@@ -98,7 +98,8 @@ fn select_home_with_base(
     })?;
     if seeded {
         let retained_domain = lowerer.symbol_resolved_trees.domain_definitions[0].symbol;
-        crate::symbols::assign_declarations(&mut lowerer).unwrap();
+        /* The declarations are built by hand, so no forest spells an integer width. */
+        crate::symbols::assign_declarations(&mut lowerer, &Default::default()).unwrap();
         let program = &lowerer.symbol_resolved_trees;
         let domain = &program.domain_definitions[0];
         assert_eq!(domain.symbol, retained_domain);

@@ -901,19 +901,11 @@ pub(crate) mod expression {
                     let Some(program) = self.program else {
                         return Ok(typed::types::TypeReferenceHandle::invalid());
                     };
-                    let symbol = program
-                        .symbols
-                        .child_handles(program.symbols.root())
-                        .and_then(|mut symbols| {
-                            symbols.find(|symbol| {
-                                program.symbols.builtin_type_atom(*symbol) == Some(atom)
-                            })
-                        })
-                        .ok_or_else(|| {
-                            Diagnostic::error(
-                                "typed expression lost its compiler-installed builtin type",
-                            )
-                        })?;
+                    let symbol = program.symbols.builtin_atom_symbol(atom).ok_or_else(|| {
+                        Diagnostic::error(
+                            "typed expression lost its compiler-installed builtin type",
+                        )
+                    })?;
                     Ok(self
                         .target_trees
                         .type_reference_table
@@ -922,8 +914,8 @@ pub(crate) mod expression {
                             self.target_trees.type_reference_table.insert(
                                 typed::types::TypeReferenceNode::Named {
                                     symbol,
-                                    name: typed::name::Identifier::generated_static(
-                                        atom.symbol_name(),
+                                    name: typed::name::Identifier::generated(
+                                        atom.symbol_name().as_ref(),
                                     ),
                                 },
                             )

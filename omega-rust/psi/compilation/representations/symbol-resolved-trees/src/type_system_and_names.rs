@@ -909,7 +909,7 @@ pub mod type_system {
                     "f32" => Some(Self::F32),
                     "f64" => Some(Self::F64),
                     "addr" => Some(Self::Addr),
-                    name => numerics::integer_carrier::FixedInteger::from_builtin_name(name)
+                    name => numerics::integer_carrier::FixedInteger::from_decimal_spelling(name)
                         .map(Self::Integer),
                 }
             }

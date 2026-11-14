@@ -718,6 +718,13 @@ pub mod type_system {
                 transfer!(type_alias_applications, instance);
             }
 
+            /* Every type reference node of the forest, in table order. */
+            pub fn iter_type_references(
+                &self,
+            ) -> impl Iterator<Item = (TypeReferenceHandle, &TypeReferenceNode)> {
+                self.type_references.iter()
+            }
+
             pub fn replace_type_reference(
                 &mut self,
                 handle: TypeReferenceHandle,

@@ -657,14 +657,8 @@ mod tests {
             let mut builtins = SymbolTableBuilder::child_handles(
                 builder.insert_children(
                     root,
-                    BuiltinTypeAtom::ALL
-                        .iter()
-                        .map(|atom| {
-                            (
-                                SymbolKind::BuiltinType,
-                                SymbolNameRef::Static(atom.symbol_name()),
-                            )
-                        })
+                    symbols::builtin_type_symbols()
+                        .into_iter()
                         .chain([(SymbolKind::Data, token("Container"))]),
                 ),
             )
