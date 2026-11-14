@@ -845,6 +845,7 @@ fn lower_generic_for(
             }
         }
     }
+    lower::publish_write_frames(diagnostic, &mut module, &mut tables)?;
     // This is the emitted behavior before proving or publication. Keeping its
     // inventory here lets product consumers retain the exact judged module.
     module.unoptimized_behavior = module

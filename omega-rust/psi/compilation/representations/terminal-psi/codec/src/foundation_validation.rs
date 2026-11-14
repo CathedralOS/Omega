@@ -10650,6 +10650,8 @@ fn validate_target_families(module: &TerminalModule) -> Result<(), CodecError> {
             }
         }
     }
+    terminal_semantics::borrowed_storage::validate_write_frames(module)
+        .map_err(CodecError::MalformedWriteFrame)?;
     Ok(())
 }
 

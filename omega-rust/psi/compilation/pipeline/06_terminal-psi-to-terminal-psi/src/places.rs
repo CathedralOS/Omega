@@ -488,6 +488,7 @@ struct BoundPayload<'a> {
 pub(crate) struct Storage<'a> {
     machine: MachineId,
     lowered: &'a TerminalMachine,
+    module: &'a terminal_psi::TerminalModule,
     types: &'a [StructuralTypeDeclaration],
     graph: &'a Graph,
     initial_contents: Vec<Option<ValueId>>,
@@ -501,7 +502,7 @@ impl<'a> Storage<'a> {
     pub(crate) fn new(
         machine: MachineId,
         lowered: &'a TerminalMachine,
-        types: &'a [StructuralTypeDeclaration],
+        module: &'a terminal_psi::TerminalModule,
         domains: &'a IdTable<StructuralTypeId, Vec<Proposition>>,
         graph: &'a Graph,
         tables: &MachineTables,
@@ -513,7 +514,8 @@ impl<'a> Storage<'a> {
         let mut storage = Self {
             machine,
             lowered,
-            types,
+            module,
+            types: &module.structural_types,
             graph,
             initial_contents: initial_contents(machine, tables)?,
             log: Vec::new(),

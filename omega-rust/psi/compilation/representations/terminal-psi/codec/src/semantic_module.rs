@@ -4725,10 +4725,11 @@ pub(crate) use wire::{Reader, Writer, decode_canonical, decode_counted};
 
 pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 
-// Marker 260 retains exact sign and width in numeric intrinsic signatures.
-// It also retains marker 259's typed dynamic-family tuple members. Earlier
-// artifacts cannot supply both representations under this schema.
-pub(crate) const FORMAT_MARKER: u16 = 260;
+// Marker 261 retains each machine contract's optional inferred write frame:
+// an unknown ceiling differs from a complete empty set. Marker 260 and older
+// artifacts lack that field. Exact intrinsic widths and typed dynamic-family
+// values from markers 260/259 remain unchanged.
+pub(crate) const FORMAT_MARKER: u16 = 261;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 

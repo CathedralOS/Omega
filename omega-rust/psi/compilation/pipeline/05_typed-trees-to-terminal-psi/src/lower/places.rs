@@ -782,47 +782,22 @@ impl<'a> Lowering<'a> {
         terminal_check_tables::row(&self.tables.roots, place, self.id, Construct::Machine).copied()
     }
 
-    fn place_row(&mut self, place: ExactPlaceId) -> Checked<&mut PlaceRow> {
-        let id = self.id;
-        self.tables
-            .places
-            .get_mut(place)
-            .ok_or(terminal_check_tables::Refusal {
-                reason: terminal_check_tables::RefusalReason::ForeignIdentity,
-                machine: id,
-                concerns: Construct::Place(place),
-                detail: String::from("place is past the end of this machine"),
-            })
-    }
-
-    /// The projection of `parent` by `field`, interned: one row per
-    /// `(parent, field)` pair, found by binary search of the parent's sorted
-    /// children.
     fn project(&mut self, parent: ExactPlaceId, segment: Segment) -> Checked<ExactPlaceId> {
-        let found = self
-            .place_row(parent)?
-            .children
-            .binary_search_by_key(&segment, |(segment, _)| *segment);
-        match found {
-            Ok(position) => Ok(self.place_row(parent)?.children[position].1),
-            Err(position) => {
-                let child = self.tables.places.push(PlaceRow {
-                    origin: PlaceOrigin::Projection { parent, segment },
-                    children: Vec::new(),
-                    writes: Vec::new(),
-                });
-                self.place_row(parent)?
-                    .children
-                    .insert(position, (segment, child));
-                Ok(child)
-            }
-        }
+        terminal_check_tables::bindings::intern_projection(
+            self.id,
+            &mut self.tables.places,
+            parent,
+            segment,
+        )
     }
 
     fn write(&mut self, place: ExactPlaceId, at: ProgramPoint, content: Content) -> Checked<()> {
-        let write = self.tables.writes.push(WriteRow { place, at, content });
-        self.place_row(place)?.writes.push(write);
-        Ok(())
+        terminal_check_tables::bindings::record_write(
+            self.id,
+            &mut self.tables.places,
+            &mut self.tables.writes,
+            WriteRow { place, at, content },
+        )
     }
 
     /// A scalar leaf's initial logical value: supplied at entry for a formal,

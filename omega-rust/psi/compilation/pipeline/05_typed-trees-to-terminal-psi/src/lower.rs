@@ -46,6 +46,7 @@ result or normal-return guarantee"). Both edges go to `Destination::NoNormal`.
 */
 
 mod calls;
+pub(crate) use calls::publish_write_frames;
 mod control;
 mod operations;
 pub(crate) mod places;
