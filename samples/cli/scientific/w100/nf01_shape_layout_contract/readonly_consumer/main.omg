@@ -6,7 +6,7 @@ use omega::language::core::transpose;
 use omega::language::core::try_read;
 use omega::language::core::valid_mutable;
 use omega::language::core::valid_readonly;
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 machine equals(backing: &[i32], layout: &Layout2, row: u64, column: u64, expected: i32) -> bool {
     let result: ReadResult = try_read(backing, layout, row, column);

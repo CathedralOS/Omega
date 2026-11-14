@@ -1,5 +1,5 @@
 module chemistry::report;
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::narrow_i64_to_i32_wrapping;
 
 // Prints nonnegative i64 values through existing Console byte providers.

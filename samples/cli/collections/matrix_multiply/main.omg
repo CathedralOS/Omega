@@ -14,7 +14,7 @@
 // exit = (C[0][0] + C[1][1] + C[2][2]) % 256 = (30 + 69 + 90) % 256 = 189
 //
 // Expected exit: 189
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main {
 }
 data Matrices {

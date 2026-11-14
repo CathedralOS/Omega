@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 use model::fill;
 
 machine decimal(value: i32 in Wrapping, divisor: i32 in Wrapping) reaches Console {

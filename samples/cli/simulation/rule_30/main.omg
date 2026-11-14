@@ -8,7 +8,7 @@
 // Expected exit: 0.
 // Expected output contains: #
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data Main
 requires self.g >= 0 && self.g <= 16,

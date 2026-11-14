@@ -1,7 +1,7 @@
 use platform::input;
 use domain::network;
 use domain::solver;
-use omega_language_std::console;
+use omega_language_std::Console;
 
 // Explicit build entry; EOF is a valid record terminator. No pause prompt.
 data Main { }

@@ -1,5 +1,5 @@
 module planner::output;
-use omega_language_std::console;
+use omega_language_std::Console;
 use planner::solver::TransportPlan;
 
 // Fixed signed four-digit objective keeps the table machine-readable. All

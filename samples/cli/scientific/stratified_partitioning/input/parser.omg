@@ -1,6 +1,7 @@
 // Private decimal token reader. Reject overflow before multiplying; at most
 // 256 input bytes and 51 tokens, so malformed input cannot grow storage.
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 public data Tokens {
     values: [i32; 51] in Saturating;
     count: i32 in Saturating;

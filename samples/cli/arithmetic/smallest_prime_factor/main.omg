@@ -9,7 +9,7 @@
 // algorithm rather than a canary.
 // Expected exit: 13.
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 // The complete owner predicate bounds the square to 40000. Divisor-nonzero
 // requirements belong to the invoked trial steps; zero remains a valid owner.

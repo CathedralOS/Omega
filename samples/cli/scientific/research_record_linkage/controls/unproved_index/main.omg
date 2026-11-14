@@ -1,6 +1,6 @@
 // Complete intended-invalid application: the unguarded dynamic index has
 // no bound. Even a benign supplied value cannot establish the general rule.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 machine select(records: &[u64; 3], position: u64) -> u64 {
     records[position]

@@ -1,7 +1,8 @@
 // Closed stdin is invalid runtime input for the ordinary sample harness.
 // Expected exit: 2.
 // Expected output contains: INVALID: expected 15 integers
-use omega_language_std::console;
+use omega_language_std::Console;
+use omega_language_std::LineReadResult;
 use planner::input::TransportInput;
 use planner::input::parse_transport;
 use planner::input::valid_margins;

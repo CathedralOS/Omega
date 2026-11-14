@@ -1,7 +1,7 @@
 // Bounded stdin supplied-K flash at fixed temperature and pressure.
 // Expected exit: 64.
 // Expected output contains: INVALID fractions_or_K
-use omega_language_std::console;
+use omega_language_std::Console;
 use io::input;
 use io::report;
 use model::flash;
