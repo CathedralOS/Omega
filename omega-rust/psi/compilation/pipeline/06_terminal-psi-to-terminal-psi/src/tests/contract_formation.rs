@@ -134,3 +134,123 @@ fn replay_formation_is_an_explicit_searching_entrance() {
     let _scope = crate::prepare_replay(&mut elaboration).unwrap();
     assert!(crate::prove::SEARCHES.with(std::cell::Cell::get) > before);
 }
+
+fn source_result(text: &str) -> RouteVerdict {
+    super::build_purpose::judge_build(text).unwrap()
+}
+
+fn accepted_source(text: &str) {
+    let verdict = source_result(text);
+    assert!(matches!(verdict, RouteVerdict::Accepted(_)), "{verdict:?}");
+}
+
+fn rejected_source(text: &str) {
+    let verdict = source_result(text);
+    assert!(
+        matches!(verdict, RouteVerdict::Rejected { .. }),
+        "{verdict:?}"
+    );
+}
+
+#[test]
+fn source_maximum_subtraction_forms_but_the_caller_still_owes_the_bound() {
+    const SOURCE: &str = r#"
+machine append(offset: u64, size: u64) -> u64
+requires size <= 18446744073709551615u64 - offset
+{ offset + size }
+machine build_entry() { let end: u64 = append(17, 23); }
+"#;
+    accepted_source(SOURCE);
+    rejected_source(&SOURCE.replace("append(17, 23)", "append(18446744073709551615u64, 1)"));
+}
+
+#[test]
+fn a_bound_on_one_field_does_not_form_its_neighbors_subtraction() {
+    const SOURCE: &str = r#"
+data Pair [copy] { first: u32; second: u32; }
+machine consume(value: &Pair)
+requires value.first >= 1, value.first - 1 <= 4294967295u32
+{ }
+machine build_entry() { let value: Pair = Pair { first: 7, second: 0 }; consume(&value); }
+"#;
+    accepted_source(SOURCE);
+    rejected_source(&SOURCE.replace("value.first - 1", "value.second - 1"));
+}
+
+#[test]
+fn completion_storage_does_not_inherit_the_inputs_nonzero_bound() {
+    const SOURCE: &str = r#"
+data Cell { value: u32; }
+machine retain(value: &mut Cell)
+requires value.value >= 1
+ensures old(value.value) - 1 <= 4294967295u32
+{ value.value = 0; }
+machine build_entry() { let mut value: Cell = Cell { value: 7 }; retain(&mut value); }
+"#;
+    accepted_source(SOURCE);
+    rejected_source(&SOURCE.replace("old(value.value) - 1", "value.value - 1"));
+}
+
+#[test]
+fn independent_result_guarantees_can_form_a_later_guarantee() {
+    const SOURCE: &str = r#"
+machine positive() -> u32
+ensures result >= 1, result - 1 == 0
+{ 1 }
+machine build_entry() { let value: u32 = positive(); }
+"#;
+    accepted_source(SOURCE);
+    rejected_source(&SOURCE.replace("result >= 1, ", ""));
+}
+
+#[test]
+fn scalar_domains_must_form_before_membership_can_supply_their_predicate() {
+    const SOURCE: &str = r#"
+domain u32::Nonzero requires self >= 1, self - 1 <= 4294967295u32;
+machine build_entry() { let value: u32 in Nonzero = 7 as +Nonzero; }
+"#;
+    accepted_source(SOURCE);
+    rejected_source(&SOURCE.replace("self >= 1, ", ""));
+}
+
+#[test]
+fn data_requirements_keep_each_partial_field_occurrence() {
+    const SOURCE: &str = r#"
+data Count [copy] requires value >= 1, value - 1 <= 4294967295u32 { value: u32; }
+machine build_entry() { let value: Count = Count { value: 7 }; }
+"#;
+    accepted_source(SOURCE);
+    rejected_source(&SOURCE.replace("value >= 1, ", ""));
+}
+
+#[test]
+fn bodyless_crash_guards_need_their_own_formed_input_context() {
+    const SOURCE: &str = r#"
+boundary trait Device {
+    machine read(value: u32) -> u32
+    reaches none
+    requires value >= 1
+    crashes Trap value - 1 == 0;
+}
+machine build_entry() crashes none { let value: u32 = Device::read(2); }
+"#;
+    accepted_source(SOURCE);
+    rejected_source(&SOURCE.replace("requires value >= 1", "requires true"));
+}
+
+#[test]
+fn overflow_policies_do_not_remove_contract_divisor_obligations() {
+    for policy in ["%", "|"] {
+        let source = format!(
+            r#"
+machine divide(left: u32, right: u32) -> u32
+requires right > 0
+ensures result == left /{policy} right
+{{ left /{policy} right }}
+machine build_entry() {{ let value: u32 = divide(31, 3); }}
+"#
+        );
+        accepted_source(&source);
+        rejected_source(&source.replace("requires right > 0", "requires true"));
+    }
+}

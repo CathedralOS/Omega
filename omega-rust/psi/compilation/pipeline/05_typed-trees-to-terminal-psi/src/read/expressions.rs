@@ -990,6 +990,37 @@ fn binary_expression(
     anonymous: (bool, bool),
     source: SourceOrigin,
 ) -> Checked<Expression> {
+    let (operation, result) = binary_selection(id, operator, left.result, right.result, anonymous)?;
+    let kind = match operation {
+        Some(operation) => ExpressionKind::Strict {
+            operation,
+            left: Box::new(left),
+            right: Box::new(right),
+        },
+        None => ExpressionKind::ShortCircuit {
+            conjunction: operator == BinaryOperator::And,
+            left: Box::new(left),
+            right: Box::new(right),
+        },
+    };
+    Ok(Expression {
+        call_context: None,
+        kind,
+        result: Some(result),
+        source,
+    })
+}
+
+/// A contract and an executable expression select the same operator from
+/// the same operand types. This query describes that selection; it neither
+/// constructs a runtime operation nor proves its formation condition.
+pub(super) fn binary_selection(
+    id: MachineId,
+    operator: BinaryOperator,
+    left: Option<ValueType>,
+    right: Option<ValueType>,
+    anonymous: (bool, bool),
+) -> Checked<(Option<Strict>, ValueType)> {
     enum Operands {
         /// Same integer type; the result has it.
         Arithmetic,
@@ -1002,7 +1033,7 @@ fn binary_expression(
         Ordering,
     }
     let typing = |what| refuse(id, Construct::Machine, Unserved::Typing(what));
-    let (Some(left_type), Some(right_type)) = (left.result, right.result) else {
+    let (Some(left_type), Some(right_type)) = (left, right) else {
         return Err(typing("Unit operand"));
     };
     // Builtin operators are over scalars. Equality of two records needs
@@ -1073,16 +1104,10 @@ fn binary_expression(
             if left_type != ScalarType::Boolean || right_type != ScalarType::Boolean {
                 return Err(typing("short-circuit operand is not bool"));
             }
-            return Ok(Expression {
-                call_context: None,
-                kind: ExpressionKind::ShortCircuit {
-                    conjunction: operator == BinaryOperator::And,
-                    left: Box::new(left),
-                    right: Box::new(right),
-                },
-                result: Some(ValueType::Scalar(ScalarType::Boolean, Qualification::NONE)),
-                source,
-            });
+            return Ok((
+                None,
+                ValueType::Scalar(ScalarType::Boolean, Qualification::NONE),
+            ));
         }
         BinaryOperator::CaseMembership => {
             return Err(refuse(
@@ -1153,16 +1178,7 @@ fn binary_expression(
             return Err(typing("operand types"));
         }
     };
-    Ok(Expression {
-        call_context: None,
-        kind: ExpressionKind::Strict {
-            operation,
-            left: Box::new(left),
-            right: Box::new(right),
-        },
-        result: Some(result),
-        source,
-    })
+    Ok((Some(operation), result))
 }
 
 /// `left <op><suffix> right`, the operator under `policy` at this one node.
@@ -1194,21 +1210,14 @@ fn suffixed_expression(
     if anonymous == (true, true) {
         return Err(crate::reject(id, source, crate::policy::WHOLLY_ANONYMOUS));
     }
-    let under_policy = |operand: Expression| match operand.result {
-        Some(ValueType::Scalar(carrier @ ScalarType::Integer(_), Qualification::NONE)) => {
-            Ok(Expression {
-                call_context: None,
-                kind: ExpressionKind::Requalify(Box::new(operand)),
-                result: Some(ValueType::Scalar(carrier, Qualification::of_policy(policy))),
-                source,
-            })
-        }
-        Some(ValueType::Scalar(..) | ValueType::Record(..)) => {
-            Err(crate::reject(id, source, crate::policy::QUALIFIED_OPERAND))
-        }
-        // An unresolved carrier is not evidence that the source violates
-        // the integer-only rule. Keep that implementation gap distinct.
-        Some(ValueType::Rigid(_)) | None => Err(unserved(crate::policy::QUALIFIED_OPERAND)),
+    let under_policy = |operand: Expression| -> Checked<Expression> {
+        let result = policy_operand(id, operand.result, policy, source)?;
+        Ok(Expression {
+            call_context: None,
+            kind: ExpressionKind::Requalify(Box::new(operand)),
+            result: Some(result),
+            source,
+        })
     };
     let left = if anonymous.0 {
         left
@@ -1237,6 +1246,29 @@ fn suffixed_expression(
         result: Some(ValueType::Scalar(carrier, Qualification::NONE)),
         source,
     })
+}
+
+/// A suffix can select a policy only for a bare integer operand. Both
+/// executable expressions and contract terms use this exact admission rule.
+pub(super) fn policy_operand(
+    id: MachineId,
+    operand: Option<ValueType>,
+    policy: Policy,
+    source: SourceOrigin,
+) -> Checked<ValueType> {
+    match operand {
+        Some(ValueType::Scalar(carrier @ ScalarType::Integer(_), Qualification::NONE)) => {
+            Ok(ValueType::Scalar(carrier, Qualification::of_policy(policy)))
+        }
+        Some(ValueType::Scalar(..) | ValueType::Record(..)) => {
+            Err(crate::reject(id, source, crate::policy::QUALIFIED_OPERAND))
+        }
+        Some(ValueType::Rigid(_)) | None => Err(refuse(
+            id,
+            Construct::Machine,
+            Unserved::Expression(crate::policy::QUALIFIED_OPERAND),
+        )),
+    }
 }
 
 /// Whether two read expressions compute the same thing: equal kinds over
