@@ -25,6 +25,7 @@ use terminal_check_tables::{Construct, Refusal, UnprovedCause};
 mod address_bounds;
 mod applications;
 mod arithmetic_policies;
+mod array_lengths;
 mod arrays;
 mod borrowed_restoration;
 mod boundary_calls;
