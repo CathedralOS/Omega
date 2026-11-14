@@ -112,6 +112,15 @@ pub enum TargetControlTerminator {
         path: Vec<terminal_psi::StructuralPathSegment>,
         byte_offset: u32,
         layout: calling_conventions::ConventionalSumLayout,
+        /// Pointer words crossed to reach the sum, in chase order.
+        ///
+        /// Stage 02 records this chase while projecting the sum. Selection
+        /// borrows the list. `region_byte_size` is the region those words
+        /// address: the sum's own size when the chase is empty and the sum
+        /// fills its region, and the referent's size after a chase. A sum
+        /// that is only a field of that referent is smaller than the region.
+        pointer_slots: Vec<TargetCasePointerSlot>,
+        region_byte_size: u32,
         cases: Vec<TargetControlCaseSuccessor>,
     },
     Return {
@@ -127,6 +136,19 @@ pub enum TargetControlTerminator {
         when_true: TargetControlSuccessor,
         when_false: TargetControlSuccessor,
     },
+}
+
+/// One pointer word between a sum and the storage selection has to load.
+///
+/// `index_start..index_end` selects this word's runtime indices in the
+/// operation's flattened index list. The list is prepared once, on the
+/// target operation that projected the sum.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TargetCasePointerSlot {
+    pub byte_offset: u32,
+    pub index_start: u32,
+    pub index_end: u32,
+    pub scalar_descriptor: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

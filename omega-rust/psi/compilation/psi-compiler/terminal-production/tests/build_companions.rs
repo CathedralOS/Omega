@@ -96,7 +96,7 @@ fn accepted_for(
     let frozen: typed_trees::FrozenTypedTrees = typed.into();
     AcceptedTerminalSource::judge(
         Arc::new(frozen),
-        structure_elaboration::Compilation {
+        typed_trees_to_terminal_psi::Compilation {
             entries: &[entry],
             subjects: &[Some(package())],
             purpose: DependencyScope::Build,

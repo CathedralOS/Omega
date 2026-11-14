@@ -1014,6 +1014,8 @@ pub(crate) mod control_flow {
             path: &[terminal_psi::StructuralPathSegment],
             byte_offset: u32,
             layout: &calling_conventions::ConventionalSumLayout,
+            pointer_slots: &[target_operations::TargetCasePointerSlot],
+            region_byte_size: u32,
             cases: &[TargetControlCaseSuccessor],
             expected_source: PlaceId,
             expected_cases: &[abstract_operations::AbstractStructuralCaseSuccessor],
@@ -1062,9 +1064,14 @@ pub(crate) mod control_flow {
             if !available {
                 return false;
             }
-            let Ok((selected, expected_offset, _, expected_layout)) =
-                dispatch_projection(optimized, expected_source, path, plan)
-            else {
+            let Ok((selected, expected_offset, _, expected_layout)) = dispatch_projection(
+                optimized,
+                expected_source,
+                path,
+                plan,
+                pointer_slots,
+                region_byte_size,
+            ) else {
                 return false;
             };
             if expected_offset != byte_offset || expected_layout != *layout {
@@ -1624,6 +1631,8 @@ pub(crate) mod control_flow {
                         byte_offset,
                         layout,
                         cases,
+                        pointer_slots,
+                        region_byte_size,
                     },
                     AbstractOperation::StructuralCase {
                         source: expected_source,
@@ -1641,6 +1650,8 @@ pub(crate) mod control_flow {
                             path,
                             *byte_offset,
                             layout,
+                            pointer_slots,
+                            *region_byte_size,
                             cases,
                             *expected_source,
                             expected_cases,
@@ -5901,6 +5912,7 @@ pub(crate) mod unit {
                     case_tag,
                     tag_byte_offset,
                     indices,
+                    pointer_slots,
                 },
                 AbstractOperation::StructuralCaseMembership {
                     psi_operation: expected_operation,
@@ -5923,6 +5935,7 @@ pub(crate) mod unit {
                     *expected_case,
                     plan,
                     function_inputs.source_result(*expected_source),
+                    pointer_slots,
                 )?;
                 if (*case_tag, *tag_byte_offset) != (expected_tag, expected_offset)
                     || !runtime_indices_rejoin(indices, &elements, sources)

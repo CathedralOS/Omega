@@ -31,7 +31,7 @@ the route need not wait for "the library enters the subset"
 [restated](check_on_lowered_form.md#one-meaning-per-obligation).
 
 Amended 2026-11-11, after this record: the lowering scope error is closed.
-`structure_elaboration::elaborate` now takes the check's entries, the
+`typed_trees_to_terminal_psi::elaborate` now takes the check's entries, the
 declarations its Build selected and its subject package, and lowers every
 declaration that check claims, used or not, as
 [validation subjects](../../spec/build/validation_subjects.md) requires; a
@@ -63,7 +63,7 @@ The four targets the record set beside the stop rule:
 | --- | --- |
 | All of the subset's obligations discharged with kernel-checked evidence | Not met. On the unscreened subset: 16 of 20 certificate obligations at the `#2305` measurement head, and 308 of 333 at `#2317`'s head. `#2317`'s own probe (quoted): 1,589 of 1,721. Every discharged obligation carries kernel-checked evidence. |
 | No decisions keyed on text | Met. 0 in the three route crates at `#2317`'s head. |
-| No step drops without a refusal | Not met. At the obligation level, every obligation gets one verdict. At the module level, `structure_elaboration::elaborate` lowers only the entry's call closure, so obligations in machines the entry never calls are never minted and never refused. `#2317` found 13 `fail/` programs accepted through it. Closed since this record: every declaration the check claims is a root, and `lowered_route_subjects` pins that none of those programs is accepted ([measure 7](#7-steps-that-drop-without-a-refusal)). |
+| No step drops without a refusal | Not met. At the obligation level, every obligation gets one verdict. At the module level, `typed_trees_to_terminal_psi::elaborate` lowers only the entry's call closure, so obligations in machines the entry never calls are never minted and never refused. `#2317` found 13 `fail/` programs accepted through it. Closed since this record: every declaration the check claims is a root, and `lowered_route_subjects` pins that none of those programs is accepted ([measure 7](#7-steps-that-drop-without-a-refusal)). |
 | One route per obligation kind | Met. One prover for every certificate kind; the old checker tries 27 named routes for a call's `requires`. |
 
 ## 1. Lines against the code it would retire
@@ -76,11 +76,11 @@ do not start with `//`.
 | | Total | Tests | Production | Production code |
 | --- | ---: | ---: | ---: | ---: |
 | `terminal-check-tables`, `main` `82d2ea5d5` | 990 | 106 | 884 | 454 |
-| `structure-elaboration`, `main` | 5,160 | 1,378 | 3,782 | 3,324 |
-| `lowered-discharge`, `main` | 3,313 | 1,017 | 2,296 | 2,068 |
+| `typed-trees-to-terminal-psi`, `main` | 5,160 | 1,378 | 3,782 | 3,324 |
+| `terminal-psi-to-terminal-psi`, `main` | 3,313 | 1,017 | 2,296 | 2,068 |
 | **Route on `main`** | **9,463** | 2,501 | 6,962 | **5,846** |
-| `structure-elaboration`, `#2317` head `2a33e77d4` | 5,199 | 1,378 | 3,821 | 3,357 |
-| `lowered-discharge`, `#2317` head (with `#2309`) | 5,272 | 1,564 | 3,708 | 3,330 |
+| `typed-trees-to-terminal-psi`, `#2317` head `2a33e77d4` | 5,199 | 1,378 | 3,821 | 3,357 |
+| `terminal-psi-to-terminal-psi`, `#2317` head (with `#2309`) | 5,272 | 1,564 | 3,708 | 3,330 |
 | **Route at `#2317`** | **11,461** | 3,048 | 8,413 | **7,141** |
 | Psi 05, `main` | 337,514 | 125 | 337,389 | 327,654 |
 | `validation/src`, `main` | 331,424 | 0 | 331,424 | 319,864 |
@@ -192,7 +192,7 @@ is renamed on each return edge. All 45 reach a verdict there.
   guard contradicts a literal bound are accepted, and
   `contradictory_relational_branch_exit` is rejected with one unproved
   subtraction. With the prover's guard refutation
-  ([lowered discharge](../../../omega-rust/psi/compilation/pipeline/lowered-discharge/README.md),
+  ([lowered discharge](../../../omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/README.md),
   "Two orders between values") it is accepted, all 8 obligations judged by
   the mathematical core. That needed no kernel rule. The other rows were
   not rerun.

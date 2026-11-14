@@ -1000,13 +1000,6 @@ pub(crate) mod aggregate_results {
             })
     }
 
-    pub(crate) fn sum_layout(
-        result: &StructuralOperationResult,
-        plan: &AbstractOperationPlan,
-    ) -> Result<calling_conventions::ConventionalSumLayout, LegalizationError> {
-        sum_type_layout(result.structural_type, plan)
-    }
-
     pub(crate) fn sum_type_layout(
         structural_type: semantic_vocabulary::StructuralTypeId,
         plan: &AbstractOperationPlan,
@@ -1512,14 +1505,7 @@ pub(crate) mod aggregate_results {
         result: &StructuralOperationResult,
         plan: &AbstractOperationPlan,
     ) -> Result<target_operations::TargetStructuralHomeLayout, LegalizationError> {
-        let layout = type_home_layout(result.structural_type, plan)?;
-        if matches!(
-            layout,
-            target_operations::TargetStructuralHomeLayout::Sum(_)
-        ) {
-            sum_layout(result, plan)?;
-        }
-        Ok(layout)
+        type_home_layout(result.structural_type, plan)
     }
 
     pub(crate) fn type_home_layout(
@@ -5102,12 +5088,27 @@ pub(crate) mod structural_case {
         Ok(parameter.structural_type)
     }
 
+    fn stored_slots_match(
+        stored: &[target_operations::TargetCasePointerSlot],
+        expected: &[crate::structural_inputs::structural_reference_input::PointerSlot],
+    ) -> bool {
+        stored.len() == expected.len()
+            && stored.iter().zip(expected).all(|(stored, expected)| {
+                stored.byte_offset == expected.byte_offset
+                    && usize::try_from(stored.index_start).ok() == Some(expected.indices.start)
+                    && usize::try_from(stored.index_end).ok() == Some(expected.indices.end)
+                    && stored.scalar_descriptor == expected.scalar_descriptor
+            })
+    }
+
     #[allow(clippy::type_complexity)]
     pub(crate) fn dispatch_projection(
         function: &PsiOptimizationFunction,
         source: PlaceId,
         path: &[StructuralPathSegment],
         plan: &AbstractOperationPlan,
+        pointer_slots: &[target_operations::TargetCasePointerSlot],
+        region_byte_size: u32,
     ) -> Result<
         (
             StructuralTypeId,
@@ -5135,9 +5136,11 @@ pub(crate) mod structural_case {
         let region_shape =
             super::aggregate_results::type_home_layout(geometry.region_root, plan)?.shape();
         let layout = super::aggregate_results::sum_type_layout(selected, plan)?;
-        if byte_offset
-            .checked_add(layout.shape.byte_size)
-            .is_none_or(|end| end > region_shape.byte_size)
+        if region_byte_size != region_shape.byte_size
+            || !stored_slots_match(pointer_slots, &geometry.pointer_slots)
+            || byte_offset
+                .checked_add(layout.shape.byte_size)
+                .is_none_or(|end| end > region_shape.byte_size)
         {
             return Err(LegalizationError::custody());
         }
@@ -5152,6 +5155,7 @@ pub(crate) mod structural_case {
         case: semantic_vocabulary::StructuralCaseId,
         plan: &AbstractOperationPlan,
         result: Result<(OperationId, &StructuralOperationResult), LegalizationError>,
+        pointer_slots: &[target_operations::TargetCasePointerSlot],
     ) -> Result<(u32, u32, Vec<RuntimeElement>), LegalizationError> {
         let identity = source_identity(function, source, result)?;
         let geometry = reference_source_geometry(identity, path, &plan.structural_types)
@@ -5162,6 +5166,9 @@ pub(crate) mod structural_case {
                 .iter()
                 .any(|slot| slot.scalar_descriptor)
         {
+            return Err(LegalizationError::custody());
+        }
+        if !stored_slots_match(pointer_slots, &geometry.pointer_slots) {
             return Err(LegalizationError::custody());
         }
         let identity = geometry.selected;
@@ -5185,6 +5192,29 @@ pub(crate) mod structural_case {
             .and_then(|ordinal| u32::try_from(ordinal).ok())
             .map(|tag| (tag, byte_offset, geometry.elements))
             .ok_or(LegalizationError::custody())
+    }
+
+    /// Runtime-index operands for a case-membership test whose pointer chase
+    /// is already stored on the target row. Called only when the path contains
+    /// a runtime index, because extent and obligation are not part of that chase.
+    pub(crate) fn membership_address(
+        function: &PsiOptimizationFunction,
+        source: PlaceId,
+        path: &[terminal_psi::StructuralPathSegment],
+        plan: &AbstractOperationPlan,
+    ) -> Result<Vec<RuntimeElement>, LegalizationError> {
+        let identity = source_identity(function, source, source_result(function, source))?;
+        let geometry = reference_source_geometry(identity, path, &plan.structural_types)
+            .ok_or(LegalizationError::custody())?;
+        if !geometry.readable
+            || geometry
+                .pointer_slots
+                .iter()
+                .any(|slot| slot.scalar_descriptor)
+        {
+            return Err(LegalizationError::custody());
+        }
+        Ok(geometry.elements)
     }
 
     pub(crate) fn structural_transport_layout(

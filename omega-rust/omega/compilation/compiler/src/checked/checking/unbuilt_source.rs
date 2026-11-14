@@ -18,7 +18,7 @@
 // 05, validation's judgments and Psi 06 never run: the shared source
 // preparation returns its frozen owner directly after Psi 04. The caller
 // judges the returned frontier with
-// `lowered_discharge::judge_compilation`.
+// `terminal_psi_to_terminal_psi::judge_compilation`.
 //
 // A program reaches another package only through a dependency edge, and the
 // edge is also a Build decision (`Build::dependency`). The caller states those

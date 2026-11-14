@@ -8,10 +8,12 @@ knows about one machine, as tables over dense identities: values with
 their knowledge rows, places with the forward write log, obligations, and
 edges with invocations.
 
-The point of the crate is what it cannot say. No row holds a name, a printed
-expression, a path string or a formatted handle: a place is a dense identity
+Semantic rows never identify a fact by a name, printed expression, path string
+or formatted handle: a place is a dense identity
 whose row names its parent and one typed segment, and a fact is a row over
-value identities. Text appears only in `Refusal::detail`. A checking step
+value identities. The complete program packet also retains diagnostic names
+and source spans, separately from these semantic rows; no proof reads their
+spelling. A checking step
 returns a row or a `Refusal`; there is no "nothing" result.
 
 Identities are reused from `semantic-vocabulary` wherever the lowered form
@@ -26,8 +28,11 @@ has no identity for the concept.
 */
 
 pub mod bindings;
+pub mod compilation;
 pub mod edges;
+pub mod names;
 pub mod obligations;
+pub mod program;
 pub mod values;
 
 use std::num::NonZeroU64;

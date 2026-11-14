@@ -440,8 +440,8 @@ pub(crate) mod address_join_input {
 pub(crate) mod aggregate_result_input {
     use crate::selection::place_declaration::{arrivals, declares_block_parameter};
     use crate::structural_inputs::structural_reference_input::{
-        PointerSlot, ReferenceSourceGeometry, descriptor_source_geometry, leaf_copy_projection,
-        owned_storage_shape, primitive_array_shape, reference_source_geometry, stored_value_shape,
+        PointerSlot, descriptor_source_geometry, leaf_copy_projection, owned_storage_shape,
+        primitive_array_shape, stored_value_shape,
     };
 
     use legalized_operations::{
@@ -699,66 +699,6 @@ pub(crate) mod aggregate_result_input {
                 } => !can_forward(*value_byte_offset, *byte_size),
                 _ => true,
             })
-    }
-
-    #[allow(clippy::type_complexity)]
-    pub(crate) fn membership_layout(
-        source: &LegalizedScalarFunction,
-        place: semantic_vocabulary::PlaceId,
-        path: &[terminal_psi::StructuralPathSegment],
-        case: semantic_vocabulary::StructuralCaseId,
-    ) -> Option<(u32, u32, ReferenceSourceGeometry)> {
-        let signature = source.structural.as_ref()?;
-        let parameter = signature
-            .parameters
-            .iter()
-            .map(|parameter| &parameter.semantic)
-            .chain(source.block_structural_parameters())
-            .find(|parameter| parameter.place == place);
-        let identity = if let Some(parameter) = parameter {
-            if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow {
-                return None;
-            }
-            parameter.structural_type
-        } else {
-            let (_, result) = operation_result(source, place)?;
-            result.structural_type
-        };
-        let geometry = reference_source_geometry(identity, path, &signature.structural_types)?;
-        if !geometry.readable
-            || geometry
-                .pointer_slots
-                .iter()
-                .any(|slot| slot.scalar_descriptor)
-        {
-            return None;
-        }
-        let byte_offset = geometry.byte_offset;
-        let declaration = signature.structural_type(geometry.selected)?;
-        let (common, cases) = match &declaration.shape {
-            terminal_psi::StructuralTypeShape::Sum { cases } => (&[][..], cases),
-            terminal_psi::StructuralTypeShape::Mixed { fields, cases } => {
-                (fields.as_slice(), cases)
-            }
-            _ => return None,
-        };
-        let common = live_field_shapes(common.iter(), &signature.structural_types)?;
-        let payloads = cases
-            .iter()
-            .map(|case| live_field_shapes(case.fields.iter(), &signature.structural_types))
-            .collect::<Option<Vec<_>>>()?;
-        let layout =
-            calling_conventions::evaluate_conventional_sum_layout(&common, &payloads).ok()?;
-        if layout.tag_byte_offset != 0
-            || layout.tag_shape != calling_conventions::ValueShape::integer(4, 4)
-        {
-            return None;
-        }
-        cases
-            .iter()
-            .position(|candidate| candidate.id == case)
-            .and_then(|ordinal| u32::try_from(ordinal).ok())
-            .map(|tag| (tag, byte_offset, geometry))
     }
 
     pub(crate) fn call_completion<'a>(
@@ -1274,24 +1214,16 @@ pub(crate) mod aggregate_result_input {
             .iter()
             .filter(|field| !field.relevance.is_erased())
             .collect::<Vec<_>>();
-        let common_shapes = live_field_shapes(common.iter().copied(), &signature.structural_types)?;
         let ordinal = structural_case_position(cases, *result_case)?;
         if cases.iter().filter(|case| case.id == *result_case).count() != 1 {
             return None;
         }
-        let payloads = cases
-            .iter()
-            .map(|case| live_field_shapes(case.fields.iter(), &signature.structural_types))
-            .collect::<Option<Vec<_>>>()?;
         let payload = cases[ordinal]
             .fields
             .iter()
             .filter(|field| !field.relevance.is_erased())
             .collect::<Vec<_>>();
-        if calling_conventions::evaluate_conventional_sum_layout(&common_shapes, &payloads).ok()?
-            != *layout
-            || fields.len() != common.len() + payload.len()
-        {
+        if fields.len() != common.len() + payload.len() {
             return None;
         }
         fields
@@ -1640,22 +1572,6 @@ pub(crate) mod aggregate_result_input {
         expected: &terminal_psi::StructuralOperationResult,
     ) -> bool {
         operation_result(source, expected.place) == Some((producer, expected))
-    }
-
-    fn live_field_shapes<'field>(
-        fields: impl Iterator<Item = &'field terminal_psi::StructuralFieldDeclaration>,
-        declarations: &[terminal_psi::StructuralTypeDeclaration],
-    ) -> Option<Vec<calling_conventions::ValueShape>> {
-        fields
-            .filter(|field| !field.relevance.is_erased())
-            .map(|field| {
-                crate::structural_inputs::structural_reference_input::field_shape(
-                    &field.field_type,
-                    declarations,
-                    &mut Vec::new(),
-                )
-            })
-            .collect()
     }
 }
 

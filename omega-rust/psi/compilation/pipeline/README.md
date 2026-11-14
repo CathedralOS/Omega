@@ -16,8 +16,8 @@ authority.
 | 02 — resolution | [resolution.rs](02_syntax-trees-to-symbol-resolved-trees/src/resolution.rs) | [resolved trees](../representations/symbol-resolved-trees/) |
 | 03 — typing | [lowerer.rs](03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs) | [typed trees](../representations/typed-trees/) |
 | 04 — typed preparation (one ordered pass list) | [preparation.rs](04_typed-trees-to-typed-trees/src/preparation.rs) | [frozen typed trees](../representations/typed-trees/) |
-| Structural lowering | [structure-elaboration](structure-elaboration/src/lib.rs) | unsealed Terminal Psi |
-| Lowered-form checking | [lowered-discharge](lowered-discharge/src/lib.rs) | accepted closure and evidence |
+| 05 — structural lowering | [prepare_compilation](05_typed-trees-to-terminal-psi/src/compilation.rs) | [complete Terminal checking input](../representations/terminal-psi/check-tables/src/compilation.rs) |
+| 06 — lowered-form checking | [judge_compilation](06_terminal-psi-to-terminal-psi/src/verdict.rs) | accepted closure and evidence |
 | Publication | [accepted source factory](../psi-compiler/terminal-production/src/accepted.rs) | [Terminal Psi and codec](../representations/terminal-psi/) |
 
 Every program crosses 04, which runs one ordered pass list over the typed trees
@@ -27,8 +27,12 @@ with `no product route yet`. This owner map and the implementation
 notes below do not establish working default source, Build or native compilation;
 unfinished producers remain on [TASKS.md](../../../../TASKS.md).
 
-Structural elaboration reads typed structure without old checker facts. The
-lowered-form checker judges the resulting module; unsupported constructs refuse.
+Stage 05 reads typed structure without checker facts and prepares the root module,
+all demanded generic forms, conformance witnesses and their exact correspondence.
+Stage 06 consumes that complete Terminal input without importing a preceding
+stage or reading typed source; unsupported constructs refuse.
+The driver retains source-record and Build-operand correspondence separately
+for publication, paired with the same frozen source owner. It is not proof input.
 The accepted-source factory publishes that same module with its evidence. The
 retired checked-to-Lowered-Psi and optimization/publication wrappers are absent.
 [Compile-time elaboration](../build-time-evaluation/README.md) owns evaluation
@@ -861,6 +865,6 @@ must settle late calls, operators and evidence before acceptance. Public declara
 interface exposure while executable bodies and internal states remain private.
 Lexical locals and source-free synthesis do not receive fictional package owners.
 See [typing](03_symbol-resolved-trees-to-typed-trees/README.md) for the source
-frontier and [lowered-form checking](lowered-discharge/README.md) for the served
+frontier and [lowered-form checking](06_terminal-psi-to-terminal-psi/README.md) for the served
 proof, flow and ownership boundary. Unserved source execution and late obligations
 remain explicit refusals.

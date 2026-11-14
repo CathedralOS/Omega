@@ -85,13 +85,19 @@ impl SelectedProductTarget {
         module: &terminal_psi::TerminalModule,
     ) -> Result<(), Vec<Diagnostic>> {
         let execution = &self.custody.execution;
+        if module.task_activation_demands.demands.is_empty() {
+            return Ok(());
+        }
+        let profile = execution.target_profile().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "task activation requires an explicit deployment target",
+            )]
+        })?;
         task_plans::realize_task_activations(
             &module.task_activation_demands,
             &module.identities,
             execution.plans(),
-            execution
-                .target_profile()
-                .unwrap_or_else(target::TargetProfile::host),
+            profile,
         )?;
         Ok(())
     }

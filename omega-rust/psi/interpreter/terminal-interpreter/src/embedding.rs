@@ -2193,26 +2193,21 @@ pub(crate) mod program {
                 .ok_or(TerminalInterpretError::VerifiedEntryMachineMissing)?;
             let selected =
                 installation.and_then(|installation| installation.target_machines.as_ref());
-            let machine = match selected {
-                Some(selected) => selected
-                    .entry(self.identity.semantic(), &self.catalogs, root)
-                    .map_err(TerminalInterpretError::TargetMachineSelection)?,
-                None => match root {
-                    terminal_psi::TargetMachineCallable::Machine(machine) => {
-                        if self.catalogs.target_machine_families.iter().any(|family| {
-                            family.members.iter().any(|member| member.callable == root)
-                        }) {
-                            return Err(TerminalInterpretError::TargetMachineSelectionMissing(
-                                root,
-                            ));
-                        }
-                        machine
-                    }
-                    terminal_psi::TargetMachineCallable::Boundary(_) => {
-                        return Err(TerminalInterpretError::TargetMachineSelectionMissing(root));
-                    }
-                },
-            };
+            let machine = terminal_installation::AdmittedTargetMachineSelections::resolve_entry(
+                selected,
+                self.identity.semantic(),
+                &self.catalogs,
+                root,
+            )
+            .map_err(|error| match error {
+                terminal_installation::TargetMachineSelectionError::MissingDeployment { head } => {
+                    TerminalInterpretError::TargetMachineSelectionMissing(head)
+                }
+                terminal_installation::TargetMachineSelectionError::MissingMachine(_) => {
+                    TerminalInterpretError::VerifiedEntryMachineMissing
+                }
+                other => TerminalInterpretError::TargetMachineSelection(other),
+            })?;
             self.machines()
                 .get(&machine)
                 .ok_or(TerminalInterpretError::VerifiedEntryMachineMissing)?;
@@ -2974,9 +2969,9 @@ pub(crate) mod program {
             }
             let expected = TerminalRuntimeSupplies::from(primary.providers());
             if self.program.identity != *admission.execution_identity()
-                || installation.target_machines.as_ref() != Some(primary.targets())
+                || installation.target_machines.as_ref() != primary.targets()
                 || installation.provider_selections.as_ref() != Some(primary.providers())
-                || installation.target_layouts.as_deref() != Some(primary.layouts())
+                || installation.target_layouts.as_deref() != primary.layouts()
                 || installation.assumed_bindings != expected.assumed_bindings
                 || expected
                     .supplies
@@ -3004,11 +2999,11 @@ pub(crate) mod program {
             let installation = installation.ok_or_else(reject)?;
             let expected_providers = TerminalRuntimeSupplies::from(observations.providers());
             if self.program.identity != observations.artifact().custody_identity()
-                || installation.target_machines.as_ref() != Some(observations.targets())
+                || installation.target_machines.as_ref() != observations.targets()
                 || installation.provider_selections.as_ref() != Some(observations.providers())
                 || installation.supplies != expected_providers.supplies
                 || installation.assumed_bindings != expected_providers.assumed_bindings
-                || installation.target_layouts.as_deref() != Some(observations.layouts())
+                || installation.target_layouts.as_deref() != observations.layouts()
                 || observations
                     .entry(application)
                     .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?
