@@ -1509,7 +1509,7 @@ public domain u64::Delivered requires self >= 42u64 && self <= 42u64;
 public data Pair [copy] { lo: u64 in Delivered; hi: u64; }
 machine main() {}
 "#;
-    let (workspace, session, checked) = captured_review_compilation(SOURCE);
+    let (workspace, mut session, checked) = captured_review_compilation(SOURCE);
     let project = workspace.path().join("project");
     let package = checked.sources().package_identity().unwrap();
     let target = checked.execution().target_profile().unwrap();
@@ -1628,7 +1628,7 @@ machine main() {}
     let claimed_source = format!(
         "{SOURCE}\nboundary machine unproved(value: u64) -> u64 ensures result == value;\n"
     );
-    let (_workspace, session, claimed) = captured_review_compilation(&claimed_source);
+    let (_workspace, mut session, claimed) = captured_review_compilation(&claimed_source);
     let refusal = project_checked_package_policy(
         &claimed,
         claimed.execution().target_profile().unwrap(),
