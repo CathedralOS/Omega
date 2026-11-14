@@ -45,6 +45,9 @@ fn statements_after_a_call_that_never_returns_warn_once_and_compile() {
     );
     // The first unreachable statement is on line 9 and the call on line 8.
     assert!(lines[warning + 1].contains("main.omg:9:"), "{stderr}");
-    assert_eq!(lines[warning + 2], "note: this expression cannot complete normally");
+    assert_eq!(
+        lines[warning + 2],
+        "note: this expression cannot complete normally"
+    );
     assert!(lines[warning + 3].ends_with("main.omg:8:5"), "{stderr}");
 }
