@@ -6289,6 +6289,7 @@ mod generic_bodies {
         // The actual Wide refinement remains a separate refused judgment:
         // its <=25 body promise does not establish the public <=20 result.
         let (actual, _) = run(vec![witness(), wide()]);
+        let actual_verdict = judge(Ok(actual)).unwrap();
         let RouteVerdict::Rejected {
             formations,
             violations,
@@ -6296,9 +6297,9 @@ mod generic_bodies {
             unestablished,
             conflicts,
             exceeded,
-        } = judge(Ok(actual)).unwrap()
+        } = actual_verdict
         else {
-            panic!("conditional caller proofs admitted the actual invalid refinement")
+            panic!("the actual invalid refinement must be rejected: {actual_verdict:?}")
         };
         assert!(
             formations.is_empty()
