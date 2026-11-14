@@ -335,6 +335,7 @@ mod arguments {
                     syntax,
                     length,
                     &GenericApplicationSubstitution::new(),
+                    selection,
                 )
                 .ok()?;
                 if length == 0 {
@@ -591,6 +592,7 @@ mod arguments {
                     syntax,
                     length,
                     &GenericApplicationSubstitution::new(),
+                    selection,
                 )
                 .ok()?,
             )),
@@ -1684,6 +1686,7 @@ mod eligibility {
                                 syntax,
                                 length,
                                 &declaration_selection::GenericApplicationSubstitution::new(),
+                                selection,
                             )
                             .is_ok()
                         }

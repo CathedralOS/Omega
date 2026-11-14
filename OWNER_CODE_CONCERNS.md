@@ -276,6 +276,13 @@ framework or a list of features that remain unimplemented.
 - Cost: the host row's operation is decided twice from text, and the native binding cannot be closed at its locator type by the pass that closes every other application until typing records that application on the call
 - Reported: 2026-11-13, Claude Code, while closing boundary requirements at the types their calls apply
 
+### An array extent in a generic argument is still closed by its spelling before resolution
+- Category: one idea, several implementations
+- Where: `02_.../preparation_const_evaluation.rs` (`closed_fixed_array_length`, reached from generic-data closing, type equations and constant evaluation) selects a constant for `[T; NAME]` through `ConstantSelection::select`, which sees only top-level declarations
+- Saw: integer widths and plain extents are now read by role in their lexical scope (`resolve_value_in_type_symbol` and the value pass in `symbols_type_references.rs`), so `machine f(count: u64, items: [u8; count])` is refused as a runtime extent. But generic-argument closing (`closed_argument_identity`) still reads an extent such as `Buffer<[u8; count]>` written in that machine through the top-level selection; not yet observed in a program. Deleting the selection breaks `First<[u8; LIMIT]>` in a data declaration, where the top-level constant is the right answer
+- Cost: preparation cannot tell a data or constant declaration (top-level scope) from a machine (parameters and locals in scope), so one extent spelling can mean two things; closing generic arguments after resolution, or handing preparation the enclosing value bindings, would remove the second reader
+- Reported: 2026-11-14, Claude Code, while reading builtin type names by role
+
 ### The scalar contract fixture's inferred call proof is refused by the kernel
 - Category: a proof producer and checker disagree
 - Where: `tests/fixtures/run/calls/scalar_contract_route_exit/main.omg:26` (the call `settle(product)`)
