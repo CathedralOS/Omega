@@ -49,6 +49,23 @@ carrier or prevent forwarding a surviving root loan. Every enclosing `Case`
 segment still requires unchanged active-case evidence at that exact root and
 path; byte layout alone does not grant payload access.
 
+`EliminateEmpty` observes a live, readable structural source at an exact path
+whose declared value domain is proved empty. A final `Case` segment denotes
+that selected case's payload namespace, rather than a separately stored value.
+Every case segment still requires unchanged active-case evidence at the exact
+root and prefix. A reference descriptor is not its referent; observing the
+referent requires an explicit valid `Referent` crossing. Missing declarations,
+unknown inhabitedness, and an unproved predicate never establish emptiness.
+
+The terminal has one edge with no normal successor. It produces no value,
+returns no result, transfers no claims or ownership, performs no cleanup, and
+publishes no crash route. Checking and separate admission reconstruct the
+positive emptiness judgment from the actual declarations and source path.
+An omitted impossible source arm can therefore retain its declared dispatch
+edge to a block ending in this observation; the full case roster stays intact.
+An implementation may prune that proved impossible block when emitting code,
+but it cannot turn the observation into a normal result or a crash permission.
+
 Native realization keeps the root's custody and full storage extent distinct
 from the selected sum's layout. Tag and payload coordinates include the subject
 projection, including fixed-array elements and nonzero record-field offsets.
