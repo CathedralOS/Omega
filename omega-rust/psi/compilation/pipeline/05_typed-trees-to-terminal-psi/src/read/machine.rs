@@ -1369,14 +1369,27 @@ impl<'t> Program<'t> {
         requirement: &'t StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<(Signature, MachineNames)> {
-        // As a machine's: an elided lifetime is a fresh parameter of the
-        // requirement, which each call instantiates (`regions::Elision`).
+        // These are the declaration's parameters, not a new family whenever
+        // another call reads its header. Each invocation later substitutes
+        // them with its own actual regions (`call_of`).
+        let previous_elisions = self
+            .elided_lifetimes
+            .iter_mut()
+            .find(|(owner, _)| *owner == requirement.symbol)
+            .map(|(_, count)| std::mem::replace(count, 0));
         let elision = std::mem::replace(
             &mut self.elision,
             super::regions::Elision::Inputs(requirement.symbol),
         );
         let read = self.read_requirement_signature(id, requirement, arguments);
         self.elision = elision;
+        if let Some((_, count)) = self
+            .elided_lifetimes
+            .iter_mut()
+            .find(|(owner, _)| *owner == requirement.symbol)
+        {
+            *count = (*count).max(previous_elisions.unwrap_or(0));
+        }
         let (mut signature, names) = read?;
         signature.termination = self.requirement_termination(id, requirement)?;
         Ok((signature, names))
