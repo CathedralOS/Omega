@@ -1,0 +1,15 @@
+// Both literal branches return their image-backed bytes through one view join.
+machine main() crashes Trap {
+    let first: &[u8] = made(true);
+    let second: &[u8] = made(false);
+    transition first == "a" && second == "bb" {
+        true -> done()
+        false -> bad()
+    }
+    machine done() { }
+    machine bad() { crash Trap; }
+}
+
+machine made(first: bool) -> &[u8] {
+    match first { true -> "a" false -> "bb" }
+}
