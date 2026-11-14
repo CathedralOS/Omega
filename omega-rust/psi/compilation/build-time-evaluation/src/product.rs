@@ -12,6 +12,9 @@ use language_semantics::declaration_selection::{
 #[path = "product/provider_selections.rs"]
 mod provider_selection_requests;
 
+#[path = "product/retained_provider_selections.rs"]
+mod retained_provider_selections;
+
 #[cfg(test)]
 #[path = "product/provider_selection_tests.rs"]
 mod provider_selection_tests;
@@ -228,7 +231,6 @@ pub mod provider_declarations {
     use std::sync::Arc;
     use symbols::RetainedDeclaration;
     use symbols::SymbolHandle;
-    use typed_trees::TypedTrees;
     pub use typed_trees::provider_declarations::ProviderPlanningContext;
     #[derive(Debug, Clone, PartialEq, Eq)]
     pub struct RetainedProductApplication {
@@ -395,19 +397,6 @@ pub mod provider_declarations {
                 }
                 _ => false,
             }
-        }
-    }
-    impl RetainedProviderSelection {
-        pub fn rejoin(
-            &self,
-            _program: &mut TypedTrees,
-            _scope: source::DependencyScope,
-            _previous: &[ProviderSelection],
-            _candidates: &mut symbols::SourceSpanCandidates,
-        ) -> Result<ProviderSelection, Diagnostic> {
-            Err(Diagnostic::error(
-                "no product route yet: retained source provider selection",
-            ))
         }
     }
     pub fn collect_product_provider_selections(
