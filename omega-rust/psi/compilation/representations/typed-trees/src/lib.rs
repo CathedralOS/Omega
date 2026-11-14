@@ -1727,15 +1727,35 @@ pub fn integer_const_declaration_extent(
     program: &TypedTrees,
     symbol: symbols::SymbolHandle,
 ) -> Option<usize> {
-    canonical_static_const_spelling(canonical_const_declaration_value(program, symbol)?)?
-        .parse()
-        .ok()
+    let language_semantics::const_value::DecodedCanonicalConstValue::Integer { value, .. } =
+        canonical_const_declaration_value(program, symbol)?.decode_encoding()?
+    else {
+        return None;
+    };
+    usize::try_from(value).ok()
 }
 
 pub fn static_const_argument_spelling(
     program: &TypedTrees,
     argument: &expression::StaticMachineArgument,
 ) -> Option<String> {
+    match static_const_argument_value(program, argument)? {
+        StaticConstArgumentValue::Integer(value) => Some(value.to_string()),
+        StaticConstArgumentValue::Literal(literal) => Some(literal.to_string()),
+        StaticConstArgumentValue::Canonical(value) => canonical_static_const_spelling(value),
+    }
+}
+
+enum StaticConstArgumentValue<'argument> {
+    Integer(i128),
+    Literal(&'argument numerics::literals::IntegerLiteral),
+    Canonical(language_semantics::const_value::CanonicalConstValue),
+}
+
+fn static_const_argument_value<'argument>(
+    program: &TypedTrees,
+    argument: &'argument expression::StaticMachineArgument,
+) -> Option<StaticConstArgumentValue<'argument>> {
     use language_semantics::const_value::{CanonicalConstValue, boolean_literal_spelling};
 
     if argument.type_reference.is_valid()
@@ -1750,31 +1770,37 @@ pub fn static_const_argument_spelling(
                 .value_i64()
                 .map(i128::from)
                 .or_else(|| literal.value_u64().map(i128::from))
-                .map_or_else(|| literal.to_string(), |value| value.to_string()),
+                .or_else(|| literal.decimal_value_i128())
+                .map_or(
+                    StaticConstArgumentValue::Literal(literal),
+                    StaticConstArgumentValue::Integer,
+                ),
         );
     }
     if argument.symbol.is_valid() {
         let value = canonical_const_declaration_value(program, argument.symbol)?;
-        return canonical_static_const_spelling(value);
+        return Some(StaticConstArgumentValue::Canonical(value));
     }
     let [name] = argument.path.as_ref() else {
         return None;
     };
     if let Some(value) = boolean_literal_spelling(name.as_str()) {
-        return Some(CanonicalConstValue::boolean(value).atom());
+        return Some(StaticConstArgumentValue::Canonical(
+            CanonicalConstValue::boolean(value),
+        ));
     }
-    CanonicalConstValue::from_atom(name.as_str()).and_then(canonical_static_const_spelling)
+    CanonicalConstValue::from_atom(name.as_str()).map(StaticConstArgumentValue::Canonical)
 }
 
 pub fn static_const_value_identity(
     identity: &language_semantics::const_value::CanonicalConstIdentity,
 ) -> Option<String> {
-    canonical_static_const_spelling(language_semantics::const_value::CanonicalConstValue::new(
+    language_semantics::const_value::CanonicalConstValue::new(
         identity.type_name.clone(),
         identity.encoding.clone(),
         "",
-    ))
-    .map(|spelling| static_const_identity_from_spelling(&spelling))
+    )
+    .application_identity()
 }
 
 fn canonical_static_const_spelling(
@@ -1786,20 +1812,6 @@ fn canonical_static_const_spelling(
         DecodedCanonicalConstValue::Boolean(value) => CanonicalConstValue::boolean(value).atom(),
         _ => value.atom(),
     })
-}
-
-fn static_const_identity_from_spelling(spelling: &str) -> String {
-    if let Some(value) = language_semantics::const_value::CanonicalConstValue::from_atom(spelling) {
-        return format!(
-            "named(canonical-const(type({}),encoding({})))",
-            escape(&value.type_name),
-            escape(&value.encoding)
-        );
-    }
-    if let Ok(value) = spelling.parse::<i128>() {
-        return format!("named(integer-const({value}))");
-    }
-    format!("named(name({}))", escape(spelling))
 }
 
 impl PhaseSnapshot for TypedTrees {
