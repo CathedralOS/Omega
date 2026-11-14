@@ -31,7 +31,7 @@ pub(super) fn atom_type(atom: BuiltinTypeAtom, machine: MachineId) -> Checked<Sc
         let kind = match atom {
             BuiltinTypeAtom::Slice => "slice",
             BuiltinTypeAtom::SyscallResult => "syscall result",
-            BuiltinTypeAtom::Terminal | BuiltinTypeAtom::Never => "terminal or never",
+            BuiltinTypeAtom::Terminal => "terminal",
             BuiltinTypeAtom::UInt | BuiltinTypeAtom::Int => "anonymous integer",
             BuiltinTypeAtom::AtomicBool
             | BuiltinTypeAtom::AtomicU32
