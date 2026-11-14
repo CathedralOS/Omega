@@ -2310,7 +2310,6 @@ pub(crate) mod installed_interrupts {
                 "interrupt installation requires a registrar declaration, not a value or evidence projection",
             ));
         }
-        let mut declaration_path = registrar.path.to_vec();
         let mut continuation = registrar;
         while let Some(application) = &continuation.application
             && application.member.is_valid()
@@ -2320,7 +2319,6 @@ pub(crate) mod installed_interrupts {
                 .ok_or_else(|| {
                     Diagnostic::error("interrupt registrar member has no owning resolved record")
                 })?;
-            declaration_path.extend_from_slice(&continuation.path);
         }
         let registrar_selection = if let Some((first, last)) =
             continuation.path.first().zip(continuation.path.last())
@@ -2346,9 +2344,19 @@ pub(crate) mod installed_interrupts {
         } else {
             None
         };
-        let selected = syntax_trees_to_symbol_resolved_trees::declaration_selection::resolve_signature_free_requirement(program, &declaration_path)
-            .map_err(|reason| Diagnostic::error(format!("interrupt installation registrar declaration cannot be selected: {reason:?}")))?;
-        let registrar_trait = selected.trait_definition.symbol;
+        let selected = registrar
+            .signature_free_requirement
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "interrupt registrar lost its prepared signature-free requirement selection",
+                )
+            })?
+            .map_err(|reason| {
+                Diagnostic::error(format!(
+                    "interrupt installation registrar declaration cannot be selected: {reason:?}"
+                ))
+            })?;
+        let registrar_trait = selected.trait_definition;
         let mut registrar =
             lower_static_machine_argument(Some(program), target_trees, exposure, registrar)?;
         let mut member_handle = registrar
@@ -2357,7 +2365,7 @@ pub(crate) mod installed_interrupts {
             .map(|application| application.member)
             .unwrap_or_default();
         if !member_handle.is_valid() {
-            registrar.symbol = selected.requirement.symbol;
+            registrar.symbol = selected.requirement;
         } else {
             loop {
                 let member = target_trees
@@ -2372,7 +2380,7 @@ pub(crate) mod installed_interrupts {
                     .map(|application| application.member)
                     .unwrap_or_default();
                 if !next.is_valid() {
-                    member.symbol = selected.requirement.symbol;
+                    member.symbol = selected.requirement;
                     break;
                 }
                 member_handle = next;

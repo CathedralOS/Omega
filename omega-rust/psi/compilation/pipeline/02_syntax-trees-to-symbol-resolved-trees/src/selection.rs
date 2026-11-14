@@ -3717,12 +3717,7 @@ pub(crate) mod signature_free_requirements {
         pub requirement: &'program StateSignature,
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub enum SignatureFreeRequirementResolutionError {
-        InvalidPath,
-        TraitNotUnique,
-        RequirementNotUnique,
-    }
+    pub use symbol_resolved_trees::expression::SignatureFreeRequirementResolutionError;
 
     pub fn resolve_signature_free_requirement<'program>(
         program: &'program SymbolResolvedTrees,
@@ -3885,6 +3880,9 @@ pub(crate) mod signature_free_requirements {
                 use_span,
                 |_| true,
             );
+        if matches!(selected, symbols::SymbolLookup::NotFound) {
+            return Vec::new();
+        }
         program
             .traits
             .iter()
@@ -4184,6 +4182,9 @@ mod static_arguments {
                 &mut program.tables.bodies.expressions,
                 &mut resolved,
             );
+            if result.is_ok() {
+                prepare_requirement_selections(program, &mut arguments)?;
+            }
             if let ExpressionNode::Call(call) =
                 program.tables.bodies.expressions.expression_mut(expression)
             {
@@ -4232,6 +4233,9 @@ mod static_arguments {
                 &mut program.tables.bodies.expressions,
                 &mut resolved,
             );
+            if result.is_ok() {
+                prepare_requirement_selections(program, &mut arguments)?;
+            }
             if let Statement::Call(call) = program
                 .tables
                 .declarations
@@ -4447,8 +4451,140 @@ mod static_arguments {
         Ok(())
     }
 
+    // Static operands may denote types or values instead of requirements. Keep
+    // the lookup outcome without rejecting those categories; the receiving
+    // contract decides whether a signature-free requirement is needed.
+    fn prepare_requirement_selections(
+        program: &SymbolResolvedTrees,
+        arguments: &mut [StaticMachineArgument],
+    ) -> Result<(), Diagnostic> {
+        use symbol_resolved_trees::expression::ResolvedSignatureFreeRequirement;
+        for argument in arguments {
+            if argument.signature_free_requirement.is_some() {
+                continue;
+            }
+            let eligible = argument.const_literal.is_none()
+                && argument.evidence_projection.is_none()
+                && !argument.type_reference.is_valid()
+                && (!argument.symbol.is_valid()
+                    || program.symbols.get(argument.symbol).kind == SymbolKind::Trait
+                    || {
+                        let symbol = program.symbols.get(argument.symbol);
+                        symbol.kind == SymbolKind::State
+                            && symbol.parent.is_valid()
+                            && program.symbols.get(symbol.parent).kind == SymbolKind::Trait
+                    });
+            if !eligible {
+                argument.signature_free_requirement = None;
+                continue;
+            }
+            let mut path = argument.path.to_vec();
+            let mut current = &*argument;
+            while let Some(application) = &current.application
+                && application.member.is_valid()
+            {
+                current = program
+                    .tables
+                    .bodies
+                    .expressions
+                    .static_member(application.member)
+                    .ok_or_else(|| {
+                        Diagnostic::error("static member lost its receiving expression table")
+                    })?;
+                path.extend_from_slice(&current.path);
+            }
+            argument.signature_free_requirement = Some(
+                super::signature_free_requirements::resolve_signature_free_requirement(
+                    program, &path,
+                )
+                .map(|selected| ResolvedSignatureFreeRequirement {
+                    trait_definition: selected.trait_definition.symbol,
+                    declaring_trait: selected.declaring_trait.symbol,
+                    requirement: selected.requirement.symbol,
+                }),
+            );
+            if let Some(application) = &mut argument.application {
+                prepare_requirement_selections(program, &mut application.arguments)?;
+            }
+        }
+        Ok(())
+    }
+
     fn error(at: SourceSpan, message: &str) -> Diagnostic {
         Diagnostic::error(message).with_source_span(at)
+    }
+
+    #[cfg(test)]
+    mod requirement_handoff_tests {
+        use super::*;
+
+        fn resolve(text: &str) -> SymbolResolvedTrees {
+            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            let syntax =
+                tokens_to_syntax_trees::parse_syntax_trees_with_id(source::SourceId(1), &tokens)
+                    .unwrap();
+            crate::resolve(crate::ResolutionRequest {
+                syntax,
+                sources: None,
+                top_level_bindings: Vec::new(),
+                retained_base: None,
+            })
+            .unwrap()
+        }
+
+        #[test]
+        fn requirement_handoff_retains_the_exact_selected_call_operand() {
+            let program = resolve(
+                r#"
+                trait Source { machine get() -> u64; }
+                machine apply<machine Callback>() -> u64
+                requires machine Callback() -> u64;
+                { Callback() }
+                machine main() -> u64 { apply<Source::get>() }
+            "#,
+            );
+            let argument = program
+                .tables
+                .bodies
+                .expressions
+                .iter_expressions()
+                .find_map(|(_, node)| {
+                    let ExpressionNode::Call(call) = node else {
+                        return None;
+                    };
+                    call.machine_arguments
+                        .first()
+                        .filter(|argument| argument.path.len() == 2)
+                })
+                .expect("authored static requirement operand");
+            let selected = argument.signature_free_requirement.unwrap().unwrap();
+            let definition = program
+                .traits
+                .iter()
+                .find(|definition| definition.symbol == selected.trait_definition)
+                .unwrap();
+            assert_eq!(selected.declaring_trait, definition.symbol);
+            assert_eq!(
+                selected.requirement,
+                program.trait_machine_signatures(definition.machines)[0].symbol
+            );
+        }
+
+        #[test]
+        fn requirement_handoff_retains_ambiguity_instead_of_selecting_an_overload() {
+            let program =
+                resolve("trait Source { machine get() -> u64; machine get(value: u64) -> u64; }");
+            let mut arguments = [StaticMachineArgument {
+                path: ["Source", "get"]
+                    .into_iter()
+                    .map(symbol_resolved_trees::name::DiagnosticName::generated)
+                    .collect(),
+                ..Default::default()
+            }];
+            prepare_requirement_selections(&program, &mut arguments).unwrap();
+            assert_eq!(arguments[0].signature_free_requirement,
+                Some(Err(symbol_resolved_trees::expression::SignatureFreeRequirementResolutionError::RequirementNotUnique)));
+        }
     }
 }
 
