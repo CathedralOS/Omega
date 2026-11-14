@@ -118,6 +118,14 @@ impl Program<'_> {
     /// ceilings are held to the same rules whether or not this compilation
     /// calls it. The trait is read as the service it declares.
     ///
+    /// A claim is not a call, so no caller's visibility is checked here.
+    /// Whether the binding's author may name the requirement was decided
+    /// when the Build's binding was admitted, and a compilation claims only
+    /// the bindings its own package's Build made: a dependency's bindings
+    /// are reached through the providers a target chooses, whose calls check
+    /// visibility like any other. A declaration check has no entry at all to
+    /// call from.
+    ///
     /// A selection of anything else (a trait that is no boundary, an
     /// operator family) is refused here. A provider is judged against what
     /// it provides as a `Supply` (`supplied_slots`), never as a bare

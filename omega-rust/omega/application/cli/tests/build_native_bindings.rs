@@ -47,13 +47,17 @@ fn omega_check(directory: &std::path::Path) -> String {
 }
 
 fn check(name: &str, bindings: &str) -> String {
+    check_product(name, PRODUCT, bindings)
+}
+
+fn check_product(name: &str, product: &str, bindings: &str) -> String {
     let root = std::env::temp_dir().join(format!(
         "omega-build-native-bindings-{}-{name}",
         std::process::id()
     ));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).expect("staging directory");
-    std::fs::write(root.join("main.omg"), PRODUCT).expect("staged program");
+    std::fs::write(root.join("main.omg"), product).expect("staged program");
     std::fs::write(
         root.join("build.omg"),
         format!(
@@ -141,6 +145,104 @@ fn a_binding_that_names_no_requirement_is_refused() {
         "{stderr}"
     );
     assert!(stderr.contains("build.omg:6:"), "{stderr}");
+}
+
+/// A package's own bindings are judged with the package, even when no
+/// machine calls the requirement: the control's twin binds a requirement that
+/// declares no crash ceiling, and nothing calls it.
+#[test]
+fn a_requirement_the_package_binds_is_judged_though_nothing_calls_it() {
+    let product = PRODUCT.replace(
+        "machine tock() reaches none crashes none;",
+        "machine tock() reaches none;",
+    );
+    let stderr = check_product(
+        "uncalled-binding",
+        &product,
+        &format!("    Build::bind<Host::tock>(builder, windows_x86_64, {OTHER});\n"),
+    );
+    assert!(
+        stderr.contains("boundary requirement must declare its crash ceiling"),
+        "{stderr}"
+    );
+}
+
+/// A dependency whose Build binds a requirement that declares no crash
+/// ceiling, and a public machine that calls it.
+const BOUND_LIBRARY: &str = "\
+public boundary trait Raw {
+    machine read() reaches none;
+}
+public machine reads() reaches none { Raw::read(); }
+public machine answer() -> u32 { 73u32 }
+";
+
+/// Stage a program that uses `BOUND_LIBRARY` through `body`, and check it.
+fn check_with_bound_library(name: &str, body: &str) -> String {
+    let root = std::env::temp_dir().join(format!(
+        "omega-build-native-bindings-{}-{name}",
+        std::process::id()
+    ));
+    let _ = std::fs::remove_dir_all(&root);
+    let library = root.join("bound_library");
+    std::fs::create_dir_all(&library).expect("staging directory");
+    std::fs::write(library.join("main.omg"), BOUND_LIBRARY).expect("staged library");
+    std::fs::write(
+        library.join("build.omg"),
+        format!(
+            "use omega::language::core::DllImport;
+use omega::language::core::ForeignBinding;
+machine build(builder: &mut Build) {{
+    Build::package(builder, \"bound_library\");
+    Build::bind<Raw::read>(builder, macos_arm64, {SLEEP});
+}}
+"
+        ),
+    )
+    .expect("staged library Build");
+    std::fs::write(
+        root.join("main.omg"),
+        format!("use bound;\n\nmachine main() {{\n{body}}}\n"),
+    )
+    .expect("staged program");
+    std::fs::write(
+        root.join("build.omg"),
+        "machine build(builder: &mut Build) {
+    Build::application(builder, \"bound_user\");
+    let mut library: DependencyDescription = dependency::from_source(Source::Path { location: \"bound_library\" });
+    dependency::with_alias(&mut library, \"bound\");
+    let registration: DependencyRegistration = Build::dependency(builder, library);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+}
+",
+    )
+    .expect("staged Build");
+    let stderr = omega_check(&root);
+    let _ = std::fs::remove_dir_all(&root);
+    stderr
+}
+
+/// A dependency's bindings are judged where the program demands them, not
+/// wholesale: a Windows check of a program that reaches nothing of the
+/// library does not judge the library's macOS binding.
+#[test]
+fn a_dependency_binding_nothing_reaches_is_not_judged() {
+    let stderr = check_with_bound_library("unreached-dependency-binding", "");
+    assert!(
+        !stderr.contains("boundary requirement must declare its crash ceiling"),
+        "{stderr}"
+    );
+}
+
+/// Its twin reaches the library's machine that calls the bound requirement,
+/// so the requirement is judged at that call, in the library's own package.
+#[test]
+fn a_dependency_binding_the_program_reaches_is_judged() {
+    let stderr = check_with_bound_library("reached-dependency-binding", "    bound::reads();\n");
+    assert!(
+        stderr.contains("boundary requirement must declare its crash ceiling"),
+        "{stderr}"
+    );
 }
 
 /// A program that depends on the standard library receives the bindings and
