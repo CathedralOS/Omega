@@ -528,6 +528,9 @@ impl<'t> Program<'t> {
         if let Some(description) = self.declaration_query(id, call, source)? {
             return Ok(description);
         }
+        if let Some(reference) = self.borrow_factory_call(id, slots, call, source)? {
+            return Ok(reference);
+        }
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         if call.installed_interrupt_operation.is_some() {
             return unserved("installed interrupt operation");
@@ -622,6 +625,179 @@ impl<'t> Program<'t> {
             self.designate(id, call.build_selection, &mut read)?;
         }
         Ok(read)
+    }
+
+    /// A sealed ordinary borrow returns the source's existing permission.
+    /// Its closed result belongs to the actual application, never to the
+    /// type a caller hopes to receive. Other interpretations still need
+    /// their evaluated policy, content, profile and resident correspondence.
+    fn borrow_factory_call(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        call: &TableCallExpression,
+        source: SourceOrigin,
+    ) -> Checked<Option<Expression>> {
+        use typed_trees::expression::AccessBorrowBacking;
+        use typed_trees::static_applications::StaticMachineBindingValue;
+        use typed_trees::types::TypeReferenceNode;
+
+        let typed = self.typed;
+        let Some(factory) = typed.access_borrow_factory(call.target_symbol).copied() else {
+            return Ok(None);
+        };
+        let unavailable = |reason| refuse(id, Construct::Machine, Unserved::Call(reason));
+        self.visible_to(id, factory.factory)?;
+        self.direct_selection(
+            id,
+            call.target_symbol,
+            call.authored_call_selection,
+            call.authored_call_binding,
+        )?;
+        let namespace = typed
+            .expression_table
+            .name_path_node(call.receiver)
+            .map_or_else(SymbolHandle::invalid, |path| path.symbol);
+        if (call.receiver.is_valid() && !self.names_carrier(call.target_symbol, namespace))
+            || call.build_selection.is_valid()
+            || call.static_requirement_dispatch.is_some()
+            || call.requirement_application.is_valid()
+            || call.exact_coercion_target.is_valid()
+            || call.static_machine_parameter.is_valid()
+            || !call.evidence_arguments.is_empty()
+            || call.quotient_operation.is_some()
+            || call.private_layout_operation.is_some()
+            || call.installed_interrupt_operation.is_some()
+            || call.layout_query.is_some()
+            || call.native_code_layout.is_some()
+            || call.operational_acknowledgement.acknowledges_suspend
+            || call.operational_acknowledgement.acknowledges_block
+        {
+            return Err(unavailable(
+                "sealed borrow has another call operation or value receiver",
+            ));
+        }
+        if !matches!(factory.backing, AccessBorrowBacking::Ordinary) {
+            return Err(unavailable(
+                "resident view needs evaluated layout, content, profile and policy custody",
+            ));
+        }
+        let signature = typed
+            .bodyless_callable_signature(call.authored_machine_application, call.target_symbol)
+            .map_err(unavailable)?
+            .ok_or_else(|| {
+                unavailable("sealed borrow has no prepared closed declaration contract")
+            })?;
+        let application = typed.static_machine_application(call.authored_machine_application);
+        let actual_owner = typed
+            .machine_by_symbol(application.lexical_owner)
+            .or_else(|| typed.machine_holding_state(application.lexical_owner))
+            .map(|machine| machine.symbol);
+        if actual_owner != self.symbols.get(id).copied()
+            || application.binding_declaration != factory.factory
+            || (!call.machine_arguments.is_empty()
+                && call.machine_arguments.as_ref()
+                    != typed
+                        .static_machine_application_arguments(call.authored_machine_application))
+        {
+            return Err(unavailable(
+                "sealed borrow application belongs to another source call owner",
+            ));
+        }
+        if !signature.type_parameters.is_empty()
+            || !signature.conformance_bounds.is_empty()
+            || !signature.contracts.is_empty()
+            || !signature.invokes.is_empty()
+            || signature.suspends
+            || signature.blocks
+            || signature.service_reach_is_installation_bound
+            || signature.service_reach_row != language_semantics::ServiceReachRowId::EMPTY_ROW
+            || !signature.declares_no_crash_route
+            || signature.termination_guarantee
+                != language_semantics::TerminationGuarantee::NoGuarantee
+            || !typed
+                .service_reach_rows
+                .services(signature.service_reach_row)
+                .is_empty()
+        {
+            return Err(unavailable(
+                "sealed borrow needs its complete static or operational contract",
+            ));
+        }
+        let bindings = typed.static_machine_application_bindings(call.authored_machine_application);
+        let bound_type = |parameter| {
+            let mut selected = bindings
+                .iter()
+                .filter(|binding| binding.parameter == parameter);
+            match (selected.next(), selected.next()) {
+                (Some(binding), None) => match binding.value {
+                    StaticMachineBindingValue::Type(reference) => Some(reference),
+                    _ => None,
+                },
+                _ => None,
+            }
+        };
+        let source_type = bound_type(factory.source_parameter)
+            .ok_or_else(|| unavailable("sealed borrow lost its exact source type argument"))?;
+        let view_type = bound_type(factory.view_parameter)
+            .ok_or_else(|| unavailable("sealed borrow lost its complete view type argument"))?;
+        let [parameter] = typed.state_signature_parameters(signature) else {
+            return Err(unavailable(
+                "sealed borrow closed declaration needs one source parameter",
+            ));
+        };
+        let TypeReferenceNode::Reference {
+            referee: declared_source,
+            access: source_access,
+            ..
+        } = typed
+            .type_reference_table
+            .type_reference(parameter.type_reference)
+        else {
+            return Err(unavailable(
+                "sealed borrow source parameter is not its declared reference",
+            ));
+        };
+        let TypeReferenceNode::Reference {
+            referee: declared_view,
+            access: result_access,
+            ..
+        } = typed
+            .type_reference_table
+            .type_reference(signature.return_type)
+        else {
+            return Err(unavailable(
+                "sealed borrow result is not its declared reference",
+            ));
+        };
+        if *declared_source != source_type
+            || *declared_view != view_type
+            || *source_access != factory.access
+            || *result_access != factory.access
+            || parameter.is_const
+            || parameter.relevance.is_erased()
+            || parameter.is_mutable != (factory.access == ReferenceAccess::Mutable)
+        {
+            return Err(unavailable(
+                "sealed borrow closed signature differs from its source and view binders",
+            ));
+        }
+        let source_value = self.local_type(id, source_type)?;
+        let view_value = self.local_type(id, view_type)?;
+        if !self.agrees(Some(source_value), view_value) {
+            return Err(unavailable(
+                "a different qualified view needs evaluated policy, layout and backing correspondence",
+            ));
+        }
+        let result = self.local_type(id, signature.return_type)?;
+        let [argument] = typed.expression_table.expression_handles(call.arguments) else {
+            return Err(unavailable(
+                "sealed borrow needs exactly one actual source argument",
+            ));
+        };
+        Ok(Some(
+            self.borrow_value(id, slots, *argument, result, source)?,
+        ))
     }
 
     /// Attaches a Build selection's designated operands to the call typing

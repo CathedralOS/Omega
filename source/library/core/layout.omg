@@ -511,14 +511,16 @@ public boundary data Access;
 // Ordinary RAM retains its actual source type and loan. A different View
 // argument is a request to check that correspondence, never a coercion or an
 // authority grant from these declarations alone.
-public boundary machine Access::view<Source, View>(source: &Source) -> &View;
-public boundary machine Access::view_mut<Source, View>(source: &mut Source) -> &mut View;
+public boundary machine Access::view<Source, View>(source: &Source) -> &View
+reaches none crashes none;
+public boundary machine Access::view_mut<Source, View>(source: &mut Source) -> &mut View
+reaches none crashes none;
 
 // Resident interpretation retains the exact content claim as well as the
 // complete qualified View. Retiring the result loan cannot retire that claim.
 public boundary machine Access::view_resident_mut<P, Source, View>(
     storage: &mut Extent in Granted & Resident<P, Source>
-) -> &mut View;
+) -> &mut View reaches none crashes none;
 
 public data AccessOutcome<View, Returned, Reason> {
     case Ready(view: View);

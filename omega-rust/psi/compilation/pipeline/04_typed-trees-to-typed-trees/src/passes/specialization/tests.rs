@@ -1114,6 +1114,6 @@ fn an_already_bound_tuple_keeps_even_an_unused_parameter() {
             application,
             &different_unused
         ),
-        Err(super::Stop::Unserved)
+        Err(super::Stop::Unserved(None))
     ));
 }
