@@ -78,15 +78,20 @@ pub(crate) fn prepare_function_signature(
     let scalar_parameter_shapes = function
         .parameters
         .iter()
-        .map(|parameter| match parameter.scalar_type {
-            ScalarType::Boolean => Ok(ValueShape::integer(1, 1)),
-            ScalarType::Integer(scalar_type) => fixed_native_integer_shape(scalar_type).ok_or(
-                LoweringError::UnitFunctionHasScalarParameters(function.machine),
-            ),
-            ScalarType::IeeeFloat(format) => Ok(ValueShape::float(match format {
-                IeeeFloatFormat::Binary32 => 4,
-                IeeeFloatFormat::Binary64 => 8,
-            })),
+        .map(|parameter| {
+            structural_types
+                .closed_scalar(parameter.scalar_type)
+                .ok_or(LoweringError::ValueTypeMismatch(parameter.value))?;
+            match parameter.scalar_type {
+                ScalarType::Boolean => Ok(ValueShape::integer(1, 1)),
+                ScalarType::Integer(scalar_type) => fixed_native_integer_shape(scalar_type).ok_or(
+                    LoweringError::UnitFunctionHasScalarParameters(function.machine),
+                ),
+                ScalarType::IeeeFloat(format) => Ok(ValueShape::float(match format {
+                    IeeeFloatFormat::Binary32 => 4,
+                    IeeeFloatFormat::Binary64 => 8,
+                })),
+            }
         })
         .collect::<Result<Vec<_>, _>>()?;
     let signature = StructuralCallSignature::derive(
@@ -102,7 +107,14 @@ pub(crate) fn prepare_function_signature(
             _ => function
                 .result
                 .scalar()
-                .map(|result| super::scalar::scalar_shape(result.value, result.scalar_type, false))
+                .map(|result| {
+                    super::scalar::scalar_shape(
+                        result.value,
+                        result.scalar_type,
+                        false,
+                        structural_types,
+                    )
+                })
                 .transpose()?,
         },
         structural_types,

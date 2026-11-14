@@ -523,7 +523,12 @@ pub(crate) mod boundary_call {
                         source_byte_offset,
                         fixed_array_length: None,
                         element_stride: None,
-                        indices: runtime_indices(index_runs, function, scalar_sources)?,
+                        indices: runtime_indices(
+                            index_runs,
+                            function,
+                            scalar_sources,
+                            structural_types,
+                        )?,
                         source: argument_source,
                         destination: destination.clone(),
                     })
@@ -1164,13 +1169,13 @@ pub(crate) mod boundary_call {
                                 StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
                                     !integer.is_address()
                                         && integer.sign() == IntegerSign::Signed
-                                        && integer.bits() == 32
+                                        && integer.bits() == Some(32)
                                 }
                                 StructuralFieldType::BoundedInteger(bounds) => {
                                     let integer = bounds.integer_type();
                                     !integer.is_address()
                                         && integer.sign() == IntegerSign::Signed
-                                        && integer.bits() == 32
+                                        && integer.bits() == Some(32)
                                         && bounds
                                             .contains(semantic_vocabulary::IntegerValue::Signed(0))
                                         && bounds.contains(
@@ -1678,7 +1683,7 @@ pub(crate) mod roster_arguments {
                 &argument.path,
                 structural_types,
             )?;
-        let indices = runtime_indices(indices, function, scalar_sources)?;
+        let indices = runtime_indices(indices, function, scalar_sources, structural_types)?;
         let mut byte_field_capacity = None;
         let (projected_type, projected_shape) = match selected {
             super::super::structural_layout::ProjectedStorage::Field(field)
@@ -2052,6 +2057,7 @@ pub(crate) mod scalar_definitions {
         values: &mut BTreeMap<ValueId, KnownUnitInteger>,
         operations: &mut Vec<TargetUnitOperation>,
         provenance: &mut TerminalPsiProvenance,
+        types: &crate::structural_type_lookup::StructuralTypeLookup<'_>,
     ) -> Result<(), LoweringError> {
         let AbstractOperation::IntegerWiden {
             psi_operation,
@@ -2064,7 +2070,11 @@ pub(crate) mod scalar_definitions {
             return Err(LoweringError::UnsupportedOperationInUnitFunction(machine));
         };
         let invalid = || LoweringError::IntegerWidenTypeMismatch(*result);
-        if nonreturning_boundary || !source_type.can_widen_to(*target_type) {
+        if nonreturning_boundary
+            || types.closed_integer(*source_type).is_none()
+            || types.closed_integer(*target_type).is_none()
+            || !source_type.can_widen_to(*target_type)
+        {
             return Err(invalid());
         }
         let source_shape = super::super::scalar_abi::fixed_native_integer_shape(*source_type)
@@ -2111,6 +2121,7 @@ pub(crate) mod scalar_definitions {
                             scalar_type: parameter.scalar_type,
                         },
                         &parameter.placement,
+                        types,
                     )?,
                 }
             }
@@ -2424,7 +2435,7 @@ mod structural_scalar {
         let destination_shape =
             super::super::structural_layout::structural_shape(projection_root, structural_types)?;
         let source = resolved_source(value.value, function, scalar_sources)?;
-        scalar_shape(value.value, value.scalar_type, false)?;
+        scalar_shape(value.value, value.scalar_type, false, structural_types)?;
         let exact_source = match source {
             TargetUnitScalarArgumentSource::BlockParameter(parameter) => {
                 function.block_entries.iter().any(|entry| {
@@ -2466,7 +2477,7 @@ mod structural_scalar {
         };
         let (carrier_type, _, carrier_byte_offset, runs) =
             runtime_projection(projection_root, carrier_path, structural_types)?;
-        let indices = runtime_indices(runs, function, scalar_sources)?;
+        let indices = runtime_indices(runs, function, scalar_sources, structural_types)?;
         let (scalar_byte_offset, field_byte_size) = if namespace.is_empty() {
             direct_scalar_field_geometry(carrier_type, *field, value.scalar_type, structural_types)?
         } else {
@@ -2670,7 +2681,8 @@ pub(crate) mod write_only_primitive_store {
             return Err(invalid());
         }
         let runs = projection.selector_runs();
-        let indices = runtime_indices(runs, function, scalar_sources).map_err(|_| invalid())?;
+        let indices = runtime_indices(runs, function, scalar_sources, structural_types)
+            .map_err(|_| invalid())?;
         let (_, source) = if let Some(block_value) = block_value {
             if block_value.value != value.value || block_value.scalar_type != value.scalar_type {
                 return Err(invalid());

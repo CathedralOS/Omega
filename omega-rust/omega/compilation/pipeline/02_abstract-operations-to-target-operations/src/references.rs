@@ -337,6 +337,7 @@ pub(crate) fn reference_call_argument(
         runs,
         function,
         &super::scalar_sources::ScalarSources::from(live),
+        types,
     )?;
     if selected != declaration.structural_type
         || crate::structural_signature::StructuralCallSignature::parameter_shape(
