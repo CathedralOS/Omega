@@ -32,8 +32,8 @@ use register_model::{
     RegisterViewId, TargetRegisterEnvironmentIdentity, encode_constraint_key,
 };
 use semantic_vocabulary::{
-    BlockId, EdgeId, IeeeFloatFormat, IntegerCarrier, IntegerSign, IntegerType, IntegerValue,
-    MachineId, ObligationId, OperationId, ScalarType, StructuralTypeId, ValueId,
+    BlockId, ClosedIntegerType, EdgeId, IeeeFloatFormat, IntegerCarrier, IntegerSign, IntegerType,
+    IntegerValue, MachineId, ObligationId, OperationId, ScalarType, StructuralTypeId, ValueId,
     WorkScheduleIdentity,
 };
 use terminal_codec::CodecError;
@@ -436,10 +436,14 @@ pub(super) fn decode_target(
     })
 }
 
-pub(super) fn encode_scalar(bytes: &mut Vec<u8>, scalar: ScalarType) {
+pub(super) fn encode_scalar(bytes: &mut Vec<u8>, scalar: ScalarType) -> Result<(), CodecError> {
     match scalar {
         ScalarType::Boolean => bytes.push(0),
         ScalarType::Integer(integer) => {
+            // Recovery execution artifacts retain the existing closed wire form;
+            // a rigid width is not an executable integer descriptor.
+            let integer =
+                ClosedIntegerType::try_from(integer).map_err(CodecError::IntegerWidthClosure)?;
             bytes.push(1);
             bytes.push(match integer.carrier() {
                 IntegerCarrier::Fixed => 0,
@@ -459,6 +463,7 @@ pub(super) fn encode_scalar(bytes: &mut Vec<u8>, scalar: ScalarType) {
             });
         }
     }
+    Ok(())
 }
 
 pub(super) fn decode_scalar(
@@ -647,11 +652,11 @@ pub(super) fn encode_function(
     crate::codec_bytes::push_encoded(bytes, function.entry_block.0.to_le_bytes());
     length(bytes, function.virtual_registers.len());
     for register in &function.virtual_registers {
-        encode_register(bytes, register);
+        encode_register(bytes, register)?;
     }
     length(bytes, function.blocks.len());
     for block in &function.blocks {
-        encode_block(bytes, block);
+        encode_block(bytes, block)?;
     }
     encode_contracts(bytes, function)
 }
@@ -700,9 +705,12 @@ pub(super) fn decode_function(
     Ok(function)
 }
 
-pub(super) fn encode_register(bytes: &mut Vec<u8>, register: &VirtualRegister) {
+pub(super) fn encode_register(
+    bytes: &mut Vec<u8>,
+    register: &VirtualRegister,
+) -> Result<(), CodecError> {
     crate::codec_bytes::push_encoded(bytes, register.id.0.to_le_bytes());
-    encode_scalar(bytes, register.scalar_type);
+    encode_scalar(bytes, register.scalar_type)?;
     crate::codec_bytes::push_encoded(bytes, register.class.0.to_le_bytes());
     register.origin.encode_identity(bytes);
     match register.definition_site {
@@ -713,6 +721,7 @@ pub(super) fn encode_register(bytes: &mut Vec<u8>, register: &VirtualRegister) {
         }
     }
     encode_option_u16(bytes, register.entry_fixed_view.map(|view| view.0));
+    Ok(())
 }
 
 pub(super) fn decode_register(
@@ -830,6 +839,56 @@ mod tests {
     };
 
     #[test]
+    fn scalar_execution_codec_keeps_fixed_bytes_and_refuses_rigid_widths() {
+        use semantic_vocabulary::{
+            IntegerSign, IntegerType, IntegerWidthClosureError, MachineId, ScalarType, ValueId,
+            WidthParameter,
+        };
+        for (integer, expected) in [
+            (
+                IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                [1, 0, 1, 64, 0],
+            ),
+            (
+                IntegerType::new(IntegerSign::Signed, 128).unwrap(),
+                [1, 0, 0, 128, 0],
+            ),
+            (IntegerType::address(64).unwrap(), [1, 1, 1, 64, 0]),
+        ] {
+            let scalar = ScalarType::Integer(integer);
+            let mut bytes = Vec::new();
+            super::encode_scalar(&mut bytes, scalar).unwrap();
+            assert_eq!(bytes, expected);
+            assert_eq!(
+                super::decode_scalar(&mut Cursor::new(&bytes)).unwrap(),
+                scalar
+            );
+            for end in 0..bytes.len() {
+                assert!(super::decode_scalar(&mut Cursor::new(&bytes[..end])).is_err());
+            }
+        }
+        for (owner, value) in [(1, 2), (3, 2), (1, 4)] {
+            let parameter = WidthParameter {
+                owner: MachineId::new(owner).unwrap(),
+                value: ValueId::new(value).unwrap(),
+            };
+            let mut bytes = Vec::new();
+            assert!(matches!(
+                super::encode_scalar(
+                    &mut bytes,
+                    ScalarType::Integer(IntegerType::parameterized(IntegerSign::Unsigned, parameter)),
+                ),
+                Err(terminal_codec::CodecError::IntegerWidthClosure(
+                    IntegerWidthClosureError::Parameter(actual)
+                )) if actual == parameter
+            ));
+            assert!(bytes.is_empty());
+        }
+        // The unchanged execution decoder admits no reserved identity sentinel.
+        assert!(super::decode_scalar(&mut Cursor::new(&[1, 0, 1, 255, 255])).is_err());
+    }
+
+    #[test]
     fn structural_observation_origin_round_trips_without_scalar_definition_site() {
         let source = VirtualRegister {
             id: VirtualRegisterId(3),
@@ -844,7 +903,7 @@ mod tests {
             entry_fixed_view: None,
         };
         let mut encoded = Vec::new();
-        encode_register(&mut encoded, &source);
+        encode_register(&mut encoded, &source).unwrap();
         assert_eq!(decode_register(&mut Cursor::new(&encoded)).unwrap(), source);
         for end in 0..encoded.len() {
             assert!(decode_register(&mut Cursor::new(&encoded[..end])).is_err());
@@ -874,7 +933,7 @@ mod tests {
                 },
             };
             let mut changed_bytes = Vec::new();
-            encode_register(&mut changed_bytes, &changed);
+            encode_register(&mut changed_bytes, &changed).unwrap();
             assert_ne!(encoded, changed_bytes);
             assert_eq!(
                 decode_register(&mut Cursor::new(&changed_bytes)).unwrap(),
