@@ -44,8 +44,7 @@ pub fn encode_build_evaluation_usage(usage: &BuildEvaluationUsage, out: &mut Vec
             work_schedule,
             storage_schedule,
         } => {
-            // Tag 1 stays the Terminal Psi measurement. Tag 0 is retired.
-            out.push(1);
+            out.push(0);
             crate::codec_bytes::push_encoded(out, work_schedule.marker().to_le_bytes());
             crate::codec_bytes::push_encoded(out, storage_schedule.marker().to_le_bytes());
         }
@@ -91,7 +90,7 @@ pub fn recover_build_evaluation_usage(cursor: &mut Cursor) -> Option<BuildEvalua
         return None;
     }
     let measurement = match cursor.u8()? {
-        1 => EvaluationMeasurementIdentity::TerminalPsi {
+        0 => EvaluationMeasurementIdentity::TerminalPsi {
             work_schedule: WorkScheduleIdentity::new(cursor.u32()?)?,
             storage_schedule: TerminalStorageScheduleIdentity::new(cursor.u32()?)?,
         },
@@ -756,7 +755,7 @@ mod evaluation_usage_controls {
         let usage = measured(terminal());
         let bytes = encoded(&usage);
         assert_eq!(&bytes[..4], b"BEU\x02");
-        assert_eq!(bytes[4], 1);
+        assert_eq!(bytes[4], 0);
         let mut cursor = Cursor::new(&bytes);
         assert_eq!(recover_build_evaluation_usage(&mut cursor), Some(usage));
         assert!(cursor.exhausted());
@@ -767,7 +766,7 @@ mod evaluation_usage_controls {
         let bytes = encoded(&measured(terminal()));
         assert!(recover_build_evaluation_usage(&mut Cursor::new(&bytes[5..])).is_none());
         let mut unknown_tag = bytes.clone();
-        unknown_tag[4] = 0;
+        unknown_tag[4] = 1;
         assert!(recover_build_evaluation_usage(&mut Cursor::new(&unknown_tag)).is_none());
         unknown_tag[4] = 2;
         assert!(recover_build_evaluation_usage(&mut Cursor::new(&unknown_tag)).is_none());

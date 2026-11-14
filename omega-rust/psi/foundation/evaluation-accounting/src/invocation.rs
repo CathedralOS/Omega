@@ -79,7 +79,7 @@ impl TerminalStorageScheduleIdentity {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum EvaluationMeasurementIdentity {
     TerminalPsi {
         work_schedule: WorkScheduleIdentity,
@@ -116,42 +116,6 @@ impl EvaluationMeasurementIdentity {
                     && storage_schedule.marker() == 1
             }
         }
-    }
-}
-
-impl compiler_storage::Record for EvaluationMeasurementIdentity {
-    fn write(
-        &self,
-        output: &mut compiler_storage::RecordWriter,
-    ) -> Result<(), compiler_storage::RecordError> {
-        output.record(|output| {
-            // Tag 1 is the Terminal Psi coordinate. Tag 0 belonged to a removed
-            // measurement and is not written.
-            compiler_storage::Record::write(&1_u32, output)?;
-            match self {
-                Self::TerminalPsi {
-                    work_schedule,
-                    storage_schedule,
-                } => {
-                    compiler_storage::Record::write(work_schedule, output)?;
-                    compiler_storage::Record::write(storage_schedule, output)
-                }
-            }
-        })
-    }
-
-    fn read<Context>(
-        input: &mut compiler_storage::RecordReader<'_, Context>,
-    ) -> Result<Self, compiler_storage::RecordError> {
-        input.record(
-            |input| match <u32 as compiler_storage::Record>::read(input)? {
-                1 => Ok(Self::TerminalPsi {
-                    work_schedule: compiler_storage::Record::read(input)?,
-                    storage_schedule: compiler_storage::Record::read(input)?,
-                }),
-                _ => Err(input.error("unknown EvaluationMeasurementIdentity variant")),
-            },
-        )
     }
 }
 
@@ -579,7 +543,7 @@ mod measurement_record {
     use super::EvaluationMeasurementIdentity;
 
     #[test]
-    fn terminal_measurement_record_keeps_tag_one_and_rejects_tag_zero() {
+    fn terminal_measurement_record_round_trips() {
         let limits = compiler_storage::RecordLimits::default();
         let identity = EvaluationMeasurementIdentity::current();
         let bytes =
@@ -587,14 +551,6 @@ mod measurement_record {
         assert_eq!(
             compiler_storage::decode::<EvaluationMeasurementIdentity>(&bytes, limits).unwrap(),
             identity
-        );
-        let retired = compiler_storage::encode(&0_u32, limits).expect("retired tag encodes");
-        let error = compiler_storage::decode::<EvaluationMeasurementIdentity>(&retired, limits)
-            .expect_err("tag 0 is not a measurement");
-        assert!(
-            error
-                .to_string()
-                .contains("unknown EvaluationMeasurementIdentity variant")
         );
     }
 }

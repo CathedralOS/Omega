@@ -17,8 +17,7 @@ routes a stage's local subset of optimizations while retaining the full
 - `Psi` executes before sealed Terminal Psi publication; its rows project
   1-to-1 into `optimization::PsiOptimization` via `psi_projection_value!`,
   while `From<optimization::PsiOptimization>` is checked exhaustively by the
-  compiler in the reverse direction. Phase discriminant 1 is retired and is
-  not reused.
+  compiler in the reverse direction.
 - `PostTerminalOptimizationSelections` (`post_terminal.rs`) admits only phases
   where `is_post_terminal()` holds (`AbstractOperations` through
   `FunctionRelativeLayout`), making pre-Terminal selections unrepresentable in
@@ -87,14 +86,14 @@ crate::tagged_vocabulary! {
     8;
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum OptimizationExecutionPhase {
-        Psi = 2,
-        AbstractOperations = 3,
-        TargetOperations = 4,
-        SelectedLowering = 5,
-        PreAllocation = 6,
-        AllocationRecovery = 7,
-        PostAllocationMachine = 8,
-        FunctionRelativeLayout = 9,
+        Psi = 0,
+        AbstractOperations = 1,
+        TargetOperations = 2,
+        SelectedLowering = 3,
+        PreAllocation = 4,
+        AllocationRecovery = 5,
+        PostAllocationMachine = 6,
+        FunctionRelativeLayout = 7,
     }
 }
 
@@ -250,135 +249,135 @@ optimization_vocabulary! {
         case: "SelectedIncomingU12CompareImmediate",
         phase: SelectedLowering
     },
-    SelectedIncomingLiteralExtensionElimination = 23 => {
+    SelectedIncomingLiteralExtensionElimination = 22 => {
         case: "SelectedIncomingLiteralExtensionElimination",
         phase: SelectedLowering
     },
-    SelectedIncomingU12Load8IndexedOffset = 24 => {
+    SelectedIncomingU12Load8IndexedOffset = 23 => {
         case: "SelectedIncomingU12Load8IndexedOffset",
         phase: SelectedLowering
     },
-    SelectedIncomingLiteralCopyMaterialization = 25 => {
+    SelectedIncomingLiteralCopyMaterialization = 24 => {
         case: "SelectedIncomingLiteralCopyMaterialization",
         phase: SelectedLowering
     },
-    SelectedIncomingU12ByteViewAddressOffset = 26 => {
+    SelectedIncomingU12ByteViewAddressOffset = 25 => {
         case: "SelectedIncomingU12ByteViewAddressOffset",
         phase: SelectedLowering
     },
-    SelectedIncomingExactDivideIdentityCopy = 27 => {
+    SelectedIncomingExactDivideIdentityCopy = 26 => {
         case: "SelectedIncomingExactDivideIdentityCopy",
         phase: SelectedLowering
     },
-    SelectedIncomingWrappingRemainderOneZeroMaterialization = 28 => {
+    SelectedIncomingWrappingRemainderOneZeroMaterialization = 27 => {
         case: "SelectedIncomingWrappingRemainderOneZeroMaterialization",
         phase: SelectedLowering
     },
-    SelectedIncomingBitwiseAndZeroMaterialization = 29 => {
+    SelectedIncomingBitwiseAndZeroMaterialization = 28 => {
         case: "SelectedIncomingBitwiseAndZeroMaterialization",
         phase: SelectedLowering
     },
-    SelectedIncomingBitwiseXorZeroIdentityCopy = 30 => {
+    SelectedIncomingBitwiseXorZeroIdentityCopy = 29 => {
         case: "SelectedIncomingBitwiseXorZeroIdentityCopy",
         phase: SelectedLowering
     },
-    SelectedIncomingWrappingAddZeroIdentityCopy = 31 => {
+    SelectedIncomingWrappingAddZeroIdentityCopy = 30 => {
         case: "SelectedIncomingWrappingAddZeroIdentityCopy",
         phase: SelectedLowering
     },
-    SelectedIncomingBitwiseAndOnesIdentityCopy = 32 => {
+    SelectedIncomingBitwiseAndOnesIdentityCopy = 31 => {
         case: "SelectedIncomingBitwiseAndOnesIdentityCopy",
         phase: SelectedLowering
     },
-    SelectedIncomingWrappingRemainderZeroDividendZeroMaterialization = 33 => {
+    SelectedIncomingWrappingRemainderZeroDividendZeroMaterialization = 32 => {
         case: "SelectedIncomingWrappingRemainderZeroDividendZeroMaterialization",
         phase: SelectedLowering
     },
-    SelectedIncomingExactDivideZeroDividendZeroMaterialization = 34 => {
+    SelectedIncomingExactDivideZeroDividendZeroMaterialization = 33 => {
         case: "SelectedIncomingExactDivideZeroDividendZeroMaterialization",
         phase: SelectedLowering
     },
-    SelectedIncomingSaturatingAddZeroIdentityCopy = 35 => {
+    SelectedIncomingSaturatingAddZeroIdentityCopy = 34 => {
         case: "SelectedIncomingSaturatingAddZeroIdentityCopy",
         phase: SelectedLowering
     },
-    SelectedIncomingSaturatingSubtractZeroIdentityCopy = 36 => {
+    SelectedIncomingSaturatingSubtractZeroIdentityCopy = 35 => {
         case: "SelectedIncomingSaturatingSubtractZeroIdentityCopy",
         phase: SelectedLowering
     },
-    SelectedIncomingSaturatingDivideOneIdentityCopy = 37 => {
+    SelectedIncomingSaturatingDivideOneIdentityCopy = 36 => {
         case: "SelectedIncomingSaturatingDivideOneIdentityCopy",
         phase: SelectedLowering
     },
-    SelectedIncomingSaturatingDivideZeroDividendZeroMaterialization = 38 => {
+    SelectedIncomingSaturatingDivideZeroDividendZeroMaterialization = 37 => {
         case: "SelectedIncomingSaturatingDivideZeroDividendZeroMaterialization",
         phase: SelectedLowering
     },
-    SelectedIncomingSaturatingSubtractZeroMinuendZeroMaterialization = 39 => {
+    SelectedIncomingSaturatingSubtractZeroMinuendZeroMaterialization = 38 => {
         case: "SelectedIncomingSaturatingSubtractZeroMinuendZeroMaterialization",
         phase: SelectedLowering
     },
-    SelectedIncomingSaturatingAddUpperBoundMaterialization = 40 => {
+    SelectedIncomingSaturatingAddUpperBoundMaterialization = 39 => {
         case: "SelectedIncomingSaturatingAddUpperBoundMaterialization",
         phase: SelectedLowering
     },
-    SelectedIncomingWrappingRemainderMinusOneZeroMaterialization = 41 => {
+    SelectedIncomingWrappingRemainderMinusOneZeroMaterialization = 40 => {
         case: "SelectedIncomingWrappingRemainderMinusOneZeroMaterialization",
         phase: SelectedLowering
     },
-    SelectedIncomingSaturatingSubtractUpperBoundSubtrahendZeroMaterialization = 42 => {
+    SelectedIncomingSaturatingSubtractUpperBoundSubtrahendZeroMaterialization = 41 => {
         case: "SelectedIncomingSaturatingSubtractUpperBoundSubtrahendZeroMaterialization",
         phase: SelectedLowering
     },
-    StateSpecialization = 43 => {
+    StateSpecialization = 42 => {
         case: "StateSpecialization",
         phase: Psi
     },
-    RepresentationSpecialization = 44 => {
+    RepresentationSpecialization = 43 => {
         case: "RepresentationSpecialization",
         phase: Psi
     },
-    SelectedSameBlockCopyI64RemovalV1 = 45 => {
+    SelectedSameBlockCopyI64RemovalV1 = 44 => {
         case: "SelectedSameBlockCopyI64RemovalV1",
         phase: PreAllocation
     },
-    SelectedRedundantExtensionRemovalV1 = 46 => {
+    SelectedRedundantExtensionRemovalV1 = 45 => {
         case: "SelectedRedundantExtensionRemovalV1",
         phase: PreAllocation
     },
-    SelectedAddressOffsetFoldV1 = 47 => {
+    SelectedAddressOffsetFoldV1 = 46 => {
         case: "SelectedAddressOffsetFoldV1",
         phase: PreAllocation
     },
-    SelectedConstantBooleanFoldV1 = 48 => {
+    SelectedConstantBooleanFoldV1 = 47 => {
         case: "SelectedConstantBooleanFoldV1",
         phase: PreAllocation
     },
-    SelectedConstantBranchFoldV1 = 49 => {
+    SelectedConstantBranchFoldV1 = 48 => {
         case: "SelectedConstantBranchFoldV1",
         phase: PreAllocation
     },
-    SelectedDeadCompareRemovalV1 = 50 => {
+    SelectedDeadCompareRemovalV1 = 49 => {
         case: "SelectedDeadCompareRemovalV1",
         phase: PreAllocation
     },
-    SelectedRedundantCompareRemovalV1 = 51 => {
+    SelectedRedundantCompareRemovalV1 = 50 => {
         case: "SelectedRedundantCompareRemovalV1",
         phase: PreAllocation
     },
-    SelectedEquivalentCompareRemovalV1 = 52 => {
+    SelectedEquivalentCompareRemovalV1 = 51 => {
         case: "SelectedEquivalentCompareRemovalV1",
         phase: PreAllocation
     },
-    LoopInvariantScalarMotion = 53 => {
+    LoopInvariantScalarMotion = 52 => {
         case: "LoopInvariantScalarMotion",
         phase: Psi
     },
-    SelectedCopiedCallOperandFoldV1 = 54 => {
+    SelectedCopiedCallOperandFoldV1 = 53 => {
         case: "SelectedCopiedCallOperandFoldV1",
         phase: PreAllocation
     },
-    SelectedStoredLoadForwardingV1 = 55 => {
+    SelectedStoredLoadForwardingV1 = 54 => {
         case: "SelectedStoredLoadForwardingV1",
         phase: PreAllocation
     },

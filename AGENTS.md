@@ -109,16 +109,10 @@ The spec is the answer key. Read the governing page in `wiki/spec/`, build
 what it says, and you will get it right the first time. Check what you
 changed, then land it; `main` is checked after every merge.
 
-**The old checker is frozen for deletion (owner ruling, 2026-11-12).** The
-lowered-form checker's verdict is the only verdict of a compilation. Psi 05
-(`typed-trees-to-checked-trees`), `validation`, Psi 06
-(`checked-trees-to-lowered-psi`), `checked-trees`,
-`facts` and `representation-{planning,selections}` are being removed now: no
-pull request edits them except to delete code or to move a still-needed item
-into the crate that survives. Build what a program needs in the lowered-form
+**Checked trees were removed.** The lowered-form checker's verdict is the
+only verdict of a compilation. Build what a program needs in the lowered-form
 checker (`TASKS.md`, **LOWERED-FORM-CHECKER**). A program it cannot judge is
-refused; never route one back to the old stages or weaken the new checker so
-it compiles.
+refused; never weaken the checker so it compiles.
 
 An open PR is unfinished work sitting in the way of everyone else's. If you
 are the one looking at it, it is yours: finish it or close it.
@@ -145,8 +139,7 @@ are the one looking at it, it is yours: finish it or close it.
    disjoint sibling storage.
 4. **Full pipeline carry-through (lowered-form checker `-> 08 -> Native`):**
    Carry every semantic repair through the lowered-form checker, Terminal Psi
-   and native execution (`omega run --both`, exit 0). Psi 05 and 06 are being
-   deleted and take no repairs.
+   and native execution (`omega run --both`, exit 0).
 5. **Board closure:** Delete completed bullets from `TASKS.md` outright (never
    rewrite into `"preserving / keeping / now passes"` history prose).
 6. **Fix the mechanism, not the case.** When a fix wants a second carrier,

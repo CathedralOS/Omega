@@ -1,4 +1,4 @@
-// Unit tests for `Optimization` tag stability, `OptimizationSelections`
+// Unit tests for `Optimization` tag density, `OptimizationSelections`
 // canonical sorting and wire round-trips, and phase/Psi/post-Terminal
 // projections.
 
@@ -9,14 +9,11 @@ use super::super::{
 use std::collections::BTreeSet;
 
 #[test]
-fn authoritative_vocabulary_has_stable_tags_and_unique_nonempty_names() {
+fn authoritative_vocabulary_has_contiguous_tags_and_unique_nonempty_names() {
     let mut case_names = BTreeSet::new();
-    let mut previous_tag = 0_u8;
-    for optimization in Optimization::ALL {
+    for (index, optimization) in Optimization::ALL.into_iter().enumerate() {
         let tag = optimization as u8;
-        assert!(tag > previous_tag);
-        assert_ne!(tag, 22, "tag 22 is the retired product-pruning selection");
-        previous_tag = tag;
+        assert_eq!(tag, u8::try_from(index + 1).unwrap());
         assert!(!optimization.build_case_name().is_empty());
         assert!(case_names.insert(optimization.build_case_name()));
         assert_eq!(

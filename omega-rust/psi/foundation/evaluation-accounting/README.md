@@ -31,8 +31,8 @@ owning backing. This is not heap capacity, allocator overhead or process memory.
 Usage records are telemetry, not admission or transferable sponsorship.
 In-process `EvaluationInvocationUsage` retains exact account custody for issuer
 checks. Cache records retain the explicit measurement, work and storage
-identities and reject unknown versions. A record that names a removed
-measurement cannot manufacture a Terminal observation.
+identities and reject unknown versions. An unknown measurement tag does
+not decode as this account's Terminal Psi identity.
 
 The common Terminal work meter can retain an exact invocation account and pay
 it at each operation/selected edge before execution. Local resumable allowance
