@@ -54,14 +54,19 @@ struct CallSite {
     required_contract: Option<semantic_vocabulary::ContractId>,
 }
 
-fn index(machine: MachineId) -> usize {
+pub(crate) fn index(machine: MachineId) -> usize {
     usize::try_from(machine.get() - 1).unwrap_or(usize::MAX)
 }
 
-pub(crate) fn components(
-    bodies: &IdTable<MachineId, Body>,
-    signatures: &IdTable<MachineId, Signature>,
-) -> Checked<Components> {
+/// The call components of the bodies read, before any cycle is judged, so a
+/// test can settle outcomes (`outcome::outcomes`) over a cycle that lowering
+/// would refuse. Compilation settles over the admitted `components` table.
+#[cfg(test)]
+pub(crate) fn discover(bodies: &IdTable<MachineId, Body>) -> Checked<Components> {
+    Ok(call_graph(bodies)?.1)
+}
+
+fn call_graph(bodies: &IdTable<MachineId, Body>) -> Checked<(CallGraph, Components)> {
     let count = bodies.len();
     let mut calls = CallGraph {
         sites: Vec::with_capacity(count),
@@ -84,15 +89,24 @@ pub(crate) fn components(
         calls.offsets.push(calls.sites.len());
     }
     let machines: Vec<_> = bodies.keys().collect();
-    let witnessed: Vec<bool> = machines
-        .iter()
+    let table = Components::discover(&calls, &machines);
+    Ok((calls, table))
+}
+
+pub(crate) fn components(
+    bodies: &IdTable<MachineId, Body>,
+    signatures: &IdTable<MachineId, Signature>,
+) -> Checked<Components> {
+    let (calls, mut table) = call_graph(bodies)?;
+    let witnessed: Vec<bool> = bodies
+        .keys()
         .map(|machine| {
             signatures
-                .get(*machine)
+                .get(machine)
                 .is_some_and(|signature| matches!(signature.termination, Termination::Witnessed(_)))
         })
         .collect();
-    let table = Components::discover(&calls, &machines, &witnessed);
+    table.rank(&calls, &witnessed);
     for (machine, body) in bodies.iter() {
         let this = index(machine);
         let signature =
