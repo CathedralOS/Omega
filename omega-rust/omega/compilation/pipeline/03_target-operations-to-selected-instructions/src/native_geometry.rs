@@ -65,6 +65,7 @@ pub(crate) struct NativeInput<'a, T> {
 }
 
 impl<'a, T> NativeInput<'a, T> {
+    #[cfg(test)]
     pub(crate) fn new(source: &'a T, geometry: &'a NativeGeometry<'a>) -> Self {
         Self::with_types(source, geometry, None)
     }
@@ -162,11 +163,16 @@ mod tests {
         module.identities = identities.build();
         let mut row = declaration(1, StructuralTypeShape::PrimitiveScalar(scalar));
         row.identity = identity;
+        row.copyable = true;
         module.structural_types.push(row);
         let published = terminal_codec::ClosedTerminalModule::new(module).unwrap();
         assert!(
             super::retained_types(&published, published.identity(), published.module()).is_some()
         );
+        let other =
+            terminal_codec::ClosedTerminalModule::new(terminal_psi::TerminalModule::declarations())
+                .unwrap();
+        assert!(super::retained_types(&published, other.identity(), published.module()).is_none());
         let cloned = published.clone();
         assert!(super::retained_types(&cloned, published.identity(), published.module()).is_some());
         let foreign_owner =
