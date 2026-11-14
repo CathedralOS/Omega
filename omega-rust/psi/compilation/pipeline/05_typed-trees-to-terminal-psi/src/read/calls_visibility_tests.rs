@@ -289,6 +289,7 @@ fn a_requirement_signature_retains_operational_promises_without_an_executable_bo
         // Retaining an interface neither manufactures its body nor admits an
         // executable call. Invocation acknowledgements and ceilings are checked
         // by the ordinary lowered-form checker.
-        assert!(program.bodies.get(identity).is_none());
+        let refused = program.body(identity).unwrap_err();
+        assert_eq!(refused.detail, "target is not a machine declaration");
     }
 }
