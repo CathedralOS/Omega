@@ -423,20 +423,10 @@ pub(crate) fn is_generic_template(
 /// The declaration a machine was generated from, when stage 04 generated it
 /// to close a static application: the generic machine it specializes.
 pub fn template_of(typed: &TypedTrees, machine: SymbolHandle) -> Option<SymbolHandle> {
-    let states = typed
-        .machine_states
-        .span(typed.machine_by_symbol(machine)?.states)?;
-    let [state] = states else {
-        return None;
-    };
-    let declared = typed.symbols.get(state.symbol).generated_from;
-    if !declared.is_valid() {
-        return None;
-    }
-    Some(match typed.symbols.get(declared).kind {
-        symbols::SymbolKind::State => typed.symbols.get(declared).parent,
-        _ => declared,
-    })
+    typed
+        .executable_application_template(machine)
+        .ok()
+        .flatten()
 }
 
 /// Elaborates the conformance witness of `implementation` for `requirement`:
@@ -548,11 +538,30 @@ fn elaborate_witness_call(
                 .parameters
                 .iter()
                 .enumerate()
-                .map(|(slot, value_type)| Expression {
-                    call_context: None,
-                    kind: ExpressionKind::Slot(slot),
-                    result: Some(*value_type),
-                    source,
+                .map(|(slot, value_type)| {
+                    let place = Expression {
+                        call_context: None,
+                        kind: ExpressionKind::Slot(slot),
+                        result: Some(*value_type),
+                        source,
+                    };
+                    // The witness forwards each formal's original passing
+                    // mode. A borrowed formal denotes incoming storage;
+                    // forwarding its value alone would read a scalar or move
+                    // its carrier instead of reborrowing that storage.
+                    match required.borrowed(slot) {
+                        Some(borrowed) => Expression {
+                            call_context: None,
+                            kind: ExpressionKind::Borrow {
+                                access: borrowed.access,
+                                place: Box::new(place),
+                                home: borrowed.home.clone(),
+                            },
+                            result: Some(*value_type),
+                            source,
+                        },
+                        None => place,
+                    }
                 })
                 .collect(),
             designated: None,
@@ -616,7 +625,6 @@ fn finish_reading<'source>(
     }
     program.finish_declarations(diagnostic)?;
     let private_inputs = program.private_input_contracts(entry, diagnostic)?;
-    let local_results = program.local_result_bodies(entry)?;
     program.begin_declaration_storage(diagnostic, bodies.len())?;
     let declarations = program.declaration_metadata.clone();
     let calling_abis = program.prepare_calling_abis(diagnostic, &declarations)?;
@@ -674,7 +682,6 @@ fn finish_reading<'source>(
     elaboration.machines = program.symbols;
     elaboration.boundaries = program.boundary_symbols;
     elaboration.private_inputs = private_inputs;
-    elaboration.local_results = local_results;
     elaboration.names = program.names;
     elaboration.selections = program.selections;
     elaboration.applications = program.applications;
@@ -772,7 +779,13 @@ fn lower_generic_for<'source>(
         operational::positions(machine, body)?;
     }
     let components = components::components(bodies, signatures.machines)?;
-    let outcomes = outcome::outcomes(bodies, signatures, requirements)?;
+    // Result facts and non-return are both checked body summaries. Their
+    // source visibility is decided once by the same verification-unit owner;
+    // a requirement or independent caller cannot borrow a selected body.
+    let local_results = declarations
+        .map(|source| source.local_result_bodies(entry))
+        .transpose()?;
+    let outcomes = outcome::outcomes(bodies, signatures, requirements, local_results.as_deref())?;
     let mut module = match entry {
         Some(entry) => TerminalModule::for_entry(entry),
         None => TerminalModule::declarations(),
@@ -1077,7 +1090,7 @@ fn lower_generic_for<'source>(
             names: IdTable::default(),
             machines: IdTable::default(),
             private_inputs: Vec::new(),
-            local_results: Vec::new(),
+            local_results: local_results.unwrap_or_default(),
             domains,
             requirements: requirements.to_vec(),
             selections: Vec::new(),

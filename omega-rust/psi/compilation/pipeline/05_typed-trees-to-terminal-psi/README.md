@@ -44,6 +44,15 @@ Calls, projections and constructors propagate that outcome in evaluation order;
 branch owners retain whichever paths still reach their join. A genuine refusal
 stays an error, independent of its diagnostic text.
 
+The reader also knows each supplied value's type. The shared
+[receiving-type diagnostics](src/read/rejections.rs) reject different scalar
+carriers, incompatible declared domains and unrelated declared result
+lifetimes at the supplied expression. Match arms use that same owner rather
+than treating a known carrier mismatch as an unsupported construct. A type or
+region relationship the reader cannot decide still refuses by name; no
+second expression-typing pass or source-text diagnostic classification is
+involved.
+
 ## The subset
 
 Machines with one state and a complete body whose formals, locals and result
@@ -753,7 +762,6 @@ the slice that serves it:
 | a store into a field of a value that is not a local, or into an indexed place | `statement store into a value that is not a local`, `statement assignment to a projected place` |
 | `let x;` with neither a type nor an initializer | `statement uninitialized local without a declared type` |
 | a record pattern that omits a field, or whose subject is not a place | `statement record pattern that omits a field`, `statement record pattern over a value that is not a place` |
-| a store into a payload member, `s.at = x` | `statement store into a case payload` |
 | a payload member whose spelling two cases share | `spelling member without a field symbol` (finding 19) |
 | a field of a data payload binding, `inner.x` | `expression field read beneath a case payload` |
 | a case arm with a guard, a pattern field tested against a value, a pattern that binds its case, a second arm for one case, a wildcard no case reaches | `transition case arm with a guard`, `transition pattern field tested against a value`, `transition pattern that binds its case`, `transition case arm for a case an earlier arm selects`, `transition wildcard arm that no case reaches` |
@@ -1443,12 +1451,14 @@ worked around by adding to `terminal-check-tables`.
     leaf stated as a value in the caller, which this slice does not do.
 29. **A machine generated for a static application keeps its declaration's
     identities.** Stage 04 generates one machine per application of a
-    generic machine; its state symbol's `generated_from` is the declared
-    machine. The call's authored selection and binding still name the
+    generic machine; its retained application owns the template, bound
+    arguments and exact entry-state correspondence. The call's authored selection and binding still name the
     declaration, and the generated machine's `ensures` clause still records
-    `result` against the declaration, because it shares the declaration's
-    clause trees. The reader accepts each where the symbol is the callee's
-    `generated_from` and refuses any other mismatch. Nothing is matched by
+    `result` against the declaration, because the copied clauses retain their
+    declaration owner. The reader accepts each where the symbol is the declaration
+    retained by the callee's application and refuses missing or ambiguous
+    entry correspondence and any other mismatch. Symbol provenance is not a
+    second application marker. Nothing is matched by
     name.
 30. **A trait requirement is a bare signature.** The typed trees hold a
     requirement as a `StateSignature`, not as a machine, so the reader has a

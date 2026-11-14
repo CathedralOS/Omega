@@ -1674,10 +1674,8 @@ pub mod expression {
                     .expect("copied expression retains its component row");
                 let materialization_source = origin.materialization_source(expression);
                 let domain_tests = origin.executable_domain_tests(expression).to_vec();
-                let query_carrier =
-                    matches!(origin.expression(expression), ExpressionNode::Call(call)
-            if call.native_code_layout.is_some() || call.layout_query.is_some())
-                    .then(|| origin.constructed_value_type_reference(expression));
+                let carrier = origin.constructed_value_type_reference(expression);
+                let required = origin.construction_required_type_reference(expression);
                 let occurrences = origin
                     .authored_selection_occurrences(expression)
                     .collect::<Vec<_>>();
@@ -1974,8 +1972,11 @@ pub mod expression {
                     }
                 };
                 self.set_source_span(copied, source_span);
-                if let Some(carrier) = query_carrier {
+                if carrier.is_valid() {
                     self.set_constructed_value_type_reference(copied, carrier);
+                }
+                if required.is_valid() {
+                    self.set_construction_required_type_reference(copied, required);
                 }
                 self.attach_authored_selection_occurrences(copied, occurrences);
                 self.set_pattern_component(copied, component);

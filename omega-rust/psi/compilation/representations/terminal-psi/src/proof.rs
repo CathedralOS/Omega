@@ -778,12 +778,7 @@ pub(crate) mod values {
         pub format: IeeeFloatFormat,
     }
 
-    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-    pub struct FloatSemanticContractIdentity {
-        pub row: u8,
-        pub catalog_version: u16,
-        pub commitment: [u8; 32],
-    }
+    pub use numerics::float_semantics::FloatSemanticContractIdentity;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
     pub enum FloatSemanticApplicationOperand {

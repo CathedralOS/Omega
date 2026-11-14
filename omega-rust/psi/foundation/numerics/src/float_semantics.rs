@@ -2,16 +2,20 @@
 We implement host-independent IEEE floating-point meanings (`FloatMeaning`,
 `FloatSemantics`, `FloatFormat`) and the closed catalog of representation-free
 semantic definitions (`FLOAT_SEMANTIC_OPERATIONS`, `FloatSemanticOperation`)
-declared under `FloatSemantics::<name>` in the sealed toolchain source. Every
+declared under `FloatSemantics::<name>` in the sealed toolchain source. Integer
+conversions retain their sign and width in a parameterized operation identity,
+so they do not allocate or search a catalog entry for each admitted width. Every
 operation decodes its landed operands to exact rational or special-value
 meanings, performs exact arithmetic, and rounds once through the selected
 format record.
 */
 
 use std::cmp::Ordering;
+use std::fmt;
 use std::hash::{Hash, Hasher};
 
 use crate::bignum::{BigInt, BigRational, ExactFloat, IeeeRounding};
+use crate::integer_carrier::FixedInteger;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct FloatSpecialValues {
@@ -61,58 +65,13 @@ pub enum FloatClass {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct IntegerFormat {
-    pub bits: u32,
-    pub signed: bool,
-}
-
-impl IntegerFormat {
-    pub const U8: Self = Self::unsigned(8);
-    pub const U16: Self = Self::unsigned(16);
-    pub const U32: Self = Self::unsigned(32);
-    pub const U64: Self = Self::unsigned(64);
-    pub const I8: Self = Self::signed(8);
-    pub const I16: Self = Self::signed(16);
-    pub const I32: Self = Self::signed(32);
-    pub const I64: Self = Self::signed(64);
-
-    pub const fn unsigned(bits: u32) -> Self {
-        assert!(bits > 0);
-        Self {
-            bits,
-            signed: false,
-        }
-    }
-
-    pub const fn signed(bits: u32) -> Self {
-        assert!(bits > 0);
-        Self { bits, signed: true }
-    }
-
-    pub fn bounds(self) -> (BigInt, BigInt) {
-        if self.signed {
-            let magnitude = BigInt::from_u64(1).shl_bits((self.bits - 1) as usize);
-            (magnitude.negate(), magnitude.sub(&BigInt::from_u64(1)))
-        } else {
-            (
-                BigInt::zero(),
-                BigInt::from_u64(1)
-                    .shl_bits(self.bits as usize)
-                    .sub(&BigInt::from_u64(1)),
-            )
-        }
-    }
-
-    pub fn contains(self, value: &BigInt) -> bool {
-        let (minimum, maximum) = self.bounds();
-        *value >= minimum && *value <= maximum
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FloatToIntegerError {
     NonFinite,
     OutOfRange,
+    MaterializationLimit {
+        required_bits: u64,
+        maximum_bits: u64,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -347,27 +306,36 @@ impl FloatSemantics {
 
     pub fn to_integer_exact(
         value: &FloatMeaning,
-        target: IntegerFormat,
+        target: FixedInteger,
     ) -> Result<BigInt, FloatToIntegerError> {
         Self::checked_integer_result(value, target)
     }
 
     pub fn to_integer_trapping(
         value: &FloatMeaning,
-        target: IntegerFormat,
+        target: FixedInteger,
     ) -> Result<BigInt, FloatToIntegerError> {
         Self::checked_integer_result(value, target)
     }
 
-    pub fn to_integer_saturating(value: &FloatMeaning, target: IntegerFormat) -> BigInt {
-        let (minimum, maximum) = target.bounds();
+    /// Builds a saturation endpoint only within the caller's endpoint bit budget.
+    pub fn to_integer_saturating(
+        value: &FloatMeaning,
+        target: FixedInteger,
+        maximum_bits: u64,
+    ) -> Result<BigInt, FloatToIntegerError> {
         let truncated = match value {
-            FloatMeaning::NaN | FloatMeaning::Zero { .. } => return BigInt::zero(),
-            FloatMeaning::Infinity { negative: true } => return minimum,
-            FloatMeaning::Infinity { negative: false } => return maximum,
+            FloatMeaning::NaN | FloatMeaning::Zero { .. } => return Ok(BigInt::zero()),
+            FloatMeaning::Infinity { negative } => {
+                return Self::integer_endpoint(target, *negative, maximum_bits);
+            }
             FloatMeaning::FiniteNonZero(value) => value.truncate_to_integer(),
         };
-        truncated.clamp(minimum, maximum)
+        if target.admits(&truncated) {
+            Ok(truncated)
+        } else {
+            Self::integer_endpoint(target, truncated.is_negative(), maximum_bits)
+        }
     }
 
     pub fn subtract(
@@ -597,9 +565,37 @@ impl FloatSemantics {
         )
     }
 
+    // Only saturation needs a carrier endpoint; range checking itself never builds one.
+    fn integer_endpoint(
+        target: FixedInteger,
+        minimum: bool,
+        maximum_bits: u64,
+    ) -> Result<BigInt, FloatToIntegerError> {
+        if minimum && !target.is_signed() {
+            return Ok(BigInt::zero());
+        }
+        let exponent = target.width() - u64::from(target.is_signed());
+        let required_bits = if minimum { target.width() } else { exponent };
+        if required_bits > maximum_bits || usize::try_from(exponent).is_err() {
+            return Err(FloatToIntegerError::MaterializationLimit {
+                required_bits,
+                maximum_bits,
+            });
+        }
+        if required_bits == 0 {
+            return Ok(BigInt::zero());
+        }
+        let power = BigInt::from_u64(1).shl_bits(exponent as usize);
+        Ok(if minimum {
+            power.negate()
+        } else {
+            power.sub(&BigInt::from_u64(1))
+        })
+    }
+
     fn checked_integer_result(
         value: &FloatMeaning,
-        target: IntegerFormat,
+        target: FixedInteger,
     ) -> Result<BigInt, FloatToIntegerError> {
         let truncated = match value {
             FloatMeaning::FiniteNonZero(value) => value.truncate_to_integer(),
@@ -608,8 +604,7 @@ impl FloatSemantics {
                 return Err(FloatToIntegerError::NonFinite);
             }
         };
-        let (minimum, maximum) = target.bounds();
-        if truncated < minimum || truncated > maximum {
+        if !target.admits(&truncated) {
             Err(FloatToIntegerError::OutOfRange)
         } else {
             Ok(truncated)
@@ -722,64 +717,10 @@ fn correctly_rounded_square_root_bits(
     }
 }
 
-pub const FLOAT_SEMANTICS_CATALOG_VERSION: u16 = 1;
+pub const FLOAT_SEMANTICS_CATALOG_VERSION: u16 = 2;
 pub const FLOAT_SEMANTICS_NAMESPACE: &str = "FloatSemantics";
 pub const FLOAT_FORMAT_CORE_SOURCE: &str = "float_format.omg";
 const FLOAT_SEMANTICS_CONTRACT_DOMAIN: &[u8] = b"psi-float-semantics-contract\0";
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum IntegerCarrier {
-    I8,
-    I16,
-    I32,
-    I64,
-    U8,
-    U16,
-    U32,
-    U64,
-}
-
-impl IntegerCarrier {
-    pub const fn spelling(self) -> &'static str {
-        match self {
-            Self::I8 => "i8",
-            Self::I16 => "i16",
-            Self::I32 => "i32",
-            Self::I64 => "i64",
-            Self::U8 => "u8",
-            Self::U16 => "u16",
-            Self::U32 => "u32",
-            Self::U64 => "u64",
-        }
-    }
-
-    pub fn from_spelling(spelling: &str) -> Option<Self> {
-        Some(match spelling {
-            "i8" => Self::I8,
-            "i16" => Self::I16,
-            "i32" => Self::I32,
-            "i64" => Self::I64,
-            "u8" => Self::U8,
-            "u16" => Self::U16,
-            "u32" => Self::U32,
-            "u64" => Self::U64,
-            _ => return None,
-        })
-    }
-
-    pub const fn format(self) -> IntegerFormat {
-        match self {
-            Self::I8 => IntegerFormat::I8,
-            Self::I16 => IntegerFormat::I16,
-            Self::I32 => IntegerFormat::I32,
-            Self::I64 => IntegerFormat::I64,
-            Self::U8 => IntegerFormat::U8,
-            Self::U16 => IntegerFormat::U16,
-            Self::U32 => IntegerFormat::U32,
-            Self::U64 => IntegerFormat::U64,
-        }
-    }
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FloatSemanticValueKind {
@@ -787,7 +728,7 @@ pub enum FloatSemanticValueKind {
     Meaning,
     Class,
     Bool,
-    Integer(IntegerCarrier),
+    Integer(FixedInteger),
 }
 
 impl FloatSemanticValueKind {
@@ -797,32 +738,83 @@ impl FloatSemanticValueKind {
             "FloatMeaning" => Self::Meaning,
             "FloatClass" => Self::Class,
             "bool" => Self::Bool,
-            other => Self::Integer(IntegerCarrier::from_spelling(other)?),
+            other => Self::Integer(FixedInteger::from_decimal_spelling(other)?),
         })
     }
+}
 
-    pub const fn spelling(self) -> &'static str {
+impl fmt::Display for FloatSemanticValueKind {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Format => "FloatFormat",
-            Self::Meaning => "FloatMeaning",
-            Self::Class => "FloatClass",
-            Self::Bool => "bool",
-            Self::Integer(carrier) => carrier.spelling(),
+            Self::Format => f.write_str("FloatFormat"),
+            Self::Meaning => f.write_str("FloatMeaning"),
+            Self::Class => f.write_str("FloatClass"),
+            Self::Bool => f.write_str("bool"),
+            Self::Integer(carrier) => carrier.fmt(f),
+        }
+    }
+}
+
+/// Conversion identity retains the carrier, not an index into a finite width roster.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
+pub enum FloatSemanticOperationIdentity {
+    Fixed(u8),
+    FromInteger(FixedInteger),
+    ToIntegerExact(FixedInteger),
+    ToIntegerSaturating(FixedInteger),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum FloatSemanticName {
+    Fixed(&'static str),
+    FromInteger,
+    ToIntegerExact(FixedInteger),
+    ToIntegerSaturating(FixedInteger),
+}
+
+impl FloatSemanticName {
+    fn matches_source(self, name: &str) -> bool {
+        match self {
+            Self::Fixed(fixed) => fixed == name,
+            Self::FromInteger => name == "from_integer",
+            Self::ToIntegerExact(carrier) => {
+                name.strip_prefix("to_")
+                    .and_then(FixedInteger::from_decimal_spelling)
+                    == Some(carrier)
+            }
+            Self::ToIntegerSaturating(carrier) => {
+                name.strip_prefix("to_")
+                    .and_then(|name| name.strip_suffix("_saturating"))
+                    .and_then(FixedInteger::from_decimal_spelling)
+                    == Some(carrier)
+            }
+        }
+    }
+}
+
+impl fmt::Display for FloatSemanticName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Fixed(name) => f.write_str(name),
+            Self::FromInteger => f.write_str("from_integer"),
+            Self::ToIntegerExact(carrier) => write!(f, "to_{carrier}"),
+            Self::ToIntegerSaturating(carrier) => write!(f, "to_{carrier}_saturating"),
         }
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, compiler_storage::Record)]
 pub struct FloatSemanticContractIdentity {
-    pub row: u8,
+    pub operation: FloatSemanticOperationIdentity,
     pub catalog_version: u16,
     pub commitment: [u8; 32],
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct FloatSemanticOperation {
-    pub name: &'static str,
-    pub parameters: &'static [FloatSemanticValueKind],
+    pub name: FloatSemanticName,
+    parameters: [FloatSemanticValueKind; 4],
+    parameter_count: u8,
     pub result: FloatSemanticValueKind,
     kernel: FloatSemanticKernel,
 }
@@ -830,7 +822,7 @@ pub struct FloatSemanticOperation {
 impl PartialEq for FloatSemanticOperation {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
-            && self.parameters == other.parameters
+            && self.parameters() == other.parameters()
             && self.result == other.result
     }
 }
@@ -846,8 +838,8 @@ impl PartialOrd for FloatSemanticOperation {
 impl Ord for FloatSemanticOperation {
     fn cmp(&self, other: &Self) -> Ordering {
         self.name
-            .cmp(other.name)
-            .then_with(|| self.parameters.cmp(other.parameters))
+            .cmp(&other.name)
+            .then_with(|| self.parameters().cmp(other.parameters()))
             .then_with(|| self.result.cmp(&other.result))
     }
 }
@@ -855,7 +847,7 @@ impl Ord for FloatSemanticOperation {
 impl Hash for FloatSemanticOperation {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.name.hash(state);
-        self.parameters.hash(state);
+        self.parameters().hash(state);
         self.result.hash(state);
     }
 }
@@ -879,6 +871,14 @@ pub enum FloatSemanticResult {
 pub struct FloatSemanticDischarge {
     pub contract: FloatSemanticContractIdentity,
     pub result: FloatSemanticResult,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FloatSemanticEvaluationError {
+    OperandSignatureMismatch,
+    UnsupportedApplication,
+    IntegerConversion(FloatToIntegerError),
+    ResultSignatureMismatch,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -973,7 +973,7 @@ impl FloatSemanticOperand {
             }
             (Self::Meaning(_), FloatSemanticValueKind::Meaning) => true,
             (Self::Integer(value), FloatSemanticValueKind::Integer(carrier)) => {
-                carrier.format().contains(value)
+                carrier.admits(value)
             }
             _ => false,
         }
@@ -1008,7 +1008,7 @@ impl FloatSemanticResult {
             (Self::Class(_), FloatSemanticValueKind::Class) => true,
             (Self::Bool(_), FloatSemanticValueKind::Bool) => true,
             (Self::Integer(value), FloatSemanticValueKind::Integer(carrier)) => {
-                carrier.format().contains(value)
+                carrier.admits(value)
             }
             _ => false,
         }
@@ -1020,8 +1020,23 @@ impl FloatSemanticKernel {
         self,
         result_kind: FloatSemanticValueKind,
         arguments: &[FloatSemanticOperand],
-    ) -> Option<FloatSemanticResult> {
-        match self {
+        maximum_endpoint_bits: u64,
+    ) -> Result<FloatSemanticResult, FloatSemanticEvaluationError> {
+        if matches!(self, Self::ToIntegerExact | Self::ToIntegerSaturating) {
+            let [FloatSemanticOperand::Meaning(value)] = arguments else {
+                return Err(FloatSemanticEvaluationError::OperandSignatureMismatch);
+            };
+            let FloatSemanticValueKind::Integer(carrier) = result_kind else {
+                return Err(FloatSemanticEvaluationError::ResultSignatureMismatch);
+            };
+            return match self {
+                Self::ToIntegerExact => FloatSemantics::to_integer_exact(value, carrier),
+                _ => FloatSemantics::to_integer_saturating(value, carrier, maximum_endpoint_bits),
+            }
+            .map(FloatSemanticResult::Integer)
+            .map_err(FloatSemanticEvaluationError::IntegerConversion);
+        }
+        let result = (|| match self {
             Self::BinaryMeaning(kernel) => {
                 let [format, left, right] = arguments else {
                     return None;
@@ -1061,26 +1076,7 @@ impl FloatSemanticKernel {
                     value.as_integer()?,
                 )))
             }
-            Self::ToIntegerExact | Self::ToIntegerSaturating => {
-                let [value] = arguments else {
-                    return None;
-                };
-                let FloatSemanticValueKind::Integer(carrier) = result_kind else {
-                    return None;
-                };
-                let value = value.as_meaning()?;
-                let converted = match self {
-                    Self::ToIntegerExact => {
-                        FloatSemantics::to_integer_exact(value, carrier.format()).ok()
-                    }
-                    Self::ToIntegerSaturating => Some(FloatSemantics::to_integer_saturating(
-                        value,
-                        carrier.format(),
-                    )),
-                    _ => unreachable!("covered by the outer match arms"),
-                };
-                converted.map(FloatSemanticResult::Integer)
-            }
+            Self::ToIntegerExact | Self::ToIntegerSaturating => None,
             Self::PairMeaning(kernel) => {
                 let [left, right] = arguments else {
                     return None;
@@ -1124,7 +1120,8 @@ impl FloatSemanticKernel {
                     value.as_meaning()?,
                 )))
             }
-        }
+        })();
+        result.ok_or(FloatSemanticEvaluationError::UnsupportedApplication)
     }
 }
 
@@ -1134,7 +1131,7 @@ use FloatSemanticKernel::{
 };
 use FloatSemanticValueKind::{Bool, Class, Format, Meaning};
 
-const fn integer(carrier: IntegerCarrier) -> FloatSemanticValueKind {
+const fn integer(carrier: FixedInteger) -> FloatSemanticValueKind {
     FloatSemanticValueKind::Integer(carrier)
 }
 
@@ -1144,9 +1141,16 @@ const fn row(
     result: FloatSemanticValueKind,
     kernel: FloatSemanticKernel,
 ) -> FloatSemanticOperation {
+    let mut retained = [Meaning; 4];
+    let mut index = 0;
+    while index < parameters.len() {
+        retained[index] = parameters[index];
+        index += 1;
+    }
     FloatSemanticOperation {
-        name,
-        parameters,
+        name: FloatSemanticName::Fixed(name),
+        parameters: retained,
+        parameter_count: parameters.len() as u8,
         result,
         kernel,
     }
@@ -1208,36 +1212,6 @@ macro_rules! unary_bool {
         )
     };
 }
-macro_rules! from_integer {
-    ($carrier:ident) => {
-        row(
-            "from_integer",
-            &[Format, integer(IntegerCarrier::$carrier)],
-            Meaning,
-            FromInteger(FloatSemantics::from_integer),
-        )
-    };
-}
-macro_rules! exact {
-    ($name:literal, $carrier:ident) => {
-        row(
-            $name,
-            SINGLE,
-            integer(IntegerCarrier::$carrier),
-            ToIntegerExact,
-        )
-    };
-}
-macro_rules! saturating {
-    ($name:literal, $carrier:ident) => {
-        row(
-            $name,
-            SINGLE,
-            integer(IntegerCarrier::$carrier),
-            ToIntegerSaturating,
-        )
-    };
-}
 macro_rules! compare {
     ($name:literal, $relation:ident) => {
         row(
@@ -1267,30 +1241,6 @@ pub const FLOAT_SEMANTIC_OPERATIONS: &[FloatSemanticOperation] = &[
     unary!(negate),
     unary!(square_root),
     unary!(convert),
-    from_integer!(I8),
-    from_integer!(I16),
-    from_integer!(I32),
-    from_integer!(I64),
-    from_integer!(U8),
-    from_integer!(U16),
-    from_integer!(U32),
-    from_integer!(U64),
-    exact!("to_i8", I8),
-    exact!("to_i16", I16),
-    exact!("to_i32", I32),
-    exact!("to_i64", I64),
-    exact!("to_u8", U8),
-    exact!("to_u16", U16),
-    exact!("to_u32", U32),
-    exact!("to_u64", U64),
-    saturating!("to_i8_saturating", I8),
-    saturating!("to_i16_saturating", I16),
-    saturating!("to_i32_saturating", I32),
-    saturating!("to_i64_saturating", I64),
-    saturating!("to_u8_saturating", U8),
-    saturating!("to_u16_saturating", U16),
-    saturating!("to_u32_saturating", U32),
-    saturating!("to_u64_saturating", U64),
     ternary!(multiply_then_add),
     ternary!(fused_multiply_add),
     pair!(minimum),
@@ -1366,6 +1316,70 @@ pub const FLOAT_NAMED_CALL_LEAVES: &[&str] = &[
 ];
 
 impl FloatSemanticOperation {
+    pub fn parameters(&self) -> &[FloatSemanticValueKind] {
+        &self.parameters[..usize::from(self.parameter_count)]
+    }
+
+    fn from_operation_identity(identity: FloatSemanticOperationIdentity) -> Option<Self> {
+        let (name, parameters, parameter_count, result, kernel) = match identity {
+            FloatSemanticOperationIdentity::Fixed(row) => {
+                return FLOAT_SEMANTIC_OPERATIONS.get(usize::from(row)).copied();
+            }
+            FloatSemanticOperationIdentity::FromInteger(carrier) => (
+                FloatSemanticName::FromInteger,
+                [Format, integer(carrier), Meaning, Meaning],
+                2,
+                Meaning,
+                FromInteger(FloatSemantics::from_integer),
+            ),
+            FloatSemanticOperationIdentity::ToIntegerExact(carrier) => (
+                FloatSemanticName::ToIntegerExact(carrier),
+                [Meaning; 4],
+                1,
+                integer(carrier),
+                ToIntegerExact,
+            ),
+            FloatSemanticOperationIdentity::ToIntegerSaturating(carrier) => (
+                FloatSemanticName::ToIntegerSaturating(carrier),
+                [Meaning; 4],
+                1,
+                integer(carrier),
+                ToIntegerSaturating,
+            ),
+        };
+        Some(Self {
+            name,
+            parameters,
+            parameter_count,
+            result,
+            kernel,
+        })
+    }
+
+    pub fn identity(&self) -> FloatSemanticOperationIdentity {
+        match self.name {
+            FloatSemanticName::Fixed(_) => FloatSemanticOperationIdentity::Fixed(
+                FLOAT_SEMANTIC_OPERATIONS
+                    .iter()
+                    .position(|row| row == self)
+                    .and_then(|index| u8::try_from(index).ok())
+                    .expect("closed float operation"),
+            ),
+            FloatSemanticName::FromInteger => {
+                let FloatSemanticValueKind::Integer(carrier) = self.parameters()[1] else {
+                    unreachable!("from_integer retains its input carrier")
+                };
+                FloatSemanticOperationIdentity::FromInteger(carrier)
+            }
+            FloatSemanticName::ToIntegerExact(carrier) => {
+                FloatSemanticOperationIdentity::ToIntegerExact(carrier)
+            }
+            FloatSemanticName::ToIntegerSaturating(carrier) => {
+                FloatSemanticOperationIdentity::ToIntegerSaturating(carrier)
+            }
+        }
+    }
+
     pub fn namespace_matches(namespace: &str) -> bool {
         namespace == FLOAT_SEMANTICS_NAMESPACE
     }
@@ -1375,18 +1389,47 @@ impl FloatSemanticOperation {
         name: &str,
         parameters: &[FloatSemanticValueKind],
         result: FloatSemanticValueKind,
-    ) -> Option<&'static FloatSemanticOperation> {
+    ) -> Option<FloatSemanticOperation> {
         if !Self::namespace_matches(namespace) {
             return None;
         }
-        FLOAT_SEMANTIC_OPERATIONS
-            .iter()
-            .find(|row| row.name == name && row.parameters == parameters && row.result == result)
+        if let Some(operation) = FLOAT_SEMANTIC_OPERATIONS.iter().find(|row| {
+            row.name.matches_source(name) && row.parameters() == parameters && row.result == result
+        }) {
+            return Some(*operation);
+        }
+        let identity = match (name, parameters, result) {
+            ("from_integer", [Format, FloatSemanticValueKind::Integer(carrier)], Meaning) => {
+                FloatSemanticOperationIdentity::FromInteger(*carrier)
+            }
+            (_, [Meaning], FloatSemanticValueKind::Integer(carrier)) => {
+                if FloatSemanticName::ToIntegerExact(carrier).matches_source(name) {
+                    FloatSemanticOperationIdentity::ToIntegerExact(carrier)
+                } else if FloatSemanticName::ToIntegerSaturating(carrier).matches_source(name) {
+                    FloatSemanticOperationIdentity::ToIntegerSaturating(carrier)
+                } else {
+                    return None;
+                }
+            }
+            _ => return None,
+        };
+        Self::from_operation_identity(identity)
     }
 
     pub fn names_a_row(namespace: &str, name: &str) -> bool {
         Self::namespace_matches(namespace)
-            && FLOAT_SEMANTIC_OPERATIONS.iter().any(|row| row.name == name)
+            && (FLOAT_SEMANTIC_OPERATIONS
+                .iter()
+                .any(|row| row.name.matches_source(name))
+                || name == "from_integer"
+                || name
+                    .strip_prefix("to_")
+                    .and_then(|name| {
+                        FixedInteger::from_decimal_spelling(
+                            name.strip_suffix("_saturating").unwrap_or(name),
+                        )
+                    })
+                    .is_some())
     }
 
     pub fn named_call_arity(name: &str) -> Option<usize> {
@@ -1395,10 +1438,10 @@ impl FloatSemanticOperation {
         }
         FLOAT_SEMANTIC_OPERATIONS
             .iter()
-            .find(|row| row.name == name)
+            .find(|row| row.name.matches_source(name))
             .map(|row| {
-                row.parameters.len()
-                    - usize::from(row.parameters.first() == Some(&FloatSemanticValueKind::Format))
+                row.parameters().len()
+                    - usize::from(row.parameters().first() == Some(&FloatSemanticValueKind::Format))
             })
     }
 
@@ -1409,20 +1452,23 @@ impl FloatSemanticOperation {
     pub fn kernel_discharge(
         &self,
         arguments: &[FloatSemanticOperand],
-    ) -> Option<FloatSemanticDischarge> {
-        if arguments.len() != self.parameters.len()
+        maximum_endpoint_bits: u64,
+    ) -> Result<FloatSemanticDischarge, FloatSemanticEvaluationError> {
+        if arguments.len() != self.parameters().len()
             || !arguments
                 .iter()
-                .zip(self.parameters.iter())
+                .zip(self.parameters().iter())
                 .all(|(operand, kind)| operand.matches_kind(*kind))
         {
-            return None;
+            return Err(FloatSemanticEvaluationError::OperandSignatureMismatch);
         }
-        let result = self.kernel.evaluate(self.result, arguments)?;
+        let result = self
+            .kernel
+            .evaluate(self.result, arguments, maximum_endpoint_bits)?;
         if !result.matches_kind(self.result) {
-            return None;
+            return Err(FloatSemanticEvaluationError::ResultSignatureMismatch);
         }
-        Some(FloatSemanticDischarge {
+        Ok(FloatSemanticDischarge {
             contract: self.contract_identity(),
             result,
         })
@@ -1431,13 +1477,13 @@ impl FloatSemanticOperation {
     pub fn integer_operand_image(
         &self,
         format: FloatFormat,
-        carrier: IntegerCarrier,
+        carrier: FixedInteger,
         minimum: &BigInt,
         maximum: &BigInt,
     ) -> Option<(FloatMeaning, FloatMeaning)> {
         if !matches!(self.kernel, FloatSemanticKernel::FromInteger(_))
             || self.result != FloatSemanticValueKind::Meaning
-            || self.parameters
+            || self.parameters()
                 != [
                     FloatSemanticValueKind::Format,
                     FloatSemanticValueKind::Integer(carrier),
@@ -1447,10 +1493,15 @@ impl FloatSemanticOperation {
             return None;
         }
         let endpoint = |value: &BigInt| {
-            let discharge = self.kernel_discharge(&[
-                FloatSemanticOperand::Format(format),
-                FloatSemanticOperand::Integer(value.clone()),
-            ])?;
+            let discharge = self
+                .kernel_discharge(
+                    &[
+                        FloatSemanticOperand::Format(format),
+                        FloatSemanticOperand::Integer(value.clone()),
+                    ],
+                    0,
+                )
+                .ok()?;
             let FloatSemanticResult::Meaning(meaning) = discharge.result else {
                 return None;
             };
@@ -1464,7 +1515,7 @@ impl FloatSemanticOperation {
         minimum: &FloatMeaning,
         maximum: &FloatMeaning,
     ) -> Option<bool> {
-        if self.parameters != [FloatSemanticValueKind::Meaning]
+        if self.parameters() != [FloatSemanticValueKind::Meaning]
             || self.result != FloatSemanticValueKind::Bool
         {
             return None;
@@ -1477,24 +1528,16 @@ impl FloatSemanticOperation {
 
     pub fn for_contract_identity(
         identity: &FloatSemanticContractIdentity,
-    ) -> Option<&'static FloatSemanticOperation> {
+    ) -> Option<FloatSemanticOperation> {
         if identity.catalog_version != FLOAT_SEMANTICS_CATALOG_VERSION {
             return None;
         }
-        let row = FLOAT_SEMANTIC_OPERATIONS.get(usize::from(identity.row))?;
+        let row = Self::from_operation_identity(identity.operation)?;
         if row.contract_identity() == *identity {
             Some(row)
         } else {
             None
         }
-    }
-
-    pub fn ordinal(&self) -> u8 {
-        FLOAT_SEMANTIC_OPERATIONS
-            .iter()
-            .position(|row| row == self)
-            .and_then(|position| u8::try_from(position).ok())
-            .expect("every row is in the catalog")
     }
 
     pub fn contract_identity(&self) -> FloatSemanticContractIdentity {
@@ -1503,14 +1546,14 @@ impl FloatSemanticOperation {
         hasher.raw(&FLOAT_SEMANTICS_CATALOG_VERSION.to_le_bytes());
         hasher.raw(format!("toolchain::{}::{}", FLOAT_SEMANTICS_NAMESPACE, self.name).as_bytes());
         hasher.byte(0);
-        for parameter in self.parameters {
-            hasher.raw(parameter.spelling().as_bytes());
+        for parameter in self.parameters() {
+            hasher.raw(parameter.to_string().as_bytes());
             hasher.byte(0);
         }
         hasher.raw(b"->");
-        hasher.raw(self.result.spelling().as_bytes());
+        hasher.raw(self.result.to_string().as_bytes());
         FloatSemanticContractIdentity {
-            row: self.ordinal(),
+            operation: self.identity(),
             catalog_version: FLOAT_SEMANTICS_CATALOG_VERSION,
             commitment: hasher.finish(),
         }
@@ -1523,10 +1566,144 @@ mod tests {
 
     use crate::bignum::{BigInt, ExactFloat};
 
+    #[test]
+    fn width_parameterized_conversion_catalog_accepts_exact_unusual_carriers() {
+        let integer = super::FloatSemanticValueKind::from_spelling("u13")
+            .expect("positive integer widths are semantic carriers");
+        let operation = super::FloatSemanticOperation::from_source_identity(
+            "FloatSemantics",
+            "from_integer",
+            &[super::FloatSemanticValueKind::Format, integer],
+            super::FloatSemanticValueKind::Meaning,
+        )
+        .expect("conversion selection is parameterized by its carrier");
+        let identity = operation.contract_identity();
+        assert_eq!(
+            super::FloatSemanticOperation::for_contract_identity(&identity),
+            Some(operation)
+        );
+        assert!(
+            super::FloatSemanticOperation::from_source_identity(
+                "FloatSemantics",
+                "to_u13",
+                &[super::FloatSemanticValueKind::Meaning],
+                integer,
+            )
+            .is_some()
+        );
+        assert!(
+            super::FloatSemanticOperation::from_source_identity(
+                "FloatSemantics",
+                "to_i13",
+                &[super::FloatSemanticValueKind::Meaning],
+                integer,
+            )
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn width_parameterized_conversions_keep_validity_and_resource_refusal_distinct() {
+        use super::{FloatSemanticEvaluationError, FloatSemanticOperationIdentity};
+        for carrier in [
+            FixedInteger::signed(1),
+            FixedInteger::unsigned(13),
+            FixedInteger::signed(257),
+            FixedInteger::unsigned(u64::MAX),
+        ] {
+            for identity in [
+                FloatSemanticOperationIdentity::FromInteger(carrier),
+                FloatSemanticOperationIdentity::ToIntegerExact(carrier),
+                FloatSemanticOperationIdentity::ToIntegerSaturating(carrier),
+            ] {
+                let operation = FloatSemanticOperation::from_operation_identity(identity).unwrap();
+                let contract = operation.contract_identity();
+                assert_eq!(
+                    FloatSemanticOperation::for_contract_identity(&contract),
+                    Some(operation)
+                );
+                let mut altered = contract;
+                altered.operation =
+                    FloatSemanticOperationIdentity::ToIntegerExact(FixedInteger::unsigned(7));
+                assert!(FloatSemanticOperation::for_contract_identity(&altered).is_none());
+                let arguments =
+                    if matches!(identity, FloatSemanticOperationIdentity::FromInteger(_)) {
+                        vec![
+                            FloatSemanticOperand::Format(FloatFormat::BINARY64),
+                            FloatSemanticOperand::Integer(BigInt::zero()),
+                        ]
+                    } else {
+                        vec![FloatSemanticOperand::Meaning(FloatMeaning::from_f64(0.0))]
+                    };
+                operation
+                    .kernel_discharge(&arguments, 0)
+                    .expect("zero needs no endpoint");
+            }
+        }
+        let huge = FixedInteger::unsigned(u64::MAX);
+        assert_eq!(
+            FloatSemantics::to_integer_exact(&FloatMeaning::from_f64(42.75), huge).unwrap(),
+            BigInt::from_u64(42)
+        );
+        let saturated = FloatSemanticOperation::from_operation_identity(
+            FloatSemanticOperationIdentity::ToIntegerSaturating(huge),
+        )
+        .unwrap();
+        assert_eq!(
+            saturated.kernel_discharge(
+                &[FloatSemanticOperand::Meaning(FloatMeaning::from_f64(
+                    f64::INFINITY
+                ))],
+                4096
+            ),
+            Err(FloatSemanticEvaluationError::IntegerConversion(
+                FloatToIntegerError::MaterializationLimit {
+                    required_bits: u64::MAX,
+                    maximum_bits: 4096
+                }
+            ))
+        );
+        let u13 = FixedInteger::unsigned(13);
+        let overflow = FloatMeaning::from_f64(8192.0);
+        assert_eq!(
+            FloatSemantics::to_integer_exact(&overflow, u13),
+            Err(FloatToIntegerError::OutOfRange)
+        );
+        assert_eq!(
+            FloatSemantics::to_integer_saturating(&overflow, u13, 13).unwrap(),
+            BigInt::from_u64(8191)
+        );
+        assert_eq!(
+            FloatSemantics::to_integer_saturating(&overflow, u13, 12),
+            Err(FloatToIntegerError::MaterializationLimit {
+                required_bits: 13,
+                maximum_bits: 12
+            })
+        );
+        assert_eq!(
+            FloatSemantics::to_integer_saturating(
+                &FloatMeaning::from_f64(f64::NEG_INFINITY),
+                FixedInteger::signed(1),
+                1
+            )
+            .unwrap(),
+            BigInt::from_i64(-1)
+        );
+        assert_eq!(
+            FloatSemantics::to_integer_saturating(
+                &FloatMeaning::from_f64(f64::INFINITY),
+                FixedInteger::signed(1),
+                0
+            )
+            .unwrap(),
+            BigInt::zero()
+        );
+    }
+
     use super::{
-        FLOAT_SEMANTIC_OPERATIONS, FloatClass, FloatFormat, FloatMeaning, FloatPolicyTrap,
-        FloatSemanticComparison, FloatSemanticOperand, FloatSemanticOperation, FloatSemanticResult,
-        FloatSemanticValueKind, FloatSemantics, FloatToIntegerError, IntegerCarrier, IntegerFormat,
+        FLOAT_SEMANTIC_OPERATIONS, FixedInteger, FloatClass, FloatFormat, FloatMeaning,
+        FloatPolicyTrap, FloatSemanticComparison, FloatSemanticOperand, FloatSemanticOperation,
+        FloatSemanticResult, FloatSemanticValueKind, FloatSemantics, FloatToIntegerError,
         RoundingDirection,
     };
 
@@ -1839,25 +2016,33 @@ mod tests {
         let nan = FloatMeaning::from_f64(f64::NAN);
 
         assert_eq!(
-            FloatSemantics::to_integer_exact(&negative_fraction, IntegerFormat::U8)
+            FloatSemantics::to_integer_exact(&negative_fraction, FixedInteger::unsigned(8))
                 .unwrap()
                 .to_u64(),
             Some(0)
         );
         assert_eq!(
-            FloatSemantics::to_integer_exact(&negative_one, IntegerFormat::U8),
+            FloatSemantics::to_integer_exact(&negative_one, FixedInteger::unsigned(8)),
             Err(FloatToIntegerError::OutOfRange)
         );
         assert_eq!(
-            FloatSemantics::to_integer_trapping(&nan, IntegerFormat::I32),
+            FloatSemantics::to_integer_trapping(&nan, FixedInteger::signed(32)),
             Err(FloatToIntegerError::NonFinite)
         );
         assert_eq!(
-            FloatSemantics::to_integer_saturating(&positive_overflow, IntegerFormat::U8).to_u64(),
+            FloatSemantics::to_integer_saturating(
+                &positive_overflow,
+                FixedInteger::unsigned(8),
+                4096
+            )
+            .unwrap()
+            .to_u64(),
             Some(255)
         );
         assert_eq!(
-            FloatSemantics::to_integer_saturating(&nan, IntegerFormat::I32).to_i64(),
+            FloatSemantics::to_integer_saturating(&nan, FixedInteger::signed(32), 4096)
+                .unwrap()
+                .to_i64(),
             Some(0)
         );
     }
@@ -1874,8 +2059,10 @@ mod tests {
         assert_eq!(
             FloatSemantics::to_integer_saturating(
                 &FloatMeaning::from_f64(f64::INFINITY),
-                IntegerFormat::U64,
+                FixedInteger::unsigned(64),
+                4096,
             )
+            .unwrap()
             .to_u64(),
             Some(u64::MAX)
         );
@@ -1965,10 +2152,10 @@ mod tests {
 
     #[test]
     fn rows_are_distinct_by_complete_signature_and_overloads_do_not_collide() {
-        assert_eq!(FLOAT_SEMANTIC_OPERATIONS.len(), 65);
+        assert_eq!(FLOAT_SEMANTIC_OPERATIONS.len(), 41);
         let keys = FLOAT_SEMANTIC_OPERATIONS
             .iter()
-            .map(|row| (row.name, row.parameters, row.result))
+            .map(|row| (row.name, row.parameters(), row.result))
             .collect::<HashSet<_>>();
         assert_eq!(keys.len(), FLOAT_SEMANTIC_OPERATIONS.len());
         let commitments = FLOAT_SEMANTIC_OPERATIONS
@@ -1981,7 +2168,7 @@ mod tests {
             "from_integer",
             &[
                 FloatSemanticValueKind::Format,
-                FloatSemanticValueKind::Integer(IntegerCarrier::I8),
+                FloatSemanticValueKind::Integer(FixedInteger::signed(8)),
             ],
             FloatSemanticValueKind::Meaning,
         )
@@ -1991,12 +2178,12 @@ mod tests {
             "from_integer",
             &[
                 FloatSemanticValueKind::Format,
-                FloatSemanticValueKind::Integer(IntegerCarrier::U64),
+                FloatSemanticValueKind::Integer(FixedInteger::unsigned(64)),
             ],
             FloatSemanticValueKind::Meaning,
         )
         .expect("u64 overload");
-        assert_ne!(i8_row.ordinal(), u64_row.ordinal());
+        assert_ne!(i8_row.identity(), u64_row.identity());
         assert_ne!(i8_row.contract_identity(), u64_row.contract_identity());
     }
 
@@ -2036,7 +2223,7 @@ mod tests {
     }
 
     fn signature_operands(row: &FloatSemanticOperation) -> Vec<FloatSemanticOperand> {
-        row.parameters
+        row.parameters()
             .iter()
             .map(|kind| match kind {
                 FloatSemanticValueKind::Format => {
@@ -2057,7 +2244,7 @@ mod tests {
         name: &str,
         parameters: &[FloatSemanticValueKind],
         result: FloatSemanticValueKind,
-    ) -> &'static FloatSemanticOperation {
+    ) -> FloatSemanticOperation {
         FloatSemanticOperation::from_source_identity("FloatSemantics", name, parameters, result)
             .expect("catalog row")
     }
@@ -2069,8 +2256,8 @@ mod tests {
             let rejoined =
                 FloatSemanticOperation::for_contract_identity(&identity).expect("rejoin");
             assert_eq!(
-                rejoined.ordinal(),
-                row.ordinal(),
+                rejoined.identity(),
+                row.identity(),
                 "{} rejoins to the declared row ordinal",
                 row.name
             );
@@ -2083,7 +2270,7 @@ mod tests {
             assert!(FloatSemanticOperation::for_contract_identity(&stale_version).is_none());
         }
         let mut out_of_range = FLOAT_SEMANTIC_OPERATIONS[0].contract_identity();
-        out_of_range.row = u8::MAX;
+        out_of_range.operation = super::FloatSemanticOperationIdentity::Fixed(u8::MAX);
         assert!(FloatSemanticOperation::for_contract_identity(&out_of_range).is_none());
     }
 
@@ -2092,8 +2279,8 @@ mod tests {
         for row in FLOAT_SEMANTIC_OPERATIONS {
             let arguments = signature_operands(row);
             let discharge = row
-                .kernel_discharge(&arguments)
-                .unwrap_or_else(|| panic!("{} failed to discharge", row.name));
+                .kernel_discharge(&arguments, 4096)
+                .unwrap_or_else(|error| panic!("{} failed to discharge: {error:?}", row.name));
             assert_eq!(discharge.contract, row.contract_identity());
             assert!(discharge.result.matches_kind(row.result));
         }
@@ -2113,11 +2300,14 @@ mod tests {
             FloatSemanticValueKind::Meaning,
         );
         let discharge = add
-            .kernel_discharge(&[
-                FloatSemanticOperand::Format(FloatFormat::BINARY32),
-                FloatSemanticOperand::Meaning(left.clone()),
-                FloatSemanticOperand::Meaning(right.clone()),
-            ])
+            .kernel_discharge(
+                &[
+                    FloatSemanticOperand::Format(FloatFormat::BINARY32),
+                    FloatSemanticOperand::Meaning(left.clone()),
+                    FloatSemanticOperand::Meaning(right.clone()),
+                ],
+                4096,
+            )
             .expect("add discharges");
         assert_eq!(
             discharge.result,
@@ -2133,10 +2323,13 @@ mod tests {
         );
         assert_eq!(
             equal
-                .kernel_discharge(&[
-                    FloatSemanticOperand::Meaning(left.clone()),
-                    FloatSemanticOperand::Meaning(right.clone()),
-                ])
+                .kernel_discharge(
+                    &[
+                        FloatSemanticOperand::Meaning(left.clone()),
+                        FloatSemanticOperand::Meaning(right.clone()),
+                    ],
+                    4096
+                )
                 .expect("equal discharges")
                 .result,
             FloatSemanticResult::Bool(FloatSemantics::equal(&left, &right))
@@ -2210,11 +2403,14 @@ mod tests {
             FloatSemanticValueKind::Meaning,
         );
         let discharged_nan = add
-            .kernel_discharge(&[
-                FloatSemanticOperand::Format(FloatFormat::BINARY32),
-                FloatSemanticOperand::Meaning(FloatMeaning::NaN),
-                FloatSemanticOperand::Meaning(FloatMeaning::from_f32(1.0)),
-            ])
+            .kernel_discharge(
+                &[
+                    FloatSemanticOperand::Format(FloatFormat::BINARY32),
+                    FloatSemanticOperand::Meaning(FloatMeaning::NaN),
+                    FloatSemanticOperand::Meaning(FloatMeaning::from_f32(1.0)),
+                ],
+                4096,
+            )
             .expect("add(NaN, 1) discharges")
             .result;
         assert_eq!(
@@ -2231,10 +2427,13 @@ mod tests {
         );
         assert_eq!(
             equal
-                .kernel_discharge(&[
-                    FloatSemanticOperand::Meaning(FloatMeaning::NaN),
-                    FloatSemanticOperand::Meaning(FloatMeaning::NaN),
-                ])
+                .kernel_discharge(
+                    &[
+                        FloatSemanticOperand::Meaning(FloatMeaning::NaN),
+                        FloatSemanticOperand::Meaning(FloatMeaning::NaN),
+                    ],
+                    4096
+                )
                 .expect("equal(NaN, NaN) discharges")
                 .result,
             FloatSemanticResult::Bool(false)
@@ -2253,11 +2452,14 @@ mod tests {
             FloatSemanticValueKind::Meaning,
         );
         let discharged = add
-            .kernel_discharge(&[
-                FloatSemanticOperand::Format(FloatFormat::BINARY32),
-                FloatSemanticOperand::Meaning(FloatMeaning::from_f32(0.0)),
-                FloatSemanticOperand::Meaning(FloatMeaning::from_f32(-0.0)),
-            ])
+            .kernel_discharge(
+                &[
+                    FloatSemanticOperand::Format(FloatFormat::BINARY32),
+                    FloatSemanticOperand::Meaning(FloatMeaning::from_f32(0.0)),
+                    FloatSemanticOperand::Meaning(FloatMeaning::from_f32(-0.0)),
+                ],
+                4096,
+            )
             .expect("add(+0, -0) discharges")
             .result;
         assert_eq!(
@@ -2278,10 +2480,13 @@ mod tests {
         );
         assert_eq!(
             equal
-                .kernel_discharge(&[
-                    FloatSemanticOperand::Meaning(FloatMeaning::from_f32(0.0)),
-                    FloatSemanticOperand::Meaning(FloatMeaning::from_f32(-0.0)),
-                ])
+                .kernel_discharge(
+                    &[
+                        FloatSemanticOperand::Meaning(FloatMeaning::from_f32(0.0)),
+                        FloatSemanticOperand::Meaning(FloatMeaning::from_f32(-0.0)),
+                    ],
+                    4096
+                )
                 .expect("equal(+0, -0) discharges")
                 .result,
             FloatSemanticResult::Bool(true)
@@ -2294,7 +2499,7 @@ mod tests {
             "from_integer",
             &[
                 FloatSemanticValueKind::Format,
-                FloatSemanticValueKind::Integer(IntegerCarrier::I8),
+                FloatSemanticValueKind::Integer(FixedInteger::signed(8)),
             ],
             FloatSemanticValueKind::Meaning,
         );
@@ -2306,19 +2511,25 @@ mod tests {
             };
             assert!(
                 from_i8
-                    .kernel_discharge(&[
-                        FloatSemanticOperand::Format(FloatFormat::BINARY32),
-                        FloatSemanticOperand::Integer(literal),
-                    ])
-                    .is_none(),
+                    .kernel_discharge(
+                        &[
+                            FloatSemanticOperand::Format(FloatFormat::BINARY32),
+                            FloatSemanticOperand::Integer(literal),
+                        ],
+                        4096
+                    )
+                    .is_err(),
                 "out-of-carrier integer operand must not discharge"
             );
         }
         let discharged = from_i8
-            .kernel_discharge(&[
-                FloatSemanticOperand::Format(FloatFormat::BINARY32),
-                FloatSemanticOperand::Integer(BigInt::from_u64(100)),
-            ])
+            .kernel_discharge(
+                &[
+                    FloatSemanticOperand::Format(FloatFormat::BINARY32),
+                    FloatSemanticOperand::Integer(BigInt::from_u64(100)),
+                ],
+                4096,
+            )
             .expect("in-carrier from_integer discharges")
             .result;
         assert_eq!(
@@ -2329,21 +2540,27 @@ mod tests {
         let to_i8 = row_named(
             "to_i8",
             &[FloatSemanticValueKind::Meaning],
-            FloatSemanticValueKind::Integer(IntegerCarrier::I8),
+            FloatSemanticValueKind::Integer(FixedInteger::signed(8)),
         );
         assert!(
             to_i8
-                .kernel_discharge(&[FloatSemanticOperand::Meaning(FloatMeaning::from_f32(300.0))])
-                .is_none()
+                .kernel_discharge(
+                    &[FloatSemanticOperand::Meaning(FloatMeaning::from_f32(300.0))],
+                    4096
+                )
+                .is_err()
         );
         let to_i8_saturating = row_named(
             "to_i8_saturating",
             &[FloatSemanticValueKind::Meaning],
-            FloatSemanticValueKind::Integer(IntegerCarrier::I8),
+            FloatSemanticValueKind::Integer(FixedInteger::signed(8)),
         );
         assert_eq!(
             to_i8_saturating
-                .kernel_discharge(&[FloatSemanticOperand::Meaning(FloatMeaning::from_f32(300.0))])
+                .kernel_discharge(
+                    &[FloatSemanticOperand::Meaning(FloatMeaning::from_f32(300.0))],
+                    4096
+                )
                 .expect("saturating conversion discharges")
                 .result,
             FloatSemanticResult::Integer(BigInt::from_u64(127))
@@ -2353,14 +2570,14 @@ mod tests {
     #[test]
     fn integer_carrier_images_preserve_rounded_bounds_and_signature() {
         for carrier in [
-            IntegerCarrier::I8,
-            IntegerCarrier::I16,
-            IntegerCarrier::I32,
-            IntegerCarrier::I64,
-            IntegerCarrier::U8,
-            IntegerCarrier::U16,
-            IntegerCarrier::U32,
-            IntegerCarrier::U64,
+            FixedInteger::signed(8),
+            FixedInteger::signed(16),
+            FixedInteger::signed(32),
+            FixedInteger::signed(64),
+            FixedInteger::unsigned(8),
+            FixedInteger::unsigned(16),
+            FixedInteger::unsigned(32),
+            FixedInteger::unsigned(64),
         ] {
             let conversion = row_named(
                 "from_integer",
@@ -2370,7 +2587,8 @@ mod tests {
                 ],
                 FloatSemanticValueKind::Meaning,
             );
-            let (minimum, maximum) = carrier.format().bounds();
+            let minimum = FloatSemantics::integer_endpoint(carrier, true, 4096).unwrap();
+            let maximum = FloatSemantics::integer_endpoint(carrier, false, 4096).unwrap();
             for format in [FloatFormat::BINARY32, FloatFormat::BINARY64] {
                 let (lower, upper) = conversion
                     .integer_operand_image(format, carrier, &minimum, &maximum)
@@ -2378,7 +2596,7 @@ mod tests {
                 assert!(FloatSemantics::is_finite(&lower));
                 assert!(FloatSemantics::is_finite(&upper));
                 assert!(FloatSemantics::less_or_equal(&lower, &upper));
-                if carrier == IntegerCarrier::U64 {
+                if carrier == FixedInteger::unsigned(64) {
                     assert_eq!(upper, FloatMeaning::from_f64(18446744073709551616.0));
                 }
             }
@@ -2397,10 +2615,10 @@ mod tests {
                     .integer_operand_image(FloatFormat::BINARY32, carrier, &maximum, &minimum)
                     .is_none()
             );
-            let other = if carrier == IntegerCarrier::I8 {
-                IntegerCarrier::U8
+            let other = if carrier == FixedInteger::signed(8) {
+                FixedInteger::unsigned(8)
             } else {
-                IntegerCarrier::I8
+                FixedInteger::signed(8)
             };
             assert!(
                 conversion
@@ -2492,19 +2710,25 @@ mod tests {
         );
         let one = FloatMeaning::from_f32(1.0);
         assert!(
-            add.kernel_discharge(&[
-                FloatSemanticOperand::Format(FloatFormat::BINARY32),
-                FloatSemanticOperand::Meaning(one.clone()),
-            ])
-            .is_none()
+            add.kernel_discharge(
+                &[
+                    FloatSemanticOperand::Format(FloatFormat::BINARY32),
+                    FloatSemanticOperand::Meaning(one.clone()),
+                ],
+                4096
+            )
+            .is_err()
         );
         assert!(
-            add.kernel_discharge(&[
-                FloatSemanticOperand::Meaning(one.clone()),
-                FloatSemanticOperand::Meaning(one.clone()),
-                FloatSemanticOperand::Meaning(one),
-            ])
-            .is_none(),
+            add.kernel_discharge(
+                &[
+                    FloatSemanticOperand::Meaning(one.clone()),
+                    FloatSemanticOperand::Meaning(one.clone()),
+                    FloatSemanticOperand::Meaning(one),
+                ],
+                4096
+            )
+            .is_err(),
             "a Meaning cannot stand at the declared Format position"
         );
         let other_format = FloatFormat {
@@ -2512,12 +2736,15 @@ mod tests {
             ..FloatFormat::BINARY32
         };
         assert!(
-            add.kernel_discharge(&[
-                FloatSemanticOperand::Format(other_format),
-                FloatSemanticOperand::Meaning(FloatMeaning::from_f32(1.0)),
-                FloatSemanticOperand::Meaning(FloatMeaning::from_f32(2.0)),
-            ])
-            .is_none()
+            add.kernel_discharge(
+                &[
+                    FloatSemanticOperand::Format(other_format),
+                    FloatSemanticOperand::Meaning(FloatMeaning::from_f32(1.0)),
+                    FloatSemanticOperand::Meaning(FloatMeaning::from_f32(2.0)),
+                ],
+                4096
+            )
+            .is_err()
         );
     }
 }
