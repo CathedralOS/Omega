@@ -45,6 +45,7 @@ fn records() -> IdTable<StructuralTypeId, RecordType> {
         id: StructuralFieldId::new(raw).unwrap(),
         identity: spelled.to_owned(),
         value_type: ValueType::plain(u32_type()),
+        byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
     };
     let mut records = IdTable::default();
     records.push(RecordType {

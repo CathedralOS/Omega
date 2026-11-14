@@ -403,8 +403,8 @@ pub(crate) mod call_results {
                             });
                         let field = fields.next()?;
                         if fields.next().is_some()
-                            || (member.member_symbol.is_valid()
-                                && member.member_symbol != field.symbol)
+                            || (member.selection.field_symbol().is_valid()
+                                && member.selection.field_symbol() != field.symbol)
                         {
                             return None;
                         }
@@ -2851,13 +2851,28 @@ pub(crate) mod qualification_casts {
                 .type_reference_handles(cast.semantic_domain_arguments)
                 .to_vec();
             // An entry's target already carries the kept domains; selection reads the carrier.
-            let carrier = if cast.form.entry().is_some() {
+            let mut carrier = if cast.form.entry().is_some() {
                 program
                     .type_reference_table
                     .unconstrained_type_reference(cast.target_type)
             } else {
                 cast.target_type
             };
+            // An entry over a shared view names a domain of its referent
+            // (domains.md, "Mutable views": the cast accounts "for the
+            // domains displayed on its referent"), which accounting left as
+            // the reference's referee.
+            if cast.form.entry().is_some()
+                && let TypeReferenceNode::Reference {
+                    referee,
+                    access: language_core::ReferenceAccess::Shared,
+                    ..
+                } = program.type_reference_table.type_reference(carrier)
+            {
+                carrier = program
+                    .type_reference_table
+                    .unconstrained_type_reference(*referee);
+            }
             let matches = crate::type_reference::domain_constraints::select_domain_candidates(
                 source,
                 program,

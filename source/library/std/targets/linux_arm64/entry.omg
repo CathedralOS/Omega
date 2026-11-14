@@ -218,7 +218,7 @@ machine LinuxArm64::plan(signature: BoundarySignature) -> BoundaryPlanResult
     machine reject() -> BoundaryPlanResult {
         BoundaryPlanResult::Rejected {
             reason: CallingPolicyRejection {
-                reason: "LinuxArm64Application requires exact physical or program-storage entry shapes",
+                reason: "LinuxArm64Application requires exact physical or program-storage entry shapes" as +Utf8,
             },
         }
     }

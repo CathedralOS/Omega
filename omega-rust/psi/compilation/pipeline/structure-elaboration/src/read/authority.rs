@@ -87,7 +87,7 @@ impl Program<'_> {
         value_type: Option<ValueType>,
         access: Access,
     ) -> Checked<Option<StructuralTypeId>> {
-        let Some(value_type @ ValueType::Record(record, _)) = value_type else {
+        let Some(value_type @ ValueType::Record(record, _, _)) = value_type else {
             return Ok(None);
         };
         self.authorized(id, value_type, access)?;
@@ -168,7 +168,7 @@ impl Program<'_> {
                     return unserved("zero-established value in a domain that must be established");
                 }
             }
-            let ValueType::Record(record, _) = value_type else {
+            let ValueType::Record(record, _, _) = value_type else {
                 continue;
             };
             let data = self.data_type(id, record)?;

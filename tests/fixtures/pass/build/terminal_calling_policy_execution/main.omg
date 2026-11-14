@@ -149,7 +149,7 @@ machine retained_plan(signature: BoundarySignature) -> BoundaryPlanResult {
         BoundaryPlanResult::Accepted { plan: plan }
     }
     machine reject() -> BoundaryPlanResult {
-        BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "scalar result required" } }
+        BoundaryPlanResult::Rejected { reason: CallingPolicyRejection { reason: "scalar result required" as +Utf8 } }
     }
 }
 

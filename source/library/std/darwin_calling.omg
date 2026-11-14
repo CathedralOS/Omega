@@ -12,7 +12,7 @@ public DarwinArm64ScalarCalling satisfies CallingPolicy {
         transition accepted {
             true -> BoundaryPlanResult::Accepted { plan: plan }
             _ -> BoundaryPlanResult::Rejected { reason: CallingPolicyRejection {
-                reason: "expected at most 32 fixed integer or sized-reference parameters, Unit or 32/64-bit integer result, at least 32-bit register scalars, and no callbacks"
+                reason: "expected at most 32 fixed integer or sized-reference parameters, Unit or 32/64-bit integer result, at least 32-bit register scalars, and no callbacks" as +Utf8
             } }
         }
     }

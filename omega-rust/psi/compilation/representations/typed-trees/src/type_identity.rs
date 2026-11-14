@@ -1725,6 +1725,10 @@ pub(crate) mod identity_context {
             Option<&'binders super::portable_machine_applications::PortableMachineApplications>,
         pub(crate) storage_value_indices: bool,
         pub(crate) declared_carrier: bool,
+        // Leave out the domains of every constrained type and keep everything
+        // else, lifetimes included: the identity of the carrier a qualified
+        // occurrence stores (`applied_carrier_identity_in_region_scope`).
+        pub(crate) erase_constraints: bool,
         pub(crate) application_scopes: &'binders [super::AppliedTypeIdentityScope<'binders>],
         pub(crate) application_owner: SymbolHandle,
         pub(crate) application_argument_owner: SymbolHandle,
@@ -2533,7 +2537,7 @@ pub(crate) mod identity_context {
                 base_type,
                 constraints,
             } => {
-                if context.declared_carrier {
+                if context.declared_carrier || context.erase_constraints {
                     return normalize_type_reference(program, *base_type, context);
                 }
                 let (base, mut all_constraints) =
@@ -4749,7 +4753,7 @@ pub(crate) mod package_policy_reading_tests {
             let receiver = fixture.name("LIMIT");
             let member = fixture.expression(ExpressionNode::Member(TableMemberExpression {
                 receiver,
-                member_symbol: SymbolHandle::invalid(),
+                selection: crate::expression::MemberSelection::Unresolved,
                 member: Identifier::generated("tag"),
                 case_variant: Some(Identifier::generated("On")),
             }));
@@ -7046,6 +7050,34 @@ pub fn applied_type_identity_in_region_scope(
         TypeIdentityQualification::Ordinary,
         resolved_lifetimes,
     )
+}
+
+/// `applied_type_identity_in_region_scope` of the carrier an occurrence
+/// stores: the same identity with the domains of each constrained type left
+/// out and everything else, lifetimes included, kept. `&'a [u8] in Utf8` and
+/// `&'a [u8]` store one carrier; a domain qualifies the value and is no part
+/// of its storage type (domains.md, "Carrier-exact membership").
+pub fn applied_carrier_identity_in_region_scope(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    receiving_owner: SymbolHandle,
+    argument_owner: SymbolHandle,
+) -> Option<NormalizedTypeIdentity> {
+    let invalid = Cell::new(false);
+    let identity = normalize_type_reference(
+        program,
+        reference,
+        &TypeIdentityContext {
+            erase_constraints: true,
+            application_owner: receiving_owner,
+            application_argument_owner: argument_owner,
+            invalid_application: Some(&invalid),
+            encountered_elided_regions: Some(&invalid),
+            invalid_index_argument: Some(&invalid),
+            ..TypeIdentityContext::default()
+        },
+    );
+    (!invalid.get()).then_some(program_intern_type_identity(program, identity))
 }
 
 pub fn applied_index_identity_in_region_scope(

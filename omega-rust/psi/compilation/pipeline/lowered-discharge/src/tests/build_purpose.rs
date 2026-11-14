@@ -138,6 +138,18 @@ pub(super) fn judge_build(build: &str) -> Result<RouteVerdict, crate::Compilatio
     verdicts.remove(0)
 }
 
+/// Every verdict of the Build program `build`: its closure, then each
+/// generic check form and refinement witness it declares.
+pub(super) fn judge_build_all(build: &str) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
+    let typed = frontier_of("machine product_entry() { }", build);
+    let entry = symbol(&typed, "build_entry");
+    crate::judge_compilation_for(
+        &typed,
+        roster(&[entry], &[Some(package())], DependencyScope::Build),
+        terminal_codec::TerminalPublication::Invocation,
+    )
+}
+
 #[test]
 fn the_checker_judges_a_build_program_as_an_invocation() {
     let typed = frontier();

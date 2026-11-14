@@ -155,9 +155,57 @@ fn a_dispatch_edge_disposes_of_exactly_what_the_schedule_says() {
         .map(|place| place.id)
         .find(|place| !plan.affine_roots.contains(*place))
         .expect("the view formal is storage the schedule does not own");
-    assert!(matches!(
-        edit(&|actions| actions.push(TerminalAffineCleanupAction::DiscardRoot(borrowed))),
-        Err(plain_affine::Error::Unsupported(detail))
-            if detail == "disposal of storage the affine schedule does not own"
-    ));
+    for action in [
+        TerminalAffineCleanupAction::DiscardRoot(borrowed),
+        TerminalAffineCleanupAction::RetireHome(borrowed),
+    ] {
+        assert!(matches!(
+            edit(&|actions| actions.push(action.clone())),
+            Err(plain_affine::Error::Unsupported(detail))
+                if detail == "disposal of storage the affine schedule does not own"
+        ));
+    }
+}
+
+#[test]
+fn owned_copyable_storage_can_be_discarded_on_a_case_edge() {
+    let program = format!(
+        r#"{DATA}
+data CopyHolder [copy] {{ value: u32; }}
+machine build_entry(selection: Selection, spare: CopyHolder) {{
+    transition selection {{
+        Selection::Root -> done()
+        Selection::Named {{ package }} -> take(package)
+    }}
+}}
+machine done() {{ }}
+"#
+    );
+    let Ok(RouteVerdict::Accepted(accepted)) = judge_build(&program) else {
+        panic!("the dispatch may receive an owned copyable argument");
+    };
+    let mut elaboration = accepted.elaboration;
+    let machine = &mut elaboration.module.machines[0];
+    let spare = machine
+        .structural_parameters
+        .iter()
+        .find(|parameter| parameter.position == 1)
+        .unwrap()
+        .place;
+    let actions = machine
+        .blocks
+        .iter_mut()
+        .find_map(|block| match &mut block.terminator {
+            Terminator::StructuralCase { cases, .. } => cases
+                .iter_mut()
+                .find(|edge| !edge.cleanup_actions.is_empty())
+                .map(|edge| &mut edge.cleanup_actions),
+            _ => None,
+        })
+        .unwrap();
+    actions.push(TerminalAffineCleanupAction::DiscardRoot(spare));
+    let Ok(RouteVerdict::Accepted(accepted)) = judge(Ok(elaboration)) else {
+        panic!("freely discardable owned storage retains its disposal authority");
+    };
+    accepted.publish_invocation().unwrap();
 }

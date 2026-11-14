@@ -29,6 +29,7 @@ fn tokens(copyable: bool) -> IdTable<StructuralTypeId, RecordType> {
             id: id(1),
             identity: "token".into(),
             value_type: token(),
+            byte_predicates: semantic_vocabulary::ByteSequencePredicateSet::EMPTY,
         }]),
         requires: Vec::new(),
     });
