@@ -319,7 +319,11 @@ impl TaskStorage {
         let shape = match value {
             TerminalTaskValueType::Unit => return Ok((0, 1)),
             TerminalTaskValueType::Scalar(scalar) => {
-                calling_conventions::terminal_layout::scalar_shape(scalar)
+                calling_conventions::terminal_layout::scalar_shape(scalar).map_err(|error| {
+                    vec![Diagnostic::error(format!(
+                        "task scalar storage geometry: {error:?}"
+                    ))]
+                })?
             }
             TerminalTaskValueType::Structural(identity) => self
                 .shapes
