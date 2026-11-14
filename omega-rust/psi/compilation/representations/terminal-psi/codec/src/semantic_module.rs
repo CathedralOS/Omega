@@ -1791,11 +1791,10 @@ pub(crate) mod machine_wire {
         decode_structural_place_kind, encode_structural_place_kind,
     };
     use super::structural_result_wire::{decode_function_result, encode_function_result};
-    use super::structural_signature_wire::StructuralParameter;
     use super::wire::{Reader, Writer};
     use super::wire_fields::{
-        ClaimBinding, Field, Id, Ids, List, Multiplicity, OptionalId, Path, QualificationSet,
-        Scalar, delegated_fields, wire_enum, wire_record,
+        ClaimBinding, Field, Id, List, Multiplicity, OptionalId, Path, QualificationSet, Scalar,
+        delegated_fields, wire_enum, wire_record,
     };
     use crate::sections::semantic_module::wire::decode_counted;
 
