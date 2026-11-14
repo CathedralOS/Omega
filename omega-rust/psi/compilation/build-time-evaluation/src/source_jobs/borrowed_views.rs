@@ -226,6 +226,51 @@ machine run() -> i64 crashes none {
         terminal_semantics::closed_conformances::validate_closed_conformances(&narrowed),
         Err("selected public result replaces declared lifetimes with body origins")
     );
+    // Keeping the original lifetime union cannot authorize a different
+    // reference access. The application checksum does not replace this
+    // comparison with the complete original declaration.
+    let mut changed_access = module.clone();
+    let result_type = changed_access
+        .declaration_contracts
+        .iter()
+        .find(|contract| {
+            contract
+                .selected_application
+                .as_ref()
+                .is_some_and(|dispatch| dispatch.realization == physical.id)
+        })
+        .unwrap()
+        .result
+        .structural()
+        .unwrap()
+        .structural_type;
+    let result = changed_access
+        .structural_types
+        .iter_mut()
+        .find(|row| row.id == result_type)
+        .unwrap();
+    let terminal_psi::StructuralTypeShape::Reference { access, .. } = &mut result.shape else {
+        panic!("the selected result is an explicit reference")
+    };
+    *access = terminal_psi::StructuralAccess::SharedBorrow;
+    for application in &changed_access.closed_conformance_applications {
+        let original_definition = application.schemas[0].definition.clone();
+        let commitment = terminal_psi::closed_conformance_application_commitment(
+            &changed_access.identities,
+            application,
+        );
+        let report = terminal_psi::closed_conformance_application_report_fingerprint(
+            &changed_access.identities,
+            application,
+        );
+        assert_eq!(application.commitment, commitment);
+        assert_eq!(application.report_fingerprint, report);
+        assert_eq!(application.schemas[0].definition, original_definition);
+    }
+    assert_eq!(
+        terminal_semantics::closed_conformances::validate_closed_conformances(&changed_access),
+        Err("public reference path or access differs from its original declared type"),
+    );
     // An application checksum describes its contents; recomputing it cannot
     // change the original public signature's declared lifetime relation.
     let mut rewritten = module.clone();

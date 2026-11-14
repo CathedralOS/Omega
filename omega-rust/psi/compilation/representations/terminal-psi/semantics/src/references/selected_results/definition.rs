@@ -135,6 +135,32 @@ fn occurrences(
             "original public type has an unserved declared lifetime frontier"
         }
     })?;
+    // Lifetime groups omit access, so compare each original reference with
+    // its current storage before grouping. Otherwise a rewritten result
+    // could retain every lifetime while gaining write permission.
+    for (_, path, access, referent) in &visitor.occurrences {
+        if *referent {
+            continue; // The caller checks the formal's separate access column.
+        }
+        let actual = crate::runtime_structural_path_tip(module.structural_types.iter(), root, path)
+            .and_then(|tip| crate::stored_reference_access(&tip.shape));
+        if actual != Some(*access) {
+            return Err("public reference path or access differs from its original declared type");
+        }
+    }
+    // Distinct nested references cannot collapse to the same current leaf.
+    // A borrowed formal's outer referent and its stored child are separate
+    // observations even when both have an empty projected path.
+    visitor
+        .occurrences
+        .sort_unstable_by(|left, right| (left.3, &left.1).cmp(&(right.3, &right.1)));
+    if visitor
+        .occurrences
+        .windows(2)
+        .any(|pair| (pair[0].3, &pair[0].1) == (pair[1].3, &pair[1].1))
+    {
+        return Err("original public references collapse to the same current storage path");
+    }
     Ok(visitor.occurrences)
 }
 
@@ -299,9 +325,11 @@ mod tests {
         StructuralTypeDeclaration, TerminalIdentityIndex,
     };
 
-    #[test]
-    fn a_nominal_reference_frontier_needs_its_field_definition() {
-        let id = |value| StructuralTypeId::new(value).unwrap();
+    fn id(value: usize) -> StructuralTypeId {
+        StructuralTypeId::new(value).unwrap()
+    }
+
+    fn module() -> TerminalModule {
         let declaration = |value, shape| StructuralTypeDeclaration {
             id: id(value),
             identity: TerminalIdentityIndex(value as u32),
@@ -348,6 +376,58 @@ mod tests {
                 },
             ),
         ];
+        module.structural_types.push(declaration(
+            5,
+            StructuralTypeShape::Reference {
+                referent: id(2),
+                access: StructuralAccess::MutableBorrow,
+            },
+        ));
+        module
+    }
+
+    #[test]
+    fn reference_access_and_nested_paths_match_the_original_declaration() {
+        let module = module();
+        let scalar = "compiler-type(atom(bool))";
+        let reference = format!("ref-mut({scalar},region(owner(schema),ordinal(0)))");
+        assert_eq!(
+            occurrences(&module, id(2), &reference, 1, false).unwrap(),
+            vec![(0, Vec::new(), StructuralAccess::MutableBorrow, false)],
+        );
+        let nested = format!("ref-mut({reference},region(owner(schema),ordinal(0)))");
+        assert_eq!(
+            occurrences(&module, id(5), &nested, 1, false).unwrap(),
+            vec![
+                (0, Vec::new(), StructuralAccess::MutableBorrow, false),
+                (
+                    0,
+                    vec![StructuralPathSegment::Referent],
+                    StructuralAccess::MutableBorrow,
+                    false
+                ),
+            ],
+        );
+        assert_eq!(
+            occurrences(
+                &module,
+                id(2),
+                &reference.replace("ref-mut(", "ref("),
+                1,
+                false
+            ),
+            Err("public reference path or access differs from its original declared type"),
+        );
+        assert_eq!(
+            occurrences(&module, id(2), &nested, 1, false),
+            Err("public reference path or access differs from its original declared type"),
+            "flattening a nested result cannot retain its original paths",
+        );
+    }
+
+    #[test]
+    fn a_nominal_reference_frontier_needs_its_field_definition() {
+        let module = module();
         let nominal = format!("nominal(package-owner(32:{}),path(Pair))", "11".repeat(32));
         let outer = format!("ref-mut({nominal},region(owner(schema),ordinal(0)))");
         for (root, identity) in [(id(3), nominal.as_str()), (id(4), outer.as_str())] {
