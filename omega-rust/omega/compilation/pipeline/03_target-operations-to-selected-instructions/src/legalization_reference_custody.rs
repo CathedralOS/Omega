@@ -4594,15 +4594,7 @@ fn normalized_direct_source(
     }
 }
 
-fn access_covers(authority: StructuralAccess, requested: StructuralAccess) -> bool {
-    authority == requested
-        || authority == StructuralAccess::Owned
-        || authority == StructuralAccess::MutableBorrow
-            && matches!(
-                requested,
-                StructuralAccess::SharedBorrow | StructuralAccess::WriteOnlyBorrow
-            )
-}
+use terminal_psi::structural_access_covers as access_covers;
 
 pub(crate) mod call_paths {
     use super::borrowed_arrivals::{captured_storage, granting_ancestor};
