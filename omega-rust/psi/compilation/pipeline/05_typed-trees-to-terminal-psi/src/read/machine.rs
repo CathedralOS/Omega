@@ -1238,7 +1238,7 @@ impl<'t> Program<'t> {
     /// The one requirement that owns this body. A reference row owns no
     /// body and supplies no context here. Both source spellings therefore
     /// share the same advertised entry and the same root-only body check.
-    fn conformer_requirement(
+    pub(super) fn conformer_requirement(
         &self,
         id: MachineId,
         machine: &'t Machine,
@@ -1762,11 +1762,13 @@ impl<'t> Program<'t> {
             result: ResultTerm::Absent("result in an entry clause"),
             subject: None,
             formal_fields: false,
+            logical: None,
             mathematical: MathematicalTerms::Served,
         };
         // Only an entry `requires` may project a record formal.
         let required = ClauseScope {
             formal_fields: true,
+            logical: None,
             mathematical: MathematicalTerms::Served,
             ..entry
         };
@@ -1786,6 +1788,7 @@ impl<'t> Program<'t> {
                 Some(ValueType::Rigid(_)) => ResultTerm::Absent("result of a rigid type"),
                 None => ResultTerm::Absent("result of a Unit machine"),
             },
+            logical: None,
             mathematical: MathematicalTerms::Served,
             ..entry
         };

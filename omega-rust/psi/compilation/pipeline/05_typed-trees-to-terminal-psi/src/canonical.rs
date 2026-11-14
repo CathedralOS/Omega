@@ -49,8 +49,30 @@ pub(crate) fn clauses(
     repeated: Repeated,
     id: MachineId,
 ) -> Checked<Vec<Proposition>> {
+    associated_clauses(
+        propositions
+            .into_iter()
+            .map(|proposition| (proposition, ()))
+            .collect(),
+        repeated,
+        id,
+    )
+    .map(|rows| {
+        rows.into_iter()
+            .map(|(proposition, ())| proposition)
+            .collect()
+    })
+}
+
+/// Keep a clause's source description beside it while fixing canonical order.
+/// Associated payloads never participate in proposition identity or ordering.
+pub(crate) fn associated_clauses<T>(
+    propositions: Vec<(Proposition, T)>,
+    repeated: Repeated,
+    id: MachineId,
+) -> Checked<Vec<(Proposition, T)>> {
     let mut keyed = Vec::with_capacity(propositions.len());
-    for proposition in propositions {
+    for (proposition, associated) in propositions {
         let key = terminal_codec::canonical_proposition_order_key(&proposition).map_err(|_| {
             refuse(
                 id,
@@ -58,7 +80,7 @@ pub(crate) fn clauses(
                 Unserved::Contract("unencodable proposition"),
             )
         })?;
-        keyed.push((key, proposition));
+        keyed.push((key, proposition, associated));
     }
     keyed.sort_by(|left, right| left.0.cmp(&right.0));
     let repeats = keyed.windows(2).any(|pair| pair[0].0 == pair[1].0);
@@ -75,7 +97,7 @@ pub(crate) fn clauses(
     keyed.dedup_by(|later, earlier| later.0 == earlier.0);
     Ok(keyed
         .into_iter()
-        .map(|(_, proposition)| proposition)
+        .map(|(_, proposition, associated)| (proposition, associated))
         .collect())
 }
 

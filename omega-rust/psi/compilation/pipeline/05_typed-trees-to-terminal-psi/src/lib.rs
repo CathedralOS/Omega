@@ -78,6 +78,11 @@ pub use body::{
 pub use callable_formations::check_bound_callable_shapes;
 pub use compilation::{PreparedSource, prepare_compilation};
 pub use outcome::Outcome;
+// Installed logical calls share source preparation with ordinary refinement;
+// their canonical witnesses are judged by the next stage and never published.
+pub use terminal_check_tables::compilation::{
+    CallableArrivalWitness, CallableInputOrigin, NominalPremiseOrigin,
+};
 pub use terminal_check_tables::names::{Binder, ClauseText, MachineNames, Piece};
 
 use semantic_vocabulary::{IdTable, MachineId, PackageKeyIdentity, StructuralTypeId};
