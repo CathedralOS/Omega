@@ -1,5 +1,6 @@
 use domain::model;
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 // A digit is one token. Whitespace is optional; EOF and other bytes are errors.
 machine digit() -> i32 in Wrapping reaches Console {
     transition { _ -> read() }

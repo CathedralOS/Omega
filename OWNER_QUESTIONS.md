@@ -64,150 +64,31 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### Q1 - May a qualified operator be declared outside the domain's module?
+<a id="native-cache-producer-authorization"></a>
 
-Decision name: `unresolved-qualified-operator-home`.
+### Q1 - Does enabling a native component cache authorize its producer?
 
-**Customer.** No authored source and no product requirement needs an operator
-declared outside its domain's module. The only user is the #2965 homing test.
+Decision name: `native-cache-producer-authorization`.
 
-**Gap.** [Operator families](wiki/spec/language/expressions.md#operator-families)
-(`expressions.md:299-328`), [declaration and membership](wiki/spec/language/domains.md#declaration-and-membership)
-(`domains.md:23-29`), [foreign attached paths](wiki/spec/language/modules.md#foreign-attached-declaration-paths)
-(`modules.md:77-94`), and [operators on a domain](wiki/language_guide/chapter_8_domains.md#operators-on-a-domain)
-(`chapter_8_domains.md:111-123`) were checked. A qualified name establishes a
-home, operations are separate machines, a short path selects an exposed domain,
-and the guide places the operator beside the domain. Those clauses are silent
-on a root file declaring `Carrier::Leaf::op`.
+**Customer.** Separate package builds reuse native components from the optional
+disk cache. `ComponentProductCache::load` checks the compiler identity, input
+key, record size and content digest before recovering a component. Those checks
+identify bytes; they do not authorize the process that produced them.
 
-```omega
-// Form A, inside the domain's module.
-module units;
-public domain u64::Distance requires self > 0;
-public operator + u64::Distance::add(
-    left: u64 in u64::Distance, right: u64 in u64::Distance
-) -> u64 in u64::Distance;
+**Gap.** [Publication and separate consumption](wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
+requires receiving-host authorization of the exact artifact and producer, and
+permits trusted internal outputs without replay. That page and
+[claim admission](wiki/drafts/designs/psi_claim_admission.md) do not say whether
+configuring `CompilerProductRetention` is itself that host authorization.
+The implementation has a directory and identities, but no separate decision.
 
-// Form B, root file.
-use units;
-public operator + u64::Distance::add(
-    left: u64 in u64::Distance, right: u64 in u64::Distance
-) -> u64 in u64::Distance;
-```
+**Question.** (a) Require explicit host authorization for recovered components,
+treating unauthorized optional cache entries as misses and rebuilding source;
+or (b) define enabling a cache as an explicit host decision to trust its writers
+and recovered contents? Directory protection remains the host's responsibility,
+not a new Omega guarantee. Recommend (a), keeping byte identity separate from
+authorization without adding an OS credential or ACL system.
 
-Before #2965, Form B stays a root item, so `a + b` fails to resolve.
-Now Form B is homed on `u64::Distance`, so `a + b` resolves.
-
-**Question.** (a) Allow the root form (current behavior)? (b) Or reject a
-qualified operator declared outside the domain's module?
-
-**Until answered.** The compiler homes Form B on `u64::Distance`.
-
-### Q2 - How does a caller in another verification unit know a machine never returns?
-
-Decision name: `published-no-return`.
-
-**Customer.** A library helper whose every path exits or crashes (an `abort`
-or `fail` machine in `std`) called from an application. Under
-[statements after a call that never returns](wiki/spec/language/state_contracts.md#statements-after-a-call-that-never-returns)
-the caller's continuation is unreachable only when checked evidence excludes
-normal return; without that evidence the caller must still prove everything
-after the call, including a result it can never produce.
-
-**Gap.** [Local call summaries](wiki/spec/language/state_contracts.md#local-call-summaries)
-says that across a verification-unit boundary a call uses the published
-contract, that extra result and state guarantees are authored rather than
-exported from the body, and lists what a published contract retains from
-inference: reach, write frames, ownership, borrow-origin, validity and callback
-dependencies. Absence of normal return is not in that list, and
-`code-after-no-return-call` introduces no `never` type or keyword. The pages
-give no way to author it, and do not say it is retained. The canonical
-`ProcessExit::exit_process` requirement is covered by
-[process exit](wiki/spec/language/process_exit.md); an ordinary machine wrapping
-it is not. Pages checked: those two, plus "Verification-unit boundary" and
-"Unreachable branches" in `state_contracts.md`.
-
-**Question.** Across a unit boundary, is a machine's lack of any normal return
-(a) authored with an existing construct, `ensures false`, which under partial
-correctness already means no normal return can occur; (b) retained
-automatically in the published contract like inferred reach; or (c) not
-visible, so the caller treats non-return as unknown?
-
-**Until answered.** The checker uses every machine's body-derived outcome
-regardless of unit (behaviour that predates the rule, kept by #2983). That is
-(b) in effect and is wider than the unit rule as written.
-
-### Q3 - What becomes of the fact samples whose dependency package was removed?
-
-Decision name: `fact-sample-dependency-packages`.
-
-**Customer.** Three families of `samples/cli/facts/` exist to show a
-capability across a package boundary: `build_target_provider`,
-`dependency_type_qualified_call` and `component_scalar_lending`. Each place's
-Build registers a dependency in a folder beside it
-(`Source::Path { location: "reading_provider" }`, `"lib"`, `"producer"`).
-
-**Gap.** #1841 ("deduplicate facts corpus and freeze new fact additions")
-removed those folders, 216 files, as duplicates of each other, and left the
-Builds that name them. Every program of the three families, about 55 with
-their `invalid/` twins, is refused before its Build finishes: `cannot
-establish canonical external source path`. The same change froze the
-directory: `cargo xtask check-rules` rejects any new `.omg` file under
-`samples/cli/facts/`, so the folders cannot be put back there, and a shared
-copy elsewhere would be new sample design, not a repair. This is repository
-content and its freeze rule, which no agent may change; no page of
-`wiki/spec/` is involved.
-
-**Question.** (a) Restore one shared dependency package per family outside
-the frozen directory and point each place's Build at it (six new `.omg`
-files); (b) delete the three families, since a sample that cannot have its
-dependency shows nothing; or (c) leave them refused?
-
-**Until answered.** The samples stay as they are and are refused at source
-discovery. They are the largest group of programs that still stops in its
-Build.
-
-### Q5 - May a value or a declaration be named like an integer type?
-
-Decision name: `unresolved-integer-type-spelled-names`.
-
-**Customer.** `source/library/core/reflect.omg` binds locals `i1` through `i7`
-(`let i1: u64 = start + 1u64;`). Since the ratified
-[width-indexed integers](wiki/spec/language/numeric_values.md#width-indexed-integers)
-decision, every decimal spelling (`i1`, `u13`, `i257`) is a type name, so an
-unbounded set of short identifiers that programs already use as loop and index
-names now also names a type.
-
-**Gap.** No page says whether a builtin type name may be reused:
-- `data_and_literals.md` ("Identifiers match `[A-Za-z_][A-Za-z0-9_]*`") lists no
-  reserved identifiers and no keyword list exists.
-- `modules.md` gives the resolution order (local bindings, state parameters,
-  machine parameters, imported names, qualified paths) without placing builtin
-  carriers in it, and says only that "lexical bindings keep their ordinary
-  meaning".
-- `generics.md` ("Each operand must resolve in its type role") and
-  `expressions.md` ("Type/value role resolution happens before choosing that
-  operation") imply names are read by role, but neither says types and values
-  have separate name spaces.
-- `data_and_literals.md` rejects collisions only inside one owner's member
-  namespace; `machines.md` defers duplicates to "ordinary name/overload rules"
-  that no page defines.
-- `numeric_values.md`, `constants.md`, `patterns.md`, `dependent_values.md`,
-  `state_contracts.md` and language guide chapters 1, 3, 5, 6, 12 and 13 do
-  not address it.
-
-**Question.** For a name that is also an integer type spelling:
-1. May a local, parameter or field take it (`let i1 = ...`), and if so does
-   the binding hide the type inside its scope (so `i1::max()` or `x as i1`
-   there is an error), or do values and types never compete because each use
-   is read by its role?
-2. May a top-level declaration take it (`data u7 { ... }`, `const i1`), and
-   which one does a type position then name?
-3. Or are the integer type spellings reserved, so `core::reflect` must rename
-   its locals?
-
-**Until answered.** Nothing is reserved and nothing is diagnosed. A value
-position reads the local, parameter or field; a type position, a literal
-suffix and a path qualifier read the builtin integer type. What a top-level
-declaration spelled like a carrier does has not been measured. No fixture pins
-any of this as intended.
+**Until answered.** Cache recovery retains its existing behavior; hashes must
+not be described as producer authorization. The public native ingress repair
+remains under `PSI-CLAIM-ADMISSION`.

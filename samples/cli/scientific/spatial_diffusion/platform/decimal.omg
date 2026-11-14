@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 
 // Decimal output keeps its own bounded divisor loop; no formatter package.
 public machine number(value: i64 in Wrapping)

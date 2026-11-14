@@ -8,7 +8,7 @@ description: Coordinate a requested local or cloud swarm of concurrent Omega age
 This skill defines environment setup and session transport. Execution ownership
 follows [AGENTS.md](../../../AGENTS.md#sessions-and-subagents), the worker workflow
 is [advance](../advance/SKILL.md), and publication follows
-[landing](../../../tools/landing.md). Point workers to those sources instead of
+[landing](../../../tools/docs/landing.md). Point workers to those sources instead of
 copying their rules into prompts or platform references.
 
 - **Dispatch:** The coordinator runs `/advance` Step 1 and starts workers immediately. Each worker owns Steps 2–5 in its isolated `.agents/worktree/worker-N` pool slot and context window, including self-review with [coordinator-review](../coordinator-review/SKILL.md) and verified landing. A coordinator may review a diff; workers do not wait for routine coordinator approval. Explicit source-upload batch integration is a separate mode described in [Codex](references/codex.md).
@@ -27,4 +27,4 @@ Read **only** the reference matching the runtime tools exposed in your current e
 | **4. Codex Cloud** | `list_threads`, `create_thread`, `send_message_to_thread`, `wait_threads` | [references/codex.md](references/codex.md) |
 | **5. Cursor Cloud** | `cursor` `Task` tool with `environment: "cloud"` and `run_in_background: true` | [references/cursor.md](references/cursor.md) |
 | **6. Devin Cloud** | Devin cloud session tools + `cargo xtask claims` | [references/devin.md](references/devin.md) |
-| **7. Dot Collaboration** | `collaboration.spawn_agent`, `followup_task`, `send_message`, `wait_agent` | [references/dot.md](references/dot.md), [references/cloud-launch.md](references/cloud-launch.md), [references/cloud-coordination.md](references/cloud-coordination.md) & [references/recovery.md](references/recovery.md) |
+| **7. Native in-session collaboration** | `collaboration.spawn_agent`, `followup_task`, `send_message`, `wait_agent` | [references/dot.md](references/dot.md); these tools share the current computer and do not by themselves imply a cloud executor |

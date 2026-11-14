@@ -183,7 +183,7 @@ pub fn compare(plan_path: &Path, output: &Path) -> Result<Report, String> {
             "logical_cpus":std::thread::available_parallelism().ok().map(usize::from),
             "processor":std::env::var("PROCESSOR_IDENTIFIER").ok().or_else(||std::fs::read_to_string("/proc/cpuinfo").ok().and_then(|text|text.lines().find_map(|line|line.strip_prefix("model name").and_then(|line|line.split_once(':')).map(|(_,name)|name.trim().to_owned())))),
             "host_id_sha256":host_identifier()},
-        "inherited_settings":(["OMEGA_REVIEW_TIMINGS","OMEGA_ALLOCATION_PROFILE","RUST_MIN_STACK","RAYON_NUM_THREADS"].into_iter().filter_map(|name|std::env::var(name).ok().map(|value|(name,value))).collect::<BTreeMap<_,_>>()),
+        "inherited_settings":(["OMEGA_REVIEW_TIMINGS","RUST_MIN_STACK","RAYON_NUM_THREADS"].into_iter().filter_map(|name|std::env::var(name).ok().map(|value|(name,value))).collect::<BTreeMap<_,_>>()),
         "resource_limits":{"address_space_bytes":crate::process::address_space_limit(), "process_memory_bytes":8589934592_u64,
             "aggregate_memory_bytes":8589934592_u64, "active_processes":64, "capture_bytes_per_stream":1048576},
         "timing_boundary":"process wall includes startup, capture and cleanup; reported_work is child-instrumented",
@@ -212,30 +212,11 @@ fn run(
     let snapshot = snapshot(plan, plan_path)?;
     journal.append(&json!({"event":"identities", "sha256":snapshot,
         "runner_sha256":file_digest(&std::env::current_exe().map_err(|error| error.to_string())?)?}))?;
+    // A compiler is identified by its `--version` text beside the executable
+    // SHA-256 already in `identities`. `omega` reports no optimization level, so
+    // the plan author owns choosing release-built producers.
     if matches!(plan.measurement, Measurement::Compiler { .. }) {
         for (role, command) in [("baseline", &plan.baseline), ("candidate", &plan.candidate)] {
-            let (_, profile) = capture(
-                &command.program,
-                &["--build-profile".into()],
-                &command.environment,
-                &plan.working_directory,
-                &[],
-                plan.timeout_ms,
-            )?;
-            write_capture(output, &format!("{role}.profile"), &profile)?;
-            let profile_value: Value = serde_json::from_slice(&profile.stdout)
-                .map_err(|error| format!("{role}: invalid build profile: {error}"))?;
-            if !profile.status.success()
-                || profile_value["schema"] != "omega-compiler-build-profile-v1"
-                || !matches!(
-                    profile_value["opt_level"].as_str(),
-                    Some("1" | "2" | "3" | "s" | "z")
-                )
-            {
-                return Err(format!(
-                    "{role}: optimized compiler build profile required: {profile_value}"
-                ));
-            }
             let (_, version) = capture(
                 &command.program,
                 &["--version".into()],
@@ -248,10 +229,8 @@ fn run(
             if !version.status.success() {
                 return Err(format!("{role}: compiler --version failed"));
             }
-            journal.append(
-                &json!({"event":"compiler_identity", "role":role, "profile":profile_value,
-                "version":String::from_utf8_lossy(&version.stdout)}),
-            )?;
+            journal.append(&json!({"event":"compiler_identity", "role":role,
+                "version":String::from_utf8_lossy(&version.stdout)}))?;
         }
     }
     let mut artifact_identity = None;

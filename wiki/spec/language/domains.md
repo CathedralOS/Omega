@@ -518,7 +518,9 @@ windows provide no exemption.
 
 No general satisfiability decision or witness search is required. Proved
 uninhabitedness may support a warning or explain a failed use, but is not itself
-a declaration error. An unproved membership obligation rejects that attempted
+a declaration error. A predicate written as literally `false`, as on core
+[`Never`](data_and_literals.md#the-uninhabited-type-never), states intended
+emptiness and draws no such warning. An unproved membership obligation rejects that attempted
 establishment; it need not diagnose whether the domain is uninhabited or the
 proof automation is insufficient. Failure of one candidate or of proof search
 does not prove that every candidate fails. Stronger proof automation must not

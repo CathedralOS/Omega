@@ -1,0 +1,22 @@
+// A nested helper inherits only the enclosing static type selection.
+// Runtime values are explicit formals, including same-spelled outer/inner
+// parameters. The two outer applications must keep distinct helper bodies.
+machine relay<T>(item: T, limit: u32) -> u32
+requires limit <= 10
+ensures result <= 11
+crashes none
+{
+    nested(item, limit)
+    machine nested(item: T, limit: u32) -> u32
+    requires limit <= 10
+    ensures result <= 10
+    crashes none
+    { limit + 1 }
+}
+machine main() crashes Trap {
+    let small: u32 = relay<u8>(3u8, 4);
+    let flagged: u32 = relay<bool>(true, 9);
+    transition small == 5 && flagged == 10 { true -> done() false -> wrong() }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

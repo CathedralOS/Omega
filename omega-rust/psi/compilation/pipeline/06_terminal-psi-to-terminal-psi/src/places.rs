@@ -94,6 +94,7 @@ use terminal_psi::{
 use crate::graph::Graph;
 use crate::{StorageUse, refusal};
 
+mod contents;
 mod loans;
 mod log;
 
@@ -232,41 +233,59 @@ fn asked_root(asked: Asked<'_>) -> PlaceId {
     asked.place().root
 }
 
-/// The initial content value of each place that has one, indexed by
-/// `ExactPlaceId - 1`. A derived column over the value table: elaboration
-/// mints at most one such value per place.
-///
-/// The lowered form declares no initial content value, so nothing in it fixes
-/// which identity belongs to which leaf. They are minted in the order of
-/// the leaves they belong to, and any other order is refused: otherwise two
-/// rows of the same type could exchange their leaves and be read as each
-/// other's contents. A second value for one place is out of order too: it
-/// would be a second identity for one content.
-fn initial_contents(machine: MachineId, tables: &MachineTables) -> Checked<Vec<Option<ValueId>>> {
-    let mut contents = vec![None; tables.places.len()];
-    let mut previous: Option<ExactPlaceId> = None;
+/// Logical values indexed by exact place at entry and by (call, place) on
+/// return. The producer lists snapshots in (place, boundary) order, so
+/// duplicate or exchanged identities cannot change which leaf a clause names.
+struct Contents {
+    entry: Vec<Option<ValueId>>,
+    calls: Vec<Vec<(ExactPlaceId, ValueId)>>,
+}
+
+fn initial_contents(
+    machine: MachineId,
+    tables: &MachineTables,
+    operations: usize,
+) -> Checked<Contents> {
+    let mut contents = Contents {
+        entry: vec![None; tables.places.len()],
+        calls: vec![Vec::new(); operations],
+    };
+    let mut previous = None;
     for (value, row) in tables.values.iter() {
-        let ValueOrigin::InitialContent { place } = row.origin else {
+        let ValueOrigin::StorageContent { place, after } = row.origin else {
             continue;
         };
-        if previous.is_some_and(|previous| previous >= place) {
+        let key = (place, after);
+        if previous.is_some_and(|previous| previous >= key) {
             return Err(refusal(
                 RefusalReason::ForeignIdentity,
                 machine,
                 Construct::Value(value),
-                "initial content values are not in the order of the leaves they belong to",
+                "storage content values are not in the order of their leaves and call boundaries",
             ));
         }
-        previous = Some(place);
-        let slot = contents.get_mut(index(place.get())).ok_or_else(|| {
+        previous = Some(key);
+        let entry = contents.entry.get_mut(index(place.get())).ok_or_else(|| {
             refusal(
                 RefusalReason::ForeignIdentity,
                 machine,
                 Construct::Value(value),
-                "entry content of a place past the end of this machine",
+                "content of a place past the end of this machine",
             )
         })?;
-        *slot = Some(value);
+        if let Some(call) = after {
+            let returned = contents.calls.get_mut(index(call.get())).ok_or_else(|| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    machine,
+                    Construct::Value(value),
+                    "storage content names a call past the end of this machine",
+                )
+            })?;
+            returned.push((place, value));
+        } else {
+            *entry = Some(value);
+        }
     }
     Ok(contents)
 }
@@ -488,9 +507,13 @@ struct BoundPayload<'a> {
 pub(crate) struct Storage<'a> {
     machine: MachineId,
     lowered: &'a TerminalMachine,
+    module: &'a terminal_psi::TerminalModule,
     types: &'a [StructuralTypeDeclaration],
     graph: &'a Graph,
     initial_contents: Vec<Option<ValueId>>,
+    returned_contents: Vec<Vec<(ExactPlaceId, ValueId)>>,
+    /// Bound actual operations and structural edge bindings once per machine.
+    reaching_budget: usize,
     log: Vec<Logged>,
     /// The `requires` clauses of each data type, by its identity
     /// (`Elaboration::domains`).
@@ -501,7 +524,7 @@ impl<'a> Storage<'a> {
     pub(crate) fn new(
         machine: MachineId,
         lowered: &'a TerminalMachine,
-        types: &'a [StructuralTypeDeclaration],
+        module: &'a terminal_psi::TerminalModule,
         domains: &'a IdTable<StructuralTypeId, Vec<Proposition>>,
         graph: &'a Graph,
         tables: &MachineTables,
@@ -510,12 +533,30 @@ impl<'a> Storage<'a> {
         // First, because every lineage below is read through the place
         // table's parent links.
         log::places_are_interned(machine, tables)?;
+        let reaching_budget = lowered
+            .blocks
+            .iter()
+            .map(|block| {
+                block.operations.len()
+                    + block
+                        .terminator
+                        .successor_block_arguments()
+                        .iter()
+                        .map(|arguments| arguments.len())
+                        .sum::<usize>()
+            })
+            .sum::<usize>()
+            + 1;
+        let contents = initial_contents(machine, tables, graph.operation_count())?;
         let mut storage = Self {
             machine,
             lowered,
-            types,
+            module,
+            types: &module.structural_types,
             graph,
-            initial_contents: initial_contents(machine, tables)?,
+            initial_contents: contents.entry,
+            returned_contents: contents.calls,
+            reaching_budget,
             log: Vec::new(),
             domains,
         };
@@ -1124,8 +1165,14 @@ impl<'a> Storage<'a> {
                 }
                 _ => Err(self.foreign(concerns, "a result place on a machine with none")),
             },
-            StructuralPlaceKind::BlockParameter { .. }
-            | StructuralPlaceKind::ProviderAttachment { .. }
+            StructuralPlaceKind::BlockParameter { block, position } => self
+                .block(block)?
+                .structural_parameters
+                .get(usize::try_from(position).unwrap_or(usize::MAX))
+                .filter(|parameter| parameter.position == position && parameter.place == root)
+                .map(|parameter| parameter.structural_type)
+                .ok_or_else(|| self.foreign(concerns, "a block formal's place has no declaration")),
+            StructuralPlaceKind::ProviderAttachment { .. }
             | StructuralPlaceKind::TrivialAffineLocal { .. } => {
                 Err(self.unsupported(concerns, "a root place kind outside this route"))
             }
@@ -1300,7 +1347,11 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<()> {
         match &self.declaration(structural_type, concerns)?.shape {
-            StructuralTypeShape::PrimitiveScalar(_) => found.push(at.clone()),
+            // An opaque value occupies one established place. Its lack of
+            // visible fields does not make its contents absent or zeroable.
+            StructuralTypeShape::Opaque | StructuralTypeShape::PrimitiveScalar(_) => {
+                found.push(at.clone());
+            }
             shape if is_shared_view(shape) => {
                 found.push(at.clone());
             }
@@ -1433,28 +1484,15 @@ impl<'a> Storage<'a> {
                 path,
                 field,
             } => {
-                let mut segments = Vec::with_capacity(path.len() + 1);
-                for segment in path {
-                    match segment {
-                        CanonicalStructuralPathSegment::Field(field) => {
-                            segments.push(Segment::Field(*field));
-                        }
-                        CanonicalStructuralPathSegment::Case(case) => {
-                            segments.push(Segment::Case(*case));
-                        }
-                        CanonicalStructuralPathSegment::FixedIndex(_)
-                        | CanonicalStructuralPathSegment::Referent => {
-                            return Err(
-                                self.unsupported(concerns, "read through an index or a referent")
-                            );
-                        }
-                    }
-                }
-                segments.push(Segment::Field(*field));
-                let leaf = Lineage {
-                    root: *source,
-                    segments,
-                };
+                let mut leaf = extended(
+                    Lineage {
+                        root: *source,
+                        segments: Vec::new(),
+                    },
+                    path,
+                )
+                .map_err(|unbound| unbound.refusal(self.machine, concerns))?;
+                leaf.segments.push(Segment::Field(*field));
                 if !matches!(self.shape(&leaf, concerns)?, Shape::Scalar(_)) {
                     return Err(
                         self.foreign(concerns, "a scalar read of storage that is no scalar")
@@ -1670,21 +1708,19 @@ impl<'a> Storage<'a> {
                     .zero_case(row.lineage.root, beneath, concerns)?
                     .map_or(Reached::Unknown, Reached::Case),
                 (Stored::Zeroed, Asked::Contents(_)) => Reached::Unknown,
-                (Stored::Established, Asked::Contents(leaf)) => {
-                    let is_producer = matches!(self.root_kind(leaf.root, concerns)?,
-                        StructuralPlaceKind::OperationResult { producer, .. }
-                            if producer == row.operation && row.lineage.segments.is_empty());
-                    if is_producer {
-                        self.interned(tables, leaf, concerns)?
-                            .and_then(|place| {
-                                self.initial_contents.get(index(place.get())).copied()
+                (Stored::Established, Asked::Contents(leaf)) => self
+                    .interned(tables, leaf, concerns)?
+                    .and_then(|place| {
+                        self.returned_contents
+                            .get(index(row.operation.get()))
+                            .and_then(|values| {
+                                values
+                                    .binary_search_by_key(&place, |(place, _)| *place)
+                                    .ok()
+                                    .map(|found| values[found].1)
                             })
-                            .flatten()
-                            .map_or(Reached::Returned, Reached::Value)
-                    } else {
-                        Reached::Returned
-                    }
-                }
+                    })
+                    .map_or(Reached::Returned, Reached::Value),
                 (Stored::Established, Asked::Case(_)) => Reached::Unknown,
                 // A window is answered by the row alone, above.
                 (Stored::Zeroed | Stored::Established, Asked::Window { .. }) => {
@@ -1863,6 +1899,97 @@ impl<'a> Storage<'a> {
                 supply(self.supplied(tables, index, asked, budget, concerns)?);
                 continue;
             }
+            // A block formal is a new owner of the selected edge's actual
+            // value. Follow that exact region before the edge consumes it;
+            // do not invent initial contents or pick one predecessor's value.
+            if let StructuralPlaceKind::BlockParameter {
+                block: owner,
+                position,
+            } = self.root_kind(asked_root(asked), concerns)?
+                && owner == block
+            {
+                let target = self.block(block)?;
+                let position = usize::try_from(position)
+                    .map_err(|_| self.foreign(concerns, "a block formal position exceeds usize"))?;
+                let parameter = target.structural_parameters.get(position).ok_or_else(|| {
+                    self.foreign(concerns, "a block formal is outside its telescope")
+                })?;
+                if parameter.place != asked_root(asked)
+                    || usize::try_from(parameter.position).ok() != Some(position)
+                {
+                    return Err(self.foreign(concerns, "a block formal has another owner"));
+                }
+                // A transfer establishes a whole value, as a whole store
+                // closes any window on the destination. A window on its
+                // source is owed at the edge's ordinary consumption point.
+                if matches!(asked, Asked::Window { .. }) {
+                    supply(Reached::Closed);
+                    continue;
+                }
+                let mut predecessors = self.graph.predecessors(block)?.to_vec();
+                predecessors.sort_unstable();
+                predecessors.dedup();
+                let mut found = false;
+                for predecessor in predecessors {
+                    let terminator = &self.block(predecessor)?.terminator;
+                    let successors = terminator.successor_edges();
+                    let bindings = terminator.successor_block_arguments();
+                    if successors.len() != bindings.len() {
+                        return Err(
+                            self.foreign(concerns, "an edge has no complete binding roster")
+                        );
+                    }
+                    for ((edge, into), arguments) in successors.into_iter().zip(bindings) {
+                        if into != block {
+                            continue;
+                        }
+                        found = true;
+                        if arguments.len() != target.structural_parameters.len() {
+                            return Err(self.foreign(
+                                Construct::Edge(edge),
+                                "structural edge arguments differ from the target telescope",
+                            ));
+                        }
+                        let argument = &arguments[position];
+                        if !terminal_psi::structural_access_covers(
+                            argument.access,
+                            parameter.access,
+                        ) {
+                            return Err(self.foreign(
+                                Construct::Edge(edge),
+                                "a structural edge argument has insufficient access",
+                            ));
+                        }
+                        let mut source = self.argument(argument, Construct::Edge(edge))?;
+                        if !matches!(self.shape(&source, Construct::Edge(edge))?,
+                            Shape::Typed(actual) if actual == parameter.structural_type)
+                        {
+                            return Err(self.foreign(
+                                Construct::Edge(edge),
+                                "a structural edge argument has another type",
+                            ));
+                        }
+                        source.segments.extend_from_slice(&asked.place().segments);
+                        let asked = match asked {
+                            Asked::Contents(_) => Asked::Contents(&source),
+                            Asked::Case(_) => Asked::Case(&source),
+                            Asked::Window { .. } => unreachable!("windows close at the binding"),
+                        };
+                        supply(self.reaching(
+                            tables,
+                            asked,
+                            predecessor,
+                            usize::MAX,
+                            budget,
+                            concerns,
+                        )?);
+                    }
+                }
+                if !found {
+                    return Err(self.foreign(concerns, "a block formal has no incoming binding"));
+                }
+                continue;
+            }
             if block == self.graph.entry() {
                 supply(
                     match (asked, self.root_kind(asked_root(asked), concerns)?) {
@@ -1923,12 +2050,7 @@ impl<'a> Storage<'a> {
     }
 
     fn budget(&self) -> usize {
-        self.lowered
-            .blocks
-            .iter()
-            .map(|block| block.operations.len())
-            .sum::<usize>()
-            + 1
+        self.reaching_budget
     }
 
     /// The equation a read establishes on its normal successor:
@@ -2087,7 +2209,7 @@ impl<'a> Storage<'a> {
                             || (row.lineage.segments.is_empty() && row.operation == producer)
                     }) =>
                 {
-                    Some(leaf.clone())
+                    Some((leaf.clone(), 0))
                 }
                 _ => None,
             },
@@ -2095,8 +2217,16 @@ impl<'a> Storage<'a> {
                 match terminal_check_tables::row(&tables.values, held, self.machine, concerns)?
                     .origin
                 {
-                    ValueOrigin::InitialContent { place } => {
-                        Some(lineage(self.machine, &tables.places, place)?)
+                    ValueOrigin::StorageContent { place, after } => {
+                        let arrived = lineage(self.machine, &tables.places, place)?;
+                        let start = match after {
+                            None => 0,
+                            Some(call) => self
+                                .call_content_boundary(call, &arrived, concerns)?
+                                .segments
+                                .len(),
+                        };
+                        Some((arrived, start))
                     }
                     ValueOrigin::MachineParameter { .. }
                     | ValueOrigin::MachineResult
@@ -2110,11 +2240,11 @@ impl<'a> Storage<'a> {
             | Reached::Open
             | Reached::Closed => None,
         };
-        let Some(arrived) = arrived else {
+        let Some((arrived, start)) = arrived else {
             return Ok(Vec::new());
         };
         let mut premises = Vec::new();
-        for length in (0..arrived.segments.len()).rev() {
+        for length in (start..arrived.segments.len()).rev() {
             let owner = Lineage {
                 root: arrived.root,
                 segments: arrived.segments[..length].to_vec(),
@@ -3126,7 +3256,8 @@ struct Held<'s, 'a> {
     concerns: Construct,
 }
 
-/// Extends `place` by the fields and cases a clause's path names.
+/// Extend a clause's exact path. The storage walk independently checks each
+/// field, case and index against the type reached by the previous segment.
 fn extended(
     mut place: Lineage,
     path: &[CanonicalStructuralPathSegment],
@@ -3135,11 +3266,9 @@ fn extended(
         place.segments.push(match segment {
             CanonicalStructuralPathSegment::Field(field) => Segment::Field(*field),
             CanonicalStructuralPathSegment::Case(case) => Segment::Case(*case),
-            CanonicalStructuralPathSegment::FixedIndex(_)
-            | CanonicalStructuralPathSegment::Referent => {
-                return Err(crate::Unbound::Unsupported(
-                    "a clause through an index or a referent",
-                ));
+            CanonicalStructuralPathSegment::FixedIndex(position) => Segment::FixedIndex(*position),
+            CanonicalStructuralPathSegment::Referent => {
+                return Err(crate::Unbound::Unsupported("a clause through a referent"));
             }
         });
     }
@@ -3533,6 +3662,14 @@ impl crate::Bindings for Held<'_, '_> {
     ) -> Result<ScalarTerm, crate::Unbound> {
         let leaf = self.beneath(root, path)?;
         let storage = self.storage;
+        if !matches!(
+            storage.shape(&leaf, self.concerns).map_err(crate::Unbound::Refused)?,
+            Shape::Scalar(declared) if declared == scalar_type
+        ) {
+            return Err(crate::Unbound::Unsupported(
+                "a data clause names storage with another scalar type",
+            ));
+        }
         let mut budget = storage.budget();
         let reached = storage
             .reaching(

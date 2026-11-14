@@ -567,7 +567,7 @@ machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {{
         let storage = crate::places::Storage::new(
             lowered.id,
             &lowered,
-            &elaboration.module.structural_types,
+            &elaboration.module,
             &elaboration.domains,
             &graph,
             &tables,

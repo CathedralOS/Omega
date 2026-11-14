@@ -1,12 +1,13 @@
-# Dot Swarm (Dot Native Collaboration Adapter)
+# Native in-session collaboration
 
-This reference defines the `dot` native-collaboration transport for running concurrent agents on a shared cloud computer.
+These tools start agents on the current computer, including a local Windows
+workstation. Their presence does not identify the product as Dot, provision a
+cloud machine, or require a remote-artifact recovery workflow.
 
-Session ownership, execution and publication follow the [swarm skill](../SKILL.md), [advance](../../advance/SKILL.md), and [landing](../../../../tools/landing.md).
+Execution and publication follow [advance](../../advance/SKILL.md),
+[AGENTS.md](../../../../AGENTS.md), and [landing](../../../../tools/docs/landing.md).
 
-## 1. Dot Native Collaboration Tools & Executor Budget
-
-Apply [cloud launch preflight](cloud-launch.md), [recovery](recovery.md), and [cloud coordination](cloud-coordination.md):
+## Tools and capacity
 
 | Operation | Native tool |
 | --- | --- |
@@ -18,14 +19,36 @@ Apply [cloud launch preflight](cloud-launch.md), [recovery](recovery.md), and [c
 | Stop an active turn when necessary | `collaboration.interrupt_agent` |
 
 - `send_message` does not restart an idle worker; use `followup_task` to resume a settled worker.
-- The runtime enforces seven active-agent slots across the entire root tree (including the coordinator). Native agents share one filesystem and CPU/RAM budget: run one host Rust build at a time and give each editing worker its own `worker-N` pool slot:
-  ```bash
-  cargo xtask worktree acquire <lane>-<topic>
-  ```
-  Local named branches are banned. Record slot assignments before dispatch in `build/swarm/<wave>/inflight.json`.
+- Use the capacity actually exposed by the runtime, including the coordinator;
+  do not assume a fixed agent count or change user configuration to obtain more.
+- Each editing worker gets an isolated `worker-N` pool slot through `/advance`.
+  Preserve its fixed path and warm target across successive repairs.
+- Workers share this host's CPU, memory and disk. Set the current
+  [host build budget](../../../../tools/docs/build_slot.md) before builds and include
+  it in every worker prompt; shell settings are not inherited by subagents.
+  Keep target directories separate and use the shared mbx scheduler budget.
 
-## 2. Dispatch & Reactive Drain
+## Dispatch and continuation
 
-1. **Dispatch:** Fetch `origin/main`, check `cargo xtask claims status`, and give each worker its worktree path, base SHA, assigned capability and witness, and instructions to follow `/advance` through verified landing.
-2. **Reactive wakeup only:** Never schedule timers, cron jobs, or periodic check-ins. When no coordinator work remains runnable, end the turn (or use `collaboration.wait_agent`) and let worker completion reports wake the coordinator.
-3. **Continue:** After the worker verifies its landing and reports the PR URL, submitted head, published commit and observed limits, use `collaboration.followup_task` on the same worker and warm worktree for the next requirement of the parent capability, and append settled outcomes to `build/swarm/<wave>/outcomes.json`.
+The coordinator performs `/advance` Step 1, then dispatches an outcome with its
+worktree, fixed base, claim result, witness, acceptance and build budget. The
+worker owns investigation, repair, focused checks, self-review and verified PR
+landing. Claims are informational; an overlap is reconciled, not permission to
+substitute peripheral work. Share actual producer dependencies, not file locks.
+
+Keep a small ignored wave record under `build/swarm/<wave>/` with assignments,
+returned handles, pending command IDs and landing evidence. No Python ledger,
+schema migration, cloud identity or external upload is required for this shared
+filesystem. Preserve committed source and use normal PR publication.
+
+Observe the exact existing command or worker after a timeout; silence does not
+prove it stopped. Do not launch a replacement to discover whether it is alive.
+When no independent work remains, end the turn or use `wait_agent`; do not poll
+in loops or schedule check-ins. After verified landing, use `followup_task` to
+continue on the same worker and warm worktree; `send_message` alone does not
+restart an idle worker. Release completed owned claims and slots through the
+current repository commands, preserving unfinished work and shared caches.
+
+Only when a task actually selects a separate remote environment should its
+provider's cloud setup and recovery guidance apply. Native tools on an existing
+computer are not such a selection and confer no extra provisioning authority.

@@ -298,7 +298,7 @@ impl<'t> Program<'t> {
             }
             ExpressionNode::TypeExpression(_) => return unserved("type expression"),
             ExpressionNode::Match(matched) => {
-                return self.match_expression(id, slots, matched, expected_scalar, source);
+                return self.match_expression(id, slots, matched, expected, source);
             }
             // The subject of the enclosing `match`, named by the capture
             // identity stage 03 gave both; any other saved subject is
@@ -362,7 +362,7 @@ impl<'t> Program<'t> {
         id: MachineId,
         slots: &[Slot],
         matched: &typed_trees::expression::TableMatchExpression,
-        expected: Option<ScalarType>,
+        expected: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Expression> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
@@ -414,7 +414,7 @@ impl<'t> Program<'t> {
                     .collect(),
                 default,
             },
-            result: Some(ValueType::Scalar(result, Qualification::NONE)),
+            result: Some(result),
             source,
         })
     }
@@ -427,12 +427,8 @@ impl<'t> Program<'t> {
         matched: &typed_trees::expression::TableMatchExpression,
         record: semantic_vocabulary::StructuralTypeId,
         subject: &Expression,
-        expected: Option<ScalarType>,
-    ) -> Checked<(
-        Vec<(usize, Expression)>,
-        Option<Box<Expression>>,
-        ScalarType,
-    )> {
+        expected: Option<ValueType>,
+    ) -> Checked<(Vec<(usize, Expression)>, Option<Box<Expression>>, ValueType)> {
         use typed_trees::expression::MatchPattern;
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
         let mut arms: Vec<(usize, Expression)> = Vec::new();
@@ -506,6 +502,7 @@ impl<'t> Program<'t> {
                 return Err(unserved("match arm for a case an earlier arm selects"));
             }
             let value = self.arm_value(id, slots, arm.value, &mut result)?;
+            self.label_arm(id, &value, &arm.pattern);
             match case {
                 Some(case) => arms.push((case, value)),
                 None => default = Some(Box::new(value)),
@@ -515,24 +512,24 @@ impl<'t> Program<'t> {
         Ok((arms, default, result))
     }
 
-    /// One arm's value, which must be a plain scalar of the type every
-    /// earlier arm (or the destination) gave the match: `result` is that
-    /// type once known, and this arm's type after it.
+    /// Each arm transfers one value of the destination's exact type,
+    /// including its regions. Qualification and rigid-value judgments remain
+    /// separate; a matching carrier alone does not erase those obligations.
     fn arm_value(
         &mut self,
         id: MachineId,
         slots: &[Slot],
         value: ExpressionHandle,
-        result: &mut Option<ScalarType>,
+        result: &mut Option<ValueType>,
     ) -> Checked<Expression> {
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Expression(what));
-        let value = self.expression(id, slots, value, result.map(ValueType::plain))?;
+        let value = self.expression(id, slots, value, *result)?;
         let value_type = match value.result {
-            Some(ValueType::Scalar(scalar_type, Qualification::NONE)) => scalar_type,
-            Some(ValueType::Record(_, _, _)) => {
-                return Err(unserved("match with a data result"));
-            }
-            Some(ValueType::Scalar(..)) => {
+            Some(
+                value_type @ (ValueType::Scalar(_, Qualification::NONE)
+                | ValueType::Record(_, Qualification::NONE, _)),
+            ) => value_type,
+            Some(ValueType::Scalar(..) | ValueType::Record(..)) => {
                 return Err(unserved("match with a qualified result"));
             }
             Some(ValueType::Rigid(_)) => {
@@ -549,6 +546,34 @@ impl<'t> Program<'t> {
         }
         *result = Some(value_type);
         Ok(value)
+    }
+
+    /// How a warning about one value `match` arm names it: its pattern as
+    /// authored, or `_`, keyed by the span of the arm's value, which is how
+    /// lowering knows the arm when it records the arm as an authored branch
+    /// (`MachineNames::arms`). An arm whose value has no authored span is
+    /// named "an arm".
+    fn label_arm(
+        &mut self,
+        id: MachineId,
+        value: &Expression,
+        pattern: &typed_trees::expression::MatchPattern,
+    ) {
+        use typed_trees::expression::MatchPattern;
+        let SourceOrigin::Authored(span) = value.source else {
+            return;
+        };
+        let table = &self.typed.expression_table;
+        let label = match pattern {
+            MatchPattern::Wildcard => String::from("_"),
+            MatchPattern::Value(head) => table.display_name(*head),
+            MatchPattern::Destructure(pattern) => table.display_name(pattern.head),
+        };
+        if let Some(names) = self.names.get_mut(id) {
+            names
+                .arms
+                .push((span, format!("the `{label}` arm of a match")));
+        }
     }
 
     /// Value-position `match` over a scalar: `match code { 0 -> a, 1 -> b,
@@ -578,7 +603,7 @@ impl<'t> Program<'t> {
         slots: &[Slot],
         matched: &typed_trees::expression::TableMatchExpression,
         subject: Expression,
-        expected: Option<ScalarType>,
+        expected: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Expression> {
         use typed_trees::expression::MatchPattern;
@@ -643,6 +668,7 @@ impl<'t> Program<'t> {
                 }
             };
             let value = self.arm_value(id, slots, arm.value, &mut result)?;
+            self.label_arm(id, &value, &arm.pattern);
             match pattern {
                 Some(pattern) => arms.push((Selector::Value(pattern), value)),
                 None => default = Some(Box::new(value)),
@@ -676,7 +702,7 @@ impl<'t> Program<'t> {
                 arms,
                 default,
             },
-            result: Some(ValueType::Scalar(result, Qualification::NONE)),
+            result: Some(result),
             source,
         })
     }

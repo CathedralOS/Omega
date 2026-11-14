@@ -71,22 +71,39 @@ use typed_trees::{
     MachineSpecialization, PreparedSymbolRebinding, StaticRequirementDispatch, SubtreeEdges,
     SymbolRebinding, TypedTreeTables, TypedTrees,
 };
+
 mod named_conformances;
 
 pub(crate) fn prepare(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut generated = Vec::new();
     let mut captures = typed_trees::NamedConformanceCaptureIndex::new(program);
+    let mut instances = symbols::SymbolMap::default();
+    let mut indexed = 0;
     // A generated machine is appended to the machines and read in its turn.
     let mut position = 0;
     while position < program.machines().len() {
         let holder = program.machines()[position].symbol;
         for site in call_sites(program, position) {
+            // Rows are append-only during preparation. Index each actual
+            // association once; duplicate instance rows remain unserved.
+            for (index, row) in program
+                .machine_specializations
+                .iter()
+                .enumerate()
+                .skip(indexed)
+            {
+                instances
+                    .entry(row.instance)
+                    .and_modify(|known| *known = None)
+                    .or_insert(Some(index));
+            }
+            indexed = program.machine_specializations.len();
             let served =
                 named_conformances::serve(program, site, &mut captures).and_then(|handled| {
                     if handled {
                         Ok(())
                     } else {
-                        serve(program, site, &mut generated)
+                        serve(program, site, &mut generated, &instances)
                     }
                 });
             match served {
@@ -266,7 +283,12 @@ fn entered_machine(program: &TypedTrees, target: SymbolHandle) -> Option<(Symbol
     }
 }
 
-fn serve(program: &mut TypedTrees, site: Site, generated: &mut Vec<Generated>) -> Served<()> {
+fn serve(
+    program: &mut TypedTrees,
+    site: Site,
+    generated: &mut Vec<Generated>,
+    instances: &symbols::SymbolMap<Option<usize>>,
+) -> Served<()> {
     let Some(applied) = site.applied(program) else {
         return Ok(());
     };
@@ -293,7 +315,7 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut Vec<Generated>) -
         .generated_from
         .is_valid()
     {
-        return Ok(());
+        return enter_generated(program, site, &applied, callee, &arguments, instances);
     }
     let Some(machine) = program.machine_by_symbol(callee) else {
         if program
@@ -359,6 +381,109 @@ fn serve(program: &mut TypedTrees, site: Site, generated: &mut Vec<Generated>) -
     };
     site.enter(program, target);
     Ok(())
+}
+
+/// A lexical child has already been copied at its enclosing application's
+/// arguments, while typing retained those arguments on the call too. Spend
+/// them only when they select that exact existing copy. The source application
+/// stays authored; no new specialization or caller fact is manufactured.
+fn enter_generated(
+    program: &mut TypedTrees,
+    site: Site,
+    applied: &Applied,
+    callee: SymbolHandle,
+    arguments: &[StaticMachineArgument],
+    instances: &symbols::SymbolMap<Option<usize>>,
+) -> Served<()> {
+    let Some(Some(index)) = instances.get(&callee) else {
+        return Err(Stop::Unserved);
+    };
+    let row = &program.machine_specializations[*index];
+    let Some(template) = program.machine_by_symbol(row.template) else {
+        return Err(Stop::Unserved);
+    };
+    let parameters = program.machine_callable_parameters(template);
+    let table = &program.expression_table;
+    let selection = table.static_machine_application(row.binding_application);
+    let Some((owner, _)) = entered_machine(program, selection.registration_operation) else {
+        return Err(Stop::Unserved);
+    };
+    let Some(source) = program.machine_by_symbol(owner) else {
+        return Err(Stop::Unserved);
+    };
+    // The selection belongs to the original enclosing declaration, not an
+    // unrelated application with equal rendered arguments.
+    if row.template_parameters != source.type_parameters
+        || program.symbols.get(callee).generated_from != row.template
+    {
+        return Err(Stop::Unserved);
+    }
+    let mut lexical = row.template;
+    while lexical.is_valid() && lexical != owner {
+        lexical = program.symbols.get(lexical).parent;
+    }
+    if lexical != owner {
+        return Err(Stop::Unserved);
+    }
+    let source_parameters = program.machine_callable_parameters(source);
+    let operands = bound_arguments(
+        program,
+        &parameters,
+        &source_parameters,
+        row.binding_application,
+        arguments,
+    )?;
+    bind(program, applied.application, &operands);
+    site.enter(program, applied.target);
+    Ok(())
+}
+
+/// Compare a requested tuple with the complete original selection, including
+/// unused binders. This only acknowledges an already supplied application;
+/// the caller separately authenticates its source association.
+fn bound_arguments(
+    program: &mut TypedTrees,
+    parameters: &[typed_trees::data::TypeParameter],
+    source_parameters: &[typed_trees::data::TypeParameter],
+    selection: StaticMachineApplicationHandle,
+    arguments: &[StaticMachineArgument],
+) -> Served<Vec<Operand>> {
+    if parameters.len() != arguments.len() || parameters != source_parameters {
+        return Err(Stop::Unserved);
+    }
+    let table = &program.expression_table;
+    let actual_arguments = table.static_machine_application_arguments(selection);
+    let bindings = table.static_machine_application_bindings(selection);
+    if actual_arguments.len() != bindings.len() || bindings.len() != source_parameters.len() {
+        return Err(Stop::Unserved);
+    }
+    let mut selected = symbols::SymbolMap::default();
+    for (binding, argument) in bindings.iter().zip(actual_arguments) {
+        if selected
+            .insert(binding.parameter, argument.clone())
+            .is_some()
+        {
+            return Err(Stop::Unserved);
+        }
+    }
+    for parameter in source_parameters {
+        if !selected.contains_key(&parameter.symbol) {
+            return Err(Stop::Unserved);
+        }
+    }
+    let mut operands = Vec::with_capacity(parameters.len());
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        let Some(actual) = selected.get(&parameter.symbol) else {
+            return Err(Stop::Unserved);
+        };
+        let operand = Operand::read(program, parameter.symbol, &parameter.kind, argument)?;
+        let existing = Operand::read(program, parameter.symbol, &parameter.kind, actual)?;
+        if operand.is_open(program) || operand.identity != existing.identity {
+            return Err(Stop::Unserved);
+        }
+        operands.push(operand);
+    }
+    Ok(operands)
 }
 
 /// A call through an implementation parameter to a requirement that takes

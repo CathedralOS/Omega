@@ -4,7 +4,7 @@ use calorimetry::model;
 use calorimetry::report;
 use omega::language::core::F64::from_i32;
 use omega::language::core::I32::from_f64;
-use omega_language_std::console;
+use omega_language_std::Console;
 data Application { reader: Reader; parameters: [f64; 20]; observations: [f64; 8]; index: i32; count: i32; problem: Problem; time: f64; energy: f64; }
 machine Application::main(application: &mut Application) reaches Console crashes Trap {
     application.index = 0;

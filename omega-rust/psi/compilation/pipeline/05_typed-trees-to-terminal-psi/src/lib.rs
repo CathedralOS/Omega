@@ -544,6 +544,15 @@ fn finish_reading(
             &program.declaration_signatures,
             &mut elaboration,
         )
+        .and_then(|()| {
+            declare::provider_candidates(
+                typed,
+                &program.symbols,
+                &program.boundary_symbols,
+                &program.supplied,
+                &mut elaboration.module,
+            )
+        })
         .map_err(|reason| {
             refuse(
                 diagnostic,
@@ -859,6 +868,7 @@ fn lower_generic_for(
             }
         }
     }
+    lower::publish_write_frames(diagnostic, &mut module, &mut tables)?;
     // This is the emitted behavior before proving or publication. Keeping its
     // inventory here lets product consumers retain the exact judged module.
     module.unoptimized_behavior = module

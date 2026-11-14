@@ -6,6 +6,11 @@ explicit host request. It admits the requested target and bindings, establishes
 private entry storage, installs host adapters and executes through the Psi
 interpreter. Work replenishment resumes that same instance.
 
+When a completed native image is supplied for code-layout observations, failed
+inspection is an execution error, not an unavailable host capability. The CLI
+therefore fails `--both` instead of declining comparison with a successful native
+exit. A genuinely missing host provision can still make comparison unavailable.
+
 The language engine remains in `psi/interpreter/terminal-interpreter`.
 Target-aware ABI/locator checks, finite input replay, buffered output, virtual
 clocks and isolated-domain exit delegation belong here, not in a compiler.

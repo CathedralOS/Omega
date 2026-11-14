@@ -1,5 +1,5 @@
 // Complete independent negative control: an unguarded capacity read must fail.
-use omega_language_std::console;
+use omega_language_std::Console;
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {
     let sequence: [u8; 16];

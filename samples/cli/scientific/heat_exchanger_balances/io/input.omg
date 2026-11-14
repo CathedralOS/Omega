@@ -1,6 +1,7 @@
 module io::input;
 // Bounded decimal tokens. No allocation, wrapping or unbounded token storage.
-use omega_language_std::console;
+use omega_language_std::ByteRead;
+use omega_language_std::Console;
 use omega::language::core::narrow_i32_to_u32_trapping;
 use omega::language::core::F64::from_u32;
 

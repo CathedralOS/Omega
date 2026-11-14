@@ -752,7 +752,10 @@ native demand and receiving authority still decide which supplies may execute.
 On the lowered route, provider settlement leaves one small record for the
 products of a target: `selected_dispatch::SelectedExecution`, the target and
 its settled provider plans, formed only from the settled supply
-(`SelectedExecution::settle`). It carries no grants, callbacks, review
+(`SelectedExecution::settle`). A plan has one checked adapter row for every
+requirement of its slot's schema, naming the machine the accepted module
+states as the chosen provider's candidate for it
+(`provider_planning::target_supply`). It carries no grants, callbacks, review
 provenance, host roles or direct-call supplies: a product derives what it
 needs from those plans and the accepted Terminal artifact where it uses them,
 and a product whose inputs have no producer yet is refused by name

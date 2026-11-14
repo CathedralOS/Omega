@@ -66,6 +66,33 @@ impl AnonymousSourceCapture {
     }
 }
 
+impl build_time_evaluation::InvocationSourceConsent for AnonymousSourceCapture {
+    fn allows_selection(
+        &self,
+        sources: &Arc<source::SourceMap>,
+        requester: source::SourceSpan,
+        declaration: source::SourceSpan,
+        purpose: source::DependencyScope,
+    ) -> bool {
+        // This is the retained live Build input, not an anonymous package key.
+        // A later Product cohort or another capture cannot borrow its consent.
+        if purpose != source::DependencyScope::Build || !Arc::ptr_eq(sources, &self.sources) {
+            return false;
+        }
+        [requester, declaration].into_iter().all(|span| {
+            sources.get(span.source_id).is_some_and(|file| {
+                sources.source_is_selected(span.source_id)
+                    && file.origin == source::SourceOrigin::User
+                    && file.package_identity.is_none()
+                    && file.package_root == self.root
+                    && file.dependency_scope == purpose
+                    && span.span.start <= span.span.end
+                    && span.span.end <= file.source.len()
+            })
+        })
+    }
+}
+
 fn field(digest: &mut Sha256, bytes: &[u8]) {
     digest.update((bytes.len() as u64).to_le_bytes());
     digest.update(bytes);
@@ -142,6 +169,57 @@ mod tests {
             },
         )])
         .expect("closed source snapshot")
+    }
+
+    #[test]
+    fn build_source_consent_keeps_the_actual_capture_purpose_and_root() {
+        use build_time_evaluation::InvocationSourceConsent;
+        let root = PathBuf::from("/anonymous");
+        let text = "machine local() {}";
+        let tree = Arc::new(snapshot("build.omg", text.as_bytes()));
+        let mut filesystem = source::SourceFileSystem::default();
+        filesystem
+            .add_capture(root.clone(), Arc::clone(&tree))
+            .unwrap();
+        let mut sources = source::SourceMap::default();
+        let id = sources
+            .add_checked_instance(
+                root.join("build.omg"),
+                text,
+                root.clone(),
+                None,
+                source::SourceOrigin::User,
+                source::SourceResolutionStratum::Base,
+                source::DependencyScope::Build,
+            )
+            .source_id;
+        let sources = Arc::new(sources);
+        let capture = AnonymousSourceCapture {
+            root,
+            capture: tree,
+            filesystem,
+            semantic_dependencies: Vec::new(),
+            sources: Arc::clone(&sources),
+            toolchain_contract_custody: Default::default(),
+        };
+        let span = source::SourceSpan::new(id, source::Span::new(0, text.len()));
+        assert!(capture.allows_selection(&sources, span, span, source::DependencyScope::Build));
+        assert!(sources.get(id).unwrap().package_identity.is_none());
+        assert!(!capture.allows_selection(&sources, span, span, source::DependencyScope::Product));
+        let foreign = Arc::new(sources.as_ref().clone());
+        assert!(!capture.allows_selection(&foreign, span, span, source::DependencyScope::Build));
+        let outside = source::SourceSpan::new(id, source::Span::new(0, text.len() + 1));
+        assert!(!capture.allows_selection(&sources, span, outside, source::DependencyScope::Build));
+        let missing = source::SourceSpan::new(source::SourceId(usize::MAX), span.span);
+        assert!(!capture.allows_selection(&sources, span, missing, source::DependencyScope::Build));
+        let mut another_root = capture;
+        another_root.root = PathBuf::from("/another-root");
+        assert!(!another_root.allows_selection(
+            &sources,
+            span,
+            span,
+            source::DependencyScope::Build
+        ));
     }
 
     #[test]

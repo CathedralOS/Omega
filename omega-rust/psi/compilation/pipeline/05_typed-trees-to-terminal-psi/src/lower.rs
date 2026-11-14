@@ -45,7 +45,20 @@ return through ("A no-normal-result terminal transfer publishes no fictional
 result or normal-return guarantee"). Both edges go to `Destination::NoNormal`.
 */
 
+// Propagate a completed path without disguising it as a failed judgment.
+macro_rules! continuing {
+    ($evaluation:expr) => {
+        match $evaluation? {
+            $crate::lower::Reached::Value(value) => value,
+            $crate::lower::Reached::Ended(call) => {
+                return Ok($crate::lower::Reached::Ended(call));
+            }
+        }
+    };
+}
+
 mod calls;
+pub(crate) use calls::publish_write_frames;
 mod control;
 mod operations;
 pub(crate) mod places;
@@ -372,7 +385,7 @@ impl<'a> Lowering<'a> {
             outcomes,
             records,
             roots: IdTable::default(),
-            initial_contents: Vec::new(),
+            demanded_contents: Vec::new(),
             path: Vec::new(),
             tables: MachineTables::default(),
             sources: MachineSources::default(),
@@ -389,7 +402,6 @@ impl<'a> Lowering<'a> {
             borrowed_roots: Vec::new(),
             joining: 0,
             fallthrough: None,
-            ended: None,
         }
     }
 }
@@ -553,6 +565,17 @@ impl Lowering<'_> {
             formals.erased.push(declaration(value, scalar_type));
             *self.slot_mut(*position)? = Some(Bound::Erased(Witness::Value(value, scalar_type)));
         }
+        let bindings: Vec<_> = formals
+            .records
+            .iter()
+            .map(|formal| {
+                self.exact_root(formal.place)
+                    .map(|exact| (formal.place, exact))
+            })
+            .collect::<Checked<_>>()?;
+        for clause in &signature.requires {
+            self.name_clause_contents(clause, &bindings)?;
+        }
         Ok((formals, result))
     }
 }
@@ -566,9 +589,9 @@ struct Lowering<'a> {
     /// What each root place is and the record type it holds, indexed by its
     /// `PlaceId`: the machine's structural place declarations.
     roots: IdTable<PlaceId, (StructuralPlaceKind, StructuralTypeId)>,
-    /// The initial value of a formal's scalar leaf or a produced call result's
-    /// leaf, indexed by `ExactPlaceId`; `None` until its identity is needed.
-    initial_contents: Vec<Option<ValueId>>,
+    /// Scalar leaves requested by operations and clauses, indexed by exact
+    /// place. Final lowering allocates their entry and returned snapshots.
+    demanded_contents: Vec<Option<ScalarType>>,
     /// The branch decisions on the path to the open block, in program order:
     /// each the branch value equal to the Boolean its edge took. Every arm
     /// completes the machine, and a short-circuit or `match` rejoins its
@@ -611,25 +634,32 @@ struct Lowering<'a> {
     /// lowered into it yet: an unguarded arm that begins there is taken
     /// only on that edge and is an authored branch too.
     fallthrough: Option<crate::Branch>,
-    /// The call that ended the open path, from the moment it is lowered as
-    /// a terminator until the construct whose path it ended takes it
-    /// (`end_path`, `reached`).
-    ended: Option<SourceOrigin>,
 }
-
-/// What `end_path`'s refusal says, should no construct take it.
-const PATH_ENDED: &str = "evaluation ended at a call that never returns where no path ends";
 
 /// What lowering an evaluation reached: its result, or the call that never
 /// returns at which every path of it ended.
+#[derive(Debug)]
 pub(super) enum Reached<T> {
     Value(T),
     Ended(SourceOrigin),
 }
 
+/// An ended path is a successful lowering outcome, not a refusal.
+pub(super) type Evaluation<T> = Checked<Reached<T>>;
+
+impl<T> Reached<T> {
+    fn map<U>(self, transform: impl FnOnce(T) -> U) -> Reached<U> {
+        match self {
+            Self::Value(value) => Reached::Value(transform(value)),
+            Self::Ended(call) => Reached::Ended(call),
+        }
+    }
+}
+
 #[derive(Default)]
 struct Draft {
     parameters: Vec<ValueDeclaration>,
+    structural_parameters: Vec<StructuralParameterDeclaration>,
     operations: Vec<Operation>,
     terminator: Option<Terminator>,
 }
@@ -684,7 +714,7 @@ impl<'a> Lowering<'a> {
         let mut statements = body.statements.iter();
         while let Some(statement) = statements.next() {
             let lowered = self.statement(statement);
-            let Reached::Ended(call) = self.reached(lowered)? else {
+            let Reached::Ended(call) = lowered? else {
                 continue;
             };
             // An erased binding evaluates nothing, so it is no executable
@@ -813,33 +843,6 @@ impl<'a> Lowering<'a> {
             machine: self.id,
             concerns: self.current.map_or(Construct::Machine, Construct::Block),
             detail: format!("completion {detail}"),
-        }
-    }
-
-    /// Ends the open path at `call`, a call that never returns and is now
-    /// the open block's terminator. Nothing after the call on this path is
-    /// lowered, so the evaluation that holds it stops: the returned refusal
-    /// travels up through every evaluation that holds the call to the
-    /// construct whose path ends here (`reached`), which takes it. That
-    /// construct is a statement (`body`), the right operand of `&&` or `||`
-    /// (`short_circuit`), a `match` arm (`match_value`) or a transition arm
-    /// (`complete`). Should nothing take it, it refuses the machine.
-    pub(super) fn end_path(&mut self, call: SourceOrigin) -> Refusal {
-        self.ended = Some(call);
-        self.internal(PATH_ENDED)
-    }
-
-    /// `lowered`, or the call at which its every path ended (`end_path`).
-    /// Any other refusal is returned as it is.
-    pub(super) fn reached<T>(&mut self, lowered: Checked<T>) -> Checked<Reached<T>> {
-        match lowered {
-            Ok(value) => Ok(Reached::Value(value)),
-            Err(refusal) => match self.ended.take() {
-                Some(call) if !self.open() && refusal.detail.ends_with(PATH_ENDED) => {
-                    Ok(Reached::Ended(call))
-                }
-                _ => Err(refusal),
-            },
         }
     }
 
@@ -983,6 +986,7 @@ impl<'a> Lowering<'a> {
             })
             .collect();
         self.arrivals()?;
+        self.name_storage_contents()?;
         let mut drafts = std::mem::take(&mut self.blocks);
         let mut blocks = Vec::with_capacity(drafts.len());
         for position in 1..=drafts.len() as u64 {
@@ -997,6 +1001,7 @@ impl<'a> Lowering<'a> {
                 return Err(self.internal("a block was left without a terminator"));
             };
             let mut block = Block::plain(block, block_parameters, terminator);
+            block.structural_parameters = std::mem::take(&mut draft.structural_parameters);
             block.operations = operations;
             blocks.push(block);
         }

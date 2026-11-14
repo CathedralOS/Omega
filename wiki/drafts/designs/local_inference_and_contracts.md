@@ -112,8 +112,8 @@ rather than expose arbitrary library implementation facts across the boundary.
 
 ## Acceptance
 
-- `pass/contracts/boolean_result_all_normal_returns_exit`: both branches of
-  `choose` return false, so exact same-unit callers obtain `result == false`
+- When both branches of
+  `choose` return false, exact same-unit callers obtain `result == false`
   without adding `ensures`. A cross-unit client cannot obtain that extra result
   fact until the published contract promises it.
 - Preserve helper-extraction precision for constants, copied values, a simple
@@ -126,17 +126,12 @@ rather than expose arbitrary library implementation facts across the boundary.
 - A written private `requires n <= 7` does not gain positivity from the body
   or a single guarded caller. `requires true`, public omission and requirement
   satisfaction likewise cannot hide narrower input needs.
-- The existing negative
-  `fail/termination/private_stored_reference_rank_no_ambient_helper_bound`
+- A private stored-reference rank with no ambient helper bound
   remains a rejection: its authored `<= 7` admits zero. Retain the input and
   operation; do not make that negative pass by silently strengthening its header.
   Qualify the explicit-positive-contract and omitted-private-contract variants
   separately, reusing existing controls where possible.
-- Audit `runtime_boolean_divisor_state_exit`, `private_division_exact_pair_exit`
-  and `private_arrival_guarded_helper_range_exit` plus the remaining cluster
-  identified by the lowered-route comparison. Omitted private requirements may
-  infer; authored ones remain complete. Reconcile outcomes by this rule rather
-  than by whether the old checker happened to accept them.
+- Omitted private requirements may infer; authored ones remain complete.
 - Verify the traversal and client in different recorded units. The client uses
   only the published relation and callback contract; a callback with insufficient
   guarantees or a later write invalidating prior elements must not establish
@@ -151,5 +146,4 @@ rather than expose arbitrary library implementation facts across the boundary.
 - Preserve callback dependency, ownership, write-frame and evaluation controls
   across both producers and the full Psi/native path for executable witnesses.
   Missing precision never becomes permission, an assumed fact or guarded native
-  execution. Record migrated corpus outcomes only after actual clean-source
-  validation; this docs-only settlement changes no ledger.
+  execution.

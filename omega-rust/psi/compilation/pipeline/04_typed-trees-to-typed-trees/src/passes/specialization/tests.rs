@@ -381,8 +381,11 @@ fn source_with_child_telescope(
         };
         call.target_symbol = nested.state;
         call.target = Identifier::generated("nested");
-        call.machine_arguments = Box::new([]);
-        call.authored_machine_application = arena::Handle::invalid();
+        let application = call.authored_machine_application;
+        program
+            .expression_table
+            .static_machine_application_mut(application)
+            .registration_operation = nested.state;
     }
     let body = returns(&mut program, forwarded);
     state.statement_nodes = program.statement_table.insert_statements([body]);
@@ -906,7 +909,9 @@ fn nested_declarations_keep_each_enclosing_application_and_their_own_call_owner(
     let mut children = Vec::new();
     for (entry, actual) in [(entered[0], byte), (entered[2], boolean)] {
         let owner = program.symbols.get(entry).parent;
-        let child_entry = calls(&program, owner)[0].target_symbol;
+        let child_call = calls(&program, owner)[0];
+        assert!(child_call.machine_arguments.is_empty());
+        let child_entry = child_call.target_symbol;
         let child = program.symbols.get(child_entry).parent;
         children.push(child);
         assert_eq!(program.symbols.get(child).parent, entry);
@@ -981,6 +986,136 @@ fn an_unserved_child_telescope_leaves_the_whole_specialization_unwritten() {
     assert_eq!(program.symbols.symbols().len(), symbols);
     assert_eq!(program.machines().len(), machines);
     assert!(program.deferred_refusal(main).is_some());
+}
+
+#[test]
+fn an_existing_nested_copy_does_not_accept_another_argument_or_source_selection() {
+    for foreign_owner in [false, true] {
+        let Source {
+            mut program,
+            byte,
+            boolean,
+            main,
+            forward,
+            ..
+        } = source_with_nested("relay", true);
+        prepare(&mut program).unwrap();
+        let owner = program
+            .symbols
+            .get(calls(&program, main)[0].target_symbol)
+            .parent;
+        let position = program
+            .machines()
+            .iter()
+            .position(|machine| machine.symbol == owner)
+            .unwrap();
+        let site = super::call_sites(&program, position)[0];
+        let child = super::entered_machine(&program, site.applied(&program).unwrap().target)
+            .unwrap()
+            .0;
+        let requested = if foreign_owner { byte } else { boolean };
+        let argument = argument(requested, if foreign_owner { "u8" } else { "bool" });
+        let application = site.call(&program).unwrap().application();
+        let super::Site::Expression(handle) = site else {
+            panic!("fixture expression");
+        };
+        let ExpressionNode::Call(call) = program.expression_table.expression_mut(handle) else {
+            panic!("fixture call");
+        };
+        call.machine_arguments = vec![argument.clone()].into_boxed_slice();
+        program
+            .expression_table
+            .static_machine_application_arguments_mut(application)[0] = argument;
+        if foreign_owner {
+            let foreign = program
+                .machine_specializations
+                .iter()
+                .find(|row| row.template == forward.machine)
+                .unwrap()
+                .binding_application;
+            program
+                .machine_specializations
+                .iter_mut()
+                .find(|row| row.instance == child)
+                .unwrap()
+                .binding_application = foreign;
+        }
+        let symbols = program.symbols.symbols().len();
+        prepare(&mut program).unwrap();
+        assert_eq!(program.symbols.symbols().len(), symbols);
+        assert_eq!(
+            program.deferred_refusal(owner).map(|row| row.request),
+            Some(DeferredRequest::StaticApplication)
+        );
+        assert_eq!(calls(&program, owner)[0].machine_arguments.len(), 1);
+    }
+}
+
+#[test]
+fn an_already_bound_tuple_keeps_even_an_unused_parameter() {
+    let mut builder = SymbolTableBuilder::default();
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let declarations = builder.insert_children(
+        root,
+        [
+            (SymbolKind::BuiltinType, SymbolNameRef::Static("u8")),
+            (SymbolKind::BuiltinType, SymbolNameRef::Static("bool")),
+            (SymbolKind::Machine, SymbolNameRef::Static("owner")),
+        ],
+    );
+    let byte = declarations.handle_at(0);
+    let boolean = declarations.handle_at(1);
+    let owner = declarations.handle_at(2);
+    let binders = builder.insert_children(
+        owner,
+        [
+            (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
+            (SymbolKind::TypeParameter, SymbolNameRef::Static("Unused")),
+        ],
+    );
+    let parameters = binders
+        .handles()
+        .zip(["T", "Unused"])
+        .map(|(symbol, name)| TypeParameter {
+            symbol,
+            name: Identifier::generated(name),
+            ..Default::default()
+        })
+        .collect::<Vec<_>>();
+    let mut program = TypedTrees {
+        symbols: builder.finish(),
+        ..Default::default()
+    };
+    let actual = [argument(byte, "u8"), argument(boolean, "bool")];
+    let application = program.expression_table.retain_static_machine_application(
+        owner,
+        Identifier::generated("owner"),
+        &actual,
+    );
+    let selected = parameters
+        .iter()
+        .zip(&actual)
+        .map(|(parameter, argument)| {
+            super::Operand::read(&mut program, parameter.symbol, &parameter.kind, argument)
+                .unwrap_or_else(|_| panic!("closed argument"))
+        })
+        .collect::<Vec<_>>();
+    super::bind(&mut program, application, &selected);
+    assert!(
+        super::bound_arguments(&mut program, &parameters, &parameters, application, &actual)
+            .is_ok()
+    );
+    let different_unused = [argument(byte, "u8"), argument(byte, "u8")];
+    assert!(matches!(
+        super::bound_arguments(
+            &mut program,
+            &parameters,
+            &parameters,
+            application,
+            &different_unused
+        ),
+        Err(super::Stop::Unserved)
+    ));
 }
 
 #[test]

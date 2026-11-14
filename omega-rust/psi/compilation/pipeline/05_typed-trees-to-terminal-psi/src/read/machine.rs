@@ -580,83 +580,97 @@ impl<'t> Program<'t> {
         Ok(id)
     }
 
-    /// Whether every contract on `state` only restates a domain one of its
-    /// formals' declared types carries: `requires distance in Km` for
-    /// `distance: i32 in Km`, which typing writes on the state for each
-    /// qualified formal. domains.md, "Carrier-exact membership": a
-    /// parameter `value: T in D` "gives the body the fact `value in D`".
-    ///
-    /// The formal's type already says it, so such a contract adds nothing
-    /// to read: the type is what a caller must supply, and the domain's
-    /// predicates join the entry clauses from the type (`predicates`). Any
-    /// other contract on a state stays refused.
-    fn contracts_restate_formal_domains(&self, state: &typed_trees::state::State) -> bool {
+    /// A formal's declared qualification already requires this exact domain.
+    /// Typing records that membership as a contract for both states and
+    /// bodyless requirements. It adds no new predicate here: formal type
+    /// checking enforces the domain, and `signature_predicates` supplies its
+    /// value facts. A fact about another value or domain still needs checking.
+    fn fact_restates_formal_domain(
+        &self,
+        formals: &[StateParameter],
+        fact: &typed_trees::domain::ProofFact,
+    ) -> bool {
         use typed_trees::domain::ProofFact;
         use typed_trees::expression::ExpressionNode;
-        use typed_trees::signature::SignatureContractKind;
         use typed_trees::types::{DomainConstraintSubject, TypeConstraintNode, TypeReferenceNode};
         let typed = self.typed;
-        let carries = |mut reference: typed_trees::types::TypeReferenceHandle,
-                       domain: SymbolHandle| {
-            // A reference formal's domains are its referent's: `seal: &Seal in
-            // Issued` lends a `Seal in Issued`.
-            while reference.is_valid()
-                && let TypeReferenceNode::Reference { referee, .. } =
-                    typed.type_reference_table.type_reference(reference)
-            {
-                reference = *referee;
-            }
-            while reference.is_valid()
-                && let TypeReferenceNode::Constrained {
+        let ProofFact::Membership(membership) = fact else {
+            return false;
+        };
+        if !membership.domain_symbol.is_valid()
+            || !membership.domain_arguments.is_empty()
+            || !typed.expression_table.expression_is_valid(membership.value)
+            || typed
+                .domain_definition(membership.domain_symbol)
+                .is_none_or(|domain| {
+                    // An unapplied authored membership keeps its selected
+                    // symbol even when it has no interned instance ID. An
+                    // instance ID that is present must agree with that symbol.
+                    membership.semantic_domain != language_semantics::SemanticDomainId::NULL
+                        && domain.semantic_id != membership.semantic_domain
+                })
+        {
+            return false;
+        }
+        let ExpressionNode::Name(path) = typed.expression_table.expression(membership.value) else {
+            return false;
+        };
+        if path.static_application.is_valid()
+            || path.reserved_result_of.is_valid()
+            || typed.expression_table.name_path_members(path.members).len() != 1
+        {
+            return false;
+        }
+        let Some(formal) = path
+            .resolved_symbol()
+            .and_then(|symbol| formals.iter().find(|parameter| parameter.symbol == symbol))
+        else {
+            return false;
+        };
+        let mut reference = formal.type_reference;
+        while reference.is_valid() {
+            match typed.type_reference_table.type_reference(reference) {
+                // Qualification of a borrowed formal belongs to its referent.
+                TypeReferenceNode::Reference { referee, .. } => reference = *referee,
+                TypeReferenceNode::Constrained {
                     base_type,
                     constraints,
-                } = typed.type_reference_table.type_reference(reference)
-            {
-                if typed
-                    .type_reference_table
-                    .constraints(*constraints)
-                    .iter()
-                    .any(|constraint| {
-                        matches!(constraint, TypeConstraintNode::Domain(listed)
-                            if listed.subject == DomainConstraintSubject::Declared
-                                && listed.symbol == domain)
-                    })
-                {
-                    return true;
+                } => {
+                    if typed
+                        .type_reference_table
+                        .constraints(*constraints)
+                        .iter()
+                        .any(|constraint| {
+                            matches!(constraint, TypeConstraintNode::Domain(domain)
+                            if domain.subject == DomainConstraintSubject::Declared
+                                && domain.symbol == membership.domain_symbol
+                                && domain.arguments.is_empty())
+                        })
+                    {
+                        return true;
+                    }
+                    reference = *base_type;
                 }
-                reference = *base_type;
+                _ => return false,
             }
-            false
-        };
+        }
+        false
+    }
+
+    /// State clauses outside their formals' existing membership remain
+    /// unserved. The shared contract reader applies the same membership rule
+    /// when reading a machine or requirement's ordinary `requires` clauses.
+    fn contracts_restate_formal_domains(&self, state: &typed_trees::state::State) -> bool {
+        let typed = self.typed;
         typed.state_contracts(state).iter().all(|contract| {
-            contract.kind == SignatureContractKind::Requires
+            contract.kind == typed_trees::signature::SignatureContractKind::Requires
+                && contract.binding.is_none()
                 && typed
                     .proof_facts
                     .span_or_empty(contract.facts)
                     .iter()
                     .all(|fact| {
-                        let ProofFact::Membership(membership) = fact else {
-                            return false;
-                        };
-                        if !membership.domain_symbol.is_valid()
-                            || !membership.domain_arguments.is_empty()
-                            || !typed.expression_table.expression_is_valid(membership.value)
-                        {
-                            return false;
-                        }
-                        let ExpressionNode::Name(path) =
-                            typed.expression_table.expression(membership.value)
-                        else {
-                            return false;
-                        };
-                        let Some(formal) = path.resolved_symbol() else {
-                            return false;
-                        };
-                        typed.expression_table.name_path_members(path.members).len() == 1
-                            && typed.state_parameters(state).iter().any(|parameter| {
-                                parameter.symbol == formal
-                                    && carries(parameter.type_reference, membership.domain_symbol)
-                            })
+                        self.fact_restates_formal_domain(typed.state_parameters(state), fact)
                     })
         })
     }
@@ -1647,16 +1661,10 @@ impl<'t> Program<'t> {
         };
         let exit = ClauseScope {
             result: match result {
-                // A policy-qualified result is named as its stored value.
-                Some(ValueType::Scalar(scalar_type, qualification))
-                    if qualification.domains.is_empty() =>
-                {
-                    ResultTerm::Named(result_value, scalar_type, qualification.policy)
-                }
-                // domains.md, "Operands": a builtin operator or comparison
-                // takes unqualified operands, in `ensures` too.
-                Some(ValueType::Scalar(..)) => {
-                    ResultTerm::Absent("result that carries a declared domain")
+                // Keep the result's qualification until an operator or cast
+                // consumes it, just as for an input or a field.
+                Some(ValueType::Scalar(scalar_type, qualification)) => {
+                    ResultTerm::Named(result_value, scalar_type, qualification)
                 }
                 // A returned field belongs to the declared result root,
                 // allocated after the structural formals by lowering.
@@ -1695,6 +1703,9 @@ impl<'t> Program<'t> {
                 // for `u32`.
                 SignatureContractKind::Requires => {
                     for fact in facts {
+                        if self.fact_restates_formal_domain(formals, fact) {
+                            continue;
+                        }
                         let expression = self.fact(id, fact)?;
                         if self.states_nothing(id, expression)? {
                             continue;

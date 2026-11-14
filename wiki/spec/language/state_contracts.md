@@ -206,8 +206,11 @@ Additional semantic result/state guarantees needed by independent clients are
 authored, not automatically exported from the body. Published contracts also
 retain the existing inferred reach, write frames, ownership, borrow-origin,
 validity and callback dependencies; this rule does not reduce them to authored
-header text. Explicit compile-time evaluation and mathematical definitions keep
-their existing admission and computation rules.
+header text. Absence of normal return is not among them: it crosses the
+boundary only through the result type or postcondition under
+[published no-return](#published-no-return). Explicit compile-time evaluation
+and mathematical definitions keep their existing admission and computation
+rules.
 
 An abstract requirement, unknown callable or replaceable boundary uses its
 interface contract even if a possible implementation is checked in the same
@@ -357,8 +360,71 @@ A call that ends by process exit keeps its
 Issue one advisory warning at the first unreachable executable statement, with
 a note locating the call that prevents continuation, not one per following
 statement. As with unreachable branches, the warning is not a language error,
-and soundness depends on neither the warning nor pruning. No `never` type,
-keyword or completion mechanism is introduced.
+and soundness depends on neither the warning nor pruning. No keyword or
+completion mechanism is introduced; the core
+[`Never`](data_and_literals.md#the-uninhabited-type-never) type is an ordinary
+data declaration.
+
+### Published no-return
+
+Named decision: `published-no-return`, ratified 2026-11-13.
+
+A caller in another verification unit learns that a call cannot return normally
+only from the callee's published contract, in one of two ways:
+
+| Published form | Meaning |
+| --- | --- |
+| `-> Never`, or another result type proved uninhabited | No normal return can occur. The call is also accepted where a value of any type is expected. |
+| A normal-return postcondition that is impossible after substituting the actual arguments, such as `ensures false`, or `ensures !fatal` called with `fatal == true` | No normal return can occur for that call. Its declared type is unchanged: value uses that already type-check remain valid, and it gains no uninhabited-type compatibility. |
+
+Both use the no-normal-successor rule above. Inside one verification unit, a
+checked body-derived outcome may also establish non-return under
+[local call summaries](#local-call-summaries). Across the boundary, and through
+an abstract requirement, unknown callable or replaceable boundary, only the
+visible contract counts: a stronger implementation does not strengthen it, and
+a private body is never consulted. An implementation inherits its requirement's
+no-return guarantee and may not drop it. A checked body whose result type is
+uninhabited, or whose postcondition is impossible, rejects any reachable normal
+return at its declaration rather than at its callers. An opaque or foreign
+implementation must justify the promise through admission.
+
+Non-return grants no termination, crash permission, process-exit authority or
+resource disposition. Those remain with `terminates`, `crashes`, `reaches` and
+the terminal operation's own contract. A machine may exit or crash on some
+paths and return on others: it keeps its ordinary result type, and its
+`ensures` applies to the paths that return.
+
+```omega
+public machine quit(code: i32) -> Never
+reaches ProcessExit
+crashes none
+terminates
+{
+    ProcessExit::exit_process(code);
+}
+
+public machine checked_value(value: u32, fatal: bool) -> u32
+reaches ProcessExit
+crashes none
+terminates
+ensures result == value
+{
+    transition fatal {
+        true -> ProcessExit::exit_process(1)
+        false -> value
+    }
+}
+```
+
+`quit` publishes that it never returns. `checked_value` returns a `u32`
+satisfying its postcondition whenever it returns; the exit arm is accepted at
+`u32` because `exit_process` returns `Never`.
+
+Two diagnostics are advisory. A public checked body with no reachable normal
+return whose interface permits return may suggest publishing `-> Never`; the
+author may deliberately keep return possible. A caller that fails to prove code
+after a call is told that the callee's published contract does not exclude
+normal return, without reading the callee's body.
 
 ## Terminal calls in transition arms
 

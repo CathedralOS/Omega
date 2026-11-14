@@ -1,4 +1,4 @@
-use omega_language_std::console;
+use omega_language_std::Console;
 use controller::model;
 // Decimal output is computed from the result, with no expected-value strings.
 machine number(value: i32 in Wrapping) reaches Console {

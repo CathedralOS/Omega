@@ -175,6 +175,10 @@ Acceptance for this independent migration:
    making `std` optional is not an excuse to skip the release manifest/digest.
 
 These are acceptance requirements, not commands or tests run for this
-documentation change. Runtime-provider policy and library renaming remain
-separate owner questions; no implementation or migration of those decisions is
-implicitly authorized by this settlement.
+documentation change. Runtime-provider policy is settled separately as
+`sealed-runtime-providers`
+([sealed compiler intrinsics](../../spec/build/foreign_bindings.md#sealed-compiler-intrinsics)),
+and library renaming is `LIBRARY-RESPONSIBILITY-NAMES` on
+[TASKS.md](../../../TASKS.md), under
+[library responsibilities and names](../../spec/build/declarations.md#library-responsibilities-and-names);
+this settlement authorizes neither.

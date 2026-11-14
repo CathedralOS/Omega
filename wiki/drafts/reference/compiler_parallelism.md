@@ -1,7 +1,6 @@
 # Compiler parallelism: primary-source research for Omega
 
-Research date: 2026-10-28 (America/Los_Angeles). Local source snapshot to map:
-`9a4ec4a40c352ea4eb51f49f2d23ee03e3e3a78e`.
+Research date: 2026-10-28 (America/Los_Angeles).
 
 The useful reference is a compiler's division of work and ownership, not its
 advertised thread count. Start by measuring Omega's existing parallel pipeline,
@@ -216,108 +215,10 @@ successful nonempty exit status and expected artifact before accepting a timing;
 then validate runtime outcomes, fact-sensitive rejects and canonical evidence.
 Compare bytes where the output contract is deterministic. A hash mismatch needs
 an explicit explanation. A source analogy alone does not satisfy these gates.
-The local appendix specifies the first bounded comparison; stop after resolving
-that comparison rather than implementing this entire table as a campaign.
-
-## Omega mapping checked in this session
-
-Source inspection at `9a4ec4a40c352ea4eb51f49f2d23ee03e3e3a78e`; no new compiler
-timings or runtime observations. These are implementation facts, not measured
-bottlenecks. Relative source links refer to this repository.
-
-| Current owner | Observed implementation | Question worth measuring |
-|---|---|---|
-| [Driver source batches](../../../omega-rust/psi/compilation/driver/src/source_parsing/batches.rs), `parse` | Fused lexing/parsing; contiguous file-count chunks; worker-owned syntax trees and reusable token scratch; source order fixes page identity and error priority. The ordinary path caps desired pages at four times the ambient Rayon worker count. | Do a few large files dominate a chunk? Does page-count selection outside the dedicated pool reflect that pool's actual size? Byte-weighted contiguous chunks are only a candidate if this appears in a profile. |
-| [Parser pool](../../../omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/parser.rs), `with_parse_workers` | A process-local `OnceLock<ThreadPool>`; explicit 256 MiB worker stack. Separate [lexing API](../../../omega-rust/psi/compilation/pipeline/00_source-files-to-tokens/src/lex_sources.rs) also has a parallel path. | Which entry points actually initialize each pool, and what is the first-use cost? Do not double-count fused driver work as two standalone stages. |
-| [Machine validation](../../../omega-rust/psi/compilation/checking/src/program_validation.rs), `checking_thread_pool` and machine loop | A second process-local pool with 256 MiB worker stacks; indexed parallel collection with local results, followed by roster-order publication. Neither parser nor checking builder sets an explicit thread count. | Active versus idle threads; largest machine versus stage wall time; shared lookup contention and merge cost. Separate pools alone do not prove CPU oversubscription. |
-| [Flow groups](../../../omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/flow.rs), `machine_groups`, `build_groups`, `converge` | Union-find dependency groups, worker-local fixed points/fallbacks, shared immutable baseline, paged output adoption. Actual grouping treats ordinary machine entries under declared contracts separately from non-entry/extracted-region deliveries and target families. | Largest dependency-group duration, dirty revisits, fallback counts, output-adoption time. Splitting a real dependency group needs a sound dependency algorithm. |
-| [Call contracts](../../../omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_contracts.rs) and [indexed accesses](../../../omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks_ranges.rs) | Already fan out across states or machines on the checking pool. | Worker imbalance, repeated preparation, and lock/allocator costs before adding more tasks. |
-| [Native sequence](../../../omega-rust/omega/compilation/native-compiler/src/pipeline.rs) | Runs dependent selection, optimization, allocation, frame, encoding, layout and object steps in order. | Determine which work is genuinely body-local after provider/layout/callback inputs are settled. The sequence alone does not establish that whole-body fan-out is safe. |
-| [Register-home computation](../../../omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/home_assignment/compute/mod.rs), `compute_terminal_register_homes`, `FunctionHomeReuse::probe_all` | Sequential function iteration, with mutable function reuse and pressure state. | Can expensive body-local work own its scratch while preserving reuse, ordered failures, whole-plan identities and publication? A mechanical `par_iter` change does not answer this. |
-| [Compile worker](../../../omega-rust/omega/compilation/driver/src/checked/checking/compile_thread.rs) and [corpus policy](../../../tools/testing.md#corpus-outcome-gate) | Compiler operations already on their marked compile worker run inline; separate invocations can still coexist. Corpus worker count is independent of Rayon pools. | Compare one compiler's latency separately from a fixed batch's throughput and total thread/memory demand. |
-
-[Cargo.lock](../../../Cargo.lock) pins Rayon 1.12.0 and rayon-core 1.13.0.
-[Rayon 1.12.0 builder documentation](https://docs.rs/rayon/1.12.0/rayon/struct.ThreadPoolBuilder.html#method.num_threads)
-documents automatic worker selection from `RAYON_NUM_THREADS`, otherwise logical
-CPU count. Because Omega's static pools initialize once, vary that environment
-in **fresh processes**, before either pool initializes. This provides an initial
-sweep without adding a compiler option. It is a per-pool setting, not a shared
-budget across processes.
-
-256 MiB is the **configured worker stack size**; it is not a measurement of
-resident memory. Record virtual reservation, committed memory and RSS separately
-where the host supports them. Preserve the documented deep-input stack contract
-while investigating memory; lowering the constant is not a justified experiment
-in task scheduling.
-
-### Existing evidence to reuse with its original identities
-
-The [stage ledger](../measurements/stage_by_stage_optimization.md) already
-records sealed indexes removing validation contention (Iteration 14), then a
-first-pass parallel flow implementation (Iteration 15), then its replacement by
-group-local fixed points (later “Iteration 16: Flow Fixed Point per Machine
-Group”). Current source matches the latter architecture. The earlier 15-fixture
-divergence documents why scheduling changes need semantic checks; it does not
-establish a current regression.
-
-The [2026-10-24 measurement record](../measurements/stage_five_2026_10_24/README.md)
-contains earlier checking and register-allocation work. Its timings remain
-bound to its revisions and workload identities. They do not measure this
-checkout or forecast a gain from additional workers.
-
-### First bounded experiment
-
-Freeze one optimized exact-source producer and a small existing fact workload
-set: an ordinary small compile, a many-machine check, and a native compile
-with allocation pressure. Select existing witnesses; add no new fact rows merely
-to benchmark counts. First establish exit-0 compilation and the authored
-`omega run --both` oracle for each selected positive, plus applicable
-fact-sensitive rejects. Keep the compiler binary, source/library inputs,
-target, optimization selection, cache regime and consumed artifact fixed.
-
-1. Sweep fresh processes at 1, 2, 4, 8 workers, physical-core count and logical-CPU
-   count, removing duplicates and omitting configurations the memory budget cannot
-   support. Determine topology on the actual host rather than assuming the
-   historical 7950X is still the measurement host.
-2. Measure process wall time, user/kernel CPU time, peak RSS/commit and thread
-   count. Keep cold/first-use and warm-cache regimes separate. Capture detailed
-   per-task spans, largest group/body, merge time and lock/allocator samples in
-   separate profiling runs; summed concurrent phase time is not elapsed time.
-3. Run a small fixed batch of independent compiles separately, keeping the same
-   total workload while trading outer jobs against inner workers. Report batch
-   makespan and per-compile latency. An approximate `outer jobs × inner workers`
-   is only a planning heuristic when stages and multiple pools overlap.
-4. Alternate configurations and retain every valid observation and its spread;
-   reject failed compiles and missing/stale artifacts explicitly. Compare emitted
-   bytes where deterministic output is expected, actual Terminal/native outcomes,
-   ordered diagnostics and the relevant existing rejection controls.
-5. Change **one measured limiter**: total runnable budget if contention dominates;
-   weighted scheduling if a tail dominates; worker-local state if locks dominate;
-   body fan-out if a significant body-local native share is demonstrably serial.
-   Reject the change if end-to-end time, resource limits or semantic behavior
-   regress. No full-corpus or full-workspace sweep is part of this research.
-
-Stop this experiment once it identifies the best observed worker configuration
-for these workloads and one evidenced next limiter. No absolute optimum or
-implementation speedup is established by this research note.
-
-### Supplemental research log from the local mapping
-
-On 2026-10-28, opened (no search query) and read Rayon's builder documentation
-(`num_threads`, `stack_size`), Go's `gc/compile.go` preparation and worker loop,
-rustc's parallel-compilation guide, and MLIR's operation-pass restrictions.
-The rustc guide explicitly warns that much of its parallel status discussion is
-outdated; its historical four-thread contention observation is not a present
-limit. Direct opening of `https://llvm.org/docs/ThinLTO.html` returned an internal
-error in the parent's web tool; the external aggregation records the accessible
-first-party alternative. The queries and other sources are logged below.
 
 ## Search and reading log
 
-Date for all batches: 2026-10-28 (America/Los_Angeles). Earlier local research was
-checked first: [field-inventory query memoization](../measurements/compiler_throughput_2026_10_21/research.md)
-and [stage optimization ledger](../measurements/stage_by_stage_optimization.md).
-The question here extends that work to cross-compiler parallel architecture.
+Date for all batches: 2026-10-28 (America/Los_Angeles).
 
 | Exact search queries or direct inspection | Read beyond snippets | Outcome |
 | --- | --- | --- |
@@ -336,87 +237,3 @@ results from Reddit, third-party wikis, mirrored repositories and uncited
 benchmark claims were excluded. No Jai/Odin conclusion is asserted: this bounded
 pass did not obtain sufficient relevant firsthand evidence to add either as an
 architectural recommendation. No compiler was installed or benchmarked.
-
-## First experiment
-
-The [worker-count measurement](../measurements/compiler_parallelism_2026_10_28/README.md)
-separates retained-graph and empty-private-cache compiles. It verifies actual
-thread creation before interpreting scaling, retains source/producer identities
-and all observations, and records why no default change is established.
-
-The [parser-pool experiment](../measurements/parser_pool_2026_10_28/README.md)
-then avoided the extra global pool. It reduced observed threads without a
-reliable time or memory benefit, so the candidate was rejected and reverted.
-
-The [spill-pressure screen](../measurements/spill_pressure_2026_10_28/README.md)
-then found 103 repeated register-allocation analysis rounds. Retaining pressure
-only when an unplaced component was rewritten barely activated and preserved
-all 103 rounds; that candidate was also rejected and reverted.
-
-The subsequent [unplaced-component batching experiment](../measurements/unplaced_batch_2026_10_28/README.md)
-changed victim selection and reduced reanalysis from 103 rounds to 11. Six
-pairs per cache regime measured 31.8% lower warm and 21.1% lower cold wall
-time on the 32-argument workload, with fewer spills and a smaller executable.
-Focused native/Terminal/reject checks passed; tiny workloads showed no
-consistent effect in follow-up blocks. The change is retained locally, without
-remote publication. This meets the bounded search's substantial-win target by
-shortening repeated serial work rather than increasing worker count.
-
-That allocator change landed in [PR #755](https://github.com/CathedralOS/Omega/pull/755).
-The next [retained-graph experiment](../measurements/retained_graph_2026_10_29/README.md)
-attributed the large warm restore and tested bounded buffer preallocation.
-It preserves native bytes, invalid twins, malformed-record refusal and fresh
-admission while lowering warm peak private commit by about 97–119 MiB
-(15–19%). Timing differences did not establish another latency improvement.
-That memory change landed through [PR #757](https://github.com/CathedralOS/Omega/pull/757).
-The landing receipt and descendant-main smoke evidence for PR #755 are recorded
-with the experiment.
-
-The [root-scoped whole-graph experiment](../measurements/root_graph_2026_10_29/README.md)
-then avoided loading unrelated projects while retaining the complete coupled
-graph and fresh admission. The real candidate reduced three-root warm median
-latency by 19–30% and six-root warm median latency by 34–56%. All native images
-matched the baseline bytes; focused native/Terminal, reject, corruption, source
-change, foreign-root and pruning controls passed. This next substantial latency
-win is committed locally, with raw evidence and limitations in its record.
-
-The [bounded native queue integration](../measurements/target_native_queue_landing_2026_10_29/README.md)
-uses application Build's newer source-free product boundary. A fresh fixed-base
-comparison measured the heavy four-target compile at 2682.9→1749.2 ms (34.8%
-lower), with all four balanced blocks improving. Exact target images, actual
-native/Terminal agreement, rejects, cache custody and ordered failure controls
-passed. Peak private commit increased 107 MiB and root CPU rose 5%; small and
-single-target programs showed no general speedup. The initial baseline-native
-launch timeout and incomplete cohort remain separate from the complete replay;
-its cause is unresolved after 32 successful bounded replays. Source-bound pinned
-qualification passed. Publication is tracked with the experiment rather than
-inferred from the local commit.
-
-The [post-queue Windows ancestry screen](../measurements/windows_ancestry_postqueue_2026_10_29/README.md)
-missed its declared two-subject gate: length improved 27.5%, dispatch 12.0%,
-stack32 13.6%, including one losing dispatch block. All 60 image/native checks
-passed; full conditional qualification and confirmation did not run. Its
-unpublished production patch was parked. The next
-[invocation setup attribution](../measurements/invocation_setup_2026_10_29/README.md)
-measures startup and remaining serial setup before choosing another candidate.
-
-The [Windows sibling-custody experiment](../measurements/windows_sibling_custody_2026_10_29/README.md)
-passed correctness checks but weakened from 16.8–17.7% small-program screen
-gains to 5.9–9.6% in independent confirmation, with a 3.3% stack32 regression.
-It is not a standalone substantial win. Preserve its frozen producer as a
-control for a separately measured composition with linear ancestry, without
-adding percentages or promoting either inconclusive standalone result.
-
-The separately declared [three-producer custody composition](../measurements/windows_custody_composition_2026_10_29/README.md)
-then compared original, sibling-only and combined producers directly. The
-combined ordinary-O3 producer lowered warm Windows-only small-program medians
-28–30% in screening and 35–39% in independent confirmation; stack32 improved
-20–22%. Every block improved, all 180 images matched and executed, and focused
-native/Terminal, reject, corruption, source and junction controls passed.
-Median private commit rose about 8 MiB for length and 2.7 MiB for stack32.
-The source-bound result is retained locally as the next scoped substantial win;
-it does not imply a new multi-target, foreign-host or latest-main result.
-
-[Post-PR864 spill construction attribution](../measurements/spill_cost_2026_10_29/README.md) found slot assignment dominated spill admission but occupied only 8% of its complete instrumented stack32 process. Temporary timers were removed; no speedup was inferred. Whole-plan recovery receipt composition also prevents a naive per-function fork/merge. The next measured hypothesis is avoiding a redundant scalar edge-capture layer when the owner emits no intervening work.
-
-The [existing CopyPropagation configured-path experiment](../measurements/copy_propagation_2026_10_29/README.md) met the next scoped substantial-win target without another Rust change: stack32 improved 37.4% in balanced comparison and 43.3% in fresh-cache reverse-order confirmation. A separate ordinary-empty/off/on control directly measured 796.3 to 457.2 ms (42.6%) versus the unchanged Build; rollback-off was 0.53% above default. Bounded spills fell 2159 to 131; ten native/Terminal agreements and nine authored rejects passed. Length regressed about 6%, so retain this as an existing opt-in recipe for the pressured workload, not a default or parallelism gain. Original witnesses/defaults stay unchanged; all valid losing blocks and both harness failures remain archived.

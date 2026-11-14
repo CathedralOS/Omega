@@ -1,5 +1,5 @@
 // Signed fixed-point text: one numeric value per line in micro-units.
-use omega_language_std::console;
+use omega_language_std::Console;
 use omega::language::core::I32::from_f64;
 public data Reporter { }
 public machine number(reporter: &mut Reporter,value: f64) reaches Console invokes Console crashes Trap {

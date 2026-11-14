@@ -8,7 +8,7 @@ use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::{
     TypedTrees,
     data::DataField,
-    expression::{ExpressionHandle, TableStructLiteral},
+    expression::{ExpressionHandle, TableNamePath, TableStructLiteral},
     signature::StateParameter,
     types::{TypeReferenceHandle, TypeReferenceNode},
 };
@@ -167,6 +167,156 @@ pub(crate) fn declared_place_type(
     state: &typed_trees::state::State,
     target: ExpressionHandle,
 ) -> Result<TypeReferenceHandle, Diagnostic> {
+    declared_projection_type(program, target, |path| {
+        if path.reserved_result_of.is_valid() {
+            return Err(crate::unavailable_judgment(
+                "reserved result is not storage",
+            ));
+        }
+        let binder = path
+            .resolved_symbol()
+            .ok_or_else(|| crate::unavailable_judgment("assignment storage binder"))?;
+        program
+            .declared_binding_type_by_symbol(state, binder)
+            .ok_or_else(|| crate::unavailable_judgment("unique assignment storage declaration"))
+    })
+}
+
+/// Read the declared type of a value in its exact callable context. A
+/// contract's reserved result is a value of its declared return type, never
+/// writable storage or a name resolved again by spelling.
+pub(crate) fn declared_callable_value_type(
+    program: &TypedTrees,
+    owner: SymbolHandle,
+    target: ExpressionHandle,
+) -> Result<TypeReferenceHandle, Diagnostic> {
+    if !program.symbols.symbols().nodes().is_valid(owner) {
+        return Err(crate::unavailable_judgment("contract value owner"));
+    }
+    // Entry observation preserves the operand's complete declared type. This
+    // is a value query, not a writable-place query or admission of an `old`
+    // subject: the lowered reader still checks its input identity and phase.
+    let table = &program.expression_table;
+    let mut target = target;
+    for _ in 0..table.expression_count() {
+        if !table.expression_is_valid(target) {
+            break;
+        }
+        let typed_trees::expression::ExpressionNode::Call(call) = table.expression(target) else {
+            break;
+        };
+        if call.receiver.is_valid()
+            || !call.machine_arguments.is_empty()
+            || !call.evidence_arguments.is_empty()
+            || !program
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(call.target_symbol)
+            || program
+                .symbols
+                .builtin_function_for_symbol(call.target_symbol)
+                != Some(symbols::BuiltinFunction::ContentOld)
+        {
+            break;
+        }
+        let [argument] = table.expression_handles(call.arguments) else {
+            return Err(crate::unavailable_judgment("old input declared type arity"));
+        };
+        target = *argument;
+    }
+    let states = program
+        .machine_by_symbol(owner)
+        .map(|machine| program.machine_states(machine));
+    let state = program.state_by_symbol(owner);
+    let signature = program
+        .trait_machine_signature(owner)
+        .map(|(_, signature)| signature);
+    if states.is_none() && state.is_none() && signature.is_none() {
+        return Err(crate::unavailable_judgment("contract callable declaration"));
+    }
+    declared_projection_type(program, target, |path| {
+        if path.static_application.is_valid() {
+            return Err(crate::unavailable_judgment("applied contract value"));
+        }
+        let reference = if path.reserved_result_of.is_valid() {
+            if path.resolved_symbol().is_some()
+                || program
+                    .expression_table
+                    .name_path_members(path.members)
+                    .len()
+                    != 1
+                || program
+                    .expression_table
+                    .name_path_member_symbols(path.member_symbols)
+                    .iter()
+                    .any(|symbol| symbol.is_valid())
+            {
+                return Err(crate::unavailable_judgment("reserved result identity"));
+            }
+            let result_owner = path.reserved_result_of;
+            let mut results = states
+                .into_iter()
+                .flatten()
+                .chain(state)
+                .filter(|state| state.symbol == result_owner)
+                .map(|state| state.return_type)
+                .chain(
+                    signature
+                        .filter(|signature| signature.symbol == result_owner)
+                        .map(|signature| signature.return_type),
+                );
+            let reference = results
+                .next()
+                .ok_or_else(|| crate::unavailable_judgment("result of another callable"))?;
+            if results.next().is_some() {
+                return Err(crate::unavailable_judgment(
+                    "ambiguous contract result owner",
+                ));
+            }
+            reference
+        } else {
+            let binder = path
+                .resolved_symbol()
+                .ok_or_else(|| crate::unavailable_judgment("contract value binder"))?;
+            if !program.symbols.symbols().nodes().is_valid(binder) {
+                return Err(crate::unavailable_judgment("contract value binder"));
+            }
+            let mut declarations = states
+                .into_iter()
+                .flatten()
+                .chain(state)
+                .filter_map(|state| program.declared_binding_type_by_symbol(state, binder))
+                .chain(signature.into_iter().flat_map(|signature| {
+                    program
+                        .state_signature_parameters(signature)
+                        .iter()
+                        .filter(move |parameter| parameter.symbol == binder)
+                        .map(|parameter| parameter.type_reference)
+                }));
+            let reference = declarations
+                .next()
+                .ok_or_else(|| crate::unavailable_judgment("contract value declaration"))?;
+            if declarations.next().is_some() {
+                return Err(crate::unavailable_judgment(
+                    "ambiguous contract value declaration",
+                ));
+            }
+            reference
+        };
+        program
+            .type_reference_table
+            .contains_type_reference(reference)
+            .then_some(reference)
+            .ok_or_else(|| crate::unavailable_judgment("contract value declared type"))
+    })
+}
+
+fn declared_projection_type(
+    program: &TypedTrees,
+    target: ExpressionHandle,
+    mut root_type: impl FnMut(&TableNamePath) -> Result<TypeReferenceHandle, Diagnostic>,
+) -> Result<TypeReferenceHandle, Diagnostic> {
     let table = &program.expression_table;
     let mut spine = Vec::new();
     let mut cursor = target;
@@ -180,27 +330,21 @@ pub(crate) fn declared_place_type(
             ExpressionNode::Name(path) => {
                 let names = table.name_path_members(path.members);
                 let selected = table.name_path_member_symbols(path.member_symbols);
-                let binder = path
-                    .resolved_symbol()
-                    .ok_or_else(|| crate::unavailable_judgment("assignment storage binder"))?;
                 if names.is_empty() || (!selected.is_empty() && selected.len() != names.len()) {
                     return Err(crate::unavailable_judgment(
                         "assignment storage path roster",
                     ));
                 }
-                if selected
-                    .first()
-                    .is_some_and(|symbol| symbol.is_valid() && *symbol != binder)
+                if let Some(binder) = path.resolved_symbol()
+                    && selected
+                        .first()
+                        .is_some_and(|symbol| symbol.is_valid() && *symbol != binder)
                 {
                     return Err(crate::unavailable_judgment(
                         "assignment storage binder identity",
                     ));
                 }
-                let mut reference = program
-                    .declared_binding_type_by_symbol(state, binder)
-                    .ok_or_else(|| {
-                        crate::unavailable_judgment("unique assignment storage declaration")
-                    })?;
+                let mut reference = root_type(path)?;
                 for (position, name) in names.iter().enumerate().skip(1) {
                     reference = declared_field_type(
                         program,
@@ -524,7 +668,9 @@ impl<'program> DeclaredCallTargets<'program> {
 /// declaration, raised by whoever demands that declaration. A call of a bare
 /// name nothing in the program has is an error in every program and its row
 /// says so (`DeferredRequest::UndeclaredCallName`); any other is a request no
-/// pass serves yet. A
+/// pass serves yet. A value name resolution left unbound that nothing has
+/// is the same error (`DeferredRequest::UndeclaredValueName`); one that
+/// something has stays the reader's refusal. A
 /// terminal call is examined for the machines of this cohort only, as before.
 /// A request in an expression no declaration owns has no reader to raise it
 /// and still refuses here.
@@ -543,7 +689,16 @@ pub(crate) fn defer_unbound_calls(
     {
         let program = &*program;
         let targets = DeclaredCallTargets::new(program);
+        // Value names resolution left unbound, with their one written member,
+        // until `names_nothing_has` says which of them name nothing.
+        let mut unbound_names = Vec::new();
         for (handle, expression) in program.expression_table.expression_entries() {
+            if let ExpressionNode::Name(_) = expression {
+                if let Some(name) = unbound_value_name(program, handle) {
+                    unbound_names.push((handle, name));
+                }
+                continue;
+            }
             let ExpressionNode::Call(call) = expression else {
                 continue;
             };
@@ -646,6 +801,14 @@ pub(crate) fn defer_unbound_calls(
                 }
             }
         }
+        let undeclared =
+            program.names_nothing_has(unbound_names.iter().map(|(_, name)| *name).collect());
+        in_expressions.extend(
+            unbound_names
+                .into_iter()
+                .filter(|(_, name)| undeclared.binary_search(name).is_ok())
+                .map(|(handle, _)| (handle, DeferredRequest::UndeclaredValueName, None)),
+        );
         if !in_expressions.is_empty() {
             let owners = typed_trees::references::collect_program_operand_owners(program);
             for (handle, request, bare) in in_expressions {
@@ -737,6 +900,26 @@ pub(crate) fn defer_unbound_calls(
     Ok(())
 }
 
+/// The value spellings the compiler gives a meaning without a symbol: the
+/// subject of a domain or data predicate and the reserved result of a
+/// contract. Neither is an unknown name where resolution left it unbound.
+const COMPILER_VALUE_SPELLINGS: [&str; 2] = ["self", "result"];
+
+/// The one written name of the value name `expression` that resolution
+/// left unbound, if it may name nothing at all: a single plain segment,
+/// with no static application, reserved result or compiler meaning. Only
+/// such a name can be found by `names_nothing_has` to name nothing
+/// (`DeferredRequest::UndeclaredValueName`); a projected or applied path
+/// typing does not follow stays the reader's refusal.
+fn unbound_value_name(program: &TypedTrees, expression: ExpressionHandle) -> Option<&str> {
+    let (path, name) = program.expression_table.single_name_member(expression)?;
+    let name = name.as_str();
+    (path.resolved_symbol().is_none()
+        && !path.reserved_result_of.is_valid()
+        && !COMPILER_VALUE_SPELLINGS.contains(&name))
+    .then_some(name)
+}
+
 /// The bare names a call compiler-recognizes by its spelling alone: no
 /// declaration carries them, and typing gives each its meaning
 /// (`expression_lowering`, `statement_lowering`).
@@ -754,29 +937,11 @@ fn undeclared_call_names<'a>(
     written: impl Iterator<Item = &'a str>,
 ) -> Vec<&'a str> {
     // A call with no written name was made by the compiler, not the author.
-    let mut names = written
-        .filter(|name| !name.is_empty() && !COMPILER_CALL_SPELLINGS.contains(name))
-        .collect::<Vec<_>>();
-    names.sort_unstable();
-    names.dedup();
-    if names.is_empty() {
-        return names;
-    }
-    let mut named = vec![false; names.len()];
-    for (symbol, _) in program.symbols.symbols().nodes().iter() {
-        // A declaration may keep its qualified spelling as its name
-        // (`machine kit::work`); a call writes the last segment.
-        let name = program.symbols.name(symbol);
-        let leaf = name.rsplit("::").next().unwrap_or(name);
-        if let Ok(position) = names.binary_search(&leaf) {
-            named[position] = true;
-        }
-    }
-    names
-        .into_iter()
-        .zip(named)
-        .filter_map(|(name, named)| (!named).then_some(name))
-        .collect()
+    program.names_nothing_has(
+        written
+            .filter(|name| !COMPILER_CALL_SPELLINGS.contains(name))
+            .collect(),
+    )
 }
 
 #[cfg(test)]

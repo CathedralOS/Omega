@@ -11,9 +11,8 @@ use omega::language::core::FilesystemMetadataMutation;
 use omega::language::core::FilesystemNamespaceMutation;
 use omega::language::core::widen_i32_to_i64;
 use omega::language::core::widen_u32_to_i64;
-use omega_language_std::filesystem_host;
-use omega_language_std::posix_filesystem_host;
-use omega_language_std::windows_filesystem_host;
+use omega_language_std::PosixFilesystemHost;
+use omega_language_std::WindowsFilesystemHost;
 
 public boundary trait WavOutput {
     machine write_wav(path: &[u8] in Path, bytes: &[u8]) -> i64

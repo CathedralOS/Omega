@@ -37,10 +37,10 @@ formals does.
 A part that still names a value outside the scope is left out, which only
 weakens the disjunct. Each arrival's obligation is then that predicate under
 its parameter-to-argument substitution, proved by the one prover and decided
-by the kernel. When some arrival cannot be proved, the predicate is replaced
-by `Truth`, the predicate every arrival establishes, and the join is
-reported in `MachineDischarge::weakened_joins`; nothing downstream can then
-rely on it. A block on a cycle gets no inferred predicate: cyclic cuts need induction,
+by the kernel. When some arrival cannot be proved, the inferred facts are
+discarded and the join is reported in `MachineDischarge::weakened_joins`.
+The original declared predicate, if any, stays mandatory and its arrivals are
+checked again. A block on a cycle gets no inferred predicate: cyclic cuts need induction,
 which this route does not do. Nor does a dispatch arm, entered by a
 `StructuralCase` edge that passes no arguments: its payload parameters are
 bound by `DispatchBinding` rows, and lowering mints no arrival for it.
@@ -75,7 +75,7 @@ pub(crate) fn prepare(
     context: &PropositionContext,
     invariants: &[ScalarBlockInvariant],
     infer_joins: bool,
-) -> Checked<Vec<BlockId>> {
+) -> Checked<Vec<(BlockId, Proposition)>> {
     let mut declared = Vec::new();
     for invariant in invariants.iter().filter(|row| row.machine == id) {
         arrivals::admit(id, lowered, tables, invariant)?;
@@ -87,10 +87,10 @@ pub(crate) fn prepare(
                 block: invariant.header,
             },
         );
-        declared.push(invariant.header);
+        declared.push((invariant.header, invariant.predicate.clone()));
     }
     if infer_joins {
-        infer(lowered, id, tables, graph, context, &declared)?;
+        infer(lowered, id, tables, graph, context)?;
     }
     Ok(declared)
 }
@@ -153,7 +153,7 @@ fn in_scope(
     proposition.visit_value_ids(|value| {
         inside &= match tables.values.get(value).map(|row| row.origin) {
             Some(ValueOrigin::MachineParameter { .. }) => true,
-            Some(ValueOrigin::InitialContent { place }) => {
+            Some(ValueOrigin::StorageContent { place, after: None }) => {
                 crate::places::input_content(lowered, tables, place)
             }
             Some(ValueOrigin::BlockParameter { block: owner, .. }) => owner == block,
@@ -223,19 +223,19 @@ pub(crate) fn project(
 
 /// Infers a predicate for every acyclic block with parameters and records it
 /// as that block's `BlockInvariant` knowledge row at its entry. `check` must
-/// run before any other obligation reads it. A block in `declared` already
-/// has the producer's predicate and gets none inferred.
+/// run before any other obligation reads it. A declared predicate keeps its
+/// required facts and gains the ordinary incoming facts too. Declaring a
+/// predicate does not erase the parameter's relation to its argument.
 pub(crate) fn infer(
     lowered: &TerminalMachine,
     id: MachineId,
     tables: &mut MachineTables,
     graph: &Graph,
     context: &PropositionContext,
-    declared: &[BlockId],
 ) -> Checked<()> {
     for block in graph.reverse_postorder()? {
         let join = &lowered.blocks[usize::try_from(block.get() - 1).expect("dense block position")];
-        if join.parameters.is_empty() || declared.contains(&join.id) {
+        if join.parameters.is_empty() {
             continue;
         }
         let entry = ProgramPoint::BlockEntry(join.id);
@@ -266,12 +266,29 @@ pub(crate) fn infer(
         }
         let predicate = connective(disjuncts, false);
         if predicate != Proposition::Truth {
-            push_knowledge(
-                tables,
-                predicate,
-                ProgramPoint::BlockEntry(join.id),
-                Justification::BlockInvariant { block: join.id },
-            );
+            if let Some(row) = predicate_row(tables, join.id) {
+                let previous = tables
+                    .knowledge
+                    .get(row)
+                    .map(|row| row.proposition)
+                    .and_then(|proposition| tables.propositions.get_mut(proposition))
+                    .ok_or_else(|| {
+                        refusal(
+                            RefusalReason::ForeignIdentity,
+                            id,
+                            Construct::Block(join.id),
+                            "a declared block predicate has no proposition",
+                        )
+                    })?;
+                *previous = connective(vec![previous.clone(), predicate], true);
+            } else {
+                push_knowledge(
+                    tables,
+                    predicate,
+                    ProgramPoint::BlockEntry(join.id),
+                    Justification::BlockInvariant { block: join.id },
+                );
+            }
         }
     }
     Ok(())
@@ -314,7 +331,7 @@ fn describe(
         matches!(term, ScalarTerm::Value { id, .. }
         if matches!(
             tables.values.get(*id).map(|row| row.origin),
-            Some(ValueOrigin::InitialContent { place }) if crate::places::input_content(lowered, tables, place)
+            Some(ValueOrigin::StorageContent { place, after: None }) if crate::places::input_content(lowered, tables, place)
         ))
     };
     let equations: Vec<&Proposition> = available
@@ -580,18 +597,17 @@ pub(crate) struct Machine<'a> {
     pub(crate) graph: &'a Graph,
     pub(crate) context: &'a PropositionContext,
     pub(crate) relations: bool,
-    /// Blocks whose predicate the producer declared (a loop head's). Such a
-    /// predicate is the program's claim, so an arrival that fails it is an
-    /// unproved obligation and the predicate is never weakened.
-    pub(crate) declared: &'a [BlockId],
+    /// Keep the producer's original predicates separate from inferred facts.
+    /// An inference can be discarded; a failed declared claim still rejects.
+    pub(crate) declared: &'a [(BlockId, Proposition)],
     /// The machine's values the integer rules do not reach
     /// (`crate::Unreached`).
     pub(crate) unreached: &'a [ValueId],
 }
 
 /// Decides every `ArrivalInvariant` obligation into `decided`. An inferred
-/// join any of whose arrivals is not proved has its predicate replaced by
-/// `Truth` (a declared one keeps its predicate and its failed arrival), and
+/// join any of whose arrivals is not proved loses its inferred predicate.
+/// Its original declared predicate, when present, remains mandatory. Then
 /// every arrival is decided again, since one join's predicate may be a fact
 /// on another's arrival. Each round weakens at least one predicate, so this
 /// ends. Returns the weakened joins.
@@ -652,7 +668,6 @@ pub(crate) fn check(
                 let (target, _) = arrival(machine.lowered, edge)
                     .ok_or_else(|| refuse("the arrival edge is not a successor in the module"))?;
                 if let Some(row) = predicate_row(tables, target)
-                    && !machine.declared.contains(&target)
                     && !failed.contains(&(target, row))
                 {
                     failed.push((target, row));
@@ -678,8 +693,13 @@ pub(crate) fn check(
                         "a join predicate row has no proposition",
                     )
                 })?;
-            if *predicate != Proposition::Truth {
-                *predicate = Proposition::Truth;
+            let required = machine
+                .declared
+                .iter()
+                .find(|(block, _)| *block == target)
+                .map_or(Proposition::Truth, |(_, predicate)| predicate.clone());
+            if *predicate != required {
+                *predicate = required;
                 weakened.push(target);
                 changed = true;
             }

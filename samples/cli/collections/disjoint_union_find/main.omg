@@ -9,7 +9,7 @@
 // Expected output contains: PASS
 // Expected exit: 0
 
-use omega_language_std::console;
+use omega_language_std::Console;
 
 data DisjointSet {
     parent: [u64; 64];

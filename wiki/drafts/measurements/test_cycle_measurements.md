@@ -4,13 +4,13 @@ Temporary evidence for choosing the next local test-performance experiment,
 especially distinguishing compilation, test execution, and repeated rechecks.
 The selection-cost role this clause covered is now established by the
 controlled replacement
-[test_cycle_selection_remeasurement.md](test_cycle_selection_remeasurement.md);
+[test_cycle_selection_remeasurement.md](https://github.com/CathedralOS/Omega/blob/3b24dc9383e37416021ff19b350869a147c57432/wiki/drafts/measurements/test_cycle_selection_remeasurement.md);
 this note stays as the standing record of the package-review route cost
 attribution (macOS/Windows/Linux sections below), which the replacement does
 not cover and which live optimization items still cite. It is not validation
 policy or a current checkout baseline; see
-[tools/testing.md](../../../tools/testing.md#validation-scope) and
-[selector usage](../../../tools/testing.md). Delete this note once the
+[tools/docs/testing.md](../../../tools/docs/testing.md#validation-scope) and
+[selector usage](../../../tools/docs/testing.md). Delete this note once the
 optimization items citing the package-review route attribution close, or when
 a later measurement replaces those sections.
 
@@ -229,8 +229,8 @@ inference is about 1.1 s of the ~540–830 s route (~0.15%), confirming the
 item's earlier finding that crash-guard classification is a minor share; the
 named remaining candidates `validate_specialized_program` and
 `build_flow_facts` sit outside `checks/crashes.rs` and were not measured here.
-The `omega --check` whole-route probe on
-`tests/omega/pass/terminal_psi/integer_control_contract` stayed at a 4.63 s
+The `omega --check` whole-route probe on the
+`integer_control_contract` fixture stayed at a 4.63 s
 median over 5 warm debug runs (documented baseline 4.90 s).
 
 ## Linux package-review route cost attribution

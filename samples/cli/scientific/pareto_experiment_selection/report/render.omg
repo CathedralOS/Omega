@@ -2,7 +2,7 @@
 // Fixed three-digit fields make reports exact byte oracles without floating tolerance.
 use domain::model;
 use domain::selection;
-use omega_language_std::console;
+use omega_language_std::Console;
 public machine number(application: &mut Application, value: u64) reaches Console
 invokes Console
 requires value <= 999 {

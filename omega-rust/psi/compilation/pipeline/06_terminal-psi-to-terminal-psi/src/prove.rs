@@ -1339,6 +1339,38 @@ impl<'a> Prover<'a> {
         })
     }
 
+    /// `proof` of `subject R literal` (`literal R subject` for a lower bound)
+    /// restated so that its literal side is the plain literal the bound names.
+    /// A fact may bound a value by a closed term, such as `(20 + 11) * 3 + 1`
+    /// once value-equality transport has substituted every operand, and the
+    /// bound's literal is that term's value. Callers chain the proof through
+    /// the literal, and the kernel's order rules match the middle endpoint
+    /// exactly, so the proof must end at that literal: the closed relation
+    /// between the term and its value is one more chained step.
+    fn literal_endpoint(
+        &self,
+        proof: ProofNode,
+        literal: &ScalarTerm,
+        direction: Direction,
+    ) -> Option<(IntegerValue, ProofNode)> {
+        let (integer, value) = literal.integer_value()?;
+        if matches!(literal, ScalarTerm::Integer { .. }) {
+            return Some((value, proof));
+        }
+        let plain = ScalarTerm::integer(integer, value).ok()?;
+        let restated = match direction {
+            Direction::Upper => chain(
+                proof,
+                self.closed(Proposition::LessOrEqual(literal.clone(), plain))?,
+            ),
+            Direction::Lower => chain(
+                self.closed(Proposition::LessOrEqual(plain, literal.clone()))?,
+                proof,
+            ),
+        };
+        Some((value, restated.ok()?))
+    }
+
     /// A bound on `subject` from one fact, or `None` when the fact says
     /// nothing in this direction.
     fn bound_from_fact(
@@ -1351,24 +1383,20 @@ impl<'a> Prover<'a> {
         let proof = self.facts[index].proof.clone();
         let axiom = self.facts[index].axiom;
         let proposition = self.facts[index].proposition.clone();
-        let literal_bound = |literal: &ScalarTerm, proof: ProofNode| {
-            literal
-                .integer_value()
-                .map(|(_, literal)| Bound { literal, proof })
-        };
         match (&proposition, direction) {
             // Direct bounds.
             (Proposition::LessOrEqual(left, literal), Direction::Upper)
             | (Proposition::LessOrEqual(literal, left), Direction::Lower)
                 if left == subject && literal.integer_value().is_some() =>
             {
-                literal_bound(literal, proof)
+                let (literal, proof) = self.literal_endpoint(proof, literal, direction)?;
+                Some(Bound { literal, proof })
             }
             (Proposition::LessThan(left, literal), Direction::Upper)
             | (Proposition::LessThan(literal, left), Direction::Lower)
                 if left == subject && literal.integer_value().is_some() =>
             {
-                let (_, value) = literal.integer_value()?;
+                let (value, proof) = self.literal_endpoint(proof, literal, direction)?;
                 let adjacent = step(value, direction == Direction::Lower)?;
                 let conclusion = Self::oriented(
                     subject,
@@ -1397,7 +1425,9 @@ impl<'a> Prover<'a> {
                     flip(proof).ok()?
                 };
                 let literal = if left == subject { right } else { left };
-                literal_bound(literal, weaken(proof).ok()?)
+                let (literal, proof) =
+                    self.literal_endpoint(weaken(proof).ok()?, literal, direction)?;
+                Some(Bound { literal, proof })
             }
             // Relations to another value: chain through its bound.
             (Proposition::LessOrEqual(near, far), _) | (Proposition::LessThan(near, far), _)

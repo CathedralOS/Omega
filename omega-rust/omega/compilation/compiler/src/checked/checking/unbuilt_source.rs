@@ -181,6 +181,7 @@ fn frozen_frontier(
             supplies: &[],
         },
         admission: psi_compiler::SourceAdmission {
+            invocation_sources: None,
             external_roots: &[],
             layout_scopes: &layout_scopes,
             layout_selection_authority: None,

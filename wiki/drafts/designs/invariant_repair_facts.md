@@ -59,7 +59,6 @@ Check reference weakening against both pure predicate and retained-policy cases.
 Reuse existing fixtures and samples across the repository's nine value places;
 add only a focused non-`facts/` fixture pair where needed. Verify both Terminal
 and native execution on matching hosted targets and inspect evidence transport.
-Keep golden outcomes tied to clean committed sources and review all movements.
 Measure checker/entailment cost on simple and composed repairs against a fixed
 base; reuse canonical facts and avoid repeatedly expanding whole predicates.
 The ratification promises sound composition, not a measured cost improvement.

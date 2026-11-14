@@ -21,6 +21,7 @@ pub enum TerminalLayoutError {
     RecursiveStructuralType(StructuralTypeId),
     UnknownStructuralType(StructuralTypeId),
     UnclosedTargetLayout(StructuralTypeId),
+    UnclosedOpaqueRepresentation(StructuralTypeId),
     UnclosedArrayExtent(StructuralTypeId),
     StructuralTypeTooLarge(StructuralTypeId),
     EmptyStructuralType(StructuralTypeId),
@@ -440,6 +441,9 @@ fn resolve_structural_shape(
             .copied()
             .ok_or(TerminalLayoutError::UnknownStructuralType(structural_type))?;
         match &declaration.shape {
+            StructuralTypeShape::Opaque => Err(TerminalLayoutError::UnclosedOpaqueRepresentation(
+                structural_type,
+            )),
             StructuralTypeShape::Reference { referent, .. } => {
                 declarations
                     .get(*referent)

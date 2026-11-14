@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### The standard library declares two public things named `DarwinClock`
+- Category: one idea, several implementations
+- Where: [source/library/std/macos_gui.omg:586](source/library/std/macos_gui.omg#L586) (`public boundary trait DarwinClock`) and [source/library/std/targets/macos_arm64/clock_impl.omg:26](source/library/std/targets/macos_arm64/clock_impl.omg#L26) (`public DarwinClock satisfies Clock`)
+- Saw: `use omega_language_std::DarwinClock;` is refused as selecting no one declaration (modules.md, "Resolution": "Ambiguous imported declarations reject"). Five GUI samples (`samples/gui/window_app`, `image_viewer`, ...) write `invokes DarwinClock` and cannot name it; std's own Build names both meanings unqualified (`Build::select_provider<Clock, DarwinClock>` and `Build::bind<DarwinClock::clock_ns>`)
+- Cost: no consumer can import either declaration, and which one an unqualified `DarwinClock` means inside std depends on the operand's role. One of the two needs another name
+- Reported: 2026-11-14, Claude Code, while moving samples to declaration imports
+
 ### Missing locked archives stop every pool acquire or release
 - Category: Re-deriving
 - Where: [tools/xtask/src/worktree.rs:532](tools/xtask/src/worktree.rs#L532), `list_worktrees`
@@ -86,6 +93,13 @@ framework or a list of features that remain unimplemented.
 - Saw: `form` refuses a data type in a Build's choice but accepts one in a `provider_defaults` machine. provider_selection.md, "Declaration and choice", says a target package "supplies ordinary named default provider implementations" and "A data type or runtime provider descriptor is not such a value", with no exception for defaults. `std`'s ProcessExit defaults, its only user, now select the named `NativeProcessExit`; the last user anywhere is `samples/cli/probes/device_extent_access` (`LoopbackDeviceLoanProvider`), which is written in other retired forms too (`via`, target-prefixed machines)
 - Cost: a second, looser reading of the Provider position stays served for no library; delete `DefaultClosure` and the `ProviderForm` parameter, turn the test into the refusal twin, and give the probe a named implementation
 - Reported: 2026-11-14, worker-15 (Claude Code), while moving std's ProcessExit defaults to a named implementation
+
+### A selected provider plan travels in two carriers, and only one knows its provider declaration
+- Category: 1. One idea, several implementations.
+- Where: `omega-rust/omega/compilation/realization/selected-dispatch/src/selected_execution.rs` (`SelectedExecution`), `backend-plan/src/target_providers.rs:30` (`TerminalTargetProviderPlan`), `effects/src/provider_evidence.rs:200` (`SelectedProviderPlanFacts`)
+- Saw: the checked-adapter join needs each plan's selecting declaration, which `ProviderPlan` does not hold; `TerminalTargetProviderPlan` wraps the plan with it, `SelectedProviderPlanFacts` sorts and validates bare plans, so `SelectedExecution` keeps both and `require_selected_provider_declarations` rejoins them by equality.
+- Cost: every consumer of selected plans must be handed both carriers and trust they agree; the declaration belongs in the plan.
+- Reported: 2026-11-14, Claude Code worker-10, while forming provider plans from settled supplies.
 
 ### Compiler operations are recognized by their bare spelling, and no declaration answers them
 - Category: one idea, several implementations
@@ -192,13 +206,6 @@ framework or a list of features that remain unimplemented.
 - Cost: an embedding caller can reach native optimization with asserted obligations but no explicit authorization of their producer; repair the ingress trust boundary under `PSI-CLAIM-ADMISSION`, not by replaying proofs on every trusted internal stage handoff.
 - Reported: 2026-11-12, Claude Code; narrowed against the ratified execution-admission contract by Codex on 2026-11-13 while auditing accepted facts
 
-### A default compile seals the native artifact without running the replay, and a failed replay under `--both` is reported as declined
-- Category: a verdict with nothing behind it
-- Where: `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/native_artifact.rs:479-486`, `:529`, `:629-632`; `omega-rust/omega/interpreter/terminal-runtime/src/execution/native_code_layouts.rs:35-37`; `omega-rust/omega/interpreter/terminal-runtime/src/execution.rs:113-115`; `omega-rust/omega/application/cli/src/execution/mod.rs:549-550`; `omega-rust/omega/application/cli/src/commands/run.rs:113-116`
-- Saw: `from_emitted_parts` seals with no call to `validate`; outside tests and one example, `validate` is reached only through `inspect_native_code_layouts`, whose single caller runs when the Terminal runtime is handed a native image; the three machine-emission and object-file stage validators are called only from each other and from `function_fragments.rs:24444` inside that replay; a validation error becomes a missing provision, which makes the comparison `Declined` and the command exit with the native code
-- Cost: the build-then-replay design reads as if every emitted program was replayed, but an ordinary `omega <root>` never runs it, and when it does run a failure looks like an unavailable comparison
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### Stage 05 of the Omega pipeline hands out "Validated" homes and "validation receipts" with no replay behind them
 - Category: a verdict with nothing behind it
 - Where: `omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/home_assignment.rs:1-6` and `:2628-2640`, `.../src/fixed_view_copy_recovery.rs:1-6` and `:1095-1116`, `.../src/runtime_spill_and_split.rs:530`, `:3224`, `:5460`
@@ -289,13 +296,6 @@ framework or a list of features that remain unimplemented.
 - Saw: typing records a call whose name no declaration answers as a deferred row beside rows for constructs no pass serves yet, and the reader raises every row the same way. `undeclared_machine(x);` in a program's own machine therefore reaches the user as "not supported yet ... with no claim that it is wrong" and never as a rejection
 - Cost: a misspelled machine name reads as a compiler limitation; state_contracts.md ("an unknown machine name or malformed type is an error wherever it appears") is met only in that the program is not accepted, and the outcome word is `not-supported` where it should be `rejected`
 - Reported: 2026-11-13, Claude Code, while accepting statements after a call that never returns
-
-### Lowering signals "this path ended" through the refusal channel
-- Category: a verdict with nothing behind it
-- Where: `05_typed-trees-to-terminal-psi/src/lower.rs` (`Lowering::end_path`, `Lowering::reached`); taken in `body`, `lower/control.rs` (`complete`, `short_circuit`, `match_value`)
-- Saw: a call that never returns, written inside an expression, ends the evaluation that holds it by returning a `Refusal` up through every `?`, and the construct whose path ended recognizes it by a side field and the refusal's text. Expression lowering returns `Checked<Value>` with no way to say "no value: control left", so the signal borrows the error type
-- Cost: any lowering step that swallows a refusal (`.ok()`, `if let Ok`) between the call and its taker would turn a divergence into an internal refusal later; the honest shape is a `Value::Ended(call)` result that every operand consumer handles, which touches each of the ~25 `scalar`/`record` call sites in `lower/`
-- Reported: 2026-11-14, Claude Code, while lowering calls that never return inside expressions
 
 ### No stage types a result value against the type its machine declares
 - Category: a verdict with nothing behind it

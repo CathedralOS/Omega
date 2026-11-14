@@ -79,7 +79,7 @@ syntax; a `.ps1` is not itself macOS support. Do not globally change Git config.
    queue delay, disk/cache growth and required behavior. Adopt only a real gain
    in useful outcome throughput without unacceptable E2E latency or pressure.
 5. On a workstation its owner is using, set the
-   [host build budget](../../../../tools/build_slot.md#on-a-workstation-someone-is-using)
+   [host build budget](../../../../tools/docs/build_slot.md#on-a-workstation-someone-is-using)
    before the first build and put it in every worker prompt. Agent width may
    stay wide there; build load may not. A limit the owner states replaces any
    default.
@@ -122,7 +122,7 @@ waits with 25-45 waiters. Batch them instead:
 
 1. Pick the sub-batch base revision G and create the sub-batch worktrees **at G**.
 2. Build ONE `omega` binary at G as one
-   build under the [host build budget](../../../../tools/build_slot.md), then
+   build under the [host build budget](../../../../tools/docs/build_slot.md), then
    publish it outside any worktree (for example
    `build/swarm/<wave>/producers/gen-<rev11>/`) with a `GENERATION` file (exact
    revision + sha256 of the artifact) and a `READY` marker. With a warm MBX
@@ -157,10 +157,10 @@ landing re-verify paid that wait several times.
 
 Run a lane's local check and crate tests as strictly
 sequential steps in one shell under one
-[host build budget](../../../../tools/build_slot.md#one-hold-for-a-whole-chain).
+[host build budget](../../../../tools/docs/build_slot.md#one-hold-for-a-whole-chain).
 Finish before submitting or waiting for GitHub admission, and release local
 build resources while waiting. Validation follows
-[testing](../../../../tools/testing.md); main is checked after merge.
+[testing](../../../../tools/docs/testing.md); main is checked after merge.
 
 Two habits keep a killed lane cheap to resume, learned across two host
 restarts in one day:
@@ -178,12 +178,12 @@ coordination uses the claims registry and publication evidence.
 The fix loop is not the chain. Repairing a compile error or a red test is a
 minutes-scale check-edit-check loop: iterate with single-crate checks until
 green, then run the chain once
-([diagnostics](../../../../tools/build_slot.md#diagnostics-dont-queue-with-chains)).
+([diagnostics](../../../../tools/docs/build_slot.md#diagnostics-dont-queue-with-chains)).
 
 ## Publish through the current landing route
 
 After focused validation and self-review, follow
-[landing](../../../../tools/landing.md) through a ready PR, admission and a
+[landing](../../../../tools/docs/landing.md) through a ready PR, admission and a
 squash merge, then verify the submitted source and published commit on remote
 main. Keep local build resources available to other workers while waiting.
 Use that canonical procedure for main movement, conflicts and failed checks

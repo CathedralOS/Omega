@@ -211,7 +211,9 @@ contradicts the subject's established facts, including exact type equalities.
 Coverage consumes that evidence; it does not require unrestricted theorem search
 over case predicates. If impossibility is not established, the case still needs
 coverage or an explicit proof discharging the dead arm. Failure to construct or
-prove a case is not evidence that it cannot occur.
+prove a case is not evidence that it cannot occur. A case whose payload has a
+type proved [uninhabited](data_and_literals.md#the-uninhabited-type-never),
+such as `Never`, contributes no coverage obligation.
 
 An intentional Unit completion is explicit, for example `_ -> {}`. A result-
 producing context still requires a compatible result. A wildcard does not supply
