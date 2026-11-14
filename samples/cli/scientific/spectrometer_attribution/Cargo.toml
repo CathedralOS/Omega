@@ -26,7 +26,7 @@ syntax-trees = { path = "../../../../omega-rust/psi/compilation/representations/
 tokens-to-syntax-trees = { path = "../../../../omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees" }
 diagnostics = { path = "../../../../omega-rust/psi/foundation/diagnostics" }
 target = { path = "../../../../omega-rust/omega/compilation/backend/target" }
-terminal-interpreter = { path = "../../../../omega-rust/psi/interpreter/terminal-interpreter" }
+terminal-interpreter = { path = "../../../../omega-rust/psi/interpreter" }
 terminal-psi = { path = "../../../../omega-rust/psi/compilation/representations/terminal-psi" }
 image-emission = { path = "../../../../omega-rust/omega/compilation/backend/images/image-emission" }
 effects = { path = "../../../../omega-rust/omega/compilation/backend/plans/effects" }

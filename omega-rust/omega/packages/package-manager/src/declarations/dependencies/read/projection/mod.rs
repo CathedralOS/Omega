@@ -27,13 +27,13 @@ pub(super) fn extract_scoped_requests_from_source(
 }
 
 fn syntax_trees_for(source: &str) -> Result<SyntaxTrees, DependencyProjectionError> {
-    psi_compiler::parse_text(source)
+    source_compiler::parse_text(source)
         .map(|parsed| parsed.syntax)
         .map_err(|error| match error {
-            psi_compiler::SourceParseError::Lex { message } => {
+            source_compiler::SourceParseError::Lex { message } => {
                 DependencyProjectionError::Lex { message }
             }
-            psi_compiler::SourceParseError::Parse { message } => {
+            source_compiler::SourceParseError::Parse { message } => {
                 DependencyProjectionError::Parse { message }
             }
         })

@@ -10,7 +10,7 @@ argument over the rules the checker actually implements — not a mechanized
 proof and not an imported acceptance verdict. Each claim names its status:
 *argued* (discharged by an argument here), *witnessed* (demonstrated by the
 named test), or *by construction* (the implementation cannot do otherwise).
-Code anchors are `omega-rust/psi/compilation/proof/admission/src/` paths.
+Code anchors are `omega-rust/psi/compilation/proof-admission/src/` paths.
 
 <a id="the-implemented-calculus"></a>
 

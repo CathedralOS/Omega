@@ -368,7 +368,7 @@ impl CompilationSession {
         &mut self,
         build: PackageBuild,
         declaration_path: &str,
-    ) -> Result<psi_compiler::ProducedBuildProvider, CompileFailure> {
+    ) -> Result<source_compiler::ProducedBuildProvider, CompileFailure> {
         super::run_on_compile_thread(|| {
             let (_, _, inputs, rollback, prepared) = build.source.into_continuation();
             let source = super::checking::complete_prepared_build(prepared, Some(&inputs))?;
@@ -376,7 +376,7 @@ impl CompilationSession {
                 super::checking::check_product_source(source, Some(&inputs), &rollback, None)?;
             let publication = &checked.terminal_publication;
             let accepted = publication.accepted()?;
-            let supply = psi_compiler::AcceptedTerminalSource::build_backing_supply(
+            let supply = source_compiler::AcceptedTerminalSource::build_backing_supply(
                 accepted.source(),
                 inputs.root(),
                 declaration_path,

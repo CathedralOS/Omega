@@ -1,6 +1,6 @@
 # Terminal production
 
-Public contract: [Terminal Psi product](../../../../../wiki/spec/terminal-psi/product.md).
+Public contract: [Terminal Psi product](../../../../wiki/spec/terminal-psi/product.md).
 
 The [accepted-source factory](src/accepted.rs) retains the exact frozen typed
 owner before the lowered-form checker judges its whole compilation. It publishes
@@ -25,7 +25,7 @@ a fallback artifact.
 correspondence for portable reuse and invocation-local production. Companion
 records remain in [build_bindings.rs](src/build_bindings.rs).
 
-The [codec entry-receipt owner](../../representations/terminal-psi/codec/src/entry_receipt.rs)
+The [codec entry-receipt owner](../representations/terminal-psi/codec/src/entry_receipt.rs)
 checks the unique Unit entry in a published artifact and binds its exact
 semantic identity. Application attachment and later reuse consume that same
 receipt without reopening source trees.

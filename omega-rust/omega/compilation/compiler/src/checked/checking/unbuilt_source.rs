@@ -170,10 +170,10 @@ fn frozen_frontier(
     // exactly as the product path does, and keep the real result. Entries and
     // the subject belong to subsequent structural judgment, not a deleted
     // checker projection or an interrupted source-checking request.
-    let prepared = psi_compiler::SourcePreparationRequest {
+    let prepared = source_compiler::SourcePreparationRequest {
         program: typed,
         accounting,
-        compilation: psi_compiler::TerminalSourceCompilation {
+        compilation: source_compiler::TerminalSourceCompilation {
             declaration_metadata: &[],
             entries: &entries,
             subjects: &[subject],
@@ -182,13 +182,13 @@ fn frozen_frontier(
             bindings: &bindings,
             supplies: &[],
         },
-        admission: psi_compiler::SourceAdmission {
+        admission: source_compiler::SourceAdmission {
             invocation_sources: None,
             external_roots: &[],
             layout_scopes: &layout_scopes,
             layout_selection_authority: None,
             completion: typed_trees::boundary_completions::SourceCompletionAdmission::None,
-            representations: psi_compiler::ProductRepresentationInput::default(),
+            representations: source_compiler::ProductRepresentationInput::default(),
             asm_authority: Some(
                 language_core::inline_assembly::AsmAuthorityAdmission::from_freestanding(
                     build.settings.freestanding,

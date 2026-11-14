@@ -18,7 +18,7 @@ use build_declarations::{
     BuildDependencySource, BuildRequest, DependencyPurpose, ProjectName, WorkspaceMemberPath,
 };
 use evaluation_accounting::{EvaluationInvocationAccount, EvaluationStorageLease};
-use psi_compiler::{
+use source_compiler::{
     TerminalBuildRequestCall, TerminalBuildRequestOperation as Operation, TerminalBuildRequests,
 };
 use std::sync::{Arc, Mutex};

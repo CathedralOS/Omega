@@ -8,7 +8,7 @@ The coordinator sequences typed owner results; it does
 not implement package loading, build evaluation, transformation algorithms or
 visualization semantics. See the [pipeline map](../../../pipeline.md).
 
-[Terminal production](../../../psi/compilation/psi-compiler/terminal-production/README.md)
+[Terminal production](../../../psi/compilation/terminal-production/README.md)
 publishes an accepted lowered-form module with the same evidence and retained
 source owner. This driver supplies product policy and timing observations;
 [entry receipts](../../../psi/compilation/representations/terminal-psi/codec/src/entry_receipt.rs)
@@ -234,10 +234,10 @@ The [checked entrance](src/checked/checking.rs) shows the lifecycle:
 [evaluate Build and continue generated source](src/checked/checking/build_continuation.rs),
 [check Product and seal source custody](src/checked/checking/source_checking.rs),
 then [prepare each target's complete selected execution](src/execution_settlement.rs).
-The Build coordinator calls the [Psi source continuation](../../../psi/compilation/psi-compiler/src/source_compilation.rs)
+The Build coordinator calls the [Psi source continuation](../../../psi/compilation/source-compiler/src/source_compilation.rs)
 for resolution, typing and generated-source completion. It owns package admission
 and Build authority, not the resolver/typing fixed points or their paired arenas.
-[Psi source checking](../../../psi/compilation/psi-compiler/src/source_checking.rs) then
+[Psi source checking](../../../psi/compilation/source-compiler/src/source_checking.rs) then
 owns preparation, retained-judgment matching, checking and product pruning.
 Build admission uses that same checking sequence. Shared source projections and
 operator queries belong to semantic checking libraries, not a stage backdoor.

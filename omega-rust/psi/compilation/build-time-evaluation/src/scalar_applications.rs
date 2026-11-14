@@ -8,7 +8,6 @@
 */
 
 use crate::evaluation_accounting::CanonicalScalarEvaluationReceipt;
-use psi_work::WorkMeter;
 use semantic_vocabulary::ScalarApplicationId;
 use terminal_installation::{ScalarApplicationClosure, TerminalScalarValue};
 use terminal_installation::{ScalarApplicationObservations, ScalarConditionSelection};
@@ -16,6 +15,7 @@ use terminal_interpreter::{
     TerminalEntryResultRequest, TerminalExecutionResult, TerminalExecutionStatus,
     TerminalInstantiation, TerminalProgram, TerminalScalarApplicationRequest,
 };
+use terminal_work::WorkMeter;
 
 mod demand {
     use crate::unique::{extend_unique, push_unique};

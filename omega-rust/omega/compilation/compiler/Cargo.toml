@@ -35,7 +35,7 @@ optimization = { path = "../../../psi/foundation/optimization" }
 optimization-core = { path = "../../foundation/optimization-core" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 symbols = { path = "../../../psi/foundation/symbols" }
-psi-compiler = { path = "../../../psi/compilation/psi-compiler" }
+source-compiler = { path = "../../../psi/compilation/source-compiler" }
 diagnostics = { path = "../../../psi/foundation/diagnostics" }
 source = { path = "../../../psi/foundation/source" }
 backend-plan = { path = "../backend/plans/backend-plan" }
@@ -49,7 +49,7 @@ terminal-semantics = { path = "../../../psi/compilation/representations/terminal
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-installation = { path = "../../../psi/compilation/terminal-installation" }
 target-operations = { path = "../representations/target-operations" }
-proof-admission = { path = "../../../psi/compilation/proof/admission" }
+proof-admission = { path = "../../../psi/compilation/proof-admission" }
 selected-dispatch = { path = "../realization/selected-dispatch" }
 native-artifact = { path = "../backend/artifacts/native-artifact" }
 
@@ -73,7 +73,7 @@ layout-plans = { path = "../../../psi/foundation/layout-plans" }
 provider-selection = { path = "../realization/provider-selection" }
 layout = { path = "../backend/layout" }
 image-emission = { path = "../backend/images/image-emission" }
-psi-work = { path = "../../../psi/compilation/representations/terminal-psi/work" }
+terminal-work = { path = "../../../psi/compilation/representations/terminal-psi/work" }
 terminal-psi-to-abstract-operations = { path = "../pipeline/00_terminal-psi-to-abstract-operations" }
 abstract-operations-to-abstract-operations = { path = "../pipeline/01_abstract-operations-to-abstract-operations" }
 package-manager = { path = "../../packages/package-manager" }
@@ -83,7 +83,7 @@ bounded-process = { path = "../../foundation/bounded-process" }
 orchestration = { path = "../../build-system/orchestration" }
 terminal-runtime = { path = "../../interpreter/terminal-runtime" }
 numerics = { path = "../../../psi/foundation/numerics" }
-terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }
+terminal-interpreter = { path = "../../../psi/interpreter" }
 access-plans = { path = "../../../psi/foundation/access-plans" }
 extents = { path = "../../../psi/foundation/extents" }
 platform-custody = { path = "../../foundation/platform-custody" }

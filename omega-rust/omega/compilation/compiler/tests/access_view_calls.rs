@@ -8,7 +8,6 @@ mod fixture_package_inputs;
 
 use compiler::{CheckedCompileRequest, CompilationProduct, CompilationSession};
 use fixture_package_inputs::{repo_root, reviewed_repository_fixture_package_inputs};
-use psi_work::WorkMeter;
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
 use std::sync::{Arc, Mutex};
 use terminal_codec::CanonicalTerminalArtifact;
@@ -18,6 +17,7 @@ use terminal_interpreter::{
     TerminalExecutionStatus, TerminalImportAdapter, TerminalImportSignature, TerminalProgram,
     TerminalScalarValue, TerminalStructuralInputs, TerminalStructuralValue,
 };
+use terminal_work::WorkMeter;
 
 fn produce(machine: &str) -> std::sync::Arc<CanonicalTerminalArtifact> {
     let root = repo_root().join("tests/fixtures/pass/layouts/placed_view_call_custody/main.omg");

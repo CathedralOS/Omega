@@ -120,7 +120,7 @@ impl<'a> TerminalProductRequest<'a> {
 }
 
 pub(crate) struct ProducedTerminalProduct {
-    pub(crate) program: Arc<psi_compiler::PortableTerminalProgram>,
+    pub(crate) program: Arc<source_compiler::PortableTerminalProgram>,
     pub(super) proposal: Option<backend_plan::TerminalTargetProviderProposal>,
 }
 
@@ -213,7 +213,7 @@ pub(crate) fn produce_retained_terminal_artifacts(
 fn produce_shared_terminal(
     first: &PreparedTerminalProduct<'_>,
     timings: &mut CompileTimings,
-) -> Result<Arc<psi_compiler::PortableTerminalProgram>, Vec<Diagnostic>> {
+) -> Result<Arc<source_compiler::PortableTerminalProgram>, Vec<Diagnostic>> {
     let mut observer = PsiStageTimings::new(timings);
     match first.request.use_kind {
         TerminalProductUse::Inspection { name, source } => {

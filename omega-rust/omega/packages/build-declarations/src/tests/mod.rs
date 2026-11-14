@@ -19,7 +19,7 @@ fn source_and_syntax_apis_project_the_same_authoritative_role() {
             Build::application(builder, "omega_compiler");
         }
     "#;
-    let trees = psi_compiler::parse_text(source)
+    let trees = source_compiler::parse_text(source)
         .expect("parse fixture")
         .syntax;
     let syntax = project_build_declaration_syntax(&trees).expect("project syntax");
@@ -345,7 +345,7 @@ fn artifact_only_rejects_wrong_receiver_arguments_and_indirect_shapes() {
 /// rejects a boundary requirement with no `reaches`; nothing before the
 /// checker asks for the crash clause.
 fn requirements_with_no_crash_ceiling(source: &str) -> Vec<String> {
-    let parsed = psi_compiler::parse_text(source).unwrap_or_else(|_| panic!("source parses"));
+    let parsed = source_compiler::parse_text(source).unwrap_or_else(|_| panic!("source parses"));
     let syntax = &parsed.syntax;
     let mut open = Vec::new();
     for item in syntax.root_items() {
@@ -400,7 +400,7 @@ fn build_helpers_belong_to_modules_instead_of_data_carriers() {
             .into_iter()
             .map(|(namespace, text)| (Some(namespace), text)),
     ) {
-        let syntax = psi_compiler::parse_text(&text)
+        let syntax = source_compiler::parse_text(&text)
             .expect("compiler-owned prelude source")
             .syntax;
         let modules = syntax

@@ -11,7 +11,7 @@ inspection is an execution error, not an unavailable host capability. The CLI
 therefore fails `--both` instead of declining comparison with a successful native
 exit. A genuinely missing host provision can still make comparison unavailable.
 
-The language engine remains in `psi/interpreter/terminal-interpreter`.
+The language engine remains in `psi/interpreter`.
 Target-aware ABI/locator checks, finite input replay, buffered output, virtual
 clocks and isolated-domain exit delegation belong here, not in a compiler.
 The CLI, corpus and embedding consumers call this owner directly; there is no

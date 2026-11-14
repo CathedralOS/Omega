@@ -31,6 +31,7 @@ that lists one, because it would publish a source-produced body with no
 declaration identity.
 */
 
+#[path = "declare_selected.rs"]
 mod selected;
 
 use std::hash::{Hash, Hasher};

@@ -4,7 +4,7 @@
 use compilation_products::ProductTerminalPublication;
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationSelections;
-use psi_compiler::{PortableTerminalProgram, PsiCompilationObserver};
+use source_compiler::{PortableTerminalProgram, PsiCompilationObserver};
 use std::sync::Arc;
 
 #[derive(Clone, Copy)]

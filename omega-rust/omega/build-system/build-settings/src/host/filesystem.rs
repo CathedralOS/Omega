@@ -20,8 +20,8 @@ use package_compilation::build_execution::{
     BUILD_OUTPUT_ROOT_IDENTITY, BUILD_SOURCE_ROOT_IDENTITY, BuildFilesystemEffects,
     BuildFilesystemRuntime, BuildMachineFilesystemScope,
 };
-use psi_compiler::{TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation as Operation};
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue};
+use source_compiler::{TerminalBuildFilesystemCall, TerminalBuildFilesystemOperation as Operation};
 use std::sync::{Arc, Mutex};
 use terminal_interpreter::{
     TerminalBoundaryByteBuffer, TerminalByteSequenceValue, TerminalEffect, TerminalEffectHandler,
@@ -70,7 +70,7 @@ pub(crate) struct TerminalBuildFilesystemHost {
 
 impl TerminalBuildFilesystemHost {
     pub(crate) fn new(
-        produced: &psi_compiler::ProducedTerminalProgram,
+        produced: &source_compiler::ProducedTerminalProgram,
         original: &TerminalStructuralValue,
         account: &EvaluationInvocationAccount,
         scope: &BuildMachineFilesystemScope,

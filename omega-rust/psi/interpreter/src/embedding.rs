@@ -258,9 +258,9 @@ pub(crate) mod instance {
         use evaluation_accounting::EvaluationInvocationAccount;
         use std::collections::BTreeMap;
 
-        use psi_work::WorkMeter;
         use semantic_vocabulary::{BoundaryMachineId, OperationId};
         use terminal_installation::{AdmittedComponentProvider, AdmittedScalarApplications};
+        use terminal_work::WorkMeter;
 
         use super::{ComponentOwnedReturn, TerminalImportBinding, TerminalInstance};
         use crate::boundary::results::TerminalExecutionStatus;
@@ -1293,7 +1293,7 @@ pub(crate) mod instance {
                     );
                     assert!(matches!(
                         instance
-                            .invoke(&mut psi_work::WorkMeter::with_budget(100))
+                            .invoke(&mut terminal_work::WorkMeter::with_budget(100))
                             .unwrap(),
                         TerminalExecutionStatus::Complete(TerminalExecutionResult::Structural(_))
                     ));
@@ -1496,8 +1496,8 @@ pub(crate) mod instance {
 
     use std::collections::BTreeMap;
 
-    use psi_work::WorkMeter;
     use semantic_vocabulary::BoundaryMachineId;
+    use terminal_work::WorkMeter;
 
     use crate::boundary::effects::byte_buffers::TerminalBoundaryByteBuffer;
     use crate::boundary::effects::results::TerminalEffectResult;

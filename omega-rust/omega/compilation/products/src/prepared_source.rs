@@ -17,7 +17,7 @@ use std::sync::{Arc, Mutex};
 #[derive(Clone, Default)]
 pub struct SourcePreparation {
     catalogue: Arc<Mutex<source::SourceCatalogue>>,
-    pub frontends: psi_compiler::SourceFrontends,
+    pub frontends: source_compiler::SourceFrontends,
 }
 
 impl SourcePreparation {
@@ -54,7 +54,7 @@ impl BuildStage {
 pub struct TypedCompilationFrontier {
     pub preparation: SourcePreparation,
     pub build_stage: BuildStage,
-    pub source: psi_compiler::SourceContinuation,
+    pub source: source_compiler::SourceContinuation,
     pub anonymous_source: Option<package_compilation::AnonymousSourceCapture>,
     pub product_sources: Option<DeferredProductCompilation>,
     pub build_source: Option<package_compilation::BuildSourceSelection>,

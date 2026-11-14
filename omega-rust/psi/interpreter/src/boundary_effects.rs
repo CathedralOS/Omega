@@ -2855,7 +2855,7 @@ pub(crate) mod results {
         #[test]
         fn immutable_host_bytes_retain_accounted_snapshot_until_last_copy_drops() {
             let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-                work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+                work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
                 storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
             };
             let sponsor = BuildEvaluationSponsor::new_with_measurement(

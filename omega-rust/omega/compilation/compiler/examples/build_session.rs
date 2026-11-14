@@ -62,7 +62,7 @@ fn main() {
         build_time_evaluation::BuildEvaluationSponsor::new_with_measurement(
             limits,
             evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
-                work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+                work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
                 storage_schedule: evaluation_accounting::TerminalStorageScheduleIdentity::CURRENT,
             },
         )

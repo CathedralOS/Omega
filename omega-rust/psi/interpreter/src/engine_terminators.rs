@@ -1487,7 +1487,7 @@ pub(crate) mod completion {
 
         fn check_refused_return(retain_header: bool) {
             let measurement = EvaluationMeasurementIdentity::TerminalPsi {
-                work_schedule: psi_work::WorkSchedule::CURRENT.identity(),
+                work_schedule: terminal_work::WorkSchedule::CURRENT.identity(),
                 storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
             };
             let sponsor = BuildEvaluationSponsor::new_with_measurement(
@@ -2122,12 +2122,12 @@ use crate::engine::execution::{
     TerminatorFlow,
 };
 use crate::storage::runtime_rows::RuntimeRows;
-use psi_work::WorkMeter;
 use semantic_vocabulary::{BlockId, EdgeId, PlaceId, ValueId};
 use terminal_psi::{
     StructuralAccess, StructuralAffineDiscard, StructuralArgument, StructuralMultiplicity,
     StructuralPathSegment, TerminalMachineResult, Terminator,
 };
+use terminal_work::WorkMeter;
 
 struct SelectedSuccessor<'edge> {
     edge: EdgeId,

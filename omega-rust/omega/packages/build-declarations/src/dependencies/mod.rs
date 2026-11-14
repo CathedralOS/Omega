@@ -433,7 +433,7 @@ mod tests {
     use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 
     fn rows(source: &str) -> Result<(SyntaxTrees, Vec<DependencyRow>), DependencyRowError> {
-        let syntax_trees = psi_compiler::parse_text(source)
+        let syntax_trees = source_compiler::parse_text(source)
             .unwrap_or_else(|error| panic!("parse build {source}: {error:?}"))
             .syntax;
         let build = project_build_entry_syntax(&syntax_trees).expect("valid build entry");
@@ -553,7 +553,7 @@ mod tests {
 
     #[test]
     fn rows_require_the_canonical_build_entry() {
-        let syntax_trees = psi_compiler::parse_text(
+        let syntax_trees = source_compiler::parse_text(
             "machine helper() {\n    _ = Build::dependency(builder, dependency::from_source(Source::Path { location: \"x\" }));\n}\n",
         )
         .expect("parse")

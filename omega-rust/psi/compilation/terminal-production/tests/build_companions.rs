@@ -4,12 +4,12 @@
 //! lowered-form checker judge it, and reads what production publishes.
 
 use language_semantics::declaration_selection::{BuildSelectionRequest, RootBindingOperand};
-use psi_terminal_production::{
+use source::DependencyScope;
+use std::sync::Arc;
+use terminal_production::{
     AcceptedTerminalSource, BuildCallSite, ProducedTerminalProgram, TerminalBuildBindingOperation,
     TerminalBuildRequestOperation, TerminalProductionCustody, UnmeasuredProduction,
 };
-use source::DependencyScope;
-use std::sync::Arc;
 
 /// The part of the toolchain Build prelude these programs use, declared the
 /// way the prelude declares it: in a toolchain source named `<build-prelude>`.
@@ -504,7 +504,7 @@ machine build(builder: &mut Build) {
 #[test]
 fn saved_build_rows_do_not_authorize_changed_actions_or_protocol_families() {
     use compiler_storage::{Record, RecordLimits, RecordWriter};
-    use psi_terminal_production::{TerminalBuildQueryCall, TerminalBuildRequestCall};
+    use terminal_production::{TerminalBuildQueryCall, TerminalBuildRequestCall};
 
     let program = accepted_for(ONE_BINDING, terminal_codec::TerminalPublication::Portable)
         .unwrap()
@@ -535,12 +535,12 @@ fn saved_build_rows_do_not_authorize_changed_actions_or_protocol_families() {
         output.record(|output| {
             2_u32.write(output)?;
             program.artifact().unwrap().to_bytes().write(output)?;
-            Arc::<[psi_terminal_production::TerminalBuildBindingCall]>::from([]).write(output)?;
+            Arc::<[terminal_production::TerminalBuildBindingCall]>::from([]).write(output)?;
             Arc::<[Arc<language_semantics::declaration_selection::ProductDeclarationRequest>]>::from([]).write(output)?;
             Arc::<[TerminalBuildQueryCall]>::from([]).write(output)?;
             Arc::<[language_semantics::declaration_selection::NativeBindingFormation]>::from([]).write(output)?;
             Arc::<[TerminalBuildRequestCall]>::from([request]).write(output)?;
-            Arc::<[psi_terminal_production::TerminalBuildFilesystemCall]>::from([]).write(output)
+            Arc::<[terminal_production::TerminalBuildFilesystemCall]>::from([]).write(output)
         }).unwrap();
         let refused = compiler_storage::decode::<ProducedTerminalProgram>(
             &output.finish(),
@@ -673,7 +673,7 @@ fn native_binding_program(build: &str) -> ProducedTerminalProgram {
             build,
             &native_binding_prelude(),
             Some(include_str!(
-                "../../../../../../source/library/core/external_binding.omg"
+                "../../../../../source/library/core/external_binding.omg"
             )),
         ),
         terminal_codec::TerminalPublication::Invocation,
@@ -688,7 +688,7 @@ fn native_binding_program(build: &str) -> ProducedTerminalProgram {
 
 fn published_native_locator(
     program: &ProducedTerminalProgram,
-) -> &psi_terminal_production::TerminalBuildNativeLocator {
+) -> &terminal_production::TerminalBuildNativeLocator {
     program
         .build_bindings()
         .calls_for(program.view())
@@ -726,7 +726,7 @@ machine build(builder: &mut Build) {
     // Identical syntax and storage do not authorize an edited core source.
     let lookalike = format!(
         "{}\n",
-        include_str!("../../../../../../source/library/core/external_binding.omg")
+        include_str!("../../../../../source/library/core/external_binding.omg")
     );
     // Explicit widths keep this control focused on publication custody;
     // inactive-width inference itself belongs only to the real core type.
@@ -756,7 +756,7 @@ machine build(builder: &mut Build) {
 
 #[test]
 fn a_native_import_infers_nested_byte_widths_and_publishes_their_shapes() {
-    use psi_terminal_production::TerminalBuildValueShape;
+    use terminal_production::TerminalBuildValueShape;
     let program = native_binding_program(
         r#"
 machine build(builder: &mut Build) {
@@ -904,7 +904,7 @@ fn a_case_value_pattern_cannot_discard_its_applied_type() {
         "machine build(builder: &mut Build) { Build::bind<Probe::poke>(builder, linux_x86_64, ForeignBinding::Syscall { number: 9u64 }); }",
         &native_binding_prelude(),
         Some(include_str!(
-            "../../../../../../source/library/core/external_binding.omg"
+            "../../../../../source/library/core/external_binding.omg"
         )),
     );
     let head = typed

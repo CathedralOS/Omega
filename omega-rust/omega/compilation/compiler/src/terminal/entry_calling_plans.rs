@@ -23,8 +23,8 @@ use provider_planning::calling_policy_plans::{
     validate_calling_policy_result,
 };
 use provider_planning::program_entry::SelectedProgramEntryCallingPlans;
-use psi_compiler::PortableTerminalProgram;
 use semantic_vocabulary::{CallingSignatureId, callback_nominal_report_fingerprint};
+use source_compiler::PortableTerminalProgram;
 
 use crate::CheckedCompilation;
 
@@ -363,7 +363,7 @@ pub(crate) fn prepare(
 fn evaluate(
     program: &PreparedBuildMachineProgram,
     requester: symbols::SymbolHandle,
-    supply: psi_compiler::TerminalSourceSupply,
+    supply: source_compiler::TerminalSourceSupply,
     target: InvocationTarget<'_>,
     signature: CanonicalCallingSignature,
     owner: &str,

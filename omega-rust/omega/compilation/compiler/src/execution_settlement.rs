@@ -29,7 +29,7 @@ use std::sync::Arc;
 /// out, and the plan of its provider is refused by the slot's requirement
 /// (`SettledTargetSupply::plans`).
 pub fn settled_slot_schemas(
-    accepted: &psi_compiler::AcceptedTerminalSource,
+    accepted: &source_compiler::AcceptedTerminalSource,
     settled: &SettledTargetSupply,
 ) -> Vec<SlotSchema> {
     let mut schemas = Vec::<SlotSchema>::new();

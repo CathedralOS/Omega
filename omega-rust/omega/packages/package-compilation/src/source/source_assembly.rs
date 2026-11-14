@@ -29,8 +29,8 @@ use crate::source::source_imports::{
 };
 use artifacts::compile_timings::{CompileTimings, StageMeta};
 use diagnostics::Diagnostic;
-use psi_compiler::{PsiCompilationObserver, PsiCompilationStage, SourceInput};
 use source::{SourceContents, SourceOrigin, SourceResolutionStratum};
+use source_compiler::{PsiCompilationObserver, PsiCompilationStage, SourceInput};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -1141,7 +1141,7 @@ fn load_source_frontiers(
         for (path, scope) in &frontier {
             imports.enqueue(source_storage.logical_siblings(path, *scope)?)?;
         }
-        let loaded = psi_compiler::load_source_files(
+        let loaded = source_compiler::load_source_files(
             frontier,
             &source_storage.filesystem,
             &mut ParsingTimings(timings),
@@ -1517,7 +1517,7 @@ mod requirement_preparation_tests {
             .assemble(None, &mut timings, &mut catalogue)
             .expect("the ordinary Build source and real toolchain prelude");
         let sources = Arc::clone(&assembled.sources);
-        let request = psi_compiler::SourceCompilationRequest {
+        let request = source_compiler::SourceCompilationRequest {
             syntax: assembled.syntax_trees,
             source_items: assembled.source_items,
             root_sources: assembled.root_sources,
@@ -1528,7 +1528,7 @@ mod requirement_preparation_tests {
             selection_authority: None,
         };
         let mut prepared = request
-            .prepare(&mut psi_compiler::UnmeasuredProduction)
+            .prepare(&mut source_compiler::UnmeasuredProduction)
             .expect("exact declared requirement calls reach typed preparation");
         let typed = prepared.build_input().typed;
         let unresolved: Vec<_> = typed

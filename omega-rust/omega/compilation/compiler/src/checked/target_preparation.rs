@@ -25,13 +25,13 @@ pub(crate) struct PreparedProductTarget {
 /// A selection of an operator family names each coordinate as its own slot.
 pub(crate) fn selected_supplies(
     selection: &build_time_evaluation::provider_declarations::ProviderSelection,
-) -> Vec<psi_compiler::TerminalSourceSupply> {
+) -> Vec<source_compiler::TerminalSourceSupply> {
     use build_time_evaluation::provider_declarations::ProviderSelectionSubject;
     let provider = selection.provider_type.symbol;
     match &selection.subject {
         ProviderSelectionSubject::BoundaryTrait(identity)
         | ProviderSelectionSubject::BoundaryRequirement(identity) => {
-            vec![psi_compiler::TerminalSourceSupply {
+            vec![source_compiler::TerminalSourceSupply {
                 slot: identity.symbol,
                 provider,
             }]
@@ -39,7 +39,7 @@ pub(crate) fn selected_supplies(
         ProviderSelectionSubject::BoundaryOperatorFamily(family) => family
             .coordinates()
             .iter()
-            .map(|coordinate| psi_compiler::TerminalSourceSupply {
+            .map(|coordinate| source_compiler::TerminalSourceSupply {
                 slot: coordinate.symbol,
                 provider,
             })
@@ -71,7 +71,7 @@ struct ModuleDemand {
 
 impl ModuleDemand {
     fn read(
-        accepted: &psi_compiler::AcceptedTerminalSource,
+        accepted: &source_compiler::AcceptedTerminalSource,
         roster: &compilation_products::ProductRoster,
     ) -> Result<Self, Vec<Diagnostic>> {
         let declared = accepted
@@ -118,7 +118,7 @@ impl ModuleDemand {
 
     fn prepare(
         &self,
-        accepted: &psi_compiler::AcceptedTerminalSource,
+        accepted: &source_compiler::AcceptedTerminalSource,
         build: &[build_time_evaluation::provider_declarations::ProviderSelection],
         defaults: &[build_time_evaluation::provider_declarations::TargetProviderDefaults],
         target: Option<&str>,

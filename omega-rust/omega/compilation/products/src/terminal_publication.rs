@@ -6,17 +6,17 @@
 
 use diagnostics::Diagnostic;
 use optimization_core::OptimizationSelections;
-use psi_compiler::PortableTerminalProgram;
+use source_compiler::PortableTerminalProgram;
 use std::sync::{Arc, OnceLock};
 
 pub struct ProductTerminalPublication {
     optimizations: OptimizationSelections,
     program: OnceLock<Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>>>,
-    accepted: Option<(Arc<psi_compiler::AcceptedTerminalSource>, ProductRoster)>,
+    accepted: Option<(Arc<source_compiler::AcceptedTerminalSource>, ProductRoster)>,
 }
 
 /// What a Product compilation asks the lowered-form checker to judge: the
-/// roots the evaluated Build states (`psi_compiler::TerminalSourceCompilation`
+/// roots the evaluated Build states (`source_compiler::TerminalSourceCompilation`
 /// holds the same fields by reference). It is kept beside the judgment it
 /// produced because provider settlement extends it: the supply chosen for a
 /// requirement the accepted module reaches is a further root of the same
@@ -37,13 +37,13 @@ pub struct ProductRoster {
     pub bindings: Vec<typed_trees::callable_signature_shapes::BoundCallableShape>,
     /// The providers chosen to supply boundary slots: the Build's own
     /// selections first, then what settlement chose for reached requirements.
-    pub supplies: Vec<psi_compiler::TerminalSourceSupply>,
+    pub supplies: Vec<source_compiler::TerminalSourceSupply>,
 }
 
 impl ProductRoster {
     /// Borrow the full roster for source preparation and judgment alike.
-    pub fn compilation(&self) -> psi_compiler::TerminalSourceCompilation<'_> {
-        psi_compiler::TerminalSourceCompilation {
+    pub fn compilation(&self) -> source_compiler::TerminalSourceCompilation<'_> {
+        source_compiler::TerminalSourceCompilation {
             declaration_metadata: &self.declaration_metadata,
             entries: &self.entries,
             subjects: std::slice::from_ref(&self.subject),
@@ -64,8 +64,8 @@ impl ProductRoster {
     pub fn judge(
         &self,
         typed: Arc<typed_trees::FrozenTypedTrees>,
-    ) -> Result<Arc<psi_compiler::AcceptedTerminalSource>, Vec<Diagnostic>> {
-        psi_compiler::AcceptedTerminalSource::judge(
+    ) -> Result<Arc<source_compiler::AcceptedTerminalSource>, Vec<Diagnostic>> {
+        source_compiler::AcceptedTerminalSource::judge(
             typed,
             self.compilation(),
             terminal_codec::TerminalPublication::Portable,
@@ -159,7 +159,7 @@ impl ProductTerminalPublication {
         Ok(())
     }
 
-    pub fn accepted(&self) -> Result<&psi_compiler::AcceptedTerminalSource, Vec<Diagnostic>> {
+    pub fn accepted(&self) -> Result<&source_compiler::AcceptedTerminalSource, Vec<Diagnostic>> {
         // The factory seals the module the unoptimized check judged. A
         // nonempty selection needs the second lowered-form check, which has
         // no route yet.
