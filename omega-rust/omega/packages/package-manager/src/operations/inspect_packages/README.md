@@ -12,7 +12,7 @@ inspect_packages/
 ├── report.rs        bounded graph and policy presentation
 └── report/
     ├── policy.rs        typed policy summary and full-detail delegation
-    ├── policy/callables.rs  callable reach, invocation, and checked behavior
+    ├── policy_callables.rs  callable reach, invocation, and checked behavior
     └── tests.rs         identity, history, unknown analysis, and output limits
 ```
 

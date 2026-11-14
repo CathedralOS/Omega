@@ -15,7 +15,7 @@ members = [
     "samples/cli/scientific/spatial_diffusion/validation",
     "samples/cli/scientific/travel_time_tomography/validation/terminal",
     "samples/cli/scientific/spectrometer_attribution",
-    "omega-rust/omega/application/cli",
+    "omega-rust/omega/application",
     "omega-rust/omega/build-system/orchestration",
     "omega-rust/omega/interpreter/terminal-runtime",
     "omega-rust/omega/interpreter/native-provider-runtime",

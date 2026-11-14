@@ -935,4 +935,5 @@ mod tests {
 }
 
 #[cfg(test)]
+#[path = "runtime_live_source_tests.rs"]
 mod live_source_tests;

@@ -4,6 +4,7 @@
 // `selected_plan_index` in `PackagePolicyBoundaryApplicationRealization`
 // indexes into the normalized aggregate's canonical plan order.
 
+#[path = "boundary_policy_validation.rs"]
 mod validation;
 
 use crate::record::accessors::field_projection_accessors;

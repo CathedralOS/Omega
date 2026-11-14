@@ -1,6 +1,7 @@
 // Exact service-schema permissions (`PackagePolicyTerminalPermissions`),
 // recording review policy rather than exercised authority or admission.
 
+#[path = "terminal_permissions_generics.rs"]
 mod generics;
 
 use super::{PackagePolicyServiceMethod, provider_policy::validate_service_methods};

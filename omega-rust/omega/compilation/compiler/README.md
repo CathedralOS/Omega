@@ -186,7 +186,7 @@ result reconciliation; they do not invoke compilation. Application Build
 receives reports or Terminal inspections, never a checked checkpoint to return
 for production. The compiler compares fresh supplied
 permissions with the exact root Product consent before native production,
-using the independent package-evidence projection owner. Inspection is an
+using the independent review-evidence projection owner. Inspection is an
 explicit product with no native authority. Standalone inspection and corpus
 production submit the same `CompilationProduct` through `orchestration::produce_source`;
 named inspection joins shared Terminal production and completes declaration
@@ -405,7 +405,7 @@ canonical row encoder, preserving the existing byte format and identities.
 
 ## Intrinsic settlement conversion
 
-[Native builtin projection](../pipeline/00_terminal-psi-to-abstract-operations/src/providers/provider_admission/compiler_builtins/proposals.rs) validates all
+[Native builtin projection](../realization/provider-admission/src/compiler_builtins.rs) validates all
 selected plan provenance, then joins sorted borrowed intrinsic rows to lexical
 Terminal demand. Original plan indices remain attached to each row. Duplicate
 demanded rows reject; undemanded rows need no executable proposal. One exhaustive
@@ -567,7 +567,7 @@ of carrying a second plan copy and separately supplied identity fields.
 Independent fragment, object, and image replay still check the complete join.
 
 Direct compilation and retained Terminal re-entry share the Terminal entry stage's
-[source-binding preparation](../pipeline/00_terminal-psi-to-abstract-operations/src/providers/provider_admission/source_evaluated_bindings.rs).
+[source-binding preparation](../realization/provider-admission/src/source_evaluated_bindings.rs).
 It joins demanded imports and syscalls to exact selected plans, derives import execution and stack
 inputs when none are supplied, and rejects incomplete or substituted supplied
 rosters. The coordinator forwards the prepared settlements; it does not derive

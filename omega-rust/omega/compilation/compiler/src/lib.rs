@@ -56,7 +56,6 @@ pub use checked::{PackageReviewFailure, PackageReviewProduct, PackageReviewSourc
 pub use execution_settlement::settled_slot_schemas;
 pub use native_compiler::SourceEvaluatedImportSettlement;
 pub use package_compilation::BuildExecutionInputs;
-pub use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
 pub use product_execution::{
     CompilationOutput, CompilationProduct, CompilationProductError, TargetProductOutcome,
 };
@@ -66,6 +65,7 @@ pub use products::{
     OptimizationRollbackReceipt, RequestedCompileProduct, RetainedBuildOutputs,
     RetainedNativeArtifact,
 };
+pub use review_evidence::permission_acceptance::TerminalPermissionAcceptance;
 pub use source_compiler::ProducedTerminalProgram;
 pub use target::ExplicitTargetSet;
 pub use target_batch::PreparedCompilation;

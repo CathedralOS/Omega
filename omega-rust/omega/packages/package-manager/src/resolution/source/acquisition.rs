@@ -12,7 +12,7 @@ use crate::declarations::dependencies::read::{DependencySourceRequest, PackageSe
 use crate::resolution::graph::{
     CanonicalSourceClosureSubject, GitResolutionOptions, admit_locked_source_request,
 };
-use package_source::{GitSourceRequest, SourceResolver};
+use source_acquisition::{GitSourceRequest, SourceResolver};
 
 use super::{DeclaredBuildSource, GitPackageSourceRequest, PackageSourceCustody};
 use crate::declarations::PackageKey;
@@ -20,9 +20,9 @@ use crate::declarations::dependencies::read::DependencyProjections;
 use crate::resolution::graph::PackageRootSourceRequest;
 use crate::resolution::graph::admit_locked_issued_source_request;
 use crate::resolution::graph::reconcile::PackageSourceClosureLimits;
-use package_source::local::operations::capture_local_source_input;
-use package_source::local::resolution_observations::CapturedLocalSource;
-use package_source::{
+use source_acquisition::local::operations::capture_local_source_input;
+use source_acquisition::local::resolution_observations::CapturedLocalSource;
+use source_acquisition::{
     ExternalLocalLineage, ExternalSourceContext, GitCommitId, GitTreeId, ImmutableSourceResolution,
     LocalSourceLimits, ResolvedGitSource, SourceContentDigest, SourceLineage,
 };
@@ -289,9 +289,9 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
     fn acquire_git(
         &mut self,
         request: &GitSourceRequest,
-        limits: package_source::LocalSourceLimits,
+        limits: source_acquisition::LocalSourceLimits,
     ) -> Result<ResolvedGitSource, String> {
-        use package_source::git::resolution::{
+        use source_acquisition::git::resolution::{
             resolve_git_source_at_revision_in_lane, resolve_git_source_from_pin_in_lane,
         };
         if let Some((_, source)) = self
@@ -370,8 +370,8 @@ pub struct AcquiredBuildSource {
 
 #[derive(Debug)]
 pub enum BuildSourceAcquisitionError {
-    Source(package_source::SourceResolveError),
-    Identity(package_source::IdentityError),
+    Source(source_acquisition::SourceResolveError),
+    Identity(source_acquisition::IdentityError),
 }
 
 impl std::fmt::Display for BuildSourceAcquisitionError {
@@ -407,7 +407,7 @@ impl AcquiredBuildSource {
     ) -> Result<(), BuildSourceAcquisitionError> {
         if !self.capture.tree().is_file(relative) {
             return Err(BuildSourceAcquisitionError::Source(
-                package_source::SourceResolveError::Io {
+                source_acquisition::SourceResolveError::Io {
                     path: self.capture.canonical_live_root().join(relative),
                     message:
                         "required compilation source is absent from the caller-selected inventory"
@@ -428,7 +428,7 @@ impl AcquiredBuildSource {
     }
 
     pub(crate) fn capture_staged(
-        stage: &package_source::local::staging::StagedLocalSnapshot,
+        stage: &source_acquisition::local::staging::StagedLocalSnapshot,
         context: ExternalSourceContext,
     ) -> Result<Self, String> {
         let mut acquired = Self::capture_selected_local(
@@ -468,7 +468,7 @@ impl AcquiredBuildSource {
             root,
             limits,
             context,
-            &package_source::SourceCaptureRequest::entire_tree(),
+            &source_acquisition::SourceCaptureRequest::entire_tree(),
         )
     }
 
@@ -476,16 +476,16 @@ impl AcquiredBuildSource {
         root: &Path,
         limits: LocalSourceLimits,
         context: ExternalSourceContext,
-        selected: &package_source::SourceCaptureRequest,
+        selected: &source_acquisition::SourceCaptureRequest,
     ) -> Result<Self, BuildSourceAcquisitionError> {
         let limits = limits.compiler_bounded();
-        let capture = package_source::local::operations::capture_selected_local_source_input(
+        let capture = source_acquisition::local::operations::capture_selected_local_source_input(
             root, limits, selected,
         )
         .map_err(BuildSourceAcquisitionError::Source)?;
         let canonical_path = capture.canonical_live_root().to_str().ok_or_else(|| {
             BuildSourceAcquisitionError::Identity(
-                package_source::IdentityError::UnsupportedNonUtf8Path(
+                source_acquisition::IdentityError::UnsupportedNonUtf8Path(
                     capture.canonical_live_root().to_path_buf(),
                 ),
             )

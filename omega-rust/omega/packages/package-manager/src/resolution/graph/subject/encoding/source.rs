@@ -6,7 +6,7 @@ use super::super::validation::{validate_package_key, validate_source_lineage};
 use super::framing::Encoder;
 use crate::declarations::PackageKey;
 use crate::resolution::graph::ResolvedSourceIdentity;
-use package_source::{GitTransport, ImmutableSourceResolution, SourceLineage};
+use source_acquisition::{GitTransport, ImmutableSourceResolution, SourceLineage};
 
 pub(super) fn encode_source_identity(
     encoder: &mut Encoder,

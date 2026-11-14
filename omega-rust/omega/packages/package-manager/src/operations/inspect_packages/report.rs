@@ -7,8 +7,8 @@ use crate::resolution::graph::CanonicalSourceClosureSubject;
 use crate::review::{
     CompilerIssuedPackageReviewSet, PackagePolicyChangeSet, PackagePolicyDependencyPath,
 };
-use package_evidence::record::{PackageReviewNominalIdentity, PackageReviewNominalOwner};
-use package_source::{GitTransport, ImmutableSourceResolution, SourceLineage};
+use review_evidence::record::{PackageReviewNominalIdentity, PackageReviewNominalOwner};
+use source_acquisition::{GitTransport, ImmutableSourceResolution, SourceLineage};
 use std::fmt::{self, Write};
 use target::TargetProfile;
 

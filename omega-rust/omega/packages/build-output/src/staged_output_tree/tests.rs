@@ -1,5 +1,6 @@
 // Test fixture root for `BuildStagedOutputTree` file selection tests.
 
+#[path = "file_selection_tests.rs"]
 mod file_selection;
 
 use super::BuildStagedOutputTree;
