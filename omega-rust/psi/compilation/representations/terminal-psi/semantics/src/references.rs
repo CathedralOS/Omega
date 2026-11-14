@@ -147,6 +147,123 @@ pub(crate) mod reference_completion {
         Loan(semantic_vocabulary::ObligationId),
     }
 
+    // Inline byte-view fields carry their type on the field itself. They need
+    // not have a separate type declaration, but still name an exact leaf.
+    fn borrowed_descriptor_shape(
+        module: &terminal_psi::TerminalModule,
+        root_type: StructuralTypeId,
+        path: &[crate::descriptor_lifetimes::DescriptorPathSegment],
+    ) -> Option<StructuralTypeShape> {
+        let path = crate::descriptor_lifetimes::descriptor_path(
+            &module.structural_types,
+            root_type,
+            path,
+        )?;
+        let shape = if let Some(tip) =
+            crate::runtime_structural_path_tip(module.structural_types.iter(), root_type, &path)
+        {
+            match &tip.shape {
+                StructuralTypeShape::ByteSequence(carrier) => {
+                    StructuralTypeShape::ByteSequence(*carrier)
+                }
+                StructuralTypeShape::ElementView { element, access } => {
+                    StructuralTypeShape::ElementView {
+                        element: *element,
+                        access: *access,
+                    }
+                }
+                _ => return None,
+            }
+        } else {
+            StructuralTypeShape::ByteSequence(
+                crate::runtime_structural_field(module.structural_types.iter(), root_type, &path)?
+                    .field_type
+                    .byte_sequence_carrier()?,
+            )
+        };
+        (shape.is_borrowed_byte_carrier()
+            || matches!(shape, StructuralTypeShape::ElementView { .. }))
+        .then_some(shape)
+    }
+
+    /// Different slices may borrow the same input value. Every possible source
+    /// must name that same input or field. Address and length checks keep
+    /// all slice and capture information.
+    pub fn incoming_view_occurrence(
+        module: &terminal_psi::TerminalModule,
+        machine: &terminal_psi::TerminalMachine,
+        origins: &[crate::descriptor_results::DescriptorSourceOrigin],
+    ) -> Result<crate::descriptor_lifetimes::DescriptorLocation, &'static str> {
+        use crate::descriptor_lifetimes::{descriptor_location, descriptor_path};
+        use crate::descriptor_results::{DescriptorCallOrigin, DescriptorSourceOrigin};
+        let mut original = None;
+        for origin in origins {
+            let location = match origin {
+                DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+                    source,
+                    projection,
+                }) if !projection.indirect => {
+                    let parameter = crate::exactly_one::exactly_one(
+                        machine.structural_parameters.iter(),
+                        |parameter| parameter.place == *source,
+                    )
+                    .ok_or("the view's original incoming borrow cannot be identified")?;
+                    let path = projection
+                        .original_descriptor_path()
+                        .ok_or("the view's original borrowed field cannot be identified")?;
+                    descriptor_location(
+                        &module.structural_types,
+                        *source,
+                        parameter.structural_type,
+                        path,
+                        None,
+                    )
+                    .ok_or("the view's original borrowed field cannot be identified")?
+                }
+                DescriptorSourceOrigin::IncomingSlot(location) => location.clone(),
+                DescriptorSourceOrigin::IncomingContents { query, projection }
+                    if !projection.indirect
+                        && projection
+                            .original_descriptor_path()
+                            .is_some_and(|path| path.is_empty()) =>
+                {
+                    query
+                        .exact_location()
+                        .ok_or("the view's original borrowed field cannot be identified")?
+                }
+                _ => return Err("the view's original borrow cannot be identified"),
+            };
+            let parameter = crate::exactly_one::exactly_one(
+                machine.structural_parameters.iter(),
+                |parameter| parameter.place == location.root,
+            )
+            .ok_or("the view's original incoming borrow cannot be identified")?;
+            let path = descriptor_path(
+                &module.structural_types,
+                parameter.structural_type,
+                &location.path,
+            )
+            .ok_or("the view's original borrowed field cannot be identified")?;
+            if !crate::projection_stays_in_inline_storage(
+                module.structural_types.iter(),
+                parameter.structural_type,
+                &path,
+            ) || borrowed_descriptor_shape(module, parameter.structural_type, &location.path)
+                .is_none()
+            {
+                return Err("the view's original borrowed field cannot be identified");
+            }
+            if original
+                .as_ref()
+                .is_some_and(|previous| *previous != location)
+            {
+                return Err("the view can name different incoming borrows or fields");
+            }
+            original = Some(location);
+        }
+        original.ok_or("the view's original borrow cannot be identified")
+    }
+
     /// Read the source from the descriptor's actual value and arrival flow.
     pub fn borrowed_loan_source<'a>(
         module: &terminal_psi::TerminalModule,
@@ -181,20 +298,19 @@ pub(crate) mod reference_completion {
         // A borrowed block header can continue a borrowed machine input
         // without creating a new loan occurrence. Read its original storage
         // from the same arrival replay used for ordinary reference paths.
-        let view_type = machine
+        let view_shape = machine
             .structural_place_type(descriptor.root)
-            .and_then(|ty| {
-                crate::descriptor_lifetimes::descriptor_location_type(
-                    &module.structural_types,
-                    ty,
-                    &descriptor.path,
+            .and_then(|ty| borrowed_descriptor_shape(module, ty, &descriptor.path));
+        let view = view_shape.is_some();
+        if view_shape.as_ref().is_some_and(|shape| {
+            shape.is_shared_readable_byte_view()
+                || matches!(
+                    shape,
+                    StructuralTypeShape::ElementView {
+                        access: None | Some(StructuralAccess::SharedBorrow),
+                        ..
+                    }
                 )
-            });
-        let view = view_type.is_some_and(|ty| {
-            crate::descriptor_results::is_descriptor(module.structural_types.iter(), ty)
-        });
-        if view_type.is_some_and(|ty| {
-            crate::descriptor_results::is_shared_descriptor(module.structural_types.iter(), ty)
         }) && analysis
             .source_origins(machine.id, at, descriptor)
             .is_some_and(|origins| {
@@ -235,28 +351,13 @@ pub(crate) mod reference_completion {
                 return Ok(BorrowedLoanSource::Incoming);
             }
         }
-        if view
-            && let Some(origins) = analysis.source_origins(machine.id, at, descriptor)
-            && let [
-                crate::descriptor_results::DescriptorCallOrigin::Argument { source, projection },
-            ] = origins.as_slice()
-            && let Some(parameter) = machine
-                .structural_parameters
-                .iter()
-                .find(|parameter| parameter.place == *source)
-            && let Some(enclosing) = projection.enclosing_storage()
-            && let Some(selected) = crate::runtime_structural_path_tip(
-                module.structural_types.iter(),
-                parameter.structural_type,
-                &enclosing.path,
-            )
-            && crate::descriptor_results::is_descriptor(module.structural_types.iter(), selected.id)
-        {
-            return Ok(BorrowedLoanSource::Incoming);
-        }
         let origins = analysis
             .symbolic_source_origins(machine.id, at, descriptor)
             .ok_or("reference descriptor has no complete original loan correspondence")?;
+        if view {
+            incoming_view_occurrence(module, machine, &origins)?;
+            return Ok(BorrowedLoanSource::Incoming);
+        }
         let [origin] = origins.as_slice() else {
             return Err("reference descriptor has no single immediate incoming occurrence");
         };

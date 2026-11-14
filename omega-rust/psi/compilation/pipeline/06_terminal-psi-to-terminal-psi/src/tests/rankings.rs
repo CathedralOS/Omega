@@ -246,7 +246,7 @@ fn exact_ranking_inventory_rejects_missing_surplus_swapped_and_stale_claims() {
 /// Use the real catalog file and its exact source custody. Only its ranking
 /// declaration prefix is needed here; unrelated Nat proofs are not this test's
 /// input. Prefix parsing keeps the declaration's original source coordinates.
-fn typed_with_ranking_catalog(text: &str) -> typed_trees::TypedTrees {
+pub(super) fn typed_with_ranking_catalog(text: &str) -> typed_trees::TypedTrees {
     use std::sync::Arc;
     let core_root =
         std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../../../source/library/core");
@@ -538,4 +538,23 @@ machine entry() crashes none {{ measured({actual}); }}
             )), "an acyclic measure cannot hide unproved exact subtraction: {:?}", observed_verdicts(&verdicts));
         }
     }
+}
+
+#[test]
+fn a_slice_loop_must_shrink_the_slice_it_actually_passes() {
+    let original = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/views/ranked_slice_iteration/main.omg"
+    ));
+    let source = original.replace("checksum(bytes[1..],", "checksum(bytes,");
+    assert_ne!(source, original);
+    let source = format!("{source}\nmachine entry() crashes Trap {{ main(); }}\n");
+    let results =
+        super::boundary_calls::compilation_results_of(&typed_with_ranking_catalog(&source));
+    assert!(results.iter().any(|result| matches!(result,
+        Ok(RouteVerdict::Rejected { unproved, .. }) if unproved.iter().any(|row| matches!(row.kind, ObligationKind::RankComparison { .. }))
+    ) || matches!(result,
+        Ok(RouteVerdict::FallBack(refusal)) | Err(crate::CompilationRefusal::Elaboration(refusal))
+        if refusal.detail.contains("removing strict rank edges")
+    )), "passing the unchanged slice cannot prove descent: {:?}", observed_verdicts(&results));
 }

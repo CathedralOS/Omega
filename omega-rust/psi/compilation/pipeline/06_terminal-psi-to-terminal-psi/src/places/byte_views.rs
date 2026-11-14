@@ -654,6 +654,7 @@ impl Storage<'_> {
         &self,
         measurement: &Operation,
         producer: OperationId,
+        trace: &super::Reaching,
     ) -> Checked<Option<Proposition>> {
         let concerns = Construct::Operation(measurement.id);
         let producer = self.operation(producer, concerns)?;
@@ -664,6 +665,7 @@ impl Storage<'_> {
             return Ok(None);
         }
         if matches!(producer.kind, OperationKind::ByteSequenceSubslice { .. })
+            && !self.current_extent(producer.id, trace)?
             && self.repeated_extent(producer.id)?
         {
             return Ok(None);
@@ -680,6 +682,7 @@ impl Storage<'_> {
                 producer.id,
                 ProgramPoint::AfterOperation(measurement.id),
                 result.scalar_type,
+                trace,
             )?
             else {
                 return Ok(None);
@@ -753,6 +756,7 @@ impl Storage<'_> {
         producer: OperationId,
         at: ProgramPoint,
         scalar: ScalarType,
+        trace: &super::Reaching,
     ) -> Checked<Option<semantic_vocabulary::ScalarTerm>> {
         use semantic_vocabulary::{IntegerValue, ScalarTerm};
         let concerns = Construct::Operation(producer);
@@ -778,7 +782,7 @@ impl Storage<'_> {
                 ),
             ),
             OperationKind::ByteSequenceSubslice { start, end, .. } => {
-                if self.repeated_extent(producer)? {
+                if !self.current_extent(producer, trace)? && self.repeated_extent(producer)? {
                     return Ok(None);
                 }
                 ScalarTerm::exact_integer_subtract(

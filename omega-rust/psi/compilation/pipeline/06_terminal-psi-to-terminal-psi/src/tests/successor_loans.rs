@@ -200,3 +200,215 @@ machine entry() -> u64 {
         "the local empty payload must retain an owner-backed loan"
     );
 }
+
+#[test]
+fn loop_windows_keep_the_exact_original_input_permission() {
+    use terminal_semantics::descriptor_lifetimes::descriptor_location;
+    use terminal_semantics::descriptor_results::{
+        DescriptorAnalysis, terminal_borrowed_storage_graph_from,
+    };
+    let program = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/views/ranked_slice_iteration/main.omg"
+    ));
+    let typed = super::rankings::typed_with_ranking_catalog(program);
+    let checksum = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "checksum")
+        .unwrap()
+        .symbol;
+    let prepared = typed_trees_to_terminal_psi::prepare_compilation(
+        &typed,
+        typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
+            entries: &[checksum],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .program;
+    let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) = prepared
+    else {
+        panic!("the unchanged checksum must form a Terminal compilation");
+    };
+    let input = prepared.closure.unwrap_or_else(|refusal| {
+        panic!("source preparation refused checksum: {}", refusal.detail)
+    });
+    let graph = terminal_borrowed_storage_graph_from(
+        &input.module,
+        input.module.machines.iter().map(|machine| machine.id),
+        &[],
+    )
+    .unwrap_or_else(|error| panic!("{}", error.in_module(&input.module)));
+    let mut analysis =
+        DescriptorAnalysis::with_borrowed_storage_slots(&input.module.structural_types, &graph);
+    let mut checked = 0;
+    for machine in &input.module.machines {
+        for block in &machine.blocks {
+            let at = (block.id, u32::try_from(block.operations.len()).unwrap());
+            for ((edge, target), actuals) in block
+                .terminator
+                .successor_edges()
+                .into_iter()
+                .zip(block.terminator.successor_block_arguments())
+            {
+                for (actual, formal) in actuals
+                    .iter()
+                    .zip(&machine.block(&target).unwrap().structural_parameters)
+                {
+                    if !terminal_semantics::descriptor_results::is_descriptor(
+                        input.module.structural_types.iter(),
+                        formal.structural_type,
+                    ) {
+                        continue;
+                    }
+                    let location = descriptor_location(
+                        &input.module.structural_types,
+                        actual.place,
+                        machine.structural_place_type(actual.place).unwrap(),
+                        &actual.path,
+                        None,
+                    )
+                    .unwrap();
+                    let origins = analysis
+                        .symbolic_source_origins(machine.id, at, &location)
+                        .expect("an actual checksum descriptor must have an origin roster");
+                    let result = terminal_semantics::borrowed_loan_source(
+                        &input.module,
+                        machine,
+                        &mut analysis,
+                        at,
+                        &location,
+                        std::iter::empty(),
+                    );
+                    assert_eq!(
+                        result,
+                        Ok(terminal_semantics::BorrowedLoanSource::Incoming),
+                        "machine {:?}, edge {:?}, source {:?}, origin count {}, first origins {:?}",
+                        machine.id,
+                        edge,
+                        location,
+                        origins.len(),
+                        origins.iter().take(6).collect::<Vec<_>>()
+                    );
+                    checked += 1;
+                }
+            }
+        }
+    }
+    assert!(
+        checked >= 2,
+        "the entry and feedback both transport the real view"
+    );
+}
+
+fn permission_inputs(text: &str) -> typed_trees_to_terminal_psi::Elaboration {
+    let typed = super::boundary_calls::typed(text);
+    let entry = super::boundary_calls::entry(&typed);
+    let program = typed_trees_to_terminal_psi::prepare_compilation(
+        &typed,
+        typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
+            entries: &[entry],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        terminal_codec::TerminalPublication::Invocation,
+    )
+    .program;
+    let terminal_check_tables::compilation::TerminalCompilation::Prepared(prepared) = program
+    else {
+        panic!("the permission query's declarations must prepare");
+    };
+    prepared
+        .closure
+        .unwrap_or_else(|refusal| panic!("permission query input refused: {}", refusal.detail))
+}
+
+#[test]
+fn incoming_permission_query_keeps_different_inputs_and_leaves_ambiguous() {
+    use terminal_semantics::descriptor_lifetimes::{DescriptorLocation, DescriptorPathSegment};
+    use terminal_semantics::descriptor_results::{DescriptorCallOrigin, DescriptorSourceOrigin};
+    let input = permission_inputs("machine entry(first: &[u8], second: &[u8]) {}");
+    let machine = &input.module.machines[0];
+    let origins = machine
+        .structural_parameters
+        .iter()
+        .map(|parameter| {
+            DescriptorSourceOrigin::Backing(DescriptorCallOrigin::Argument {
+                source: parameter.place,
+                projection: terminal_semantics::borrowed_storage::Projection::new(&[]),
+            })
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(origins.len(), 2);
+    for origin in &origins {
+        let occurrence = terminal_semantics::incoming_view_occurrence(
+            &input.module,
+            machine,
+            std::slice::from_ref(origin),
+        );
+        assert!(
+            occurrence.is_ok(),
+            "the exact input must identify its own borrow: {origin:?}: {occurrence:?}"
+        );
+    }
+    assert_eq!(
+        terminal_semantics::incoming_view_occurrence(&input.module, machine, &origins),
+        Err("the view can name different incoming borrows or fields"),
+        "two different input borrows cannot be claimed as one"
+    );
+
+    let input = permission_inputs(
+        r#"
+data Pair<'held> { first: &'held [u8]; second: &'held [u8]; }
+machine entry<'a>(pair: &Pair<'a>) {}
+"#,
+    );
+    let machine = &input.module.machines[0];
+    let parameter = &machine.structural_parameters[0];
+    let fields = input
+        .module
+        .structural_type(parameter.structural_type)
+        .unwrap()
+        .shape
+        .direct_fields()
+        .unwrap();
+    let origins = fields
+        .iter()
+        .map(|field| {
+            DescriptorSourceOrigin::IncomingSlot(DescriptorLocation {
+                root: parameter.place,
+                path: vec![DescriptorPathSegment::Field(field.id)],
+            })
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(origins.len(), 2);
+    for origin in &origins {
+        let occurrence = terminal_semantics::incoming_view_occurrence(
+            &input.module,
+            machine,
+            std::slice::from_ref(origin),
+        );
+        let DescriptorSourceOrigin::IncomingSlot(expected) = origin else {
+            unreachable!("these inputs are exact field occurrences");
+        };
+        assert!(
+            occurrence.as_ref() == Ok(expected),
+            "the exact field must identify its own borrow: {origin:?}: {occurrence:?}"
+        );
+    }
+    assert_eq!(
+        terminal_semantics::incoming_view_occurrence(&input.module, machine, &origins),
+        Err("the view can name different incoming borrows or fields"),
+        "two fields still name different borrows"
+    );
+}

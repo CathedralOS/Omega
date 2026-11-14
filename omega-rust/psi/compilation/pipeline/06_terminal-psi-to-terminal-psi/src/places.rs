@@ -104,6 +104,7 @@ pub(crate) use loans::reference_graph;
 pub use loans::{ConflictingLoan, LoanConflict};
 use log::{Logged, Stored};
 use std::cell::RefCell;
+use std::collections::{BTreeMap, BTreeSet};
 use terminal_semantics::descriptor_results::DescriptorAnalysis;
 
 fn index(raw: u64) -> usize {
@@ -113,7 +114,7 @@ fn index(raw: u64) -> usize {
 /// A place as its root and the segments from the root down to it. A place
 /// the table has not interned (a leaf beneath a place used whole) has a
 /// lineage too, which is why the walk works on lineages.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct Lineage {
     root: PlaceId,
     segments: Vec<Segment>,
@@ -308,6 +309,9 @@ pub(crate) fn input_content(
 /// What one scalar leaf holds on every path to a point.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Reached {
+    /// This path revisits a copy equation being solved. Other incoming paths
+    /// must supply its initial value; a cycle alone establishes nothing.
+    Cycle,
     /// The one value every path supplies.
     Value(ValueId),
     /// An extent defined by this exact reaching descriptor producer.
@@ -329,6 +333,28 @@ enum Reached {
     /// Asked of a window: every path closed it, or never passed its opening
     /// write.
     Closed,
+}
+
+/// A read supplies a value snapshot without writing or restoring storage.
+struct Observation {
+    operation: OperationId,
+    position: usize,
+    value: ValueId,
+}
+
+/// A storage trace must retain which block entries it crossed. A descriptor
+/// saved on an earlier loop iteration cannot use today's endpoint SSA values.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum QueryKind {
+    Contents,
+    Case,
+}
+
+struct Reaching {
+    active: BTreeSet<(BlockId, usize, Lineage, QueryKind)>,
+    remaining: usize,
+    crossed_entries: Vec<bool>,
+    used: Option<ProgramPoint>,
 }
 
 /// What a place is, by the lowered form's own declarations.
@@ -527,6 +553,7 @@ pub(crate) struct Storage<'a> {
     /// Bound actual operations and structural edge bindings once per machine.
     reaching_budget: usize,
     log: Vec<Logged>,
+    observations: Vec<BTreeMap<Lineage, Vec<Observation>>>,
     /// Shared descriptor replay owns storage aliasing. This is local checker
     /// scratch over the same canonical machine closure, never source evidence.
     references: &'a RefCell<DescriptorAnalysis<'a>>,
@@ -575,6 +602,7 @@ impl<'a> Storage<'a> {
             returned_contents: contents.calls,
             reaching_budget,
             log: Vec::new(),
+            observations: (0..graph.block_count()).map(|_| BTreeMap::new()).collect(),
             references,
             domains,
         };
@@ -608,6 +636,30 @@ impl<'a> Storage<'a> {
             }
         }
         storage.byte_payload_writes()?;
+        for block in &lowered.blocks {
+            for (before, operation) in block.operations.iter().enumerate() {
+                let Some(leaf) = storage.read_leaf(operation)? else {
+                    continue;
+                };
+                let concerns = Construct::Operation(operation.id);
+                let leaf = storage.backing(&leaf, block.id, before, concerns)?;
+                let value = operation
+                    .result
+                    .scalar_ref()
+                    .ok_or_else(|| {
+                        storage.foreign(concerns, "a storage observation has no scalar result")
+                    })?
+                    .id;
+                storage.observations[index(block.id.get())]
+                    .entry(leaf)
+                    .or_default()
+                    .push(Observation {
+                        operation: operation.id,
+                        position: before + 1,
+                        value,
+                    });
+            }
+        }
         Ok(storage)
     }
 
@@ -1933,7 +1985,7 @@ impl<'a> Storage<'a> {
         tables: &MachineTables,
         mut row_index: usize,
         asked: Asked<'_>,
-        budget: &mut usize,
+        budget: &mut Reaching,
         concerns: Construct,
     ) -> Checked<Reached> {
         let mut weakened = false;
@@ -1975,11 +2027,13 @@ impl<'a> Storage<'a> {
                 }
                 let previous =
                     self.reaching(tables, asked, row.block, row.position - 1, budget, concerns)?;
-                return Ok(if previous == Reached::Unestablished {
-                    previous
-                } else {
-                    Reached::Unknown
-                });
+                return Ok(
+                    if matches!(previous, Reached::Unestablished | Reached::Cycle) {
+                        previous
+                    } else {
+                        Reached::Unknown
+                    },
+                );
             };
             let reached = match (&row.stored, asked) {
                 (Stored::Vacated, Asked::Contents(_)) => Reached::Unestablished,
@@ -2048,11 +2102,13 @@ impl<'a> Storage<'a> {
                     self.reaching(tables, asked, row.block, row.position - 1, budget, concerns)?
                 }
             };
-            return Ok(if weakened && reached != Reached::Unestablished {
-                Reached::Unknown
-            } else {
-                reached
-            });
+            return Ok(
+                if weakened && !matches!(reached, Reached::Unestablished | Reached::Cycle) {
+                    Reached::Unknown
+                } else {
+                    reached
+                },
+            );
         }
     }
 
@@ -2213,21 +2269,47 @@ impl<'a> Storage<'a> {
         asked: Asked<'_>,
         block: BlockId,
         up_to: usize,
-        budget: &mut usize,
+        budget: &mut Reaching,
         concerns: Construct,
     ) -> Checked<Reached> {
         let resolved = self.backing(asked.place(), block, up_to, concerns)?;
         let asked = asked.at(&resolved);
+        let key = match asked {
+            Asked::Contents(_) => Some((block, up_to, resolved.clone(), QueryKind::Contents)),
+            Asked::Case(_) => Some((block, up_to, resolved.clone(), QueryKind::Case)),
+            Asked::Window { .. } => None,
+        };
+        if let Some(key) = &key
+            && !budget.active.insert(key.clone())
+        {
+            return Ok(Reached::Cycle);
+        }
         // Each traced move continues strictly before its operation, so an
         // acyclic machine ends within one step per operation; a cycle of
         // moves is refused rather than followed for ever.
-        *budget = budget
+        budget.remaining = budget
+            .remaining
             .checked_sub(1)
             .ok_or_else(|| self.unsupported(concerns, "a chain of copies does not end"))?;
+        if budget.used.is_none() {
+            let operations = &self.block(block)?.operations;
+            let count = up_to.min(operations.len());
+            budget.used = Some(if count == 0 {
+                ProgramPoint::BlockEntry(block)
+            } else {
+                ProgramPoint::AfterOperation(operations[count - 1].id)
+            });
+        }
         let mut merged: Option<Reached> = None;
         let mut supply = |reached: Reached| {
+            // Identity-copy cycles contribute no extra initial value. Walk
+            // every other arrival before claiming what the cycle carries.
+            if reached == Reached::Cycle {
+                return;
+            }
             merged = Some(match (merged, reached) {
                 (None, reached) => reached,
+                (Some(Reached::Cycle), _) | (_, Reached::Cycle) => Reached::Cycle,
                 (Some(Reached::Unestablished), _) | (Some(_), Reached::Unestablished) => {
                     Reached::Unestablished
                 }
@@ -2282,6 +2364,24 @@ impl<'a> Storage<'a> {
                     last = Some((index, row));
                 }
             }
+            if let Asked::Contents(leaf) = asked
+                && let Some(observations) = self.observations[index(block.get())].get(leaf)
+            {
+                let end = observations.partition_point(|observation| observation.position <= up_to);
+                if let Some(observation) = end.checked_sub(1).map(|last| &observations[last])
+                    && last.is_none_or(|(_, row)| row.position < observation.position)
+                    && !budget.crossed_entries[index(block.get())]
+                    && self.graph.dominates(
+                        ProgramPoint::AfterOperation(observation.operation),
+                        budget.used.ok_or_else(|| {
+                            self.foreign(concerns, "a storage trace has no use point")
+                        })?,
+                    )?
+                {
+                    supply(Reached::Value(observation.value));
+                    continue;
+                }
+            }
             if let Some((index, _)) = last {
                 supply(self.supplied(tables, index, asked, budget, concerns)?);
                 continue;
@@ -2313,6 +2413,7 @@ impl<'a> Storage<'a> {
                     supply(Reached::Closed);
                     continue;
                 }
+                budget.crossed_entries[index(block.get())] = true;
                 let mut predecessors = self.graph.predecessors(block)?.to_vec();
                 predecessors.sort_unstable();
                 predecessors.dedup();
@@ -2407,6 +2508,7 @@ impl<'a> Storage<'a> {
                     },
                 );
             }
+            budget.crossed_entries[index(block.get())] = true;
             let mut asked_of: Vec<BlockId> = Vec::new();
             for predecessor in self.graph.predecessors(block)? {
                 // A block that enters by two edges is listed twice.
@@ -2433,11 +2535,44 @@ impl<'a> Storage<'a> {
             }
         }
         // No path reaches the point at all: nothing is claimed about it.
-        Ok(merged.unwrap_or(Reached::Unknown))
+        let mut reached = merged.unwrap_or(if key.is_some() {
+            Reached::Cycle
+        } else {
+            Reached::Unknown
+        });
+        if let Some(key) = key {
+            budget.active.remove(&key);
+            if budget.active.is_empty() && reached == Reached::Cycle {
+                reached = Reached::Unestablished;
+            }
+        }
+        if let Reached::Value(value) = reached
+            && let Some(ValueOrigin::Operation(operation)) =
+                tables.values.get(value).map(|row| row.origin)
+            && self
+                .read_leaf(self.operation(operation, concerns)?)?
+                .is_some()
+        {
+            let (owner, _) = self.graph.locate(ProgramPoint::AfterOperation(operation))?;
+            if budget.crossed_entries[index(owner.get())] {
+                return Ok(Reached::Unknown);
+            }
+        }
+        Ok(reached)
     }
 
-    fn budget(&self) -> usize {
-        self.reaching_budget
+    fn budget(&self) -> Reaching {
+        Reaching {
+            active: BTreeSet::new(),
+            remaining: self.reaching_budget,
+            crossed_entries: vec![false; self.graph.block_count()],
+            used: None,
+        }
+    }
+
+    fn current_extent(&self, producer: OperationId, trace: &Reaching) -> Checked<bool> {
+        let (owner, _) = self.graph.locate(ProgramPoint::AfterOperation(producer))?;
+        Ok(!trace.crossed_entries[index(owner.get())])
     }
 
     /// The equation a read establishes on its normal successor:
@@ -2480,7 +2615,7 @@ impl<'a> Storage<'a> {
             concerns,
         )?;
         if let Reached::Extent(producer) = reached {
-            return self.extent_equation(operation, producer);
+            return self.extent_equation(operation, producer, &budget);
         }
         let Reached::Value(held) = reached else {
             return Ok(None);
@@ -2628,6 +2763,7 @@ impl<'a> Storage<'a> {
             | Reached::Extent(_)
             | Reached::Unknown
             | Reached::Unestablished
+            | Reached::Cycle
             | Reached::Open
             | Reached::Closed => None,
         };
@@ -4150,7 +4286,7 @@ impl AtCall<'_, '_> {
                 ProgramPoint::AfterOperation(block.operations[previous].id)
             };
             return storage
-                .extent_contents(producer, point, scalar_type)
+                .extent_contents(producer, point, scalar_type, &budget)
                 .map_err(crate::Unbound::Refused)?
                 .ok_or(crate::Unbound::Unproved(
                     "the actual's extent has no current endpoint correspondence",
@@ -4349,6 +4485,7 @@ impl crate::Bindings for Held<'_, '_> {
             | Reached::Returned
             | Reached::Unknown
             | Reached::Unestablished
+            | Reached::Cycle
             | Reached::Open
             | Reached::Closed => Err(crate::Unbound::Unproved(
                 "the case the data requires clause tests is not established by structure here",

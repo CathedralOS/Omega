@@ -600,6 +600,7 @@ fn machine(
         graph,
         context,
         reference_graph,
+        ranking_bindings,
     } = prepare_with_inhabitation(module, domains, id, tables, inhabitation)?;
     let references = std::cell::RefCell::new(
         terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
@@ -652,6 +653,7 @@ fn machine(
             types: &types,
             graph: &graph,
             context: &context,
+            ranking_bindings: &ranking_bindings,
             declared: &declared,
             unreached,
         },
@@ -671,12 +673,21 @@ fn machine(
         }
         if let ObligationKind::WellFoundedness { component } = row.kind {
             decided[index] = Some(
-                rankings::well_founded(lowered, component).map(Discharged::FiniteIntegerRanking),
+                rankings::well_founded(lowered, &ranking_bindings, obligation, component)
+                    .map(Discharged::FiniteIntegerRanking),
             );
             continue;
         }
         let verdict = goal(
-            module, lowered, &storage, id, obligation, &row.kind, tables, &types,
+            module,
+            lowered,
+            &storage,
+            id,
+            obligation,
+            &row.kind,
+            tables,
+            &types,
+            &ranking_bindings,
         )
         .and_then(|goal| {
             if let Some(carry) = &carrier
@@ -1089,6 +1100,7 @@ pub(crate) struct Prepared {
     pub(crate) graph: Graph,
     pub(crate) context: PropositionContext,
     reference_graph: Vec<terminal_semantics::descriptor_results::DescriptorMachine>,
+    ranking_bindings: rankings::Bindings,
 }
 
 impl Prepared {
@@ -1154,6 +1166,7 @@ pub(crate) fn prepare_with_inhabitation(
     minted::domains_are_declared(id, structural_types, domains)?;
     let graph = Graph::new(id, lowered, tables)?;
     let reference_graph = places::reference_graph(module, id)?;
+    let ranking_bindings;
     {
         let references = std::cell::RefCell::new(
             terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
@@ -1171,7 +1184,7 @@ pub(crate) fn prepare_with_inhabitation(
             &types,
             &references,
         )?;
-        rankings::admit(lowered, tables, &graph, &storage)?;
+        ranking_bindings = rankings::admit(lowered, tables, &graph, &storage)?;
         if fill {
             storage.owed_are_minted(tables)?;
             fill_knowledge(module, id, lowered, tables, &types, &storage)?;
@@ -1203,6 +1216,7 @@ pub(crate) fn prepare_with_inhabitation(
         graph,
         context,
         reference_graph,
+        ranking_bindings,
     })
 }
 
@@ -1709,9 +1723,18 @@ fn goal(
     kind: &ObligationKind,
     tables: &MachineTables,
     types: &IdTable<ValueId, ScalarType>,
+    ranking_bindings: &rankings::Bindings,
 ) -> Checked<Proposition> {
     let goal = stated_goal(
-        module, lowered, storage, id, obligation, kind, tables, types,
+        module,
+        lowered,
+        storage,
+        id,
+        obligation,
+        kind,
+        tables,
+        types,
+        ranking_bindings,
     )?;
     concrete(tables, id, Construct::Obligation(obligation), &goal)?;
     Ok(goal)
@@ -1758,6 +1781,7 @@ fn stated_goal(
     kind: &ObligationKind,
     tables: &MachineTables,
     types: &IdTable<ValueId, ScalarType>,
+    ranking_bindings: &rankings::Bindings,
 ) -> Checked<Proposition> {
     let concerns = Construct::Obligation(obligation);
     match *kind {
@@ -1887,7 +1911,7 @@ fn stated_goal(
             crashes::coverage_goal(module, lowered, tables, types, id, obligation, site, cause)
         }
         ObligationKind::RankComparison { component, edge } => {
-            rankings::goal(lowered, component, edge)
+            rankings::goal(lowered, ranking_bindings, obligation, component, edge)
         }
         ObligationKind::Claim { .. }
         | ObligationKind::Loan { .. }

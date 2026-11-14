@@ -107,7 +107,8 @@ pub use domain_preservation::{
 pub use references::reference_completion::{
     BorrowedLoanSource, ReferenceCompletionError, ReferenceCompletionOccurrence,
     borrowed_entry_reference_referent, borrowed_loan_source, cleanup_disposes_reference,
-    reference_call_lifetimes, reference_loan_parent, validate_reference_result_completion,
+    incoming_view_occurrence, reference_call_lifetimes, reference_loan_parent,
+    validate_reference_result_completion,
 };
 pub use references::reference_origins::{
     BorrowedResultLeaf, BorrowedResultLeafKind, ReferenceCallContract, ReferenceCallOrigin,

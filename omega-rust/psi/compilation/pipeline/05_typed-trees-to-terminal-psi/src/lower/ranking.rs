@@ -213,6 +213,19 @@ impl Lowering<'_> {
         }
         let components = terminal_semantics::control_graph::control_cycle_members(machine)
             .map_err(|_| self.internal("ranking has an invalid completed control graph"))?;
+        // The producer already knows each head and each transfer. Prepare
+        // their associations once rather than rediscovering them per edge.
+        let mut heads = self
+            .heads
+            .iter()
+            .map(|head| (head.block, head.member))
+            .collect::<Vec<_>>();
+        heads.sort_unstable_by_key(|(block, _)| *block);
+        let mut transfers = (0..self.successor_ranks.len()).collect::<Vec<_>>();
+        transfers.sort_unstable_by_key(|index| {
+            let (source, member, _) = &self.successor_ranks[*index];
+            (*source, *member)
+        });
         let mut cycles = Vec::with_capacity(components.len());
         for members in components {
             let mut cycle = TerminalNaturalCycle {
@@ -234,11 +247,12 @@ impl Lowering<'_> {
                     values,
                 });
             }
-            for block in machine
-                .blocks
-                .iter()
-                .filter(|block| members.binary_search(&block.id).is_ok())
-            {
+            for member in &members {
+                let block = machine
+                    .blocks
+                    .get(usize::try_from(member.get() - 1).unwrap_or(usize::MAX))
+                    .filter(|block| block.id == *member)
+                    .ok_or_else(|| self.internal("cyclic member has no completed block"))?;
                 let source_rank = self
                     .block_ranks
                     .get(block.id)
@@ -250,14 +264,18 @@ impl Lowering<'_> {
                     .into_iter()
                     .filter(|(_, target)| members.binary_search(target).is_ok())
                 {
-                    let transferred = self
-                        .heads
-                        .iter()
-                        .find(|head| head.block == target)
+                    let transferred = heads
+                        .binary_search_by_key(&target, |(block, _)| *block)
+                        .ok()
                         .and_then(|head| {
-                            self.successor_ranks.iter().find(|(source, member, _)| {
-                                *source == block.id && *member == head.member
-                            })
+                            let key = (block.id, heads[head].1);
+                            transfers
+                                .binary_search_by_key(&key, |index| {
+                                    let (source, member, _) = &self.successor_ranks[*index];
+                                    (*source, *member)
+                                })
+                                .ok()
+                                .map(|position| &self.successor_ranks[transfers[position]])
                         });
                     let target_rank = self
                         .block_ranks
