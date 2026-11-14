@@ -2183,6 +2183,22 @@ pub(crate) mod program {
         }
     }
 
+    impl ProgramStorage<'_> {
+        fn closed_module(
+            &self,
+        ) -> Result<&terminal_codec::ClosedTerminalModule, TerminalInterpretError> {
+            match self {
+                Self::Borrowed(code) => Ok(code.closed_module()),
+                Self::Owned(module) => Ok(module),
+                Self::Retained(code) => Ok(code.view().closed_module()),
+                #[cfg(test)]
+                Self::Fixture(_) => Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                    "mutable engine fixture has no closed publication owner",
+                )),
+            }
+        }
+    }
+
     impl AsRef<TerminalModule> for ProgramStorage<'_> {
         fn as_ref(&self) -> &TerminalModule {
             self
@@ -2419,6 +2435,12 @@ pub(crate) mod program {
     impl<'artifact> TerminalProgram<'artifact> {
         pub fn module(&self) -> &TerminalModule {
             &self.program.catalogs
+        }
+
+        pub fn closed_module(
+            &self,
+        ) -> Result<&terminal_codec::ClosedTerminalModule, TerminalInterpretError> {
+            self.program.catalogs.closed_module()
         }
 
         pub fn entry(&self) -> Result<TerminalProgramEntry<'_>, TerminalInterpretError> {
