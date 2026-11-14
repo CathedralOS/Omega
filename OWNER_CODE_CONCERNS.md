@@ -234,13 +234,6 @@ framework or a list of features that remain unimplemented.
 - Cost: the crate's unit suite is red independently of generated-machine ownership changes; the tests and the substitution owner's contract need to agree without weakening source-level value-index eligibility
 - Reported: 2026-11-14, Codex, while attributing the focused generated-application validation failures against its unchanged base
 
-### Provenance can audit another active Codex session
-- Category: an association discarded before its consumer
-- Where: `tools/xtask/src/provenance.rs`, Codex harness selection in `run`
-- Saw: `CODEX_THREAD_ID` selects the Codex harness, but the next step calls `find_latest_codex_transcript` instead of retaining that thread's transcript. In this concurrent run the default command reported `gpt-daybreak-blue-latest`; `provenance --transcript` with the file matching the actual `CODEX_THREAD_ID` reported `gpt-6.1-sol`
-- Cost: another worker's activity can change the model, token and time audit written on this worker's commit; an explicit matching `--transcript` is the current workaround
-- Reported: 2026-11-14, Codex, while generating the generated-application PR's final audit line
-
 ### The parser still accepts a boundary requirement with no `crashes` clause
 - Category: a verdict with nothing behind it
 - Where: `01_tokens-to-syntax-trees/src/declarations.rs` (refuses a boundary requirement without `reaches`, says nothing about `crashes`); `05_typed-trees-to-terminal-psi/src/read/calls.rs` (`boundary`); `samples/` and `tests/fixtures/`
@@ -275,10 +268,3 @@ framework or a list of features that remain unimplemented.
 - Saw: `omega run --both` on the unchanged fixture reports `cannot prove requires contract for call settle from main: inferred input condition`, with `kernel Certificate(IntegerOrderMiddleMismatch)`, before either engine runs. Observed on Windows x86-64 with the scalar receiving-type diagnostic repair, then reproduced at the same line after restoring all changed production files exactly to `44ed2132219fb20261abeab4ef3e61b4ab0f845a` and rebuilding `omega` through `mbx`. The fixture is unchanged, and its contracts and guards were not weakened.
 - Cost: a simple scalar contract program cannot provide native/Psi execution evidence, and an invalid proof certificate is surfaced as a caller fact it should establish instead of identifying the proof producer's disagreement with the kernel
 - Reported: 2026-11-14, Codex, while checking scalar receiving-type diagnostics
-
-### Model-audit attribution ignores the active Codex thread
-- Category: ownership is recovered from unrelated ambient state
-- Where: `tools/xtask/src/provenance.rs` (`find_latest_codex_transcript` and `run`)
-- Saw: even when `CODEX_THREAD_ID` identifies the active worker, the default command chooses the most recently modified transcript anywhere under `.codex/sessions`. During concurrent work it selected another session; explicitly passing this worker's transcript produced different token, step and time totals. The explicit transcript's session metadata confirms the active thread and `/root/result_type_diagnostics` owner.
-- Cost: an ordinary generated model-audit footer can attribute another agent's work to a commit; locate the active thread's transcript before considering a latest-file fallback
-- Reported: 2026-11-14, Codex, while generating provider-plan cleanup provenance; used the explicit active transcript for this PR
