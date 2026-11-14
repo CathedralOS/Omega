@@ -171,13 +171,6 @@ framework or a list of features that remain unimplemented.
 - Cost: implicit entry selection and source custody can disagree when name order differs from child order; consolidate their exact entry relationship rather than restoring the deleted selectors.
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### Integer const identities are formatted and parsed as text across representations
-- Category: one idea, several implementations
-- Where: `omega-rust/psi/compilation/representations/typed-trees/src/calls_and_control_flow.rs` and `src/lib.rs`; `omega-rust/psi/interpreter/terminal-interpreter/src/engine_calls.rs` (`family_tuple_member_value`)
-- Saw: the string `named(integer-const(N))` is made with `format!`, then each reader strips the prefix and suffix by hand and parses an `i128`; the Terminal interpreter picks a dynamic family member this way, and `terminal-psi/src/boundary.rs:555-556` interns two such strings as literals
-- Cost: the surviving producer and consumers agree by spelling rather than a shared typed value; a reader that misses the form fails only at run time (`None`, or "dynamic family tuple identity is not an integer constant").
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### The default ranking view is derived differently in resolution and typing
 - Category: re-deriving
 - Where: `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lowering_machine.rs` (`elaborate_single_subject_default`); `03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs` (`pending_ranking_default`)

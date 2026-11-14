@@ -2608,9 +2608,10 @@ pub(crate) mod declaration_wire {
 pub(crate) mod dynamic_dispatch_wire {
 
     use super::super::wire_fields::{
-        Access, CallResult, Id, Ids, Index, List, Multiplicity, OptionalId, Path, Scalar, Strings,
-        U32, wire_enum, wire_record,
+        Access, CallResult, Flag, I128, Id, Ids, Index, List, Multiplicity, OptionalId, Path,
+        Scalar, U32, wire_enum, wire_record,
     };
+    use language_semantics::const_value::FiniteScalarValue;
     use terminal_psi::{
         TerminalDynamicClaimPath, TerminalDynamicDispatchCatalog, TerminalDynamicInterface,
         TerminalDynamicReferenceOrigin, TerminalDynamicReferenceRegion, TerminalDynamicSlot,
@@ -2627,7 +2628,7 @@ pub(crate) mod dynamic_dispatch_wire {
             slot: U32,
             declaring_trait_identity: Index,
             requirement_identity: Index,
-            family_tuple: Strings,
+            family_tuple: List<FamilyScalar>,
             scalar_parameters: List<Scalar>,
             structural_parameters: List<Formal>,
             entry_claim_paths: List<ClaimPath>,
@@ -2658,6 +2659,10 @@ pub(crate) mod dynamic_dispatch_wire {
     }
 
     wire_enum! {
+        FamilyScalar: FiniteScalarValue, "finite family scalar value" {
+            1 => Integer(value: I128),
+            2 => Boolean(value: Flag),
+        }
         Origin: TerminalDynamicReferenceOrigin, "TerminalDynamicReferenceOrigin" {
             1 => Parameter { argument_index: U32 },
             2 => Invocation { carrier_type: Id },
@@ -2675,6 +2680,35 @@ pub(crate) mod dynamic_dispatch_wire {
         reader: &mut super::super::wire::Reader<'_>,
     ) -> Result<Vec<TerminalDynamicReferenceRegion>, super::super::CodecError> {
         <List<Region> as super::super::wire_fields::Field<_>>::read(reader)
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::wire::{Reader, Writer};
+        use crate::wire_fields::Field;
+
+        #[test]
+        fn finite_family_scalar_wire_preserves_values_and_rejects_bad_tags() {
+            let values = vec![
+                FiniteScalarValue::Integer(i128::MIN),
+                FiniteScalarValue::Integer(i128::MAX),
+                FiniteScalarValue::Boolean(false),
+                FiniteScalarValue::Boolean(true),
+            ];
+            let mut writer = Writer::default();
+            <List<FamilyScalar> as Field<_>>::write(&mut writer, &values).unwrap();
+            let bytes = writer.finish();
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(
+                <List<FamilyScalar> as Field<_>>::read(&mut reader).unwrap(),
+                values
+            );
+            assert_eq!(reader.remaining(), 0);
+            for bytes in [&[3][..], &[2, 2][..], &[1, 0][..]] {
+                assert!(FamilyScalar::read(&mut Reader::new(bytes)).is_err());
+            }
+        }
     }
 }
 pub(crate) mod evidence_wire {
