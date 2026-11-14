@@ -9210,9 +9210,18 @@ mod closed_requirement_declaration_tests {
                     .all(|previous| previous != identity)
             );
         }
-        assert!(identities[0].contains("kind(4:type)"));
-        assert!(identities[0].contains("kind(5:const)"));
-        assert!(identities[3].contains("runtime-value-carrier"));
+        for kind in ["type", "const"] {
+            assert!(
+                identities[0].contains(&super::atom(super::Label::Kind, kind)),
+                "missing {kind} argument category in {:?}",
+                identities[0],
+            );
+        }
+        assert!(
+            identities[3].contains("runtime-value-carrier"),
+            "missing runtime argument category in {:?}",
+            identities[3],
+        );
         program
             .expression_table
             .static_machine_application_mut(source)

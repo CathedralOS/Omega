@@ -869,7 +869,7 @@ machine build(builder: &mut Build) {
         assert_eq!(declarations.len(), 1);
         assert_eq!(
             declarations[0].1.custody,
-            semantic_vocabulary::compiler_evaluation::DeclarationCustody::Package(package())
+            semantic_vocabulary::compiler_evaluation::DeclarationCustody::Toolchain
         );
         assert_eq!(
             declarations[0].1.purpose,
