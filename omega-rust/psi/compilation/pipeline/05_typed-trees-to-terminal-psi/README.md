@@ -658,6 +658,12 @@ call forms for it.
   local that is an SSA value gets a home holding its current value first
   (`EstablishPrimitiveLocal`, as the current pipeline does for a local it
   lends), and the slot names that home from then on.
+- **Data predicates stay owed through a loan.** Both shared and exclusive
+  formals may refer to established data with `requires`, including nested data.
+  An exclusive store mints the same owning data obligations as an owned store.
+  The lowered checker's invariant windows require restoration at normal
+  handback; removing the old reader refusal does not establish missing input
+  storage or allow write-only reference formals.
 - **When the call returns**, the loan has ended: each is formed for one call
   and returns with it, so no loan is live on any edge. An exclusive loan
   logs `Overwritten` on the lent place at the call's normal continuation:
@@ -674,7 +680,6 @@ refuses, by name, what the slice does not serve:
 | Construct | Refusal detail |
 | --- | --- |
 | `&write T`, a reference with a named lifetime, an `[erased]` reference, `mut` on a shared reference, a reference of a requirement, a referent of a type parameter | `parameter write-only reference parameter`, `parameter reference parameter with a named lifetime`, `parameter erased reference parameter`, `parameter mutable binding of a shared reference`, `parameter reference parameter of a requirement`, `parameter reference to a value of a type parameter` |
-| a referent of data with `requires`, or holding such data | `parameter reference to data with requires` |
 | a reference local, a reference result or field, a reference anywhere but a formal | `type reference` |
 | a borrow anywhere but the argument for a borrowed formal | `expression borrow` |
 | an argument for a borrowed formal that is not a borrow, a borrow with another access than its formal's, of a value that is not a place, of a case payload | `call argument for a borrowed formal that is not a borrow`, `call borrow whose access differs from its formal's`, `call borrow of a value that is not a place`, `call borrow of a case payload` |
