@@ -186,6 +186,7 @@ machine main() crashes Trap {
                 purpose: source::DependencyScope::Product,
                 selected: &frontier.selected,
                 bindings: &frontier.bindings,
+                supplies: &[],
             },
         );
         if wrong_sibling {
