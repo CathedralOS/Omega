@@ -191,16 +191,16 @@ pub(crate) fn check_product_source(
             {
                 continue;
             }
-            let selected = provider_planning::program_entry::selected_program_entry_machine(
+            let Some(selected) = provider_planning::program_entry::selected_program_entry_machine(
                 &build.root_bindings,
                 Some(profile),
             )?
-            .ok_or_else(|| {
-                vec![Diagnostic::error(format!(
-                    "requested target `{}` has no selected ProgramEntry",
-                    profile.target_name(),
-                ))]
-            })?;
+            else {
+                // Checking source permits a declaration-only product. Normalize
+                // each actual selection here; executable consumers require its
+                // checked entry contract when they prepare execution.
+                continue;
+            };
             // Shape preparation retains the executed binding order and resolves
             // target families once. Its implementation is the actual body, while
             // the slot text on the resulting shape is diagnostic text only.
