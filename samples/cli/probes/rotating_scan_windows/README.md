@@ -6,7 +6,7 @@ tags, retains its neighboring window, and writes to the displaced backing after
 its old descriptor is retired. Expected exit: 0.
 
 ```sh
-omega update --project samples/cli/collections/rotating_scan_windows --target macos_arm64
+omega packages update --project samples/cli/collections/rotating_scan_windows --target macos_arm64
 omega run --both samples/cli/collections/rotating_scan_windows/main.omg
 ```
 

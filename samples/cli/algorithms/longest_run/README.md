@@ -7,7 +7,7 @@ cursor, `u64` length comparison, bounded indexed reads, and wrapping counters.
 From the repository root, on macOS ARM64:
 
 ```sh
-mbx run -p omega -- update --project samples/cli/algorithms/longest_run --target macos_arm64
+mbx run -p omega -- packages update --project samples/cli/algorithms/longest_run --target macos_arm64
 ```
 
 If review is requested, inspect the source findings and
@@ -15,7 +15,7 @@ If review is requested, inspect the source findings and
 Record each pending decision, then resume and run:
 
 ```sh
-mbx run -p omega -- update --resume --project samples/cli/algorithms/longest_run
+mbx run -p omega -- packages update --resume --project samples/cli/algorithms/longest_run
 mbx run -p omega -- run samples/cli/algorithms/longest_run/main.omg
 ```
 

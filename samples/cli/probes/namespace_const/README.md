@@ -16,7 +16,7 @@ Compile-checked only (no std dependency, no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/namespace_const/main.omg
-mbx run -p omega -- update --project samples/cli/probes/namespace_const
+mbx run -p omega -- packages update --project samples/cli/probes/namespace_const
 ```
 
 Both green on Linux x86-64; `omega.lock` publishes locally, ignored.

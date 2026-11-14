@@ -73,7 +73,7 @@ workflow rather than changing their constants.
 
 From the repository root, select a compiler built from the recorded base and
 set `OMEGA_LIBRARY_ROOT` to this checkout's `source/library`. Review packages
-with `omega update --project samples/cli/independent/heat_exchanger_balances
+with `omega packages update --project samples/cli/independent/heat_exchanger_balances
 --target linux_x86_64`, inspect the emitted review, and resume accepted decisions
 through the documented package workflow. A denied acceptance is a blocker and
 must not be retried or bypassed. Then:

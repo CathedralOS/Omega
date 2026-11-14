@@ -1,5 +1,5 @@
 // Length-framed encoding and bounded recovery for package policy acceptance rows.
-// Earlier schema-4/5 opaque rows remain historical consent for comparison only, whereas superseded schema-8 rows are rejected with `omega update` guidance because version 9 renumbered builtin slots; both element and string storage are bounded before retaining rows.
+// Earlier schema-4/5 opaque rows remain historical consent for comparison only, whereas superseded schema-8 rows are rejected with `omega packages update` guidance because version 9 renumbered builtin slots; both element and string storage are bounded before retaining rows.
 
 use super::{
     MAXIMUM_POLICY_TEXT_BYTES,
@@ -103,6 +103,6 @@ mod tests {
         let error = read(text, package, TargetProfile::LinuxX64, 16, 1 << 16)
             .expect_err("a superseded policy row schema must not load");
         assert!(matches!(error, Error::UnsupportedVersion));
-        assert!(error.to_string().contains("omega update"));
+        assert!(error.to_string().contains("omega packages update"));
     }
 }

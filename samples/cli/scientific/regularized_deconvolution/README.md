@@ -20,7 +20,7 @@ notation retains 13 significant decimal digits. Negative reconstruction is
 reported, never clipped.
 
 ```sh
-omega update --project samples/cli/independent/regularized_deconvolution --target linux_x86_64
+omega packages update --project samples/cli/independent/regularized_deconvolution --target linux_x86_64
 omega run --both --keep samples/cli/independent/regularized_deconvolution/main.omg < samples/cli/independent/regularized_deconvolution/input.txt
 python samples/cli/independent/regularized_deconvolution/validate.py --cli /absolute/path/to/omega --evidence build/deconvolution-validation
 ```

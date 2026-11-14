@@ -2,7 +2,7 @@
 //
 // We write only the compact `program.identity()` line rather than debug-dumping
 // the full native evidence graph, which can expand a small executable into
-// gigabytes of text. A `--engine terminal` run has no native program, so it
+// gigabytes of text. A `--engine psi` run has no native program, so it
 // writes only `program.oterm`.
 
 use super::RunError;

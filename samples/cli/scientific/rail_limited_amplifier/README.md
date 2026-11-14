@@ -97,9 +97,9 @@ Run from the repository root with one compiler/build/execution at a time:
 ```
 source /workspace/cloud-setup/activate.sh
 mbx build --release -p omega
-./target/release/omega update --project samples/cli/independent/rail_limited_amplifier --target linux_x86_64
+./target/release/omega packages update --project samples/cli/independent/rail_limited_amplifier --target linux_x86_64
 # Read the generated package review, accept only the reviewed decision rows, then:
-./target/release/omega update --project samples/cli/independent/rail_limited_amplifier --resume
+./target/release/omega packages update --project samples/cli/independent/rail_limited_amplifier --resume
 ./target/release/omega --check samples/cli/independent/rail_limited_amplifier/main.omg
 ./target/release/omega run --both --keep samples/cli/independent/rail_limited_amplifier/main.omg < samples/cli/independent/rail_limited_amplifier/data/rail_recovery.in
 ```

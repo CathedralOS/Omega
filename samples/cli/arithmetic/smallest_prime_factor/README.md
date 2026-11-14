@@ -11,8 +11,8 @@ mbx run -p omega -- run --both samples/cli/arithmetic/smallest_prime_factor/main
 ```
 
 Use Cargo if `mbx` is unavailable. Complete any requested local package review
-with `omega update --target macos_arm64 --project samples/cli/arithmetic/smallest_prime_factor`,
-edit the generated review decisions, then resume with `omega update --resume
+with `omega packages update --target macos_arm64 --project samples/cli/arithmetic/smallest_prime_factor`,
+edit the generated review decisions, then resume with `omega packages update --resume
 --project samples/cli/arithmetic/smallest_prime_factor`. Select your host target
 for update; leave `--target` off `run`.
 

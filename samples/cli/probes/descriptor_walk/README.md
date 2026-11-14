@@ -14,5 +14,5 @@ This exercises the projected-storage requirement of
 `STATE-LOCAL-VALUE-FRONTIER`. The bounds control under
 `tests/omega/fail/borrows/projected_record_region_exceeds_backing` reduces the
 backing extent by one byte and must reject the same 16-byte view at offset 32.
-Development runs use the normal target-specific `omega update` package workflow
+Development runs use the normal target-specific `omega packages update` package workflow
 before accepting the local standard library's program-entry binding.

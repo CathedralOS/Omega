@@ -60,7 +60,7 @@ def main():
     metadata=dict(compiler=str(binary),compiler_sha256=digest(binary),revision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),route=arguments.route,complete=False,scipy_version=scipy.__version__,target='linux_x86_64',oracle_sha256=digest(ROOT/'validation/frozen_oracle.json'),sources={str(path.relative_to(ROOT)):digest(path) for path in sorted(ROOT.rglob('*.omg')) if 'build' not in path.relative_to(ROOT).parts},cases=[])
     (evidence/'results.json').write_text(json.dumps(metadata,indent=2)+'\n')
     try:
-        update=subprocess.run([str(binary),'update','--project',str(ROOT),'--target','linux_x86_64'],stdin=subprocess.DEVNULL,capture_output=True,timeout=240)
+        update=subprocess.run([str(binary),'packages','update','--project',str(ROOT),'--target','linux_x86_64'],stdin=subprocess.DEVNULL,capture_output=True,timeout=240)
     except subprocess.TimeoutExpired as error:
         (evidence/'update.stdout').write_bytes(error.stdout or b'')
         (evidence/'update.stderr').write_bytes(error.stderr or b'')

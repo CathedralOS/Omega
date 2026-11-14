@@ -18,7 +18,7 @@ linux_arm64, and AudioToolbox `AudioQueue*` on macos_arm64.
 Run from this directory on Windows, Linux, or macOS:
 
 ```sh
-omega update --project .   # then complete the review it requests
+omega packages update --project .   # then complete the review it requests
 omega run main.omg
 ```
 

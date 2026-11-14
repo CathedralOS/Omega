@@ -9,7 +9,7 @@ stream hashes. The Library bundle retains the raw outputs and observed verdicts.
 ```sh
 source /workspace/cloud-setup/activate.sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
-./target/release/omega update --project samples/cli/independent/gravimetric_mixture --target linux_x86_64
+./target/release/omega packages update --project samples/cli/independent/gravimetric_mixture --target linux_x86_64
 python3 -B samples/cli/independent/gravimetric_mixture/validate.py --omega "$PWD/target/release/omega"
 ```
 

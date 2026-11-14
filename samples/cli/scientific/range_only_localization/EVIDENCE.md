@@ -74,7 +74,7 @@ export CARGO_PROFILE_DEV_OPT_LEVEL=1
 export OMEGA_CORPUS_JOBS=1
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 mbx build -p omega
-omega update --project samples/cli/independent/range_only_localization --target linux_x86_64
+omega packages update --project samples/cli/independent/range_only_localization --target linux_x86_64
 # If a pending review is produced, inspect its exact local decisions and resume
 # through the normal package workflow; no lock or source guard is hand-edited.
 omega --check --target linux_x86_64 samples/cli/independent/range_only_localization/main.omg

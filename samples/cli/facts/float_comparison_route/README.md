@@ -70,7 +70,7 @@ target the corpus check leg reads from these bindings).
 ## The declared route is load-bearing
 
 - **The comparison is emitted, not folded.** The retained Terminal Psi artifact
-  (`omega run --both --keep`, then `omega inspect-terminal --artifact
+  (`omega run --both --keep`, then `omega psi inspect --artifact
   <dir>/program.oterm`) contains `IeeeFloatCompare { comparison: Equal }` for
   every place, even where both operands are literals or named constants
   (`local`, `field`, `const_name`, `target_body`). A compile-time fold of

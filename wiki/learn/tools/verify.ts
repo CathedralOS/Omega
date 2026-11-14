@@ -12,8 +12,8 @@
 // Fixture dirs persist under scratch/verify/ so each figure's `omega.lock`
 // survives between runs. Since 2026-10, binding an entry slot whose schema
 // comes from a dependency needs an accepted program-entry binding: the first
-// `omega update` writes a review file, pending decision rows are flipped to
-// `accept`, and `omega update --resume` publishes the lock. That ceremony
+// `omega packages update` writes a review file, pending decision rows are flipped to
+// `accept`, and `omega packages update --resume` publishes the lock. That ceremony
 // re-runs only when a check reports missing or stale acceptance.
 //
 // Compiles run in parallel (cap 4): a cold fixture that registers a dependency on std takes
@@ -44,20 +44,20 @@ const run = async (args: string[], cwd: string) => {
 
 const check = (dir: string) => run([OMEGA, "--check", join(dir, "main.omg")], dir);
 
-// `omega update` writes review-<target>.txt; pending rows flip to `accept`,
+// `omega packages update` writes review-<target>.txt; pending rows flip to `accept`,
 // then `--resume` publishes omega.lock. Mirrors the sample gate's accept_review.
 const acceptReview = async (dir: string, target: string) => {
-  await run([OMEGA, "update", "--project", dir, "--target", target], dir);
+  await run([OMEGA, "packages", "update", "--project", dir, "--target", target], dir);
   const review = join(dir, "build", "package-manager", `review-${target}.txt`);
   if (!existsSync(review)) return;
   const text = readFileSync(review, "utf8");
   if (!/^decision row [0-9a-f]+ pending$/m.test(text)) return;
   writeFileSync(review, text.replace(/^(decision row [0-9a-f]+) pending$/gm, "$1 accept"));
-  await run([OMEGA, "update", "--project", dir, "--resume"], dir);
+  await run([OMEGA, "packages", "update", "--project", dir, "--resume"], dir);
 };
 
 const ACCEPTANCE =
-  /accepted program-entry binding|source identity changed|immutable content differs|unsupported package lock|review is pending|accepted lock|run `?omega update`?/i;
+  /accepted program-entry binding|source identity changed|immutable content differs|unsupported package lock|review is pending|accepted lock|run `?omega packages update`?/i;
 
 // --check against the fixture dir, completing the package review for each
 // bound target when the compiler asks for it.

@@ -344,7 +344,7 @@ is the sweep to run before reporting sample coverage. About twelve minutes
 for a historical 148-project tree; current selection comes from discovery, not
 that historical count.
 
-`mbx xtask sample-gate` runs each sample's `omega update`, then builds
+`mbx xtask sample-gate` runs each sample's `omega packages update`, then builds
 and runs it. Without `--cli` it first builds the opt-level 1 CLI with `mbx`
 (direct Cargo fallback is forbidden) in the checkout's own Cargo target directory
 (`target/`, or `CARGO_TARGET_DIR`) and measures that. The default input inventory

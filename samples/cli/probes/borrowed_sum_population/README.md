@@ -8,7 +8,7 @@ Correct execution returns 0; wrong observations trap.
 From the repository root, with the compiler available as `omega`:
 
 ```text
-omega update --project samples/cli/basics/borrowed_sum_population
+omega packages update --project samples/cli/basics/borrowed_sum_population
 omega run --both samples/cli/basics/borrowed_sum_population/main.omg
 ```
 

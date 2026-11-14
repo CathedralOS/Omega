@@ -3,7 +3,7 @@ intended-invalid bounds source. On base b4008bb3c7894aebad47eaccf8af12bb4a8006b1
 using compiler SHA-256 ec44090c516c5d371dc74028234ff2fe20b8ea279e33fe461dcd51388e327a07:
 
 ```
-omega update --project samples/cli/independent/heat_exchanger_balances/controls/float_conversion_resolution --target linux_x86_64
+omega packages update --project samples/cli/independent/heat_exchanger_balances/controls/float_conversion_resolution --target linux_x86_64
 ```
 
 exits 1 with 240 diagnostics beginning with `machine satisfaction target

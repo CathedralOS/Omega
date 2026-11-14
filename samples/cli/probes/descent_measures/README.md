@@ -18,7 +18,7 @@ Compile-checked only (no std dependency, no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/descent_measures/main.omg
-mbx run -p omega -- update --project samples/cli/probes/descent_measures
+mbx run -p omega -- packages update --project samples/cli/probes/descent_measures
 ```
 
 Both complete green on Linux x86-64; `omega.lock` publishes locally and is

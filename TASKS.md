@@ -162,11 +162,11 @@ Write each item so any agent can start from it alone: current state, files and e
 
 - **UNIVERSAL-INTERPRETER-CLOSURE.** Finish `omega-rust/omega/interpreter/terminal-runtime/src/execution.rs`.
   - Add a `ForeignBinding::Syscall` adapter; witness `kernel_import_result_chain_exit` on `work/tests-kernel-import-process-exit`.
-  Acceptance: audits find no tree visitor, and `omega run --both`, and `--engine native|terminal` pass on all hosts.
+  Acceptance: audits find no tree visitor, and `omega run --both`, and `--engine native|psi` pass on all hosts.
 
 ## Immediate product closure
 
-- **REQUIRES-UNIFICATION.** Run `tests/psi/*/test-*.sh` over the `where` deletion; each gate's `omega update` peaks near 14 GB single-threaded.
+- **REQUIRES-UNIFICATION.** Run `tests/psi/*/test-*.sh` over the `where` deletion; each gate's `omega packages update` peaks near 14 GB single-threaded.
   Acceptance: the parser, resolver, typing and checking gates pass.
 
 - **STAGED-BUILD-CAPABILITIES.** Implement [checked Build stages](wiki/spec/build/scoped_execution.md#checked-build-stages) and attenuated filesystem delegation, retiring `BuildInputs`/`BuildSource`/`BuildOutput`.

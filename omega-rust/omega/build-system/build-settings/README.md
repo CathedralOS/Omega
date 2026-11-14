@@ -29,7 +29,7 @@ review pass. Admission uses Psi's exact-input reuse, then freshly settles
 comparison execution, filesystem custody, restricted consent and execution;
 an unchanged language judgment cannot lend an earlier invocation's grants.
 To observe the distinction, set `OMEGA_REVIEW_TIMINGS=1` and run ordinary
-`omega update --project <project> --target macos_arm64 --offline` on a
+`omega packages update --project <project> --target macos_arm64 --offline` on a
 disposable copy of `samples/cli/basics/print_number` with its relative std
 dependency preserved. An unchanged bound pass reports `settled_checks=0`;
 the operation still checks Build and Product. This is a macOS observation command,

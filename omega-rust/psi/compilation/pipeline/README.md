@@ -123,7 +123,7 @@ cast. Terminal declarations retain the full scalar type: canonical domain sets
 are shared across the reachable call closure, and explicit qualification binds
 a fresh successor value without a runtime tag or operation. Every incoming edge,
 ordinary call and result independently preserves that type.
-`cargo run -p omega -- inspect-terminal --machine choose --target macos_arm64 tests/omega/pass/expressions/match_domain_results/main.omg`
+`cargo run -p omega -- psi inspect --machine choose --target macos_arm64 tests/omega/pass/expressions/match_domain_results/main.omg`
 publishes this fixture; `value_dispatch` replays both selections from canonical
 bytes. Explicit same-carrier erasure uses that same computation node and a strict
 subset qualification edge, including a bare destination. Its authored cast must
@@ -133,7 +133,7 @@ Match results retain exact membership grants for compatible formals, including
 closed indices. Predicate/routed evidence and erasure, plus shared structural
 qualification transport, remain separate obligations, not bare-carrier fallbacks.
 
-`cargo run -p omega -- inspect-terminal --machine choose --target macos_arm64 tests/omega/pass/expressions/explicit_scalar_tag_erasure/main.omg`
+`cargo run -p omega -- psi inspect --machine choose --target macos_arm64 tests/omega/pass/expressions/explicit_scalar_tag_erasure/main.omg`
 publishes an explicitly erased qualified Match/call result;
 `python3 tools/corpus_gate.py --native --filter expressions/explicit_scalar_tag_erasure`
 records its host build outcome. No runtime tag is introduced: ordinary jumps carry fresh values, and Boolean
@@ -159,7 +159,7 @@ non-NaN source and bound facts; unsupported membership remains a proof failure.
 Matching full-width suffixed integer leaves retain their own
 carrier through the same consumer-edge custody, including bitwise complement.
 
-`cargo run -p omega -- inspect-terminal --machine choose --target macos_arm64 tests/omega/pass/expressions/anonymous_numeric_match_subject/main.omg`
+`cargo run -p omega -- psi inspect --machine choose --target macos_arm64 tests/omega/pass/expressions/anonymous_numeric_match_subject/main.omg`
 exercises a Match whose subject and tested patterns are exact anonymous numbers.
 Checking and independent source replay rederive first-match selection with the
 existing exact-number evaluator. Only the chosen result becomes a computation;
@@ -167,7 +167,7 @@ no fixed-width subject or runtime rational carrier is invented. Even a leading
 wildcard must not erase a call, typed value, or undefined subject. All-arm typing,
 coverage and result-destination checks remain separate from selective execution.
 
-`cargo run -p omega -- inspect-terminal --machine choose --target macos_arm64 tests/omega/pass/expressions/match_float_results/main.omg`
+`cargo run -p omega -- psi inspect --machine choose --target macos_arm64 tests/omega/pass/expressions/match_float_results/main.omg`
 exercises f32 result selection inside ordinary calls. Match carries f32/f64
 results through the same typed continuation as other scalar values, preserving
 format and payload without arithmetic, conversion, or comparison of the result.
@@ -671,7 +671,7 @@ also checks runtime parameter/local shadows and a module consumer whose value
 parameter shares the declaring constructor's name. Its package integration
 tests distinguish the selected constant occurrence from runtime references
 through checked compilation; constructor ownership remains declaration-local.
-The same nominal body customer with `inspect-terminal
+The same nominal body customer with `psi inspect
 --machine keep` still reports that the machine has no source-independent checked
 scalar control plan; nominal aggregate execution needs that producer dependency.
 Integer/Boolean array body
@@ -693,7 +693,7 @@ Elements finish in index order, preserving earlier values across mutating calls
 and short-circuit control before the constructor commits its payload. Array-valued
 constant projections still require closed unselected siblings; selection cannot
 erase an evaluation or effect.
-`cargo run -p omega -- inspect-terminal --machine selected_row tests/omega/pass/modules/module_array_constant_indices/main.omg`
+`cargo run -p omega -- psi inspect --machine selected_row tests/omega/pass/modules/module_array_constant_indices/main.omg`
 publishes the material row; selecting `selected_empty_row` retains its exact empty
 array type. Selecting `computed_row` exercises runtime scalar construction.
 Array argument/result transport through calls and state transfers, and native
@@ -749,9 +749,9 @@ The focused source/Terminal probes run from the repository root:
 
 ```sh
 cargo run -p omega -- --check tests/omega/pass/modules/qualified_declarations/main.omg
-cargo run -p omega -- inspect-terminal --machine combat::damage tests/omega/pass/modules/qualified_declarations/main.omg
+cargo run -p omega -- psi inspect --machine combat::damage tests/omega/pass/modules/qualified_declarations/main.omg
 cargo run -p omega -- --check tests/omega/pass/modules/qualified_constants/main.omg
-cargo run -p omega -- inspect-terminal --machine combat::damage tests/omega/pass/modules/qualified_constants/main.omg
+cargo run -p omega -- psi inspect --machine combat::damage tests/omega/pass/modules/qualified_constants/main.omg
 cargo run -p omega -- --check tests/omega/pass/modules/qualified_constant_indices/main.omg
 cargo run -p omega -- --check tests/omega/pass/modules/compound_constant_indices/main.omg
 cargo run -p omega -- --check tests/omega/pass/modules/domain_constant_indices/main.omg

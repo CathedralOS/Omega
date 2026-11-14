@@ -1,6 +1,6 @@
 # Package inspection
 
-`omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...`
+`omega packages audit [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...`
 shows the project graph, exact source pins, and compiler-derived API/authority
 findings beside accepted lock policy. It does not accept changes, certify an
 audit, or publish native artifacts.
@@ -49,7 +49,7 @@ resolution first; a cached branch name is not an accepted exact pin.
 
 Omitting `--target` inspects every accepted target, or the host target when
 there is no lock. An explicitly requested target missing from an existing lock
-rejects before acquisition; `omega update --target <name>` owns fresh target
+rejects before acquisition; `omega packages update --target <name>` owns fresh target
 review.
 
 Default output summarizes callable reach, authority, and assumptions. `--details`
