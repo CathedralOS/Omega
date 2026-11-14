@@ -132,6 +132,9 @@ Write each item so any agent can start from it alone: current state, files and e
 
 - **INVOKES-ENTRY-CEILING.** Implement the [entry ceiling](wiki/drafts/designs/invokes_entry_ceiling.md); then strip plumbing rows.
 
+- **CALLER-CHOSEN-RESULT-LIFETIMES.** Implement [caller-chosen result lifetimes](wiki/spec/language/lifetimes.md#caller-chosen-result-lifetimes) in the lowered-form checker: a call binds a result lifetime no argument supplies from the result's use, and the body is checked against a fresh lifetime it knows nothing about. Publish whether each result lifetime is input-related or caller-chosen.
+  Acceptance: the spec's `package_name` and `kind_name` and a literal-returning `match` check; `leak`, a returned view of a local and an empty slice of a local reject. The `call_result` places of `recorded_build_role` and `readonly_byte_pool_relocation_bound` reach native/Psi agreement. The two refusal tests citing `result lifetime that no argument is a view of` flip only where the body establishes the backing.
+
 - **TYPED-STATIC-PARAMETERS.** Implement and migrate to [typed static parameters](wiki/drafts/designs/typed_static_parameters.md).
 
 - **ACTIVATION-STORAGE-PLANS.** Implement [storage plans](wiki/drafts/designs/activation_storage_plans.md).

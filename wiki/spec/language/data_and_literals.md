@@ -405,8 +405,11 @@ conversion; bare `i`/`u` suffixes remain unbounded computational carriers.
 
 A quoted literal contains bytes, has ordinary shared byte-view type `&[u8]`,
 and establishes no encoding domain. Its runtime shared view refers to immutable
-image storage, not a invocation-local owner. Source UTF-8 framing does not make the
-value text or normalize/transcode its contents.
+image storage, not a invocation-local owner, so the view is valid at whatever
+lifetime its use requires while that image is retained. A machine may return
+one at a [caller-chosen result lifetime](lifetimes.md#caller-chosen-result-lifetimes).
+Source UTF-8 framing does not make the value text or normalize/transcode its
+contents.
 
 The lexer copies literal-body source bytes except these byte escapes:
 
