@@ -150,10 +150,12 @@ fn literal(
                         .iter()
                         .filter_map(DataMember::as_variant)
                         .filter(|case| selects_member(variant, &case.member_identity()));
-                    let selected = cases
-                        .next()
-                        .cloned()
-                        .ok_or("invocation case is not declared by its formal")?;
+                    let selected = cases.next().cloned().ok_or_else(|| {
+                        format!(
+                            "invocation case `{variant}` is not declared by formal `{}`",
+                            program.normalized_type_identity_text(destination),
+                        )
+                    })?;
                     if cases.next().is_some() {
                         return Err("invocation case is ambiguous".into());
                     }

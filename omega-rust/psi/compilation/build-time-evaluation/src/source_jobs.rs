@@ -746,6 +746,39 @@ pub(crate) mod tests {
     }
 
     #[test]
+    fn source_case_values_select_only_members_of_the_actual_formal() {
+        let program = program(
+            "data Envelope [copy] { case Value(value: u64); }
+             data Other [copy] { case Value(value: u64); }
+             machine answer(value: Envelope) -> Envelope { value }",
+        );
+        let value = BuildTimeValue::Case {
+            variant: "Value".into(),
+            payload: vec![("value".into(), BuildTimeValue::Int(7))],
+        };
+        let entry = bind(&program, std::slice::from_ref(&value)).unwrap();
+        assert_eq!(
+            entry
+                .invoke(target(), &mut psi_work::WorkMeter::unbounded())
+                .unwrap(),
+            value
+        );
+        for variant in ["Other::Value", "Missing"] {
+            let wrong = BuildTimeValue::Case {
+                variant: variant.into(),
+                payload: vec![("value".into(), BuildTimeValue::Int(7))],
+            };
+            let error = bind(&program, &[wrong])
+                .err()
+                .expect("only actual formal members bind");
+            assert!(
+                error.contains(variant) && error.contains("formal"),
+                "{error}"
+            );
+        }
+    }
+
+    #[test]
     fn source_call_requests_keep_their_authored_operand_and_owner() {
         let source = with_reflection(
             "use omega::language::core::reflect;

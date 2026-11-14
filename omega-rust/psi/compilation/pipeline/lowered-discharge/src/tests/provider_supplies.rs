@@ -242,14 +242,13 @@ fn a_supply_without_one_machine_per_requirement_is_refused_by_name() {
     // `Other` has a requirement `Native` gives no machine.
     let uncovered = supplied(&text, "Other").unwrap_err();
     assert!(
-        uncovered
-            .contains("provider that does not give a supplied requirement exactly one machine"),
+        uncovered.contains("provider does not give the supplied requirement exactly one machine"),
         "{uncovered}"
     );
     // A data type is not a slot.
     let no_slot = supplied(&text, "Native").unwrap_err();
     assert!(
-        no_slot.contains("slot that is not a boundary trait or one of its requirements"),
+        no_slot.contains("slot that is not a trait or one of its requirements"),
         "{no_slot}"
     );
 }
