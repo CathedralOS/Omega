@@ -91,6 +91,20 @@ impl ProjectSourceResolutionError {
         }
     }
 
+    pub(crate) fn into_package_failure(self) -> package_manager::PackageCommandError {
+        let accounting = self
+            .source_completion_accounting()
+            .cloned()
+            .unwrap_or_default();
+        let error = match self {
+            Self::Compilation(error) => error.into(),
+            Self::Preparation { error, .. } => error.into(),
+            Self::Resources { error, .. } => error.into(),
+            Self::Source { reason, .. } => package_manager::PackageCommandError::from(reason),
+        };
+        error.with_source_completion_accounting(accounting)
+    }
+
     fn with_source_completion_accounting(
         mut self,
         accounting: compilation_products::SourceCompletionAccounting,

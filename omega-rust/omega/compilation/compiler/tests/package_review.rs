@@ -1246,35 +1246,119 @@ fn build_constant_cleanup_failure_retains_successful_execution_costs() {
 
 #[test]
 fn build_constant_cleanup_failure_preserves_the_primary_typed_cause() {
-    use package_manager::review::{
-        CompileResolvedPackageReviewCause as Cause, CompileResolvedPackageReviewsError as Error,
-    };
     let history = build_constant_cleanup_history();
     let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
         "constant-cleanup-primary",
         false,
     )
     .unwrap();
-    let mut session = package_manager::PackageBuildSession::create(workspace.path()).unwrap();
-    session.record_source_completion(history.clone());
+    let mut session = orchestration::BuildSession::create(workspace.path()).unwrap();
+    session.resources().record_source_completion(history);
     let staging = force_build_cleanup_failure(workspace.path());
-    let primary = Error::new(Cause::BuildStagingCreate {
-        path: "actual-primary-path".into(),
-        error: std::io::Error::other("actual primary cause"),
-    })
-    .with_source_completion_accounting(history);
-    let failure = session.dispose::<(), _>(Err(primary)).unwrap_err();
+    let primary = package_manager::operations::PackageInspectionError::from(
+        compilation_products::CompileFailure::Diagnostics(vec![diagnostics::Diagnostic::error(
+            "actual primary inspection failure",
+        )]),
+    );
+    assert!(primary.source_completion_accounting().receipts().is_empty());
+    let failure = session.dispose_inspection::<()>(Err(primary)).unwrap_err();
+    let Some(compilation_products::CompileFailure::Diagnostics(diagnostics)) =
+        failure.compilation_failure()
+    else {
+        panic!("cleanup must preserve the original typed compilation cause")
+    };
+    assert_eq!(
+        diagnostics::join_messages(diagnostics),
+        "actual primary inspection failure"
+    );
+    assert_eq!(failure.source_completion_accounting().receipts().len(), 1);
+    std::fs::remove_file(staging).unwrap();
+}
+
+fn captured_build_constant_session(
+    case: &str,
+) -> (
+    platform_custody::temporary_directory::TemporaryDirectory,
+    orchestration::BuildSession,
+    Result<orchestration::ResolvedProjectBuilds, orchestration::ProjectSourceResolutionError>,
+) {
+    let workspace = platform_custody::temporary_directory::TemporaryDirectory::create(
+        "captured-build-constant",
+        false,
+    )
+    .unwrap();
+    let project = workspace.path().join("project");
+    std::fs::create_dir(&project).unwrap();
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/build_constant_accounting")
+        .join(case);
+    for name in ["main.omg", "build.omg"] {
+        std::fs::copy(fixture.join(name), project.join(name)).unwrap();
+    }
+    let profile = target::TargetProfile::host_if_supported().expect("host Build execution target");
+    let preparation = package_manager::operations::begin_local_project_preparation(
+        &project.join("main.omg"),
+        &[profile],
+        true,
+    )
+    .unwrap()
+    .unwrap();
+    let mut session =
+        orchestration::BuildSession::create(&workspace.path().join("session")).unwrap();
+    let outcome = orchestration::resolve_project_sources(
+        &mut session,
+        orchestration::ProjectSourceRequest {
+            preparation,
+            collect_timings: false,
+            execution: package_compilation::BuildExecutionInputs {
+                profile: Some(profile),
+                ..Default::default()
+            },
+        },
+    );
+    (workspace, session, outcome)
+}
+
+#[test]
+fn build_constant_captured_source_cost_survives_real_readiness_and_cleanup() {
+    let (workspace, mut session, outcome) = captured_build_constant_session("positive");
+    let _resolved = outcome.unwrap_or_else(|error| panic!("captured positive Build: {error}"));
+    let history = session.resources().source_completion_accounting().clone();
     assert!(
-        matches!(&failure.cause, Cause::BuildStagingCreate { path, error }
-        if path == std::path::Path::new("actual-primary-path") && error.to_string() == "actual primary cause")
+        !history.receipts().is_empty(),
+        "actual readiness must retain the computed constant work"
+    );
+    history.validate_charges().unwrap();
+    let staging = force_build_cleanup_failure(&workspace.path().join("session"));
+    let primary = package_manager::operations::PackageInspectionError::from(
+        "inspection finish refused after Build execution".to_owned(),
+    );
+    assert!(primary.source_completion_accounting().receipts().is_empty());
+    let failure = session.dispose_inspection::<()>(Err(primary)).unwrap_err();
+    assert_eq!(
+        failure.to_string(),
+        "inspection finish refused after Build execution"
     );
     assert_eq!(
-        failure
-            .source_completion_accounting()
-            .unwrap()
-            .receipts()
-            .len(),
-        1
+        failure.source_completion_accounting().receipts().len(),
+        history.receipts().len()
     );
+    failure
+        .source_completion_accounting()
+        .validate_charges()
+        .unwrap();
     std::fs::remove_file(staging).unwrap();
+}
+
+#[test]
+fn build_constant_captured_invalid_twin_rejects_its_original_call_obligation() {
+    let (_workspace, mut session, outcome) = captured_build_constant_session("negative");
+    let failure = match outcome {
+        Err(error) => error,
+        Ok(_) => panic!("bounded(9) requires 9 <= 5"),
+    };
+    let message = failure.to_string();
+    assert!(message.contains("bounded"), "{message}");
+    assert!(message.contains("9 <= 5"), "{message}");
+    session.close().unwrap();
 }

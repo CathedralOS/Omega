@@ -82,7 +82,7 @@ pub(crate) fn run(command: PackageCommand, mut options: PackageCommandOptions, a
                 }
                 Ok(outcome)
             })();
-            session.dispose(result)
+            session.dispose_command(result)
         }
     };
     let outcome = match result {
