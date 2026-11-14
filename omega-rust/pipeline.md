@@ -151,8 +151,8 @@ Build and native completion remain work on [TASKS.md](../TASKS.md).
 | Syntax → symbol-resolved trees | [syntax-trees-to-symbol-resolved-trees](psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/lib.rs) |
 | Resolved → typed trees | [symbol-resolved-trees-to-typed-trees](psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lib.rs) |
 | Typed trees → prepared typed trees (one ordered pass list) | [typed preparation](psi/compilation/pipeline/04_typed-trees-to-typed-trees/README.md) |
-| Typed structure → unsealed Terminal Psi | [structure-elaboration](psi/compilation/pipeline/structure-elaboration/src/lib.rs) |
-| Unsealed Terminal Psi → accepted closure | [lowered-discharge](psi/compilation/pipeline/lowered-discharge/src/lib.rs) |
+| Typed structure → unsealed Terminal Psi | [typed-trees-to-terminal-psi](psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lib.rs) |
+| Unsealed Terminal Psi → accepted closure | [terminal-psi-to-terminal-psi](psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs) |
 | Accepted closure → sealed Terminal artifact | [accepted source factory](psi/compilation/psi-compiler/terminal-production/src/accepted.rs) and [codec](psi/compilation/representations/terminal-psi/codec/src/lib.rs) |
 | Terminal Psi → abstract operations | [terminal-psi-to-abstract-operations](omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/README.md) |
 | Abstract → abstract operations | [abstract-operations-to-abstract-operations](omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/lib.rs) |
@@ -184,7 +184,7 @@ over the typed trees and freezes the result without establishing a judgment.
 A pass does its work or refuses its own request by name; requested deferred
 layout, opaque-selection and wire work has no pass and refuses.
 
-The served checking route is `structure-elaboration` → `lowered-discharge` → the
+The served checking route is `typed-trees-to-terminal-psi` → `terminal-psi-to-terminal-psi` → the
 accepted-source factory. That is the default path, and it is the empty Psi
 selection: the factory retains the exact frozen typed owner before judgment
 and publishes the same module and evidence afterward, with no passes and no
@@ -430,7 +430,7 @@ recorded judgment is used.
 | Admitted source frontier → parsed syntax | [Psi source parsing](psi/compilation/psi-compiler/src/lib.rs); [package source preparation](omega/packages/package-compilation/src/source/source_assembly.rs) owns import discovery and custody between frontiers |
 | Assembled syntax → completed typing | [Psi source continuation](psi/compilation/psi-compiler/src/source_compilation.rs), interrupted only for admitted Build execution and generated-source admission |
 | Completed typing → source-preparation result | [Psi preparation facade](psi/compilation/psi-compiler/src/source_checking.rs), through [typed preparation](psi/compilation/pipeline/04_typed-trees-to-typed-trees/README.md), the one path to frozen typed trees |
-| Typed structure → accepted closure | [Structural elaboration](psi/compilation/pipeline/structure-elaboration/src/lib.rs) and [lowered-form checking](psi/compilation/pipeline/lowered-discharge/src/lib.rs) |
+| Typed structure → accepted closure | [Structural elaboration](psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lib.rs) and [lowered-form checking](psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs) |
 | Accepted closure → Terminal artifact and evidence | [Accepted-source factory](psi/compilation/psi-compiler/terminal-production/src/accepted.rs); the [product coordinator](omega/compilation/compiler/src/terminal/terminal_artifact.rs) consumes this shared product |
 
 Package-owned source preparation composes source sets, imports and custody;
@@ -1066,7 +1066,7 @@ library APIs; they do not introduce another compiler driver.
 | Responsibility | Owner |
 | --- | --- |
 | Current program forms and their attached records/codecs | Each half's `compilation/representations/`, grouped by program family |
-| Program judgments | Psi `compilation/pipeline/lowered-discharge/` over structurally elaborated Terminal Psi; independent mathematical checking in `compilation/proof/admission/` |
+| Program judgments | Psi `compilation/pipeline/06_terminal-psi-to-terminal-psi/` over structurally elaborated Terminal Psi; independent mathematical checking in `compilation/proof/admission/` |
 | Terminal encoding, semantic reconstruction and work | Independent packages beneath Psi `compilation/representations/terminal-psi/` |
 | Transformation, rewrite, private scratch and analyses | Each half's `compilation/pipeline/`, in the owning `X-to-Y` or `X-to-X` package |
 | ISA, ABI, runtime carriers, object/relocation/image mechanics | Omega `compilation/backend/` |
@@ -1612,8 +1612,8 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   the same representation; do not invent a `PreOptimized`/`PostOptimized` pair.
   The folders must expose the connected `X-to-Y`, `Y-to-Y`, `Y-to-Z` sequence,
   not merely name individually plausible calculations. See [optimization phases](../wiki/spec/build/optimizations.md#phase-and-product-boundaries).
-- Psi `compilation/pipeline/structure-elaboration/` — typed structure to unsealed Terminal Psi.
-- Psi `compilation/pipeline/lowered-discharge/` — the compilation's only program verdict. It judges the unoptimized module and, when selected passes have run, their output, with no knowledge of which passes ran. A rejection of that output is a compiler defect, not a source diagnostic. Empty selection does not request the second judgment.
+- Psi `compilation/pipeline/typed-trees-to-terminal-psi/` — typed structure to unsealed Terminal Psi.
+- Psi `compilation/pipeline/terminal-psi-to-terminal-psi/` — the compilation's only program verdict. It judges the unoptimized module and, when selected passes have run, their output, with no knowledge of which passes ran. A rejection of that output is a compiler defect, not a source diagnostic. Empty selection does not request the second judgment.
 - Psi `compilation/pipeline/04_typed-trees-to-typed-trees/` — retained preparation
   metadata and an empty no-work boundary; nonempty work refuses.
 - Psi `compilation/proof/admission/` — the independent mathematical checker.

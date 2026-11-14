@@ -9,8 +9,8 @@
 //! any of that. It types the sources as a compilation does, binds the named
 //! machine to the target's `ProgramEntry` in the Build's place
 //! (`CompilationSession::typed_frontier_without_build`), stops at Psi 04's
-//! frozen typed trees, and runs `structure_elaboration` and
-//! `lowered_discharge` on them. Nothing else a Build would select is present,
+//! frozen typed trees, and runs `typed_trees_to_terminal_psi` and
+//! `terminal_psi_to_terminal_psi` on them. Nothing else a Build would select is present,
 //! so a program that needs its Build's providers or representations is judged
 //! without them.
 //!
@@ -45,7 +45,7 @@ use std::path::{Path, PathBuf};
 #[path = "../tests/support/unbuilt_dependencies.rs"]
 mod unbuilt_dependencies;
 
-use lowered_discharge::{CompilationRefusal, RouteVerdict};
+use terminal_psi_to_terminal_psi::{CompilationRefusal, RouteVerdict};
 
 fn brief(text: impl std::fmt::Debug) -> String {
     format!("{text:?}")
@@ -110,9 +110,10 @@ fn probe(
         frontier.bindings.clear();
         Vec::new()
     };
-    let verdicts = lowered_discharge::judge_compilation(
+    let verdicts = terminal_psi_to_terminal_psi::judge_compilation(
+        typed_trees_to_terminal_psi::prepare_compilation(
         &frontier.typed,
-        structure_elaboration::Compilation {
+        typed_trees_to_terminal_psi::Compilation {
             entries: &frontier.entries,
             subjects: &subjects,
             purpose: source::DependencyScope::Product,
@@ -120,6 +121,8 @@ fn probe(
             bindings: &frontier.bindings,
             supplies: &[],
         },
+        terminal_codec::TerminalPublication::Portable,
+        ).program,
     );
     let mut whole = "accepted";
     let mut worse = |verdict: &'static str| {

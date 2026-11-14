@@ -26,8 +26,11 @@ has no identity for the concept.
 */
 
 pub mod bindings;
+pub mod compilation;
 pub mod edges;
+pub mod names;
 pub mod obligations;
+pub mod program;
 pub mod values;
 
 use std::num::NonZeroU64;

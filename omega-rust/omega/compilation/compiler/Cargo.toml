@@ -44,8 +44,8 @@ target = { path = "../backend/target" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
 # The checker on the lowered form, which governs a compilation's verdict where
 # the owner's split gives it (src/checked/checking/lowered_route.rs).
-structure-elaboration = { path = "../../../psi/compilation/pipeline/structure-elaboration" }
-lowered-discharge = { path = "../../../psi/compilation/pipeline/lowered-discharge" }
+typed-trees-to-terminal-psi = { path = "../../../psi/compilation/pipeline/05_typed-trees-to-terminal-psi" }
+terminal-psi-to-terminal-psi = { path = "../../../psi/compilation/pipeline/06_terminal-psi-to-terminal-psi" }
 terminal-check-tables = { path = "../../../psi/compilation/representations/terminal-psi/check-tables" }
 terminal-psi = { path = "../../../psi/compilation/representations/terminal-psi" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }

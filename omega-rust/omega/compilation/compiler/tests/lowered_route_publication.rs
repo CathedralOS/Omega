@@ -26,13 +26,13 @@ use fixture_package_inputs::{
     FixtureProductCheck, check_fixture_keeping_typed_frontier, discover_fixture,
     fixture_build_snapshot, produce_fixture, repo_root, review_fixture,
 };
-use lowered_discharge::{RouteVerdict, judge};
 use psi_work::WorkMeter;
-use structure_elaboration::{Compilation, elaborate};
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalExecution,
     TerminalStructuralInputs,
 };
+use terminal_psi_to_terminal_psi::{RouteVerdict, judge};
+use typed_trees_to_terminal_psi::{Compilation, elaborate};
 
 // Fixture compilation shares process-wide counters; run one at a time.
 static FIXTURE_COMPILATIONS: std::sync::Mutex<()> = std::sync::Mutex::new(());
@@ -50,7 +50,7 @@ impl TerminalEffectHandler for NoEffects {
 fn accepted(
     fixture: &str,
 ) -> (
-    Box<lowered_discharge::AcceptedClosure>,
+    Box<terminal_psi_to_terminal_psi::AcceptedClosure>,
     terminal_psi::PreparedNominalRoot,
     [u8; 32],
     Box<compiler::CheckedCompilation>,
@@ -69,9 +69,12 @@ fn accepted(
         _ => panic!("{fixture}: the program must check"),
     };
     assert!(
-        lowered_discharge::check_bound_callable_shapes(&frontier.typed, &frontier.bindings)
-            .expect("entry shape identities resolve")
-            .is_empty(),
+        typed_trees_to_terminal_psi::check_bound_callable_shapes(
+            &frontier.typed,
+            &frontier.bindings
+        )
+        .expect("entry shape identities resolve")
+        .is_empty(),
         "publication requires the bound continuation shapes as well as body proofs"
     );
     match judge(elaborate(
@@ -91,7 +94,7 @@ fn accepted(
             // settled provider plans only, and nothing on the lowered route
             // selects the entry from the accepted module yet.
             let _: (
-                Box<lowered_discharge::AcceptedClosure>,
+                Box<terminal_psi_to_terminal_psi::AcceptedClosure>,
                 Box<compiler::CheckedCompilation>,
             ) = (closure, checked);
             panic!("{fixture}: no product route yet: the selected program entry has no producer")

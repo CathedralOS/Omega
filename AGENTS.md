@@ -293,6 +293,9 @@ refuses a second build or test run while one is active.
   representation (`Y-to-Y`). Carry needed semantic facts in that representation;
   do not bypass the pipeline with sidecars, callbacks into earlier stages or
   source re-analysis. Private stage scratch is not a second inter-stage product.
+- **Cleanup priority within an assigned area:** Repair broken stage topology,
+  ownership and representation handoffs before local polish in that area.
+  This does not displace unrelated user-assigned work.
 - **Compositional lowering ([pipeline.md](omega-rust/pipeline.md#compositional-lowering)):**
   Generalize the touched operation across all value placements and delete the
   superseded code path in the same commit.

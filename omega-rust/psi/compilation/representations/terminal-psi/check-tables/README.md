@@ -118,7 +118,7 @@ being added here.
 - **That a sum holds a case on an edge.** A `StructuralCase` terminator has
   no Boolean value, and knowledge names values only, so the case selected on
   one of its edges is not a knowledge row. It lives in the structural payload
-  judgment of `lowered-discharge`. What such an edge *binds* is over values
+  judgment of `terminal-psi-to-terminal-psi`. What such an edge *binds* is over values
   (each payload parameter equals the value its payload leaf holds) and is a
   knowledge row justified as `Justification::DispatchBinding`.
 - **A domain debt on a data type's `requires`.** `ObligationKind::DomainDebt`
@@ -126,7 +126,7 @@ being added here.
   such identity (its clauses ride in `Elaboration::domains`, by type and
   position). An invariant window on one is therefore the opening write's
   `DataDomain` row, followed to its consumption points by
-  `lowered-discharge`, and not a conserved row here.
+  `terminal-psi-to-terminal-psi`, and not a conserved row here.
 
 - **What a call supplies for an erased formal.** `Actual` is a value or a
   place. The argument for an `[erased]` scalar formal is a term that nothing
@@ -189,7 +189,7 @@ being added here.
   (`wiki/drafts/designs/places_foundation_lane.md`, "One route, no second
   carrier"): knowledge never names a place. A storage observation enters as the value its
   read produced, and what the read equals is one more equation between values,
-  derived from the stores the lowered operations make (`lowered-discharge`,
+  derived from the stores the lowered operations make (`terminal-psi-to-terminal-psi`,
   `places.rs`), which the write log must restate. No lane uses
   a structural `Proposition` variant in a knowledge row; a contract clause
   that could only be stated as one is refused.
