@@ -319,6 +319,7 @@ mod tests {
     fn shared_geometry_is_demand_driven_and_matches_materialized_results() {
         let root = StructuralTypeId::new(1).unwrap();
         let deferred = StructuralTypeId::new(2).unwrap();
+        let opaque = StructuralTypeId::new(3).unwrap();
         let declarations = [
             declaration(1, StructuralTypeShape::PrimitiveScalar(ScalarType::Boolean)),
             declaration(
@@ -328,6 +329,7 @@ mod tests {
                     storage: StructuralRecordStorage::TargetLayout(LayoutApplicationId(1)),
                 },
             ),
+            declaration(3, StructuralTypeShape::Opaque),
         ];
         let query = StructuralLayoutResolver::new(declarations.iter()).unwrap();
         let table = StructuralLayouts::new(declarations.iter()).unwrap();
@@ -342,6 +344,13 @@ mod tests {
             query.shape(deferred),
             Err(TerminalLayoutError::UnclosedTargetLayout(deferred))
         );
+        // A supplied value does not imply a size. Leaving its representation
+        // unresolved must still allow unrelated, fully specified queries.
+        assert_eq!(
+            query.shape(opaque),
+            Err(TerminalLayoutError::UnclosedOpaqueRepresentation(opaque))
+        );
+        assert_eq!(query.shape(opaque), table.shape(opaque));
     }
 
     #[test]

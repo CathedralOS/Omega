@@ -153,6 +153,9 @@ impl Program<'_> {
             };
             let data = self.data_type(id, record)?;
             match &data.shape {
+                StorageShape::Opaque => {
+                    return unserved("opaque initialization requires boundary-supplied contents");
+                }
                 StorageShape::Record(fields) => {
                     pending.extend(fields.iter().map(|field| (field.value_type, true)));
                 }

@@ -261,23 +261,56 @@ fn write_scalar(
 pub fn result_value(
     instance: &TerminalInstance<'_, '_>,
     structural_type: StructuralTypeId,
+    opaque_inputs: &[(
+        &terminal_interpreter::TerminalStructuralValue,
+        &BuildTimeValue,
+    )],
 ) -> Result<BuildTimeValue, String> {
-    read_structural(instance, structural_type, &mut Vec::new())
+    if opaque_inputs.windows(2).any(|pair| {
+        (pair[0].0.opaque_identity, pair[0].0.structural_type)
+            >= (pair[1].0.opaque_identity, pair[1].0.structural_type)
+    }) {
+        return Err("opaque result bindings are not in unique input identity order".into());
+    }
+    read_structural(instance, structural_type, &mut Vec::new(), opaque_inputs)
 }
 
 fn read_structural(
     instance: &TerminalInstance<'_, '_>,
     structural_type: StructuralTypeId,
     path: &mut Vec<Path>,
+    opaque_inputs: &[(
+        &terminal_interpreter::TerminalStructuralValue,
+        &BuildTimeValue,
+    )],
 ) -> Result<BuildTimeValue, String> {
     let program = instance.program();
     let declaration = program
         .structural_type(structural_type)
         .ok_or("Terminal result lost its structural declaration")?;
     match &declaration.shape {
+        StructuralTypeShape::Opaque => {
+            let observed = instance
+                .observe_result(path)
+                .map_err(|error| format!("Terminal opaque result: {error:?}"))?;
+            let TerminalStorageObservationValue::Opaque(observed) = observed else {
+                return Err("opaque result has no supplying host value".into());
+            };
+            let position = opaque_inputs
+                .binary_search_by_key(
+                    &(observed.opaque_identity, observed.structural_type),
+                    |(input, _)| (input.opaque_identity, input.structural_type),
+                )
+                .map_err(|_| "opaque result has no actual supplying context")?;
+            let (input, value) = opaque_inputs[position];
+            if input != &observed {
+                return Err("opaque result changed its retained context custody".into());
+            }
+            Ok(value.clone())
+        }
         StructuralTypeShape::Record { fields, .. } => Ok(BuildTimeValue::Struct {
             type_name: label(program, declaration.identity)?.to_owned(),
-            fields: read_fields(instance, fields, path)?,
+            fields: read_fields(instance, fields, path, opaque_inputs)?,
         }),
         StructuralTypeShape::Sum { cases } => {
             let observed = instance
@@ -293,7 +326,7 @@ fn read_structural(
                 .find(|case| case.id == selected)
                 .ok_or("Terminal result case is outside its declaration")?;
             path.push(Path::Case(selected));
-            let payload = read_fields(instance, &case.fields, path);
+            let payload = read_fields(instance, &case.fields, path, opaque_inputs);
             path.pop();
             Ok(BuildTimeValue::Case {
                 variant: label(program, case.identity)?.to_owned(),
@@ -312,7 +345,7 @@ fn read_structural(
                 .map_err(|reason| format!("Terminal result sequence snapshot: {reason}"))?;
             for ordinal in 0..length {
                 path.push(Path::FixedIndex(ordinal));
-                let result = read_structural(instance, *element, path);
+                let result = read_structural(instance, *element, path, opaque_inputs);
                 path.pop();
                 elements
                     .push(result.map_err(|reason| {
@@ -328,7 +361,7 @@ fn read_structural(
             let mut elements = Vec::new();
             for ordinal in 0..length {
                 path.push(Path::FixedIndex(ordinal));
-                let result = read_structural(instance, *element, path);
+                let result = read_structural(instance, *element, path, opaque_inputs);
                 path.pop();
                 elements
                     .push(result.map_err(|reason| {
@@ -348,6 +381,10 @@ fn read_fields(
     instance: &TerminalInstance<'_, '_>,
     fields: &[StructuralFieldDeclaration],
     path: &mut Vec<Path>,
+    opaque_inputs: &[(
+        &terminal_interpreter::TerminalStructuralValue,
+        &BuildTimeValue,
+    )],
 ) -> Result<Vec<(String, BuildTimeValue)>, String> {
     let mut values = Vec::with_capacity(fields.len());
     for field in fields {
@@ -356,7 +393,9 @@ fn read_fields(
         }
         path.push(Path::Field(field.id));
         let value = match field.field_type {
-            StructuralFieldType::Structural(child) => read_structural(instance, child, path),
+            StructuralFieldType::Structural(child) => {
+                read_structural(instance, child, path, opaque_inputs)
+            }
             _ => read_leaf(instance, path),
         };
         path.pop();

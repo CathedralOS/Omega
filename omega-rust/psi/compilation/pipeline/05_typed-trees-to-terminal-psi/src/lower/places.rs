@@ -227,6 +227,7 @@ pub(crate) fn declare<'a>(
         field_identities.push(indexes);
         payload_identities.push(case_indexes);
         let shape = match &record.shape {
+            crate::StorageShape::Opaque => StructuralTypeShape::Opaque,
             crate::StorageShape::Record(_) => {
                 // The natural layout row of a record with no authored layout:
                 // no policy and no realization. Its nominal native identities
@@ -2479,6 +2480,11 @@ impl<'a> Lowering<'a> {
         let data = self.record_type(record)?;
         *owed += data.requires.len();
         match data.shape {
+            StorageShape::Opaque => {
+                return Err(
+                    self.internal("opaque initialization requires boundary-supplied contents")
+                );
+            }
             StorageShape::PrimitiveScalar { scalar_type, .. } => {
                 let zero = self.zero(scalar_type, source)?;
                 zeros.push((prefix.clone(), zero));

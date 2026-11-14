@@ -1325,7 +1325,11 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<()> {
         match &self.declaration(structural_type, concerns)?.shape {
-            StructuralTypeShape::PrimitiveScalar(_) => found.push(at.clone()),
+            // An opaque value occupies one established place. Its lack of
+            // visible fields does not make its contents absent or zeroable.
+            StructuralTypeShape::Opaque | StructuralTypeShape::PrimitiveScalar(_) => {
+                found.push(at.clone());
+            }
             shape if is_shared_view(shape) => {
                 found.push(at.clone());
             }

@@ -1308,7 +1308,7 @@ pub(crate) mod completion {
                     return Err(error);
                 }
                 if let TerminalExecutionResult::Structural(returned) = &mut completed.value {
-                    self.forward_host_atom(&mut returned.value);
+                    returned.observation_home = self.forward_host_atom(&mut returned.value);
                 }
                 self.returned_claims = completed.returned_claims;
                 self.returned_byte_sequence = completed.byte_sequence;
@@ -1546,6 +1546,7 @@ pub(crate) mod completion {
                 TerminalStructuralResult {
                     value: TerminalStructuralValue::minted(42, structural_type, Vec::new()),
                     claims: vec![claim],
+                    observation_home: None,
                 },
             ));
             outgoing.destination = Some(result.clone());
@@ -2014,6 +2015,7 @@ pub(crate) mod structural_return {
                                 .iter()
                                 .map(|binding| binding.claim)
                                 .collect(),
+                            observation_home: None,
                         })
                     },
                     destination: None,

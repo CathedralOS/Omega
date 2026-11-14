@@ -2538,6 +2538,11 @@ pub(crate) mod calling_storage {
                 children.push(selected.carrier);
             } else {
                 match &declaration.shape {
+                    StructuralTypeShape::Opaque => {
+                        return Err(
+                            "opaque boundary value has no selected storage representation".into(),
+                        );
+                    }
                     StructuralTypeShape::PrimitiveScalar(_)
                     | StructuralTypeShape::AtomicCell(_)
                     | StructuralTypeShape::Reference { .. }
