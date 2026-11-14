@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Compiler operations are recognized by their bare spelling, and no declaration answers them
+- Category: one idea, several implementations
+- Where: `"code_layout"` in stage 02 `constant.rs:2063,2362`, `selection_authored.rs:392,1265` and stage 03 `statement_lowering.rs:1336`, `expression_lowering.rs:1445`; `"address_of"` in `expression_lowering.rs:1076`; `Quotient::lift`/`define` and `LayoutPlan::place_private` by namespace spelling in `expression_lowering.rs`
+- Saw: each stage compares the written name to a string literal, and resolution leaves the call with no target symbol, so the call is unbound in the same way a misspelled name is; telling "unknown name" from "compiler operation" needs a third copy of the list (stage 03 `typing_queries.rs` `COMPILER_CALL_SPELLINGS`)
+- Cost: a new compiler operation added in one place and missed in the list would be rejected as an unknown name; one declaration per operation (as `BuiltinFunction` symbols are) would let resolution answer it once
+- Reported: 2026-11-14, Claude Code (worker-14), while making a call of an undeclared name a rejection
+
 ### A view passed from a place is lent as that place, so it conflicts with a loan of its holder
 - Category: one idea, several implementations
 - Where: `05_typed-trees-to-terminal-psi/src/read/calls.rs:1453` (`lent_storage_is_untouched` with `holds_view`), `lower/calls.rs:65` (`arguments`, the `Borrow` arm), `lower/places.rs:1428` (`lend`), `06_terminal-psi-to-terminal-psi/src/places/loans.rs`
