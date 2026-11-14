@@ -1069,7 +1069,7 @@ pub(crate) mod byte_sequence_predicates {
             machine,
             machine
                 .operations()
-                .find_map(|operation| scalar_literal(operation, value)),
+                .find_map(|operation| scalar_operation_literal(operation, value)),
             || {
                 machine.blocks.iter().find_map(|block| {
                     block
@@ -1082,7 +1082,12 @@ pub(crate) mod byte_sequence_predicates {
         )
     }
 
-    fn scalar_literal(
+    /// Read a literal from the exact operation that owns this value. The
+    /// caller borrows it from the same machine's draft coordinates or final
+    /// index, never from a coincident numeric ID in another machine. This
+    /// function authenticates the operation's result ID and scalar tag; a
+    /// signature placeholder alone supplies no operation.
+    pub fn scalar_operation_literal(
         operation: &Operation,
         value: semantic_vocabulary::ValueId,
     ) -> Option<(
@@ -1211,7 +1216,7 @@ pub(crate) mod byte_sequence_predicates {
         ) -> Option<ScalarConstantOrigin> {
             if let Some((scalar_type, literal)) = self
                 .definitions(value)
-                .find_map(|operation| scalar_literal(operation, value))
+                .find_map(|operation| scalar_operation_literal(operation, value))
             {
                 return Some(ScalarConstantOrigin::Literal(scalar_type, literal));
             }
@@ -1270,19 +1275,25 @@ pub(crate) mod byte_sequence_predicates {
                     OperationKind::BooleanConstant { value: boolean },
                 );
                 assert_eq!(
-                    scalar_literal(&operation, ValueId::new(1).unwrap()),
+                    scalar_operation_literal(&operation, ValueId::new(1).unwrap()),
                     Some((
                         ScalarType::Boolean,
                         IntegerValue::Unsigned(u128::from(u8::from(boolean)))
                     ))
                 );
-                assert_eq!(scalar_literal(&operation, ValueId::new(2).unwrap()), None);
+                assert_eq!(
+                    scalar_operation_literal(&operation, ValueId::new(2).unwrap()),
+                    None
+                );
                 let wrong_type = constant(
                     1,
                     u8_type,
                     OperationKind::BooleanConstant { value: boolean },
                 );
-                assert_eq!(scalar_literal(&wrong_type, ValueId::new(1).unwrap()), None);
+                assert_eq!(
+                    scalar_operation_literal(&wrong_type, ValueId::new(1).unwrap()),
+                    None
+                );
             }
             let integer = constant(
                 1,
@@ -1292,7 +1303,7 @@ pub(crate) mod byte_sequence_predicates {
                 },
             );
             assert_eq!(
-                scalar_literal(&integer, ValueId::new(1).unwrap()),
+                scalar_operation_literal(&integer, ValueId::new(1).unwrap()),
                 Some((u8_type, IntegerValue::Unsigned(7)))
             );
             let wrong_type = constant(
@@ -1302,7 +1313,10 @@ pub(crate) mod byte_sequence_predicates {
                     value: IntegerValue::Unsigned(1),
                 },
             );
-            assert_eq!(scalar_literal(&wrong_type, ValueId::new(1).unwrap()), None);
+            assert_eq!(
+                scalar_operation_literal(&wrong_type, ValueId::new(1).unwrap()),
+                None
+            );
         }
 
         #[test]
