@@ -47,7 +47,7 @@ contains beamforming, microphone or acoustic direction scoring.
 ## Commands (from repository root)
 
 ```
-OMEGA_LIBRARY_ROOT="$PWD/source/library" /absolute/path/to/omega update --project samples/cli/independent/microphone_delay_beamforming --target linux_x86_64
+OMEGA_LIBRARY_ROOT="$PWD/source/library" /absolute/path/to/omega packages update --project samples/cli/independent/microphone_delay_beamforming --target linux_x86_64
 # Review pending package decisions through the ordinary documented workflow.
 OMEGA_LIBRARY_ROOT="$PWD/source/library" /absolute/path/to/omega --check samples/cli/independent/microphone_delay_beamforming/main.omg
 OMEGA_LIBRARY_ROOT="$PWD/source/library" /absolute/path/to/omega run --both --keep samples/cli/independent/microphone_delay_beamforming/main.omg < samples/cli/independent/microphone_delay_beamforming/data/east.stdin

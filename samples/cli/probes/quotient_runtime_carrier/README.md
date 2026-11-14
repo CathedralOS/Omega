@@ -16,7 +16,7 @@ call-result paths. Each observed value is checked before the success exit.
 output. Its finite relation checks illustrate the selected laws; they do not
 replace the universally checked Omega theorem bodies.
 
-Run `omega update --project samples/cli/proofs/quotient_runtime_carrier --target linux_x86_64`,
+Run `omega packages update --project samples/cli/proofs/quotient_runtime_carrier --target linux_x86_64`,
 complete the ordinary package review, then run
 `omega run --both --keep samples/cli/proofs/quotient_runtime_carrier/main.omg`.
 The same source declares the other supported target entries.

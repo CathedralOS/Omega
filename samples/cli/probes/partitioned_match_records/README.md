@@ -8,7 +8,7 @@ The record arrives both through a local and directly from a helper call.
 Expected exit: 0 in native and Terminal execution.
 
 ```sh
-omega update --project samples/cli/collections/partitioned_match_records --target macos_arm64 --offline --dangerously-accept-all
+omega packages update --project samples/cli/collections/partitioned_match_records --target macos_arm64 --offline --dangerously-accept-all
 omega run --both samples/cli/collections/partitioned_match_records/main.omg
 ```
 

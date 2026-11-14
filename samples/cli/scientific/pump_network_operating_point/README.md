@@ -85,16 +85,16 @@ From the repository root, with a compiler built from the recorded base and
 
 ```
 omega --check --target linux_x86_64 samples/cli/independent/pump_network_operating_point/main.omg
-omega update --project samples/cli/independent/pump_network_operating_point --target linux_x86_64
+omega packages update --project samples/cli/independent/pump_network_operating_point --target linux_x86_64
 ```
 
 Inspect every pending package review. Accept only if authorized, then use the
-ordinary `omega update --resume --project ...` route. Package denial is a
+ordinary `omega packages update --resume --project ...` route. Package denial is a
 remaining blocker, not permission to retry acceptance or bypass review.
 
 ```
 omega run --both --keep samples/cli/independent/pump_network_operating_point/main.omg < samples/cli/independent/pump_network_operating_point/data/rational.in
-omega inspect-terminal --machine main --target linux_x86_64 samples/cli/independent/pump_network_operating_point/main.omg
+omega psi inspect --machine main --target linux_x86_64 samples/cli/independent/pump_network_operating_point/main.omg
 python3 samples/cli/independent/pump_network_operating_point/validate.py <published-native-executable>
 python3 samples/cli/independent/pump_network_operating_point/terminal_matrix.py <verified-corpus-runner>
 omega --check samples/cli/independent/pump_network_operating_point/controls/intended_invalid/main.omg

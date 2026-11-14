@@ -85,10 +85,10 @@ None computes an exact sampling distribution or multiplicity adjustment.
 
 ## Package review and receipts
 
-Prepare the final source with `omega update --project
+Prepare the final source with `omega packages update --project
 samples/cli/independent/gene_set_enrichment_audit --target linux_x86_64`.
 Inspect the generated package review, decide each capability row explicitly,
-and use `omega update --project samples/cli/independent/gene_set_enrichment_audit
+and use `omega packages update --project samples/cli/independent/gene_set_enrichment_audit
 --resume`. Freeze all package source before preparation and acceptance.
 A previous proposal became stale after a documentation correction; it was
 discarded before fresh review. Source identity rejection is recoverable; an

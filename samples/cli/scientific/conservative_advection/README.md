@@ -55,7 +55,7 @@ indexing 64 cells. Exit parity is never a numerical oracle.
 From the repository root, using a compiler built from a recorded revision:
 
 ```sh
-omega update --project samples/cli/independent/conservative_advection --target linux_x86_64
+omega packages update --project samples/cli/independent/conservative_advection --target linux_x86_64
 # Inspect the exact proposal, then accept/resume only the scoped normal decisions.
 omega run --keep samples/cli/independent/conservative_advection/main.omg < samples/cli/independent/conservative_advection/input.txt
 python3 samples/cli/independent/conservative_advection/validate.py --native-binary /absolute/path/to/retained/executable

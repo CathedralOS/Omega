@@ -108,8 +108,8 @@ retain all genuine authority and custody checks.
 
 ```sh
 sample=samples/cli/independent/rigid_point_registration
-omega update --project "$sample" --target linux_x86_64
-omega update --resume --project "$sample"
+omega packages update --project "$sample" --target linux_x86_64
+omega packages update --resume --project "$sample"
 omega --target linux_x86_64 "$sample/main.omg"
 python3 -B "$sample/validation/validate.py" "$sample/build/omega-program" --output build/w211-native
 omega --check --target linux_x86_64 "$sample/intended_invalid/main.omg"

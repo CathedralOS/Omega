@@ -121,7 +121,7 @@ Every invalid input emits only `ERROR input` and exits 64.
 Actual integrated commands (repository root; the recorded compiler on PATH):
 
 ```sh
-omega update --project samples/cli/independent/layered_toolpath_coverage --target linux_x86_64
+omega packages update --project samples/cli/independent/layered_toolpath_coverage --target linux_x86_64
 omega --check samples/cli/independent/layered_toolpath_coverage/main.omg
 omega --target linux_x86_64 --build-dir samples/cli/independent/layered_toolpath_coverage/build/integrated-native samples/cli/independent/layered_toolpath_coverage/main.omg
 python3 samples/cli/independent/layered_toolpath_coverage/reference.py --cli /workspace/Omega/.codex/worktrees/new077/samples/cli/independent/layered_toolpath_coverage/build/integrated-native/omega-program --executable
@@ -138,7 +138,7 @@ artifacts and both pre-integration and integrated logs.
 
 Final documentation edits changed the package's whole-source identity. A fresh
 check correctly rejected the stale accepted checkpoint and requested ordinary
-`omega update`; this was a source-freshness guard, not a denied acceptance action.
+`omega packages update`; this was a source-freshness guard, not a denied acceptance action.
 The bundle retains the documentation refresh and post-refresh check separately.
 
 The new complete corpus fixture

@@ -56,7 +56,7 @@ review evidence` and staged three pending decision rows. That gate is the
 project-acceptance transaction (wiki/spec/packages/acceptance.md) — unrelated
 to the entry route — and `omega run` has no admission flag of its own, so the
 CLI exec witness needs a one-time per-project review settlement
-(`omega update --project … --target …` then edit `pending`→`accept`, `--resume`).
+(`omega packages update --project … --target …` then edit `pending`→`accept`, `--resume`).
 The artifact-level exec evidence above already covers emitted image → host
 process → exit status, which is the physical entry contract itself.
 

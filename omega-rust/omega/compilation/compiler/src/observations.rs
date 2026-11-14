@@ -1,7 +1,7 @@
 // We adapt `CompileTimings` to Psi's `PsiCompilationObserver` trait so stage
 // durations and terminal-production counters are recorded without importing
-// host reporting carriers into Psi. The first lowering leg counts as one
-// product production attempt, including attempts that refuse.
+// host reporting carriers into Psi. Publication is one product production
+// attempt, including an attempt that refuses.
 
 use artifacts::compile_timings::{CompileTimings, StageMeta};
 use psi_compiler::{PsiCompilationObserver, PsiCompilationStage};
@@ -22,7 +22,7 @@ impl PsiCompilationObserver for PsiStageTimings<'_> {
         stage: PsiCompilationStage,
         operation: impl FnOnce() -> Result<Value, Error>,
     ) -> Result<Value, Error> {
-        if stage == PsiCompilationStage::Lowering {
+        if stage == PsiCompilationStage::Publication {
             artifacts::compile_timings::counters::record_terminal_production();
         }
         let (name, input, output) = stage.observation_labels();

@@ -100,7 +100,7 @@ that exact type just as the checker and both execution engines do. It must not
 mistake the declared value parameter for a type-only parameter.
 
 The retained Linux compiler at `60cb5e1f79dd` checks and executes the selected
-target program, but ordinary `omega update` rejects its package review with
+target program, but ordinary `omega packages update` rejects its package review with
 `package review rejects a const expression outside one exact declared const-parameter slot`.
 The source and oracle were frozen before changing the compiler. The shared
 review validator now recognizes the exact declaration's value or const

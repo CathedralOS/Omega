@@ -41,7 +41,7 @@ operation, so equivalent spellings of domain endpoints behave identically.
 Run from the repository root with a recorded optimized compiler:
 
 ```
-omega update --project samples/cli/independent/acid_base_titration --target linux_x86_64
+omega packages update --project samples/cli/independent/acid_base_titration --target linux_x86_64
 omega run samples/cli/independent/acid_base_titration/main.omg < samples/cli/independent/acid_base_titration/data/curve.txt
 python3 samples/cli/independent/acid_base_titration/validation/validate.py --omega /absolute/path/to/omega
 ```

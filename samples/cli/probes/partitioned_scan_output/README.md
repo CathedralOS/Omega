@@ -10,7 +10,7 @@ Expected exit: 0 in native and Terminal execution. This is a nested collection
 write capability, not an allocator implementation or complete Squalr port.
 
 ```sh
-omega update --project samples/cli/collections/partitioned_scan_output --target macos_arm64 --offline --dangerously-accept-all
+omega packages update --project samples/cli/collections/partitioned_scan_output --target macos_arm64 --offline --dangerously-accept-all
 omega run --both samples/cli/collections/partitioned_scan_output/main.omg
 ```
 

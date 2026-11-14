@@ -95,12 +95,18 @@ results it just produced. Explicit [validator selection](../wiki/spec/build/comm
 runs requested applicable validators and reports actual coverage through the
 ordinary compiler driver. A stage that emits an invalid plan has a compiler
 defect; successful source checking does not make subsequent lowering or
-optimization infallible.
+optimization infallible. The default path leaves Psi selection empty, so it
+does not run a second lowered-form check. When a nonempty selection is served,
+that same checker admits the optimized module before publication. A rejection
+of that module is a compiler defect, reported as such and not as a source
+diagnostic. No nonempty selection is served yet, so the default path is
+unchanged
+([optimization ordering](../wiki/spec/terminal-psi/product.md#optimization-ordering)).
 
 | Boundary | Checks and evidence | What remains trusted |
 | --- | --- | --- |
 | Source to typed structure | Parsing, resolution and typing in Psi 00–03 retain source identities and declarations. Psi 04 runs its pass list over every program and judges nothing. | Frontend preservation of source meaning and exact source custody; typed structure is no acceptance certificate. |
-| Unsealed Terminal Psi to accepted publication | Structural elaboration builds the module; the lowered-form checker reconstructs supported obligations on that module and retains their evidence. Unsupported, incomplete or missing verdicts refuse. | Correct obligation reconstruction, the independent proof-admission kernel and explicitly admitted premises. Publication must preserve the exact judged module and evidence. |
+| Unsealed Terminal Psi to accepted publication | Structural elaboration builds the module; the lowered-form checker reconstructs supported obligations on that module and retains their evidence. Empty Psi selection publishes that module and evidence. A nonempty selection is specified to run the selected passes, then the same checker on their output, and to publish that second verdict and its evidence; passes do not carry the first verdict. That selection refuses. Unsupported, incomplete or missing verdicts refuse. A rejection of pass output is a compiler defect, not a source diagnostic. | Correct obligation reconstruction, the independent proof-admission kernel and explicitly admitted premises. Publication must preserve the exact module and evidence of the check that admitted the published program. The checker does not establish behavior preservation. |
 | Terminal Psi to native execution | Target realization and publication checks; `omega run --both` compares native execution with the Terminal interpreter. | Backend correctness beyond the executions and observations compared, plus the interpreter and shared semantics. |
 | Received artifacts and installed providers | Bounded canonical/structural decoding; explicit host authorization of the exact artifact and producer; preparation and installation checks; concrete interpreter operation and host-access checks. | Authorized producer judgments, admitted assumptions, faithful lowering, the interpreter and installed adapters. Future untrusted interpretation requires audited containment and does not certify source claims. |
 | Foreign packages and build execution | Package review, exact acceptance and confined build services. | Accepted external claims and the enforcing review/execution machinery. |
@@ -161,6 +167,12 @@ Build and native completion remain work on [TASKS.md](../TASKS.md).
 | Resolved program → machine bytes | [machine-emission](omega/compilation/backend/machine-emission/README.md) |
 | Machine bytes → object/image evidence | [image-emission](omega/compilation/backend/images/image-emission/src/lib.rs) |
 
+The Psi rows above are the empty selection: elaboration, one lowered-form
+check, then the factory. [Optimization ordering](../wiki/spec/terminal-psi/product.md#optimization-ordering)
+places selected Psi passes after that accepted closure. The same checker
+judges their output, and the factory seals that judgment. Nonempty selection
+refuses, so this table has no pass row.
+
 <a id="one-driver-one-pass-per-target-realization"></a>
 
 ## Two drivers, one pass, per-target realization
@@ -173,9 +185,18 @@ A pass does its work or refuses its own request by name; requested deferred
 layout, opaque-selection and wire work has no pass and refuses.
 
 The served checking route is `structure-elaboration` → `lowered-discharge` → the
-accepted-source factory. The factory retains the exact frozen typed owner before
-judgment and publishes the same module and evidence afterward. There is no
-checked-tree or legacy optimization/publication fallback. Psi's published product
+accepted-source factory. That is the default path, and it is the empty Psi
+selection: the factory retains the exact frozen typed owner before judgment
+and publishes the same module and evidence afterward, with no passes and no
+second check. A nonempty selection is specified as structural elaboration, the
+lowered-form check of the unoptimized program, the selected Psi passes in one
+canonical order, the same check of the optimized program, then publication of
+that second verdict and its evidence
+([optimization ordering](../wiki/spec/terminal-psi/product.md#optimization-ordering)).
+`ProductTerminalPublication::accepted` refuses a nonempty Psi selection with
+`no product route yet: selected Psi optimizations have no second lowered-form check`.
+There is no checked-tree or legacy
+optimization/publication fallback. Psi's published product
 is target-neutral; separate target-keyed Build authority supplies realization
 inputs ([multi-target compilation](../wiki/spec/build/configuration.md#multi-target-compilation)).
 Where those inputs and a published product exist, Omega owns each target
@@ -417,7 +438,11 @@ recorded judgment is used.
 Package-owned source preparation composes source sets, imports and custody;
 Build evaluation does not own discovery or assembly. The Psi facade retains
 source continuation across admitted generated-source returns. Structural lowering,
-judgment and publication own the source-to-Terminal hand-off. Unserved producers
+judgment and publication own the source-to-Terminal hand-off. Empty Psi
+selection publishes the judged module. A nonempty selection is specified to
+run passes and a second judgment before publication, and it refuses
+([optimization ordering](../wiki/spec/terminal-psi/product.md#optimization-ordering)).
+Unserved producers
 refuse instead of reconstructing a removed source-checker result. The remaining
 product and default-Build requirements stay on [TASKS.md](../TASKS.md).
 
@@ -499,9 +524,9 @@ owner calls the other owners it needs:
 
 | Command | Owner | Calls |
 | --- | --- | --- |
-| `omega <root.omg>` (build), `--check`, `inspect-terminal` | compiler | the interpreter engine, to execute Build programs |
+| `omega <root.omg>` (build), `--check`, `omega psi inspect` | compiler | the interpreter engine, to execute Build programs |
 | `omega run` | interpreter runtime | the compiler, for the program it executes |
-| `omega install`, `update`, `audit` | package manager | the compiler, for review |
+| `omega packages install`, `omega packages update`, `omega packages audit` | package manager | the compiler, for review |
 
 The interpreter engine is a library beneath both the compiler and the
 interpreter runtime, so neither command owner depends on the other's entrance.
@@ -1051,21 +1076,25 @@ library APIs; they do not introduce another compiler driver.
 | Shared host primitives, native function identities and optimization vocabulary | Omega `foundation/` |
 | Application workflows and presentation | Omega `application/`, depending only on product facades and shared request/result contracts |
 | Source/package custody, lock updates and review decisions | Omega `packages/package-manager/`; no checking or product production |
-| Source → Terminal product sequencing | Psi 00–03, the explicit 04 preparation boundary, structural elaboration, lowered-form judgment and accepted-source publication |
+| Source → Terminal product sequencing | Psi 00–03, the explicit 04 preparation boundary, structural elaboration, lowered-form judgment and accepted-source publication. Empty Psi selection is this sequence. Nonempty selection is specified to insert the selected passes and a second judgment before publication, and it refuses ([optimization ordering](../wiki/spec/terminal-psi/product.md#optimization-ordering)) |
 | Terminal + target/Build inputs → realized product sequencing | Omega compiler facade over Omega 00–09 and emission |
 | Requested outputs, configuration admission, retained outcomes and publication | Omega `compilation/products/` |
 | Source acquisition and package storage primitives | Omega `packages/` behind package-manager requests |
 | Terminal Psi loading, supplied-binding installation and execution | Psi interpreter facade under `interpreter/` |
 | Target-aware interpreter host adapters | Omega-owned host integration outside Psi, reusing independent backend ABI/mechanism libraries; not a compiler driver |
 | Build-time execution inputs and accounting | Psi `compilation/build-time-evaluation/`; actual canonical artifacts use Terminal execution, while unsupported source jobs refuse |
-| Accepted lowered-form closure → published Terminal artifact | `psi/compilation/psi-compiler/terminal-production/`, retaining the same source owner, module and evidence |
+| Accepted lowered-form closure → published Terminal artifact | `psi/compilation/psi-compiler/terminal-production/`, retaining the same source owner. Empty selection publishes that module and evidence. Nonempty Psi selection refuses before publication |
 | Ordinary library reference implementations | `library/`, outside the compiler halves |
 
 ### Program families and support packages
 
 Psi retains tokens, syntax trees, resolved trees, typed trees and Terminal Psi.
-Structural elaboration and the lowered-form checker use the same Terminal module;
-accepted publication seals that module with its evidence. The retired checked-tree,
+Structural elaboration and the lowered-form checker use the same Terminal module.
+An empty Psi selection publishes that checked module and its evidence. A
+nonempty selection is specified to publish the module the second check
+admitted, with that check's evidence, and still refuses
+([optimization ordering](../wiki/spec/terminal-psi/product.md#optimization-ordering)).
+The retired checked-tree,
 facts and intermediate Lowered Psi packages are absent. Checker tables belong to
 `psi/compilation/representations/terminal-psi/check-tables/`.
 Shared effect-summary records and pass-selection vocabulary live in
@@ -1340,8 +1369,10 @@ elaboration refuse before effects or result materialization; the retained API
 does not establish that an ordinary Build program can run.
 `psi/compilation/psi-compiler/terminal-production/` owns accepted-source
 publication and source companions below the source facade. It retains the exact
-frozen source owner before judgment, publishes the same lowered-form module and
-its evidence, and attaches per-application roots. Entry receipts belong to
+frozen source owner before judgment. Empty Psi selection publishes that same
+lowered-form module and its evidence, and attaches per-application roots. A
+nonempty Psi selection refuses at `ProductTerminalPublication::accepted`
+before publication. Entry receipts belong to
 `terminal-codec::entry_receipt`. Missing product capabilities refuse with
 `no product route yet`; no checked-tree lowering or intermediate Lowered Psi
 carrier remains in this sequence.
@@ -1569,8 +1600,12 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   `syntax-trees-to-symbol-resolved-trees` →
   `symbol-resolved-trees-to-typed-trees` →
   `typed-trees-to-typed-trees`). Structural elaboration, lowered-form judgment
-  and accepted-source publication produce the Terminal artifact. Native
-  transforms then continue with `terminal-psi-to-abstract-operations` →
+  and accepted-source publication produce the Terminal artifact. An empty Psi
+  selection is that sequence. A nonempty selection is specified to run passes
+  on the same unsealed Terminal module and a second judgment before
+  publication; it refuses, and no pass crate is in this sequence
+  ([optimization ordering](../wiki/spec/terminal-psi/product.md#optimization-ordering)).
+  Native transforms then continue with `terminal-psi-to-abstract-operations` →
   `abstract-operations-to-target-operations` →
   `target-operations-to-selected-instructions` →
   `selected-instructions-to-selected-instructions` →
@@ -1581,7 +1616,7 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   The folders must expose the connected `X-to-Y`, `Y-to-Y`, `Y-to-Z` sequence,
   not merely name individually plausible calculations. See [optimization phases](../wiki/spec/build/optimizations.md#phase-and-product-boundaries).
 - Psi `compilation/pipeline/structure-elaboration/` — typed structure to unsealed Terminal Psi.
-- Psi `compilation/pipeline/lowered-discharge/` — the compilation's only program verdict.
+- Psi `compilation/pipeline/lowered-discharge/` — the compilation's only program verdict. It judges the unoptimized module and, when selected passes have run, their output, with no knowledge of which passes ran. A rejection of that output is a compiler defect, not a source diagnostic. Empty selection does not request the second judgment.
 - Psi `compilation/pipeline/04_typed-trees-to-typed-trees/` — retained preparation
   metadata and an empty no-work boundary; nonempty work refuses.
 - Psi `compilation/proof/admission/` — the independent mathematical checker.
@@ -1590,8 +1625,10 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   Representation data and candidate production remain independent of checking.
 - Psi `compilation/psi-compiler/terminal-production/` — retains the exact frozen
   source before judgment and publishes the accepted module, evidence and genuine
-  companions. Omega consumers supply product policy and observation, consume the
-  same artifact and check exclusions against retained behavior. Missing producers
+  companions. Empty Psi selection publishes the module just judged. A nonempty
+  selection refuses before publication. Omega consumers supply product policy
+  and observation, consume the same artifact and check exclusions against
+  retained behavior. Missing producers
   refuse; they do not export or reconstruct deleted source-checker results.
 - Psi `compilation/build-time-evaluation/` — request/accounting data and canonical
   artifact execution inputs; unsupported source work refuses.

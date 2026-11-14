@@ -51,7 +51,7 @@ normal CLI does; package and root authority admission remain intact.
 From repository root, with the documented cloud environment activated:
 
 ```
-omega update --project samples/cli/independent/spectral_power --target linux_x86_64
+omega packages update --project samples/cli/independent/spectral_power --target linux_x86_64
 omega run samples/cli/independent/spectral_power/main.omg < samples/cli/independent/spectral_power/input.txt
 CARGO_PROFILE_DEV_OPT_LEVEL=1 mbx build -p spectral-power-validation
 python3 samples/cli/independent/spectral_power/validate.py --runner /absolute/path/to/spectral-power-validation --evidence /absolute/path/to/evidence

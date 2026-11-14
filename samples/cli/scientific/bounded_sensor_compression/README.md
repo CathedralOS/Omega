@@ -59,9 +59,9 @@ Input is validated before processing and no invalid partial output is reported.
 From repository root, with a compiler built from the recorded base:
 
 ```sh
-omega update --project samples/cli/independent/bounded_sensor_compression --target linux_x86_64
+omega packages update --project samples/cli/independent/bounded_sensor_compression --target linux_x86_64
 # Review the generated omega.review decisions; accept only understood claims.
-omega update --resume --project samples/cli/independent/bounded_sensor_compression
+omega packages update --resume --project samples/cli/independent/bounded_sensor_compression
 omega --check --target linux_x86_64 samples/cli/independent/bounded_sensor_compression/main.omg
 omega --target linux_x86_64 samples/cli/independent/bounded_sensor_compression/main.omg
 omega run --both samples/cli/independent/bounded_sensor_compression/main.omg < samples/cli/independent/bounded_sensor_compression/data/smooth.bin

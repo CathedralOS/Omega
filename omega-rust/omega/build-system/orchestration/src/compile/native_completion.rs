@@ -14,7 +14,7 @@ and report settlement inside a `PendingNativeProduct`:
    callback.
 3. For `NativeImageDemand::Emit`, the native backend emits the executable image
    and attaches its runtime provisions to the settlement. For
-   `NativeImageDemand::RuntimeAdmissionOnly` (`omega run --engine terminal`),
+   `NativeImageDemand::RuntimeAdmissionOnly` (`omega run --engine psi`),
    runtime admission is validated without emitting machine code before settling
    the report.
 4. Any failure wraps the diagnostics together with the attempted evaluation

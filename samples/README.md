@@ -124,14 +124,14 @@ entrypoint. Do not check it in and do not make sample source depend on it.
 compiles them for the current host, using the same package builds, trust
 admission, and native publication as an ordinary compile. It does not run the
 executables or accept policy on your behalf. Complete any requested package
-review first with `omega update --project <sample-directory>`; unresolved trust
+review first with `omega packages update --project <sample-directory>`; unresolved trust
 admissions also remain errors. A failed sample is reported without preventing
 the other samples from building, and any failure makes the command exit nonzero.
 
 For example, from the repository root in either PowerShell or a macOS shell:
 
 ```text
-mbx run -p omega -- update --project samples/cli/basics/cli_mvp
+mbx run -p omega -- packages update --project samples/cli/basics/cli_mvp
 mbx run -p omega -- refresh-samples samples/cli/basics/cli_mvp
 ```
 

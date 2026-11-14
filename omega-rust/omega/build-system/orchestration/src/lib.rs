@@ -14,8 +14,8 @@ The crate is organized into three subsystems around `build.rs` and `build_sessio
   runs admitted package batches (`project_compilation.rs`), guards the output
   directory against concurrent or aliased roots (`build_directory.rs`), and
   publishes completed native artifacts (`publication.rs`).
-- `package/`: drives `omega install` and `omega update` review loops
-  (`package_commands.rs`), `omega audit packages` (`package_inspection.rs`),
+- `package/`: drives `omega packages install` and `omega packages update` review loops
+  (`package_commands.rs`), `omega packages audit` (`package_inspection.rs`),
   dependency-first review passes (`package_review.rs`), and multi-package
   compilation (`package_compilation.rs`).
 - `compile/`: steps `build.omg` activations and dependency frontiers
@@ -32,7 +32,7 @@ Product and target vocabulary:
   bundle to disk), `Retained` (keeps the native product in memory so `omega run
   --both` can run Terminal Psi comparison before publishing), and
   `RuntimeAdmission` (stops after provider and entry admission without emitting
-  machine code, for `omega run --engine terminal`).
+  machine code, for `omega run --engine psi`).
 - `BuildTargets` keeps target selection explicit: `Host` (the current host
   profile), `Single` (one named profile in the root build directory), or `Batch`
   (an explicit target set, where each target gets its own `<build_dir>/<target>`

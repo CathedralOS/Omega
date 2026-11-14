@@ -56,7 +56,7 @@ make successful execution additionally attest the pre-frozen numerical results.
 Subsequent authoring corrections used the documented case payload field binding
 `{ value }` and declared `invokes Console` on published input/report helpers.
 The source then reached the standard package-entry admission boundary, with only
-one diagnostic requiring `omega update` for the dependency-owned Linux entry schema.
+one diagnostic requiring `omega packages update` for the dependency-owned Linux entry schema.
 No compiler gap is inferred from these authoring or admission diagnostics.
 
 ## Current acceptance blocker
@@ -70,7 +70,7 @@ Review SHA-256:
 `52c5cdb8944e84a9929e19d376d79278321f8a951e093ea33435ed45233275f2`.
 
 Automatic approval review rejected accepting those 286 rows and running
-`omega update --resume`, before process creation. Its reason was that persisting
+`omega packages update --resume`, before process creation. Its reason was that persisting
 Console/FilesystemHost capabilities and numerous native imports exceeds the
 explicitly authorized security scope and blast radius. The acceptance script
 was never run. All 286 rows remain pending; no omega.lock exists. The rejected

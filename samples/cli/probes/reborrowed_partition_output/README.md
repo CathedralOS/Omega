@@ -7,7 +7,7 @@ Nonzero-offset outputs retain surrounding sentinels, and full or absent
 partitions decline insertion. Expected native and Terminal exit: 0.
 
 ```sh
-omega update --project samples/cli/collections/reborrowed_partition_output --target macos_arm64 --offline --dangerously-accept-all
+omega packages update --project samples/cli/collections/reborrowed_partition_output --target macos_arm64 --offline --dangerously-accept-all
 omega run --both samples/cli/collections/reborrowed_partition_output/main.omg
 ```
 

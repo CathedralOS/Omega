@@ -11,7 +11,7 @@ cyclic multiply-add computation. The step's bounds are an explicit entry
 contract; the reporting helpers retain their blocking-call acknowledgements.
 
 The public command needs the selected host's package review on a fresh checkout.
-Inspect and decide that review before resuming `omega update`; the test harness
+Inspect and decide that review before resuming `omega packages update`; the test harness
 does not grant acceptance to this sample.
 
 ```sh

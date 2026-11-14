@@ -1,6 +1,6 @@
 /*
 
-Terminal Psi inspection entry points (`omega inspect-terminal`).
+Terminal Psi inspection entry points (`omega psi inspect`).
 
 We support two inspection routes, neither of which emits a native image or
 grants runtime execution authority:

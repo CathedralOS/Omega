@@ -71,7 +71,7 @@ From the repository root, with a matching compiler/library:
 
 ```sh
 python3 samples/cli/independent/travel_time_tomography/validation/verify.py --oracle-only
-omega update --project samples/cli/independent/travel_time_tomography --target linux_x86_64
+omega packages update --project samples/cli/independent/travel_time_tomography --target linux_x86_64
 # Inspect the generated review and accept only decisions authorized for this
 # local std dependency, then use the documented update --resume workflow.
 omega --check samples/cli/independent/travel_time_tomography/main.omg

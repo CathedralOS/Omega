@@ -350,7 +350,7 @@ fn select_targets(
     for target in &requested {
         if accepted.is_some_and(|lock| lock.target(*target).is_none()) {
             return Err(failure(format!(
-                "omega.lock has no accepted target {}; use omega update --target {} for fresh review; no selector was refreshed",
+                "omega.lock has no accepted target {}; use omega packages update --target {} for fresh review; no selector was refreshed",
                 target.target_name(),
                 target.target_name()
             )));

@@ -827,49 +827,28 @@ mod token_bindings {
     }
 
     /*
-        Resolve domain homes under the same occurrence-scoped namespace law as
-        other domain references. The ordinary path lookup owns exact selections
-        and ambiguity; attached-domain exposure additionally admits a carrier's
-        leaf spelling. Loading another package, stratum or Build/Product copy
-        never adds an operand home. Keep ambiguity unresolved rather than choosing
-        one arena row or collapsing independently checked declarations by spelling.
+        Resolve a token's domain home with the membership pool. A signature-free
+        unique hit does not return before module-local preference. The same
+        symbol reached by lookup and by the exposure scan is one home. Two
+        different symbols stay unresolved even when they print the same.
     */
     fn domain_named(program: &SymbolResolvedTrees, name: &DiagnosticName) -> Option<SymbolHandle> {
-        let reference = name.source_span();
-        match program
-            .symbols
-            .lookup_signature_free_top_level_from_source_matching(
-                name.as_str(),
-                &[SymbolKind::Domain],
-                reference,
-                |_| true,
-            ) {
-            symbols::SymbolLookup::Unique(symbol) => return Some(symbol),
-            symbols::SymbolLookup::Ambiguous { .. } => return None,
-            symbols::SymbolLookup::NotFound => {}
-        }
-        let candidates = program
-            .domain_definitions
-            .iter()
-            .filter_map(|domain| {
-                (program
-                    .symbols
-                    .source_reference_can_see_symbol(reference, domain.symbol)
-                    && program
-                        .symbols
-                        .domain_name_reaches(domain.symbol, name.as_str(), reference))
-                .then_some(domain.symbol)
-            })
-            .collect();
-        let candidates =
-            crate::symbols::prefer_module_local_domain(&program.symbols, candidates, reference);
-        match candidates.as_slice() {
-            [symbol] => Some(*symbol),
-            _ => None,
+        match crate::symbols::membership_domain_lookup(
+            &program.symbols,
+            name.as_str(),
+            name.source_span(),
+        ) {
+            crate::symbols::DomainMembership::Unique(symbol) => Some(symbol),
+            crate::symbols::DomainMembership::NotFound
+            | crate::symbols::DomainMembership::Ambiguous { .. }
+            | crate::symbols::DomainMembership::Contested => None,
         }
     }
 
-    #[cfg(test)]
+    /*
+        Two unsourced `Quantity` rows are different symbols. A shared display
+        path does not choose one of them.
+    */
     #[test]
     fn domain_home_lookup_keeps_unsourced_ambiguity() {
         use symbols::{SymbolNameRef, SymbolTableBuilder};
@@ -890,6 +869,112 @@ mod token_bindings {
                 (count == 1).then_some(domains.start()),
             );
         }
+    }
+
+    /*
+        Ordinary lookup and the exposure scan can both name one domain. That
+        repeated handle is one candidate.
+    */
+    #[test]
+    fn one_domain_symbol_reached_through_two_routes_is_one_candidate() {
+        use std::path::PathBuf;
+        use std::sync::Arc;
+
+        use source::{SourceMap, SourceSpan, Span};
+        use symbols::{SymbolKind, SymbolLookup, SymbolNameRef, SymbolTableBuilder};
+
+        let mut sources = SourceMap::default();
+        let local = sources
+            .add(PathBuf::from("pkg/local.omg"), "Quantity".to_owned())
+            .source_id;
+        let sources = Arc::new(sources);
+        let reference = SourceSpan::new(local, Span::new(0, 8));
+        let mut builder = SymbolTableBuilder::with_sources(Some(sources));
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let quantity = builder.insert_children(
+            root,
+            [(
+                SymbolKind::Domain,
+                SymbolNameRef::OwnedSource {
+                    value: "Quantity",
+                    source_span: reference,
+                },
+            )],
+        );
+        let quantity = SymbolTableBuilder::child_handles(quantity)
+            .next()
+            .expect("one domain");
+        let mut symbols = builder.finish();
+        symbols
+            .register_source_module(local, [("here", reference)])
+            .expect("one module");
+        assert_eq!(
+            symbols.lookup_top_level_by_name_and_kinds_from_source_matching(
+                "Quantity",
+                &[SymbolKind::Domain],
+                reference,
+                |_| true,
+            ),
+            SymbolLookup::Unique(quantity),
+        );
+        assert!(symbols.domain_name_reaches(quantity, "Quantity", reference));
+        assert!(matches!(
+            crate::symbols::membership_domain_lookup(&symbols, "Quantity", reference),
+            crate::symbols::DomainMembership::Unique(symbol) if symbol == quantity
+        ));
+    }
+
+    /*
+        A signature-free lookup can see one exact `Quantity` and stop. The
+        membership lookup still scans the module and prefers the local leaf
+        `Widget::Quantity`. Token homes have to take that local domain.
+    */
+    #[test]
+    fn signature_free_unique_domain_does_not_skip_module_local_preference() {
+        use std::path::PathBuf;
+        use std::sync::Arc;
+
+        use source::{SourceMap, SourceSpan, Span};
+        use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+        let mut sources = SourceMap::default();
+        let local = sources
+            .add(PathBuf::from("pkg/local.omg"), "Quantity".to_owned())
+            .source_id;
+        let sources = Arc::new(sources);
+        let reference = SourceSpan::new(local, Span::new(0, 8));
+        let mut builder = SymbolTableBuilder::with_sources(Some(sources));
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let mut handles = SymbolTableBuilder::child_handles(builder.insert_children(
+            root,
+            [
+                (SymbolKind::Domain, SymbolNameRef::Static("Quantity")),
+                (
+                    SymbolKind::Domain,
+                    SymbolNameRef::OwnedSource {
+                        value: "Widget::Quantity",
+                        source_span: reference,
+                    },
+                ),
+            ],
+        ));
+        let signature_free = handles.next().expect("exact Quantity");
+        let module_local = handles.next().expect("module-local leaf");
+        let mut symbols = builder.finish();
+        symbols
+            .register_source_module(local, [("here", reference)])
+            .expect("one module");
+        let program = SymbolResolvedTrees {
+            symbols,
+            ..Default::default()
+        };
+        let selected = domain_named(&program, &DiagnosticName::from_str("Quantity", reference));
+        assert_eq!(
+            selected.map(|symbol| program.symbols.display_path(symbol, "::")),
+            Some(program.symbols.display_path(module_local, "::")),
+            "signature-free hit was {}",
+            program.symbols.display_path(signature_free, "::"),
+        );
     }
 
     /* The declaration set a direct binding is validated against. */

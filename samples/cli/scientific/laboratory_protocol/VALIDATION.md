@@ -27,9 +27,9 @@ From the candidate repository root:
 source /workspace/cloud-setup/activate.sh
 export OMEGA_LIBRARY_ROOT="$PWD/source/library"
 mbx build --release -p omega
-./target/release/omega update --project samples/cli/independent/laboratory_protocol --target linux_x86_64
+./target/release/omega packages update --project samples/cli/independent/laboratory_protocol --target linux_x86_64
 # Inspect and accept the local application and bundled std review decisions.
-./target/release/omega update --resume --project samples/cli/independent/laboratory_protocol
+./target/release/omega packages update --resume --project samples/cli/independent/laboratory_protocol
 python3 samples/cli/independent/laboratory_protocol/validate.py --omega ./target/release/omega --timeout 600
 ```
 

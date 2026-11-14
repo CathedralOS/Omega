@@ -38,7 +38,7 @@ def main():
                                      stderr=result.stderr.decode(errors="replace")))
             return result
 
-        review = invoke("update", "--project", project, "--dangerously-accept-all")
+        review = invoke("packages", "update", "--project", project, "--dangerously-accept-all")
         assert review.returncode == 0, review
 
         def compile_project():
@@ -126,7 +126,7 @@ def main():
 
         # Target children own separate result locations. ARM64 is generated
         # here, never presented as native execution on this x86-64 host.
-        review = invoke("update", "--project", project, "--target", "linux_x86_64",
+        review = invoke("packages", "update", "--project", project, "--target", "linux_x86_64",
                         "--target", "linux_arm64", "--dangerously-accept-all")
         assert review.returncode == 0, review
         multi_output = workspace / "targets"
@@ -148,7 +148,7 @@ def main():
         declaration = other / "build.omg"
         declaration.write_text(declaration.read_text().replace(
             '"acquired_generator_completed_output_set"', '"another_output_package"'))
-        review = invoke("update", "--project", other, "--dangerously-accept-all")
+        review = invoke("packages", "update", "--project", other, "--dangerously-accept-all")
         assert review.returncode == 0, review
         other_output = workspace / "other-out"
         produced = invoke("--target", "linux_x86_64", "--build-dir", other_output, other / "main.omg")

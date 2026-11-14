@@ -34,7 +34,7 @@ unsupported interpretation is a decline, not an agreement.
 Host comparisons accept `--both --psi-work-budget <positive-u64>`.
 The budget supplies each Terminal invocation independently, including each
 input case and stdin replay; it defaults to 10,000,000 logical work units.
-It requires `--both` without `--target`, or `--engine terminal`. Exhaustion remains
+It requires `--both` without `--target`, or `--engine psi`. Exhaustion remains
 a declined comparison and stops a Terminal-only run with status 200.
 Native execution receives no work counter. Kept single-run artifacts and case
 outputs include `psi.work.tsv` (case-prefixed in batch mode), recording the
@@ -109,17 +109,18 @@ continues to pass representations through ordinary functions.
 ## Command surface
 
 The [command-line contract](../../../../wiki/spec/build/command_line.md) owns
-ratified subsystem routing and public **Psi** naming. The commands and retained
-filenames below describe the implementation before that migration. Move them
-with the first source-rewrite implementation as tracked in the
-[migration plan](../../../../wiki/drafts/designs/operational_markers_and_cli.md);
-do not preserve the old command spellings as aliases.
+ratified subsystem routing and public **Psi** naming. The spellings below follow
+that contract. Flat `install`/`update`, action-first `audit`, and
+`inspect-terminal` are rejected; they are not aliases.
+`omega source rewrite` is specified and not implemented, so the parser rejects
+it instead of accepting a rewrite it cannot perform. Retained filenames such as
+`program.oterm` are internal artifact names and stay as they are.
 
 The CLI package is **`omega`** (binary `omega`); there is no `omega-cli`
 package.
 
 The [standalone engine contract](../../../../wiki/spec/build/embedding.md#standalone-execution-selection)
-selects execution with `run --engine native|terminal`, defaulting to native.
+selects execution with `run --engine native|psi`, defaulting to native.
 Terminal-only execution uses the same admitted Terminal runtime as comparison,
 without emitting or launching a native image. `--both` remains an explicit
 comparison and cannot be combined with `--engine`. Target/provider selection
@@ -128,13 +129,13 @@ The implementation work is tracked by `UNIVERSAL-INTERPRETER-CLOSURE` in
 [TASKS.md](../../../../TASKS.md#universal-interpreter-cutover).
 
 ```bash
-mbx run -p omega -- update --project samples/cli/basics/cli_mvp --target macos_arm64
+mbx run -p omega -- packages update --project samples/cli/basics/cli_mvp --target macos_arm64
 mbx run -p omega -- --check samples/cli/basics/cli_mvp/main.omg
 ```
 
 A hosted sample takes its target entry contract from std, an ordinary
 dependency, so its first check or run needs the accepted program-entry binding
-that `omega update` reviews (accept the pending decisions, then rerun with
+that `omega packages update` reviews (accept the pending decisions, then rerun with
 `--resume`). Without it the entry slot rejects and names that review.
 
 `--entry-ram` explicitly constructs fresh private initialized scalar-record RAM for an exact borrowed placed entry position. It grants no host address or external allocation. The physical lender supports Linux x86-64 and macOS ARM64 and refuses unsupported predicates, qualifications, compound storage and cleanup. With `--both --keep`, original backing observations and actual Terminal effect receipts are retained separately from guest streams; see [placed entry RAM sample](../../../../samples/cli/probes/placed_entry_ram/README.md).
@@ -147,13 +148,14 @@ omega [--check] [--offline] [--timings]
       [--report-file <path>]
       [--build-input <path>]... [--optional-build-input <path>]...
       [--build-dir <dir>] [--target <name>]... [--disable-optimization <ExactName>]... <root.omg>
-omega run [--engine <native|terminal> | --both] [--psi-work-budget <positive-u64>] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>
-omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>
-omega audit source --kind <local|git> <locator> [--rev <rev>]
-omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...
-omega install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]... [--dangerously-accept-all]
-omega update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]... [--dangerously-accept-all]
-omega <install|update> <--resume|--discard-review> [--project <dir>] [--offline]
+omega run [--engine <native|psi> | --both] [--psi-work-budget <positive-u64>] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>
+omega psi inspect --machine <qualified> [--target <name>] <root.omg>
+omega source rewrite <ExactRule>... [--check] <root.omg>
+omega packages audit --kind <local|git> <locator> [--rev <rev>]
+omega packages audit [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...
+omega packages install <source> [--rev <revision>] [--package <declared-name>] [--as <alias>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]... [--dangerously-accept-all]
+omega packages update [package-or-alias...] [--to <revision>] [--target <name>]... [--project <dir>] [--offline] [--build-input <path>]... [--optional-build-input <path>]... [--dangerously-accept-all]
+omega packages <install|update> <--resume|--discard-review> [--project <dir>] [--offline]
 ```
 
 `--dangerously-accept-all` accepts every pending review decision without
@@ -163,7 +165,7 @@ proposal's target and build-input inventory, not new invocation overrides.
 
 `--offline` restricts package acquisition to local sources and cached recorded
 Git pins. It does not refresh selectors or sandbox later program execution.
-`run` and `inspect-terminal` do not support this flag.
+`run` and `psi inspect` do not support this flag.
 
 `--target` names a realization target and may repeat; repeats are removed
 and each named target is compiled and published on its own, into
@@ -187,7 +189,7 @@ launch fails, 202 when compilation stopped at a named private provision
 (`Incomplete`), and 201 when `--both` interpretation disagrees or encounters a
 runtime/artifact defect. An explicitly unavailable comparison reports `DECLINED`
 and retains the native program's status; it never reports agreement.
-`--engine terminal` exits with the Terminal program's own status, 203 when the
+`--engine psi` exits with the Terminal program's own status, 203 when the
 Terminal program crashes (the cause is reported; a process cannot present the
 native trap signal without raising it), and 200 otherwise: `UNAVAILABLE` for a
 missing provider, host adapter or interpreter capability refused before the
@@ -197,7 +199,7 @@ The Terminal engine requests the ordinary native product, which passes the same
 Build, package, trust, provider and entry admission and then stops before any
 object or image is emitted; `--keep` retains `program.oterm` and the Terminal
 streams, work and effect receipts, never a native image. Case runs
-(`--inputs`/`--input`) do not yet accept `--engine terminal`. A program that
+(`--inputs`/`--input`) do not yet accept `--engine psi`. A program that
 binds independently produced components is refused during compilation on this
 engine (`terminal compile FAILED`, status 200), since those components execute
 only as native images. Program streams are forwarded after the Terminal program
@@ -218,7 +220,7 @@ beside the executable; ordinary Cargo development builds retain a checkout
 fallback. See [release packaging](../../../../tools/release/README.md#build-a-relocatable-bundle)
 for installation layout, explicit library selection, and relocation tests.
 
-`omega inspect-terminal --artifact <file>` reads an existing portable Terminal
+`omega psi inspect --artifact <file>` reads an existing portable Terminal
 artifact envelope (up to 64 MiB), applies canonical decoding and semantic
 validation, and prints its module and placed-input roster. It accepts no source,
 machine or target flags and performs no package preparation or execution. Invalid

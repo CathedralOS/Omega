@@ -322,7 +322,7 @@ cargo nextest run -p checked-trees-to-lowered-psi --test owned_scalar_cycles --n
 ```
 
 On the legacy fixture,
-`omega inspect-terminal --machine walk --target macos_arm64 main.omg` reports
+`omega psi inspect --machine walk --target macos_arm64 main.omg` reports
 the verified Natural component and `fixed_work status=unknown`: the existing
 fixed-work deriver does not close this graph. The
 [inspection command](../../../omega-rust/omega/application/cli/tests/inspect_terminal.rs)

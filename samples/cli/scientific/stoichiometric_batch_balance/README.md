@@ -64,9 +64,9 @@ Validation verifies their hashes and never updates them to match a result.
 From the repository root, after the ordinary documented package review:
 
 ```
-OMEGA_LIBRARY_ROOT="$PWD/source/library" omega update --project samples/cli/independent/stoichiometric_batch_balance --target linux_x86_64
+OMEGA_LIBRARY_ROOT="$PWD/source/library" omega packages update --project samples/cli/independent/stoichiometric_batch_balance --target linux_x86_64
 # Read and explicitly accept only the intended pending review decisions.
-omega update --resume --project samples/cli/independent/stoichiometric_batch_balance
+omega packages update --resume --project samples/cli/independent/stoichiometric_batch_balance
 omega --check --target linux_x86_64 samples/cli/independent/stoichiometric_batch_balance/main.omg
 omega run --both --keep samples/cli/independent/stoichiometric_batch_balance/main.omg < samples/cli/independent/stoichiometric_batch_balance/data/water_first.stdin
 omega --target linux_x86_64 --build-dir samples/cli/independent/stoichiometric_batch_balance/build/native samples/cli/independent/stoichiometric_batch_balance/main.omg

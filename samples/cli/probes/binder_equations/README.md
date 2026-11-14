@@ -13,5 +13,5 @@ Compile-checked only (no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/binder_equations/main.omg
-mbx run -p omega -- update --project samples/cli/probes/binder_equations
+mbx run -p omega -- packages update --project samples/cli/probes/binder_equations
 ```

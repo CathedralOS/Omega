@@ -19,7 +19,7 @@ Compile-checked only (no std dependency):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/case_where_union/main.omg
-mbx run -p omega -- update --project samples/cli/probes/case_where_union
+mbx run -p omega -- packages update --project samples/cli/probes/case_where_union
 ```
 
 Both green on Linux x86-64; `omega.lock` publishes locally, ignored.

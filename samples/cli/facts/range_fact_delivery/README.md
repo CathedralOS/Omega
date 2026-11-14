@@ -136,9 +136,9 @@ five places — `const_name`, `field`, `parameter`, `call_result`,
 `compiler_identity` predated the current producer, so `omega run --both`
 exited 200 with
 "accepted package `integer_range_delivery` compiler identity changed; run
-`omega update` for fresh review before compiling". That is stale
+`omega packages update` for fresh review before compiling". That is stale
 accepted-review state, not a compiler defect (tools/testing.md). Fresh
-`omega update` re-recorded the package review in this checkout for all nine
+`omega packages update` re-recorded the package review in this checkout for all nine
 places; the unchanged programs then passed `--both` with exit 0. No compiler
 repair was needed.
 

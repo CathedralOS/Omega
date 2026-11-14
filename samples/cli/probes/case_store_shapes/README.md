@@ -19,5 +19,5 @@ Compile-checked only (no ProcessExit provider):
 
 ```sh
 mbx run -p omega -- --check samples/cli/probes/case_store_shapes/main.omg
-mbx run -p omega -- update --project samples/cli/probes/case_store_shapes
+mbx run -p omega -- packages update --project samples/cli/probes/case_store_shapes
 ```
