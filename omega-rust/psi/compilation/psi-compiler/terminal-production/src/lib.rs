@@ -40,8 +40,6 @@ pub(crate) mod observation {
         Publication,
         Resolution,
         Typing,
-        Lexing,
-        Parsing,
         SourceParsing,
     }
 
@@ -69,8 +67,6 @@ pub(crate) mod observation {
                 ),
                 Self::Resolution => ("Psi 02", "SyntaxTrees", "SymbolResolvedTrees"),
                 Self::Typing => ("Psi 03", "SymbolResolvedTrees", "TypedTrees"),
-                Self::Lexing => ("Psi 00", "SourceFiles", "TokenStreams"),
-                Self::Parsing => ("Psi 01", "TokenStreams", "SyntaxTrees"),
                 Self::SourceParsing => ("Source ingress", "SourceFiles", "SyntaxTrees"),
             }
         }
@@ -127,14 +123,6 @@ pub(crate) mod observation {
                 ("Psi 03", "SymbolResolvedTrees", "TypedTrees")
             );
             assert_eq!(
-                PsiCompilationStage::Lexing.observation_labels(),
-                ("Psi 00", "SourceFiles", "TokenStreams")
-            );
-            assert_eq!(
-                PsiCompilationStage::Parsing.observation_labels(),
-                ("Psi 01", "TokenStreams", "SyntaxTrees")
-            );
-            assert_eq!(
                 PsiCompilationStage::SourceParsing.observation_labels(),
                 ("Source ingress", "SourceFiles", "SyntaxTrees")
             );
@@ -143,8 +131,6 @@ pub(crate) mod observation {
                 PsiCompilationStage::Publication,
                 PsiCompilationStage::Resolution,
                 PsiCompilationStage::Typing,
-                PsiCompilationStage::Lexing,
-                PsiCompilationStage::Parsing,
                 PsiCompilationStage::SourceParsing,
             ] {
                 let (name, input, output) = stage.observation_labels();
