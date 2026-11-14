@@ -436,8 +436,9 @@ pub(crate) fn admit(elaboration: &Elaboration) -> Checked<()> {
     Ok(())
 }
 
-/// Publish only the source questions this checker has just proved. Candidate
-/// retention supplies installation metadata; it creates no invocation edge.
+/// Form the final catalog once, after the complete compilation discharged
+/// supplied-body witnesses and this owner proved its static questions.
+/// Candidate retention supplies metadata and creates no invocation edge.
 pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
     admit(elaboration)?;
     let module = &mut elaboration.module;
@@ -454,7 +455,7 @@ pub(crate) fn publish(elaboration: &mut Elaboration) -> Checked<()> {
         ));
     }
     let mut identities = std::mem::take(&mut module.identities).into_builder();
-    let mut candidates = Vec::new();
+    let mut candidates = std::mem::take(&mut elaboration.provider_candidate_intents);
     for question in &elaboration.static_conformances {
         let Some(source) = &question.provider else {
             continue;

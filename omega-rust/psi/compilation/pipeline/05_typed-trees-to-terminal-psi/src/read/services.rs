@@ -561,18 +561,8 @@ impl Policy {
                 "body invokes outside its published ceiling",
             ));
         }
-        if self.suspends == Some(false) && reached.suspends {
-            return Err(unavailable(
-                context,
-                "body suspends outside its published ceiling",
-            ));
-        }
-        if self.blocks == Some(false) && reached.blocks {
-            return Err(unavailable(
-                context,
-                "body blocks outside its published ceiling",
-            ));
-        }
+        // Keep authored operational bounds even when a call exceeds them.
+        // The Terminal checker rejects that actual call at its source position.
         Ok(SourceEnvelope {
             service_reach: self.reach.clone().unwrap_or(reached.service_reach),
             invocations: self.invokes.clone().unwrap_or(reached.invocations),

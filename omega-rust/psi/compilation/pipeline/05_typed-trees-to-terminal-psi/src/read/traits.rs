@@ -318,10 +318,26 @@ impl Program<'_> {
                     "implementation row changes the selected entry state",
                 ));
             }
+            if row.source.owns_realization() {
+                let (owner, owned) = typed
+                    .owned_conformance_realization(supplied.symbol)
+                    .ok_or_else(|| {
+                        services::unavailable(
+                            context,
+                            "implementation body lost its exact owning conformance row",
+                        )
+                    })?;
+                if owner.symbol != declaration.symbol || owned != row {
+                    return Err(services::unavailable(
+                        context,
+                        "implementation body changes its exact owning conformance row",
+                    ));
+                }
+            }
             let implementation = if self.select_native_provider(context, supplied.symbol)? {
                 SourceImplementation::Native(supplied.symbol)
             } else {
-                let machine = self.machine(supplied.symbol)?;
+                let machine = self.subject_machine(supplied.symbol)?;
                 self.fixed_inputs.push(machine);
                 SourceImplementation::Machine(machine)
             };

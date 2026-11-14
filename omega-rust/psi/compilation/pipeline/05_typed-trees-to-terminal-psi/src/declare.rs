@@ -190,11 +190,10 @@ pub(crate) fn declare(
     result
 }
 
-/// States, for each requirement a chosen provider supplies
-/// (`Elaboration::supplied`), that the module's machine for it realizes the
-/// requirement's boundary on behalf of that provider: one
-/// `ProviderCandidateConformance` row each, in the canonical order the
-/// module encodes them in.
+/// Prepares each exact supplied requirement's candidate intent. The complete
+/// compilation still owes its body/refinement witnesses; receiving catalog
+/// formation publishes these rows after those judgments. An identical retained
+/// static-provider question owns its row and its independent proof instead.
 ///
 /// A provider plan selects its checked adapters among these rows by the
 /// provider's declaration identity and each requirement's identity
@@ -202,8 +201,8 @@ pub(crate) fn declare(
 /// carries the identities this module already states: the boundary's
 /// callable identity, the machine's callable identity and package, the
 /// provider's exact-owner identity, and its path for reports. The machine is
-/// the one `supplied_slots` read as a root and the checker judged against
-/// the requirement, so no row names a provider nobody judged. The rows state
+/// the one `supplied_slots` reads as a root and retains a refinement witness
+/// for. Final publication still requires that complete judgment. The rows state
 /// no receiving application: the route declares only boundaries of traits
 /// with no parameters (`read/calls.rs`, `boundary`).
 pub(crate) fn provider_candidates(
@@ -211,14 +210,50 @@ pub(crate) fn provider_candidates(
     machines: &IdTable<MachineId, SymbolHandle>,
     boundaries: &IdTable<semantic_vocabulary::BoundaryMachineId, SymbolHandle>,
     supplied: &[crate::SuppliedRequirement],
+    static_conformances: &[terminal_check_tables::contracts::StaticConformanceQuestion],
     module: &mut terminal_psi::TerminalModule,
-) -> Result<(), &'static str> {
+) -> Result<Vec<terminal_psi::ProviderCandidateConformance>, &'static str> {
     if supplied.is_empty() {
-        return Ok(());
+        return Ok(Vec::new());
     }
     let sources =
         source::source_identity::toolchain_source_identities(typed.symbols.source_files())
             .map_err(|_| "a provider toolchain source has no exact identity")?;
+    let source_key = |provider: SymbolHandle, requirement: SymbolHandle| {
+        (
+            provider.arena_index(),
+            provider.generation(),
+            requirement.arena_index(),
+            requirement.generation(),
+        )
+    };
+    let mut static_providers = Vec::new();
+    for (position, question) in static_conformances.iter().enumerate() {
+        if question.provider.is_none() {
+            continue;
+        }
+        if !typed
+            .symbols
+            .symbols()
+            .nodes()
+            .is_valid(question.declaration)
+            || !typed
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(question.requirement)
+        {
+            return Err("a static provider question has a stale source declaration");
+        }
+        static_providers.push((
+            source_key(
+                typed.implementation_value_head(question.declaration),
+                question.requirement,
+            ),
+            position,
+        ));
+    }
+    static_providers.sort_unstable_by_key(|(key, _)| *key);
     let mut identities = std::mem::take(&mut module.identities).into_builder();
     let rows = (|| {
         let mut rows = Vec::with_capacity(supplied.len());
@@ -246,6 +281,42 @@ pub(crate) fn provider_candidates(
             if path.is_empty() {
                 return Err("a provider has no declaration path");
             }
+            let provider_declaration = NominalDeclarationIdentity::new(nominal(
+                typed,
+                &sources,
+                row.provider,
+                &mut identities,
+            )?);
+            let key = source_key(
+                typed.implementation_value_head(row.provider),
+                row.requirement,
+            );
+            let begin = static_providers.partition_point(|(candidate, _)| *candidate < key);
+            let end = begin
+                + static_providers[begin..].partition_point(|(candidate, _)| *candidate == key);
+            if begin != end {
+                if end - begin != 1 {
+                    return Err("a supplied candidate has competing static provider questions");
+                }
+                let question = &static_conformances[static_providers[begin].1];
+                let stated = question
+                    .provider
+                    .as_ref()
+                    .ok_or("a static provider question lost its prepared candidate")?;
+                if stated.boundary != boundary
+                    || stated.declaration != provider_declaration
+                    || !matches!(
+                        question.implementation,
+                        terminal_check_tables::contracts::StaticImplementation::Machine(id)
+                            if id == row.machine
+                    )
+                {
+                    return Err("a static provider question changes its supplied candidate");
+                }
+                // The complete question retains this exact row and proves its
+                // required header before the one final catalog publication.
+                continue;
+            }
             rows.push(terminal_psi::ProviderCandidateConformance {
                 boundary,
                 requirement_identity: requirement,
@@ -254,12 +325,7 @@ pub(crate) fn provider_candidates(
                 receiving_application: terminal_psi::TerminalIdentityIndex::ABSENT,
                 receiving_region_arguments: Vec::new(),
                 provider_identity: identities.intern(&path),
-                provider_declaration: NominalDeclarationIdentity::new(nominal(
-                    typed,
-                    &sources,
-                    row.provider,
-                    &mut identities,
-                )?),
+                provider_declaration,
                 candidate_identity: callable,
                 source_candidate_identity: callable,
                 source_candidate_package_identity: typed.symbols.symbol_package_identity(symbol),
@@ -304,8 +370,7 @@ pub(crate) fn provider_candidates(
             row.candidate,
         )
     });
-    module.provider_candidates = rows;
-    Ok(())
+    Ok(rows)
 }
 
 fn declaration(

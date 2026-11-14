@@ -721,13 +721,15 @@ fn finish_reading(
             &mut elaboration,
         )
         .and_then(|()| {
-            declare::provider_candidates(
+            elaboration.provider_candidate_intents = declare::provider_candidates(
                 typed,
                 &program.symbols,
                 &elaboration.boundaries,
                 &program.supplied,
+                &elaboration.static_conformances,
                 &mut elaboration.module,
-            )
+            )?;
+            Ok(())
         })
         .map_err(|reason| {
             refuse(
@@ -1215,6 +1217,7 @@ fn lower_program(
             generic_templates: Vec::new(),
             conformance_witnesses: Vec::new(),
             supplied: Vec::new(),
+            provider_candidate_intents: Vec::new(),
             undeclared: Vec::new(),
             reach: ServiceReach::default(),
             external_provider_candidates,

@@ -119,12 +119,32 @@ pub(crate) fn declare(typed: &TypedTrees, elaboration: &mut Elaboration) -> Chec
             .map_err(|_| "proof call has no exact emitted boundary declaration")?;
         Ok(boundary_declarations[position].1)
     };
-    for candidate in &elaboration.module.provider_candidates {
-        let requirement = boundary_declaration_for(candidate.boundary);
-        let realization = declaration_for(candidate.candidate);
+    let candidate_associations = elaboration
+        .provider_candidate_intents
+        .iter()
+        .map(|candidate| (candidate.boundary, candidate.candidate))
+        .chain(
+            elaboration
+                .static_conformances
+                .iter()
+                .filter_map(|question| {
+                    let provider = question.provider.as_ref()?;
+                    match question.implementation {
+                        terminal_check_tables::contracts::StaticImplementation::Machine(
+                            machine,
+                        ) => Some((provider.boundary, machine)),
+                        terminal_check_tables::contracts::StaticImplementation::Native {
+                            ..
+                        } => None,
+                    }
+                }),
+        );
+    for (boundary, candidate) in candidate_associations {
+        let requirement = boundary_declaration_for(boundary);
+        let realization = declaration_for(candidate);
         let (Ok(requirement), Ok(realization)) = (requirement, realization) else {
             return Err(refuse(
-                candidate.candidate,
+                candidate,
                 Construct::Machine,
                 Unserved::Declaration("provider candidate without its proof declarations"),
             ));

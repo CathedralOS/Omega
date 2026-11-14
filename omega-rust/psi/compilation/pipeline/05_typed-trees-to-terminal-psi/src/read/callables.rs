@@ -101,12 +101,43 @@ impl<'t> Program<'t> {
         // Equal semantic contracts share a row, after this occurrence has
         // met formation too. A prior alias cannot admit an unsupported field
         // that the normalized type identity does not describe.
-        let existing = self
-            .callables
-            .contracts
-            .iter()
-            .find_map(|(id, row)| (row.identity == identity).then_some((id, row)));
-        let contract = if let Some((id, row)) = existing {
+        let existing =
+            self.callables.contracts.iter().find_map(|(id, row)| {
+                (row.identity == identity).then(|| (id, row.lifetimes.clone()))
+            });
+        let lifetimes = self.machine_lifetimes(declared.symbol);
+        let contract = if let Some((id, retained_lifetimes)) = existing {
+            if lifetimes.len() != retained_lifetimes.len() {
+                return Err(Refusal {
+                    reason: RefusalReason::ForeignIdentity,
+                    machine,
+                    concerns: Construct::Machine,
+                    detail: "equal callable identities lower to different lifetime binders"
+                        .to_owned(),
+                });
+            }
+            // Each occurrence has now formed its own complete signature. Its
+            // lifetime formals are alpha-bound, like the scalar/place formals
+            // already read by position, so compare in the retained row's frame.
+            // Captured regions are absent from this exact own-binder mapping.
+            let substitution = lifetimes
+                .iter()
+                .copied()
+                .zip(retained_lifetimes)
+                .map(|(own, retained)| (own, super::regions::Region::Parameter(retained)))
+                .collect::<Vec<_>>();
+            for parameter in &mut signature.parameters {
+                *parameter = self.substitute(*parameter, &substitution);
+            }
+            signature.result = signature
+                .result
+                .map(|result| self.substitute(result, &substitution));
+            for borrowed in &mut signature.borrowed {
+                borrowed.regions = self.substituted_regions(borrowed.regions, &substitution);
+            }
+            let row = self.callables.contracts.get(id).ok_or_else(|| {
+                unavailable(machine, "canonical callable contract lost its retained row")
+            })?;
             if row.signature != signature || row.envelope != envelope {
                 return Err(Refusal {
                     reason: RefusalReason::ForeignIdentity,
@@ -118,7 +149,7 @@ impl<'t> Program<'t> {
             id
         } else {
             self.callables.contracts.push(CallableContract {
-                lifetimes: self.machine_lifetimes(declared.symbol),
+                lifetimes,
                 identity,
                 signature,
                 envelope,

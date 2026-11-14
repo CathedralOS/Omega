@@ -236,6 +236,10 @@ pub struct Elaboration {
     /// provider it settled on, never into "the" provider of the requirement.
     /// Empty outside `elaborate`.
     pub supplied: Vec<SuppliedRequirement>,
+    /// Source-declared candidate rows awaiting the complete compilation's
+    /// body/refinement judgments. Final catalog formation moves these rows
+    /// into the module only after those obligations have been discharged.
+    pub provider_candidate_intents: Vec<terminal_psi::ProviderCandidateConformance>,
     /// The machines of a compilation's module that were given no declaration
     /// identity, each with the reason (`declare`). A module that lists one is
     /// judged like any other and is never published. Empty outside

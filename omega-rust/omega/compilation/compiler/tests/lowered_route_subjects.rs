@@ -962,7 +962,9 @@ fn each_kind_of_unused_subject_declaration_is_judged_or_handed_back() {
         falls_back("contract named proposition"),
         Verdict::Accepted(2),
         Verdict::Accepted(2),
-        falls_back("type reference"),
+        // The dependency's carrier types now form; its signed wire
+        // interpretation still needs the unserved reference recast.
+        falls_back("expression recast"),
     ];
     assert_eq!(expected.len(), UNUSED_DECLARATIONS.len());
     let mut wrong = Vec::new();

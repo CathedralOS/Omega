@@ -959,17 +959,30 @@ impl<'source> Declarations<'source> {
         {
             return Ok(symbol);
         }
-        let (machine, _) = self
-            .typed
-            .unique_machine_by_entry_state_symbol(symbol)
-            .ok_or_else(|| {
-                refused("source selection state has no unique registered machine entry")
-            })?;
+        let Some((machine, _)) = self.typed.unique_machine_by_entry_state_symbol(symbol) else {
+            let has_entry = self.typed.machine_states_named(symbol).any(|(machine, _)| {
+                self.typed
+                    .machine_states(machine)
+                    .first()
+                    .is_some_and(|entry| entry.symbol == symbol)
+            });
+            if has_entry {
+                return Err(refused(format!(
+                    "source selection state `{}` ({symbol:?}) has competing registered machine entries; source {:?}",
+                    self.typed.symbols.display_path(symbol, "::"),
+                    self.typed.symbols.symbol_provenance_source_span(symbol),
+                )));
+            }
+            // Stored signatures retain their own declaration scope without
+            // registering an executable machine. Its ordinary identity below
+            // still authenticates the exact source/package provenance.
+            return Ok(symbol);
+        };
         self.valid(machine.symbol, "entry declaration")?;
         if !self.identities.contains_key(&machine.symbol) {
-            return Err(refused(
-                "source selection entry has no exact emitted machine declaration",
-            ));
+            // Only an actual emitted declaration supplies an entry alias.
+            // An un-emitted source description keeps its genuine identity.
+            return Ok(symbol);
         }
         if self.purpose(symbol)? != self.purpose(machine.symbol)? {
             return Err(refused(
