@@ -292,6 +292,8 @@ pub struct RecordType {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StorageShape {
+    /// Boundary-supplied contents have nominal identity but no authored fields.
+    Opaque,
     Record(Vec<RecordField>),
     Sum(Vec<CaseType>),
     ByteSequence(terminal_psi::ByteSequenceCarrier),

@@ -1,7 +1,11 @@
 // Fact: A suspended independent component writes 73 to the caller's original scalar-backed record, preserving neighbor cells and storage addresses.
 // Place: const_name.
 // Expected exit: 0
-use producer::main;
+use producer::Lending;
+use producer::Observation;
+use producer::Reading;
+use producer::Token;
+use producer::Word;
 const INITIAL: Word = Word { before: 11, count: 0, after: 29 };
 machine entry(token: Token) -> u64 reaches Lending Reading Observation suspends crashes Trap {
     let mut value: Word = INITIAL;

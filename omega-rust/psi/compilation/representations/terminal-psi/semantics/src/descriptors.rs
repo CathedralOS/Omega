@@ -10769,6 +10769,9 @@ pub mod descriptor_results {
                     }
                 };
                 let supported = match &declaration.shape {
+                    // Moving opaque contents exposes no nested references.
+                    // Their claim and boundary contracts remain separate.
+                    StructuralTypeShape::Opaque => true,
                     StructuralTypeShape::PrimitiveScalar(_) => true,
                     StructuralTypeShape::AtomicCell(_) => true,
                     StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedOwned {

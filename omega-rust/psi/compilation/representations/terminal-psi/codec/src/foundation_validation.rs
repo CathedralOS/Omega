@@ -8086,6 +8086,16 @@ pub(crate) mod structural_type_foundations {
         }
         validate_field_storage_envelope(&declaration.shape)?;
         match &declaration.shape {
+            StructuralTypeShape::Opaque => {
+                if declaration.quotient_carrier.is_some()
+                    || declaration.scalar_restriction.is_some()
+                    || !declaration.requires.is_empty()
+                {
+                    return malformed(
+                        "opaque data cannot supply a visible carrier or authored value predicate",
+                    );
+                }
+            }
             StructuralTypeShape::Reference { referent, access } => {
                 if !(has_structural_type(module, *referent)
                     || module
@@ -10737,6 +10747,9 @@ fn validate_reference_origin_path(
             return malformed("structural case path requires its payload field");
         }
         structural_type = match (segment, &declaration.shape) {
+            (_, StructuralTypeShape::Opaque) => {
+                return malformed("opaque contents have no guest-visible storage projection");
+            }
             (StructuralPathSegment::AllElements, _) => {
                 return malformed("universal qualification is not an executable storage path");
             }

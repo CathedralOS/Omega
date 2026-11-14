@@ -33,8 +33,10 @@ fn selects_member(spelling: &str, member: &DataMemberIdentity) -> bool {
     }
 }
 
-fn literal(
+fn materialize_argument(
     program: &mut TypedTrees,
+    state: &mut State,
+    context_inputs: &mut Vec<BuildTimeValue>,
     destination: TypeReferenceHandle,
     value: &mut BuildTimeValue,
 ) -> Result<ExpressionHandle, String> {
@@ -47,13 +49,70 @@ fn literal(
     {
         return Err("invocation value has no retained formal type".into());
     }
+    if matches!(value, BuildTimeValue::LayoutTarget(_)) {
+        let reference = match program.type_reference_table.type_reference(destination) {
+            TypeReferenceNode::Reference {
+                referee, access, ..
+            } => Some((*referee, *access)),
+            _ => None,
+        };
+        let value_type = reference.map_or(destination, |(referee, _)| referee);
+        let symbol = program
+            .closed_data_definition(value_type)
+            .map_or_else(SymbolHandle::invalid, |data| data.symbol);
+        if !program.core_layout_declaration(
+            symbol,
+            language_core::sealed_intrinsics::SealedIntrinsic::LayoutTargetData,
+        ) || program
+            .type_reference_table
+            .unconstrained_type_reference(value_type)
+            != value_type
+        {
+            return Err(
+                "issued layout context requires its exact unqualified core declaration".into(),
+            );
+        }
+        // Opaque contents are supplied at execution, never constructed in
+        // source. The same recursive argument walk handles a whole parameter
+        // and a context stored in a field, case or array element.
+        let name = format!("@context-{}", context_inputs.len());
+        let name_text = typed_trees::name::Identifier::generated(&name);
+        let symbol = program
+            .symbols
+            .insert_generated_children(state.symbol, [(SymbolKind::Parameter, name.as_str())])
+            .start();
+        program.push_state_parameter(
+            state,
+            typed_trees::signature::StateParameter {
+                symbol,
+                name: name_text.clone(),
+                type_reference: value_type,
+                is_const: false,
+                is_mutable: reference.is_some_and(|(_, access)| access.is_exclusive()),
+                relevance: language_core::BindingRelevance::Relevant,
+            },
+        );
+        let path = probe_name_path(program, symbol, name_text);
+        let actual = program.expression_table.insert(ExpressionNode::Name(path));
+        context_inputs.push(value.clone());
+        return Ok(if let Some((_, access)) = reference {
+            program.expression_table.insert(ExpressionNode::Borrow(
+                typed_trees::expression::TableBorrowExpression {
+                    target: actual,
+                    access,
+                },
+            ))
+        } else {
+            actual
+        });
+    }
     let node = match program
         .type_reference_table
         .type_reference(destination)
         .clone()
     {
         TypeReferenceNode::Constrained { base_type, .. } => {
-            return literal(program, base_type, value);
+            return materialize_argument(program, state, context_inputs, base_type, value);
         }
         TypeReferenceNode::Reference {
             referee,
@@ -86,7 +145,9 @@ fn literal(
                 let element_type = *element_type;
                 let elements = elements
                     .iter_mut()
-                    .map(|value| literal(program, element_type, value))
+                    .map(|value| {
+                        materialize_argument(program, state, context_inputs, element_type, value)
+                    })
                     .collect::<Result<Vec<_>, _>>()?;
                 ExpressionNode::ArrayLiteral(
                     program.expression_table.insert_expression_handles(elements),
@@ -99,7 +160,9 @@ fn literal(
             };
             let elements = elements
                 .iter_mut()
-                .map(|value| literal(program, element_type, value))
+                .map(|value| {
+                    materialize_argument(program, state, context_inputs, element_type, value)
+                })
                 .collect::<Result<Vec<_>, _>>()?;
             ExpressionNode::ArrayLiteral(
                 program.expression_table.insert_expression_handles(elements),
@@ -117,7 +180,9 @@ fn literal(
             }
             let elements = elements
                 .iter_mut()
-                .map(|value| literal(program, element_type, value))
+                .map(|value| {
+                    materialize_argument(program, state, context_inputs, element_type, value)
+                })
                 .collect::<Result<Vec<_>, _>>()?;
             ExpressionNode::ArrayLiteral(
                 program.expression_table.insert_expression_handles(elements),
@@ -224,7 +289,13 @@ fn literal(
                 fields.push(TableStructLiteralField {
                     name: field.name,
                     field_symbol: field.symbol,
-                    value: literal(program, field.type_reference, value)?,
+                    value: materialize_argument(
+                        program,
+                        state,
+                        context_inputs,
+                        field.type_reference,
+                        value,
+                    )?,
                 });
             }
             ExpressionNode::StructLiteral(TableStructLiteral {
@@ -277,6 +348,15 @@ pub(crate) fn declaration_call(
     }
 }
 
+pub(crate) struct PreparedSourceInvocation {
+    pub source: TypedTrees,
+    pub caller: SymbolHandle,
+    pub call: ExpressionHandle,
+    /// Actual opaque inputs supplied to the checked probe's parameters. Other
+    /// values retain their ordinary literal construction and proof premises.
+    pub context_inputs: Vec<BuildTimeValue>,
+}
+
 pub(crate) fn prepare_value_invocation(
     program: &TypedTrees,
     requester: SymbolHandle,
@@ -288,7 +368,7 @@ pub(crate) fn prepare_value_invocation(
         &typed_trees::expression::StaticMachineArgument,
         SymbolHandle,
     )>,
-) -> Result<(TypedTrees, SymbolHandle, ExpressionHandle), String> {
+) -> Result<PreparedSourceInvocation, String> {
     if request.authored_machine_application.is_valid()
         && !program
             .expression_table
@@ -423,10 +503,8 @@ pub(crate) fn prepare_value_invocation(
     let (probe_machine, mut state) =
         invocation_probe_declarations(&mut probe, requester, "@const-invocation", result_type);
     let mut actuals = Vec::with_capacity(arguments.len());
+    let mut context_inputs = Vec::new();
     for (position, (parameter, argument)) in parameters.iter().zip(arguments).enumerate() {
-        if matches!(argument, crate::BuildTimeValue::LayoutTarget(_)) {
-            return Err("source invocation requires an actually materialized layout target".into());
-        }
         let destination = probe
             .type_reference_table
             .instantiate(parameter.type_reference, &substitutions)?;
@@ -445,8 +523,10 @@ pub(crate) fn prepare_value_invocation(
         let slice_view = matches!(reference, Some((referee, language_core::ReferenceAccess::Shared))
                     if matches!(probe.type_reference_table.type_reference(referee), TypeReferenceNode::Slice { .. }));
         let mut snapshot = argument.clone();
-        let value = literal(
+        let value = materialize_argument(
             &mut probe,
+            &mut state,
+            &mut context_inputs,
             if slice_view {
                 destination
             } else {
@@ -517,7 +597,12 @@ pub(crate) fn prepare_value_invocation(
     probe.expression_table.set_source_span(concrete, call_span);
     let owner = finish_invocation_probe(&mut probe, probe_machine, state, concrete);
     probe.retain_call_static_argument_context(concrete, owner)?;
-    Ok((probe, owner, concrete))
+    Ok(PreparedSourceInvocation {
+        source: probe,
+        caller: owner,
+        call: concrete,
+        context_inputs,
+    })
 }
 
 fn probe_name_path(
