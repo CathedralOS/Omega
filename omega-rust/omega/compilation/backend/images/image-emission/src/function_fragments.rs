@@ -11376,6 +11376,11 @@ mod source {
                         slots.push(query.clone());
                     }
                     match &declaration.shape {
+                        StructuralTypeShape::Opaque => {
+                            return Err(
+                                "opaque backing needs its selected representation before descriptor tracing",
+                            );
+                        }
                         StructuralTypeShape::Reference { referent, .. } => {
                             let mut child = query;
                             child.steps.push(DescriptorContentsStep::Address(
