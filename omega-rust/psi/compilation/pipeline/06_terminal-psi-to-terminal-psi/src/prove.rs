@@ -256,9 +256,9 @@ pub(crate) struct Prover<'a> {
     axioms: &'a [Proposition],
     values: &'a IdTable<ValueId, ValueRow>,
     facts: Vec<Fact>,
-    /// The definitions transport substitutes: each proved `v == t` whose
-    /// subject `v` is a Boolean value, or whose definition is a literal, with
-    /// its proof.
+    /// Checked definitions for transport: Boolean values, literals, exact
+    /// initial-content aliases, and semantic integer expressions retaining
+    /// their selected arithmetic meaning, each with its proof.
     equations: Vec<(Proposition, ProofNode)>,
     definitions: IdTable<ValueId, Option<usize>>,
     transport: crate::known::TransportInputs,

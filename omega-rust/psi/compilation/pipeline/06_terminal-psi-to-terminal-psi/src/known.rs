@@ -76,19 +76,11 @@ fn flatten(
             );
         }
     }
-    let mathematical = integer_equality(proposition, &proof);
     facts.push(Fact {
         proposition: proposition.clone(),
         proof,
         axiom,
     });
-    if let Some((proposition, proof)) = mathematical {
-        facts.push(Fact {
-            proposition,
-            proof,
-            axiom: None,
-        });
-    }
 }
 
 /// Integer equality and equality of its embeddings have the same meaning.
@@ -220,9 +212,34 @@ impl Known {
         for index in 0..result.facts.len() {
             let _ = result.add_literal(index, &mut defined);
         }
+        result.integer_equalities(0, &defined);
         result.normalize(context, &mut defined);
         result.definitions = defined;
         result
+    }
+
+    /// Selected definitions already supply their equality through transport.
+    /// Only other integer facts need an embedding view, including guarantees
+    /// nested inside a conjunction or retained as an axiom. Definition lookup
+    /// uses the prepared value index, not a scan or a proof-tree classification.
+    fn integer_equalities(&mut self, first: usize, defined: &IdTable<ValueId, Option<usize>>) {
+        let end = self.facts.len();
+        for index in first..end {
+            let fact = &self.facts[index];
+            if let Proposition::Equal(ScalarTerm::Value { id, .. }, _) = &fact.proposition
+                && let Some(Some(definition)) = defined.get(*id)
+                && self.equations[*definition].0 == fact.proposition
+            {
+                continue;
+            }
+            if let Some((proposition, proof)) = integer_equality(&fact.proposition, &fact.proof) {
+                self.facts.push(Fact {
+                    proposition,
+                    proof,
+                    axiom: None,
+                });
+            }
+        }
     }
 
     fn add_literal(
@@ -352,6 +369,7 @@ impl Known {
             };
             let first = self.facts.len();
             flatten(&transported, proof, None, &mut self.facts);
+            self.integer_equalities(first, defined);
             for derived in first..self.facts.len() {
                 if let Some(value) = self.add_literal(derived, defined)
                     && let Some(users) = users.get_mut(value)
