@@ -100,8 +100,7 @@ impl DeferredProductSources {
                     })
             })
             .transpose()?;
-        let parsed = SourceInput(loaded.into_iter().collect())
-            .append(&mut storage.syntax_trees, &mut ParsingTimings(timings))?;
+        let parsed = parse_admitted(&mut storage, loaded.into_iter().collect(), timings)?;
         let discovered = inputs.discover(&parsed, &mut storage)?;
         storage.attach_parsed(parsed);
         let mut imports = ImportQueue::default();
@@ -222,8 +221,7 @@ impl DeferredProductSources {
                     })
             })
             .transpose()?;
-        let parsed = SourceInput(loaded.into_iter().collect())
-            .append(&mut storage.syntax_trees, &mut ParsingTimings(timings))?;
+        let parsed = parse_admitted(&mut storage, loaded.into_iter().collect(), timings)?;
         let discovered = inputs.discover(&parsed, &mut storage)?;
         storage.attach_parsed(parsed);
         let mut imports = ImportQueue::default();
@@ -415,8 +413,7 @@ impl ImmutableSourceParseCheckpoint {
         storage
             .sources
             .retain_product_dependency_scope(inputs.dependencies());
-        let parsed = SourceInput(loaded.into_iter().collect())
-            .append(&mut storage.syntax_trees, &mut ParsingTimings(timings))?;
+        let parsed = parse_admitted(storage, loaded.into_iter().collect(), timings)?;
         let (discovered, mut requests) = discover_package_imports(
             &parsed,
             &storage.syntax_trees,
@@ -676,10 +673,7 @@ impl ImmutableSourceParseCheckpoint {
                 .sources
                 .retain_product_dependency_scope(inputs.dependencies());
         }
-        let parsed = SourceInput(loaded.into_iter().collect()).append(
-            &mut source_storage.syntax_trees,
-            &mut ParsingTimings(timings),
-        )?;
+        let parsed = parse_admitted(&mut source_storage, loaded.into_iter().collect(), timings)?;
         let discovered = match package_inputs {
             Some(inputs) => {
                 discover_package_imports(
@@ -841,7 +835,7 @@ impl ImmutableSourceParseCheckpoint {
         storage.source_roots = Default::default();
         storage.resolved_imports.clear();
         let parsed =
-            SourceInput(loaded).append(&mut storage.syntax_trees, &mut ParsingTimings(timings))?;
+            parse_admitted(storage, loaded, timings)?;
         let (discovered, mut requests) = match package_inputs {
             Some(inputs) => discover_package_imports(
                 &parsed,
@@ -1162,10 +1156,7 @@ fn load_source_frontiers(
         {
             source_storage.syntax_trees.source_id = first.source_id;
         }
-        let parsed = SourceInput(admitted.into_iter().collect()).append(
-            &mut source_storage.syntax_trees,
-            &mut ParsingTimings(timings),
-        )?;
+        let parsed = parse_admitted(source_storage, admitted.into_iter().collect(), timings)?;
         let discovered = routing.discover(&parsed, source_storage, &mut retained_requests)?;
         imports.enqueue(discovered)?;
         source_storage.attach_parsed(parsed);
@@ -1340,6 +1331,22 @@ fn append_build_prelude(
 }
 
 struct ParsingTimings<'timings>(&'timings mut CompileTimings);
+
+/// Parses admitted sources into the storage's forest. A file discovery
+/// already parsed (`retained_unit`) adopts that parse when its bytes are
+/// unchanged, so selecting a logical module does not parse it a second time.
+fn parse_admitted(
+    storage: &mut SourceStorage,
+    admitted: source::LoadedSources,
+    timings: &mut CompileTimings,
+) -> Result<syntax_trees::ParsedSources, Vec<Diagnostic>> {
+    let owners = &storage.package_roots;
+    SourceInput(admitted).append_reusing(
+        &mut storage.syntax_trees,
+        &mut ParsingTimings(timings),
+        |source| crate::source::source_imports::retained_unit(owners, &source.path),
+    )
+}
 
 // Both ordinary assembly and a paused Build's Product query use the same
 // captured core declarations. Queueing a path grants no source authority:

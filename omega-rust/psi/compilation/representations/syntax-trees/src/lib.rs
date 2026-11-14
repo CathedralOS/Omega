@@ -192,6 +192,136 @@ pub(crate) mod equality {
 }
 pub use equality::SyntaxEquivalent;
 
+/*
+A unit parsed once for logical-module discovery is reused by source admission
+instead of being parsed again. Discovery parses each captured file into its own
+standalone page under private coordinates; admission assigns the file its
+checked source identity and a fresh page in the receiving forest. Every handle
+the page stores names the page by generation and every span names the source,
+so `SyntaxRebase` moves both before the receiving forest adopts the page.
+*/
+pub(crate) mod rebase {
+    use arena::{Handle, HandleSpan};
+    use source::{SourceId, SourceSpan};
+    use std::sync::Arc;
+
+    /// The private coordinates of a standalone unit page and the admitted
+    /// coordinates it moves to.
+    #[derive(Debug, Clone, Copy)]
+    pub struct PageRebase {
+        pub(crate) from_generation: u32,
+        pub(crate) generation: u32,
+        pub(crate) from_source: SourceId,
+        pub(crate) source: SourceId,
+    }
+
+    pub trait SyntaxRebase {
+        fn rebase(&mut self, rebase: &PageRebase);
+    }
+
+    impl<T> SyntaxRebase for Handle<T> {
+        fn rebase(&mut self, rebase: &PageRebase) {
+            if self.generation() == rebase.from_generation {
+                *self = Handle::from_parts(self.arena_index(), rebase.generation);
+            }
+        }
+    }
+    impl<T> SyntaxRebase for HandleSpan<T> {
+        fn rebase(&mut self, rebase: &PageRebase) {
+            let mut start = self.start();
+            start.rebase(rebase);
+            *self = HandleSpan::from_parts_or_empty(start, self.count());
+        }
+    }
+    impl SyntaxRebase for SourceId {
+        fn rebase(&mut self, rebase: &PageRebase) {
+            if *self == rebase.from_source {
+                *self = rebase.source;
+            }
+        }
+    }
+    impl SyntaxRebase for SourceSpan {
+        fn rebase(&mut self, rebase: &PageRebase) {
+            self.source_id.rebase(rebase);
+        }
+    }
+    impl<T: SyntaxRebase> SyntaxRebase for Vec<T> {
+        fn rebase(&mut self, rebase: &PageRebase) {
+            self.as_mut_slice().rebase(rebase);
+        }
+    }
+    impl<T: SyntaxRebase> SyntaxRebase for [T] {
+        fn rebase(&mut self, rebase: &PageRebase) {
+            self.iter_mut().for_each(|value| value.rebase(rebase));
+        }
+    }
+    impl<T: SyntaxRebase, const N: usize> SyntaxRebase for [T; N] {
+        fn rebase(&mut self, rebase: &PageRebase) {
+            self.as_mut_slice().rebase(rebase);
+        }
+    }
+    impl<T: SyntaxRebase> SyntaxRebase for Option<T> {
+        fn rebase(&mut self, rebase: &PageRebase) {
+            if let Some(value) = self {
+                value.rebase(rebase);
+            }
+        }
+    }
+    impl<T: SyntaxRebase + ?Sized> SyntaxRebase for Box<T> {
+        fn rebase(&mut self, rebase: &PageRebase) {
+            (**self).rebase(rebase);
+        }
+    }
+    impl<T: SyntaxRebase + Clone> SyntaxRebase for Arc<T> {
+        fn rebase(&mut self, rebase: &PageRebase) {
+            Arc::make_mut(self).rebase(rebase);
+        }
+    }
+    impl<A: SyntaxRebase, B: SyntaxRebase> SyntaxRebase for (A, B) {
+        fn rebase(&mut self, rebase: &PageRebase) {
+            self.0.rebase(rebase);
+            self.1.rebase(rebase);
+        }
+    }
+    macro_rules! coordinate_free {
+        ($($kind:ty),* $(,)?) => { $(impl SyntaxRebase for $kind {
+            fn rebase(&mut self, _: &PageRebase) {}
+        })* };
+    }
+    coordinate_free!(
+        bool,
+        usize,
+        u8,
+        u16,
+        u32,
+        u64,
+        i64,
+        String,
+        source::Span,
+        source::SourceBytes,
+        language_core::PatternComponent,
+        language_core::OperatorSpelling,
+        numerics::literals::FloatFormat,
+        numerics::literals::IntegerLiteral,
+        language_core::LocalBindingRole,
+        language_core::BindingRelevance,
+        language_core::DataSupplyMode,
+        language_core::CallOperationalAcknowledgement,
+        language_core::DomainPredicatePresence,
+        language_core::ReferenceAccess,
+        language_core::DomainClassification,
+        numerics::arithmetic::ArithmeticDomain,
+        language_core::inline_assembly::AsmTargetApplicability,
+        language_core::atomic::AtomicExpressionResultCustody,
+        language_core::atomic::AtomicOrderingPlan,
+        language_core::CarryPolicy,
+        language_core::CastForm,
+        language_core::constant_value::EvaluatedConstant,
+        language_core::Multiplicity,
+    );
+}
+pub use rebase::{PageRebase, SyntaxRebase};
+
 mod copies;
 pub(crate) use copies::item_copies;
 mod control_flow_and_names;
@@ -253,6 +383,17 @@ pub(crate) mod paged_roster {
                 $( self.$field.begin_page(generation); )*
                 $( self.$nested.begin_page(generation); )*
             }
+
+            pub(crate) fn rebase_page(
+                &mut self,
+                rebase: &crate::PageRebase,
+            ) -> Result<(), &'static str> {
+                $( self.$field.rebase_single_page(rebase.generation, |row| {
+                    crate::SyntaxRebase::rebase(row, rebase)
+                })?; )*
+                $( self.$nested.rebase_page(rebase)?; )*
+                Ok(())
+            }
         }
     };
 }
@@ -302,6 +443,23 @@ pub mod source_files {
     pub struct ParsedSources {
         pub sources: Arena<ParsedSource>,
         pub batch: HandleSpan<ParsedSource>,
+    }
+
+    /// One source parsed into its own standalone page under private
+    /// coordinates, retained so a later admission of the same bytes can adopt
+    /// it instead of parsing again (`SyntaxTrees::adopt_unit`).
+    #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+    pub struct ParsedUnit {
+        pub syntax: crate::SyntaxTrees,
+        pub source: Arc<str>,
+        pub root_items: Vec<ItemHandle>,
+        pub import_root_range: Range<usize>,
+    }
+
+    impl ParsedUnit {
+        pub fn root_items(&self) -> &[ItemHandle] {
+            &self.root_items
+        }
     }
 }
 #[cfg(test)]
@@ -1816,6 +1974,57 @@ impl SyntaxTrees {
         self.tables.begin_page(generation);
     }
 
+    /// Joins a copy of `unit` as a new page of this forest under the
+    /// admitted `source_id`, returning the unit's root items in this forest.
+    /// The copy is the parse of the same bytes this forest would have made:
+    /// only its page generation and source identity differ from the
+    /// retained unit, and both are moved before the page joins.
+    pub fn adopt_unit(
+        &mut self,
+        unit: &crate::source_files::ParsedUnit,
+        source_id: SourceId,
+    ) -> Result<Vec<ItemHandle>, &'static str> {
+        let generation = u32::try_from(self.page_count())
+            .ok()
+            .and_then(|count| count.checked_add(1))
+            .ok_or("syntax page identity overflow")?;
+        let mut page = unit.syntax.clone();
+        let mut root_items = unit.root_items.clone();
+        let rebase = page.rebase_unit(source_id, generation)?;
+        root_items.rebase(&rebase);
+        self.adopt_page(page);
+        Ok(root_items)
+    }
+
+    /// Moves a standalone single-page forest, parsed under private source
+    /// coordinates, to the admitted `source_id` and to `generation`, a page
+    /// the receiving forest has not used. A forest with more than one page,
+    /// or whose rows were rewritten after parsing, is refused.
+    fn rebase_unit(
+        &mut self,
+        source_id: SourceId,
+        generation: u32,
+    ) -> Result<PageRebase, &'static str> {
+        if self.page_count() != 1 {
+            return Err("only a standalone unit page can be rebased");
+        }
+        let rebase = PageRebase {
+            from_generation: self.items.first_generation(),
+            generation,
+            from_source: self.source_id,
+            source: source_id,
+        };
+        self.tables.items.rebase_page(&rebase)?;
+        self.tables.expressions.rebase_page(&rebase)?;
+        self.tables.statements.rebase_page(&rebase)?;
+        self.tables.type_references.rebase_page(&rebase)?;
+        self.roots.items.rebase(&rebase);
+        self.roots.constant_extent_probes.rebase(&rebase);
+        self.roots.mathematical_definitions.rebase(&rebase);
+        self.source_id = source_id;
+        Ok(rebase)
+    }
+
     pub fn page_count(&self) -> usize {
         self.tables.page_count()
     }
@@ -1939,7 +2148,7 @@ pub use language_core::operator_spelling;
 pub use names::identifier;
 pub use names::text_owner::{RetainedSource, SyntaxTextContext, SyntaxTextOwner};
 pub use snapshot::SyntaxTreesSnapshot;
-pub use source_files::{ParsedRootItems, ParsedSource, ParsedSources};
+pub use source_files::{ParsedRootItems, ParsedSource, ParsedSources, ParsedUnit};
 pub use type_system::types;
 pub use values::expression;
 pub use values::float_spelling::FloatSpelling;

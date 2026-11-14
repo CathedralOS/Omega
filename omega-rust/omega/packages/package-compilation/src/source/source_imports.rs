@@ -55,7 +55,7 @@ pub(crate) use generated::{
 };
 pub use generated::{GeneratedSourceExtension, admit_generated_extension};
 pub(crate) use import_queue::ImportQueue;
-pub(crate) use logical::LogicalSourceDiscovery;
+pub(crate) use logical::{LogicalSourceDiscovery, retained_unit};
 
 pub(crate) use package_selection::{
     ReconciledPackageImport, ReconciledPackageImportRequest, reconciled_package_import,
