@@ -1019,6 +1019,14 @@ fn append_default_build(
         catalogue,
     )?;
     let selection = BuildSourceSelection::compiler_default(admitted.source_id);
+    // A package with no Build-scope source of its own has parsed nothing
+    // yet, so the default Build is the first source of this cohort and its
+    // primary coordinate, as the first loaded source is in `load_imports`.
+    // Only the first package of a compilation gets coordinate zero by
+    // accident; a dependency without `build.omg` is admitted later.
+    if storage.source_roots.is_empty() {
+        storage.syntax_trees.source_id = admitted.source_id;
+    }
     let parsed = SourceInput([admitted].into_iter().collect())
         .append(&mut storage.syntax_trees, &mut ParsingTimings(timings))?;
     storage.attach_parsed(parsed);
@@ -1051,21 +1059,37 @@ fn append_build_prelude(
     let admitted = storage.admit_source(
         SourceContents {
             path: PathBuf::from(build_source::BUILD_PRELUDE_PATH),
-            source: Arc::from(prelude.source),
+            source: Arc::from(prelude.source.declarations),
             scope: source::DependencyScope::Build,
         },
         Some(SourceOrigin::Toolchain),
         SourceResolutionStratum::Base,
         catalogue,
     )?;
-    let bindings = prelude
+    let mut bindings: Vec<_> = prelude
         .alias_for
         .map(|build_source| {
             symbols::SourceScopedTopLevelBinding::new(build_source, admitted.source_id, "Build")
         })
         .into_iter()
         .collect();
-    let parsed = SourceInput([admitted].into_iter().collect())
+    let mut units = vec![admitted];
+    let mut namespaces = Vec::with_capacity(prelude.source.modules.len());
+    for (namespace, text) in prelude.source.modules {
+        let admitted = storage.admit_source(
+            SourceContents {
+                path: PathBuf::from(format!("<build-prelude:{namespace}>")),
+                source: Arc::from(text),
+                scope: source::DependencyScope::Build,
+            },
+            Some(SourceOrigin::Toolchain),
+            SourceResolutionStratum::Base,
+            catalogue,
+        )?;
+        namespaces.push((namespace, admitted.source_id));
+        units.push(admitted);
+    }
+    let parsed = SourceInput(units.into_iter().collect())
         .append(&mut storage.syntax_trees, &mut ParsingTimings(timings))?;
     let mut package_requests = Vec::new();
     let discovered = routing.discover(&parsed, storage, &mut package_requests)?;
@@ -1078,6 +1102,23 @@ fn append_build_prelude(
         return Err(vec![Diagnostic::error(
             "the toolchain Build prelude imports only core, and one of its imports selects a package",
         )]);
+    }
+    // Build's directly available vocabulary includes real code namespaces.
+    // Import their admitted source identities just as the loader does for an
+    // authored module, rather than making a same-spelled data type own helpers.
+    for file in storage
+        .sources
+        .selected_files()
+        .filter(|file| file.dependency_scope == source::DependencyScope::Build)
+    {
+        for &(namespace, declaration_source) in &namespaces {
+            bindings.push(symbols::SourceScopedTopLevelBinding::module_import(
+                file.source_id,
+                declaration_source,
+                namespace,
+                0,
+            ));
+        }
     }
     Ok(bindings)
 }
@@ -1274,6 +1315,28 @@ mod requirement_preparation_tests {
             .prepare(&mut psi_compiler::UnmeasuredProduction)
             .expect("exact declared requirement calls reach typed preparation");
         let typed = prepared.build_input().typed;
+        let unresolved: Vec<_> = typed
+            .deferred_refusals
+            .iter()
+            .filter(|row| {
+                row.request == typed_trees::deferred_refusals::DeferredRequest::UnresolvedCallTarget
+                    && sources.file_at(row.source_span).is_some_and(|file| {
+                        file.origin == SourceOrigin::Toolchain || file.path.ends_with("build.omg")
+                    })
+            })
+            .map(|row| {
+                (
+                    typed.symbols.display_path(row.declaration, "::"),
+                    sources.file_at(row.source_span).map(|file| &file.path),
+                    row.source_span,
+                    &row.detail,
+                )
+            })
+            .collect();
+        assert!(
+            unresolved.is_empty(),
+            "Build calls retain their declarations: {unresolved:?}"
+        );
         let mut occurrences = Vec::new();
         for (_, expression) in typed.expression_table.expression_entries() {
             let typed_trees::expression::ExpressionNode::Call(call) = expression else {

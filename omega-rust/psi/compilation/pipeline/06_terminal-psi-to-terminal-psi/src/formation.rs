@@ -53,20 +53,12 @@ impl ReplayScope<'_> {
         }
     }
 
-    pub(crate) fn infer_inputs(
-        &mut self,
-        knowledge: crate::Knowledge,
-        unreached: &mut crate::Unreached,
-    ) -> Checked<()> {
-        crate::entry_inputs::infer(self, knowledge, unreached)
+    pub(crate) fn infer_inputs(&mut self, unreached: &mut crate::Unreached) -> Checked<()> {
+        crate::entry_inputs::infer(self, unreached)
     }
 
-    pub(crate) fn infer_results(
-        &mut self,
-        knowledge: crate::Knowledge,
-        unreached: &mut crate::Unreached,
-    ) -> Checked<()> {
-        crate::result_summaries::infer(self, knowledge, unreached)
+    pub(crate) fn infer_results(&mut self, unreached: &mut crate::Unreached) -> Checked<()> {
+        crate::result_summaries::infer(self, unreached)
     }
 
     pub(crate) fn require(
@@ -97,6 +89,8 @@ impl ReplayScope<'_> {
         FormedModule<'_>,
         &semantic_vocabulary::IdTable<StructuralTypeId, Vec<Proposition>>,
         &mut terminal_check_tables::CheckTables,
+        &semantic_vocabulary::IdTable<MachineId, terminal_check_tables::program::MachineSources>,
+        &[MachineId],
     ) {
         (
             FormedModule {
@@ -104,6 +98,8 @@ impl ReplayScope<'_> {
             },
             &self.elaboration.domains,
             &mut self.elaboration.tables,
+            &self.elaboration.sources,
+            &self.elaboration.requirements,
         )
     }
 }
@@ -225,7 +221,6 @@ impl Scope<'_> {
             goal,
             &self.facts.premises,
             &self.facts.equations,
-            true,
             &[],
         )
         .map_err(BindingError::Unproved)?;

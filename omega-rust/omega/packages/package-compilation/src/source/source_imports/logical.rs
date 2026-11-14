@@ -3,8 +3,8 @@
 //! Discovery uses the normal parser in a separate syntax forest. Its coordinates
 //! and declarations never join a checked source cohort: the selected paths go
 //! through the ordinary scope, owner and stratum admission afterwards. This cache
-//! records module membership and operator declaration units, not visibility or
-//! declaration resolution.
+//! records module membership, operator declaration units and the names each
+//! unit declares at its top level, not visibility or declaration resolution.
 
 use super::frontier::RegisteredPackageRoot;
 use diagnostics::Diagnostic;
@@ -25,6 +25,8 @@ struct LogicalSourceUnit {
     path: PathBuf,
     module: Vec<String>,
     declares_operator_family: bool,
+    /// The first name of every top-level declaration, in authored order.
+    declared: Vec<String>,
 }
 
 pub(crate) trait LogicalSourceDiscovery {
@@ -37,6 +39,25 @@ pub(crate) trait LogicalSourceDiscovery {
         self.select_owned(root, logical_path, filesystem, Vec::new())
     }
     fn select_owned(
+        &mut self,
+        root: &Path,
+        logical_path: &[String],
+        filesystem: &SourceFileSystem,
+        excluded_roots: Vec<PathBuf>,
+    ) -> Result<Vec<PathBuf>, Vec<Diagnostic>>;
+    /// The units a Build source's import of `logical_path` selects in the
+    /// package at `root`: the modules the path names or lies under, and the
+    /// module that declares the path's next name. Nothing else is acquired,
+    /// so an import that names no declaration of this package selects no
+    /// unit and stays deferred (`wiki/spec/language/modules.md`, "Names and
+    /// imports": "A logical `use dependency;` may remain deferred").
+    ///
+    /// `select_owned` instead acquires every enclosing namespace. That is
+    /// what a Product source needs, whose module siblings are loaded anyway.
+    /// A Build source has no such siblings: acquiring the package's module-less
+    /// Product units for a dependency name would check them in the Build
+    /// context, where their Product imports mean nothing.
+    fn select_declaring(
         &mut self,
         root: &Path,
         logical_path: &[String],
@@ -69,6 +90,37 @@ impl LogicalSourceDiscovery for Vec<RegisteredPackageRoot> {
             .iter()
             .filter(|unit| {
                 logical_path.starts_with(&unit.module) || unit.module.starts_with(logical_path)
+            })
+            .map(|unit| unit.path.clone())
+            .collect())
+    }
+    fn select_declaring(
+        &mut self,
+        root: &Path,
+        logical_path: &[String],
+        filesystem: &SourceFileSystem,
+        excluded_roots: Vec<PathBuf>,
+    ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
+        let inventory = owner_inventory(self, root, filesystem, excluded_roots)?;
+        let declares = |unit: &LogicalSourceUnit| {
+            logical_path.starts_with(&unit.module)
+                && logical_path
+                    .get(unit.module.len())
+                    .is_some_and(|name| unit.declared.contains(name))
+        };
+        // Every unit of a declaring module is selected: its declarations may
+        // name one another across files.
+        let declaring = inventory
+            .units
+            .iter()
+            .filter(|unit| declares(unit))
+            .map(|unit| unit.module.as_slice())
+            .collect::<Vec<_>>();
+        Ok(inventory
+            .units
+            .iter()
+            .filter(|unit| {
+                unit.module.starts_with(logical_path) || declaring.contains(&unit.module.as_slice())
             })
             .map(|unit| unit.path.clone())
             .collect())
@@ -197,7 +249,9 @@ impl LogicalSourceInventory {
         for unit in parsed.sources.span_or_empty(parsed.batch) {
             let mut module = None;
             let mut declares_operator_family = false;
+            let mut declared = Vec::new();
             for item in &unit.root_items {
+                declared.extend(declared_names(&syntax, syntax.root_item(*item)));
                 if matches!(syntax.root_item(*item), Item::Machine(machine) if machine.spelling.is_some())
                 {
                     declares_operator_family = true;
@@ -223,9 +277,43 @@ impl LogicalSourceInventory {
                 path: unit.path.clone(),
                 module: module.unwrap_or_default(),
                 declares_operator_family,
+                declared,
             });
         }
         Ok(result)
+    }
+}
+
+/// The names an import path can start with to select `item`: its own name,
+/// and for a machine attached to a data type, that type.
+fn declared_names(syntax: &SyntaxTrees, item: &Item) -> Vec<String> {
+    let first = |name: &syntax_trees::identifier::Identifier| {
+        let text = name.as_str(syntax);
+        text.split("::").next().unwrap_or(text).to_owned()
+    };
+    let path = |members| {
+        syntax
+            .items
+            .identifier_path_members(members)
+            .first()
+            .map(first)
+    };
+    match item {
+        Item::Capability(definition) => vec![first(&definition.name)],
+        Item::Conformance(conformance) => conformance.alias.iter().map(first).collect(),
+        Item::Const(definition) => vec![first(&definition.name)],
+        Item::Data(definition) => vec![first(&definition.name)],
+        Item::Domain(definition) => vec![first(&definition.name)],
+        Item::Measure(definition) => path(definition.name).into_iter().collect(),
+        Item::Operator(definition) => path(definition.name).into_iter().collect(),
+        Item::Proposition(definition) => vec![first(&definition.name)],
+        Item::Machine(machine) => match &machine.attached_data {
+            Some(owner) => vec![first(owner)],
+            None => vec![first(&machine.name)],
+        },
+        Item::Trait(definition) => vec![first(&definition.name)],
+        Item::TypeAlias(definition) => vec![first(&definition.name)],
+        Item::Module(_) | Item::Package(_) | Item::Use(_) => Vec::new(),
     }
 }
 
@@ -303,6 +391,59 @@ mod tests {
                 )
                 .unwrap()
                 .contains(&capture_root().join("renamed.omg"))
+        );
+    }
+
+    /// What a Build source's import acquires in its own package. The first
+    /// two paths name a dependency, which this package declares nothing of:
+    /// they select no unit, so the import can wait for that dependency. The
+    /// rest name a declaration or a module of the package and select the
+    /// module that holds it, never the unrelated module-less units.
+    #[test]
+    fn a_build_import_selects_only_the_module_that_declares_its_name() {
+        let filesystem = captured(&[
+            ("main.omg", "public machine entry() -> u8 { 7 }"),
+            ("other.omg", "machine helper() -> u8 { 7 }"),
+            (
+                "support.omg",
+                "module build_support; public machine generated() -> u8 { 7 }",
+            ),
+            (
+                "tables.omg",
+                "module build_support::tables; public data Table {}",
+            ),
+        ]);
+        let root = &capture_root();
+        let mut owners = Vec::<RegisteredPackageRoot>::new();
+        let mut select = |path: &[&str]| {
+            let path = path
+                .iter()
+                .map(|name| (*name).to_owned())
+                .collect::<Vec<_>>();
+            owners
+                .select_declaring(root, &path, &filesystem, Vec::new())
+                .unwrap()
+        };
+        assert!(select(&["kit"]).is_empty());
+        assert!(select(&["kit", "v"]).is_empty());
+        assert_eq!(
+            select(&["helper"]),
+            ["main.omg", "other.omg"].map(|path| root.join(path)),
+            "one module-less unit declares the name, so its whole module is selected"
+        );
+        assert_eq!(
+            select(&["build_support"]),
+            ["support.omg", "tables.omg"].map(|path| root.join(path))
+        );
+        assert_eq!(
+            select(&["build_support", "generated"]),
+            [root.join("support.omg")]
+        );
+        // The twin: the acquisition a Product source gets takes every
+        // enclosing namespace, the module-less units included.
+        assert_eq!(
+            owners.select(root, &["kit".into()], &filesystem).unwrap(),
+            ["main.omg", "other.omg"].map(|path| root.join(path))
         );
     }
 

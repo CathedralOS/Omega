@@ -287,8 +287,14 @@ impl ProductQueryInputs {
                         }
                         ReconciledPackageImport::Package(request) => {
                             let prefix = members.len() - request.relative_path.components().count();
-                            let paths =
-                                request.logical_sources(inputs, &mut storage.package_roots)?;
+                            let paths = request.logical_sources(
+                                inputs,
+                                &mut storage.package_roots,
+                                authored.scope,
+                            )?;
+                            if paths.is_empty() && request.defers_in(authored.scope) {
+                                continue;
+                            }
                             (request.expected_root, paths, prefix)
                         }
                     }
@@ -335,10 +341,26 @@ impl ProductQueryInputs {
                         .iter()
                         .map(|name| name.as_str(syntax).to_owned())
                         .collect::<Vec<_>>();
-                    let paths =
+                    // The Build sources of the unbound root keep their
+                    // deferred imports while a query is answered.
+                    let own_build_import = authored.scope == source::DependencyScope::Build
+                        && prefix == 0
+                        && root == storage.default_package_root();
+                    let paths = if own_build_import {
+                        storage.package_roots.select_declaring(
+                            &root,
+                            &logical,
+                            &storage.filesystem,
+                            Vec::new(),
+                        )?
+                    } else {
                         storage
                             .package_roots
-                            .select(&root, &logical, &storage.filesystem)?;
+                            .select(&root, &logical, &storage.filesystem)?
+                    };
+                    if paths.is_empty() && own_build_import {
+                        continue;
+                    }
                     (root, paths, prefix)
                 };
                 if paths.is_empty() {

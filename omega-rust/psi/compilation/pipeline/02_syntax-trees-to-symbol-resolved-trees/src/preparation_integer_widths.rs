@@ -51,7 +51,7 @@ enum Width {
     Unevaluated,
 }
 
-pub(crate) fn normalize(syntax: &mut SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
+pub(crate) fn normalize(syntax: &mut SyntaxTrees) -> Result<Vec<FixedInteger>, Vec<Diagnostic>> {
     let applications = syntax
         .type_references
         .iter_type_references()
@@ -69,7 +69,7 @@ pub(crate) fn normalize(syntax: &mut SyntaxTrees) -> Result<(), Vec<Diagnostic>>
         })
         .collect::<Vec<_>>();
     if applications.is_empty() {
-        return Ok(());
+        return Ok(Vec::new());
     }
     /* A name is a const argument that resolution reads in its lexical scope. */
     let width_of = |name: &Identifier| -> Result<Width, Diagnostic> {
@@ -165,13 +165,14 @@ pub(crate) fn normalize(syntax: &mut SyntaxTrees) -> Result<(), Vec<Diagnostic>>
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
+    let carriers = rewrites.iter().map(|(_, carrier, _)| *carrier).collect();
     for (handle, carrier, head) in rewrites {
         syntax.type_references.replace_type_reference(
             handle,
             TypeReferenceNode::Named(Identifier::new(carrier.to_string(), head)),
         );
     }
-    Ok(())
+    Ok(carriers)
 }
 
 #[cfg(test)]

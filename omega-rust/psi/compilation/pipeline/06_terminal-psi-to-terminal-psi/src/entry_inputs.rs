@@ -30,8 +30,8 @@ use terminal_check_tables::{
 use terminal_psi::{OperationKind, TerminalMachine, Terminator};
 
 use crate::{
-    Bindings, Knowledge, Unbound, graph::Graph, joins, prepare, refusal, scalar_actuals,
-    substitute, terminal_machine,
+    Bindings, Unbound, graph::Graph, joins, prepare, refusal, scalar_actuals, substitute,
+    terminal_machine,
 };
 
 /// Callers precede helpers. The lowering of terminal call components already
@@ -39,7 +39,6 @@ use crate::{
 /// here supplies no inferred condition and still faces ordinary discharge.
 pub(crate) fn infer(
     scope: &mut crate::ReplayScope<'_>,
-    knowledge: Knowledge,
     unreached: &mut crate::Unreached,
 ) -> Checked<()> {
     let elaboration = scope.source();
@@ -72,7 +71,7 @@ pub(crate) fn infer(
                 }
             }
         }
-        describe_calls(scope, id, knowledge, &sites, &mut incoming, unreached)?;
+        describe_calls(scope, id, &sites, &mut incoming, unreached)?;
         for &site in terminal_check_tables::row(&sites.outgoing, id, id, Construct::Machine)? {
             let callee = sites.arrivals[site].callee;
             let remaining = machine_row_mut(&mut waiting, callee, id)?;
@@ -88,7 +87,6 @@ pub(crate) fn infer(
 fn describe_calls(
     scope: &crate::ReplayScope<'_>,
     id: MachineId,
-    knowledge: Knowledge,
     sites: &CallSites,
     incoming: &mut IdTable<MachineId, Vec<Proposition>>,
     unreached: &mut crate::Unreached,
@@ -103,13 +101,7 @@ fn describe_calls(
     // One caller's construction scratch; the final evidence tables remain
     // untouched. No typed trees or completed proof products are copied.
     let mut tables = original.clone();
-    let prepared = prepare(
-        scope.formed(),
-        &elaboration.domains,
-        id,
-        &mut tables,
-        knowledge,
-    )?;
+    let prepared = prepare(scope.formed(), &elaboration.domains, id, &mut tables)?;
     let lowered = terminal_machine(&elaboration.module.machines, id, id)?;
     let declared = joins::prepare(
         lowered,
@@ -118,7 +110,6 @@ fn describe_calls(
         &prepared.graph,
         &prepared.context,
         &elaboration.module.scalar_block_invariants,
-        knowledge == Knowledge::All,
     )?;
     let references = prepared.references(&elaboration.module.structural_types);
     let storage = crate::places::Storage::new(
@@ -135,7 +126,6 @@ fn describe_calls(
         .map(|_| None)
         .collect::<Vec<_>>();
     let beyond = unreached.values(lowered, &tables);
-    let relations = knowledge != Knowledge::LiteralIntervals;
     joins::check(
         &joins::Machine {
             module: &elaboration.module,
@@ -145,7 +135,6 @@ fn describe_calls(
             types: &prepared.types,
             graph: &prepared.graph,
             context: &prepared.context,
-            relations,
             declared: &declared,
             unreached: &beyond,
         },
@@ -193,7 +182,6 @@ fn describe_calls(
             id,
             site.before,
             &crossing,
-            relations,
             &beyond,
         )?;
         // What the helper learns of such a formal describes an operation
@@ -392,7 +380,6 @@ fn derived(
     id: MachineId,
     point: ProgramPoint,
     crossing: &[(ScalarTerm, ValueId)],
-    relations: bool,
     beyond: &[ValueId],
 ) -> Checked<Derived> {
     let mut assumptions = Vec::new();
@@ -412,8 +399,7 @@ fn derived(
             }
         }
     }
-    let mut prover =
-        crate::prove::Prover::new(context, &assumptions, &axioms, &tables.values, relations);
+    let mut prover = crate::prove::Prover::new(context, &assumptions, &axioms, &tables.values);
     let mut found = Derived {
         bounds: Vec::new(),
         unreached: Vec::new(),

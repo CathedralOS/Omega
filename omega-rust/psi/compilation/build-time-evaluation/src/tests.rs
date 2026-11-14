@@ -783,7 +783,7 @@ fn constant_dependencies_are_evaluated_before_their_callers() {
     let value = typed_trees::canonical_const_declaration_value(&program, last.symbol).unwrap();
     assert!(matches!(
         value.decode_encoding(),
-        Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer { value: 5, .. })
+        Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer { value, .. }) if value == numerics::bignum::BigInt::from(5)
     ));
     let extra = program
         .const_declarations()
@@ -793,7 +793,7 @@ fn constant_dependencies_are_evaluated_before_their_callers() {
     let value = typed_trees::canonical_const_declaration_value(&program, extra.symbol).unwrap();
     assert!(matches!(
         value.decode_encoding(),
-        Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer { value: 6, .. })
+        Some(language_semantics::const_value::DecodedCanonicalConstValue::Integer { value, .. }) if value == numerics::bignum::BigInt::from(6)
     ));
 }
 
@@ -842,9 +842,12 @@ fn a_constant_receipt_cannot_be_swapped_rewritten_or_reused_after_source_changes
         .const_declarations
         .get_mut(handles[0])
         .evaluated_value = Some(
-        language_semantics::const_value::CanonicalConstIdentity::integer("u64", 99)
-            .encoding
-            .into(),
+        language_semantics::const_value::CanonicalConstIdentity::integer(
+            numerics::literals::LandedIntegerType::U64,
+            99,
+        )
+        .encoding
+        .into(),
     );
     assert!(
         crate::validate_constant_evaluations(&changed, &recorded.accounting)
@@ -1006,7 +1009,7 @@ fn constant_snapshots_preserve_boolean_and_unsigned_high_bits() {
             ),
             "HIGH" => assert!(
                 matches!(value, language_semantics::const_value::DecodedCanonicalConstValue::Integer { value, .. }
-                if value == i128::from(u64::MAX))
+                if value == numerics::bignum::BigInt::from(u64::MAX))
             ),
             _ => panic!("only authored constants are inspected"),
         }
@@ -1397,4 +1400,198 @@ fn shared_account_joins_retain_one_record_per_actual_invocation() {
         );
     }
     accounting.validate_charges().unwrap();
+}
+
+/// A program whose data type `Storage` holds a `Buffer<{argument}>`, with
+/// `leaf` returning `{leaf}`. `outer` reads `leaf` through a type applied at
+/// `leaf()`, so evaluating `outer()` waits for that application. `demanded`
+/// names `Storage`; `main` names none of it.
+fn const_argument_program(declarations: &str, leaf: &str, argument: &str) -> String {
+    format!(
+        "data Buffer<const Capacity: u64> {{ slots: [u8; Capacity]; }}
+        data Storage {{ buffer: Buffer<{argument}>; }}
+        {declarations}
+        machine leaf() -> u64 {{ {leaf} }}
+        machine outer() -> u64 {{ let buffer: Buffer<leaf()>; leaf() }}
+        machine demanded(storage: &Storage) -> u64 {{ 0u64 }}
+        machine main() -> u64 {{ 0u64 }}"
+    )
+}
+
+/// Types `text`, records its evaluation requests on their declarations, and
+/// evaluates the const arguments the machine `entry` demands.
+fn evaluate_const_arguments_of(
+    text: &str,
+    entry: &str,
+) -> (
+    typed_trees::TypedTrees,
+    crate::SourceCompletionAccounting,
+    Result<(), Vec<diagnostics::Diagnostic>>,
+) {
+    let (_, _, base, pending) = constant_base(&[("main.omg", text)]);
+    let mut program = base.typed().clone();
+    pending.evaluate_or_defer_recorded(&mut program).unwrap();
+    let entry = program.realized_machine_named(entry).unwrap().symbol;
+    let mut accounting = crate::SourceCompletionAccounting::default();
+    let result = crate::evaluate_const_arguments(
+        &mut program,
+        psi_terminal_production::TerminalSourceCompilation {
+            declaration_metadata: &[],
+            entries: &[entry],
+            subjects: &[],
+            purpose: source::DependencyScope::Product,
+            selected: &[],
+            bindings: &[],
+            supplies: &[],
+        },
+        None,
+        None,
+        &mut accounting,
+    );
+    (program, accounting, result)
+}
+
+/// The applications of `Buffer` written in the source, each with its one
+/// argument.
+fn buffer_applications(
+    program: &typed_trees::TypedTrees,
+) -> Vec<(
+    typed_trees::types::TypeReferenceHandle,
+    typed_trees::types::TypeReferenceHandle,
+)> {
+    use typed_trees::types::TypeReferenceNode;
+    let buffer = program
+        .data_definition_by_name_str("Buffer")
+        .expect("the Buffer declaration")
+        .symbol;
+    program
+        .type_reference_table
+        .type_reference_rows()
+        .filter_map(|(reference, node)| match node {
+            TypeReferenceNode::Generic {
+                base_symbol,
+                arguments,
+                ..
+            } if *base_symbol == buffer => Some((
+                reference,
+                program
+                    .type_reference_table
+                    .type_reference_handles(*arguments)[0],
+            )),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn a_const_argument_written_as_a_call_becomes_the_literal_of_its_value() {
+    use typed_trees::data::DataMember;
+    use typed_trees::types::{FixedArrayLength, TypeReferenceNode};
+    let text = const_argument_program("", "4u64", "outer()");
+    let (program, accounting, result) = evaluate_const_arguments_of(&text, "demanded");
+    result.unwrap();
+    // One invocation per argument: `leaf()` for the type in `outer`, then
+    // `outer()`, which reads that type.
+    assert_eq!(accounting.receipts().len(), 2);
+    accounting.validate_charges().unwrap();
+    let applications = buffer_applications(&program);
+    assert_eq!(applications.len(), 2);
+    for (application, argument) in applications {
+        // The argument is the node typing writes for the literal `4`.
+        assert!(
+            matches!(
+                program.type_reference_table.type_reference(argument),
+                TypeReferenceNode::Named { symbol, name }
+                    if !symbol.is_valid() && name.as_str() == "4"
+            ),
+            "{:?}",
+            program.type_reference_table.type_reference(argument)
+        );
+        // And the applied type is closed, with an array of four bytes.
+        let view = program
+            .closed_data_definition(application)
+            .expect("a closed application");
+        let [DataMember::Field(slots)] = program.data_members(view) else {
+            panic!("the one field")
+        };
+        assert!(matches!(
+            program
+                .type_reference_table
+                .type_reference(slots.type_reference),
+            TypeReferenceNode::FixedArray {
+                length: FixedArrayLength::Literal(4),
+                ..
+            }
+        ));
+    }
+    // Neither holder is refused any more for an unevaluated type.
+    for holder in [
+        program
+            .data_definition_by_name_str("Storage")
+            .unwrap()
+            .symbol,
+        program.realized_machine_named("outer").unwrap().symbol,
+    ] {
+        assert!(program.deferred_refusal(holder).is_none());
+    }
+}
+
+#[test]
+fn a_const_argument_no_demanded_declaration_holds_is_left_as_written() {
+    use typed_trees::types::TypeReferenceNode;
+    let text = const_argument_program("", "4u64", "outer()");
+    let (program, accounting, result) = evaluate_const_arguments_of(&text, "main");
+    result.unwrap();
+    assert!(accounting.receipts().is_empty());
+    for (_, argument) in buffer_applications(&program) {
+        assert!(matches!(
+            program.type_reference_table.type_reference(argument),
+            TypeReferenceNode::ConstExpression(_)
+        ));
+    }
+    // Its holder keeps the refusal a reader raises if it is demanded later.
+    let storage = program
+        .data_definition_by_name_str("Storage")
+        .unwrap()
+        .symbol;
+    assert!(program.deferred_refusal(storage).is_some());
+}
+
+#[test]
+fn a_const_argument_call_that_cannot_be_an_argument_is_an_error_at_the_call() {
+    for (declarations, argument, expected) in [
+        // A negative value is no array length.
+        (
+            "data Signed<const Capacity: i64> { slots: [u8; Capacity]; }
+             data Below { buffer: Signed<below()>; }
+             machine below() -> i64 { 0i64 - 1i64 }
+             machine reads(below: &Below) -> u64 { 0u64 }",
+            "outer()",
+            &["an applied array length is not a closed nonnegative integer"][..],
+        ),
+        // A machine that reaches a runtime service has no compile-time value.
+        (
+            "boundary trait Clock { machine now() -> u64 reaches none crashes none; }
+             machine observed() -> u64 reaches Clock { Clock::now() }
+             machine reads(storage: &Storage) -> u64 { 0u64 }",
+            "observed()",
+            &["target", "service", "reach"][..],
+        ),
+        // A value computed through the type it is an argument of.
+        (
+            "machine own() -> u64 { let buffer: Buffer<own()>; 4u64 }
+             machine reads(storage: &Storage) -> u64 { own() }",
+            "outer()",
+            &["has no first step"][..],
+        ),
+    ] {
+        let text = const_argument_program(declarations, "4u64", argument);
+        let (_, _, result) = evaluate_const_arguments_of(&text, "reads");
+        let diagnostic = diagnostics::join_messages(&result.unwrap_err());
+        assert!(
+            diagnostic.contains("const argument for `Capacity` of")
+                && expected.iter().any(|part| diagnostic.contains(part)),
+            "{diagnostic}"
+        );
+    }
 }

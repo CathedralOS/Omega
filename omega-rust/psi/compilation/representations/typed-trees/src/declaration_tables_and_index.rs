@@ -2836,6 +2836,21 @@ pub(crate) mod declaration_tables {
             };
         }
 
+        /// Drops the view retained for `application`, so the next
+        /// preparation forms it again from the application's arguments as
+        /// they now are. Only for an argument whose value arrived after the
+        /// view was formed (`settle_const_argument`).
+        pub(crate) fn forget_data_application_definition(
+            &mut self,
+            application: TypeReferenceHandle,
+        ) {
+            if self.data_application_definition(application).is_some() {
+                let row = Handle::from_parts(application.arena_index(), application.generation());
+                *self.tables.data_application_definitions.get_mut(row) =
+                    crate::DataApplicationView::default();
+            }
+        }
+
         pub fn data_application_definition(
             &self,
             application: TypeReferenceHandle,

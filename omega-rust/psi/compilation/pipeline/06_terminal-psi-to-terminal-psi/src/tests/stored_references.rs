@@ -395,3 +395,112 @@ machine build_entry(cell: &Cell) {{
         "{strengthened}"
     );
 }
+
+/// A whole data value is stored through the stored reference: a case of a
+/// sum field of the referent, as a Build writes `configuration.builder.
+/// subsystem = Subsystem::Unspecified { .. }`. The entry traps unless the
+/// cell it lent holds the new case with its payload and its scalar
+/// neighbour is untouched.
+#[test]
+fn a_data_value_is_stored_through_a_stored_reference() {
+    let status = run(r#"
+data Mode [copy] { case Idle; case Busy(level: u64); }
+data Engine { mode: Mode; count: u64; }
+data Holder<'storage> { engine: &'storage mut Engine; }
+machine start(holder: &mut Holder) { holder.engine.mode = Mode::Busy { level: 7 }; }
+machine entry() crashes Trap {
+    let mut engine: Engine = Engine { mode: Mode::Idle, count: 3 };
+    let mut holder: Holder = Holder { engine: &mut engine };
+    start(&mut holder);
+    transition engine.mode {
+        Mode::Busy { level } -> check(level, engine.count)
+        Mode::Idle -> bad()
+    }
+    machine check(level: u64, count: u64) crashes Trap {
+        transition level == 7 && count == 3 {
+            true -> done()
+            false -> bad()
+        }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+"#);
+    assert_eq!(
+        status,
+        Ok(terminal_interpreter::TerminalExecutionStatus::Complete(
+            terminal_interpreter::TerminalExecutionResult::Unit
+        ))
+    );
+}
+
+/// Data that itself holds a view, behind a reference a record holds, as
+/// `Configuration` holds the `Build`. The view is what makes the referent's
+/// storage something a helper's summary describes: `update` returns with
+/// `holder.named.name` holding what it held on entry.
+const NAMED: &str = r#"
+data Named<'name> { name: &'name [u8]; value: u64; }
+data Holder<'storage, 'name> { named: &'storage mut Named<'name>; }
+machine update(holder: &mut Holder, incoming: u64) { holder.named.value = incoming; }
+"#;
+
+/// A helper that was lent the record and kept every view behind its
+/// reference where it was does not keep the reference's loan alive: once the
+/// record is no longer used, the lent storage is the lender's again.
+/// ownership.md, "Borrows and aliases": "A loan held by a local closes after
+/// the last use of that local and of every loan derived from it, not at the
+/// end of the enclosing block". The entry traps unless the helper's 41 was
+/// stored first and the direct 7 after it.
+#[test]
+fn a_helper_that_keeps_the_views_it_was_lent_does_not_extend_the_loan() {
+    let program = |expected: u64| {
+        format!(
+            r#"{NAMED}
+machine journey(named: &mut Named) -> bool {{
+    let mut holder: Holder = Holder {{ named: named }};
+    update(&mut holder, 41);
+    let observed: bool = holder.named.value == 41;
+    named.value = 7;
+    observed
+}}
+machine entry() crashes Trap {{
+    let mut named: Named = Named {{ name: "abc", value: 5 }};
+    transition journey(&mut named) && named.value == {expected} {{
+        true -> done()
+        false -> bad()
+    }}
+    machine done() {{}}
+    machine bad() {{ crash Trap; }}
+}}
+"#
+        )
+    };
+    let complete = terminal_interpreter::TerminalExecutionStatus::Complete(
+        terminal_interpreter::TerminalExecutionResult::Unit,
+    );
+    assert_eq!(run(&program(7)), Ok(complete.clone()));
+    // The oracle is live: expecting the helper's value traps.
+    let stale = run(&program(41)).unwrap();
+    assert_ne!(stale, complete, "{stale:?}");
+}
+
+/// The twin: the same write while the record is still used afterwards is a
+/// conflict (loans.md: a mutable child suspends that branch of its parent
+/// until the child's lineage closes).
+#[test]
+fn a_write_between_two_uses_of_the_lent_record_is_still_a_conflict() {
+    let verdict = verdict(&format!(
+        r#"{NAMED}
+machine build_entry(named: &mut Named) {{
+    let mut holder: Holder = Holder {{ named: named }};
+    update(&mut holder, 41);
+    named.value = 7;
+    update(&mut holder, 73);
+}}
+"#
+    ));
+    assert!(
+        verdict.starts_with("rejected") && verdict.contains("1 conflicts"),
+        "{verdict}"
+    );
+}

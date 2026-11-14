@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### The checker ends a stored reference at its last use; the interpreter keeps it until its record dies
+- Category: a verdict with nothing behind it
+- Where: checker loan closure in [06 places/loans.rs](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/places/loans.rs); interpreter transfer check `owned value cannot transfer while its storage is borrowed` in `omega-rust/psi/interpreter/terminal-interpreter`
+- Saw: `let mut holder: Holder = Holder { engine: &mut engine }; start(&mut holder); transition engine.mode { ... }` with a `Mode` that is not `[copy]` is accepted and published, then the dispatch's `MoveStructuralValue` traps in the Psi interpreter: the record is not used again, but its reference is still registered at run time. The same program with `Mode [copy]` runs (`06_terminal-psi-to-terminal-psi/src/tests/stored_references.rs`, `a_data_value_is_stored_through_a_stored_reference`)
+- Cost: an accepted program fails when run; either lowering must release a reference carrier where the checker closes its loan, or the checker must keep the loan to the carrier's end
+- Reported: 2026-11-14, Claude Code (worker-8), while storing a data value through a stored reference
+
 ### Derived-index freshness keys omit storage and roster identity
 - Category: a verdict with nothing behind it
 - Where: [call-target index key](omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs#L1880), [roster marker](omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs#L1377), [structural fingerprint](omega-rust/psi/compilation/representations/typed-trees/src/declaration_tables_and_index.rs#L1561), [index reuse](omega-rust/psi/foundation/arena/src/owned_index.rs#L60)
@@ -80,18 +87,11 @@ framework or a list of features that remain unimplemented.
 - Cost: The freshness contract can reuse a derived answer without identifying all of its inputs, while also rebuilding for irrelevant mutations. Give each index exact dependency stamps: relevant storage identities, complete roster handles and mutation epochs, or encapsulated mutation with explicit invalidation. Do not merely hash the existing incomplete inputs. Acceptance warms an index, replaces relevant storage at matching counts/revisions, changes generations and makes same-length edits, then compares against a cold rebuild; unrelated body edits must not rebuild signature-only indexes. Establish the affected production mutation routes before claiming a compiler misjudgment; none was demonstrated by this source audit.
 - Reported: 2026-11-14, Codex, while reconciling the peer audit against `3b0ad89c1fd47`
 
-### Advisory branch warnings rerun proof search to minimize their explanations
-- Category: re-deriving
-- Where: [ordinary discharge invokes warnings](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs#L859), [branch analysis](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs#L889), [premise-removal proof loop](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs#L953), [warning contract](wiki/spec/language/state_contracts.md#unreachable-branches)
-- Saw: `impossible_arms` probes contradiction before a branch and at its arm entry. After finding a kernel-accepted refutation, `refuted` tries removing each assumption, cloning the remaining propositions and creating a fresh prover/kernel check each time. Sibling arms can repeat the same pre-branch query. These results are explicitly advisory. The spec requires the warning and conflicting-premise provenance, not a greedily minimized premise set.
-- Cost: Ordinary checking pays repeated proof search for presentation quality after a sufficient contradiction already exists. Retain the premises actually used by the accepted proof; reserve additional minimization for requested detailed explanations where useful. Reuse identical point/context refutations within the analysis, without a persistent cache. Preserve default warnings, source locations, specialization exclusions and the rule against reporting a later branch for an already-impossible arrival. Acceptance counts prover calls with many irrelevant premises and sibling arms: ordinary explanations must not rerun search once per premise, and detailed inspection must not change source acceptance or consume an obligation's proof allowance.
-- Reported: 2026-11-14, Codex, while reconciling the peer audit against `3b0ad89c1fd47`; source/spec inspection, not a timing result
-
 ### Proof preparation copies complete derivations before knowing which facts are needed
 - Category: re-deriving
-- Where: [conjunction expansion](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/known.rs#L57), [fact preparation](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/known.rs#L136), [owned proof trees](omega-rust/psi/compilation/representations/terminal-psi/src/artifacts.rs#L393), [verdict settlement](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs#L695)
-- Saw: `Known::new` constructs proofs for every assumption/axiom. For each conjunct, `flatten` embeds `Box::new(proof.clone())`; `ProofNode` owns its conclusion and recursive children, so this copies their payload. The equation list clones selected facts/proofs again. A wide conjunction can therefore retain its whole parent proposition in every leaf proof. Completed certificate-bearing verdicts are then cloned from `decided` into `verdicts` and from there into `settled`.
-- Cost: Available but unused facts create potentially quadratic certificate payload, and successful discharge duplicates it again. First move completed verdicts after their last dependency read, preserving published guarantees and invariant-window settlement. Separately retain compact proof origins during search (assumption/axiom plus conjunct path, or shared derivation nodes), materializing only selected certificates for kernel checking/publication. A portable proof-format change is not required. Acceptance measures allocations/retained bytes for wide and nested conjunctions with few used facts, checks selected certificates independently under the same assumptions, and preserves specified logical proof accounting; physical sharing must not silently change proof-budget semantics.
+- Where: [conjunction expansion](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/known.rs#L57), [fact preparation](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/known.rs#L136), [owned proof trees](omega-rust/psi/compilation/representations/terminal-psi/src/artifacts.rs#L393)
+- Saw: `Known::new` constructs proofs for every assumption/axiom. For each conjunct, `flatten` embeds `Box::new(proof.clone())`; `ProofNode` owns its conclusion and recursive children, so this copies their payload. The equation list clones selected facts/proofs again. A wide conjunction can therefore retain its whole parent proposition in every leaf proof.
+- Cost: Available but unused facts create potentially quadratic certificate payload. Retain compact proof origins during search (assumption/axiom plus conjunct path, or shared derivation nodes), materializing only selected certificates for kernel checking/publication. A portable proof-format change is not required. Acceptance measures allocations/retained bytes for wide and nested conjunctions with few used facts, checks selected certificates independently under the same assumptions, and preserves specified logical proof accounting; physical sharing must not silently change proof-budget semantics.
 - Reported: 2026-11-14, Codex, while reconciling the peer audit against `3b0ad89c1fd47`; payload growth is inferred from owned clones, not benchmarked
 
 ### Freezing sparse declaration relationships allocates to the largest global symbol slot
@@ -173,10 +173,10 @@ framework or a list of features that remain unimplemented.
 
 ### Parsing and native completion choose their worker budgets independently
 - Category: one idea, several implementations
-- Where: [parser worker pool](omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/parser.rs#L113), [native executor queue](omega-rust/omega/build-system/orchestration/src/compile/native_completion/queue.rs#L10), [prepared machine lowering loop](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lib.rs#L862)
-- Saw: parsing owns a separately configured Rayon pool; native completion owns up to four executors, including its caller. Neither receives an invocation-wide worker or live-memory budget. This establishes separate admission policies, not measured overlap or oversubscription. Psi 05 already prepares shared signatures, outcomes and records before each `lower::machine` returns its own `Lowered` output.
-- Cost: Separate limits cannot bound the invocation's combined active work or live intermediates. Share CPU and live-work admission across source and native jobs; queue lightweight keys, materialize scratch after admission and distinguish estimated memory reservations from enforced limits. After removing repeated work, trial the measured expensive boundary at Psi 05 or post-inference Psi 06, keeping inner walks sequential. Preserve deterministic IDs, assembly and refusal order. Closure requires bounded nested execution and a measured elapsed-time benefit without unacceptable small-input or memory regression. See the [draft execution admission design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
-- Reported: 2026-11-14, Codex, while comparing Squalr-inspired pipeline proposals at `c445e89a1eead`; threading placement is a proposed experiment, not a measured speedup
+- Where: [parser worker pool](omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/parser.rs#L113), [native executor queue](omega-rust/omega/build-system/orchestration/src/compile/native_completion/queue.rs#L10), [compiler worker stack](omega-rust/omega/compilation/compiler/src/checked/checking.rs#L51), [prepared machine lowering loop](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lib.rs#L882), [settled machine discharge loop](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs#L412)
+- Saw: parsing owns a process-global `OnceLock<rayon::ThreadPool>` with 256 MiB stacks (`PARSE_STACK_SIZE`) that defaults to all logical cores; native completion spawns up to four 256 MiB-stack scoped workers (`COMPILE_STACK_SIZE`), including its caller. Neither receives an invocation-wide worker or live-memory budget, and `psi/` cannot import `omega/` orchestration to share one. This establishes separate admission policies, not measured overlap or oversubscription. On the surviving route, Psi 05 lowers machines linearly into owned `Lowered` outputs, while post-inference Psi 06 runs obligation reconstruction and proof discharge over disjoint `MachineTables`.
+- Cost: Separate limits cannot bound an invocation's combined active workers, 256 MiB stack reservations or live intermediates, and a process-global parser pool ignores shared-host build budgets. Place the shared execution-admission handle in a target-neutral foundation crate and pass it explicitly per invocation—pairing worker scaling with flat-table recursion (`PIPELINE-ARCHITECTURE-ENFORCEMENT`) so 256 MiB stacks do not multiply. Queue lightweight keys, materialize scratch after admission and distinguish estimated memory reservations from enforced limits. After sequential repeated-work repairs (`outcome.rs`, `graph.rs`, `known.rs`) and a fresh baseline on the surviving route (the ~3,200s Psi 05 measurement in #2788 belonged to the deleted checker), trial post-inference Psi 06 or Psi 05 using dynamic work-stealing over heavy-tailed machines rather than static equal-count chunks, and select the lowest-`MachineId` refusal via a failure watermark rather than completion-order early exit. Closure requires bounded nested execution and a measured elapsed-time benefit without unacceptable small-input or memory regression. See the [draft execution admission design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
+- Reported: 2026-11-14, Codex (refined by Antigravity at `2e5ca2da570`), while comparing Squalr-inspired pipeline proposals; threading placement is a proposed experiment, not a measured speedup
 
 ### Logical-module discovery discards a full parse that source admission repeats
 - Category: re-deriving
@@ -185,26 +185,12 @@ framework or a list of features that remain unimplemented.
 - Cost: Selected files pay for syntax construction twice. Retain immutable syntax and a module/import index within the invocation, separately from semantic owner, scope, stratum and bindings. Pin parse counts, distinct Build/Product identities, changed-input behavior and diagnostic locations. Release unused discovery syntax when ownership permits and measure retained memory against avoided parsing; do not add a persistent cache. See the [draft syntax retention design](wiki/drafts/designs/compiler_work_ownership.md#actionable-repair-references).
 - Reported: 2026-11-14, Codex, while comparing Squalr-inspired pipeline proposals at `c445e89a1eead`
 
-### Call-component discovery builds all-pairs reachability to answer component questions
-- Category: re-deriving
-- Where: [call-component discovery](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/components.rs#L69), [component consumer](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower.rs#L117)
-- Saw: `components` allocates an N-by-N Boolean reachability table and walks the call graph from every machine. It then constructs the same component-member vector for each member of a cycle. Consumers need component membership and whether a machine can reach a cycle, not arbitrary all-pairs paths.
-- Cost: Sparse graphs pay quadratic reachability storage and repeated traversals. Compute strongly connected components once, keep one ordered member span per component and a dense machine-to-component table, then propagate cycle reachability on the component DAG. Preserve refusal order, terminal-call restrictions and termination checks; exercise chains, self/mutual cycles and callers reaching cycles, and count graph work independently of required emitted code. See the [draft call graph design](wiki/drafts/designs/compiler_work_ownership.md#actionable-repair-references).
-- Reported: 2026-11-14, Codex, while comparing Squalr-inspired pipeline proposals at `c445e89a1eead`
-
 ### Completing selected bodies can copy the retained typed program
 - Category: re-deriving
 - Where: [retained-body completion](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L810), [shared typing loop](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L1596), [arena cloning](omega-rust/psi/foundation/arena/src/arena.rs#L624)
 - Saw: `SeededTypingBase` holds `Arc<TypedTrees>`, but body completion calls `Arc::unwrap_or_clone(retained.typed)` and feeds the candidate to one mutable `Lowerer`. When another snapshot retains that Arc, cloning copies owned arena vectors even if only a small selected body set changes. Sharing the outer Arc does not make the stored tables independently owned.
-- Cost: A small continuation can copy unrelated typed storage and cannot return independent body output. Separate immutable declaration/type storage from owned body tables; publish selected replacements through stable handles without flattening unrelated bodies. A shared-snapshot continuation must retain untouched storage, exact authority/context identities and refusal behavior. Measure copied bytes and peak memory; keep signature and inferred-summary dependencies explicit. See the [draft body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
-- Reported: 2026-11-14, Codex, while comparing Squalr-inspired pipeline proposals at `c445e89a1eead`
-
-### Each machine check searches the complete branch and carried-proof lists
-- Category: re-deriving
-- Where: [per-machine discharge inputs](omega-rust/psi/compilation/pipeline/06_terminal-psi-to-terminal-psi/src/lib.rs#L417)
-- Saw: after shared summary/input inference, discharge collects every authored branch, then filters and allocates that list separately for each machine. It also searches `carried` from the beginning for each specialization. The producer already supplies the machine identity on each row.
-- Cost: Each local check repeatedly scans other machines' metadata. Group branches into stable machine ranges and prepare carried-proof associations once, sized to the actual domain; borrow slices in each check. Preserve order, absence behavior, association meaning and kernel admission. Pin cross-machine isolation and empty groups and count preparation visits as machines grow. Final machine checks are a parallelism candidate only after inference inputs settle. See the [draft checking inputs design](wiki/drafts/designs/compiler_work_ownership.md#experiments-and-acceptance).
-- Reported: 2026-11-14, Codex, while comparing Squalr-inspired pipeline proposals at `c445e89a1eead`
+- Cost: A small continuation can copy unrelated typed storage and cannot return independent body output. Separate immutable declaration/type storage from owned body tables; publish selected replacements through stable handles without flattening unrelated bodies. A shared-snapshot continuation must retain untouched storage, exact authority/context identities and refusal behavior. Measure copied bytes and peak memory; keep signature and inferred-summary dependencies explicit. Defer wide Psi 02–04 representation splits while `LOWERED-FORM-CHECKER` coverage is actively churning those stages unless a measured continuation bottleneck requires it earlier. See the [draft body ownership design](wiki/drafts/designs/compiler_work_ownership.md#representation-and-execution-contract).
+- Reported: 2026-11-14, Codex (refined by Antigravity at `2e5ca2da570`), while comparing Squalr-inspired pipeline proposals
 
 ### The standard library declares two public things named `DarwinClock`
 - Category: one idea, several implementations
@@ -219,13 +205,6 @@ framework or a list of features that remain unimplemented.
 - Saw: `form` refuses a data type in a Build's choice but accepts one in a `provider_defaults` machine. provider_selection.md, "Declaration and choice", says a target package "supplies ordinary named default provider implementations" and "A data type or runtime provider descriptor is not such a value", with no exception for defaults. `std`'s ProcessExit defaults, its only user, now select the named `NativeProcessExit`; the last user anywhere is `samples/cli/probes/device_extent_access` (`LoopbackDeviceLoanProvider`), which is written in other retired forms too (`via`, target-prefixed machines)
 - Cost: a second, looser reading of the Provider position stays served for no library; delete `DefaultClosure` and the `ProviderForm` parameter, turn the test into the refusal twin, and give the probe a named implementation
 - Reported: 2026-11-14, worker-15 (Claude Code), while moving std's ProcessExit defaults to a named implementation
-
-### Const evaluation still keys integer carriers by spelling and folds in i128
-- Category: branch per shape
-- Where: Stage 02's `preparation_const_evaluation.rs`
-- Saw: the const evaluator keys integer carriers by type-name strings and folds in `i128`, so it serves widths to 64 bits for shifts and 127 for ranges
-- Cost: constant evaluation discards the authoritative integer metadata and narrows otherwise valid width-indexed arithmetic to host-integer limits
-- Reported: 2026-11-13, Claude Code, while replacing the eight integer names with a sign and a width
 
 ### The lowered form drops declared domains, so only the reader knows a value's type
 - Category: a verdict with nothing behind it
@@ -248,12 +227,6 @@ framework or a list of features that remain unimplemented.
 - Cost: the elision rule has no owner at the declaration; a reader of the callee alone cannot tell which input the result is related to, and the diagnostic lands on a caller
 - Reported: 2026-11-13, Claude Code, while giving a call's lifetimes the regions of the views it passes
 
-### The reader and its README still justify decisions by what the deleted checker did
-- Category: zombie machinery
-- Where: `05_typed-trees-to-terminal-psi/src/read/machine.rs` (the retired data-qualified machine spelling), `read/expressions.rs`, `read/calls.rs`, `declare.rs`, `names.rs`; `06_terminal-psi-to-terminal-psi/src/describe.rs`, `verdict.rs`; both crates' `README.md`; `06_terminal-psi-to-terminal-psi/src/lib.rs` (`Knowledge::WithoutBranchConditions`, `Knowledge::LiteralIntervals`)
-- Saw: about fifty comments said "the current checker" does this or that; they now say "the deleted checker" did, which is true but leaves the reasoning hollow where the old checker was the reason: a retired spelling is served because refusing it "would only send the same program" to a checker that accepted it, and message wording is pinned to that checker's sentences. The `Knowledge` knob is threaded through discharge only for the comparison example this change deleted
-- Cost: a reader cannot tell which behaviours are the specification's and which were kept for agreement with a checker that no longer exists, and the knob is dead weight in every discharge signature
-- Reported: 2026-11-13, Claude Code, while removing the two-checker names
 
 ### `Console::exit_process` ends the process without publishing `reaches ProcessExit`
 - Category: a verdict with nothing behind it
@@ -367,16 +340,16 @@ framework or a list of features that remain unimplemented.
 - Cost: the host row's operation is decided twice from text, and the native binding cannot be closed at its locator type by the pass that closes every other application until typing records that application on the call
 - Reported: 2026-11-13, Claude Code, while closing boundary requirements at the types their calls apply
 
-### An array extent in a generic argument is still closed by its spelling before resolution
-- Category: one idea, several implementations
-- Where: `02_.../preparation_const_evaluation.rs` (`closed_fixed_array_length`, reached from generic-data closing, type equations and constant evaluation) selects a constant for `[T; NAME]` through `ConstantSelection::select`, which sees only top-level declarations
-- Saw: integer widths and plain extents are now read by role in their lexical scope (`resolve_value_in_type_symbol` and the value pass in `symbols_type_references.rs`), so `machine f(count: u64, items: [u8; count])` is refused as a runtime extent. But generic-argument closing (`closed_argument_identity`) still reads an extent such as `Buffer<[u8; count]>` written in that machine through the top-level selection; not yet observed in a program. Deleting the selection breaks `First<[u8; LIMIT]>` in a data declaration, where the top-level constant is the right answer
-- Cost: preparation cannot tell a data or constant declaration (top-level scope) from a machine (parameters and locals in scope), so one extent spelling can mean two things; closing generic arguments after resolution, or handing preparation the enclosing value bindings, would remove the second reader
-- Reported: 2026-11-14, Claude Code, while reading builtin type names by role
-
 ### The scalar contract fixture's inferred call proof is refused by the kernel
 - Category: a proof producer and checker disagree
 - Where: `tests/fixtures/run/calls/scalar_contract_route_exit/main.omg:26` (the call `settle(product)`)
 - Saw: `omega run --both` on the unchanged fixture reports `cannot prove requires contract for call settle from main: inferred input condition`, with `kernel Certificate(IntegerOrderMiddleMismatch)`, before either engine runs. Observed on Windows x86-64 with the scalar receiving-type diagnostic repair, then reproduced at the same line after restoring all changed production files exactly to `44ed2132219fb20261abeab4ef3e61b4ab0f845a` and rebuilding `omega` through `mbx`. The fixture is unchanged, and its contracts and guards were not weakened.
 - Cost: a simple scalar contract program cannot provide native/Psi execution evidence, and an invalid proof certificate is surfaced as a caller fact it should establish instead of identifying the proof producer's disagreement with the kernel
 - Reported: 2026-11-14, Codex, while checking scalar receiving-type diagnostics
+
+### Nominal const-domain bounds recover data properties by a name scan
+- Category: identity re-derived by a consumer
+- Where: Stage 02 `preparation_const_evaluation.rs`, `carrier_satisfies_declared_bounds`
+- Saw: the non-scalar branch receives a carrier display string and takes the first root data header with that name; the selected nominal declaration does not accompany this property query
+- Cost: generic-domain bound checking cannot rejoin the declaration that owns the value and instead depends on root order when package instances contain same-named data
+- Reported: 2026-11-14, Codex worker-22, while preserving integer metadata through constant evaluation

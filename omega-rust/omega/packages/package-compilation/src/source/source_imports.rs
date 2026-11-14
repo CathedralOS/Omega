@@ -114,8 +114,24 @@ pub(crate) fn discover_imports(
                 .iter()
                 .map(|name| name.as_str(syntax_trees).to_owned())
                 .collect::<Vec<_>>();
-            let selected = discovery.select(root, &logical, filesystem)?;
+            // modules.md, "Names and imports": in Build source "a logical
+            // `use dependency;` may remain deferred until explicit dependency
+            // registration and preparation make its exact declaration scope
+            // available". A Build import of its own package therefore
+            // selects only what declares the imported name, and one that
+            // names nothing here selects no source and is left for the stage
+            // that prepares the dependency it names.
+            let own_build_import =
+                unit.scope == DependencyScope::Build && prefix == 0 && root == default_root;
+            let selected = if own_build_import {
+                discovery.select_declaring(root, &logical, filesystem, Vec::new())?
+            } else {
+                discovery.select(root, &logical, filesystem)?
+            };
             if selected.is_empty() {
+                if own_build_import {
+                    continue;
+                }
                 return Err(vec![Diagnostic::error(format!(
                     "import `{}` selects no logical source namespace",
                     identifier_path_text(syntax_trees, members)

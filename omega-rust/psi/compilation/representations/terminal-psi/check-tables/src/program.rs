@@ -288,7 +288,7 @@ impl Elaboration {
     /// as written says so in its own check form, where its parameters are
     /// rigid and a requirement is called through its interface contract.
     pub fn unreachable_statements(&self) -> impl Iterator<Item = (MachineId, Unreachable)> + '_ {
-        self.authored_sources().flat_map(|(machine, sources)| {
+        authored_machine_sources(&self.module, &self.sources).flat_map(|(machine, sources)| {
             sources.unreachable.iter().map(move |row| (machine, *row))
         })
     }
@@ -302,21 +302,32 @@ impl Elaboration {
     /// "Unreachable branches"), and the generic machine's own check form is
     /// where it is judged as written.
     pub fn authored_branches(&self) -> impl Iterator<Item = (MachineId, Branch)> + '_ {
-        self.authored_sources()
+        authored_machine_sources(&self.module, &self.sources)
             .flat_map(|(machine, sources)| sources.branches.iter().map(move |row| (machine, *row)))
     }
+}
 
-    /// The source rows of every machine that is not generated to close a
-    /// static application.
-    fn authored_sources(&self) -> impl Iterator<Item = (MachineId, &MachineSources)> + '_ {
-        self.sources.iter().filter(|(machine, _)| {
-            !self.module.machines.iter().any(|declared| {
-                declared.id == *machine
-                    && declared
-                        .declaration
-                        .as_ref()
-                        .is_some_and(|declaration| declaration.specialization.is_some())
-            })
-        })
+/// Borrows authored source groups without searching every declaration for every
+/// source row. A specialization is excluded only when a declaration says it is
+/// generated; source rows without such a declaration retain their diagnostics.
+/// Separate field borrows let a checker mutate its tables while retaining these
+/// immutable source slices.
+pub fn authored_machine_sources<'sources>(
+    module: &TerminalModule,
+    sources: &'sources IdTable<MachineId, MachineSources>,
+) -> impl Iterator<Item = (MachineId, &'sources MachineSources)> + 'sources {
+    let mut generated = sources.map(|_, _| false);
+    for declared in &module.machines {
+        if declared
+            .declaration
+            .as_ref()
+            .is_some_and(|declaration| declaration.specialization.is_some())
+            && let Some(generated) = generated.get_mut(declared.id)
+        {
+            *generated = true;
+        }
     }
+    sources
+        .iter()
+        .filter(move |(machine, _)| generated.get(*machine) == Some(&false))
 }

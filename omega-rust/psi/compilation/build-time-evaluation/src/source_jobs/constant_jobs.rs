@@ -14,7 +14,7 @@ use typed_trees::references::TypedReferences;
 
 use crate::{BuildTimeValue, InvocationTarget, SourceCompletionAccounting};
 
-fn key(symbol: SymbolHandle) -> (u32, u64) {
+pub(super) fn key(symbol: SymbolHandle) -> (u32, u64) {
     (symbol.arena_index(), u64::from(symbol.generation()))
 }
 
@@ -25,7 +25,7 @@ fn family_position(family: &[SymbolHandle], symbol: SymbolHandle) -> Option<usiz
         .binary_search_by_key(&key(symbol), |symbol| key(*symbol))
         .ok()
 }
-fn insert(family: &mut Vec<SymbolHandle>, symbol: SymbolHandle) -> bool {
+pub(super) fn insert(family: &mut Vec<SymbolHandle>, symbol: SymbolHandle) -> bool {
     match family.binary_search_by_key(&key(symbol), |symbol| key(*symbol)) {
         Ok(_) => false,
         Err(index) => {
@@ -243,11 +243,7 @@ pub fn validate_constant_evaluations(
                         ..
                     },
                     ExpressionNode::Integer(current),
-                ) if current
-                    .value_i64()
-                    .map(i128::from)
-                    .or_else(|| current.value_u64().map(i128::from))
-                    == Some(*value) => {}
+                ) if current.value_bignum().as_ref() == Some(value) => {}
                 _ => {
                     return Err(
                         "constant materialization differs from its invocation outcome".into(),
@@ -325,7 +321,7 @@ fn request_references(program: &TypedTrees, expression: ExpressionHandle) -> Ref
 /// A returned scalar keeps its declared carrier, including the u64 bit pattern
 /// transported by BuildTimeValue::Int. Reference and authority-bearing values
 /// are not constant snapshots; further carriers need their actual materializer.
-fn decoded(
+pub(super) fn decoded(
     program: &TypedTrees,
     carrier: typed_trees::types::TypeReferenceHandle,
     value: &BuildTimeValue,
@@ -356,11 +352,13 @@ fn decoded(
         }
         (primitive, BuildTimeValue::Int(value)) if primitive.accepts_integer_literal() => {
             Ok(DecodedCanonicalConstValue::Integer {
-                type_name: primitive.name().to_owned(),
+                integer_type: primitive
+                    .landed_landing()
+                    .ok_or("constant result has no integer carrier")?,
                 value: if primitive.is_signed_integer() {
-                    i128::from(*value)
+                    numerics::bignum::BigInt::from(*value)
                 } else {
-                    i128::from(*value as u64)
+                    numerics::bignum::BigInt::from(*value as u64)
                 },
             })
         }
@@ -439,6 +437,26 @@ fn demanded_constants(
     program: &TypedTrees,
     request: psi_terminal_production::TerminalSourceCompilation<'_>,
 ) -> Result<Vec<SymbolHandle>, String> {
+    let selected = demanded_declarations(program, request)?;
+    let mut constants = program
+        .const_declarations()
+        .iter()
+        .filter(|constant| selected.contains(constant.symbol))
+        .map(|constant| constant.symbol)
+        .collect::<Vec<_>>();
+    constants.sort_unstable_by_key(|symbol| key(*symbol));
+    constants.dedup();
+    Ok(constants)
+}
+
+/// Every declaration the request reaches from its entries, selections,
+/// bindings, subjects and supplies through the declarations each one names,
+/// sorted. A const argument is demanded when one of these declarations
+/// holds it (`const_argument_jobs`).
+pub(super) fn demanded_declarations(
+    program: &TypedTrees,
+    request: psi_terminal_production::TerminalSourceCompilation<'_>,
+) -> Result<typed_trees::references::DeclarationSelection, String> {
     let mut pending = request
         .entries
         .iter()
@@ -494,17 +512,8 @@ fn demanded_constants(
             }
         }
     }
-    let selection =
-        typed_trees::references::DeclarationSelection::from_computation_roots(program, pending)?;
-    let mut constants = program
-        .const_declarations()
-        .iter()
-        .filter(|constant| selection.contains(constant.symbol))
-        .map(|constant| constant.symbol)
-        .collect::<Vec<_>>();
-    constants.sort_unstable_by_key(|symbol| key(*symbol));
-    constants.dedup();
-    Ok(constants)
+    typed_trees::references::DeclarationSelection::from_computation_roots(program, pending)
+        .map_err(str::to_owned)
 }
 
 pub fn evaluate(

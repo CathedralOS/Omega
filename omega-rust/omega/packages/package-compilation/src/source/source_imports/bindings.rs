@@ -62,7 +62,8 @@ impl PendingPackageImport {
         packages: &PackageCompilationInputs,
         discovery: &mut impl super::LogicalSourceDiscovery,
     ) -> Result<Vec<PathBuf>, Vec<Diagnostic>> {
-        self.request.logical_sources(packages, discovery)
+        self.request
+            .logical_sources(packages, discovery, self.scope)
     }
 
     pub(crate) fn resolve_for_exact_target(
@@ -92,6 +93,9 @@ impl PendingPackageImport {
             }
         }
         if paths.is_empty() {
+            if self.request.defers_in(self.scope) {
+                return Ok(Vec::new());
+            }
             return Err(vec![Diagnostic::error(format!(
                 "import `{}` selects no authored or generated logical source namespace",
                 self.occurrence.authored_path,

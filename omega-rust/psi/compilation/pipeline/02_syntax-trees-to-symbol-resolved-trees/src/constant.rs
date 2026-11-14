@@ -56,7 +56,7 @@
     retains declaration values, `substitution` substitutes resolved
     constants, `selections` finalizes const selections and arguments,
     `normalized_expressions` validates normalized expressions,
-    `scalar_carriers` recognizes builtin scalar carrier spellings and
+    `scalar_carriers` classifies selected builtin scalar atoms and
     `carrier`, `initializer_dependencies` and
     `initializer_normalization` carry the const carrier and initializer
     dependencies.
@@ -335,7 +335,6 @@ mod declaration_values {
     use crate::constant::initializer_normalization;
     use crate::constant::substitution::semantic_const_name;
     use crate::lowering::expression::lower_expression_into_table;
-    use crate::preparation::generic_data::canonicalize_declared_const_definition;
     use crate::preparation::generic_data::canonicalize_selected_declared_const_definition;
     use crate::preparation::generic_data::prove_const_literal_predicates;
     use crate::tables::syntax_expressions;
@@ -509,6 +508,7 @@ mod declaration_values {
     pub(crate) fn validate_scalar_initializer(
         syntax: &SyntaxTrees,
         constant: &syntax_trees::item::ConstDefinition,
+        selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     ) -> Result<(), String> {
         use numerics::literals::FloatFormat;
         use syntax_trees::expression::ExpressionNode;
@@ -519,13 +519,15 @@ mod declaration_values {
         else {
             return Ok(());
         };
-        if !crate::constant::is_builtin_scalar_carrier(carrier.as_str(syntax)) {
+        let selection =
+            selection.ok_or("scalar initializer has no declaration selection context")?;
+        let Some(atom) = selection.builtin_type(syntax, carrier) else {
             return Ok(());
-        }
+        };
         let initializer = syntax.expressions.expression(constant.value);
-        match carrier.as_str(syntax) {
-            "f32" | "f64" => {
-                let format = if carrier.as_str(syntax) == "f32" {
+        match atom {
+            symbols::BuiltinTypeAtom::F32 | symbols::BuiltinTypeAtom::F64 => {
+                let format = if atom == symbols::BuiltinTypeAtom::F32 {
                     FloatFormat::F32
                 } else {
                     FloatFormat::F64
@@ -549,7 +551,13 @@ mod declaration_values {
                     ))
                 }
             }
-            _ => canonicalize_declared_const_definition(syntax, constant).map(|_| ()),
+            symbols::BuiltinTypeAtom::Integer(_)
+            | symbols::BuiltinTypeAtom::Address
+            | symbols::BuiltinTypeAtom::Bool => {
+                canonicalize_selected_declared_const_definition(syntax, constant, Some(selection))
+                    .map(|_| ())
+            }
+            _ => Ok(()),
         }
     }
 
@@ -615,7 +623,7 @@ mod declaration_values {
                 .with_source_span(definition.name.source_span())
             })?;
         }
-        validate_scalar_initializer(syntax, definition).map_err(|reason| {
+        validate_scalar_initializer(syntax, definition, selection).map_err(|reason| {
             Diagnostic::error(format!(
                 "scalar constant `{}` is invalid: {reason}",
                 definition.name.as_str(syntax)
@@ -637,9 +645,17 @@ mod declaration_values {
             && !has_scalar_initializer(syntax, definition)
             && !crate::constant::requires_const_initializer_evaluation(syntax, definition)
         {
-            if crate::preparation::module_normalization::module_literal_constant(syntax, definition)
-            {
-                canonicalize_declared_const_definition(syntax, definition).map_err(|reason| {
+            if crate::preparation::module_normalization::module_literal_constant(
+                syntax,
+                definition,
+                lowerer.constant_selection.as_ref(),
+            ) {
+                canonicalize_selected_declared_const_definition(
+                    syntax,
+                    definition,
+                    lowerer.constant_selection.as_ref(),
+                )
+                .map_err(|reason| {
                     Diagnostic::error(format!(
                         "array constant `{}` is invalid: {reason}",
                         semantic_const_name(syntax, definition)
@@ -3433,32 +3449,36 @@ pub(crate) mod initializer_normalization {
                 };
                     return Ok(Value::Float { format, bits });
                 }
-                let carrier = (atom.is_fixed_integer() || atom == BuiltinTypeAtom::Address)
-                    .then_some(atom.symbol_name())
-                    .ok_or("materialized initializer has an unsupported builtin carrier")?;
+                let integer_type = match atom {
+                    BuiltinTypeAtom::Integer(carrier) => {
+                        numerics::literals::LandedIntegerType::Fixed(carrier)
+                    }
+                    BuiltinTypeAtom::Address => numerics::literals::LandedIntegerType::Addr,
+                    _ => {
+                        return Err(
+                            "materialized initializer has an unsupported builtin carrier".into(),
+                        );
+                    }
+                };
                 let ExpressionNode::Integer(literal) = node else {
                     return Err("materialized initializer conflicts with integer carrier".into());
                 };
                 if literal.landing().is_some_and(|landing| {
-                    landing.landed_type.name() != carrier.as_ref()
+                    landing.landed_type != integer_type
                         || landing.domain != numerics::arithmetic::ArithmeticDomain::Exact
                 }) {
                     return Err("materialized initializer conflicts with integer landing".into());
                 }
                 let value = literal
-                    .value_i64()
-                    .map(i128::from)
-                    .or_else(|| literal.value_u64().map(i128::from))
+                    .value_bignum()
                     .ok_or("materialized initializer integer exceeds canonical storage")?;
-                let integer_type = numerics::literals::LandedIntegerType::from_name(&carrier)
-                    .ok_or("materialized integer initializer lost its selected carrier")?;
-                if !integer_type.admits_i128(value) {
+                if !integer_type.value_carrier().admits(&value) {
                     return Err(format!(
-                        "materialized const value `{value}` does not fit `{carrier}`"
+                        "materialized const value `{value}` does not fit `{integer_type}`"
                     ));
                 }
                 Ok(Value::Integer {
-                    type_name: carrier.into_owned(),
+                    integer_type,
                     value,
                 })
             }
@@ -3590,7 +3610,10 @@ pub(crate) mod initializer_normalization {
                         continue;
                     }
                     return match self.scalar(atom, declaration.initializer)? {
-                        Value::Integer { value, .. } => Ok((atom, value)),
+                        Value::Integer { value, .. } => value
+                            .to_i128()
+                            .map(|value| (atom, value))
+                            .ok_or("array extent exceeds host indexing resources".to_owned()),
                         _ => Err(
                             "materialized array extent constant is not a completed integer".into(),
                         ),
@@ -4756,12 +4779,14 @@ mod normalized_expressions {
                 CanonicalConstValue::from_atom(name.as_str(syntax_trees)).is_some_and(|value| {
                     let carrier = match &decoded {
                         DecodedCanonicalConstValue::Float { .. } => return false,
-                        DecodedCanonicalConstValue::Boolean(_) => "bool",
+                        DecodedCanonicalConstValue::Boolean(_) => "bool".to_owned(),
+                        DecodedCanonicalConstValue::Integer { integer_type, .. } => {
+                            integer_type.name()
+                        }
                         DecodedCanonicalConstValue::Array { type_name, .. }
                         | DecodedCanonicalConstValue::Record { type_name, .. }
-                        | DecodedCanonicalConstValue::Variant { type_name, .. }
-                        | DecodedCanonicalConstValue::Integer { type_name, .. } => {
-                            type_name.as_str()
+                        | DecodedCanonicalConstValue::Variant { type_name, .. } => {
+                            type_name.clone()
                         }
                     };
                     value.encoding == normalization.canonical_result_encoding
@@ -4781,7 +4806,7 @@ mod normalized_expressions {
 }
 mod scalar_carriers {
     /*
-        Builtin scalar carrier spellings, recognized before any symbol exists.
+        Scalar eligibility over the selected header or complete symbol's atom.
 
         The integer carriers are exactly the `LandedIntegerType` names. With `bool`
         they form the structural scalars: carriers whose values have a canonical
@@ -4789,16 +4814,20 @@ mod scalar_carriers {
         values land at a declared format but carry no structural identity.
     */
 
-    use numerics::literals::LandedIntegerType;
+    use symbols::BuiltinTypeAtom;
 
     /* `bool` or an integer carrier. */
-    pub(crate) fn is_structural_scalar_carrier(name: &str) -> bool {
-        name == "bool" || LandedIntegerType::from_name(name).is_some()
+    pub(crate) fn is_structural_scalar_carrier(atom: BuiltinTypeAtom) -> bool {
+        matches!(
+            atom,
+            BuiltinTypeAtom::Bool | BuiltinTypeAtom::Integer(_) | BuiltinTypeAtom::Address
+        )
     }
 
     /* A structural scalar or a float format. */
-    pub(crate) fn is_builtin_scalar_carrier(name: &str) -> bool {
-        is_structural_scalar_carrier(name) || matches!(name, "f32" | "f64")
+    pub(crate) fn is_builtin_scalar_carrier(atom: BuiltinTypeAtom) -> bool {
+        is_structural_scalar_carrier(atom)
+            || matches!(atom, BuiltinTypeAtom::F32 | BuiltinTypeAtom::F64)
     }
 }
 mod selections {

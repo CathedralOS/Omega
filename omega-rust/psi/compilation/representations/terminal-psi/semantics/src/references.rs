@@ -5,6 +5,10 @@ Semantic judgments for structural reference origins, placed loan regions, reborr
 reference access capabilities.
 */
 
+mod selected_results;
+pub(crate) use selected_results::validate_result_lifetime_groups;
+pub use selected_results::{SelectedReferenceResult, selected_reference_result};
+
 pub(crate) mod reference_completion {
 
     use semantic_vocabulary::{PlaceId, StructuralTypeId};
@@ -229,7 +233,7 @@ pub(crate) mod reference_completion {
         }) else {
             return Ok(Vec::new());
         };
-        let Some(call) = operation.kind.declared_invocation() else {
+        let Some(call) = operation.declared_invocation() else {
             return if matches!(
                 operation.kind,
                 terminal_psi::OperationKind::CallDynamic { .. }
@@ -266,14 +270,36 @@ pub(crate) mod reference_completion {
         if actual != signature.reference_sources {
             return Err("returned reference header differs from its actual body origins");
         }
-        let bindings = bind_reference_call_results(
-            module.structural_types.iter(),
-            ReferenceCallContract::Machine {
-                parameters: &callee.structural_parameters,
-                sources: &actual,
-            },
-            call.structural_arguments,
-        )?;
+        let public = call
+            .required_contract
+            .map(|required| {
+                super::selected_reference_result(module, caller.id, callee.id, required)
+            })
+            .transpose()?;
+        if let Some(public) = &public {
+            public.validate_actual_sources(&callee.structural_parameters, &actual)?;
+        }
+        let parameters = public
+            .as_ref()
+            .map_or(callee.structural_parameters.as_slice(), |public| {
+                public.contract().structural_parameters.as_slice()
+            });
+        let bindings = if let Some(public) = &public {
+            super::reference_origins::bind_public_reference_call_results(
+                module.structural_types.iter(),
+                public,
+                call.structural_arguments,
+            )?
+        } else {
+            bind_reference_call_results(
+                module.structural_types.iter(),
+                ReferenceCallContract::Machine {
+                    parameters,
+                    sources: &actual,
+                },
+                call.structural_arguments,
+            )?
+        };
         let mut positions = caller.blocks.iter().flat_map(|block| {
             block
                 .operations
@@ -297,11 +323,45 @@ pub(crate) mod reference_completion {
         let flow = analysis
             .flow(caller.id)
             .ok_or("returned reference caller has no complete descriptor flow")?;
-        let mut retained: Vec<Option<crate::descriptor_lifetimes::DescriptorLifetime>> = (0
-            ..callee.structural_parameters.len())
-            .map(|_| None)
-            .collect();
-        for (mapping, binding) in actual.iter().zip(bindings) {
+        let mut retained: Vec<Option<crate::descriptor_lifetimes::DescriptorLifetime>> =
+            (0..parameters.len()).map(|_| None).collect();
+        for (mapping_index, binding) in bindings.into_iter().enumerate() {
+            let source_positions = if let Some(public) = &public {
+                use terminal_psi::ReferenceResultShape;
+                public
+                    .reference_regions(&binding.path)
+                    .map(|region| {
+                        let region = region?;
+                        let terminal_psi::TerminalDynamicReferenceOrigin::Parameter {
+                            argument_index,
+                        } = region.origin
+                        else {
+                            return Err(
+                                "selected reference input unexpectedly uses provider storage",
+                            );
+                        };
+                        usize::try_from(argument_index)
+                            .map_err(|_| "selected reference input ordinal exceeds host positions")
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
+            } else {
+                actual
+                    .get(mapping_index)
+                    .ok_or("returned reference binding lost its body mapping")?
+                    .sources
+                    .iter()
+                    .map(|origin| {
+                        let formal = origin
+                            .parameter()
+                            .ok_or("returned reference has no formal input origin")?;
+                        terminal_psi::structural_parameter_position(parameters, formal.place)
+                            .ok_or("returned reference names no formal input")
+                    })
+                    .collect::<Result<Vec<_>, _>>()?
+            };
+            if source_positions.len() != binding.sources.len() {
+                return Err("returned reference binding differs from its exact source ordinals");
+            }
             let descriptor = descriptor_location(
                 &module.structural_types,
                 result.place,
@@ -310,7 +370,7 @@ pub(crate) mod reference_completion {
                 None,
             )
             .ok_or("returned reference has no exact result descriptor path")?;
-            for (origin, bound) in mapping.sources.iter().zip(binding.sources) {
+            for (position, bound) in source_positions.into_iter().zip(binding.sources) {
                 let ReferenceCallOrigin::Parameter {
                     source,
                     transfers_existing,
@@ -323,14 +383,6 @@ pub(crate) mod reference_completion {
                     // occurrence. It does not form a new loan of its backing.
                     continue;
                 }
-                let formal = origin
-                    .parameter()
-                    .ok_or("returned reference has no exact formal input origin")?;
-                let position = terminal_psi::structural_parameter_position(
-                    &callee.structural_parameters,
-                    formal.place,
-                )
-                .ok_or("returned reference names no formal input")?;
                 let argument = call
                     .structural_arguments
                     .get(position)
@@ -762,101 +814,108 @@ pub(crate) mod reference_origins {
             arguments: &[StructuralArgument],
         ) -> Result<Vec<ReferenceCallResult>, &'static str> {
             let mut results: Vec<ReferenceCallResult> = Vec::new();
-            let leaves = match slot.result() {
+            let declared_result = slot.result();
+            let leaves = match declared_result.as_ref() {
                 terminal_psi::BoundaryMachineResult::Structural(result) => {
                     super::borrowed_result_leaves(
                         types.clone(),
                         result.structural_type,
                         result.multiplicity,
-                        slot.reference_regions().len(),
+                        slot.maximum_reference_leaves(),
                     )?
                 }
                 _ => Vec::new(),
             };
-            for region in slot.reference_regions() {
-                if !leaves.iter().any(|leaf| {
-                    leaf.path == region.path
-                        && matches!(leaf.kind, super::BorrowedResultLeafKind::Reference(_))
-                }) {
-                    continue;
-                }
-                let index = match region.origin {
-                    TerminalDynamicReferenceOrigin::Parameter { argument_index } => argument_index,
-                    TerminalDynamicReferenceOrigin::Invocation { carrier_type } => {
-                        let path = region
-                            .source_path
-                            .iter()
-                            .cloned()
-                            .map(ReferenceOriginProjection::Exact)
-                            .collect::<Vec<_>>();
-                        let endpoint = reference_origin_type(types.clone(), carrier_type, &path)
-                            .ok_or("dynamic invocation reference origin has no typed endpoint")?;
-                        let candidate = ReferenceCallSource {
-                            origin: ReferenceCallOrigin::Invocation {
-                                carrier_type,
-                                path,
-                                access: region.access,
-                            },
-                            suffix: Vec::new(),
-                            endpoint,
-                            extent: ReferenceOriginExtent::Projected,
-                        };
-                        if let Some(result) =
-                            results.iter_mut().find(|result| result.path == region.path)
-                        {
-                            result.sources.push(candidate);
-                        } else {
-                            results.push(ReferenceCallResult {
-                                path: region.path.clone(),
-                                sources: vec![candidate],
-                            });
+            for leaf in leaves
+                .iter()
+                .filter(|leaf| matches!(leaf.kind, super::BorrowedResultLeafKind::Reference(_)))
+            {
+                for region in slot.reference_regions(&leaf.path) {
+                    let region = region?;
+                    let index = match region.origin {
+                        TerminalDynamicReferenceOrigin::Parameter { argument_index } => {
+                            argument_index
                         }
-                        continue;
+                        TerminalDynamicReferenceOrigin::Invocation { carrier_type } => {
+                            let path = region
+                                .source_path
+                                .iter()
+                                .cloned()
+                                .map(ReferenceOriginProjection::Exact)
+                                .collect::<Vec<_>>();
+                            let endpoint =
+                                reference_origin_type(types.clone(), carrier_type, &path).ok_or(
+                                    "dynamic invocation reference origin has no typed endpoint",
+                                )?;
+                            let candidate = ReferenceCallSource {
+                                origin: ReferenceCallOrigin::Invocation {
+                                    carrier_type,
+                                    path,
+                                    access: region.access,
+                                },
+                                suffix: Vec::new(),
+                                endpoint,
+                                extent: ReferenceOriginExtent::Projected,
+                            };
+                            if let Some(result) =
+                                results.iter_mut().find(|result| result.path == region.path)
+                            {
+                                result.sources.push(candidate);
+                            } else {
+                                results.push(ReferenceCallResult {
+                                    path: region.path.clone(),
+                                    sources: vec![candidate],
+                                });
+                            }
+                            continue;
+                        }
+                    };
+                    let argument_index = usize::try_from(index)
+                        .map_err(|_| "dynamic returned region input ordinal overflows")?;
+                    let (parameter_type, _) = slot
+                        .structural_parameter(argument_index)
+                        .ok_or("dynamic returned region names no formal input")?;
+                    let origin_path = region
+                        .source_path
+                        .iter()
+                        .cloned()
+                        .map(ReferenceOriginProjection::Exact)
+                        .collect::<Vec<_>>();
+                    let endpoint =
+                        reference_origin_type(types.clone(), parameter_type, &origin_path)
+                            .ok_or("dynamic returned region has no typed input endpoint")?;
+                    let source_path = crate::reference_source_storage_path(
+                        types.clone(),
+                        parameter_type,
+                        &region.source_path,
+                    );
+                    let mut source = arguments
+                        .get(argument_index)
+                        .ok_or("dynamic returned region has no actual structural argument")?
+                        .clone();
+                    source.path.extend_from_slice(source_path);
+                    source.access = region.access;
+                    let candidate = ReferenceCallSource {
+                        origin: ReferenceCallOrigin::Parameter {
+                            source,
+                            transfers_existing: false,
+                        },
+                        suffix: Vec::new(),
+                        endpoint,
+                        extent: ReferenceOriginExtent::WithinRegion,
+                    };
+                    if let Some(result) =
+                        results.iter_mut().find(|result| result.path == region.path)
+                    {
+                        result.sources.push(candidate);
+                    } else {
+                        results.push(ReferenceCallResult {
+                            path: region.path.clone(),
+                            sources: vec![candidate],
+                        });
                     }
-                };
-                let argument_index = usize::try_from(index)
-                    .map_err(|_| "dynamic returned region input ordinal overflows")?;
-                let (parameter_type, _) = slot
-                    .structural_parameter(argument_index)
-                    .ok_or("dynamic returned region names no formal input")?;
-                let origin_path = region
-                    .source_path
-                    .iter()
-                    .cloned()
-                    .map(ReferenceOriginProjection::Exact)
-                    .collect::<Vec<_>>();
-                let endpoint = reference_origin_type(types.clone(), parameter_type, &origin_path)
-                    .ok_or("dynamic returned region has no typed input endpoint")?;
-                let source_path = crate::reference_source_storage_path(
-                    types.clone(),
-                    parameter_type,
-                    &region.source_path,
-                );
-                let mut source = arguments
-                    .get(argument_index)
-                    .ok_or("dynamic returned region has no actual structural argument")?
-                    .clone();
-                source.path.extend_from_slice(source_path);
-                source.access = region.access;
-                let candidate = ReferenceCallSource {
-                    origin: ReferenceCallOrigin::Parameter {
-                        source,
-                        transfers_existing: false,
-                    },
-                    suffix: Vec::new(),
-                    endpoint,
-                    extent: ReferenceOriginExtent::WithinRegion,
-                };
-                if let Some(result) = results.iter_mut().find(|result| result.path == region.path) {
-                    result.sources.push(candidate);
-                } else {
-                    results.push(ReferenceCallResult {
-                        path: region.path.clone(),
-                        sources: vec![candidate],
-                    });
                 }
             }
-
             Ok(results)
         }
     }
@@ -908,11 +967,25 @@ pub(crate) mod reference_origins {
                     .module
                     .machine(*callee)
                     .ok_or("reference call has no callee")?;
-                let signature = callee
+                let public = operation
+                    .required_contract
+                    .map(|required| {
+                        crate::selected_reference_result(
+                            self.module,
+                            caller.id,
+                            callee.id,
+                            required,
+                        )
+                    })
+                    .transpose()?;
+                let contract = public
+                    .as_ref()
+                    .map_or(&callee.contract, |public| public.contract());
+                let signature = contract
                     .result
                     .structural()
                     .ok_or("reference callee has no result")?;
-                if signature.reference_sources.is_empty() {
+                if public.is_none() && signature.reference_sources.is_empty() {
                     return Ok(Vec::new());
                 }
                 if result.structural_type != signature.structural_type
@@ -939,14 +1012,22 @@ pub(crate) mod reference_origins {
                     block,
                     u32::try_from(ordinal).map_err(|_| "call ordinal overflows")?,
                 );
-                let mappings = super::bind_reference_call_results(
-                    self.module.structural_types.iter(),
-                    ReferenceCallContract::Machine {
-                        parameters: &callee.structural_parameters,
-                        sources: &signature.reference_sources,
-                    },
-                    structural_arguments,
-                )?;
+                let mappings = if let Some(public) = &public {
+                    super::bind_public_reference_call_results(
+                        self.module.structural_types.iter(),
+                        public,
+                        structural_arguments,
+                    )?
+                } else {
+                    super::bind_reference_call_results(
+                        self.module.structural_types.iter(),
+                        ReferenceCallContract::Machine {
+                            parameters: &contract.structural_parameters,
+                            sources: &signature.reference_sources,
+                        },
+                        structural_arguments,
+                    )?
+                };
                 preserve_call_memberships(
                     &self.module.structural_types,
                     &self.module.structural_domains,

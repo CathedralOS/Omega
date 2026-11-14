@@ -539,7 +539,8 @@ impl LogicalScope<'_> {
                 machine,
                 "logical contract fact span",
             )? {
-                if let Some(clause) = program.contract_clause(machine, scope, fact)? {
+                let requirement = contract.kind == SignatureContractKind::Requires;
+                if let Some(clause) = program.contract_clause(machine, scope, fact, requirement)? {
                     clauses.push(clause);
                 }
             }

@@ -57,6 +57,10 @@ pub(crate) mod declaration_selection {
     pub(crate) struct ConstantSelection<'base> {
         symbols: SymbolTable,
         retained: Option<SelectionBase<'base>>,
+        // Geometry is derived for one structural-completion pass from its actual
+        // resolved owner. A resumed pass reconstructs it from that owner's tree.
+        #[record(skip)]
+        array_lengths: Vec<(source::SourceSpan, Option<usize>)>,
     }
 
     /*
@@ -182,6 +186,7 @@ pub(crate) mod declaration_selection {
                     .symbols;
             Ok(ConstantSelection {
                 symbols,
+                array_lengths: Vec::new(),
                 retained: base.map(SelectionBase::Shared),
             })
         }
@@ -291,10 +296,12 @@ pub(crate) mod declaration_selection {
                 }
                 builder.finish()
             };
+            crate::symbols::spelled_integers(syntax).install(&mut symbols);
             namespaces.register(&mut symbols)?;
             Ok(Self {
                 symbols,
                 retained: retained.map(SelectionBase::Borrowed),
+                array_lengths: Vec::new(),
             })
         }
 
@@ -961,93 +968,6 @@ pub(crate) mod declaration_selection {
             None
         }
 
-        /*
-            Read the receiving telescope selected in this invocation's namespace.
-            Parsed headers supply carrier syntax only; they never add declarations
-            or authorize evaluation. Retained headers are outside the cohort's work
-            roots, so copy their operands into its tables before returning handles.
-        */
-        pub(super) fn const_parameter_carriers(
-            &self,
-            syntax: &mut SyntaxTrees,
-            declaration_syntax: Option<&SyntaxTrees>,
-            name: &Identifier,
-            kinds: &[SymbolKind],
-        ) -> Option<Vec<Option<syntax_trees::types::TypeReferenceHandle>>> {
-            let selected = self.symbols.find_top_level_by_name_and_kinds_from_source(
-                name.as_str(syntax),
-                kinds,
-                name.source_span(),
-            )?;
-            let reference = self.symbols.symbol_source_span(selected)?;
-            let selected_kind = self.symbols.get(selected).kind;
-            let selected_name = self.symbols.name(selected);
-            let parameters = |forest: &SyntaxTrees| {
-                let mut declarations = forest.root_items().filter_map(|item| {
-                    let (kind, declaration, parameters, evidence_count) = match item {
-                        Item::Data(data) => (SymbolKind::Data, &data.name, data.type_parameters, 0),
-                        Item::TypeAlias(alias) => {
-                            (SymbolKind::TypeAlias, &alias.name, alias.type_parameters, 0)
-                        }
-                        Item::Trait(definition) => (
-                            SymbolKind::Trait,
-                            &definition.name,
-                            definition.type_parameters,
-                            0,
-                        ),
-                        Item::Machine(machine) => (
-                            SymbolKind::Machine,
-                            &machine.name,
-                            machine.type_parameters,
-                            machine.conformance_bounds.len(),
-                        ),
-                        Item::Conformance(conformance) => (
-                            SymbolKind::Conformance,
-                            conformance.alias.as_ref()?,
-                            conformance.type_parameters,
-                            0,
-                        ),
-                        _ => return None,
-                    };
-                    (kind == selected_kind
-                        && declaration.source_span() == reference
-                        && declaration.as_str(forest) == selected_name)
-                        .then_some((parameters, evidence_count))
-                });
-                let Some((parameters, evidence_count)) = declarations.next() else {
-                    return Ok(None);
-                };
-                if declarations.next().is_some() {
-                    return Err(());
-                }
-                let mut carriers = syntax_items(forest)
-                    .type_parameters(parameters)
-                    .iter()
-                    .map(|parameter| match parameter.kind {
-                        syntax_trees::item::TypeParameterKind::Const { type_reference } => {
-                            Some(type_reference)
-                        }
-                        _ => None,
-                    })
-                    .collect::<Vec<_>>();
-                carriers.resize(carriers.len() + evidence_count, None);
-                Ok(Some(carriers))
-            };
-            if let Some(parameters) = parameters(syntax).ok()? {
-                return Some(parameters);
-            }
-            let forest = declaration_syntax?;
-            Some(
-                parameters(forest)
-                    .ok()??
-                    .into_iter()
-                    .map(|carrier| {
-                        carrier.map(|carrier| syntax.copy_type_reference_handle(forest, carrier))
-                    })
-                    .collect(),
-            )
-        }
-
         pub(crate) fn constructor<'syntax>(
             &self,
             syntax: &'syntax SyntaxTrees,
@@ -1077,6 +997,13 @@ pub(crate) mod declaration_selection {
                 name.source_span(),
             )?;
             self.symbols.builtin_type_atom(selected)
+        }
+
+        pub(super) fn install_integer_types(
+            &mut self,
+            carriers: impl IntoIterator<Item = numerics::integer_carrier::FixedInteger>,
+        ) {
+            self.symbols.install_integer_types(carriers);
         }
 
         pub(super) fn type_declaration_kind(
@@ -1506,6 +1433,53 @@ pub(crate) mod declaration_selection {
                 })
         }
 
+        /* Geometry borrows completed values from this pass's resolved owner. */
+        pub(crate) fn with_array_lengths(
+            &self,
+            mut lengths: Vec<(source::SourceSpan, Option<usize>)>,
+        ) -> Self {
+            lengths.sort_by_key(|(reference, _)| {
+                (
+                    reference.source_id.0,
+                    reference.span.start,
+                    reference.span.end,
+                )
+            });
+            let mut selection = self.clone();
+            selection.array_lengths = lengths;
+            selection
+        }
+
+        pub(crate) fn selected_array_length(
+            &self,
+            reference: source::SourceSpan,
+        ) -> Result<usize, String> {
+            let key = |reference: source::SourceSpan| {
+                (
+                    reference.source_id.0,
+                    reference.span.start,
+                    reference.span.end,
+                )
+            };
+            let first = self
+                .array_lengths
+                .partition_point(|(known, _)| key(*known) < key(reference));
+            let mut selected = self.array_lengths[first..]
+                .iter()
+                .take_while(|(known, _)| *known == reference);
+            let length = selected
+                .next()
+                .and_then(|(_, value)| *value)
+                .ok_or_else(|| {
+                    "array extent requires a completed integer value selected in its lexical scope"
+                        .to_owned()
+                })?;
+            if selected.any(|(_, other)| *other != Some(length)) {
+                return Err("array extent occurrence has conflicting selected values".to_owned());
+            }
+            Ok(length)
+        }
+
         /*
             Return exact declaration custody, not a handle from the header table.
             No match includes unresolved or ambiguous selection; callers must defer
@@ -1884,7 +1858,6 @@ pub(crate) mod module_normalization {
     */
 
     use crate::constant::validate_scalar_initializer;
-    use crate::preparation::generic_data::canonicalize_declared_const_definition;
     use crate::preparation::generic_data::canonicalize_selected_declared_const_definition;
     use crate::resolution::lowerer::ConstResolutionMode;
     use crate::tables::syntax_expressions;
@@ -1934,12 +1907,17 @@ pub(crate) mod module_normalization {
                 continue;
             }
             if mode != ConstResolutionMode::Complete {
-            } else if module_literal_constant(syntax, constant) {
+            } else if module_literal_constant(syntax, constant, Some(selection)) {
                 if matches!(
                     syntax_type_references(syntax).type_reference(constant.type_reference),
                     TypeReferenceNode::FixedArray { .. }
                 ) {
-                    canonicalize_declared_const_definition(syntax, constant).map_err(|reason| {
+                    canonicalize_selected_declared_const_definition(
+                        syntax,
+                        constant,
+                        Some(selection),
+                    )
+                    .map_err(|reason| {
                         vec![
                             Diagnostic::error(format!(
                                 "module array constant `{}` is invalid: {reason}",
@@ -1949,15 +1927,17 @@ pub(crate) mod module_normalization {
                         ]
                     })?;
                 } else {
-                    validate_scalar_initializer(syntax, constant).map_err(|reason| {
-                        vec![
-                            Diagnostic::error(format!(
-                                "module scalar constant `{}` is invalid: {reason}",
-                                constant.name.as_str(syntax)
-                            ))
-                            .with_source_span(constant.name.source_span()),
-                        ]
-                    })?;
+                    validate_scalar_initializer(syntax, constant, Some(selection)).map_err(
+                        |reason| {
+                            vec![
+                                Diagnostic::error(format!(
+                                    "module scalar constant `{}` is invalid: {reason}",
+                                    constant.name.as_str(syntax)
+                                ))
+                                .with_source_span(constant.name.source_span()),
+                            ]
+                        },
+                    )?;
                 }
             } else if let Some(base_name) = generic_const_carrier_leaf(syntax, constant) {
                 let selected = selection.data(syntax, base_name).and_then(|definition| {
@@ -1999,6 +1979,7 @@ pub(crate) mod module_normalization {
     pub(crate) fn module_literal_constant(
         syntax: &SyntaxTrees,
         constant: &ConstDefinition,
+        selection: Option<&crate::preparation::declaration_selection::ConstantSelection>,
     ) -> bool {
         use syntax_trees::expression::ExpressionNode;
         if !scalar_literal_tree(syntax, constant.value) {
@@ -2020,8 +2001,17 @@ pub(crate) mod module_normalization {
         loop {
             match syntax.type_references.type_reference(type_reference) {
                 TypeReferenceNode::Named(name) => {
-                    return crate::constant::is_structural_scalar_carrier(name.as_str(syntax))
-                        || (!is_array && matches!(name.as_str(syntax), "f32" | "f64"));
+                    return selection
+                        .and_then(|selection| selection.builtin_type(syntax, name))
+                        .is_some_and(|atom| {
+                            crate::constant::is_structural_scalar_carrier(atom)
+                                || (!is_array
+                                    && matches!(
+                                        atom,
+                                        symbols::BuiltinTypeAtom::F32
+                                            | symbols::BuiltinTypeAtom::F64
+                                    ))
+                        });
                 }
                 TypeReferenceNode::FixedArray {
                     element_type,
@@ -4936,31 +4926,6 @@ pub(crate) mod declared_types {
             })
     }
 
-    /*
-        Build-time evaluation expands type heads before discovering constant and
-        representation work. Imported declaration forests lend headers only.
-    */
-    pub fn normalize_declared_types(
-        mut request: super::generic_data::GenericDataRequest<'_>,
-    ) -> Result<SyntaxTrees, Vec<Diagnostic>> {
-        let declarations = request
-            .declaration_syntax
-            .into_iter()
-            .chain(request.retained_declaration_syntax)
-            .collect::<Vec<_>>();
-        if !needs_normalization(&request.syntax, &declarations) {
-            return Ok(request.syntax);
-        }
-        let selection = ConstantSelection::with_retained_base(
-            &request.syntax,
-            request.sources,
-            request.top_level_bindings,
-            request.retained_base,
-        )?;
-        normalize_with_declarations(&mut request.syntax, &selection, &declarations)?;
-        Ok(request.syntax)
-    }
-
     fn mark_header_references(syntax: &mut SyntaxTrees, root: TypeReferenceHandle) {
         let mut pending = vec![root];
         let mut seen = Vec::new();
@@ -5452,13 +5417,16 @@ pub(crate) fn prepare(
 ) -> Result<Prepared, Vec<Diagnostic>> {
     builtin_type_names::validate(&syntax)?;
     target_families::normalize(&mut syntax, sources.as_deref())?;
-    let constant_selection = declaration_selection::ConstantSelection::with_shared_base(
+    let mut constant_selection = declaration_selection::ConstantSelection::with_shared_base(
         &syntax,
         sources,
         top_level_bindings,
         base,
     )?;
     declared_types::normalize(&mut syntax, &constant_selection)?;
+    // Closed literal widths must name carriers before constants land in them.
+    // Named widths remain for resolution in their lexical scope.
+    constant_selection.install_integer_types(integer_widths::normalize(&mut syntax)?);
     generic_data::domain_heads::normalize(&mut syntax, Some(&constant_selection))?;
     /*
         Only the complete route owns a constant's value. The selection routes
@@ -5468,7 +5436,14 @@ pub(crate) fn prepare(
     if constants == crate::resolution::lowerer::ConstResolutionMode::Complete {
         generic_data::fold_closed_scalar_initializers(&mut syntax, &constant_selection)?;
     }
-    integer_widths::normalize(&mut syntax)?;
+    let integer_types = integer_widths::normalize(&mut syntax)?;
+    let new_integer_types = !integer_types.is_empty();
+    constant_selection.install_integer_types(integer_types);
+    if new_integer_types && constants == crate::resolution::lowerer::ConstResolutionMode::Complete {
+        // Rewritten literal widths can make another initializer's carrier
+        // available without resolving named widths outside their lexical scope.
+        generic_data::fold_closed_scalar_initializers(&mut syntax, &constant_selection)?;
+    }
     validate_with_const_resolution_mode(&syntax, &constant_selection, constants)?;
     synthesize_trait_defaults_after_module_validation(&mut syntax, &constant_selection)?;
     Ok(Prepared {

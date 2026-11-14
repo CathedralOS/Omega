@@ -1971,7 +1971,7 @@ use syntax_trees::item::ConstDefinition;
 /*
     One syntax forest and the custody it resolves under.
 
-    The forest arrives by value, as `GenericDataRequest`'s does: preparation
+    The forest arrives by value: preparation
     rewrites syntax to syntax before any symbol exists, and only the rewritten
     forest carries the declarations the symbol table assigns identities to.
     Taking ownership keeps that rewrite from being paid for with a copy of the

@@ -1,5 +1,11 @@
 # 06 — Terminal Psi to Terminal Psi
 
+Discharge uses branch conditions, dispatch bindings and value relations as
+ordinary premises. There is no reduced-knowledge comparison mode. This is
+distinct from the specified [automatic-discharge floor](../../../../../wiki/spec/build/command_line.md#checker-conformance),
+which retains cited lemmas, branches and contracts, and from explicit stage
+validators, which add checking without changing source acceptance.
+
 This crate decides the obligations that
 [structure-only elaboration](../05_typed-trees-to-terminal-psi/README.md) mints, and it
 accepts one only when the proof kernel accepted a certificate for it. It is
@@ -13,12 +19,20 @@ Terminal checking input to `judge_compilation`; this stage never elaborates
 typed source or calls stage 05. [The route's verdict](#the-routes-verdict) is
 the compilation verdict, including every demanded generic and conformance form.
 
-Start at [lib.rs](src/lib.rs) (`discharge`). [minted.rs](src/minted.rs)
+Start at [lib.rs](src/lib.rs) (`discharge`). After shared inference settles,
+[machine_inputs.rs](src/machine_inputs.rs) borrows each machine's existing
+authored branch rows and associates its requirement role and first carried-proof
+offer once. These are inputs, not accepted facts; proof transport and kernel
+admission still run for each actual obligation. [minted.rs](src/minted.rs)
 checks that the rows to decide are the ones the lowered form owes;
 [graph.rs](src/graph.rs) answers dominance between program points;
 [places.rs](src/places.rs) says what a place holds when a field read observes
 it, from the stores [places/log.rs](src/places/log.rs) derives from the
 operations; [prove.rs](src/prove.rs) is the one prover.
+[branch_warnings.rs](src/branch_warnings.rs) reports impossible authored arms
+from kernel-accepted refutations and their actual premise citations. Queries
+share results only within that machine's immutable advisory analysis; warning
+explanations neither retry assumption subsets nor decide program obligations.
 [joins.rs](src/joins.rs) infers and checks join predicates;
 [crashes.rs](src/crashes.rs) states crash-site coverage;
 [arrivals.rs](src/arrivals.rs) admits a loop head's declared invariant.
@@ -412,7 +426,7 @@ established as before.
 A scalar local declared without an initializer is zero-constructed by the
 same rule: elaboration logs the zero constant on its home at
 `EstablishPrimitiveLocal`, so `let mut x: u32; f(x)` reads a value that is
-provably zero, as the deleted checker accepted. Every scalar type this route
+provably zero. Every scalar type this route
 serves (`i8`..`u64`, `bool`) admits zero, and a qualified or ranged scalar
 type is refused by the reader as `type constrained`, so a scalar home owes
 no domain clause and no gated scalar occurs in this subset.
@@ -512,7 +526,7 @@ s.low = 12; s.high = 20; width(s)` is valid: the first store breaks
   conservatively." The tables hold no callee summary to prove that from,
   so no call is treated as
   unrelated: `s.low = 12; same(7); s.high = 20; width(s)` is rejected at
-  `same(7)`, as the deleted checker rejected it. Using the exception needs a
+  `same(7)`. Using the exception needs a
   summary term for a callee's access and effects.
 
   A window a zero establishment opened is consumed by every read under its
@@ -541,8 +555,7 @@ s.low = 12; s.high = 20; width(s)` is valid: the first store breaks
   verdicts.
 - **No second window.** A store that does not prove a clause while that
   clause's window on the same place is already open opens no window of its
-  own: the window stays open and names the store that opened it, as the
-  deleted checker's "a prior write left ... FALSE" does. Into zeroed
+  own: the window stays open and names the store that opened it. Into zeroed
   storage, a store that does not prove its clause keeps its own window,
   because the leaf it wrote no longer holds the zero.
 
@@ -734,8 +747,8 @@ be formed is `Discharged::Lent`; one that may not is refused with
   lineage and access": a `Read` parent rejects a mutable child).
 
 `judge` reports each as a `ConflictingUse` in `RouteVerdict::Rejected`
-beside the unproved obligations and unestablished uses, in the current
-checker's words: `state `two` receives `y` as mutable more than once
+beside the unproved obligations and unestablished uses, naming the callee
+and conflicting binding: `state `two` receives `y` as mutable more than once
 (conflicting loans)`, `... as both mutable and read-only`, placed at the
 call.
 
@@ -865,12 +878,9 @@ order step between two values, which also carries the dividend's upper bound
 to the quotient. This too rests on a provisional kernel rule
 (`IntegerQuotientAtMostDividend`).
 
-`verify_obligation` then decides the whole certificate. Its acceptance records
-whether the mathematical core judged it as well. Most certificates are
-`Judged`; a discreteness step from a transported strict guard (`a < 10` to
-`a <= 9`, `0 < a` to `1 <= a`) is accepted by the rule checker and answered
-`Refused` by the core. Both count as discharged, and the comparison harness
-reports them apart.
+`verify_obligation` then decides the whole certificate against the reconstructed
+goal, assumptions and axioms. Search alone supplies no acceptance: a certificate
+the kernel refuses remains an unproved obligation.
 
 ### What the integer rules do not reach
 
@@ -956,11 +966,9 @@ subset needs, so the prover emits them directly.
    row states `c == true` (or `false`); the prover transports it through the
    result equations of Boolean values and constants into the comparison it
    stands for (`ValueEqualityTransport`, whose conclusion the kernel
-   computes with `check_value_equality_denotation`). The mathematical core
-   does not cover every certificate this makes: a discreteness step from a
-   transported `a < 10` to `a <= 9` is accepted by the rule checker and
-   answered `Refused` by the core. `verify_obligation` accepts such a
-   certificate; the comparison harness counts it apart from `Judged`.
+   computes with `check_value_equality_denotation`). Any derived bounds must
+   still pass `verify_obligation`; an inferred or transported fact is not
+   an independent checking verdict.
 2. **Knowledge propositions have a table.** `MachineTables::propositions`
    (machine-local, minted by `push`); `KnowledgeRow::proposition` indexes it.
 3. **Callee clauses live on the machine contract.** A callee's `requires`
@@ -1017,7 +1025,7 @@ subset needs, so the prover emits them directly.
     was not proved at the store or the zero establishment. The
     specification puts the refusal at the consumption, and an `Unproved`
     verdict at the write would reject `let mut g: Gated; g = Gated { .. };`
-    and `s.low = 12; s.high = 20;`, which the deleted checker accepted.
+    and `s.low = 12; s.high = 20;` before their later restoration could count.
 12. **Invariant windows are judged, not handed back.** See
     [Invariant windows](#invariant-windows). The sentence "Terminal Psi
     opens no invariant window on a field" in structural_access.md is about
@@ -1044,8 +1052,8 @@ subset needs, so the prover emits them directly.
     hold one named value at the call.** `peek(make())` with
     `requires packet.first == 7` is unproved: what `make` returned has no
     value identity in the caller, and no `ensures` over `result` can supply
-    one yet. The deleted checker rejected the same call when `make` builds
-    `first = 8`, by evaluating the callee.
+    one yet. A callee's implementation cannot substitute for missing
+    caller-visible result correspondence.
 16. **A clause over a field with no value identity is unproved even when it
     is true of every value.** After `let mut s = make(); s.low = 0;`, the
     clause `low <= high` is unproved: `high` has no value there. Stating a
@@ -1097,8 +1105,8 @@ route's decision from. It discharges an elaborated closure and returns:
   its kind, its source site from elaboration's correspondence, and its cause
   (`UnprovedCause`). `reject_diagnostic()` turns it into the program error,
   `<statement> (<cause>: <detail>)`, an ordinary `Reject` with no artifact.
-  The statement ([describe.rs](src/describe.rs)) says what was not proved in
-  the deleted checker's words for the same obligation, from the lowered form
+  The statement ([describe.rs](src/describe.rs)) says what was not proved,
+  using the lowered form
   and elaboration's names table (`MachineNames`): `cannot prove requires
   contract for call bounded from probe: xored >= 1 && xored <= 2 (needs fact
   `value >= 1 && value <= 2` here; establish it before the call via a prior
@@ -1106,7 +1114,7 @@ route's decision from. It discharges an elaborated closure and returns:
   callee's clause over the caller's actuals, then the same clause as the
   callee wrote it, and the caller's state), `cannot prove ensures contract
   for exit from shifted at statement 0: result <= value` (the exit's
-  statement position, counted as the deleted checker counted it), `exact
+  statement position retained by the reader), `exact
   arithmetic in machine `tally` state `entry` return value may overflow
   `u64`: ...`, `shift count in ... is not provably below the operand width
   for `u64`` (a left shift names both its conjuncts, the count and the
@@ -1136,17 +1144,19 @@ route's decision from. It discharges an elaborated closure and returns:
   yet, so this variant has no `Diagnostic` constructor: a plain error would
   publish it as `Reject`. The prover has no search bound, so no obligation is
   `Incomplete` for exhaustion.
-- `FallBack`: elaboration or some obligation was refused as `Unsupported`, so
-  Psi 05 and 06 decide the whole closure. This wins over `Unproved`.
+- `FallBack`: elaboration or some obligation was refused as `Unsupported`.
+  Despite its historical name, this stops compilation without an artifact;
+  no second checker receives the closure. This wins over `Unproved`.
 
 There is no variant for a partly proved closure. Omega 00 accepts every
 obligation of the module it is given and fills evidence only where a seal
 arrives, so a module with an undischarged obligation must never reach it. Any
 other refusal is a defect of the route and comes back as `Err`.
 
-No router calls `judge` in the default compile yet: the comparison harness
-below is its only caller outside tests, and prints each unproved
-obligation's message with its outcome.
+The product producer's
+[`AcceptedTerminalSource::judge`](../../psi-compiler/terminal-production/src/accepted.rs)
+prepares the compilation, calls `judge_compilation` and accepts only its checked
+closure. Tests can call `judge` on one elaborated closure directly.
 
 ## Calls that do not return
 

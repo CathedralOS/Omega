@@ -1123,12 +1123,6 @@ mod expressions {
         }
     }
 
-    pub(in crate::preparation::generic_data) fn concrete_machine_expression_handles(
-        syntax: &SyntaxTrees,
-    ) -> ConcreteExpressions {
-        selected_machine_expression_handles(syntax, syntax.root_item_handles())
-    }
-
     pub(in crate::preparation::generic_data) fn selected_machine_expression_handles(
         syntax: &SyntaxTrees,
         declarations: &[syntax_trees::item::ItemHandle],
@@ -1859,8 +1853,8 @@ pub(super) use constructors::{
     relabel_data_literal_for_expected_type, selected_constructor,
 };
 pub(super) use expressions::{
-    ConstructorFrontier, concrete_machine_declarations, concrete_machine_expression_handles,
-    selected_machine_expression_handles, selected_machine_state_handles,
+    ConstructorFrontier, concrete_machine_declarations, selected_machine_expression_handles,
+    selected_machine_state_handles,
 };
 pub(in crate::preparation) use expressions::{
     collect_expression_handles, collect_statement_expression_handles,

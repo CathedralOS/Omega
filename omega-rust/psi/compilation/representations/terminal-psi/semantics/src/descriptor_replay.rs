@@ -1052,6 +1052,19 @@ pub(crate) mod analysis {
                 step.may_escape |= summary.invalidates_contents;
                 let mut outputs = Vec::new();
                 for effect in &summary.effects {
+                    // The callee returns with this storage holding what it
+                    // held on entry: nothing was written, so no descriptor
+                    // is defined, copied or handed anywhere here. Reading it
+                    // as a write from unknown contents would keep every loan
+                    // the call uses live to the end of the machine.
+                    if !effect.origins.is_empty()
+                        && effect
+                            .origins
+                            .iter()
+                            .all(|origin| effect.keeps_incoming(origin))
+                    {
+                        continue;
+                    }
                     let query =
                         self.replay
                             .actual_contents(call, effect.parameter, &effect.steps)?;
@@ -2305,19 +2318,19 @@ pub(crate) mod contents_queries {
         ) -> Option<()> {
             let root = *machine.place_types.get(&query.root)?;
             query.validate_using(self.types, root, |carrier, path, original| {
+                use crate::descriptors::descriptor_lifetimes::{
+                    descriptor_location_type, descriptor_path,
+                };
                 if original {
-                    machine.location_type(
-                        self.types,
-                        &DescriptorLocation {
-                            root: query.root,
-                            path: path.to_vec(),
-                        },
-                        completed,
-                    )
+                    let location = DescriptorLocation {
+                        root: query.root,
+                        path: path.to_vec(),
+                    };
+                    machine.location_path(self.types, &location, completed)?;
+                    Some(machine.location_type(self.types, &location, completed))
                 } else {
-                    crate::descriptors::descriptor_lifetimes::descriptor_location_type(
-                        self.types, carrier, path,
-                    )
+                    descriptor_path(self.types, carrier, path)?;
+                    Some(descriptor_location_type(self.types, carrier, path))
                 }
             })
         }
@@ -4449,7 +4462,7 @@ pub(crate) mod engine {
                                 && effect
                                     .origins
                                     .iter()
-                                    .all(|origin| incoming_field_kept(effect, origin))
+                                    .all(|origin| effect.keeps_incoming_slot(origin))
                                 && effect.origins.iter().any(|origin| {
                                     self.substitute_with_depth(
                                         machine, &before, call, origin, &reads,
@@ -4520,7 +4533,7 @@ pub(crate) mod engine {
                                     .substitute_with_depth(machine, &before, call, origin, &reads)
                                 {
                                     Some(substituted) => origins.extend(substituted),
-                                    None if incoming_field_kept(effect, origin) => {
+                                    None if effect.keeps_incoming_slot(origin) => {
                                         dropped_retired_incoming = true;
                                     }
                                     None => return None,
@@ -5370,20 +5383,6 @@ pub(crate) mod engine {
             }
             Some(origins)
         }
-    }
-
-    fn incoming_field_kept(
-        effect: &DescriptorStoredEffect,
-        origin: &DescriptorStoredOrigin,
-    ) -> bool {
-        let DescriptorStoredOrigin::IncomingSlot { position, path } = origin else {
-            return false;
-        };
-        *position == effect.parameter
-            && path.len() == effect.steps.len()
-            && path.iter().zip(&effect.steps).all(|(segment, step)| {
-                matches!(step, DescriptorContentsStep::Address(actual) if actual == segment)
-            })
     }
 
     #[cfg(test)]
@@ -6405,6 +6404,33 @@ pub struct DescriptorStoredEffect {
     pub origins: Vec<DescriptorStoredOrigin>,
 }
 impl DescriptorStoredEffect {
+    /// Whether `origin` is the slot this effect describes, as it was when
+    /// the machine was entered.
+    pub(crate) fn keeps_incoming_slot(&self, origin: &DescriptorStoredOrigin) -> bool {
+        let DescriptorStoredOrigin::IncomingSlot { position, path } = origin else {
+            return false;
+        };
+        *position == self.parameter
+            && path.len() == self.steps.len()
+            && path.iter().zip(&self.steps).all(|(segment, step)| {
+                matches!(step, DescriptorContentsStep::Address(actual) if actual == segment)
+            })
+    }
+
+    /// Whether `origin` says this effect's own storage still holds what it
+    /// held when the machine was entered: the slot itself, or the same
+    /// contents reached through a reference or view, unprojected.
+    pub(crate) fn keeps_incoming(&self, origin: &DescriptorStoredOrigin) -> bool {
+        self.keeps_incoming_slot(origin)
+            || matches!(
+                origin,
+                DescriptorStoredOrigin::IncomingContents { position, steps, projection }
+                    if *position == self.parameter
+                        && *steps == self.steps
+                        && *projection == Projection::new(&[])
+            )
+    }
+
     pub fn exact_path(&self) -> Option<Vec<DescriptorPathSegment>> {
         self.steps
             .iter()

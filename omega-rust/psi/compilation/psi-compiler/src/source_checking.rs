@@ -142,6 +142,16 @@ impl SourcePreparationRequest<'_> {
                 self.compilation.purpose,
                 &mut accounting,
             )?;
+            // `Buffer<capacity()>`: a const argument written as a call gets
+            // its value first, because a constant below may be computed
+            // through a type that is applied at one.
+            build_time_evaluation::evaluate_const_arguments(
+                &mut program,
+                self.compilation,
+                self.admission.layout_selection_authority.clone(),
+                self.admission.invocation_sources.clone(),
+                &mut accounting,
+            )?;
             constant_entries::retain_evaluation_entries(&mut program)?;
             let constants =
                 build_time_evaluation::evaluate_constant_initializers_with_source_consent(

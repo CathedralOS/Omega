@@ -53,6 +53,7 @@ use semantic_vocabulary::{
 
 mod ranges;
 mod reach;
+mod widths;
 
 use crate::known::{Fact, ProofValues, is_branch_fact};
 
@@ -79,7 +80,11 @@ const CASE_BRANCH_BUDGET: usize = 64;
 /// equations are substituted, which is how the kernel reads it
 /// (`Prover::by_transport`), so a comparison of two such terms is evaluated,
 /// not searched for (`Prover::has_rules_for`).
-fn covered(goal: &Proposition, fixed: &dyn Fn(ValueId) -> bool) -> bool {
+fn covered(
+    goal: &Proposition,
+    fixed: &dyn Fn(ValueId) -> bool,
+    width: &dyn Fn(ValueId) -> bool,
+) -> bool {
     // The kernel also decides open expressions whose difference is constant.
     // Both comparison outcomes are covered: an unequal result is a refused
     // obligation, rather than an unsupported mathematical goal.
@@ -93,10 +98,10 @@ fn covered(goal: &Proposition, fixed: &dyn Fn(ValueId) -> bool) -> bool {
     match goal {
         Proposition::Truth | Proposition::Falsehood => true,
         Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
-            parts.iter().all(|part| covered(part, fixed))
+            parts.iter().all(|part| covered(part, fixed, width))
         }
         // The premise is only assumed; the conclusion is what is proved.
-        Proposition::Implication { conclusion, .. } => covered(conclusion, fixed),
+        Proposition::Implication { conclusion, .. } => covered(conclusion, fixed, width),
         Proposition::LessOrEqual(left, right)
         | Proposition::LessThan(left, right)
         | Proposition::Equal(left, right) => {
@@ -115,6 +120,12 @@ fn covered(goal: &Proposition, fixed: &dyn Fn(ValueId) -> bool) -> bool {
         Proposition::IntegerMathLessOrEqual(left, right) => {
             if closed_mathematical(left, fixed) && closed_mathematical(right, fixed) {
                 return true;
+            }
+            // A range at a parameter width (`widths`).
+            if widths::mentions_parameter_width(left, width)
+                || widths::mentions_parameter_width(right, width)
+            {
+                return widths::covered(left, right, width);
             }
             // `Prover::arithmetic_interval` bounds one operation over values
             // of one carrier and literals, the shape an exact operation's
@@ -151,7 +162,7 @@ fn covered(goal: &Proposition, fixed: &dyn Fn(ValueId) -> bool) -> bool {
 /// `covered` with no value fixed: the goal's form as written.
 #[cfg(test)]
 pub(crate) fn has_rules_for(goal: &Proposition) -> bool {
-    covered(goal, &|_| false)
+    covered(goal, &|_| false, &|_| false)
 }
 
 /// Whether `term` is literals, values that `fixed` says are literals, and
@@ -274,9 +285,6 @@ pub(crate) struct Prover<'a> {
     transport: crate::known::TransportInputs,
     /// `[upper, lower]` per value, indexed by `ValueId - 1`.
     bounds: Vec<[Slot; 2]>,
-    /// Whether relations between values are searched (off only to measure
-    /// what they buy).
-    relations: bool,
     /// Whether a failed goal may split over a disjunctive fact. Guard
     /// contradiction search disables this to avoid re-entering itself.
     case_split: bool,
@@ -403,7 +411,6 @@ impl<'a> Prover<'a> {
         assumptions: &'a [Proposition],
         axioms: &'a [Proposition],
         values: &'a dyn ProofValues,
-        relations: bool,
     ) -> Self {
         #[cfg(test)]
         SEARCHES.with(|searches| searches.set(searches.get() + 1));
@@ -425,7 +432,6 @@ impl<'a> Prover<'a> {
             bounds: (0..values.count())
                 .map(|_| [Slot::Unknown, Slot::Unknown])
                 .collect(),
-            relations,
             case_split: true,
             remaining_case_branches: CASE_BRANCH_BUDGET,
             active_cuts: Vec::new(),
@@ -507,14 +513,16 @@ impl<'a> Prover<'a> {
                     if *id == value)
             })
         };
-        if covered(goal, &|value| fixed(&self.equations, value)) {
+        let binders = self.width_binders();
+        let width = |value| binders.contains(&value);
+        if covered(goal, &|value| fixed(&self.equations, value), &width) {
             return true;
         }
         // Use the same exact definitions as certificate construction. A
         // checked update can expose `entry + 1 == entry + 2`: the kernel can
         // decide that comparison even though its original result was open.
         self.transported_goal(goal)
-            .is_some_and(|goal| covered(&goal, &|value| fixed(&self.equations, value)))
+            .is_some_and(|goal| covered(&goal, &|value| fixed(&self.equations, value), &width))
     }
 
     fn closed(&self, proposition: Proposition) -> Option<ProofNode> {
@@ -638,7 +646,6 @@ impl<'a> Prover<'a> {
         let direct = self.prove_direct(goal);
         if direct.is_ok()
             || !self.case_split
-            || !self.relations
             || !matches!(
                 goal,
                 Proposition::LessOrEqual(..)
@@ -887,13 +894,7 @@ impl<'a> Prover<'a> {
         }
         let mut assumptions = self.assumptions.to_vec();
         assumptions.push(part.clone());
-        let mut branch = Prover::new(
-            self.context,
-            &assumptions,
-            self.axioms,
-            self.values,
-            self.relations,
-        );
+        let mut branch = Prover::new(self.context, &assumptions, self.axioms, self.values);
         branch.case_split = self.case_split;
         branch.remaining_case_branches = self.remaining_case_branches;
         branch.active_cuts.clone_from(&self.active_cuts);
@@ -935,13 +936,7 @@ impl<'a> Prover<'a> {
     ) -> Result<ProofNode, Unproven> {
         let mut assumptions = self.assumptions.to_vec();
         assumptions.push(premise.clone());
-        let mut under = Prover::new(
-            self.context,
-            &assumptions,
-            self.axioms,
-            self.values,
-            self.relations,
-        );
+        let mut under = Prover::new(self.context, &assumptions, self.axioms, self.values);
         under.case_split = self.case_split;
         under.remaining_case_branches = self.remaining_case_branches;
         under.active_cuts.clone_from(&self.active_cuts);
@@ -1042,6 +1037,13 @@ impl<'a> Prover<'a> {
                 if let Some(proof) = self.closed(goal.clone()) {
                     return Ok(proof);
                 }
+                let binders = self.width_binders();
+                let width = |value| binders.contains(&value);
+                if widths::mentions_parameter_width(left, &width)
+                    || widths::mentions_parameter_width(right, &width)
+                {
+                    return self.width_goal(left, right);
+                }
                 self.arithmetic(left, right)
             }
             Proposition::IntegerMathEqual(..) => self
@@ -1078,8 +1080,7 @@ impl<'a> Prover<'a> {
         let ScalarType::Integer(integer) = left.scalar_type() else {
             return Err("order of non-integers");
         };
-        if self.relations
-            && let (ScalarTerm::Value { .. }, ScalarTerm::Value { .. }) = (left, right)
+        if let (ScalarTerm::Value { .. }, ScalarTerm::Value { .. }) = (left, right)
             && let Some(proof) = self.relation(left, right, strict)
         {
             return Ok(proof);
@@ -1940,7 +1941,7 @@ impl<'a> Prover<'a> {
         right: &IntegerMathTerm,
     ) -> Result<ProofNode, Unproven> {
         let interval = self.arithmetic_interval(left, right);
-        if interval.is_ok() || !self.relations {
+        if interval.is_ok() {
             return interval;
         }
         self.correlated_subtract(left, right)
@@ -2080,9 +2081,6 @@ impl<'a> Prover<'a> {
         }
         .map_err(|_| "operation term")?;
         let interval = self.image(operation, &first, &second, target.clone(), direction);
-        if !self.relations {
-            return interval;
-        }
         let Some(related) = self.related_image(&target, term, direction) else {
             return interval;
         };
