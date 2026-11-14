@@ -378,7 +378,7 @@ fn hash_scalar_type(
                 IntegerSign::Signed => 1,
                 IntegerSign::Unsigned => 2,
             });
-            digest.raw(&integer.bits().to_le_bytes());
+            integer.width().write_identity(|part| digest.raw(part));
             digest.byte(match integer.carrier() {
                 semantic_vocabulary::IntegerCarrier::Fixed => 1,
                 semantic_vocabulary::IntegerCarrier::Address => 2,
@@ -896,4 +896,42 @@ pub(crate) fn physical_evidence_gap_identity(
         }
     }
     digest.finish()
+}
+
+#[cfg(test)]
+mod width_tests {
+    use super::*;
+    use semantic_vocabulary::{IntegerType, MachineId, ValueId, WidthParameter};
+
+    fn scalar_identity(integer: IntegerType) -> [u8; 32] {
+        let mut digest = crate::digest_encoder::DomainDigestEncoder::new(b"native-scalar-test");
+        hash_scalar_type(&mut digest, ScalarType::Integer(integer));
+        digest.finish()
+    }
+
+    #[test]
+    fn native_scalar_hash_preserves_legacy_bytes_and_rigid_width_scope() {
+        let fixed = IntegerType::new(IntegerSign::Unsigned, 13).unwrap();
+        let mut legacy = crate::digest_encoder::DomainDigestEncoder::new(b"native-scalar-test");
+        legacy.raw(&[2, 2, 13, 0, 1]);
+        assert_eq!(scalar_identity(fixed), legacy.finish());
+        let parameter = |owner, value| {
+            IntegerType::parameterized(
+                IntegerSign::Unsigned,
+                WidthParameter {
+                    owner: MachineId::new(owner).unwrap(),
+                    value: ValueId::new(value).unwrap(),
+                },
+            )
+        };
+        assert_ne!(
+            scalar_identity(parameter(1, 2)),
+            scalar_identity(parameter(2, 2))
+        );
+        assert_ne!(
+            scalar_identity(parameter(1, 2)),
+            scalar_identity(parameter(1, 3))
+        );
+        assert_ne!(scalar_identity(parameter(1, 2)), scalar_identity(fixed));
+    }
 }
