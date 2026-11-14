@@ -124,20 +124,16 @@ fn note_pass_accounting(
 ) -> Result<RetainedPackageReviews, CompileResolvedPackageReviewsError> {
     let compilations_before = counters::checked_compilation_call_count();
     let frontiers_before = counters::typed_frontier_reuse_count();
-    let preliminary_before = counters::preliminary_check_totals();
     let settled_before = counters::settled_check_totals();
     let result = run()?;
     let occurrences = result.occurrences.len();
     let carried = result.carried;
     timings::note(|| {
-        let (preliminary_calls, preliminary_micros) = counters::preliminary_check_totals();
         let (settled_calls, settled_micros) = counters::settled_check_totals();
         format!(
-            "review_pass {pass} occurrences={occurrences} compiled={} carried={carried} frontier_reused={} preliminary_checks={} preliminary_micros={} settled_checks={} settled_micros={}",
+            "review_pass {pass} occurrences={occurrences} compiled={} carried={carried} frontier_reused={} settled_checks={} settled_micros={}",
             counters::checked_compilation_call_count() - compilations_before,
             counters::typed_frontier_reuse_count() - frontiers_before,
-            preliminary_calls - preliminary_before.0,
-            preliminary_micros - preliminary_before.1,
             settled_calls - settled_before.0,
             settled_micros - settled_before.1,
         )
