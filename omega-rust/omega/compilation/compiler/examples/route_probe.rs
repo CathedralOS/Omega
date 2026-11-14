@@ -145,6 +145,7 @@ fn probe(
             }
             Ok(RouteVerdict::Rejected {
                 formations,
+                violations,
                 unproved,
                 unestablished,
                 conflicts,
@@ -154,6 +155,7 @@ fn probe(
                 for diagnostic in formations
                     .iter()
                     .map(|entry| entry.reject_diagnostic())
+                    .chain(violations.iter().map(|entry| entry.reject_diagnostic()))
                     .chain(unproved.iter().map(|entry| entry.reject_diagnostic()))
                     .chain(unestablished.iter().map(|entry| entry.reject_diagnostic()))
                     .chain(conflicts.iter().map(|entry| entry.reject_diagnostic()))

@@ -934,7 +934,14 @@ impl Program<'_> {
             let field_type = declared[position];
             let operand = self.expression(id, slots, field.value, Some(field_type))?;
             if !self.agrees(operand.result, field_type) {
-                return Err(typing("record literal field type"));
+                return Err(self.mistyped(
+                    id,
+                    operand.source,
+                    super::rejections::Destination::Field,
+                    Some(field_type),
+                    operand.result,
+                    "record literal field type",
+                ));
             }
             fields.push((position, operand));
         }

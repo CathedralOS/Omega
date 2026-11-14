@@ -36,6 +36,16 @@ impl Program<'_> {
                 Unserved::Typing("assigned value type"),
             )
         };
+        let assigned = |program: &Self, value: &crate::Expression, place: ValueType| {
+            program.mistyped(
+                id,
+                value.source,
+                super::rejections::Destination::Assigned,
+                Some(place),
+                value.result,
+                "assigned value type",
+            )
+        };
         let source = SourceOrigin::of(self.typed.expression_table.source_span(assignment.target));
         match self.node(id, assignment.target)? {
             ExpressionNode::Name(path) => {
@@ -50,11 +60,13 @@ impl Program<'_> {
                     return Err(unserved("whole assignment through a reference"));
                 }
                 let value_type = slots[slot].value_type;
-                self.authorized(id, value_type, Access::Replace)?;
+                // The value's type first: a value that is not the place's
+                // type is wrong whoever may write the place.
                 let value = self.expression(id, slots, assignment.value, Some(value_type))?;
                 if !self.agrees(value.result, value_type) {
-                    return Err(typing());
+                    return Err(assigned(self, &value, value_type));
                 }
+                self.authorized(id, value_type, Access::Replace)?;
                 Ok(if slots[slot].homed {
                     Statement::Store {
                         destination: crate::Expression {
@@ -97,11 +109,11 @@ impl Program<'_> {
                     return Err(unserved("store into an immutable binding"));
                 }
                 self.written_through(id, &place)?;
-                self.authorized(id, stored, Access::Replace)?;
                 let value = self.expression(id, slots, assignment.value, Some(stored))?;
                 if !self.agrees(value.result, stored) {
-                    return Err(typing());
+                    return Err(assigned(self, &value, stored));
                 }
+                self.authorized(id, stored, Access::Replace)?;
                 Ok(Statement::Store {
                     destination: place,
                     value,
@@ -307,23 +319,15 @@ impl Program<'_> {
         // So `let x: u32 in Wrapping = 5;` binds a plain `u32` to a
         // Wrapping local, which only a cast does.
         if let Some(declared) = declared
-            && declared.policy().is_some()
-            && value_type.policy().is_none()
-            && declared.scalar() == value_type.scalar()
-        {
-            return Err(refuse(
-                id,
-                Construct::Machine,
-                Unserved::Typing("local initializer without the arithmetic policy of its local"),
-            ));
-        }
-        if let Some(declared) = declared
             && !self.agrees(Some(value_type), declared)
         {
-            return Err(refuse(
+            return Err(self.mistyped(
                 id,
-                Construct::Machine,
-                Unserved::Typing("local initializer type"),
+                value.source,
+                super::rejections::Destination::Local,
+                Some(declared),
+                Some(value_type),
+                "local initializer type",
             ));
         }
         let slot = Slot {

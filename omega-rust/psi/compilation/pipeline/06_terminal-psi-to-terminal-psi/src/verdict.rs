@@ -53,6 +53,14 @@ so a rejection carries the two lists side by side. One such use makes the
 verdict `Rejected` even when every unproved obligation is merely incomplete:
 the program fails a checking rule whatever the prover could or could not do.
 
+A rule of the language that the source form breaks
+(`RefusalReason::Violation`: a value whose type carries other domains than its
+destination declares, a cast that adds a routed domain outside its routes) is
+found by the reader of the typed trees, which refuses the closure with it.
+`fall_back_or_defect` is the one place a refusal becomes a verdict, so that
+refusal is a rejection with its own list, `violations`, and the same standing
+as the others; only `RefusalReason::Unsupported` says "not supported yet".
+
 A loan that may not be formed (`RefusalReason::Conflict`: two loans of one
 call that may share storage with one of them exclusive, or an exclusive
 reborrow of storage held shared) has the same standing, and is listed beside
@@ -85,6 +93,9 @@ pub enum RouteVerdict {
     Rejected {
         /// Calling-shape failures known before any body is elaborated.
         formations: Vec<crate::CallableFormationFailure>,
+        /// One per rule of the language the program breaks as written,
+        /// found while its typed trees were read.
+        violations: Vec<RuleViolation>,
         unproved: Vec<UnprovedObligation>,
         unestablished: Vec<UnestablishedUse>,
         /// One per loan that may not be formed where it is.
@@ -448,6 +459,37 @@ impl UnestablishedUse {
         match self.site {
             Some(SourceOrigin::Authored(span)) => diagnostic.with_source_span(span),
             Some(SourceOrigin::Unpositioned(_)) | None => diagnostic,
+        }
+    }
+}
+
+/// One rule of the language the program breaks as written. The reader of the
+/// typed trees found it before any construct was lowered, so it has no
+/// obligation and no lowered construct: it is the source position and the
+/// rule. `wiki/spec/build/compiler_request.md`, "Outcomes": "Diagnostics
+/// distinguish failed source checking, invalid proof, unavailable evidence
+/// and receiving-policy refusal"; this is failed source checking.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RuleViolation {
+    pub machine: MachineId,
+    /// Where the program breaks the rule; `None` when the authored node
+    /// carries no span. A position is never guessed.
+    pub site: Option<source::SourceSpan>,
+    /// The rule and how the program breaks it. Diagnostic text only.
+    pub statement: String,
+}
+
+impl RuleViolation {
+    pub fn message(&self) -> String {
+        self.statement.clone()
+    }
+
+    /// The `Reject` diagnostic.
+    pub fn reject_diagnostic(&self) -> Diagnostic {
+        let diagnostic = Diagnostic::error(self.message());
+        match self.site {
+            Some(span) => diagnostic.with_source_span(span),
+            None => diagnostic,
         }
     }
 }
@@ -911,6 +953,7 @@ fn conclude(examined: Examined, applied: AppliedContracts) -> Checked<RouteVerdi
                 RefusalReason::Unsupported
                 | RefusalReason::NotConserved
                 | RefusalReason::Conflict
+                | RefusalReason::Violation(_)
                 | RefusalReason::ForeignIdentity => return fall_back_or_defect(refused.clone()),
             };
             let concerns = Construct::Obligation(consumed.opened_by);
@@ -996,6 +1039,7 @@ fn conclude(examined: Examined, applied: AppliedContracts) -> Checked<RouteVerdi
     if !unestablished.is_empty() || !conflicts.is_empty() || !exceeded.is_empty() {
         return Ok(RouteVerdict::Rejected {
             formations: Vec::new(),
+            violations: Vec::new(),
             unproved: without_restated_clauses(unproved),
             unestablished,
             conflicts,
@@ -1013,6 +1057,7 @@ fn conclude(examined: Examined, applied: AppliedContracts) -> Checked<RouteVerdi
             } else {
                 RouteVerdict::Rejected {
                     formations: Vec::new(),
+                    violations: Vec::new(),
                     unproved,
                     unestablished: Vec::new(),
                     conflicts: Vec::new(),
@@ -1054,6 +1099,7 @@ pub fn judge_compilation(
         TerminalCompilation::FormationFailures(formations) => {
             return vec![Ok(RouteVerdict::Rejected {
                 formations,
+                violations: Vec::new(),
                 unproved: Vec::new(),
                 unestablished: Vec::new(),
                 conflicts: Vec::new(),
@@ -1354,6 +1400,7 @@ fn fall_back_or_defect(refused: Refusal) -> Checked<RouteVerdict> {
         // source correspondence to look its construct up in.
         RefusalReason::Unestablished => Ok(RouteVerdict::Rejected {
             formations: Vec::new(),
+            violations: Vec::new(),
             unproved: Vec::new(),
             unestablished: vec![UnestablishedUse {
                 machine: refused.machine,
@@ -1362,6 +1409,20 @@ fn fall_back_or_defect(refused: Refusal) -> Checked<RouteVerdict> {
                 detail: refused.detail,
                 declared: None,
             }],
+            conflicts: Vec::new(),
+            exceeded: Vec::new(),
+        }),
+        // A rule the source form breaks, whoever found it: the reader of
+        // the typed trees, before anything was lowered.
+        RefusalReason::Violation(site) => Ok(RouteVerdict::Rejected {
+            formations: Vec::new(),
+            violations: vec![RuleViolation {
+                machine: refused.machine,
+                site,
+                statement: refused.detail,
+            }],
+            unproved: Vec::new(),
+            unestablished: Vec::new(),
             conflicts: Vec::new(),
             exceeded: Vec::new(),
         }),

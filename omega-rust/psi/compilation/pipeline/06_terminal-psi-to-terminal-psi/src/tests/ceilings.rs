@@ -69,12 +69,13 @@ fn exceeded(text: &str) -> Vec<String> {
     match judged(text) {
         RouteVerdict::Rejected {
             formations,
+            violations,
             unproved,
             unestablished,
             conflicts,
             exceeded,
         } => {
-            assert!(formations.is_empty() && unproved.is_empty());
+            assert!(formations.is_empty() && unproved.is_empty() && violations.is_empty());
             assert!(unestablished.is_empty() && conflicts.is_empty());
             exceeded.iter().map(|entry| entry.message()).collect()
         }

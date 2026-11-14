@@ -210,7 +210,7 @@ machine main() { }",
         (
             "ensures_trapping_sum",
             pair("ensures result == left +! right", "left +% right"),
-            "contract Trapping policy operator in a clause, where an operation that can crash forms no term",
+            "rejected",
         ),
         (
             "ensures_wrapping_quotient",
@@ -643,7 +643,7 @@ fn a_call_that_never_returns_may_not_be_lent_one_place_twice() {
 /// regions"): it may return the view it was given for the lifetime its
 /// result names, and a call gives that lifetime the region of the view it
 /// passes. The twin returns the view of the other lifetime ("A signature
-/// does not authorize returning unrelated storage") and is not accepted.
+/// does not authorize returning unrelated storage") and is rejected.
 #[test]
 fn a_machine_with_a_lifetime_returns_a_view_of_that_lifetime_only() {
     let program = |returned: &str| {
@@ -656,7 +656,7 @@ fn a_machine_with_a_lifetime_returns_a_view_of_that_lifetime_only() {
     assert_eq!(verdicts("lifetime_view", &program("view")), ["accepted"]);
     assert_eq!(
         verdicts("lifetime_other_view", &program("other")),
-        ["not-supported"]
+        ["rejected"]
     );
 }
 

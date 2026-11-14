@@ -1170,8 +1170,11 @@ fn a_policy_qualified_integer_is_judged_with_its_policys_operations() {
             "expression operator between a policy-qualified operand and a plain operand that is not a literal",
         ),
         falls_back("typing operands under two arithmetic policies"),
-        falls_back("typing arm value type"),
-        falls_back("typing local initializer without the arithmetic policy of its local"),
+        // A policy is a domain: a Wrapping value is not a plain result,
+        // and a literal lands in the carrier and gains no policy. Both are
+        // errors of the program, not forms the route does not serve.
+        Verdict::Rejected,
+        Verdict::Rejected,
         falls_back("type constrained by Trapping"),
     ];
     assert_eq!(expected.len(), POLICY_INTEGERS.len());

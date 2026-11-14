@@ -620,9 +620,13 @@ impl Program<'_> {
                 // "An arithmetic operation whose selected meaning can
                 // transfer control cannot form a proof term. It is not
                 // silently read as Exact or mathematical arithmetic."
-                crate::policy::Suffix::Trapping => unserved(
-                    "Trapping policy operator in a clause, where an operation that can crash forms no term",
-                ),
+                crate::policy::Suffix::Trapping => Err(crate::reject(
+                    id,
+                    crate::SourceOrigin::of(self.typed.expression_table.source_span(expression)),
+                    "a trapping operator (`+!`, `-!`, `*!`) in a contract clause: an operation \
+                     that can crash forms no proof term, and it is not read as exact or \
+                     mathematical arithmetic",
+                )),
                 crate::policy::Suffix::Total(policy) => {
                     self.suffixed_term(id, scope, binary, policy, expected)
                 }
