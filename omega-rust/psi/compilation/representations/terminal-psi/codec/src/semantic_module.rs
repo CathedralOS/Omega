@@ -5107,11 +5107,12 @@ mod normal_qualification_tests {
             panic!("the fixture starts with an empty record");
         };
         assert!(fields.is_empty());
-        *storage =
-            terminal_psi::StructuralRecordStorage::Authored(terminal_psi::AuthoredRecordStorage {
+        *storage = terminal_psi::StructuralRecordStorage::Authored(
+            semantic_vocabulary::AuthoredRecordStorage {
                 byte_size: 0,
                 byte_alignment: 1,
-            });
+            },
+        );
         record.requires = vec![semantic_vocabulary::Proposition::Truth];
         let bytes = encode_module(&module).unwrap();
         let decoded = decode_module(&bytes).unwrap();
