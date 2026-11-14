@@ -380,6 +380,25 @@ fn discharge_inner(
     knowledge: Knowledge,
     carried: &[Carried<'_>],
 ) -> Checked<Discharge> {
+    // A caller may retain old contents only outside the callee's actual
+    // writes. Check every published frame before summaries or knowledge can
+    // use it. Low-level proof reconstruction still states a conditional
+    // judgment; this whole-module route owns admission of those premises.
+    terminal_semantics::borrowed_storage::validate_write_frames(&elaboration.module).map_err(
+        |detail| {
+            refusal(
+                RefusalReason::ForeignIdentity,
+                elaboration
+                    .module
+                    .machines
+                    .first()
+                    .map(|machine| machine.id)
+                    .unwrap_or_else(|| MachineId::new(1).expect("one is a machine identity")),
+                Construct::Machine,
+                &detail,
+            )
+        },
+    )?;
     // Results before inputs: what a helper returns is a fact its caller
     // may pass on to the next private helper, whose inferred input
     // condition is described from the caller's facts.

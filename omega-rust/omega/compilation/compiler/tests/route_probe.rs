@@ -804,6 +804,94 @@ fn an_unknown_machine_after_a_call_that_never_returns_is_rejected() {
     );
 }
 
+/// The violation `judged` finds in a program the route rejects for one rule.
+fn the_violation(name: &str, source: &str) -> String {
+    let parts = judged(name, source);
+    let [Ok(RouteVerdict::Rejected { violations, .. }), ..] = &parts[..] else {
+        panic!("{name}: the entry closure is rejected: {parts:?}");
+    };
+    let [violation] = &violations[..] else {
+        panic!("{name}: one violation: {violations:?}");
+    };
+    let site = violation.site.expect("the name is authored");
+    format!(
+        "{} at `{}`",
+        violation.statement,
+        &source[site.span.start..site.span.end]
+    )
+}
+
+/// A value name that nothing in the program declares is an error wherever
+/// it is written: resolution looks through locals, parameters, imports and
+/// qualified paths (`wiki/spec/language/modules.md`, "Resolution"), and
+/// "Syntax, name resolution, types and declaration validity are checked as
+/// usual; an unknown machine name or malformed type is an error wherever it
+/// appears" (`wiki/spec/language/state_contracts.md`). Typing finds that
+/// nothing has the name and leaves a violation row on the declaration
+/// holding it. The checker's reader that demands a machine rejects the
+/// program at the row; a constant's evaluation, which runs its initializer
+/// before the checker sees the program, stops at it with the same rule.
+///
+/// Each twin differs only in the name: a local or another constant is
+/// judged as before, and a name something has stays the reader's refusal.
+#[test]
+fn a_value_name_nothing_declares_is_rejected() {
+    let body = |name: &str| {
+        format!(
+            "machine measured() -> u64 {{ let kept: u64 = 3; kept + {name} }}\n\
+             machine main() {{ let seen: u64 = measured(); }}\n"
+        )
+    };
+    assert_eq!(verdicts("body_local_name", &body("kept")), ["accepted"]);
+    // A field is selected through a value, never by its bare name
+    // (`modules.md`), so `level` resolves to nothing here; but something has
+    // the name, and the reader's refusal stands as before.
+    assert_eq!(
+        verdicts(
+            "body_bare_field_name",
+            &format!("data Gauge {{ level: u64; }}\n{}", body("level"))
+        ),
+        ["not-supported"]
+    );
+    assert_eq!(
+        the_violation("body_unknown_name", &body("nowhere_value")),
+        "this expression names a value nothing the program declares: an unknown name is an \
+         error wherever it appears at `nowhere_value`"
+    );
+    // A constant's initializer is evaluated before the checker sees the
+    // program, whether or not `main` reads it, and its evaluation stops at
+    // the rule.
+    let constant = |name: &str, read: &str| {
+        format!(
+            "const BASE: u64 = 4u64;\n\
+             const LIMIT: u64 = {name};\n\
+             machine main() {{ let seen: u64 = {read}; }}\n"
+        )
+    };
+    assert_eq!(
+        verdicts("constant_named_constant", &constant("BASE", "LIMIT")),
+        ["accepted"]
+    );
+    let _compilation = COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    for (name, read) in [
+        ("constant_unknown_name", "LIMIT"),
+        ("unread_constant_unknown_name", "BASE"),
+    ] {
+        let stopped = unbuilt_frontier::staged(name, &constant("nowhere_value", read))
+            .expect_err("the constant's evaluation stops at the unknown name");
+        assert_eq!(
+            stopped,
+            [
+                "constant `LIMIT` evaluation: this expression names a value nothing the program \
+              declares: an unknown name is an error wherever it appears"
+            ],
+            "{name}"
+        );
+    }
+}
+
 /// A machine that declares a lifetime is one machine, judged once
 /// (`wiki/spec/language/lifetimes.md`: "Lifetime arguments are erased
 /// regions"): it may return the view it was given for the lifetime its

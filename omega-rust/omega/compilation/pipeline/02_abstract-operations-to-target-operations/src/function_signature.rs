@@ -285,6 +285,7 @@ pub(crate) mod borrowed_storage {
         ) -> Option<()> {
             let declaration = self.declarations.get(root).copied()?;
             match &declaration.shape {
+                StructuralTypeShape::Opaque => return None,
                 StructuralTypeShape::PrimitiveScalar(scalar) => {
                     self.fields
                         .push((path.clone(), repetitions.clone(), offset, *scalar, *scalar))

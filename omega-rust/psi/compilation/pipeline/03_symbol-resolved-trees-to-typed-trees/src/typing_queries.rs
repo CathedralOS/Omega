@@ -193,6 +193,38 @@ pub(crate) fn declared_callable_value_type(
     if !program.symbols.symbols().nodes().is_valid(owner) {
         return Err(crate::unavailable_judgment("contract value owner"));
     }
+    // Entry observation preserves the operand's complete declared type. This
+    // is a value query, not a writable-place query or admission of an `old`
+    // subject: the lowered reader still checks its input identity and phase.
+    let table = &program.expression_table;
+    let mut target = target;
+    for _ in 0..table.expression_count() {
+        if !table.expression_is_valid(target) {
+            break;
+        }
+        let typed_trees::expression::ExpressionNode::Call(call) = table.expression(target) else {
+            break;
+        };
+        if call.receiver.is_valid()
+            || !call.machine_arguments.is_empty()
+            || !call.evidence_arguments.is_empty()
+            || !program
+                .symbols
+                .symbols()
+                .nodes()
+                .is_valid(call.target_symbol)
+            || program
+                .symbols
+                .builtin_function_for_symbol(call.target_symbol)
+                != Some(symbols::BuiltinFunction::ContentOld)
+        {
+            break;
+        }
+        let [argument] = table.expression_handles(call.arguments) else {
+            return Err(crate::unavailable_judgment("old input declared type arity"));
+        };
+        target = *argument;
+    }
     let states = program
         .machine_by_symbol(owner)
         .map(|machine| program.machine_states(machine));
@@ -618,7 +650,9 @@ impl<'program> DeclaredCallTargets<'program> {
 /// declaration, raised by whoever demands that declaration. A call of a bare
 /// name nothing in the program has is an error in every program and its row
 /// says so (`DeferredRequest::UndeclaredCallName`); any other is a request no
-/// pass serves yet. A
+/// pass serves yet. A value name resolution left unbound that nothing has
+/// is the same error (`DeferredRequest::UndeclaredValueName`); one that
+/// something has stays the reader's refusal. A
 /// terminal call is examined for the machines of this cohort only, as before.
 /// A request in an expression no declaration owns has no reader to raise it
 /// and still refuses here.
@@ -637,7 +671,16 @@ pub(crate) fn defer_unbound_calls(
     {
         let program = &*program;
         let targets = DeclaredCallTargets::new(program);
+        // Value names resolution left unbound, with their one written member,
+        // until `names_nothing_has` says which of them name nothing.
+        let mut unbound_names = Vec::new();
         for (handle, expression) in program.expression_table.expression_entries() {
+            if let ExpressionNode::Name(_) = expression {
+                if let Some(name) = unbound_value_name(program, handle) {
+                    unbound_names.push((handle, name));
+                }
+                continue;
+            }
             let ExpressionNode::Call(call) = expression else {
                 continue;
             };
@@ -740,6 +783,14 @@ pub(crate) fn defer_unbound_calls(
                 }
             }
         }
+        let undeclared =
+            program.names_nothing_has(unbound_names.iter().map(|(_, name)| *name).collect());
+        in_expressions.extend(
+            unbound_names
+                .into_iter()
+                .filter(|(_, name)| undeclared.binary_search(name).is_ok())
+                .map(|(handle, _)| (handle, DeferredRequest::UndeclaredValueName, None)),
+        );
         if !in_expressions.is_empty() {
             let owners = typed_trees::references::collect_program_operand_owners(program);
             for (handle, request, bare) in in_expressions {
@@ -829,6 +880,26 @@ pub(crate) fn defer_unbound_calls(
         program.record_deferred_refusal(declaration, request, source_span);
     }
     Ok(())
+}
+
+/// The value spellings the compiler gives a meaning without a symbol: the
+/// subject of a domain or data predicate and the reserved result of a
+/// contract. Neither is an unknown name where resolution left it unbound.
+const COMPILER_VALUE_SPELLINGS: [&str; 2] = ["self", "result"];
+
+/// The one written name of the value name `expression` that resolution
+/// left unbound, if it may name nothing at all: a single plain segment,
+/// with no static application, reserved result or compiler meaning. Only
+/// such a name can be found by `names_nothing_has` to name nothing
+/// (`DeferredRequest::UndeclaredValueName`); a projected or applied path
+/// typing does not follow stays the reader's refusal.
+fn unbound_value_name(program: &TypedTrees, expression: ExpressionHandle) -> Option<&str> {
+    let (path, name) = program.expression_table.single_name_member(expression)?;
+    let name = name.as_str();
+    (path.resolved_symbol().is_none()
+        && !path.reserved_result_of.is_valid()
+        && !COMPILER_VALUE_SPELLINGS.contains(&name))
+    .then_some(name)
 }
 
 /// The bare names a call compiler-recognizes by its spelling alone: no

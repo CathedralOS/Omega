@@ -58,6 +58,7 @@ macro_rules! continuing {
 }
 
 mod calls;
+pub(crate) use calls::publish_write_frames;
 mod control;
 mod operations;
 pub(crate) mod places;

@@ -78,6 +78,7 @@ pub(super) fn encode_type(
     bytes.push(u8::from(declaration.descriptor_cleanup));
     bytes.push(u8::from(declaration.copyable));
     match &declaration.shape {
+        StructuralTypeShape::Opaque => bytes.push(19),
         StructuralTypeShape::Reference { referent, access } => {
             bytes.push(7);
             crate::codec_bytes::push_encoded(bytes, referent.get().to_le_bytes());
@@ -188,6 +189,7 @@ pub(super) fn decode_type(
     let copyable = decode_bool(cursor)?;
     let mut scalar_restriction = None;
     let shape = match cursor.byte()? {
+        19 => StructuralTypeShape::Opaque,
         7 => StructuralTypeShape::Reference {
             referent: decode_id(cursor, StructuralTypeId::new)?,
             access: decode_access(cursor)?,

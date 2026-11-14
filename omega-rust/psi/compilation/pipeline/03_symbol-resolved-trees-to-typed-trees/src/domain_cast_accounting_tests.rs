@@ -248,3 +248,67 @@ const VALUE: i64 = plain(7 as +Marked);
         typed.deferred_refusals
     );
 }
+
+#[test]
+fn old_projects_the_exact_callable_input_type_without_becoming_storage() {
+    let (_, mut typed) = source(
+        r#"
+domain i64::Marked;
+machine first(value: i64 in Marked) -> i64
+ensures result == (old(value) as -Marked)
+{ value as -Marked }
+machine second(value: i64 in Marked) -> i64 { value as -Marked }
+"#,
+    );
+    let first = machine(&typed, "first");
+    let second = machine(&typed, "second");
+    let state = typed.machine_states(typed.machine_by_symbol(first).unwrap())[0].clone();
+    let input = typed.state_parameters(&state)[0].type_reference;
+    let (old, call) = typed
+        .expression_table
+        .expression_entries()
+        .find_map(|(handle, node)| {
+            let ExpressionNode::Call(call) = node else {
+                return None;
+            };
+            (typed
+                .symbols
+                .builtin_function_for_symbol(call.target_symbol)
+                == Some(symbols::BuiltinFunction::ContentOld))
+            .then(|| (handle, call.clone()))
+        })
+        .unwrap();
+    assert_eq!(
+        declared_callable_value_type(&typed, first, old).unwrap(),
+        input
+    );
+    assert_eq!(
+        declared_callable_value_type(&typed, state.symbol, old).unwrap(),
+        input
+    );
+    assert!(declared_callable_value_type(&typed, second, old).is_err());
+    assert!(declared_callable_value_type(&typed, SymbolHandle::invalid(), old).is_err());
+    assert!(declared_place_type(&typed, &state, old).is_err());
+
+    let mut forged = call.clone();
+    forged.target_symbol = second;
+    let lookalike = typed.expression_table.insert(ExpressionNode::Call(forged));
+    assert!(declared_callable_value_type(&typed, first, lookalike).is_err());
+
+    let argument = typed.expression_table.expression_handles(call.arguments)[0];
+    let mut receiver = call.clone();
+    receiver.receiver = argument;
+    let receiver = typed
+        .expression_table
+        .insert(ExpressionNode::Call(receiver));
+    assert!(declared_callable_value_type(&typed, first, receiver).is_err());
+
+    for arguments in [Vec::new(), vec![argument, argument]] {
+        let mut malformed = call.clone();
+        malformed.arguments = typed.expression_table.insert_expression_handles(arguments);
+        let malformed = typed
+            .expression_table
+            .insert(ExpressionNode::Call(malformed));
+        assert!(declared_callable_value_type(&typed, first, malformed).is_err());
+    }
+}

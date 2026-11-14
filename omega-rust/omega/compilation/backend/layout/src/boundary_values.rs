@@ -419,39 +419,46 @@ impl<'module> TerminalBoundaryRecipes<'module> {
                 carrier,
             }));
         }
-        let recipe =
-            match &declaration.shape {
-                StructuralTypeShape::PrimitiveScalar(scalar) => {
-                    return self.scalar(*scalar);
+        let recipe = match &declaration.shape {
+            StructuralTypeShape::Opaque => {
+                return Err(
+                    "opaque boundary value needs its selected representation before ABI planning"
+                        .into(),
+                );
+            }
+            StructuralTypeShape::PrimitiveScalar(scalar) => {
+                return self.scalar(*scalar);
+            }
+            StructuralTypeShape::AtomicCell(cell) => {
+                return self.scalar(cell.scalar_type());
+            }
+            StructuralTypeShape::Reference { referent, .. } => {
+                return self.reference(*referent);
+            }
+            StructuralTypeShape::ByteSequence(_) | StructuralTypeShape::ElementView { .. } => {
+                BoundaryValueRecipe::Reference { descriptor: true }
+            }
+            StructuralTypeShape::FixedArray { element, length } => {
+                BoundaryValueRecipe::FixedArray {
+                    element: self.value(*element)?,
+                    length: match length {
+                        terminal_psi::ArrayExtent::Literal(count) => *count,
+                        terminal_psi::ArrayExtent::Application(application) => {
+                            (self.extents)(*application).map_err(|error| error.to_string())?
+                        }
+                    },
                 }
-                StructuralTypeShape::AtomicCell(cell) => {
-                    return self.scalar(cell.scalar_type());
-                }
-                StructuralTypeShape::Reference { referent, .. } => {
-                    return self.reference(*referent);
-                }
-                StructuralTypeShape::ByteSequence(_) | StructuralTypeShape::ElementView { .. } => {
-                    BoundaryValueRecipe::Reference { descriptor: true }
-                }
-                StructuralTypeShape::FixedArray { element, length } => {
-                    BoundaryValueRecipe::FixedArray {
-                        element: self.value(*element)?,
-                        length: match length {
-                            terminal_psi::ArrayExtent::Literal(count) => *count,
-                            terminal_psi::ArrayExtent::Application(application) => {
-                                (self.extents)(*application).map_err(|error| error.to_string())?
-                            }
-                        },
-                    }
-                }
-                StructuralTypeShape::Record { fields, storage } => {
-                    self.record(structural_type, fields, *storage)?
-                }
-                StructuralTypeShape::Sum { .. } | StructuralTypeShape::Mixed { .. } => return Err(
+            }
+            StructuralTypeShape::Record { fields, storage } => {
+                self.record(structural_type, fields, *storage)?
+            }
+            StructuralTypeShape::Sum { .. } | StructuralTypeShape::Mixed { .. } => {
+                return Err(
                     "case data is not yet classifiable as a boundary value; pass it by reference"
                         .into(),
-                ),
-            };
+                );
+            }
+        };
         Ok(self.recipes.values.insert(recipe))
     }
 

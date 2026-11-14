@@ -507,8 +507,8 @@ struct BoundPayload<'a> {
 pub(crate) struct Storage<'a> {
     machine: MachineId,
     lowered: &'a TerminalMachine,
-    types: &'a [StructuralTypeDeclaration],
     module: &'a terminal_psi::TerminalModule,
+    types: &'a [StructuralTypeDeclaration],
     graph: &'a Graph,
     initial_contents: Vec<Option<ValueId>>,
     returned_contents: Vec<Vec<(ExactPlaceId, ValueId)>>,
@@ -551,8 +551,8 @@ impl<'a> Storage<'a> {
         let mut storage = Self {
             machine,
             lowered,
-            types: &module.structural_types,
             module,
+            types: &module.structural_types,
             graph,
             initial_contents: contents.entry,
             returned_contents: contents.calls,
@@ -1347,7 +1347,11 @@ impl<'a> Storage<'a> {
         concerns: Construct,
     ) -> Checked<()> {
         match &self.declaration(structural_type, concerns)?.shape {
-            StructuralTypeShape::PrimitiveScalar(_) => found.push(at.clone()),
+            // An opaque value occupies one established place. Its lack of
+            // visible fields does not make its contents absent or zeroable.
+            StructuralTypeShape::Opaque | StructuralTypeShape::PrimitiveScalar(_) => {
+                found.push(at.clone());
+            }
             shape if is_shared_view(shape) => {
                 found.push(at.clone());
             }
