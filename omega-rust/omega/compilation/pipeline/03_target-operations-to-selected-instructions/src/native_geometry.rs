@@ -58,6 +58,26 @@ pub(crate) fn retained_types<'a>(
         .then(|| closed.closed_types())
 }
 
+pub(crate) fn closed_scalar(
+    types: Option<&terminal_codec::ClosedTypeCatalog>,
+    scalar: semantic_vocabulary::ScalarType,
+) -> Option<semantic_vocabulary::ClosedScalarType> {
+    match types {
+        Some(types) => types.scalar(scalar).ok(),
+        None => scalar.try_into().ok(),
+    }
+}
+
+pub(crate) fn closed_integer(
+    types: Option<&terminal_codec::ClosedTypeCatalog>,
+    integer: semantic_vocabulary::IntegerType,
+) -> Option<semantic_vocabulary::ClosedIntegerType> {
+    match types {
+        Some(types) => types.integer(integer).ok(),
+        None => integer.try_into().ok(),
+    }
+}
+
 pub(crate) struct NativeInput<'a, T> {
     source: &'a T,
     geometry: &'a NativeGeometry<'a>,
@@ -88,20 +108,18 @@ impl<'a, T> NativeInput<'a, T> {
         &self,
         scalar: semantic_vocabulary::ScalarType,
     ) -> Option<semantic_vocabulary::ClosedScalarType> {
-        match self.closed_types {
-            Some(types) => types.scalar(scalar).ok(),
-            None => scalar.try_into().ok(),
-        }
+        closed_scalar(self.closed_types, scalar)
     }
 
     pub(crate) fn closed_integer(
         &self,
         integer: semantic_vocabulary::IntegerType,
     ) -> Option<semantic_vocabulary::ClosedIntegerType> {
-        match self.closed_types {
-            Some(types) => types.integer(integer).ok(),
-            None => integer.try_into().ok(),
-        }
+        closed_integer(self.closed_types, integer)
+    }
+
+    pub(crate) const fn closed_types(&self) -> Option<&'a terminal_codec::ClosedTypeCatalog> {
+        self.closed_types
     }
 
     pub(crate) fn geometry(&self) -> &'a NativeGeometry<'a> {

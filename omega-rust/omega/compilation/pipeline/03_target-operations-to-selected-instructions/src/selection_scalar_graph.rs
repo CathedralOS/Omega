@@ -4604,6 +4604,7 @@ pub(crate) mod integer_conversion {
     use legalized_operations::LegalizedScalarInstruction;
 
     pub(crate) fn emit(
+        source: &crate::native_geometry::NativeFunction<'_>,
         operation: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
         function: usize,
@@ -4633,7 +4634,7 @@ pub(crate) mod integer_conversion {
             return Err(invalid());
         }
         let normalization = crate::selection::integer_conversion::normalization(
-            builder.native_input,
+            source,
             &operation.kind,
             scalar_type,
         )
@@ -7127,7 +7128,7 @@ pub(crate) fn select_function(
     };
     let class = operand.class;
     let mut builder = Builder {
-        native_input: source,
+        closed_types: source.closed_types(),
         environment,
         backings,
         installed_interrupts,
@@ -7491,7 +7492,7 @@ pub(crate) fn select_function(
                     LegalizedScalarInstructionKind::IntegerWiden { .. }
                     | LegalizedScalarInstructionKind::IntegerExactCast { .. }
                     | LegalizedScalarInstructionKind::ScalarRepresentationView { .. } => {
-                        integer_conversion::emit(operation, &mut builder, function)?
+                        integer_conversion::emit(source, operation, &mut builder, function)?
                     }
                     LegalizedScalarInstructionKind::BitwiseAnd { .. }
                     | LegalizedScalarInstructionKind::BitwiseNot { .. }
@@ -7671,7 +7672,7 @@ pub(crate) fn next_index(len: usize) -> Result<u32, SelectedInstructionError> {
 }
 
 pub(crate) struct Builder<'a> {
-    native_input: &'a crate::native_geometry::NativeFunction<'a>,
+    pub(crate) closed_types: Option<&'a terminal_codec::ClosedTypeCatalog>,
     pub(crate) installed_entry_execution:
         Option<&'a provider_admission::AdmittedInstalledEntryExecution>,
     pub(crate) installed_interrupts: &'a provider_admission::AdmittedInstalledInterruptCohort,
@@ -7702,14 +7703,14 @@ impl Builder<'_> {
         &self,
         scalar: ScalarType,
     ) -> Option<semantic_vocabulary::ClosedScalarType> {
-        self.native_input.closed_scalar(scalar)
+        crate::native_geometry::closed_scalar(self.closed_types, scalar)
     }
 
     pub(crate) fn closed_integer(
         &self,
         integer: semantic_vocabulary::IntegerType,
     ) -> Option<semantic_vocabulary::ClosedIntegerType> {
-        self.native_input.closed_integer(integer)
+        crate::native_geometry::closed_integer(self.closed_types, integer)
     }
 
     pub(crate) fn crash_form(
