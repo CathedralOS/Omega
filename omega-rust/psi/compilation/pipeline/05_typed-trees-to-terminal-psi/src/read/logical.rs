@@ -410,6 +410,194 @@ impl LogicalScope<'_> {
         })?;
         Ok((ScalarTerm::value(value, leaf.scalar), leaf.scalar))
     }
+
+    pub(super) fn signature(
+        self,
+        program: &Program<'_>,
+        owner: SymbolHandle,
+        contracts: &[&typed_trees::signature::SignatureContract],
+    ) -> Checked<(Signature, MachineNames)> {
+        let logical = self;
+        let atoms = logical.atoms;
+        let inputs = logical.inputs;
+        let machine = logical.machine;
+        // Validate every retained span at the proof boundary. Content-based
+        // comparisons never treat equal span coordinates as semantic identity.
+        for path in inputs
+            .leaves
+            .iter()
+            .map(|leaf| leaf.path)
+            .chain(inputs.theory.iter().map(|theory| theory.subject))
+            .chain(
+                inputs
+                    .memberships
+                    .iter()
+                    .map(|membership| membership.subject),
+            )
+        {
+            span(
+                logical.members,
+                path.members,
+                machine,
+                "logical input source members",
+            )?;
+        }
+        let scope = ClauseScope {
+            slots: &[],
+            values: &[],
+            bound: &[],
+            owner,
+            result: ResultTerm::Absent("result of a Unit logical callable"),
+            subject: None,
+            formal_fields: true,
+            mathematical: super::contracts::MathematicalTerms::Served,
+            logical: Some(logical),
+        };
+        let mut requires = Vec::new();
+        for membership in inputs
+            .memberships
+            .iter()
+            .filter(|membership| membership.nominal)
+        {
+            let position = atoms
+                .binary_search_by(|key| key.cmp(&membership.key))
+                .map_err(|_| {
+                    refuse(
+                        machine,
+                        Construct::Machine,
+                        Unserved::Contract("logical membership correspondence"),
+                    )
+                })?;
+            let atom = PropositionId::new(position as u64 + 1).ok_or_else(|| {
+                refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Contract("logical membership identity overflow"),
+                )
+            })?;
+            requires.push((
+                Proposition::Atom(atom),
+                crate::ClauseText(vec![crate::Piece::Text(format!(
+                    "{} in {}",
+                    program.typed.symbols.name(membership.subject.root),
+                    membership.domain.name.as_str()
+                ))]),
+            ));
+        }
+        for theory in &inputs.theory {
+            let facts = span(
+                &program.typed.proof_facts,
+                theory.facts,
+                machine,
+                "logical premise theory span",
+            )?;
+            let scope = ClauseScope {
+                logical: Some(LogicalScope {
+                    subject: Some((theory.symbol, &theory.subject)),
+                    ..logical
+                }),
+                ..scope
+            };
+            for fact in facts {
+                let expression = program.fact(machine, fact)?;
+                requires.push((
+                    program.clause(machine, &scope, expression)?,
+                    program.clause_text(&[], expression),
+                ));
+            }
+        }
+        let exit = ClauseScope {
+            logical: Some(logical.normal_return()),
+            ..scope
+        };
+        let mut authored = Vec::new();
+        let mut ensures = Vec::new();
+        for contract in contracts {
+            let (scope, clauses) = match contract.kind {
+                SignatureContractKind::Requires => (&scope, &mut authored),
+                SignatureContractKind::Ensures => (&exit, &mut ensures),
+                SignatureContractKind::EnsuresForResultCase { .. } => {
+                    return Err(refuse(
+                        machine,
+                        Construct::Machine,
+                        Unserved::Contract("outcome-specific logical guarantee"),
+                    ));
+                }
+                // Operational admission is retained by the executable closure.
+                SignatureContractKind::Crashes { .. } => continue,
+            };
+            if contract.binding.is_some() {
+                return Err(refuse(
+                    machine,
+                    Construct::Machine,
+                    Unserved::Contract("unsupplied logical evidence"),
+                ));
+            }
+            for fact in span(
+                &program.typed.proof_facts,
+                contract.facts,
+                machine,
+                "logical contract fact span",
+            )? {
+                if let Some(clause) = program.contract_clause(machine, scope, fact)? {
+                    clauses.push(clause);
+                }
+            }
+        }
+        requires.extend(crate::canonical::associated_clauses(
+            authored,
+            crate::canonical::Repeated::Refuse,
+            machine,
+        )?);
+        let (requires, requires_text) = crate::canonical::associated_clauses(
+            requires,
+            crate::canonical::Repeated::Merge,
+            machine,
+        )?
+        .into_iter()
+        .unzip();
+        let (ensures, ensures_text) = crate::canonical::associated_clauses(
+            ensures,
+            crate::canonical::Repeated::Refuse,
+            machine,
+        )?
+        .into_iter()
+        .unzip();
+        let names = MachineNames {
+            machine: program.typed.symbols.display_path(owner, "::"),
+            formals: inputs
+                .leaves
+                .iter()
+                .map(|leaf| program.typed.symbols.display_path(leaf.path.root, "::"))
+                .collect(),
+            requires: requires_text,
+            ensures: ensures_text,
+            ..MachineNames::default()
+        };
+        Ok((
+            Signature {
+                // These are mathematical subjects, never executable storage.
+                // Reference poststate reads refuse at their source occurrence;
+                // the executable closure retains operational admission.
+                operational: crate::body::OperationalCeilings::default(),
+                parameters: inputs
+                    .leaves
+                    .iter()
+                    .map(|leaf| ValueType::Scalar(leaf.scalar, Qualification::NONE))
+                    .collect(),
+                erased: Vec::new(),
+                borrowed: Vec::new(),
+                result: None,
+                requires,
+                ensures,
+                crashes: CrashCeiling::Inferred,
+                termination: Termination::Silent,
+                reaches: crate::Ceiling::Inferred,
+                invokes: crate::Ceiling::Inferred,
+            },
+            names,
+        ))
+    }
 }
 
 pub(super) fn scalar_type(
@@ -963,194 +1151,6 @@ impl Inputs {
             ))]),
         ))
     }
-
-    fn signature(
-        program: &Program<'_>,
-        logical: LogicalScope<'_>,
-        owner: SymbolHandle,
-        contracts: &[&typed_trees::signature::SignatureContract],
-        atoms: &[NominalKey],
-    ) -> Checked<(Signature, MachineNames)> {
-        let logical = LogicalScope { atoms, ..logical };
-        let inputs = logical.inputs;
-        let machine = logical.machine;
-        // Validate every retained span at the proof boundary. Content-based
-        // comparisons never treat equal span coordinates as semantic identity.
-        for path in inputs
-            .leaves
-            .iter()
-            .map(|leaf| leaf.path)
-            .chain(inputs.theory.iter().map(|theory| theory.subject))
-            .chain(
-                inputs
-                    .memberships
-                    .iter()
-                    .map(|membership| membership.subject),
-            )
-        {
-            span(
-                logical.members,
-                path.members,
-                machine,
-                "logical input source members",
-            )?;
-        }
-        let scope = ClauseScope {
-            slots: &[],
-            values: &[],
-            bound: &[],
-            owner,
-            result: ResultTerm::Absent("result of a Unit logical callable"),
-            subject: None,
-            formal_fields: true,
-            mathematical: super::contracts::MathematicalTerms::Served,
-            logical: Some(logical),
-        };
-        let mut requires = Vec::new();
-        for membership in inputs
-            .memberships
-            .iter()
-            .filter(|membership| membership.nominal)
-        {
-            let position = atoms
-                .binary_search_by(|key| key.cmp(&membership.key))
-                .map_err(|_| {
-                    refuse(
-                        machine,
-                        Construct::Machine,
-                        Unserved::Contract("logical membership correspondence"),
-                    )
-                })?;
-            let atom = PropositionId::new(position as u64 + 1).ok_or_else(|| {
-                refuse(
-                    machine,
-                    Construct::Machine,
-                    Unserved::Contract("logical membership identity overflow"),
-                )
-            })?;
-            requires.push((
-                Proposition::Atom(atom),
-                crate::ClauseText(vec![crate::Piece::Text(format!(
-                    "{} in {}",
-                    program.typed.symbols.name(membership.subject.root),
-                    membership.domain.name.as_str()
-                ))]),
-            ));
-        }
-        for theory in &inputs.theory {
-            let facts = span(
-                &program.typed.proof_facts,
-                theory.facts,
-                machine,
-                "logical premise theory span",
-            )?;
-            let scope = ClauseScope {
-                logical: Some(LogicalScope {
-                    subject: Some((theory.symbol, &theory.subject)),
-                    ..logical
-                }),
-                ..scope
-            };
-            for fact in facts {
-                let expression = program.fact(machine, fact)?;
-                requires.push((
-                    program.clause(machine, &scope, expression)?,
-                    program.clause_text(&[], expression),
-                ));
-            }
-        }
-        let exit = ClauseScope {
-            logical: Some(logical.normal_return()),
-            ..scope
-        };
-        let mut authored = Vec::new();
-        let mut ensures = Vec::new();
-        for contract in contracts {
-            let (scope, clauses) = match contract.kind {
-                SignatureContractKind::Requires => (&scope, &mut authored),
-                SignatureContractKind::Ensures => (&exit, &mut ensures),
-                SignatureContractKind::EnsuresForResultCase { .. } => {
-                    return Err(refuse(
-                        machine,
-                        Construct::Machine,
-                        Unserved::Contract("outcome-specific logical guarantee"),
-                    ));
-                }
-                // Operational admission is retained by the executable closure.
-                SignatureContractKind::Crashes { .. } => continue,
-            };
-            if contract.binding.is_some() {
-                return Err(refuse(
-                    machine,
-                    Construct::Machine,
-                    Unserved::Contract("unsupplied logical evidence"),
-                ));
-            }
-            for fact in span(
-                &program.typed.proof_facts,
-                contract.facts,
-                machine,
-                "logical contract fact span",
-            )? {
-                if let Some(clause) = program.contract_clause(machine, scope, fact)? {
-                    clauses.push(clause);
-                }
-            }
-        }
-        requires.extend(crate::canonical::associated_clauses(
-            authored,
-            crate::canonical::Repeated::Refuse,
-            machine,
-        )?);
-        let (requires, requires_text) = crate::canonical::associated_clauses(
-            requires,
-            crate::canonical::Repeated::Merge,
-            machine,
-        )?
-        .into_iter()
-        .unzip();
-        let (ensures, ensures_text) = crate::canonical::associated_clauses(
-            ensures,
-            crate::canonical::Repeated::Refuse,
-            machine,
-        )?
-        .into_iter()
-        .unzip();
-        let names = MachineNames {
-            machine: program.typed.symbols.display_path(owner, "::"),
-            formals: inputs
-                .leaves
-                .iter()
-                .map(|leaf| program.typed.symbols.display_path(leaf.path.root, "::"))
-                .collect(),
-            requires: requires_text,
-            ensures: ensures_text,
-            ..MachineNames::default()
-        };
-        Ok((
-            Signature {
-                // These are mathematical subjects, never executable storage.
-                // Reference poststate reads refuse at their source occurrence;
-                // the executable closure retains operational admission.
-                operational: crate::body::OperationalCeilings::default(),
-                parameters: inputs
-                    .leaves
-                    .iter()
-                    .map(|leaf| ValueType::Scalar(leaf.scalar, Qualification::NONE))
-                    .collect(),
-                erased: Vec::new(),
-                borrowed: Vec::new(),
-                result: None,
-                requires,
-                ensures,
-                crashes: CrashCeiling::Inferred,
-                termination: Termination::Silent,
-                reaches: crate::Ceiling::Inferred,
-                invokes: crate::Ceiling::Inferred,
-            },
-            names,
-        ))
-    }
 }
 
 pub(crate) fn projected_arrival(
@@ -1357,38 +1357,28 @@ pub(crate) fn projected_arrival(
         });
     }
     let required_contracts: Vec<_> = typed.state_signature_contracts(required).iter().collect();
-    let (entry_signature, mut entry_names) = Inputs::signature(
-        &program,
-        LogicalScope {
-            inputs: &required_inputs,
-            members: &member_arena,
-            subject: None,
-            model,
-            expanding: &[],
-            machine: entry,
-            observation: ContentPlaceVersion::Entry,
-            atoms: &atoms,
-        },
-        required.symbol,
-        &required_contracts,
-        &atoms,
-    )?;
-    let (callee_signature, mut callee_names) = Inputs::signature(
-        &program,
-        LogicalScope {
-            inputs: &supplied_inputs,
-            members: &member_arena,
-            subject: None,
-            model,
-            expanding: &[],
-            machine: callee,
-            observation: ContentPlaceVersion::Entry,
-            atoms: &atoms,
-        },
-        supplied_owner,
-        &supplied_contracts,
-        &atoms,
-    )?;
+    let (entry_signature, mut entry_names) = LogicalScope {
+        inputs: &required_inputs,
+        members: &member_arena,
+        subject: None,
+        model,
+        expanding: &[],
+        machine: entry,
+        observation: ContentPlaceVersion::Entry,
+        atoms: &atoms,
+    }
+    .signature(&program, required.symbol, &required_contracts)?;
+    let (callee_signature, mut callee_names) = LogicalScope {
+        inputs: &supplied_inputs,
+        members: &member_arena,
+        subject: None,
+        model,
+        expanding: &[],
+        machine: callee,
+        observation: ContentPlaceVersion::Entry,
+        atoms: &atoms,
+    }
+    .signature(&program, supplied_owner, &supplied_contracts)?;
     entry_names.machine = required.name.as_str().to_owned();
     entry_names.state = required.name.as_str().to_owned();
     callee_names.machine = machine.name.as_str().to_owned();

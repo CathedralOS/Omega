@@ -1132,6 +1132,44 @@ mod tests {
         let integer = IntegerType::new(IntegerSign::Unsigned, 32).unwrap();
         let scalar_type = ScalarType::Integer(integer);
         let value = ValueId::new(1).unwrap();
+        let reference = typed.type_reference_table.insert(TypeReferenceNode::Named {
+            name: Identifier::generated("u32"),
+            symbol: children.handle_at(7),
+        });
+        let parameter_type =
+            typed
+                .mathematical_types
+                .insert(typed_trees::mathematical::MathematicalType::Ordinary(
+                    reference,
+                ));
+        let logical_inputs = logical::MathematicalInputs::new(
+            &typed,
+            machine(),
+            &[typed_trees::mathematical::MathematicalParameter {
+                symbol: formal,
+                name: Identifier::generated("x"),
+                relevance: language_core::BindingRelevance::Relevant,
+                ty: parameter_type,
+            }],
+            None,
+        )
+        .unwrap();
+        let same_input =
+            typed
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left: old,
+                    operator: BinaryOperator::Equal,
+                    right: named,
+                    policy: Default::default(),
+                }));
+        let completion = typed_trees::signature::SignatureContract {
+            kind: typed_trees::signature::SignatureContractKind::Ensures,
+            facts: typed
+                .proof_facts
+                .insert_many([typed_trees::domain::ProofFact::Expression(same_input)]),
+            ..Default::default()
+        };
         let slot = || Slot {
             symbol: formal,
             value_type: ValueType::plain(scalar_type),
@@ -1426,6 +1464,105 @@ mod tests {
         for expression in [using_old, computed] {
             invalid_policy_operand(&qualified_scope, expression);
         }
+        // A projected invocation keeps the same source input at normal
+        // completion. Its guarantee is still an obligation of the ordinary
+        // call/return body, rather than an entry premise or executable snapshot.
+        let logical = logical_inputs.scope(machine(), None, &[]);
+        let completion_scope = ClauseScope {
+            logical: Some(logical.normal_return()),
+            slots: &[],
+            values: &[],
+            result: ResultTerm::Absent("result of a Unit logical callable"),
+            ..scope
+        };
+        for expression in [named, old] {
+            assert_eq!(
+                program.term(machine(), &completion_scope, expression, None),
+                Ok((
+                    ScalarTerm::value(value, scalar_type),
+                    ValueType::plain(scalar_type)
+                ))
+            );
+        }
+        let no_logical_foreign = detail(&completion_scope, old_foreign);
+        assert_eq!(
+            detail(
+                &ClauseScope {
+                    bound: &copied_input,
+                    ..completion_scope
+                },
+                old_foreign,
+            ),
+            no_logical_foreign,
+            "a static substitution does not become a projected invocation input"
+        );
+        let (signature, names) = logical.signature(&program, owner, &[&completion]).unwrap();
+        assert!(
+            signature.requires.is_empty(),
+            "the guarantee is not an entry fact"
+        );
+        assert_eq!(
+            signature.ensures,
+            [semantic_vocabulary::Proposition::Equal(
+                ScalarTerm::value(value, scalar_type),
+                ScalarTerm::value(value, scalar_type),
+            )]
+        );
+        assert_eq!(names.ensures.len(), 1);
+        let callee = MachineId::new(2).unwrap();
+        let source = crate::SourceOrigin::Unpositioned(crate::Unpositioned::ConformanceWitness);
+        let call = crate::body::Expression {
+            call_context: None,
+            kind: ExpressionKind::Call {
+                callee: callee.into(),
+                arguments: vec![crate::body::Expression {
+                    call_context: None,
+                    kind: ExpressionKind::Slot(0),
+                    result: Some(ValueType::plain(scalar_type)),
+                    source,
+                }],
+                designated: None,
+                required_contract: None,
+                source_call: None,
+            },
+            result: None,
+            source,
+        };
+        let mut signatures = IdTable::default();
+        signatures.push(signature.clone());
+        signatures.push(crate::body::Signature {
+            ensures: Vec::new(),
+            ..signature.clone()
+        });
+        let mut bodies = IdTable::default();
+        bodies.push(crate::callable_refinement_body(&signature, call));
+        bodies.push(crate::body::Body {
+            slots: signature.parameters.clone(),
+            statements: Vec::new(),
+        });
+        let lowered = crate::lower_generic(
+            machine(),
+            &bodies,
+            &signatures,
+            &IdTable::default(),
+            &[callee],
+        )
+        .unwrap();
+        let table = lowered.tables.machines.get(machine()).unwrap();
+        assert_eq!(table.invocations.len(), 1);
+        assert_eq!(
+            table
+                .obligations
+                .iter()
+                .filter(|(_, row)| matches!(
+                    row.kind,
+                    terminal_check_tables::obligations::ObligationKind::NormalGuarantee { .. }
+                ))
+                .count(),
+            1,
+            "the required guarantee is owed after the abstract call returns"
+        );
+        assert_eq!(lowered.requirements, [callee]);
         assert!(
             program.expression(machine(), &slots, old, None).is_err(),
             "old has no executable implementation"
