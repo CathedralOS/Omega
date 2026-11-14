@@ -1420,3 +1420,119 @@ fn an_installation_bound_reach_row_remains_unserved_before_copying() {
     assert_eq!(program.machines().len(), count);
     assert!(program.deferred_refusal(main).is_some());
 }
+
+#[test]
+fn copied_progress_keeps_its_promise_and_rebinds_private_witnesses() {
+    use language_semantics::{
+        ProgressPremise, ProgressSubject, RankingViewId, RankingWitness, SemanticDomainId,
+        TerminationGuarantee, TerminationInterface,
+    };
+
+    for missing_custody in [false, true] {
+        let Source {
+            mut program,
+            relay,
+            main,
+            ..
+        } = source();
+        let subject = name(&mut program, relay.item, "item");
+        let witness = RankingWitness {
+            subjects: vec!["item".into()],
+            ranking_view: RankingViewId::NAT_DESCENDING,
+            view_path: "Nat::Descending".into(),
+            ..RankingWitness::default()
+        };
+        let original = program
+            .machines_mut()
+            .iter_mut()
+            .find(|machine| machine.symbol == relay.machine)
+            .unwrap();
+        original.termination_plan.interface =
+            TerminationInterface::Published(TerminationGuarantee::Terminates {
+                premises: vec![ProgressPremise {
+                    profile: SemanticDomainId::default(),
+                    subject: ProgressSubject {
+                        root: relay.item,
+                        projections: Vec::new(),
+                    },
+                }],
+            });
+        original.termination_plan.implementation_witness = Some(witness.clone());
+        let original_plan = original.termination_plan.clone();
+        if !missing_custody {
+            program.ranking_expression_custody.push(
+                typed_trees::ranking::RankingExpressionCustody {
+                    machine: relay.machine,
+                    subjects: vec![subject],
+                    ..Default::default()
+                },
+            );
+        }
+        prepare(&mut program).unwrap();
+        if missing_custody {
+            assert!(
+                program
+                    .deferred_refusal(main)
+                    .unwrap()
+                    .detail
+                    .contains("original expression custody")
+            );
+            assert_eq!(calls(&program, main)[0].target_symbol, relay.state);
+            continue;
+        }
+        let mut copied_subjects = Vec::new();
+        for call in [calls(&program, main)[0], calls(&program, main)[2]] {
+            let owner = program.symbols.get(call.target_symbol).parent;
+            let machine = program.machine_by_symbol(owner).unwrap();
+            let [formal] = program.state_parameters(only_state(&program, owner)) else {
+                panic!("one copied formal");
+            };
+            assert_ne!(formal.symbol, relay.item);
+            let TerminationInterface::Published(TerminationGuarantee::Terminates { premises }) =
+                &machine.termination_plan.interface
+            else {
+                panic!("the original public promise survives");
+            };
+            assert_eq!(premises.len(), 1);
+            assert_eq!(premises[0].subject.root, formal.symbol);
+            assert_eq!(
+                machine.termination_plan.checked_summary,
+                TerminationGuarantee::NoGuarantee
+            );
+            assert_eq!(
+                machine.termination_plan.implementation_witness,
+                Some(witness.clone())
+            );
+            let custody = program.ranking_expression_custody_for(owner).unwrap();
+            let [copied] = custody.subjects.as_slice() else {
+                panic!("one copied ranking subject");
+            };
+            assert_ne!(*copied, subject);
+            assert_eq!(
+                program
+                    .expression_table
+                    .name_path_node(*copied)
+                    .unwrap()
+                    .symbol,
+                formal.symbol
+            );
+            copied_subjects.push(*copied);
+        }
+        assert_ne!(copied_subjects[0], copied_subjects[1]);
+        assert_eq!(
+            program
+                .machine_by_symbol(relay.machine)
+                .unwrap()
+                .termination_plan,
+            original_plan
+        );
+        assert_eq!(
+            program
+                .expression_table
+                .name_path_node(subject)
+                .unwrap()
+                .symbol,
+            relay.item
+        );
+    }
+}
