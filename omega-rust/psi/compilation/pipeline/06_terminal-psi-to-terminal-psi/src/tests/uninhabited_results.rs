@@ -23,8 +23,9 @@ fn program(text: &str) -> Vec<Result<RouteVerdict, crate::CompilationRefusal>> {
 
 fn accepted(text: &str) -> Box<crate::verdict::AcceptedClosure> {
     let mut verdicts = program(text);
-    let RouteVerdict::Accepted(accepted) = verdicts.remove(0).expect("source formation") else {
-        panic!("the declared empty result must be judged: {verdicts:?}");
+    let accepted = match verdicts.remove(0) {
+        Ok(RouteVerdict::Accepted(accepted)) => accepted,
+        other => panic!("the declared empty result must be judged: {other:?}"),
     };
     assert!(
         verdicts
@@ -169,6 +170,39 @@ fn an_empty_input_can_be_syntactically_returned_without_creating_a_normal_value(
         .unwrap(),
         "the declared-type proof must work independently of syntactic non-return",
     );
+}
+
+#[test]
+fn a_bare_empty_input_needs_no_call_to_occupy_a_scalar_result_position() {
+    let accepted = accepted(
+        "public data Empty requires false {} \
+         machine main(value: Empty) -> u32 { value }",
+    );
+    let module = &accepted.elaboration.module;
+    let [machine] = module.machines.as_slice() else {
+        panic!("the actual body has no synthetic helper");
+    };
+    assert_eq!(machine.result.scalar().unwrap().scalar_type, u32_type());
+    let [input] = machine.structural_parameters.as_slice() else {
+        panic!("the actual Empty input must remain declared");
+    };
+    let query =
+        Inhabitation::prepare(&TerminalContracts::new(module.structural_types.iter())).unwrap();
+    assert_eq!(query.status(input.structural_type), Status::ProvedEmpty);
+    assert_eq!(machine.module_invocations().count(), 0);
+    assert!(module.operations().all(|operation| !matches!(
+        operation.kind,
+        terminal_psi::OperationKind::IntegerConstant { .. }
+    )));
+    accepted
+        .publish_invocation()
+        .expect("actual accepted publication");
+    let closed = terminal_codec::ClosedTerminalModule::new(module.clone()).unwrap();
+    let received =
+        terminal_codec::ClosedTerminalModule::from_semantic_bytes(closed.semantic_bytes())
+            .expect("the bare empty expression must survive receiving admission");
+    assert_eq!(received.semantic_bytes(), closed.semantic_bytes());
+    assert_eq!(received.identity(), closed.identity());
 }
 
 fn type_refusal(text: &str) {
