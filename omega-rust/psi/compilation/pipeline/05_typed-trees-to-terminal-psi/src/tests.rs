@@ -1066,10 +1066,14 @@ fn a_call_that_may_return_or_crash_owes_coverage_at_its_operation() {
     }
 }
 
-/// A call with no normal completion inside an expression has no terminator
-/// to be, so it is refused, not lowered as an operation that returns.
+/// state_contracts.md, "Statements after a call that never returns": "When
+/// checked call information excludes normal return, the call has no normal
+/// successor", wherever the call is written. In `f() + 1` the call is the
+/// block's terminator and the addition after it on that path is not
+/// lowered: it owes no range, and no return is made, so nothing owes the
+/// result either.
 #[test]
-fn a_no_normal_call_inside_an_expression_is_refused() {
+fn a_call_that_never_returns_inside_an_expression_ends_its_path() {
     // machine 1() -> u32 { f() + 1 }
     let body = Body {
         slots: Vec::new(),
@@ -1080,24 +1084,134 @@ fn a_no_normal_call_inside_an_expression_is_refused() {
             u32_type(),
         ))],
     };
-    let refusal = try_lower(
+    let lowered = try_lower(
         body,
         vec![
             signature(Vec::new(), Some(u32_type())),
             signature(Vec::new(), Some(u32_type())),
         ],
-        vec![
-            returns_normally(),
-            Outcome {
-                completes_normally: false,
-                service_reach: Vec::new(),
-                synchronous_entries: Vec::new(),
-                crash_routes: routes(&[CrashCause::Trap]),
+        vec![returns_normally(), never_returns()],
+    )
+    .unwrap();
+    assert_module_and_tables_agree(&lowered.machine, &lowered.tables);
+    assert_eq!(lowered.machine.blocks.len(), 1);
+    assert!(matches!(
+        block(&lowered.machine, 1).terminator,
+        Terminator::InvokeNoNormal { callee, .. } if callee == id(2)
+    ));
+    assert_eq!(obligations(&lowered.tables), Vec::new());
+    assert!(lowered.sources.unreachable.is_empty());
+}
+
+/// A binding whose initializer never completes ends the body as a call
+/// written as its own statement does: one row, at the first statement after
+/// the binding, naming the call ("an enclosing statement that itself can
+/// never complete is not separately warned").
+#[test]
+fn a_binding_of_a_call_that_never_returns_ends_the_body() {
+    // machine 1() { let x = f(); let y = x + 1; }
+    let mut never = call(2, Vec::new(), Some(u32_type()));
+    never.source = authored(10);
+    let mut sum = strict(Strict::Add, slot(0, u32_type()), integer(1), u32_type());
+    sum.source = authored(20);
+    let body = Body {
+        slots: scalars(vec![u32_type(), u32_type()]),
+        statements: vec![
+            Statement::Bind {
+                slot: 0,
+                value: never,
+            },
+            Statement::Bind {
+                slot: 1,
+                value: sum,
             },
         ],
+    };
+    let lowered = try_lower(
+        body,
+        vec![
+            signature(Vec::new(), None),
+            signature(Vec::new(), Some(u32_type())),
+        ],
+        vec![returns_normally(), never_returns()],
     )
-    .unwrap_err();
-    assert_eq!(refusal.detail, "call no-normal call inside an expression");
+    .unwrap();
+    assert_module_and_tables_agree(&lowered.machine, &lowered.tables);
+    assert_eq!(lowered.machine.blocks.len(), 1);
+    assert_eq!(obligations(&lowered.tables), Vec::new());
+    assert_eq!(
+        lowered.sources.unreachable,
+        vec![crate::Unreachable {
+            statement: authored(20),
+            call: authored(10),
+        }]
+    );
+}
+
+/// The right operand of `||` runs only on the left operand's false edge, so
+/// a call there that never returns ends that branch and not the join: the
+/// join is entered by the left operand's edge alone and the machine returns
+/// from it. Nothing is unreachable.
+#[test]
+fn a_right_operand_that_never_returns_ends_only_its_branch() {
+    // machine 1(a: bool) -> bool { a || f() }
+    let body = Body {
+        slots: scalars(vec![ScalarType::Boolean]),
+        statements: vec![returns(expression(
+            ExpressionKind::ShortCircuit {
+                conjunction: false,
+                left: Box::new(boolean_slot(0)),
+                right: Box::new(call(2, Vec::new(), Some(ScalarType::Boolean))),
+            },
+            Some(ScalarType::Boolean),
+        ))],
+    };
+    let lowered = try_lower(
+        body,
+        vec![
+            signature(vec![ScalarType::Boolean], Some(ScalarType::Boolean)),
+            signature(Vec::new(), Some(ScalarType::Boolean)),
+        ],
+        vec![returns_normally(), never_returns()],
+    )
+    .unwrap();
+    assert_module_and_tables_agree(&lowered.machine, &lowered.tables);
+    let machine = &lowered.machine;
+    assert_eq!(machine.blocks.len(), 3);
+    let Terminator::Conditional { when_true, .. } = &block(machine, 1).terminator else {
+        panic!(
+            "the left operand decides: {:?}",
+            block(machine, 1).terminator
+        );
+    };
+    assert!(matches!(
+        block(machine, 2).terminator,
+        Terminator::InvokeNoNormal { callee, .. } if callee == id(2)
+    ));
+    assert!(matches!(
+        block(machine, 3).terminator,
+        Terminator::Return { .. }
+    ));
+    let arrivals: Vec<_> = machine
+        .blocks
+        .iter()
+        .flat_map(|block| match &block.terminator {
+            Terminator::Conditional {
+                when_true,
+                when_false,
+                ..
+            } => vec![when_true.target, when_false.target],
+            Terminator::Jump { target, .. } => vec![*target],
+            _ => Vec::new(),
+        })
+        .filter(|target| *target == when_true.target)
+        .collect();
+    assert_eq!(
+        arrivals.len(),
+        1,
+        "the join has the left operand's arrival only"
+    );
+    assert!(lowered.sources.unreachable.is_empty());
 }
 
 /// An authored position, so a test can tell two constructs apart.

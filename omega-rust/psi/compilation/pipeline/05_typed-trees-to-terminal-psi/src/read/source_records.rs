@@ -1009,7 +1009,7 @@ mod tests {
         assert!(
             refusal
                 .detail
-                .contains("constrained or non-type parameters"),
+                .contains("record application with constrained parameters"),
             "{refusal:?}"
         );
     }

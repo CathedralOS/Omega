@@ -32,6 +32,21 @@ use crate::canonical;
 use crate::outcome::Outcome;
 use crate::{SourceOrigin, Unserved, refuse};
 
+/// Staged storage ends after the call, whether its value was transferred or
+/// its captured descriptor was lent. The argument lanes keep those distinct.
+enum ArgumentHome {
+    Transferred(PlaceId),
+    BorrowedDescriptor(PlaceId),
+}
+
+impl ArgumentHome {
+    fn place(&self) -> PlaceId {
+        match self {
+            Self::Transferred(place) | Self::BorrowedDescriptor(place) => *place,
+        }
+    }
+}
+
 /// A call's evaluated arguments.
 struct Arguments {
     /// In authored formal order, as the invocation row holds them.
@@ -41,9 +56,9 @@ struct Arguments {
     /// The structural lane in formal order: each record argument's root,
     /// whole and owned, and each loan's place with the loan's access.
     structural: Vec<(PlaceId, Vec<super::places::Step>, StructuralAccess)>,
-    /// The roots the call consumes, the record arguments' own: their homes
-    /// are retired after it.
-    consumed: Vec<PlaceId>,
+    /// The homes created while staging owned values and shared descriptors.
+    /// One normal continuation retires both, after all call loans end.
+    homes: Vec<ArgumentHome>,
     /// One per loan, in formal order: the place lent, its access and where
     /// the authority comes from.
     loans: Vec<(ExactPlaceId, ReferenceAccess, Lender)>,
@@ -66,7 +81,7 @@ impl Lowering<'_> {
             actuals: Vec::with_capacity(arguments.len()),
             scalars: Vec::new(),
             structural: Vec::new(),
-            consumed: Vec::new(),
+            homes: Vec::new(),
             loans: Vec::new(),
             erased: Vec::new(),
         };
@@ -88,10 +103,13 @@ impl Lowering<'_> {
                 if signature.borrowed(position).map(|formal| formal.access) != Some(*access) {
                     return Err(self.internal("a loan for a formal that is not borrowed alike"));
                 }
-                let (lent, exact, lender) = self.lend(place, *access, home.as_deref())?;
-                evaluated.actuals.push(Actual::Place(exact));
-                evaluated.structural.push(lent);
-                evaluated.loans.push((exact, *access, lender));
+                let lent = self.lend(place, *access, home.as_deref())?;
+                evaluated.actuals.push(Actual::Place(lent.place));
+                evaluated.structural.push(lent.argument);
+                evaluated.loans.push((lent.place, *access, lent.lender));
+                evaluated
+                    .homes
+                    .extend(lent.temporary.map(ArgumentHome::BorrowedDescriptor));
                 continue;
             }
             match argument.result {
@@ -103,7 +121,7 @@ impl Lowering<'_> {
                     evaluated
                         .structural
                         .push((root, Vec::new(), StructuralAccess::Owned));
-                    evaluated.consumed.push(root);
+                    evaluated.homes.push(ArgumentHome::Transferred(root));
                 }
                 Some(ValueType::Scalar(..) | ValueType::Rigid(_)) | None => {
                     let value = self.scalar(argument)?;
@@ -195,43 +213,7 @@ impl Lowering<'_> {
         })
     }
 
-    /// The callee and arguments of a call in terminal position whose callee
-    /// has no normal completion; such a call is the block's terminator.
-    pub(super) fn no_normal<'e>(
-        &self,
-        expression: &'e Expression,
-    ) -> Checked<Option<(semantic_vocabulary::TargetMachineCallable, &'e [Expression])>> {
-        match &expression.kind {
-            ExpressionKind::Call {
-                callee, arguments, ..
-            } if !self.completes_normally(*callee)? => Ok(Some((*callee, arguments))),
-            ExpressionKind::Call { .. }
-            | ExpressionKind::SavedSubject(_)
-            | ExpressionKind::Integer(_)
-            | ExpressionKind::ByteLiteral(_)
-            | ExpressionKind::Boolean(_)
-            | ExpressionKind::Slot(_)
-            | ExpressionKind::Array { .. }
-            | ExpressionKind::Index { .. }
-            | ExpressionKind::Record { .. }
-            | ExpressionKind::Case { .. }
-            | ExpressionKind::Payload { .. }
-            | ExpressionKind::IsCase { .. }
-            | ExpressionKind::Match { .. }
-            | ExpressionKind::Field { .. }
-            | ExpressionKind::CollectionMeasure { .. }
-            | ExpressionKind::Strict { .. }
-            | ExpressionKind::Not(_)
-            | ExpressionKind::BitwiseNot(_)
-            | ExpressionKind::Cast(_)
-            | ExpressionKind::Requalify(_)
-            | ExpressionKind::Establish { .. }
-            | ExpressionKind::ShortCircuit { .. }
-            | ExpressionKind::Borrow { .. } => Ok(None),
-        }
-    }
-
-    /// A call with no normal completion, in terminal position: the
+    /// A call with no normal completion, wherever it is written: the
     /// arguments, then the invocation as the block's terminator, with the
     /// callee's routes substituted as its crash continuations and one
     /// `CrashCoverage` obligation per surviving cause at this site. One
@@ -247,7 +229,7 @@ impl Lowering<'_> {
     /// retired, restored or cleaned up on its edge (terminal-psi
     /// ownership.md: process exit "creates no return value, consumption
     /// receipt, cleanup successor, or post-exit frontier").
-    pub(super) fn invoke_no_normal(
+    fn invoke_no_normal(
         &mut self,
         callee: semantic_vocabulary::TargetMachineCallable,
         arguments: &[Expression],
@@ -412,14 +394,16 @@ impl Lowering<'_> {
         result: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Value> {
-        // A call with no normal completion is a terminator (`invoke_no_normal`)
-        // and has no value, so an expression cannot hold one.
+        // A call with no normal completion is a terminator
+        // (`invoke_no_normal`) and has no value: the path it lies on ends at
+        // it, and so does the evaluation of whatever holds it
+        // (`Lowering::end_path`).
         if !self.completes_normally(callable)? {
-            return Err(refuse(
-                self.id,
-                self.current.map_or(Construct::Machine, Construct::Block),
-                Unserved::Call("no-normal call inside an expression"),
-            ));
+            if designated.is_some() {
+                return Err(self.internal("designated operands on a call that never returns"));
+            }
+            self.invoke_no_normal(callable, arguments, source)?;
+            return Err(self.end_path(source));
         }
         if matches!(
             callable,
@@ -567,8 +551,9 @@ impl Lowering<'_> {
             }
         };
         self.returned_loans(&arguments.loans, operation)?;
-        if !arguments.consumed.is_empty() {
-            self.retire_homes(&arguments.consumed, source)?;
+        if !arguments.homes.is_empty() {
+            let homes: Vec<_> = arguments.homes.iter().map(ArgumentHome::place).collect();
+            self.retire_homes(&homes, source)?;
         }
         Ok(value)
     }

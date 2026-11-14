@@ -423,9 +423,13 @@ fn a_program_applying_a_generic_machine_at_implementations_is_judged() {
 }
 
 /// Its twin differs only in the bound `advance` promises, 18, which holds
-/// for both selections and not for `Step::apply`'s contract. The closure
-/// and both implementations stand; `advance` as written is rejected, so the
-/// selections a program makes do not make a generic body valid.
+/// for both selections and not for `Step::apply`'s contract. `advance` as
+/// written is rejected, so the selections a program makes do not make a
+/// generic body valid, and so is the entry closure: its machine at `Shift`
+/// calls `Shift::apply` through `Step::apply`'s contract as well
+/// (`wiki/spec/language/generics.md`: "Generic bodies use the abstract
+/// requirement envelope"; #2935), under which its body returns up to 21.
+/// Both implementations stand.
 #[test]
 fn a_generic_machine_valid_only_for_its_selections_is_rejected_as_written() {
     assert_eq!(
@@ -435,15 +439,20 @@ fn a_generic_machine_valid_only_for_its_selections_is_rejected_as_written() {
                 "tests/fixtures/fail/generics/implementation_parameter_contract_only_holds_for_selection"
             )
         ),
-        ["accepted", "rejected", "accepted", "accepted"]
+        ["rejected", "rejected", "accepted", "accepted"]
     );
 }
 
 /// The same program where `Shift::apply` promises `result <= 25`, more than
-/// `Step::apply`'s 20 allows. `advance` as written and `Hold` stand. The
-/// witness that `Shift::apply` refines `Step::apply` is rejected, and so is
-/// the closure: `advance` at `Shift` can no longer take the proof of the
-/// generic body, and its own body returns up to 26.
+/// `Step::apply`'s 20 allows. The witness that `Shift::apply` refines
+/// `Step::apply` is rejected, so the program is. `advance` as written and
+/// `Hold` stand, and so does the entry closure: its machine at `Shift`
+/// calls `Shift::apply` through `Step::apply`'s contract
+/// (`wiki/spec/language/generics.md`: "Generic bodies use the abstract
+/// requirement envelope. Callers substitute selected published contracts
+/// into those dependencies, not incidental stronger behavior"; #2935), so
+/// it relies on the promise the rejected witness owes and never on
+/// `Shift::apply`'s own weaker one.
 #[test]
 fn an_implementation_that_promises_less_than_its_requirement_is_rejected() {
     let source = fixture("tests/fixtures/run/generics/implementation_parameter_contract");
@@ -451,7 +460,7 @@ fn an_implementation_that_promises_less_than_its_requirement_is_rejected() {
     assert_ne!(source, weaker, "the fixture states Shift's promise");
     assert_eq!(
         verdicts("implementation_exceeds_requirement", &weaker),
-        ["rejected", "accepted", "accepted", "rejected"]
+        ["accepted", "accepted", "accepted", "rejected"]
     );
 }
 
@@ -714,26 +723,84 @@ fn a_statement_after_a_call_that_may_return_is_checked() {
     );
 }
 
-/// Its other twin names a machine nothing declares in the statement after
-/// the exit. "Unreachable statements are still source": leaving the
-/// statement out of the lowered form does not excuse the name, and the
-/// program is not accepted. It is refused where an unknown call name is
-/// refused anywhere today: the reader raises the row typing left on the
-/// declaration that holds the call (`typed_trees::deferred_refusals`).
+/// A call that never returns written inside an expression ends the path it
+/// lies on and no other (`wiki/spec/language/state_contracts.md`,
+/// "Statements after a call that never returns": "When checked call
+/// information excludes normal return, the call has no normal successor").
+/// In `settle`, `count < 10 || stop()` reaches `stop` only when `count < 10`
+/// is false, so the `||` joins with that one arrival and `count + 1` is
+/// owed only where `count < 10` holds: accepted. In `main`, every path of
+/// `let held: u32 = halt();` ends at the call, so the `let` after it is
+/// unreachable: one warning there and one note at the call.
 #[test]
-fn an_unknown_machine_after_a_call_that_never_returns_is_not_accepted() {
+fn a_call_that_never_returns_inside_an_expression_ends_only_its_own_path() {
+    let parts = judged(
+        "never_returning_call_in_expressions",
+        &fixture("tests/fixtures/run/calls/never_returning_call_in_expressions"),
+    );
+    let [Ok(RouteVerdict::Accepted(closure))] = &parts[..] else {
+        panic!("the entry closure accepted: {parts:?}");
+    };
+    let advisories = closure.advisories();
+    let [warning, note] = &advisories[..] else {
+        panic!("one warning and its note: {advisories:?}");
+    };
+    assert!(
+        warning
+            .message
+            .starts_with("unreachable statement in machine `main` state `"),
+        "{}",
+        warning.message
+    );
+    assert_eq!(note.message, "this call never returns");
+}
+
+/// Its twin writes `&&`, which goes on past `stop` when `count < 10` is
+/// false. The continuation is checked on that returning path, where
+/// `count + 1` can overflow, and the program is rejected.
+#[test]
+fn the_returning_path_past_a_call_that_never_returns_is_checked() {
+    assert_eq!(
+        verdicts(
+            "never_returning_call_in_conjunction",
+            &fixture("tests/fixtures/fail/calls/never_returning_call_in_expressions")
+        ),
+        ["rejected"]
+    );
+}
+
+/// Its other twin names a machine nothing declares in the statement after
+/// the exit. "Unreachable statements are still source ... an unknown machine
+/// name or malformed type is an error wherever it appears": leaving the
+/// statement out of the lowered form does not excuse the name, and the
+/// program is rejected at the call. Typing finds that nothing in the program
+/// has the name and leaves a violation row on `main`; the reader that demands
+/// `main` raises it (`typed_trees::deferred_refusals`), lowered or not.
+#[test]
+fn an_unknown_machine_after_a_call_that_never_returns_is_rejected() {
     let parts = judged_with_dependencies(
         "tests/fixtures/fail/calls/unknown_machine_after_process_exit",
         "entry_start",
         &[],
     )
     .unwrap_or_else(|stopped| panic!("Psi 00 through 04 must complete: {stopped:?}"));
-    let [Ok(RouteVerdict::FallBack(refusal))] = &parts[..] else {
-        panic!("the unknown name refuses the program: {parts:?}");
+    let [Ok(RouteVerdict::Rejected { violations, .. })] = &parts[..] else {
+        panic!("the unknown name rejects the program: {parts:?}");
     };
-    assert_eq!(
-        refusal.detail,
-        "declaration holding a call whose name resolves to no declaration"
+    let [violation] = &violations[..] else {
+        panic!("one violation, at the call: {violations:?}");
+    };
+    assert!(
+        violation
+            .statement
+            .contains("an unknown machine name is an error"),
+        "{violation:?}"
+    );
+    let site = violation.site.expect("the call is authored");
+    let text = fixture("tests/fixtures/fail/calls/unknown_machine_after_process_exit");
+    assert!(
+        text[site.span.start..site.span.end].starts_with("undeclared_machine"),
+        "{site:?}"
     );
 }
 

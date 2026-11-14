@@ -144,11 +144,24 @@ fn an_unserved_inherited_whole_trait_supply_is_not_vacuously_accepted() {
     );
 }
 
-/// A provider's body can keep its own ceilings while exceeding the contract
-/// it supplies. The production conformance witness must reject either axis.
+/// A provider can keep its own ceilings while exceeding the contract it
+/// supplies, on either axis, service reach or callback invocation.
+///
+/// Where its body makes the call that exceeds the requirement, the runtime
+/// body is what fails: it "is checked as a conformer of that requirement,
+/// under the invocation context the requirement supplies"
+/// (conformances.md, "Binding a machine to a requirement"), and "a derived
+/// reach that exceeds its ceiling rejects at the call that contributes the
+/// excess" (effects.md). That body is judged in the runtime module, part 0,
+/// before the conformance witness.
+///
+/// Where the provider only declares the wider ceiling and its body makes no
+/// such call, the body keeps the requirement's ceilings and the production
+/// conformance witness, part 1, rejects the clause that does not refine the
+/// requirement.
 #[test]
 fn conformance_witness_checks_reach_and_invocation_ceilings() {
-    let program = |required: &str| {
+    let program = |required: &str, body: &str| {
         format!(
             r#"
 boundary trait Output {{}}
@@ -162,15 +175,16 @@ boundary trait Service {{
 data Native {{}}
 machine Native::go(value: u32) -> u32 satisfies Service::go
     reaches Output crashes none invokes Handler {{
-    Console::write(value);
+    {body}
     value
 }}
 machine entry() {{ let reply: u32 = Service::go(3); }}
 "#
         )
     };
+    let calling = "Console::write(value);";
     supplied(
-        &program("reaches Output crashes none invokes Handler"),
+        &program("reaches Output crashes none invokes Handler", calling),
         "Service::go",
     )
     .unwrap();
@@ -178,7 +192,7 @@ machine entry() {{ let reply: u32 = Service::go(3); }}
         ("reaches none crashes none invokes Handler", "reach"),
         ("reaches Output crashes none", "synchronous invocation"),
     ] {
-        let rejection = supplied(&program(required), "Service::go").unwrap_err();
+        let rejection = supplied(&program(required, calling), "Service::go").unwrap_err();
         // The selected provider may be checked in the main closure before its
         // separate refinement witness. Pin the rejected operation, not that order.
         assert!(
@@ -191,6 +205,9 @@ machine entry() {{ let reply: u32 = Service::go(3); }}
             "{rejection}"
         );
         assert!(rejection.contains(axis), "{rejection}");
+        let declared = supplied(&program(required, ""), "Service::go").unwrap_err();
+        assert!(declared.starts_with("part 1 rejected"), "{declared}");
+        assert!(declared.contains(axis), "{declared}");
     }
 }
 
