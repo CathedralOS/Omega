@@ -1596,6 +1596,29 @@ pub(crate) mod expression {
                         }
                         resolved::expression::ExpressionNode::Integer(value) => {
                             if let Some(landing) = value.landing() {
+                                /*
+                                    numeric_values.md, "Literal landing and
+                                    destinations": "A suffix lands its literal
+                                    at that occurrence", and integer landing
+                                    requires the "destination range where
+                                    bounded". `1i1` and `8192u13` name a value
+                                    their own carrier does not hold, whatever
+                                    policy the surrounding operation selects.
+                                */
+                                if let numerics::literals::LandedIntegerType::Fixed(carrier) =
+                                    landing.landed_type
+                                    && !value
+                                        .value_bignum()
+                                        .is_some_and(|exact| carrier.admits(&exact))
+                                {
+                                    return Err(Diagnostic::error(format!(
+                                        "integer literal `{}` is outside `{carrier}`: a suffix \
+                                         lands the literal in that type, which does not hold \
+                                         this value",
+                                        value.canonical_spelling().as_str(),
+                                    ))
+                                    .with_source_span(self.source.source_span(expression)));
+                                }
                                 self.retain_builtin_type_reference(
                                     typed::types::builtin_type_atom(landing.landed_type),
                                 )?;

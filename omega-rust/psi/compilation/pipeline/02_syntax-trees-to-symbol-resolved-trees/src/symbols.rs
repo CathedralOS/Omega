@@ -5514,10 +5514,26 @@ fn assign_program_symbols(
     spelling is used as a type is not decided here: an unused symbol binds
     nothing, and a carrier this scan missed stays unresolved and is refused
     where it is used.
+
+    An application `u<N>` or `i<N>` that the width pass left as written (its
+    width is a const parameter or must be computed) names the family head,
+    which is installed for the same reason.
 */
-fn spelled_integer_carriers(
-    syntax: &syntax_trees::SyntaxTrees,
-) -> Vec<numerics::integer_carrier::FixedInteger> {
+pub(crate) struct SpelledIntegers {
+    carriers: Vec<numerics::integer_carrier::FixedInteger>,
+    family_heads: bool,
+}
+
+impl SpelledIntegers {
+    fn install(&self, symbols: &mut SymbolTable) {
+        symbols.install_integer_types(self.carriers.iter().copied());
+        if self.family_heads {
+            symbols.install_integer_families();
+        }
+    }
+}
+
+fn spelled_integers(syntax: &syntax_trees::SyntaxTrees) -> SpelledIntegers {
     use syntax_trees::expression::ExpressionNode;
     use syntax_trees::types::TypeReferenceNode;
     let mut carriers = Vec::new();
@@ -5530,11 +5546,16 @@ fn spelled_integer_carriers(
             carriers.push(carrier);
         }
     };
+    let mut family_heads = false;
     for (_, node) in syntax.type_references.iter_type_references() {
-        if let TypeReferenceNode::Named(name) = node {
-            spelled(
+        match node {
+            TypeReferenceNode::Named(name) => spelled(
                 numerics::integer_carrier::FixedInteger::from_decimal_spelling(name.as_str(syntax)),
-            );
+            ),
+            TypeReferenceNode::Generic { base_name, .. } => {
+                family_heads |= matches!(base_name.as_str(syntax), "u" | "i");
+            }
+            _ => {}
         }
     }
     for (_, node) in syntax.expressions.iter_expressions() {
@@ -5565,7 +5586,10 @@ fn spelled_integer_carriers(
     }
     carriers.sort_unstable();
     carriers.dedup();
-    carriers
+    SpelledIntegers {
+        carriers,
+        family_heads,
+    }
 }
 
 pub(crate) fn assign_symbols(
@@ -5579,7 +5603,7 @@ pub(crate) fn assign_symbols(
         symbol_resolved_trees::types::OperandLifetimeOwnerHandle,
         crate::resolution::operand_owners::DeclarationInput,
     )],
-    integer_carriers: &[numerics::integer_carrier::FixedInteger],
+    integers: &SpelledIntegers,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut symbols = build_symbol_table(
         program,
@@ -5588,7 +5612,7 @@ pub(crate) fn assign_symbols(
         const_declarations,
         !namespace_declarations.modules.is_empty(),
     );
-    symbols.install_integer_types(integer_carriers.iter().copied());
+    integers.install(&mut symbols);
     namespace_declarations.install(&mut symbols)?;
     let has_sources = sources.is_some() || !namespace_declarations.modules.is_empty();
     let mut symbols = insert_selected_machine_children(program, symbols, sources, 0, has_sources);
@@ -5617,7 +5641,7 @@ pub(crate) fn assign_symbols_against_resolved_base(
         symbol_resolved_trees::types::OperandLifetimeOwnerHandle,
         crate::resolution::operand_owners::DeclarationInput,
     )],
-    integer_carriers: &[numerics::integer_carrier::FixedInteger],
+    integers: &SpelledIntegers,
 ) -> Result<(), Vec<Diagnostic>> {
     symbol_table::extend_symbol_table(
         program,
@@ -5626,9 +5650,7 @@ pub(crate) fn assign_symbols_against_resolved_base(
         roots,
         const_declarations,
     );
-    program
-        .symbols
-        .install_integer_types(integer_carriers.iter().copied());
+    integers.install(&mut program.symbols);
     namespace_declarations.install(&mut program.symbols)?;
     let table = std::mem::take(&mut program.symbols);
     program.symbols =
@@ -5737,7 +5759,7 @@ pub(crate) fn assign_declarations(
     lowerer: &mut Lowerer,
     syntax: &syntax_trees::SyntaxTrees,
 ) -> Result<(), Vec<Diagnostic>> {
-    let integer_carriers = spelled_integer_carriers(syntax);
+    let integers = spelled_integers(syntax);
     let operand_bindings = crate::resolution::operand_owners::bindings(lowerer)?;
     let seeded_roots = lowerer.seed.as_ref().map(|seed| seed.roots);
     match seeded_roots {
@@ -5749,7 +5771,7 @@ pub(crate) fn assign_declarations(
             &lowerer.namespace_declarations,
             lowerer.bound_generic_application_origins,
             &operand_bindings,
-            &integer_carriers,
+            &integers,
         )?,
         Some(roots) => {
             let sources = lowerer.sources.take().ok_or_else(|| {
@@ -5766,7 +5788,7 @@ pub(crate) fn assign_declarations(
                 &lowerer.namespace_declarations,
                 lowerer.bound_generic_application_origins,
                 &operand_bindings,
-                &integer_carriers,
+                &integers,
             )?;
         }
     }

@@ -91,7 +91,7 @@ framework or a list of features that remain unimplemented.
 - Category: one idea, several implementations
 - Where: `typed-trees/src/type_system.rs` (`TypeReferenceNode::primitive_type` calls `PrimitiveType::from_name(name)`; `type_symbol` returns no symbol when the name spells a primitive); `05_typed-trees-to-terminal-psi/src/read/types.rs` (`atom_type` through `SymbolTable::builtin_type_atom`); `symbol-resolved-trees/src/type_system_and_names.rs` (a second `PrimitiveType` with its own `from_name`)
 - Saw: typing reads `u32` as an integer because the text of the name is `u32`, with `AtomicU32` and `AtomicU32#AccessField<` mapped to the same carrier by string prefix; the lowered-form checker reads it as an integer because its symbol sits in a compiler-installed root slot. Two enums named `PrimitiveType` restate the answer for the two tree representations
-- Cost: a package type spelled like a primitive has to be taught to both routes, and the two can disagree about one type reference. The width spellings were taught to both (`u13` is a name to typing and an installed builtin symbol to the checker), which made them agree without removing the second route. Typing still lets two mismatches through that only the checker stops, as `not-supported` instead of a typing error: `machine f(value: u1) -> bool { value }` (`typing arm value type`) and a suffixed literal outside its carrier such as `1i1` or `8192u13` (`integer literal outside its type`)
+- Cost: a package type spelled like a primitive has to be taught to both routes, and the two can disagree about one type reference. The width spellings were taught to both (`u13` is a name to typing and an installed builtin symbol to the checker), which made them agree without removing the second route.
 - Reported: 2026-11-13, Claude Code, while replacing the eight integer names with a sign and a width
 
 ### Float semantic evaluation still collapses integer metadata to a fixed-width roster
@@ -289,3 +289,17 @@ framework or a list of features that remain unimplemented.
 - Saw: a call that never returns, written inside an expression, ends the evaluation that holds it by returning a `Refusal` up through every `?`, and the construct whose path ended recognizes it by a side field and the refusal's text. Expression lowering returns `Checked<Value>` with no way to say "no value: control left", so the signal borrows the error type
 - Cost: any lowering step that swallows a refusal (`.ok()`, `if let Ok`) between the call and its taker would turn a divergence into an internal refusal later; the honest shape is a `Value::Ended(call)` result that every operand consumer handles, which touches each of the ~25 `scalar`/`record` call sites in `lower/`
 - Reported: 2026-11-14, Claude Code, while lowering calls that never return inside expressions
+
+### No stage types a result value against the type its machine declares
+- Category: a verdict with nothing behind it
+- Where: `03_symbol-resolved-trees-to-typed-trees` (no expression has a type there; `typing_queries.rs` answers declared places only); `05_typed-trees-to-terminal-psi/src/read/transitions.rs` and `read/expressions.rs` (`Unserved::Typing("arm value type")`, `"match arm value type"`)
+- Saw: `machine f(value: u32) -> bool { value }`, `machine f(value: u1) -> bool { value }` and `machine f(value: bool) -> u1 { value }` all pass typing. Each is stopped only by the lowered-form reader, which calls it `not-supported` because it expects typing to have rejected it
+- Cost: an ordinary type error reaches the author as "not supported yet" with no source line, and the reader's 57 `Unserved::Typing` refusals are the only owner of value typing. Making any of them a rejection needs typing to compute expression types, which it does not do today
+- Reported: 2026-11-13, Claude Code, while making integer widths symbolic
+
+### A value name in a type is read by its spelling before resolution, past the parameters that hide it
+- Category: one idea, several implementations
+- Where: `02_.../preparation_integer_widths.rs` (`width_of`) and `02_.../preparation_const_evaluation.rs` (`closed_fixed_array_length`) both close a name through `ConstantSelection::select` before resolution; after it, `symbols_type_references.rs` `resolve_type_symbol` and `assign_fixed_array_length_symbol` look at type parameters and then top-level declarations only
+- Saw: in `const count: u64 = 13; machine f(count: u64, v: u<count>)` (or `[u8; count]`) the runtime parameter `count` is read as the constant. modules.md "Resolution" puts local bindings and parameters before imported names. Not reachable as an accepted program today only because the checker refuses every top-level `const` declaration
+- Cost: an integer width and an array extent each decide what a value name in a type means, by spelling, in two places; the day `const` declarations are read, a runtime width or extent is silently fixed to a constant. One type-position value-name resolver that sees the enclosing value bindings would serve both
+- Reported: 2026-11-14, Claude Code, while landing symbolic integer widths

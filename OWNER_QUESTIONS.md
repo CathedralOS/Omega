@@ -166,3 +166,48 @@ dependency shows nothing; or (c) leave them refused?
 **Until answered.** The samples stay as they are and are refused at source
 discovery. They are the largest group of programs that still stops in its
 Build.
+
+### Q5 - May a value or a declaration be named like an integer type?
+
+Decision name: `unresolved-integer-type-spelled-names`.
+
+**Customer.** `source/library/core/reflect.omg` binds locals `i1` through `i7`
+(`let i1: u64 = start + 1u64;`). Since the ratified
+[width-indexed integers](wiki/spec/language/numeric_values.md#width-indexed-integers)
+decision, every decimal spelling (`i1`, `u13`, `i257`) is a type name, so an
+unbounded set of short identifiers that programs already use as loop and index
+names now also names a type.
+
+**Gap.** No page says whether a builtin type name may be reused:
+- `data_and_literals.md` ("Identifiers match `[A-Za-z_][A-Za-z0-9_]*`") lists no
+  reserved identifiers and no keyword list exists.
+- `modules.md` gives the resolution order (local bindings, state parameters,
+  machine parameters, imported names, qualified paths) without placing builtin
+  carriers in it, and says only that "lexical bindings keep their ordinary
+  meaning".
+- `generics.md` ("Each operand must resolve in its type role") and
+  `expressions.md` ("Type/value role resolution happens before choosing that
+  operation") imply names are read by role, but neither says types and values
+  have separate name spaces.
+- `data_and_literals.md` rejects collisions only inside one owner's member
+  namespace; `machines.md` defers duplicates to "ordinary name/overload rules"
+  that no page defines.
+- `numeric_values.md`, `constants.md`, `patterns.md`, `dependent_values.md`,
+  `state_contracts.md` and language guide chapters 1, 3, 5, 6, 12 and 13 do
+  not address it.
+
+**Question.** For a name that is also an integer type spelling:
+1. May a local, parameter or field take it (`let i1 = ...`), and if so does
+   the binding hide the type inside its scope (so `i1::max()` or `x as i1`
+   there is an error), or do values and types never compete because each use
+   is read by its role?
+2. May a top-level declaration take it (`data u7 { ... }`, `const i1`), and
+   which one does a type position then name?
+3. Or are the integer type spellings reserved, so `core::reflect` must rename
+   its locals?
+
+**Until answered.** Nothing is reserved and nothing is diagnosed. A value
+position reads the local, parameter or field; a type position, a literal
+suffix and a path qualifier read the builtin integer type. What a top-level
+declaration spelled like a carrier does has not been measured. No fixture pins
+any of this as intended.

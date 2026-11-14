@@ -10,7 +10,15 @@ use semantic_vocabulary::PackageKeyIdentity;
 use source::{SourceFile, SourceId, SourceMap, SourceOrigin, SourceSpan};
 
 use super::builtin::BUILTIN_TYPE_COUNT;
-use numerics::integer_carrier::FixedInteger;
+use numerics::integer_carrier::{FixedInteger, IntegerSign};
+
+/* The spelling of the head of an integer family application, `u<N>` or `i<N>`. */
+fn integer_family_name(sign: IntegerSign) -> &'static str {
+    match sign {
+        IntegerSign::Unsigned => "u",
+        IntegerSign::Signed => "i",
+    }
+}
 mod child_batches {
     /*
         Append-only child batches beneath frozen hierarchy nodes.
@@ -3945,6 +3953,64 @@ impl SymbolTable {
                 .iter()
                 .map(|name| (SymbolKind::BuiltinType, SymbolNameRef::Borrowed(name))),
         );
+    }
+
+    /*
+        `u<N>` and `i<N>` apply a family of integers to a width, and the head
+        of such an application needs a declaration to name, the way
+        `Pair<u8>` names `Pair`. The two heads are builtin types installed
+        beside the program's declarations under the spellings `u` and `i`, so
+        they resolve like any other type name. They are installed only for a
+        compilation that keeps such an application: every position a table
+        without one publishes stays where it was.
+
+        A head is not a type by itself here: it has no atom
+        (`builtin_type_atom` answers `None`), and only an application at a
+        closed width names a carrier.
+    */
+    pub fn install_integer_families(&mut self) {
+        let missing = [IntegerSign::Unsigned, IntegerSign::Signed]
+            .into_iter()
+            .filter(|sign| self.integer_family_symbol(*sign).is_none())
+            .map(|sign| {
+                (
+                    SymbolKind::BuiltinType,
+                    SymbolNameRef::Static(integer_family_name(sign)),
+                )
+            })
+            .collect::<Vec<_>>();
+        if !missing.is_empty() {
+            self.append_children(self.root, missing);
+        }
+    }
+
+    /* The sign of the integer family `symbol` is the head of, if it is one. */
+    pub fn integer_family(&self, symbol: SymbolHandle) -> Option<IntegerSign> {
+        if !symbol.is_valid() {
+            return None;
+        }
+        let entry = self.get(symbol);
+        if entry.kind != SymbolKind::BuiltinType
+            || entry.parent != self.root
+            || entry.generated_from.is_valid()
+        {
+            return None;
+        }
+        [IntegerSign::Unsigned, IntegerSign::Signed]
+            .into_iter()
+            .find(|sign| self.name(symbol) == integer_family_name(*sign))
+    }
+
+    pub fn integer_family_symbol(&self, sign: IntegerSign) -> Option<SymbolHandle> {
+        self.root_names
+            .0
+            .get_or_init(|| self.root_name_index())
+            .by_name
+            .get(integer_family_name(sign))
+            .into_iter()
+            .flatten()
+            .map(|&(_, symbol)| symbol)
+            .find(|symbol| self.integer_family(*symbol) == Some(sign))
     }
 
     /*

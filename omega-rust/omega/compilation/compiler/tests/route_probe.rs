@@ -975,9 +975,16 @@ fn an_integer_of_any_width_is_judged_at_its_own_sign_and_width() {
 /// width arguments reject", each before typing and for its own reason.
 ///
 /// A width that is a const parameter is kept for the specialization that
-/// substitutes it. The lowered-form checker has no integer type whose width
-/// is a parameter yet, so such a program is refused by name, not judged at
-/// some other width.
+/// substitutes it (`a_symbolic_width_is_judged_at_each_applied_width`). The
+/// lowered-form checker has no integer type whose width is a parameter, so
+/// the generic form of such a machine is refused by name, not judged at some
+/// other width.
+///
+/// Only a `const` binder is such a parameter (`generics.md`, "Binder
+/// forms": `N: u64` is "runtime-capable" and "a static-only use of a dynamic
+/// binder rejects"), and a name is read in the scope of the declaration that
+/// wrote it: `count` is a runtime parameter of `next` even though another
+/// machine has a const parameter spelled the same.
 #[test]
 fn an_indexed_width_is_the_type_its_shorthand_names() {
     let spare = |declaration: &str| format!("{declaration}\nmachine main() {{ }}\n");
@@ -1029,6 +1036,17 @@ fn an_indexed_width_is_the_type_its_shorthand_names() {
             "machine next(count: u64, value: u<count>) -> u32 { 1 }",
             "runtime value",
         ),
+        (
+            "runtime_width_sharing_a_const_parameter_name",
+            "machine other<const count: u64>(value: u64) -> u64 { value }
+             machine next(count: u64, value: u<count>) -> u32 { 1 }",
+            "runtime value",
+        ),
+        (
+            "runtime_capable_binder_width",
+            "machine next<N: u64>(value: u<N>) -> u32 { 1 }",
+            "runtime value",
+        ),
     ] {
         let stopped = unbuilt_frontier::staged(name, &spare(declaration))
             .err()
@@ -1037,6 +1055,141 @@ fn an_indexed_width_is_the_type_its_shorthand_names() {
             stopped.iter().any(|message| message.contains(reason)),
             "{name}: {stopped:?}"
         );
+    }
+}
+
+/// One generic machine whose width is a const parameter is one body applied
+/// at each width a call names (`numeric_values.md`, "Width-indexed
+/// integers": width "applications use normal static substitution"; "One
+/// generic width body works at narrow and multiword widths without separate
+/// handwritten source implementations"). Typed preparation generates
+/// `next` at 13 and at 5 exactly as it does for any const parameter, and in
+/// each generated machine `u<N>` is the carrier the shorthand names, so
+/// `value + 1` is judged at thirteen bits in one and five bits in the other.
+///
+/// `main` passes each application the greatest value that keeps the add in
+/// range (8190 of 8191, 30 of 31); each twin differs in one argument, which
+/// is that width's greatest value. The second part is the generic form of
+/// `next`, which the checker cannot state with `N` unknown: refused by name.
+///
+/// A zero width rejects at the application that gives it.
+#[test]
+fn a_symbolic_width_is_judged_at_each_applied_width() {
+    let program = |wide: &str, narrow: &str| {
+        format!(
+            "machine next<const N: u64>(value: u<N>, limit: u<N>) -> u<N>
+             requires value < limit
+             {{ value + 1 }}
+             machine main() {{
+                 let wide: u13 = next<13>({wide}, 8191);
+                 let narrow: u5 = next<5>({narrow}, 31);
+}}
+"
+        )
+    };
+    for (name, wide, narrow, closure) in [
+        ("both_below", "8190", "30", "accepted"),
+        ("wide_at_greatest", "8191", "30", "rejected"),
+        ("narrow_at_greatest", "8190", "31", "rejected"),
+    ] {
+        assert_eq!(
+            verdicts(name, &program(wide, narrow)),
+            [closure, "not-supported"],
+            "{name}"
+        );
+    }
+    let stopped = unbuilt_frontier::staged(
+        "zero_applied_width",
+        "machine next<const N: u64>(value: u<N>) -> u<N> { value }
+         machine main() { let none: u8 = 0; let kept: u8 = next<0>(none); }
+",
+    )
+    .err()
+    .unwrap_or_else(|| panic!("a zero width must not be typed"));
+    assert!(
+        stopped.iter().any(|message| message.contains("width 0")),
+        "{stopped:?}"
+    );
+}
+
+/// A suffix lands its literal in the type it names
+/// (`numeric_values.md`, "Literal landing and destinations": integer landing
+/// requires the "destination range where bounded"). `i1` holds minus one and
+/// zero and `u13` ends at 8191, so `1i1` and `8192u13` are refused by typing,
+/// and the greatest and least values each carrier does hold are judged.
+#[test]
+fn a_suffixed_literal_outside_its_carrier_is_a_typing_error() {
+    let spare = |carrier: &str, literal: &str| {
+        format!(
+            "machine next(value: {carrier}) -> {carrier} {{ value +% {literal} }}
+             machine main() {{ }}
+"
+        )
+    };
+    for (name, carrier, literal) in [
+        ("i1_least", "i1", "-1i1"),
+        ("i1_zero", "i1", "0i1"),
+        ("u13_greatest", "u13", "8191u13"),
+        ("u8_greatest", "u8", "255u8"),
+    ] {
+        assert_eq!(
+            verdicts(name, &spare(carrier, literal)),
+            ["accepted"],
+            "{name}"
+        );
+    }
+    for (name, carrier, literal) in [
+        ("i1_one", "i1", "1i1"),
+        ("i1_below_least", "i1", "-2i1"),
+        ("u13_beyond", "u13", "8192u13"),
+        ("u8_beyond", "u8", "256u8"),
+    ] {
+        let stopped = unbuilt_frontier::staged(name, &spare(carrier, literal))
+            .err()
+            .unwrap_or_else(|| panic!("{name}: the literal must not be typed"));
+        assert!(
+            stopped
+                .iter()
+                .any(|message| message.contains(&format!("is outside `{carrier}`"))),
+            "{name}: {stopped:?}"
+        );
+    }
+}
+
+/// "`u1` contains zero and one; `i1` contains minus one and zero. Neither is
+/// `bool`": a `u1` is not returned where a `bool` is declared, nor a `bool`
+/// where a `u1` is. No stage types a result value against its declared type
+/// before the lowered-form reader, so what is pinned is only that neither
+/// program is accepted; the reader refuses both by name.
+#[test]
+fn a_one_bit_integer_is_not_a_bool() {
+    for (name, declaration) in [
+        ("u1_as_bool", "machine f(value: u1) -> bool { value }"),
+        ("bool_as_u1", "machine f(value: bool) -> u1 { value }"),
+    ] {
+        let found = verdicts(
+            name,
+            &format!(
+                "{declaration}
+machine main() {{ }}
+"
+            ),
+        );
+        assert!(!found.contains(&"accepted"), "{name}: {found:?}");
+    }
+    for (name, declaration) in [
+        ("u1_as_u1", "machine f(value: u1) -> u1 { value }"),
+        ("bool_as_bool", "machine f(value: bool) -> bool { value }"),
+    ] {
+        let found = verdicts(
+            name,
+            &format!(
+                "{declaration}
+machine main() {{ }}
+"
+            ),
+        );
+        assert_eq!(found, ["accepted"], "{name}");
     }
 }
 
