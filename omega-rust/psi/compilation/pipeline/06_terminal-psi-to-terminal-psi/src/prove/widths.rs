@@ -177,13 +177,18 @@ fn exponents(term: &IntegerMathTerm, found: &mut Vec<IntegerMathTerm>) {
 }
 
 impl Prover<'_> {
-    /// Whether `value` is the width binder of a value's carrier here.
-    pub(super) fn is_width(&self, value: ValueId) -> bool {
-        self.values.iter().any(|(_, row)| {
-            matches!(row.scalar_type, ScalarType::Integer(integer)
-                if matches!(integer.width(), semantic_vocabulary::IntegerWidth::Parameter(parameter)
-                    if parameter.value == value))
-        })
+    /// The width binders of this machine's parameter-width carriers.
+    pub(super) fn width_binders(&self) -> Vec<ValueId> {
+        let mut binders = Vec::new();
+        for (_, row) in self.values.iter() {
+            if let ScalarType::Integer(integer) = row.scalar_type
+                && let semantic_vocabulary::IntegerWidth::Parameter(parameter) = integer.width()
+                && !binders.contains(&parameter.value)
+            {
+                binders.push(parameter.value);
+            }
+        }
+        binders
     }
 
     /// `left <= right` where a parameter width is named.

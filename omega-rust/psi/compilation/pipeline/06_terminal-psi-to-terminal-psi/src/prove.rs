@@ -515,7 +515,8 @@ impl<'a> Prover<'a> {
                     if *id == value)
             })
         };
-        let width = |value| self.is_width(value);
+        let binders = self.width_binders();
+        let width = |value| binders.contains(&value);
         if covered(goal, &|value| fixed(&self.equations, value), &width) {
             return true;
         }
@@ -1042,7 +1043,8 @@ impl<'a> Prover<'a> {
                 if let Some(proof) = self.closed(goal.clone()) {
                     return Ok(proof);
                 }
-                let width = |value| self.is_width(value);
+                let binders = self.width_binders();
+                let width = |value| binders.contains(&value);
                 if widths::mentions_parameter_width(left, &width)
                     || widths::mentions_parameter_width(right, &width)
                 {
