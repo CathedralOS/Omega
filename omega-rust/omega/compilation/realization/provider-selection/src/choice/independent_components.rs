@@ -34,11 +34,7 @@ impl<'a> IndependentComponentJoin<'a> {
         }
     }
 
-    pub(crate) fn realize(
-        &mut self,
-        plan: &ProviderPlan,
-        selecting_declaration: &str,
-    ) -> Result<(), diagnostics::Diagnostic> {
+    pub(crate) fn realize(&mut self, plan: &ProviderPlan) -> Result<(), diagnostics::Diagnostic> {
         if self.components.is_empty() {
             return Err(diagnostics::Diagnostic::error(format!(
                 "selected provider plan `{}` retains independent composition, but no verified component description was supplied to realize it; refusing to treat the edge as fused",
@@ -49,7 +45,7 @@ impl<'a> IndependentComponentJoin<'a> {
         let mut unresolved = Vec::new();
         let mut mismatches = Vec::new();
         for (index, component) in self.components.iter().enumerate() {
-            match component.realizes_selected_plan(plan, selecting_declaration) {
+            match component.realizes_selected_plan(plan) {
                 Ok(()) => realizing.push(index),
                 Err(IndependentRealizationMismatch::UnresolvedInstallationRows {
                     requirement_identities,

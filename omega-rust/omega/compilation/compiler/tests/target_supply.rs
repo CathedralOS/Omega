@@ -456,7 +456,7 @@ fn profile() -> target::TargetProfile {
 fn plans(
     accepted: &AcceptedTerminalSource,
     settled: &SettledTargetSupply,
-) -> Result<Vec<backend_plan::TerminalTargetProviderPlan>, String> {
+) -> Result<Vec<effects::provider_plan::ProviderPlan>, String> {
     let schemas = compiler::settled_slot_schemas(accepted, settled);
     settled
         .plans(SupplyPlanning {
@@ -708,6 +708,15 @@ fn a_chosen_provider_forms_one_plan_for_its_whole_slot() {
     };
     assert_eq!(plan.provider_type, "Native");
     assert_eq!(plan.target, TARGET);
+    for candidate in &module.provider_candidates {
+        assert_eq!(
+            plan.provider_declaration.as_deref(),
+            module
+                .identities
+                .text(candidate.provider_declaration.identity()),
+        );
+    }
+    assert_eq!(plan.row_numeric_realizations, vec![None; plan.rows.len()]);
     let mut methods = plan
         .rows
         .iter()
@@ -727,6 +736,7 @@ fn a_chosen_provider_forms_one_plan_for_its_whole_slot() {
         .selection
         .as_ref()
         .expect("the plan's rows join the artifact's candidates");
+    assert_eq!(selection.plans, execution.plans().plans());
     let mut installed = selection
         .checked_candidates
         .iter()
@@ -773,7 +783,7 @@ fn a_plan_is_refused_by_the_requirement_it_does_not_bind() {
     );
 
     let mut crossed = plans(accepted, &settled).expect("the plan covers its slot");
-    let rows = &mut crossed[0].plan.rows;
+    let rows = &mut crossed[0].rows;
     let machines = rows
         .iter()
         .map(|row| match row.binding {

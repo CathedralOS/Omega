@@ -111,7 +111,6 @@ pub(crate) fn prepare(
     let native = TerminalNativeProposalRequest {
         evaluated_binding_identities: &module.identities,
         direct_boundary_leaves: Vec::new(),
-        provider_declarations: &selected.plans,
         target_profile: Some(profile),
         family_realizations: &[],
         boundaries: BoundaryApplicationSettlement {

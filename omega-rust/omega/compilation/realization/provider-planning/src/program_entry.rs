@@ -152,7 +152,6 @@ impl SelectedCompilerProgramEntry {
         &mut self,
         module: &terminal_psi::TerminalModule,
         providers: &[crate::SelectedProviderReviewProvenance],
-        declarations: &[backend_plan::TerminalTargetProviderPlan],
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(plans) = &self.calling_plans else {
             return Ok(());
@@ -200,27 +199,8 @@ impl SelectedCompilerProgramEntry {
                         "physical entry adapter must have a checked source body",
                     )]);
                 }
-                let mut matching = declarations
-                    .iter()
-                    .filter(|declaration| declaration.plan == provider.plan);
-                let declaration = matching.next().ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "physical entry adapter lost its exact selected declaration",
-                    )]
-                })?;
-                if matching.next().is_some() {
-                    return Err(vec![Diagnostic::error(
-                        "physical entry adapter has competing selected declarations",
-                    )]);
-                }
-                let owner = declaration.provider_declaration.as_deref().ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "physical entry adapter lost its selecting owner",
-                    )]
-                })?;
-                let rows =
-                    backend_plan::selected_provider_candidate_rows(&provider.plan, owner, module)
-                        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                let rows = backend_plan::selected_provider_candidate_rows(&provider.plan, module)
+                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
                 let candidates = rows
                     .iter()
                     .find(|candidate| candidate.row == row)

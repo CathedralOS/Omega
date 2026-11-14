@@ -294,7 +294,6 @@ fn lower_callback_thunk(
         request.scalar_applications.as_ref().map(|scalars| {
             terminal_psi_to_abstract_operations::NativeScalarApplications {
                 completed: scalars.completed,
-                provider_declarations: scalars.provider_declarations,
             }
         }),
     )?;

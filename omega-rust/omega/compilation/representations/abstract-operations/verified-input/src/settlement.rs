@@ -56,7 +56,6 @@ pub mod boundary_application_settlement {
                 plan: row.plan,
                 semantic_schema: row.semantic_schema,
                 row_executions: row.row_executions,
-                row_numeric_realizations: row.row_numeric_realizations,
             })
             .collect::<Vec<_>>();
         let realizations = provider_selection::select_boundary_applications(

@@ -883,10 +883,9 @@ fn closed_native_binding_reloads_and_executes_the_descriptor_callback() {
     let proposal = recovered.native_realization_proposal().unwrap();
     let module = recovered.artifact().semantic_module();
     let mut binding_context = format!(
-        "target={} selected_plans={} declarations={} direct_leaves={} callbacks={}\n",
+        "target={} selected_plans={} direct_leaves={} callbacks={}\n",
         proposal.target_profile().target_name(),
         proposal.providers().selection.plans().len(),
-        proposal.providers().declarations.len(),
         proposal.providers().direct_boundary_leaves.len(),
         module.callback_applications.len(),
     );

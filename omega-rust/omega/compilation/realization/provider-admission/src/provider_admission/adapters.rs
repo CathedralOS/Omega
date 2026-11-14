@@ -12,7 +12,7 @@
 // inspect the original entry without installing providers in that body.
 
 use crate::SelectedProviderAdapter;
-use effects::provider_plan::{ProviderBinding, ProviderPlan};
+use effects::provider_plan::ProviderBinding;
 use semantic_vocabulary::{BoundaryMachineId, MachineId};
 use terminal_installation::{
     AdmittedProviderSelections, AdmittedTargetMachineSelections, SynchronousCallGraph,
@@ -20,30 +20,6 @@ use terminal_installation::{
 
 pub fn retain_selected_provider_adapters(
     selected: &effects::SelectedProviderPlanFacts,
-    declarations: &[backend_plan::TerminalTargetProviderPlan],
-) -> Result<Vec<SelectedProviderAdapter>, String> {
-    backend_plan::require_selected_provider_declarations(selected, declarations)?;
-    project_complete_adapters(selected, |plan| {
-        let mut matches = declarations
-            .iter()
-            .filter(|declaration| &declaration.plan == plan);
-        let declaration = matches
-            .next()
-            .ok_or("native selected plan has no declaration custody")?;
-        if matches.next().is_some() {
-            return Err("native selected plan has competing declaration custody".into());
-        }
-        declaration
-            .provider_declaration
-            .clone()
-            .filter(|owner| !owner.is_empty())
-            .ok_or_else(|| "native checked provider plan has no exact selecting declaration".into())
-    })
-}
-
-fn project_complete_adapters(
-    selected: &effects::SelectedProviderPlanFacts,
-    mut declaration: impl FnMut(&ProviderPlan) -> Result<String, String>,
 ) -> Result<Vec<SelectedProviderAdapter>, String> {
     let mut adapters = Vec::new();
     for plan in selected.plans() {
@@ -66,9 +42,17 @@ fn project_complete_adapters(
                     plan.name
                 ));
             }
-            let owner = match &owner {
+            let owner = match owner {
                 Some(owner) => owner,
-                None => owner.insert(declaration(plan)?),
+                None => {
+                    let declared = plan
+                        .provider_declaration
+                        .as_deref()
+                        .filter(|owner| !owner.is_empty())
+                        .ok_or("native checked provider plan has no exact selecting declaration")?;
+                    owner = Some(declared);
+                    declared
+                }
             };
             for requirement in selected.selected_row_requirement_identities(
                 plan.report_fingerprint(),
@@ -89,7 +73,7 @@ fn project_complete_adapters(
                     return Err("selected checked realization has an empty machine identity".into());
                 }
                 adapters.push(SelectedProviderAdapter {
-                    provider_declaration: owner.clone(),
+                    provider_declaration: owner.to_owned(),
                     provider_plan_digest: plan.identity_digest(),
                     selected_requirement_identity: plan
                         .identities
@@ -219,4 +203,78 @@ pub fn selected_synchronous_call_graph<'module>(
         }
     }
     SynchronousCallGraph::new(module, target_members, entry_bridge)?.with_boundary_calls(calls)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use effects::provider_plan::{ProviderPlan, ProviderPlanRow, ServiceMethod};
+
+    fn plan() -> ProviderPlan {
+        let mut plan = ProviderPlan {
+            name: "selected".into(),
+            provider_type: "Provider".into(),
+            provider_declaration: Some("FirstMap".into()),
+            row_numeric_realizations: vec![None],
+            target: "windows_x86_64".into(),
+            ..Default::default()
+        };
+        let declaration = std::sync::Arc::make_mut(&mut plan.schema.declaration);
+        declaration.trait_name = declaration.identities.intern("Boundary");
+        declaration.methods.push(ServiceMethod {
+            name: "read".into(),
+            requirement_owner: "Boundary".into(),
+            requirement_identity: declaration.identities.intern("Boundary::read"),
+            ..Default::default()
+        });
+        let requirement = plan.identities.intern("Boundary::read");
+        plan.rows.push(ProviderPlanRow {
+            method: "read".into(),
+            requirement_identity: requirement,
+            declared_requirement_identity: requirement,
+            calling_signature: None,
+            requirement_lifetime_partition: Vec::new(),
+            admitted_same_stack_bytes: 0,
+            binding: ProviderBinding::CheckedAdapter {
+                machine_identity: plan.identities.intern("Shared::read"),
+                machine_package_identity: None,
+            },
+        });
+        plan
+    }
+
+    #[test]
+    fn program_context_rejects_another_selector_of_the_same_implementation() {
+        let first_plan = plan();
+        let mut other_plan = first_plan.clone();
+        other_plan.provider_declaration = Some("SecondMap".into());
+        assert_eq!(first_plan.identity_digest(), other_plan.identity_digest());
+        let facts =
+            |plan| effects::SelectedProviderPlanFacts::from_selected_plans(vec![plan]).unwrap();
+        let first = facts(first_plan);
+        let other = facts(other_plan);
+        for (selected, owner) in [(&first, "FirstMap"), (&other, "SecondMap")] {
+            let adapters = retain_selected_provider_adapters(selected).unwrap();
+            assert_eq!(adapters.len(), 1);
+            assert_eq!(adapters[0].provider_declaration, owner);
+            assert_eq!(adapters[0].machine_identity, "Shared::read");
+        }
+        let psi = terminal_psi::TerminalPsiIdentity {
+            vocabulary_marker: terminal_psi::VocabularyMarker::CURRENT,
+            program_fingerprint: terminal_psi::SemanticFingerprint::from_bytes([1; 32]),
+        };
+        let profile = target::TargetProfile::WindowsX64;
+        let context = AdmittedProgramProviderContext::new(psi, profile, &first, None, None);
+        assert!(context.require(psi, profile, &first).is_ok());
+        assert_eq!(
+            context.require(psi, profile, &other).unwrap_err(),
+            "program provider context names another selected-plan closure"
+        );
+        let mut missing = plan();
+        missing.provider_declaration = None;
+        assert_eq!(
+            retain_selected_provider_adapters(&facts(missing)).unwrap_err(),
+            "native checked provider plan has no exact selecting declaration"
+        );
+    }
 }

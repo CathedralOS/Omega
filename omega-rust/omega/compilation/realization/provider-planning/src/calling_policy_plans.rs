@@ -45,7 +45,7 @@ pub fn admit_terminal_calling_policy(
     artifact: &CanonicalTerminalArtifact,
     declaration: terminal_psi::ProofDeclarationId,
     target: target::TargetProfile,
-    providers: &[backend_plan::TerminalTargetProviderPlan],
+    providers: &[effects::provider_plan::ProviderPlan],
     requester: semantic_vocabulary::compiler_evaluation::DeclarationCustody,
     authority: Option<&dyn semantic_vocabulary::compiler_evaluation::DeclarationSelectionAuthority>,
 ) -> Result<TerminalCallingPolicyAdmission, String> {

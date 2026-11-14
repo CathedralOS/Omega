@@ -92,6 +92,10 @@ impl DirectBoundaryInput {
         let satisfied_schema = original.schema.clone();
         let mut plan = original.clone();
         plan.rows = vec![row.clone()];
+        // A direct callable is not a selected provider declaration. Its one
+        // row retains no separate external realization declaration.
+        plan.provider_declaration = None;
+        plan.row_numeric_realizations = vec![None];
         std::sync::Arc::make_mut(&mut plan.schema.declaration)
             .methods
             .retain(|method| {

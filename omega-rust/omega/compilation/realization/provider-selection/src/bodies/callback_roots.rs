@@ -41,18 +41,14 @@ impl<'plan> CallbackProviderDeclarations<'plan> {
     pub fn prepare(
         selected: &'plan effects::SelectedProviderPlanFacts,
         declarations: &terminal_psi::CallbackDeclarationRoster,
-        provider_declarations: &[backend_plan::TerminalTargetProviderPlan],
         module: &terminal_psi::TerminalModule,
     ) -> Result<Self, Vec<Diagnostic>> {
         if declarations.uses.is_empty() {
             return Ok(Self::unused());
         }
-        let instances = backend_plan::close_checked_provider_specializations(
-            selected.clone(),
-            provider_declarations,
-            module,
-        )
-        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+        let instances =
+            backend_plan::close_checked_provider_specializations(selected.clone(), module)
+                .map_err(|reason| vec![Diagnostic::error(reason)])?;
         let mut checked_adapters = Vec::new();
         for plan in selected.plans() {
             for row in &plan.rows {
