@@ -96,6 +96,14 @@ pub(crate) mod construction {
         (ValidatedLegalizedOperations, ValidatedSelectedInstructions),
         OptimizedSelectionPipelineError,
     > {
+        let closed_types = crate::native_geometry::retained_types(
+            input.closed_module,
+            input.target.psi,
+            input.origins.module,
+        )
+        .ok_or_else(|| {
+            OptimizedSelectionPipelineError::Legalization(crate::LegalizationError::custody())
+        })?;
         let legalized = legalize_target_operations_with_types(
             input.target,
             input.source,
@@ -104,7 +112,7 @@ pub(crate) mod construction {
             input.installed_interrupts,
             input.installed_entry_execution,
             input.installed_stack_requirements,
-            Some(input.closed_types),
+            Some(closed_types),
         )
         .map_err(OptimizedSelectionPipelineError::Legalization)?;
         let selection_constraints = selection_constraints(&legalized, register_environment);
@@ -112,7 +120,7 @@ pub(crate) mod construction {
             &legalized,
             &selection_constraints,
             register_environment,
-            Some(input.closed_types),
+            Some(closed_types),
         )
         .map_err(OptimizedSelectionPipelineError::Selection)?;
         Ok((legalized, selected))
@@ -167,7 +175,7 @@ pub(crate) mod input {
         pub target: &'input TargetOperationPlan,
         pub source: &'input AbstractOperationPlan,
         pub unit: &'input PsiOptimizationUnit,
-        pub closed_types: &'input terminal_codec::ClosedTypeCatalog,
+        pub closed_module: &'input terminal_codec::ClosedTerminalModule,
         pub origins: BoundaryOriginFacts<'input>,
         pub installed_entry_execution:
             Option<&'input provider_admission::AdmittedInstalledEntryExecution>,
