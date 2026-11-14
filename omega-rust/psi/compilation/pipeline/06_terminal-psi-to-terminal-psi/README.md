@@ -19,7 +19,11 @@ Terminal checking input to `judge_compilation`; this stage never elaborates
 typed source or calls stage 05. [The route's verdict](#the-routes-verdict) is
 the compilation verdict, including every demanded generic and conformance form.
 
-Start at [lib.rs](src/lib.rs) (`discharge`). [minted.rs](src/minted.rs)
+Start at [lib.rs](src/lib.rs) (`discharge`). After shared inference settles,
+[machine_inputs.rs](src/machine_inputs.rs) borrows each machine's existing
+authored branch rows and associates its requirement role and first carried-proof
+offer once. These are inputs, not accepted facts; proof transport and kernel
+admission still run for each actual obligation. [minted.rs](src/minted.rs)
 checks that the rows to decide are the ones the lowered form owes;
 [graph.rs](src/graph.rs) answers dominance between program points;
 [places.rs](src/places.rs) says what a place holds when a field read observes
