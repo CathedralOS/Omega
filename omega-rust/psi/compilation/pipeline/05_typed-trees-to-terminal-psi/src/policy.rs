@@ -27,7 +27,7 @@ pub(crate) enum Suffix {
     /// `%` or `|`: the operation under that policy, at this one node.
     Total(Policy),
     /// `!`: the operation that crashes where it would overflow. It can
-    /// transfer control, and no type on this route carries `Trapping`.
+    /// transfer control, so it is never a term.
     Trapping,
 }
 
@@ -83,10 +83,11 @@ pub(crate) const fn shifts(operation: Strict) -> bool {
 }
 
 /// The Terminal operation `operation` is under `policy` when that operation
-/// owes nothing: an add, subtract or multiply under either policy, and a
-/// Wrapping shift. `None` for the rest: a divide or remainder "still owes its
-/// divisor" under any policy, so lowering attaches that obligation itself,
-/// and no other operation has a policy form.
+/// owes nothing: an add, subtract or multiply under Wrapping or Saturating,
+/// and a Wrapping shift. `None` for the rest: a divide or remainder "still
+/// owes its divisor" under any policy, so lowering attaches that obligation
+/// itself, a Trapping operation is a crash site, and no other operation has
+/// a policy form.
 pub(crate) fn total(
     operation: Strict,
     policy: Policy,
@@ -116,6 +117,7 @@ pub(crate) fn total(
             value: left,
             count: right,
         },
+        (_, Policy::Trapping) => return None,
         (
             Strict::Divide
             | Strict::Remainder

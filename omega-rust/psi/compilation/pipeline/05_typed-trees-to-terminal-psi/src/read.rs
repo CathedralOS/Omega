@@ -845,21 +845,6 @@ mod tests {
         }
     }
 
-    /// `+!` is refused by name before its operands are read: no type carries
-    /// `Trapping` on this route. The `%` and `|` forms are read
-    /// (`compiler/tests/route_probe.rs`).
-    #[test]
-    fn a_trapping_operator_is_refused_before_its_operands_are_read() {
-        let typed = TypedTrees::default();
-        let node = ExpressionNode::Binary(TableBinaryExpression {
-            policy: numerics::arithmetic::ArithmeticDomain::Trapping,
-            left: ExpressionHandle::invalid(),
-            operator: BinaryOperator::Add,
-            right: ExpressionHandle::invalid(),
-        });
-        assert_eq!(refused(&typed, node), "expression Trapping policy operator");
-    }
-
     /// `result` in a contract is taken by the owner identity stage 02
     /// recorded, never by its spelling: a name spelled `result` with no
     /// identity is refused as a spelling, the result of another callable and
