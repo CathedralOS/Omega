@@ -1015,12 +1015,19 @@ mod ordinary {
     use crate::SelectedTerminator;
 
     pub(super) fn encode_terminator(bytes: &mut Vec<u8>, terminator: &SelectedTerminator) {
-        crate::terminator_encoding::encode_terminator(
+        let result = crate::terminator_encoding::encode_terminator(
             bytes,
             terminator,
             encode_instruction,
-            encode_successor,
+            |bytes, successor| {
+                encode_successor(bytes, successor);
+                Ok::<(), std::convert::Infallible>(())
+            },
         );
+        match result {
+            Ok(()) => {}
+            Err(never) => match never {},
+        }
     }
 
     #[cfg(test)]
