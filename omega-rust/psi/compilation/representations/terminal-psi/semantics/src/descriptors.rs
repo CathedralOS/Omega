@@ -11769,7 +11769,9 @@ pub mod descriptor_results {
                             let mut selections =
                                 selected_calls.iter().filter(|(head, _)| head == boundary);
                             match (selections.next(), selections.next()) {
-                                (Some((_, callee)), None) => Some((*callee, structural_arguments)),
+                                (Some((_, callee)), None) => {
+                                    Some((*callee, structural_arguments.as_slice()))
+                                }
                                 (None, None) => None,
                                 _ => return None,
                             }
