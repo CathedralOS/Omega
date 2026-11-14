@@ -365,7 +365,7 @@ impl Walk<'_> {
                 }
                 Ok(true)
             }
-            ExpressionKind::Index { base, index } => {
+            ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
                 Ok(self.expression(machine, base)? && self.expression(machine, index)?)
             }
             ExpressionKind::Record { fields } | ExpressionKind::Case { fields, .. } => {

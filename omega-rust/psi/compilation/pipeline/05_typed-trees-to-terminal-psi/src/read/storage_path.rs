@@ -35,6 +35,7 @@ pub(super) fn walk<'a, E>(
             | ExpressionKind::Integer(_)
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::CollectionMeasure { .. }
+            | ExpressionKind::ByteElement { .. }
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Array { .. }
             | ExpressionKind::Record { .. }
