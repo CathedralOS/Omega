@@ -68,11 +68,34 @@ pub fn prepare_compilation(
         for (_, symbol) in closure.machines.iter() {
             specializations.push(crate::template_of(typed, *symbol));
         }
+        let signatures = match prepare_selected_signatures(typed, closure, &source) {
+            Ok(signatures) => signatures,
+            Err(reason) => {
+                selected_failure = Some(reason);
+                Vec::new()
+            }
+        };
         for (selection, selected) in closure.selections.iter().enumerate() {
+            if selected_failure.is_some() {
+                break;
+            }
             let Some(implementation) = closure.machines.get(selected.implementation) else {
                 continue;
             };
-            let signature = match selected_signature(typed, closure, &source, selected) {
+            let signature = match selected_signature_key(selected).and_then(|key| {
+                signatures
+                    .binary_search_by_key(&key, |(key, _)| *key)
+                    .map(|position| signatures[position].1)
+                    .map_err(|_| {
+                        crate::refuse(
+                            selected.caller,
+                            terminal_check_tables::Construct::Machine,
+                            crate::Unserved::Declaration(
+                                "selected witness has no exact source call correspondence",
+                            ),
+                        )
+                    })
+            }) {
                 Ok(signature) => signature,
                 Err(reason) => {
                     selected_failure = Some(reason);
@@ -150,52 +173,103 @@ pub fn prepare_compilation(
     }
 }
 
-/// A source call can share a body with calls made under another public
-/// contract. Rejoin its exact emitted site before preparing the independent
-/// refinement witness; the physical body cannot choose the public signature.
-fn selected_signature<'source>(
+type SelectedSignatureKey = (
+    semantic_vocabulary::MachineId,
+    semantic_vocabulary::ContractId,
+    semantic_vocabulary::MachineId,
+);
+type SelectedSignatures<'source> = Vec<(
+    SelectedSignatureKey,
+    &'source typed_trees::signature::StateSignature,
+)>;
+
+fn selected_signature_key(
+    selected: &crate::Selected,
+) -> terminal_check_tables::Checked<SelectedSignatureKey> {
+    let required = selected.required_contract.ok_or_else(|| {
+        crate::refuse(
+            selected.caller,
+            terminal_check_tables::Construct::Machine,
+            crate::Unserved::Declaration("selected witness has no public header"),
+        )
+    })?;
+    Ok((selected.caller, required, selected.implementation))
+}
+
+/// Several public contracts can select the same body. Join each source call
+/// to its exact emitted site once, then reuse that applied signature for the
+/// independent witnesses. A body's identity cannot choose its public contract.
+fn prepare_selected_signatures<'source>(
     typed: &'source TypedTrees,
     closure: &crate::Elaboration,
     source: &crate::SourceCorrespondence,
-    selected: &crate::Selected,
-) -> terminal_check_tables::Checked<&'source typed_trees::signature::StateSignature> {
+) -> terminal_check_tables::Checked<SelectedSignatures<'source>> {
     use terminal_check_tables::Construct;
     use typed_trees::expression::ExpressionNode;
-    let unavailable = |reason| {
-        crate::refuse(
-            selected.caller,
-            Construct::Machine,
-            crate::Unserved::Declaration(reason),
-        )
-    };
-    let required = selected
-        .required_contract
-        .ok_or_else(|| unavailable("selected witness has no public header"))?;
-    let header = closure
-        .module
-        .declaration_contract(required)
-        .ok_or_else(|| unavailable("selected witness lost its public header"))?;
-    let declaration = header
-        .declaration
-        .as_ref()
-        .ok_or_else(|| unavailable("selected witness lost its public source declaration"))?;
-    let mut signature = None;
+    let mut demanded = closure
+        .selections
+        .iter()
+        .filter(|selected| closure.machines.get(selected.implementation).is_some())
+        .map(selected_signature_key)
+        .collect::<terminal_check_tables::Checked<Vec<_>>>()?;
+    demanded.sort_unstable();
+    demanded.dedup();
+    if demanded.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut signatures = Vec::new();
     for (caller, calls) in source.calls.iter() {
+        let unavailable = |reason| {
+            crate::refuse(
+                caller,
+                Construct::Machine,
+                crate::Unserved::Declaration(reason),
+            )
+        };
         let machine = closure
             .module
             .machine(caller)
             .ok_or_else(|| unavailable("source call lost its emitted caller"))?;
+        let mut invocations = machine
+            .module_invocations()
+            .filter_map(|invocation| {
+                invocation
+                    .inputs
+                    .required_contract
+                    .map(|required| (invocation.site, required, invocation.inputs.callee))
+            })
+            .collect::<Vec<_>>();
+        invocations.sort_unstable_by_key(|(site, _, _)| *site);
+        if invocations.windows(2).any(|pair| pair[0].0 == pair[1].0) {
+            return Err(unavailable(
+                "selected source call has duplicate emitted sites",
+            ));
+        }
         for (member, expression, statement, site) in calls {
-            if *member != selected.caller {
+            let Ok(position) = invocations.binary_search_by_key(site, |(site, _, _)| *site) else {
+                continue;
+            };
+            let (_, required, body) = invocations[position];
+            let key = (*member, required, body);
+            if demanded.binary_search(&key).is_err() {
                 continue;
             }
-            if !machine.module_invocations().any(|invocation| {
-                invocation.site == *site
-                    && invocation.inputs.required_contract == Some(required)
-                    && invocation.inputs.callee == selected.implementation
-            }) {
-                continue;
-            }
+            let unavailable = |reason| {
+                crate::refuse(
+                    *member,
+                    Construct::Machine,
+                    crate::Unserved::Declaration(reason),
+                )
+            };
+            let declaration = closure
+                .module
+                .declaration_contract(required)
+                .ok_or_else(|| unavailable("selected witness lost its public header"))?
+                .declaration
+                .as_ref()
+                .ok_or_else(|| {
+                    unavailable("selected witness lost its public source declaration")
+                })?;
             let owner = *closure
                 .machines
                 .get(*member)
@@ -251,15 +325,24 @@ fn selected_signature<'source>(
                     "selected witness differs from the invocation's public signature",
                 ));
             }
-            if signature.is_some_and(|known| known != applied) {
-                return Err(unavailable(
-                    "selected witness has different applied public signatures",
-                ));
-            }
-            signature = Some(applied);
+            signatures.push((key, applied));
         }
     }
-    signature.ok_or_else(|| unavailable("selected witness has no exact source call correspondence"))
+    signatures.sort_unstable_by_key(|(key, _)| *key);
+    for pair in signatures.windows(2) {
+        if pair[0].0 == pair[1].0 && pair[0].1 != pair[1].1 {
+            let (caller, _, _) = pair[0].0;
+            return Err(crate::refuse(
+                caller,
+                Construct::Machine,
+                crate::Unserved::Declaration(
+                    "selected witness has different applied public signatures",
+                ),
+            ));
+        }
+    }
+    signatures.dedup_by_key(|(key, _)| *key);
+    Ok(signatures)
 }
 
 fn prepare_generic_forms(
