@@ -282,6 +282,16 @@ fn body_effects(
         may_suspend |= flags.0;
         may_block |= flags.1;
     }
+    // Edge cleanup calls are retained separately from explicit invocation
+    // rows, but their effects still belong to the checked Build body.
+    for operation in &original.operations {
+        if let terminal_psi::UnoptimizedBehaviorOperation::NominalCleanup { callee, .. } = operation
+        {
+            let flags = contribution(module, (*callee).into(), None)?;
+            may_suspend |= flags.0;
+            may_block |= flags.1;
+        }
+    }
     // Recursive frame reuse keeps its call in the existing formation row.
     for formation in &body.call_formations {
         if let Some(callee) = formation.tail_callee {
