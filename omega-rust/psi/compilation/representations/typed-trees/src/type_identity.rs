@@ -2069,7 +2069,7 @@ pub(crate) mod identity_context {
             if let Some(builtin_atom) = program.symbols.builtin_type_atom(symbol) {
                 return compound(
                     NameForm::CompilerType,
-                    [atom(Label::Atom, builtin_atom.identity())],
+                    [atom(Label::Atom, &builtin_atom.identity())],
                 );
             }
             let owner = if let Some(package) = program.symbols.symbol_package_identity(symbol) {
@@ -3856,19 +3856,11 @@ pub(crate) mod package_policy_reading_tests {
                 let mut children = SymbolTableBuilder::child_handles(
                     builder.insert_children(
                         root,
-                        BuiltinTypeAtom::ALL
-                            .iter()
-                            .map(|atom| {
-                                (
-                                    SymbolKind::BuiltinType,
-                                    SymbolNameRef::Static(atom.symbol_name()),
-                                )
-                            })
-                            .chain(
-                                DECLARATIONS
-                                    .iter()
-                                    .map(|(package, kind, name)| (*kind, span_of(name, *package))),
-                            ),
+                        symbols::builtin_type_symbols().into_iter().chain(
+                            DECLARATIONS
+                                .iter()
+                                .map(|(package, kind, name)| (*kind, span_of(name, *package))),
+                        ),
                     ),
                 )
                 .collect::<Vec<_>>();

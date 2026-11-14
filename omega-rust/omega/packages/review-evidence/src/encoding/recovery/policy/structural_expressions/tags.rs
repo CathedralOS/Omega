@@ -35,8 +35,13 @@ pub(in crate::encoding::recovery) fn primitive_type_name(
         "f32" => Primitive::F32,
         "f64" => Primitive::F64,
         "addr" => Primitive::Addr,
-        /* The published spellings are the eight conventional carriers. */
-        name => FixedInteger::from_builtin_name(name)
+        /*
+            The published spellings are the eight carriers the encoder's
+            `primitive_type_row` writes; any other width is not a record this
+            format ever held.
+        */
+        name => FixedInteger::from_decimal_spelling(name)
+            .filter(|carrier| matches!(carrier.width(), 8 | 16 | 32 | 64))
             .map(Primitive::Integer)
             .ok_or(Error::InvalidTag)?,
     })

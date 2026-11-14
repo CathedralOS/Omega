@@ -2212,7 +2212,7 @@ pub mod operator {
                         return crate::types::PrimitiveType::from_name(name.as_str()).is_some();
                     }
                     if let Some(atom) = program.symbols.builtin_type_atom(*symbol) {
-                        return crate::types::PrimitiveType::from_name(atom.symbol_name())
+                        return crate::types::PrimitiveType::from_name(&atom.symbol_name())
                             .is_some()
                             && atom.symbol_name() == name.as_str();
                     }

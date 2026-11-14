@@ -10,6 +10,7 @@ use semantic_vocabulary::PackageKeyIdentity;
 use source::{SourceFile, SourceId, SourceMap, SourceOrigin, SourceSpan};
 
 use super::builtin::BUILTIN_TYPE_COUNT;
+use numerics::integer_carrier::FixedInteger;
 mod child_batches {
     /*
         Append-only child batches beneath frozen hierarchy nodes.
@@ -3841,16 +3842,90 @@ impl SymbolTable {
     }
 
     /*
-        Classify only an exact compiler-installed root builtin slot. A package
-        declaration with the same spelling, or a generated source-free symbol,
-        is deliberately not a compiler atom.
+        Classify only a compiler-installed root builtin type. A package
+        declaration with the same spelling has a declaration kind, and a
+        generated symbol has a derivation origin, so neither is a compiler
+        atom.
+
+        A fixed root slot answers for the roster. Every other installed
+        builtin type is an integer carrier the compilation names
+        (`integer_type_symbol`), and its name is that carrier's decimal
+        spelling: the carrier is read back from it, so `u13` needs no row
+        anywhere and has the same kind of identity `u32` has.
     */
     pub fn builtin_type_atom(&self, symbol: SymbolHandle) -> Option<BuiltinTypeAtom> {
-        if !symbol.is_valid() || self.get(symbol).kind != SymbolKind::BuiltinType {
+        if !symbol.is_valid() {
             return None;
         }
-        self.root_slot_ordinal(symbol, 0, BUILTIN_TYPE_COUNT)
-            .and_then(BuiltinTypeAtom::from_ordinal)
+        let entry = self.get(symbol);
+        if entry.kind != SymbolKind::BuiltinType {
+            return None;
+        }
+        if let Some(slot) = self.root_slot_ordinal(symbol, 0, BUILTIN_TYPE_COUNT) {
+            return BuiltinTypeAtom::from_ordinal(slot);
+        }
+        if entry.parent != self.root || entry.generated_from.is_valid() {
+            return None;
+        }
+        FixedInteger::from_decimal_spelling(self.name(symbol))
+            .map(BuiltinTypeAtom::Integer)
+            .filter(|atom| atom.roster_ordinal().is_none())
+    }
+
+    /*
+        The symbol of a builtin type atom, when this table has one: the fixed
+        slot of a roster member, otherwise the builtin type installed under
+        an integer carrier's spelling. `None` for a carrier means no source
+        of this compilation named it, so nothing can refer to it yet.
+    */
+    pub fn builtin_atom_symbol(&self, atom: BuiltinTypeAtom) -> Option<SymbolHandle> {
+        if let Some(slot) = atom.roster_ordinal() {
+            return self
+                .child_handles(self.root)?
+                .nth(slot)
+                .filter(|symbol| self.get(*symbol).kind == SymbolKind::BuiltinType);
+        }
+        let name = atom.symbol_name();
+        self.root_names
+            .0
+            .get_or_init(|| self.root_name_index())
+            .by_name
+            .get(name.as_ref())
+            .into_iter()
+            .flatten()
+            .map(|&(_, symbol)| symbol)
+            .find(|symbol| self.builtin_type_atom(*symbol) == Some(atom))
+    }
+
+    /*
+        Install a builtin type for each integer carrier that has no symbol
+        yet, so a name such as `u13` resolves the way `u32` does. Carriers
+        already present, including the eight with fixed slots, are left
+        alone: one carrier has one symbol for the life of the table.
+    */
+    pub fn install_integer_types(&mut self, carriers: impl IntoIterator<Item = FixedInteger>) {
+        let mut missing = carriers
+            .into_iter()
+            .filter(|carrier| {
+                self.builtin_atom_symbol(BuiltinTypeAtom::Integer(*carrier))
+                    .is_none()
+            })
+            .collect::<Vec<_>>();
+        missing.sort_unstable();
+        missing.dedup();
+        if missing.is_empty() {
+            return;
+        }
+        let names = missing
+            .iter()
+            .map(|carrier| carrier.to_string())
+            .collect::<Vec<_>>();
+        self.append_children(
+            self.root,
+            names
+                .iter()
+                .map(|name| (SymbolKind::BuiltinType, SymbolNameRef::Borrowed(name))),
+        );
     }
 
     /*
