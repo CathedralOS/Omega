@@ -2,9 +2,11 @@
 // directory once each. Two product aliases on one package already compile;
 // this probes whether the build-purpose row family behaves the same way.
 
-use k1::main;
+use k1;
 
-machine build(builder: &mut Build) {
+machine build(builder: &mut Build)
+suspends
+{
     Build::application(builder, "build_dup_build_edge");
     let mut k1_dependency: DependencyDescription = dependency::from_source(Source::Path { location: "dependency" });
     dependency::with_alias(&mut k1_dependency, "k1");
@@ -13,7 +15,8 @@ machine build(builder: &mut Build) {
     dependency::with_alias(&mut k2_dependency, "k2");
     let k2_registration: DependencyRegistration = Build::build_dependency(builder, k2_dependency);
     builder.freestanding = true;
-    let observed: i32 = seed();
+    suspend Build::prepare_dependency(builder, k1_registration);
+    let observed: i32 = k1::seed();
     transition observed == 3 {
         true -> done()
         _ -> wrong()

@@ -1,4 +1,4 @@
-use kit::main;
+use kit;
 
 machine build(builder: &mut Build) {
     Build::application(builder, "invalid_build_import_product_edge");
@@ -6,5 +6,4 @@ machine build(builder: &mut Build) {
     dependency::with_alias(&mut kit_dependency, "kit");
     let kit_registration: DependencyRegistration = Build::dependency(builder, kit_dependency);
     builder.freestanding = true;
-    let v: i32 = value();
 }
