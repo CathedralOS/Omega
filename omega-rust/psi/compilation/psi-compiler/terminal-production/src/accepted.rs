@@ -98,12 +98,12 @@ impl AcceptedTerminalSource {
                 .symbol_source_span(self.source.symbols.authored_origin(*symbol));
             provenance.name(machine, name.machine.clone(), span);
         }
-        let entry = self.entry().ok_or_else(|| {
-            vec![Diagnostic::error(
-                "no product route yet: accepted source module has no machine entry",
-            )]
-        })?;
-        let provenance = provenance.for_root(&elaboration.module, entry, None);
+        // A declaration module has no entry: every machine keeps its name,
+        // and there is no call chain from a root to record.
+        let provenance = match self.entry() {
+            Some(entry) => provenance.for_root(&elaboration.module, entry, None),
+            None => provenance,
+        };
         let applications = custody
             .applications
             .iter()

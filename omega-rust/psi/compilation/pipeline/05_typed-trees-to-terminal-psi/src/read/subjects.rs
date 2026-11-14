@@ -31,7 +31,8 @@ its symbol was declared in, never from a path or a name:
   which checks it before it runs, and that activation's compilation claims
   the subject's Build declarations and none of its Product declarations.
 - A user file is a subject only when its package identity is requested.
-  An explicit `None` subject selects standalone user source. An empty request
+  An explicit `None` subject selects standalone user source: every user file,
+  whatever identity its completed Build derived for it. An empty request
   selects no full-package or standalone subject.
 - A declaration with no source file cannot be placed, so it is refused.
 */
@@ -73,9 +74,14 @@ impl Program<'_> {
                     Unserved::Declaration("declaration without a source file"),
                 )
             })?;
-        let dependency = file.origin.is_toolchain()
-            || file.dependency_scope != purpose
-            || !subjects.contains(&file.package_identity);
+        // A standalone source is given a package identity derived from its
+        // own files once its Build has run, so the request for standalone
+        // source (`None`) names its user files by origin, not by identity.
+        // No package graph is admitted beside it, so those are its files.
+        let requested = subjects.contains(&file.package_identity)
+            || (subjects.contains(&None) && file.origin == source::SourceOrigin::User);
+        let dependency =
+            file.origin.is_toolchain() || file.dependency_scope != purpose || !requested;
         Ok(if dependency {
             Owner::Dependency
         } else {
