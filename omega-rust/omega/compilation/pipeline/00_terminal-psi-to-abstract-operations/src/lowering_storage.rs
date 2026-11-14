@@ -888,7 +888,7 @@ pub(crate) mod primitive_projection {
     }
 
     pub(crate) fn runtime_selector(selector: Option<ScalarType>) -> bool {
-        matches!(selector, Some(ScalarType::Integer(integer)) if integer.bits() <= 64)
+        matches!(selector, Some(ScalarType::Integer(integer)) if integer.bits().is_some_and(|bits| bits <= 64))
     }
 }
 
