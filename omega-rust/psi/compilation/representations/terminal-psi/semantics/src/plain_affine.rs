@@ -1682,6 +1682,12 @@ mod tests {
         let mut borrowed = field_argument(3);
         borrowed.access = StructuralAccess::SharedBorrow;
         assert!(plan(&transferring(&[id(2)], &[id(3)], vec![borrowed]), &types).is_err());
+        let mut borrowed_source = transferring(&[id(2)], &[id(3)], vec![field_argument(3)]);
+        borrowed_source.contract.structural_parameters[0].access = StructuralAccess::SharedBorrow;
+        assert!(matches!(
+            plan(&borrowed_source, &types),
+            Err(Error::Unsupported("owned extraction from borrowed storage"))
+        ));
         let mut foreign = types.to_vec();
         let mut same_layout = foreign[2].clone();
         same_layout.id = id(4);
