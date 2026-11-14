@@ -82,9 +82,49 @@ impl Program<'_> {
                 && actual.registration_operation != owner
                 && actual.registration_operation != declaration)
         {
+            let identity = |symbol| {
+                (
+                    symbol,
+                    self.typed
+                        .symbols
+                        .symbols()
+                        .nodes()
+                        .is_valid(symbol)
+                        .then(|| self.typed.symbols.display_path(symbol, "::")),
+                )
+            };
+            let caller = self.symbols.get(context).copied().map(identity);
+            let closed = self
+                .typed
+                .closed_requirement_application(target)
+                .map(|closed| (closed.template, closed.application));
             return Err(services::unavailable(
                 context,
-                "boundary call has an unspent or mismatched static application",
+                format!(
+                    "boundary call has an unspent or mismatched static application; \
+                     caller {context:?} {caller:?}; target {:?}; owner {:?}; declaration {:?}; \
+                     application {application:?}; registration {:?}; \
+                     arguments {}; selected arguments {}; inputs {}; bindings {}; lifetimes {}; \
+                     conformance operand {:?}; contract source {:?}; binding declaration {:?}; \
+                     lifetime declaration {:?}; lexical owner {:?}; closed requirement {closed:?}",
+                    identity(target),
+                    identity(owner),
+                    identity(declaration),
+                    identity(actual.registration_operation),
+                    actual.arguments.len(),
+                    actual.selected_machine_arguments.len(),
+                    actual.input_selections.len(),
+                    actual.bindings.len(),
+                    actual.lifetime_bindings.len(),
+                    actual
+                        .conformance_selection
+                        .as_ref()
+                        .map(|selection| selection.operand_ordinal),
+                    actual.callable_contract_source,
+                    identity(actual.binding_declaration),
+                    identity(actual.lifetime_binding_declaration),
+                    identity(actual.lexical_owner),
+                ),
             ));
         }
         Ok(true)

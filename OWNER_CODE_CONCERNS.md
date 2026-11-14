@@ -73,6 +73,13 @@ framework or a list of features that remain unimplemented.
 
 ## Entries
 
+### Callback and interrupt records lose the machine that owns their operation
+- Category: Re-deriving
+- Where: [terminal-psi/src/lib.rs:352](omega-rust/psi/compilation/representations/terminal-psi/src/lib.rs#L352), [compiler/src/product_execution/executable.rs:53](omega-rust/omega/compilation/compiler/src/product_execution/executable.rs#L53), and [codec/src/foundation_validation.rs:2261](omega-rust/psi/compilation/representations/terminal-psi/codec/src/foundation_validation.rs#L2261)
+- Saw: each lowered machine allocates operation IDs from its own fresh `MachineSources`, but callback and interrupt records retain only `OperationId`. Executable preparation searches every reached machine for that number, while codec interrupt validation collects all machines into a map keyed by the same bare ID. Stage05 currently emits neither roster; the existing constructors are fixtures and decoding, and no failing customer execution was observed.
+- Cost: equal operation numbers in different machines can select an unrelated reached use or overwrite an installation site. Preserve the owning machine with the operation through the record, encoding and consumers so each registration names its actual call.
+- Reported: 2026-11-14, Codex, while reviewing stored-machine executable preparation
+
 ### The standard library declares two public things named `DarwinClock`
 - Category: one idea, several implementations
 - Where: [source/library/std/macos_gui.omg:586](source/library/std/macos_gui.omg#L586) (`public boundary trait DarwinClock`) and [source/library/std/targets/macos_arm64/clock_impl.omg:26](source/library/std/targets/macos_arm64/clock_impl.omg#L26) (`public DarwinClock satisfies Clock`)

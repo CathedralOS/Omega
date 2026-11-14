@@ -136,7 +136,7 @@ fn source_boundary_calls_keep_their_actual_input_obligations() {
 /// preparation closes the requirement once per application, as it generates
 /// one machine per application of a generic machine, so the program is read
 /// after that stage.
-fn applied_boundary(limit: u32) -> Checked<typed_trees_to_terminal_psi::Elaboration> {
+fn applied_boundary_input(limit: u32) -> (typed_trees::FrozenTypedTrees, symbols::SymbolHandle) {
     let typed = typed(&format!(
         r#"
 data Reading {{ level: u32; }}
@@ -162,8 +162,15 @@ machine entry() -> u32 crashes none {{
         &typed_trees_to_typed_trees::PreparationRequest::settled(),
     )
     .unwrap();
+    (frozen, entry)
+}
+
+fn elaborate_applied_boundary(
+    frozen: &typed_trees::FrozenTypedTrees,
+    entry: symbols::SymbolHandle,
+) -> Checked<typed_trees_to_terminal_psi::Elaboration> {
     typed_trees_to_terminal_psi::elaborate_for(
-        &frozen,
+        frozen,
         typed_trees_to_terminal_psi::Compilation {
             calling: None,
             providers: None,
@@ -178,6 +185,11 @@ machine entry() -> u32 crashes none {{
         },
         terminal_codec::TerminalPublication::Invocation,
     )
+}
+
+fn applied_boundary(limit: u32) -> Checked<typed_trees_to_terminal_psi::Elaboration> {
+    let (frozen, entry) = applied_boundary_input(limit);
+    elaborate_applied_boundary(&frozen, entry)
 }
 
 #[test]
@@ -220,6 +232,99 @@ fn a_boundary_requirement_is_judged_at_the_type_a_call_applies_it_at() {
         matches!(verdict, RouteVerdict::Rejected { ref unproved, .. }
         if unproved.iter().any(|row| matches!(row.kind, ObligationKind::CallRequirement { .. }))),
         "{verdict:?}"
+    );
+
+    // Separate authored calls at the same tuple share a closed signature,
+    // but an application at another tuple must never authenticate that call.
+    let (frozen, entry) = applied_boundary_input(10);
+    let mut typed = frozen.into_inner();
+    let calls = typed
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(handle, node)| {
+            let typed_trees::expression::ExpressionNode::Call(call) = node else {
+                return None;
+            };
+            typed.closed_requirement_application(call.target_symbol)?;
+            Some((
+                handle,
+                call.target_symbol,
+                call.authored_machine_application,
+            ))
+        })
+        .collect::<Vec<_>>();
+    let [first, second, third] = calls.as_slice() else {
+        panic!("three authored applications of the boundary requirement");
+    };
+    assert_eq!(first.1, third.1);
+    assert_ne!(first.2, third.2);
+    assert_ne!(first.1, second.1);
+    assert!(
+        typed
+            .require_closed_requirement_call_application(first.1, third.2)
+            .is_ok()
+    );
+    let stale = typed_trees::static_applications::StaticMachineApplicationHandle::from_parts(
+        first.2.arena_index(),
+        first.2.generation() + 1,
+    );
+    assert_eq!(
+        typed.require_closed_requirement_call_application(first.1, stale),
+        Err("closed requirement call has a stale declaration or application"),
+    );
+    let original = typed
+        .expression_table
+        .static_machine_application_bindings(third.2)[0]
+        .value
+        .clone();
+    let changed = typed
+        .expression_table
+        .static_machine_application_bindings(second.2)[0]
+        .value
+        .clone();
+    typed
+        .expression_table
+        .static_machine_application_bindings_mut(third.2)[0]
+        .value = changed;
+    assert_eq!(
+        typed.require_closed_requirement_call_application(first.1, third.2),
+        Err("closed requirement call argument differs from its retained binding"),
+    );
+    let typed_trees::static_applications::StaticMachineBindingValue::Type(reference) = &original
+    else {
+        panic!("the original application binds its type parameter");
+    };
+    let stale_reference = typed_trees::types::TypeReferenceHandle::from_parts(
+        reference.arena_index(),
+        reference.generation() + 1,
+    );
+    typed
+        .expression_table
+        .static_machine_application_bindings_mut(third.2)[0]
+        .value = typed_trees::static_applications::StaticMachineBindingValue::Type(stale_reference);
+    assert_eq!(
+        typed.require_closed_requirement_call_application(first.1, third.2),
+        Err("closed requirement call has a stale operand input"),
+    );
+    typed
+        .expression_table
+        .static_machine_application_bindings_mut(third.2)[0]
+        .value = original;
+    assert_eq!(
+        typed.require_closed_requirement_call_application(first.1, second.2),
+        Err("closed requirement call selects another bound application"),
+    );
+    let typed_trees::expression::ExpressionNode::Call(call) =
+        typed.expression_table.expression_mut(first.0)
+    else {
+        panic!("the retained source occurrence is a call");
+    };
+    call.authored_machine_application = second.2;
+    let refusal = elaborate_applied_boundary(&typed.into(), entry).unwrap_err();
+    assert_eq!(refusal.reason, RefusalReason::Unsupported);
+    assert_eq!(
+        refusal.detail,
+        "call closed requirement call selects another bound application"
     );
 }
 

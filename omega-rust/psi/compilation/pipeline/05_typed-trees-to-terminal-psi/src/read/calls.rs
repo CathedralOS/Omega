@@ -37,10 +37,9 @@ impl<'t> Program<'t> {
             })
     }
 
-    /// An authored static machine application that applies nothing: no
-    /// static or selected arguments, bindings, lifetimes, inputs, conformance
-    /// or contract source. Stage 03 records one for every authored call; one
-    /// that applies anything is a generic or static call and is refused.
+    /// An authored call has no unspent static application. Stage 04 may
+    /// retain the exact application which already selected a closed callee;
+    /// otherwise no arguments, bindings or other static features may remain.
     pub(super) fn applies_nothing(
         &self,
         id: MachineId,
@@ -54,6 +53,15 @@ impl<'t> Program<'t> {
         }
         if !target.is_valid() {
             return unserved("callee without a declaration symbol");
+        }
+        // Stage 04 spends a requirement's own static arguments by selecting
+        // its closed signature. The application remains as exact source
+        // provenance, including equivalent tuples interned to that signature.
+        if self.typed.closed_requirement_application(target).is_some() {
+            self.typed
+                .require_closed_requirement_call_application(target, application)
+                .map_err(|reason| refuse(id, Construct::Machine, Unserved::Call(reason)))?;
+            return Ok(());
         }
         if self.boundary_application_is_empty(id, target, application)? {
             return Ok(());
@@ -74,18 +82,6 @@ impl<'t> Program<'t> {
         if generated.is_valid()
             && generated == application.registration_operation
             && self.closes_rigid_parameters_only(generated)
-        {
-            return Ok(());
-        }
-        // The same for a requirement applied at its own parameters: stage
-        // 04 pointed the call at the closed requirement this application
-        // selects, whose signature holds the arguments where the requirement
-        // named its parameters. The typed trees keep the requirement it was
-        // closed from, which must be the one this application registered.
-        if self
-            .typed
-            .closed_requirement_application(target)
-            .is_some_and(|closed| closed.template == application.registration_operation)
         {
             return Ok(());
         }
