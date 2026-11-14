@@ -22,7 +22,15 @@
 //!
 //! Run:
 //!
-//!     mbx run -p compiler --example route_probe -- <main.omg>... [--entry NAME] [--target NAME] [--dependency ALIAS=DIRECTORY]...
+//!     mbx run -p compiler --example route_probe -- <main.omg>... [--entry NAME] [--root PATH]... [--target NAME] [--dependency ALIAS=DIRECTORY]...
+//!
+//! `--root` asks about machines the program does not enter, a dependency's
+//! included: every machine whose `::` path ends in PATH is judged with what
+//! it calls, in place of the entry and of the package's own declarations.
+//! The standard library's Windows calling policy, which the compiler runs at
+//! compile time and no program calls:
+//!
+//!     --target windows_x86_64 --dependency omega_language_std=source/library/std --root WindowsX86_64::plan
 //!
 //! Without `--entry`, `main` is bound when the source declares it and a source
 //! without one is judged with no entry. `--target` defaults to `linux_x86_64`.
@@ -52,6 +60,7 @@ fn brief(text: impl std::fmt::Debug) -> String {
 fn probe(
     main: &Path,
     entry: Option<&str>,
+    roots: &[String],
     target: &str,
     dependencies: &[(String, PathBuf)],
 ) -> &'static str {
@@ -67,7 +76,7 @@ fn probe(
             }
         }
     }
-    let frontier = match session.typed_frontier_without_build(request, entry) {
+    let mut frontier = match session.typed_frontier_without_build(request, entry) {
         Ok(frontier) => frontier,
         Err(failure) => {
             for diagnostic in failure.into_diagnostics() {
@@ -76,12 +85,37 @@ fn probe(
             return "no-typed-trees";
         }
     };
+    // `--root` asks about named machines wherever they are declared, a
+    // dependency's included: they replace the entry, and no package is
+    // claimed as a subject, so only their closure is judged.
+    let subjects = if roots.is_empty() {
+        vec![frontier.subject]
+    } else {
+        let symbols = &frontier.typed.symbols;
+        frontier.entries = frontier
+            .typed
+            .machines()
+            .iter()
+            .map(|machine| machine.symbol)
+            .filter(|symbol| {
+                let path = symbols.display_path(*symbol, "::");
+                roots.iter().any(|root| path.ends_with(root.as_str()))
+            })
+            .collect();
+        for symbol in &frontier.entries {
+            println!("  root: {}", symbols.display_path(*symbol, "::"));
+        }
+        // A named root is not the program's entry, so the entry binding's
+        // arrival shape is not asked of it.
+        frontier.bindings.clear();
+        Vec::new()
+    };
     let verdicts = lowered_discharge::judge_compilation(
         &frontier.typed,
         structure_elaboration::Compilation {
             declaration_metadata: &[],
             entries: &frontier.entries,
-            subjects: &[frontier.subject],
+            subjects: &subjects,
             purpose: source::DependencyScope::Product,
             selected: &frontier.selected,
             bindings: &frontier.bindings,
@@ -159,6 +193,7 @@ fn probe(
 fn main() {
     let mut sources = Vec::new();
     let mut entry: Option<String> = None;
+    let mut roots = Vec::new();
     let mut target = "linux_x86_64".to_owned();
     let mut dependencies = Vec::new();
     let mut arguments = std::env::args().skip(1);
@@ -167,6 +202,7 @@ fn main() {
             "--entry" => {
                 entry = Some(arguments.next().expect("--entry takes a machine name"));
             }
+            "--root" => roots.push(arguments.next().expect("--root takes a machine path")),
             "--target" => target = arguments.next().expect("--target takes a target name"),
             "--dependency" => {
                 let edge = arguments
@@ -182,14 +218,20 @@ fn main() {
     }
     if sources.is_empty() {
         eprintln!(
-            "usage: route_probe <main.omg>... [--entry NAME] [--target NAME] [--dependency ALIAS=DIRECTORY]..."
+            "usage: route_probe <main.omg>... [--entry NAME] [--root PATH]... [--target NAME] [--dependency ALIAS=DIRECTORY]..."
         );
         std::process::exit(2);
     }
     let mut all_accepted = true;
     for source in &sources {
         println!("{source}");
-        let verdict = probe(Path::new(source), entry.as_deref(), &target, &dependencies);
+        let verdict = probe(
+            Path::new(source),
+            entry.as_deref(),
+            &roots,
+            &target,
+            &dependencies,
+        );
         println!("{source}\troute={verdict}");
         all_accepted &= verdict == "accepted";
     }

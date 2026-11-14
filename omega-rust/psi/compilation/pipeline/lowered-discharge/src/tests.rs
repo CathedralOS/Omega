@@ -28,6 +28,7 @@ mod arrays;
 mod boundary_calls;
 mod build_purpose;
 mod byte_domains;
+mod calling_policies;
 mod case_payloads;
 mod ceilings;
 mod empty_records;
