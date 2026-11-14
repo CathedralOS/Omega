@@ -892,6 +892,48 @@ pub mod conformance_identity {
         }
     }
 
+    /// The source publisher and artifact receiver must identify the same
+    /// applied public member. Preserve the existing type/value hash sequence;
+    /// another operand category needs its complete contract before use here.
+    pub fn requirement_application_commitment(
+        callable: &str,
+        arguments: &[MachineOperandSelectionIdentity],
+    ) -> Result<[u8; 32], &'static str> {
+        use std::hash::{Hash, Hasher};
+        struct Commitment(DomainDigestEncoder);
+        impl Hasher for Commitment {
+            fn finish(&self) -> u64 {
+                0
+            }
+            fn write(&mut self, bytes: &[u8]) {
+                self.0.raw(bytes);
+            }
+        }
+        if callable.is_empty() {
+            return Err("applied requirement has no exact template callable identity");
+        }
+        let mut commitment = Commitment(DomainDigestEncoder::new(
+            b"omega.lowered-machine-static-application.v1\0",
+        ));
+        callable.hash(&mut commitment);
+        for argument in arguments {
+            match argument {
+                MachineOperandSelectionIdentity::Type(identity) if !identity.is_empty() => {
+                    identity.hash(&mut commitment);
+                }
+                MachineOperandSelectionIdentity::Const(identity) if !identity.is_empty() => {
+                    ("value", identity.as_str()).hash(&mut commitment);
+                }
+                _ => {
+                    return Err(
+                        "applied requirement needs complete type or value argument identity",
+                    );
+                }
+            }
+        }
+        Ok(commitment.0.finish())
+    }
+
     pub fn source_identity_commitments(bytes: &[u8]) -> (u64, [u8; 32]) {
         let mut report = Fnv1a::new();
         report.bytes(bytes);

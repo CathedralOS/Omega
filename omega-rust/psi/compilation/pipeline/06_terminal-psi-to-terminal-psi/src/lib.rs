@@ -584,7 +584,7 @@ fn machine(
         reference_graph,
     } = prepare(module, domains, id, tables, knowledge)?;
     let references = std::cell::RefCell::new(
-        terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
+        terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
             &module.structural_types,
             &reference_graph,
         ),
@@ -1141,15 +1141,25 @@ fn fill_knowledge(
             InvocationSite::InvokeNoNormal(_) | InvocationSite::ExternalCompletion(_) => continue,
         };
         let callee = callee(module, id, invocation, row)?;
-        let erased = callable_erased_actuals(module, lowered, callee, id, invocation, row.site)?;
-        let ensures = module.callable_ensures(callee).ok_or_else(|| {
-            refusal(
-                RefusalReason::ForeignIdentity,
-                id,
-                Construct::Invocation(invocation),
-                "callee has no canonical guarantee contract",
-            )
-        })?;
+        let erased = callable_erased_actuals(
+            module,
+            lowered,
+            callee,
+            row.required_contract,
+            id,
+            invocation,
+            row.site,
+        )?;
+        let ensures = module
+            .invocation_ensures(callee, row.required_contract)
+            .ok_or_else(|| {
+                refusal(
+                    RefusalReason::ForeignIdentity,
+                    id,
+                    Construct::Invocation(invocation),
+                    "callee has no canonical guarantee contract",
+                )
+            })?;
         let mut ensures = ensures.peekable();
         if ensures.peek().is_none() {
             continue;
@@ -1158,7 +1168,7 @@ fn fill_knowledge(
             tables,
             &row.actuals,
             module
-                .callable_structural_parameters(callee)
+                .invocation_structural_parameters(callee, row.required_contract)
                 .ok_or_else(|| {
                     refusal(
                         RefusalReason::ForeignIdentity,
@@ -1168,9 +1178,9 @@ fn fill_knowledge(
                     )
                 })?,
             match callee {
-                semantic_vocabulary::TargetMachineCallable::Machine(machine) => {
-                    module.machine(machine).map(|machine| &machine.result)
-                }
+                semantic_vocabulary::TargetMachineCallable::Machine(machine) => module
+                    .invocation_machine_contract(machine, row.required_contract)
+                    .map(|contract| &contract.result),
                 semantic_vocabulary::TargetMachineCallable::Boundary(_) => None,
             },
             operation,
@@ -1222,7 +1232,7 @@ impl Prepared {
         types: &'a [terminal_psi::StructuralTypeDeclaration],
     ) -> std::cell::RefCell<terminal_semantics::descriptor_results::DescriptorAnalysis<'a>> {
         std::cell::RefCell::new(
-            terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
+            terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
                 types,
                 &self.reference_graph,
             ),
@@ -1254,7 +1264,7 @@ pub(crate) fn prepare(
     let reference_graph = places::reference_graph(module, id)?;
     if fill {
         let references = std::cell::RefCell::new(
-            terminal_semantics::descriptor_results::DescriptorAnalysis::with_reference_slots(
+            terminal_semantics::descriptor_results::DescriptorAnalysis::with_borrowed_storage_slots(
                 &module.structural_types,
                 &reference_graph,
             ),
@@ -1518,6 +1528,7 @@ fn callable_erased_actuals(
     module: &TerminalModule,
     caller: &TerminalMachine,
     callee: semantic_vocabulary::TargetMachineCallable,
+    required_contract: Option<semantic_vocabulary::ContractId>,
     machine: MachineId,
     invocation: terminal_check_tables::InvocationId,
     site: InvocationSite,
@@ -1525,7 +1536,16 @@ fn callable_erased_actuals(
     match callee {
         semantic_vocabulary::TargetMachineCallable::Machine(callee) => erased_actuals(
             caller,
-            &terminal_machine(&module.machines, callee, machine)?.contract,
+            module
+                .invocation_machine_contract(callee, required_contract)
+                .ok_or_else(|| {
+                    refusal(
+                        RefusalReason::ForeignIdentity,
+                        machine,
+                        Construct::Invocation(invocation),
+                        "call lost its public contract association",
+                    )
+                })?,
             machine,
             invocation,
             site,
@@ -1853,18 +1873,27 @@ fn stated_goal(
                 Construct::Invocation(invocation),
             )?;
             let callee = callee(module, id, invocation, row)?;
-            let erased =
-                callable_erased_actuals(module, lowered, callee, id, invocation, row.site)?;
-            let clauses = module.callable_requires(callee).ok_or_else(|| {
-                refusal(
-                    RefusalReason::ForeignIdentity,
-                    id,
-                    concerns,
-                    "callee has no canonical requires contract",
-                )
-            })?;
+            let erased = callable_erased_actuals(
+                module,
+                lowered,
+                callee,
+                row.required_contract,
+                id,
+                invocation,
+                row.site,
+            )?;
+            let clauses = module
+                .invocation_requires(callee, row.required_contract)
+                .ok_or_else(|| {
+                    refusal(
+                        RefusalReason::ForeignIdentity,
+                        id,
+                        concerns,
+                        "callee has no canonical requires contract",
+                    )
+                })?;
             let formals = module
-                .callable_structural_parameters(callee)
+                .invocation_structural_parameters(callee, row.required_contract)
                 .ok_or_else(|| {
                     refusal(
                         RefusalReason::ForeignIdentity,

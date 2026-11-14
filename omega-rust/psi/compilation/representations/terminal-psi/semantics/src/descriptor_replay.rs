@@ -8,6 +8,9 @@ use crate::descriptors::descriptor_lifetimes::{DescriptorPathSegment, descriptor
 use crate::descriptors::descriptor_results::*;
 use crate::exactly_one::exactly_one;
 
+mod location_map;
+use location_map::LocationMap;
+
 pub(crate) mod analysis {
     use super::engine::Origin;
     use super::*;
@@ -1799,7 +1802,7 @@ pub(crate) mod case_flow {
 
     #[derive(Clone, Default, PartialEq, Eq)]
     pub(crate) struct CurrentCases {
-        facts: BTreeMap<DescriptorLocation, BTreeSet<StructuralCaseId>>,
+        facts: LocationMap<BTreeSet<StructuralCaseId>>,
         copies: values::Copies,
     }
 
@@ -2180,7 +2183,6 @@ pub(crate) mod contents_queries {
     use super::engine::{DescriptorReadDepth, Origin, State, StorageResolution, Value};
     use super::*;
     use crate::descriptors::descriptor_lifetimes::descriptor_location;
-    use crate::descriptors::descriptor_lifetimes::descriptor_location_type;
 
     impl Replay<'_> {
         pub(crate) fn read_contents(
@@ -2339,50 +2341,12 @@ pub(crate) mod contents_queries {
         /// inside the value it is applied to. Access views and accessors are
         /// records that stand for storage elsewhere, like references, so their
         /// fields do not count.
-        fn inline_steps(
+        pub(crate) fn inline_steps(
             &self,
             machine: &DescriptorMachine,
             query: &DescriptorContentsQuery,
         ) -> Option<Vec<bool>> {
-            let mut base = *machine.place_types.get(&query.root)?;
-            let mut path = Vec::new();
-            let mut inline = Vec::with_capacity(query.steps.len());
-            for step in &query.steps {
-                let container = || {
-                    let container = descriptor_location_type(self.types, base, &path)?;
-                    Some(&find_structural_type(self.types, container)?.shape)
-                };
-                inline.push(match step {
-                    DescriptorContentsStep::Address(DescriptorPathSegment::Referent) => false,
-                    DescriptorContentsStep::Address(DescriptorPathSegment::Case(_)) => true,
-                    DescriptorContentsStep::Address(DescriptorPathSegment::Field(_)) => {
-                        matches!(path.last(), Some(DescriptorPathSegment::Case(_)))
-                            || container().is_some_and(|shape| match shape {
-                                StructuralTypeShape::Record { storage, .. } => !matches!(
-                                    storage,
-                                    terminal_psi::StructuralRecordStorage::AccessView(_)
-                                        | terminal_psi::StructuralRecordStorage::Accessor(_)
-                                ),
-                                StructuralTypeShape::Mixed { .. } => true,
-                                _ => false,
-                            })
-                    }
-                    DescriptorContentsStep::Address(DescriptorPathSegment::FixedIndex(_))
-                    | DescriptorContentsStep::AnyElement { .. } => {
-                        container().is_some_and(|shape| {
-                            matches!(shape, StructuralTypeShape::FixedArray { .. })
-                        })
-                    }
-                });
-                match step {
-                    DescriptorContentsStep::Address(segment) => path.push(segment.clone()),
-                    DescriptorContentsStep::AnyElement { element } => {
-                        base = *element;
-                        path.clear();
-                    }
-                }
-            }
-            Some(inline)
+            query.inline_steps(self.types, *machine.place_types.get(&query.root)?)
         }
 
         fn contents_targets_at(
@@ -2875,7 +2839,7 @@ pub(crate) mod engine {
         Storage(DescriptorLocation),
     }
     pub(crate) type Value = Option<BTreeSet<Origin>>;
-    pub(crate) type Slots = BTreeMap<DescriptorLocation, Value>;
+    pub(crate) type Slots = LocationMap<Value>;
     #[derive(Clone, Default, PartialEq, Eq)]
     pub(crate) struct State {
         pub(crate) cases: Arc<super::case_flow::CurrentCases>,
@@ -3045,6 +3009,15 @@ pub(crate) mod engine {
                     }) {
                         return Ok(None);
                     }
+                    // Coarsening a fixed-array element write may discard
+                    // inline fields and indices, but never a dereference into
+                    // an element's reference or view backing.
+                    let Some(inline) = self.inline_steps(machine, query) else {
+                        return Ok(None);
+                    };
+                    if inline[prefix.path.len()..].contains(&false) {
+                        return Ok(None);
+                    }
                 }
                 let Some(targets) = self.contents_targets(
                     machine,
@@ -3174,6 +3147,19 @@ pub(crate) mod engine {
                     };
                     match place.definition {
                         DescriptorDefinition::Local => continue,
+                        DescriptorDefinition::Parameter {
+                            access: StructuralAccess::Owned,
+                            ..
+                        } if self
+                            .inline_steps(machine, &DescriptorContentsQuery::from_location(&write))
+                            .is_some_and(|steps| steps.into_iter().all(|inline| inline)) =>
+                        {
+                            // By-value arguments have private working storage.
+                            // Keep its writes in the local flow, but publish
+                            // only effects that can reach the caller's storage.
+                            // A reference or view crossing is not inline.
+                            continue;
+                        }
                         DescriptorDefinition::Parameter { .. } => {}
                         DescriptorDefinition::Literal | DescriptorDefinition::Arrival { .. } => {
                             return Ok(None);

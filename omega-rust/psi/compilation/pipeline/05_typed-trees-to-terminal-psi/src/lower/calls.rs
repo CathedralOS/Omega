@@ -267,9 +267,12 @@ impl Lowering<'_> {
     fn arguments(
         &mut self,
         callee: semantic_vocabulary::TargetMachineCallable,
+        required_contract: Option<semantic_vocabulary::ContractId>,
         arguments: &[Expression],
     ) -> Evaluation<Arguments> {
-        let signature = self.signatures.get(callee, self.id)?;
+        let signature = self
+            .signatures
+            .invocation(callee, required_contract, self.id)?;
         let mut evaluated = Arguments {
             actuals: Vec::with_capacity(arguments.len()),
             scalars: Vec::new(),
@@ -425,6 +428,27 @@ impl Lowering<'_> {
         })
     }
 
+    fn call_routes(
+        &self,
+        callable: semantic_vocabulary::TargetMachineCallable,
+        required_contract: Option<semantic_vocabulary::ContractId>,
+    ) -> Checked<&[terminal_psi::CrashRouteBucket]> {
+        let signature = self
+            .signatures
+            .invocation(callable, required_contract, self.id)?;
+        if let Some(routes) = signature.declared_crash_routes() {
+            return Ok(routes);
+        }
+        match callable {
+            semantic_vocabulary::TargetMachineCallable::Machine(callee) => {
+                Ok(&self.outcome(callee)?.crash_routes)
+            }
+            semantic_vocabulary::TargetMachineCallable::Boundary(_) => {
+                Err(self.internal("a boundary call has no published crash ceiling"))
+            }
+        }
+    }
+
     /// A call with no normal completion, wherever it is written: the
     /// arguments, then the invocation as the block's terminator, with the
     /// callee's routes substituted as its crash continuations and one
@@ -444,20 +468,18 @@ impl Lowering<'_> {
     fn invoke_no_normal(
         &mut self,
         callee: semantic_vocabulary::TargetMachineCallable,
+        required_contract: Option<semantic_vocabulary::ContractId>,
+        source_call: Option<(
+            MachineId,
+            typed_trees::expression::ExpressionHandle,
+            typed_trees::statement::StatementHandle,
+        )>,
         arguments: &[Expression],
         source: SourceOrigin,
         acknowledgement: terminal_psi::CallAcknowledgement,
     ) -> Evaluation<()> {
-        let signature = self.signatures.get(callee, self.id)?;
-        let arguments = continuing!(self.arguments(callee, arguments));
-        let routes = match callee {
-            semantic_vocabulary::TargetMachineCallable::Machine(callee) => {
-                &self.outcome(callee)?.crash_routes[..]
-            }
-            semantic_vocabulary::TargetMachineCallable::Boundary(_) => signature
-                .declared_crash_routes()
-                .ok_or_else(|| self.internal("a boundary call has no published crash ceiling"))?,
-        };
+        let arguments = continuing!(self.arguments(callee, required_contract, arguments));
+        let routes = self.call_routes(callee, required_contract)?;
         let crash_continuations =
             canonical::substituted_routes(routes, &arguments.scalars, self.id)?;
         let site = self.current()?;
@@ -494,8 +516,18 @@ impl Lowering<'_> {
                 InvocationSite::ExternalCompletion(edge)
             }
         };
-        let requirements =
-            self.invocation(invocation_site, callee, &arguments.actuals, before, source)?;
+        let requirements = self.invocation(
+            invocation_site,
+            callee,
+            required_contract,
+            &arguments.actuals,
+            before,
+            source,
+        )?;
+        if let Some((selecting, expression, statement)) = source_call {
+            self.calls
+                .push((selecting, expression, statement, invocation_site));
+        }
         for bucket in &crash_continuations {
             self.obligation(
                 ObligationKind::CrashCoverage {
@@ -513,6 +545,9 @@ impl Lowering<'_> {
                 .terminate(Terminator::InvokeNoNormal {
                     edge,
                     static_reach_binding: None,
+                    required_contract: self
+                        .signatures
+                        .canonical_contract(required_contract, self.id)?,
                     callee,
                     structural_arguments,
                     arguments: arguments.scalars,
@@ -570,12 +605,20 @@ impl Lowering<'_> {
         &mut self,
         site: InvocationSite,
         callee: semantic_vocabulary::TargetMachineCallable,
+        required_contract: Option<semantic_vocabulary::ContractId>,
         actuals: &[Actual],
         before: ProgramPoint,
         source: SourceOrigin,
     ) -> Checked<Vec<ObligationId>> {
-        let clauses = self.signatures.get(callee, self.id)?.requires.len();
+        let clauses = self
+            .signatures
+            .invocation(callee, required_contract, self.id)?
+            .requires
+            .len();
         let invocation = self.tables.invocations.push(InvocationRow {
+            required_contract: self
+                .signatures
+                .canonical_contract(required_contract, self.id)?,
             site,
             callee: Callee::Declared(callee),
             actuals: actuals.to_vec(),
@@ -608,13 +651,24 @@ impl Lowering<'_> {
     pub(super) fn call(
         &mut self,
         callable: semantic_vocabulary::TargetMachineCallable,
+        required_contract: Option<semantic_vocabulary::ContractId>,
         arguments: &[Expression],
         designated: Option<crate::body::DesignatedOperands>,
         result: Option<ValueType>,
-        source: SourceOrigin,
+        (source, source_call): (
+            SourceOrigin,
+            Option<(
+                MachineId,
+                typed_trees::expression::ExpressionHandle,
+                typed_trees::statement::StatementHandle,
+            )>,
+        ),
         acknowledgement: terminal_psi::CallAcknowledgement,
     ) -> Evaluation<Value> {
-        let declared_result = self.signatures.get(callable, self.id)?.result;
+        let declared_result = self
+            .signatures
+            .invocation(callable, required_contract, self.id)?
+            .result;
         match (result, declared_result) {
             (Some(ValueType::Rigid(actual)), Some(ValueType::Rigid(declared)))
                 if actual == declared => {}
@@ -631,7 +685,14 @@ impl Lowering<'_> {
             if designated.is_some() {
                 return Err(self.internal("designated operands on a call that never returns"));
             }
-            continuing!(self.invoke_no_normal(callable, arguments, source, acknowledgement));
+            continuing!(self.invoke_no_normal(
+                callable,
+                required_contract,
+                source_call,
+                arguments,
+                source,
+                acknowledgement
+            ));
             return Ok(Reached::Ended(source));
         }
         if matches!(
@@ -656,17 +717,8 @@ impl Lowering<'_> {
         {
             return Err(self.internal("designated operands on a call that is no boundary call"));
         }
-        let arguments = continuing!(self.arguments(callable, arguments));
-        let routes = match callable {
-            semantic_vocabulary::TargetMachineCallable::Machine(callee) => {
-                &self.outcome(callee)?.crash_routes[..]
-            }
-            semantic_vocabulary::TargetMachineCallable::Boundary(_) => self
-                .signatures
-                .get(callable, self.id)?
-                .declared_crash_routes()
-                .ok_or_else(|| self.internal("a boundary call has no published crash ceiling"))?,
-        };
+        let arguments = continuing!(self.arguments(callable, required_contract, arguments));
+        let routes = self.call_routes(callable, required_contract)?;
         // Both declarations owe the caller's same-cause coverage. A boundary
         // retains these routes on its declaration instead of a second encoded
         // continuation roster; the checker restates them at the actual call.
@@ -682,6 +734,7 @@ impl Lowering<'_> {
         let requirements = self.invocation(
             InvocationSite::Operation(operation),
             callable,
+            required_contract,
             &arguments.actuals,
             before,
             source,
@@ -799,6 +852,24 @@ impl Lowering<'_> {
                 Value::Scalar(value)
             }
         };
+        let canonical_contract = self
+            .signatures
+            .canonical_contract(required_contract, self.id)?;
+        let Some(emitted) = self.draft()?.operations.last_mut() else {
+            return Err(self.internal("a call emitted no operation"));
+        };
+        if emitted.id != operation {
+            return Err(self.internal("a selected contract lost its exact call operation"));
+        }
+        emitted.required_contract = canonical_contract;
+        if let Some((selecting, expression, statement)) = source_call {
+            self.calls.push((
+                selecting,
+                expression,
+                statement,
+                InvocationSite::Operation(operation),
+            ));
+        }
         self.returned_loans(&arguments.loans, operation)?;
         if !arguments.homes.is_empty() {
             let homes: Vec<_> = arguments.homes.iter().map(ArgumentHome::place).collect();

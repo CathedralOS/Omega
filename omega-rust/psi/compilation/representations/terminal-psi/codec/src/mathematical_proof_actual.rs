@@ -360,11 +360,14 @@ pub(crate) mod slots {
                             .machines
                             .iter()
                             .filter(|machine| machine.id == *callee);
-                        let target = candidates.next().ok_or(Error::SourceCarrierMismatch)?;
+                        candidates.next().ok_or(Error::SourceCarrierMismatch)?;
                         if candidates.next().is_some() {
                             return Err(Error::SourceCarrierMismatch);
                         }
-                        let formals = &target.contract.erased_proof_formals;
+                        let contract = module
+                            .invocation_machine_contract(*callee, operation.required_contract)
+                            .ok_or(Error::SourceCarrierMismatch)?;
+                        let formals = &contract.erased_proof_formals;
                         if has_mathematical(module, formals)
                             || actuals.iter().any(|term| {
                                 contains_mathematical(
@@ -386,7 +389,7 @@ pub(crate) mod slots {
                                 target: (callee.get(), 0),
                                 owner,
                                 block,
-                                callee: target.declaration.as_ref(),
+                                callee: contract.declaration.as_ref(),
                                 formals,
                                 actuals,
                             });
@@ -398,11 +401,17 @@ pub(crate) mod slots {
                         .machines
                         .iter()
                         .filter(|machine| machine.id == invocation.callee);
-                    let target = candidates.next().ok_or(Error::SourceCarrierMismatch)?;
+                    candidates.next().ok_or(Error::SourceCarrierMismatch)?;
                     if candidates.next().is_some() {
                         return Err(Error::SourceCarrierMismatch);
                     }
-                    let formals = &target.contract.erased_proof_formals;
+                    let contract = module
+                        .invocation_machine_contract(
+                            invocation.callee,
+                            invocation.required_contract,
+                        )
+                        .ok_or(Error::SourceCarrierMismatch)?;
+                    let formals = &contract.erased_proof_formals;
                     let actuals = invocation.erased_proof_arguments;
                     if has_mathematical(module, formals)
                         || actuals.iter().any(|term| {
@@ -425,7 +434,7 @@ pub(crate) mod slots {
                             target: (invocation.callee.get(), 0),
                             owner,
                             block,
-                            callee: target.declaration.as_ref(),
+                            callee: contract.declaration.as_ref(),
                             formals,
                             actuals,
                         });

@@ -587,53 +587,23 @@ impl<'program> DeclaredCallTargets<'program> {
             )
     }
 
-    /// The public requirement is the authored target; the named map owns
-    /// its separate body demand. Close only a unique owned row with its real
-    /// entry state, leaving open maps and reference selections unresolved.
-    fn owned_named_call(&self, target: SymbolHandle, receiver: CallReceiver) -> bool {
+    /// The same checked row identifies an inline body or an existing machine.
+    /// Closing its original selection records that choice, not its validity.
+    fn named_call(&self, target: SymbolHandle, receiver: CallReceiver) -> bool {
         let CallReceiver::Named(namespace) = receiver else {
             return false;
         };
-        let Ok(Some((owner, row, _))) = self.program.named_conformance_member(namespace, target)
-        else {
-            return false;
-        };
-        self.owns_named_body(owner, row)
+        matches!(
+            self.program.named_conformance_member(namespace, target),
+            Ok(Some(_))
+        )
     }
 
-    fn owned_named_expression_call(
-        &self,
-        call: &typed_trees::expression::TableCallExpression,
-    ) -> bool {
-        let Ok(Some((owner, row, _))) = self.program.named_conformance_call_member(call) else {
-            return false;
-        };
-        self.owns_named_body(owner, row)
-    }
-
-    fn owns_named_body(
-        &self,
-        owner: &typed_trees::trait_definition::Conformance,
-        row: &typed_trees::trait_definition::ConformanceRow,
-    ) -> bool {
-        if !row.source.owns_realization() {
-            return false;
-        }
-        let Some((actual_owner, actual_row)) = self
-            .program
-            .owned_conformance_realization(row.realization_machine)
-        else {
-            return false;
-        };
-        let Some(machine) = self.program.machine_by_symbol(row.realization_machine) else {
-            return false;
-        };
-        let [entry] = self.program.machine_states(machine) else {
-            return false;
-        };
-        actual_owner.symbol == owner.symbol
-            && actual_row == row
-            && entry.symbol == row.realization_state
+    fn named_expression_call(&self, call: &typed_trees::expression::TableCallExpression) -> bool {
+        matches!(
+            self.program.named_conformance_call_member(call),
+            Ok(Some(_))
+        )
     }
 
     /// What a call typing did not bind still asks of a later pass, or `None`
@@ -726,7 +696,7 @@ pub(crate) fn defer_unbound_calls(
                 .then_some(call.target.as_str());
                 in_expressions.push((handle, request, bare));
             }
-            if targets.owned_named_expression_call(call)
+            if targets.named_expression_call(call)
                 && let Some(occurrence) = call.authored_call_selection
             {
                 closed_selections.push((occurrence, call.target_symbol));
@@ -753,7 +723,7 @@ pub(crate) fn defer_unbound_calls(
                             .then_some(call.target.as_str());
                             in_declarations.push((machine.symbol, request, call.source_span, bare));
                         }
-                        if targets.owned_named_call(call.target_symbol, receiver)
+                        if targets.named_call(call.target_symbol, receiver)
                             && let Some(occurrence) = call.authored_call_selection
                         {
                             closed_selections.push((occurrence, call.target_symbol));

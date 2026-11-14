@@ -408,10 +408,14 @@ impl PreparedBuildMachineProgram {
     fn prepare_call(
         &self,
         requester: SymbolHandle,
-        machine: &typed_trees::machine::Machine,
+        declaration: typed_trees::callable_signature_shapes::CallableDeclaration<'_>,
         request: &typed_trees::expression::TableCallExpression,
         request_expression: typed_trees::expression::ExpressionHandle,
         arguments: &[crate::BuildTimeValue],
+        selected: Option<(
+            &typed_trees::expression::StaticMachineArgument,
+            SymbolHandle,
+        )>,
         supplies: &[psi_terminal_production::TerminalSourceSupply],
     ) -> Result<PreparedBuildMachineEntry, String> {
         if !self.source.symbols.symbols().nodes().is_valid(requester)
@@ -431,10 +435,11 @@ impl PreparedBuildMachineProgram {
         } = invocation::prepare_value_invocation(
             &self.source,
             requester,
-            machine,
+            declaration,
             request,
             arguments,
             request_expression,
+            selected,
         )?;
         // The call's source reaches the checker the way every program does,
         // through typed preparation; there is no second way to freeze it.
@@ -472,21 +477,104 @@ impl PreparedBuildMachineProgram {
             .call_node(call)
             .cloned()
             .ok_or("source invocation lost its accepted call")?;
-        let physical = accepted
-            .source()
-            .machine_by_symbol(actual_call.target_symbol)
-            .or_else(|| {
-                accepted
+        let physical = match declaration {
+            typed_trees::callable_signature_shapes::CallableDeclaration::Machine(required) => {
+                let physical = accepted
                     .source()
-                    .machine_holding_state(actual_call.target_symbol)
-            })
-            .ok_or("source invocation has no accepted concrete body")?;
-        if physical.symbol != machine.symbol {
-            return Err("source invocation changed its required concrete declaration".into());
-        }
+                    .machine_by_symbol(actual_call.target_symbol)
+                    .or_else(|| {
+                        accepted
+                            .source()
+                            .machine_holding_state(actual_call.target_symbol)
+                    })
+                    .ok_or("source invocation has no accepted concrete body")?;
+                if physical.symbol != required
+                    && accepted
+                        .source()
+                        .machine_instantiation_path(physical.symbol, required)
+                        .is_none()
+                {
+                    return Err(
+                        "source invocation changed its required concrete declaration".into(),
+                    );
+                }
+                physical.symbol
+            }
+            typed_trees::callable_signature_shapes::CallableDeclaration::Signature(required) => {
+                let original = self
+                    .source
+                    .closed_requirement_application(required.symbol)
+                    .map_or(required.symbol, |application| application.template);
+                let actual_required = actual_call
+                    .static_requirement_dispatch
+                    .as_ref()
+                    .map(|dispatch| dispatch.requirement)
+                    .or_else(|| {
+                        accepted
+                            .source()
+                            .closed_requirement_application(actual_call.target_symbol)
+                            .map(|application| application.template)
+                    })
+                    .unwrap_or(actual_call.target_symbol);
+                if actual_required != original {
+                    return Err("selected source invocation changed its public requirement".into());
+                }
+                let mut sites = accepted.source_call_sites(caller, call);
+                let (canonical_caller, site) = sites
+                    .next()
+                    .ok_or("selected source invocation has no exact emitted call site")?;
+                if sites.next().is_some() {
+                    return Err("selected source invocation has multiple emitted call sites".into());
+                }
+                let module = &accepted.closure().elaboration.module;
+                let invocation = module
+                    .machine(canonical_caller)
+                    .and_then(|machine| {
+                        machine
+                            .module_invocations()
+                            .find(|invocation| invocation.site == site)
+                    })
+                    .ok_or("selected source invocation lost its canonical operation")?;
+                let required_contract = invocation
+                    .inputs
+                    .required_contract
+                    .ok_or("selected source invocation lost its public contract")?;
+                let contract = module
+                    .invocation_machine_contract(invocation.inputs.callee, Some(required_contract))
+                    .ok_or("selected source invocation has no exact public contract and body")?;
+                let applied = accepted.source().source_call_requirement_signature(
+                    caller,
+                    typed_trees::references::StaticArgumentCall::Expression(call, &actual_call),
+                )?;
+                let (owner, _) = accepted
+                    .source()
+                    .trait_machine_signature(applied.symbol)
+                    .ok_or("selected source invocation lost its public declaring trait")?;
+                let identity = accepted
+                    .source()
+                    .trait_requirement_callable_identity_text(owner, applied);
+                if contract
+                    .declaration
+                    .as_ref()
+                    .and_then(|declaration| module.identities.text(declaration.callable))
+                    != Some(identity.as_str())
+                    || contract.selected_application.is_none()
+                {
+                    return Err(
+                        "selected source invocation changed its applied public signature".into(),
+                    );
+                }
+                *accepted
+                    .closure()
+                    .elaboration
+                    .machines
+                    .get(invocation.inputs.callee)
+                    .ok_or("selected source invocation lost its actual body source")?
+            }
+        };
         Ok(PreparedBuildMachineEntry {
             source: Arc::clone(&self.source),
-            symbol: physical.symbol,
+            symbol: physical,
             requester,
             call: actual_call,
             call_source: call,
@@ -549,28 +637,32 @@ impl PreparedBuildMachineProgram {
         {
             return Err("source job call has another requesting declaration".into());
         }
-        let machine = self
-            .source
-            .machine_by_symbol(call.target_symbol)
-            .or_else(|| self.source.machine_holding_state(call.target_symbol))
-            .ok_or("source job call has no concrete machine declaration")?;
-        let direct = invocation::direct_call(&self.source, machine)?;
-        if call.target_symbol != direct.target_symbol && call.target_symbol != machine.symbol {
-            return Err("source job call does not select the declared entry".into());
-        }
-        let [state] = self.source.machine_states(machine) else {
-            return Err("source job call has no exact entry state".into());
-        };
+        let declaration = self.source.source_call_declaration(
+            requester,
+            typed_trees::references::StaticArgumentCall::Expression(expression, call),
+        )?;
         if self
             .source
             .expression_table
             .expression_handles(call.arguments)
             .len()
-            != self.source.state_parameters(state).len()
+            != declaration
+                .shape(&self.source)
+                .map_err(str::to_owned)?
+                .parameters
+                .len()
         {
             return Err("source job call lost its complete argument list".into());
         }
-        self.prepare_call(requester, machine, call, expression, arguments, &[])
+        self.prepare_call(
+            requester,
+            declaration,
+            call,
+            expression,
+            arguments,
+            None,
+            &[],
+        )
     }
 
     pub fn entry(
@@ -595,10 +687,100 @@ impl PreparedBuildMachineProgram {
         let call = invocation::direct_call(&self.source, machine)?;
         self.prepare_call(
             requester,
-            machine,
+            typed_trees::callable_signature_shapes::CallableDeclaration::Machine(machine.symbol),
             &call,
             typed_trees::expression::ExpressionHandle::invalid(),
             arguments,
+            None,
+            &[],
+        )
+    }
+
+    /// Construct an ordinary call through an exact named implementation. The
+    /// operand describes a requested choice; the returned entry has still
+    /// passed the same actual-argument and independent refinement judgments.
+    /// Domain consumers must separately authenticate their owning source
+    /// coordinate against this entry before adopting its result as a policy.
+    pub fn entry_selected(
+        &self,
+        requester: SymbolHandle,
+        selection_owner: SymbolHandle,
+        selection: &typed_trees::expression::StaticMachineArgument,
+        requirement: SymbolHandle,
+        arguments: &[crate::BuildTimeValue],
+    ) -> Result<PreparedBuildMachineEntry, String> {
+        use typed_trees::type_identity::{
+            DeclaredStaticOperandIdentityRequest, IndexIdentityArgument,
+        };
+        if !self
+            .source
+            .symbols
+            .symbols()
+            .nodes()
+            .is_valid(selection_owner)
+            || self
+                .source
+                .symbols
+                .symbol_provenance_source_span(selection_owner)
+                .is_none()
+        {
+            return Err("selected source invocation lost its actual supplying declaration".into());
+        }
+        if !self
+            .source
+            .symbols
+            .symbols()
+            .nodes()
+            .is_valid(selection.symbol)
+            || self.source.symbols.get(selection.symbol).kind != symbols::SymbolKind::Conformance
+        {
+            return Err(
+                "selected source invocation has no retained implementation declaration".into(),
+            );
+        }
+        if selection.type_reference.is_valid()
+            && !self
+                .source
+                .type_reference_table
+                .contains_type_reference(selection.type_reference)
+        {
+            return Err("selected source invocation has a stale operand reference".into());
+        }
+        self.source
+            .static_operand_region_supplier(selection, selection_owner)?;
+        self.source
+            .declared_static_operand_identity(DeclaredStaticOperandIdentityRequest {
+                operand: IndexIdentityArgument::StaticArgument(selection),
+                lexical_owner: selection_owner,
+                binders: &[],
+                lifetime_binders: &[],
+            })
+            .ok_or("selected source invocation has no complete operand identity")?;
+        let (_, _, signature) = self
+            .source
+            .named_conformance_member(selection.symbol, requirement)?
+            .ok_or("selected source invocation needs a named implementation requirement")?;
+        // The current named-member owner serves a closed, nongeneric map.
+        // Until it serves applied maps, extra arguments cannot be discarded.
+        if selection.application.as_ref().is_some_and(|application| {
+            application.member.is_valid()
+                || !application.arguments.is_empty()
+                || !application.lifetime_arguments.is_empty()
+        }) || selection.const_literal.is_some()
+            || selection.evidence_projection.is_some()
+        {
+            return Err(
+                "selected source invocation needs its prepared complete application".into(),
+            );
+        }
+        let call = invocation::declaration_call(signature.symbol, signature.name.clone());
+        self.prepare_call(
+            requester,
+            typed_trees::callable_signature_shapes::CallableDeclaration::Signature(signature),
+            &call,
+            typed_trees::expression::ExpressionHandle::invalid(),
+            arguments,
+            Some((selection, selection_owner)),
             &[],
         )
     }
@@ -619,10 +801,11 @@ impl PreparedBuildMachineProgram {
         let call = invocation::direct_call(&self.source, machine)?;
         self.prepare_call(
             requester,
-            machine,
+            typed_trees::callable_signature_shapes::CallableDeclaration::Machine(machine.symbol),
             &call,
             typed_trees::expression::ExpressionHandle::invalid(),
             arguments,
+            None,
             &[supply],
         )
     }
@@ -846,6 +1029,278 @@ pub(crate) mod tests {
             panic!("the returned value is the authored call")
         };
         (machine.symbol, *expression)
+    }
+
+    #[test]
+    fn source_jobs_retain_the_selected_implementation_member() {
+        // Selecting an implementation names its exact private member; it does
+        // not select another map with the same requirement or attached name.
+        let source = typed(
+            "trait Policy {
+             machine plan(value: u64) -> u64 requires value > 0;
+             }
+             public First satisfies Policy {
+                 machine plan(value: u64) -> u64 requires value > 0 { value }
+             }
+             public Second satisfies Policy {
+                 machine plan(value: u64) -> u64 requires value > 0 { 23u64 }
+             }
+             public Applied<T> satisfies Policy {
+                 machine plan(value: u64) -> u64 requires value > 0 { value }
+             }
+             machine first() -> u64 { First::plan(7u64) }
+             machine second() -> u64 { Second::plan(7u64) }
+             machine narrow() -> u64 { Applied<u32>::plan(7u64) }
+             machine wide() -> u64 { Applied<u64>::plan(7u64) }",
+        );
+        let program = PreparedBuildMachineProgram::prepare(&source, None).unwrap();
+        for (name, expected) in [("first", 7), ("second", 23), ("narrow", 7), ("wide", 7)] {
+            let (requester, call) = returned_source_call(program.typed(), name);
+            let entry = program
+                .entry_call(requester, call, &[BuildTimeValue::Int(7)])
+                .unwrap();
+            let mut accounting = crate::SourceCompletionAccounting::default();
+            let result = entry
+                .invoke_recorded(target(), &mut accounting)
+                .expect("the exact ordinary selected member executes");
+            assert_eq!(result.value(), &BuildTimeValue::Int(expected));
+            let [crate::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+                panic!("one actual selected call")
+            };
+            assert_eq!(receipt.requester(), requester);
+            let authored = source.expression_table.call_node(call).unwrap();
+            let retained = receipt.call().unwrap();
+            assert_eq!(retained.target_symbol, authored.target_symbol);
+            assert_eq!(retained.receiver, authored.receiver);
+            assert_eq!(
+                retained.authored_machine_application,
+                authored.authored_machine_application
+            );
+            assert_eq!(retained.machine_arguments, authored.machine_arguments);
+            let error = match program.entry_call(requester, call, &[BuildTimeValue::Int(0)]) {
+                Ok(_) => panic!("the public requirement must establish its actual input"),
+                Err(error) => error,
+            };
+            assert!(error.contains("requires"), "{error}");
+        }
+    }
+
+    #[test]
+    fn selected_calls_keep_public_promises_through_source_free_roundtrip() {
+        // A selected body's total implementation cannot erase a public input
+        // requirement or lend its stronger private result promise to the caller.
+        // Both selections survive in the artifact so same-arity substitutions
+        // can be rejected without consulting the source trees.
+        let source = typed(
+            "trait Policy {
+                 machine plan(value: u64) -> u64 requires value > 0 ensures result > 0;
+             }
+             public First satisfies Policy {
+                 machine plan(value: u64) -> u64 requires true
+                 ensures result == 23u64 { 23u64 }
+             }
+             public Second satisfies Policy {
+                 machine plan(value: u64) -> u64 requires true
+                 ensures result == 41u64 { 41u64 }
+             }
+             machine request() -> u64 {
+                 let first: u64 = First::plan(7u64);
+                 Second::plan(first)
+             }
+             machine hidden() -> u64 ensures result == 41u64 {
+                 Second::plan(7u64)
+             }",
+        );
+        let prepared = PreparedBuildMachineProgram::prepare(&source, None).unwrap();
+        let (requester, expression) = returned_source_call(prepared.typed(), "request");
+        let selected = prepared
+            .entry_call(requester, expression, &[BuildTimeValue::Int(7)])
+            .unwrap();
+        let mut accounting = crate::SourceCompletionAccounting::default();
+        assert_eq!(
+            selected
+                .invoke_recorded(target(), &mut accounting)
+                .unwrap()
+                .value(),
+            &BuildTimeValue::Int(41)
+        );
+        let [crate::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+            panic!("one selected call retains its exact execution receipt")
+        };
+        let (canonical_caller, invocation) = receipt.invocation().unwrap().unwrap();
+        assert_eq!(
+            Some(semantic_vocabulary::TargetMachineCallable::Machine(
+                canonical_caller
+            )),
+            receipt.program().view().module().entry
+        );
+        assert!(invocation.inputs.required_contract.is_some());
+        let refusal = prepared
+            .entry_call(requester, expression, &[BuildTimeValue::Int(0)])
+            .err()
+            .expect("the public input requirement still applies to a total implementation");
+        assert!(refusal.contains("requires"), "{refusal}");
+        let (hidden, _) = returned_source_call(prepared.typed(), "hidden");
+        let refusal = prepared
+            .entry(hidden, hidden, &[])
+            .err()
+            .expect("a private implementation postcondition is not a public promise");
+        assert!(refusal.contains("ensures"), "{refusal}");
+
+        // The temporary actual-argument probe deliberately has no portable
+        // identity. Publish the same authored, packaged request closure through
+        // the ordinary source route; never relabel invocation code as portable.
+        let (portable_source, _) = typed_trees_to_typed_trees::prepare_typed_trees(
+            source,
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .unwrap();
+        let accepted = psi_terminal_production::AcceptedTerminalSource::judge(
+            Arc::new(portable_source),
+            psi_terminal_production::TerminalSourceCompilation {
+                declaration_metadata: &[],
+                entries: &[requester],
+                subjects: &[],
+                purpose: source::DependencyScope::Product,
+                selected: &[],
+                bindings: &[],
+                supplies: &[],
+            },
+            terminal_codec::TerminalPublication::Portable,
+        )
+        .unwrap();
+        let module = accepted.module();
+        let calls = module
+            .machines
+            .iter()
+            .flat_map(|machine| machine.module_invocations())
+            .filter(|call| call.inputs.required_contract.is_some())
+            .map(|call| (call.inputs.required_contract.unwrap(), call.inputs.callee))
+            .collect::<Vec<_>>();
+        assert_eq!(calls.len(), 2, "both exact source selections are reachable");
+        assert_ne!(calls[0].0, calls[1].0);
+        assert_ne!(calls[0].1, calls[1].1);
+        for (required, body) in &calls {
+            let public = module
+                .invocation_machine_contract(*body, Some(*required))
+                .unwrap();
+            assert_eq!(public.requires.len(), 1);
+            assert_eq!(public.ensures.len(), 1);
+            assert!(public.selected_application.is_some());
+        }
+        let bytes = terminal_codec::encode_module(module).unwrap();
+        assert_eq!(terminal_codec::decode_module(&bytes).unwrap(), *module);
+        for suspension in [false, true] {
+            for change_declared in [false, true] {
+                let mut forged = module.clone();
+                let public = forged
+                    .declaration_contracts
+                    .iter_mut()
+                    .find(|contract| contract.id == calls[0].0)
+                    .unwrap();
+                if suspension {
+                    public.published_may_suspend = !public.published_may_suspend;
+                    if change_declared {
+                        public.declared_suspension = Some(public.published_may_suspend);
+                    }
+                } else {
+                    public.published_may_block = !public.published_may_block;
+                    if change_declared {
+                        public.declared_blocking = Some(public.published_may_block);
+                    }
+                }
+                assert_eq!(
+                    terminal_codec::decode_module(&terminal_codec::encode_module(&forged).unwrap())
+                        .unwrap_err(),
+                    terminal_codec::CodecError::MalformedStructuralFoundation(if change_declared {
+                        "public operational contract differs from its source declaration"
+                    } else {
+                        "authored callable effects differ from their published promises"
+                    })
+                );
+            }
+        }
+        let (caller, call) = module
+            .machines
+            .iter()
+            .find_map(|machine| {
+                machine
+                    .module_invocations()
+                    .find(|call| call.inputs.required_contract == Some(calls[0].0))
+                    .map(|call| (machine.id, call))
+            })
+            .unwrap();
+        let header = module.declaration_contract(calls[0].0).unwrap();
+        let mut forged = module.clone();
+        forged
+            .proof_output_calls
+            .push(terminal_psi::ProofOutputCall {
+                caller,
+                ordinal: 0,
+                target_machine_identity: header.declaration.as_ref().unwrap().callable,
+                static_requirement_dispatch: None,
+                runtime_result: Some(terminal_psi::ProofOutputRuntimeResult::Scalar(
+                    header.result.scalar_ref().unwrap().scalar_type,
+                )),
+                runtime_call: Some(terminal_psi::ProofOutputRuntimeCall {
+                    site: call.site,
+                    callee: call.inputs.callee,
+                }),
+                evidence_arguments: Vec::new(),
+                outputs: Vec::new(),
+            });
+        assert_eq!(
+            terminal_codec::decode_module(&terminal_codec::encode_module(&forged).unwrap())
+                .unwrap_err(),
+            terminal_codec::CodecError::MalformedStructuralFoundation(
+                "selected proof call differs from its operation's public contract"
+            )
+        );
+        let mut previous_format = bytes.clone();
+        previous_format[8..10].copy_from_slice(&263u16.to_le_bytes());
+        assert_eq!(
+            terminal_codec::decode_module(&previous_format).unwrap_err(),
+            terminal_codec::CodecError::UnsupportedFormatMarker(263)
+        );
+        for (required, replacement) in [(calls[0].0, calls[1].1), (calls[1].0, calls[0].1)] {
+            let mut forged = module.clone();
+            forged
+                .declaration_contracts
+                .iter_mut()
+                .find(|contract| contract.id == required)
+                .unwrap()
+                .selected_application
+                .as_mut()
+                .unwrap()
+                .realization = replacement;
+            let mut changed = 0;
+            for operation in forged
+                .machines
+                .iter_mut()
+                .flat_map(|machine| &mut machine.blocks)
+                .flat_map(|block| &mut block.operations)
+                .filter(|operation| operation.required_contract == Some(required))
+            {
+                let terminal_psi::OperationKind::Call { callee, .. } = &mut operation.kind else {
+                    panic!("this source selection is the ordinary scalar call")
+                };
+                *callee = replacement;
+                changed += 1;
+            }
+            assert_eq!(
+                changed, 1,
+                "change the exact header and physical call together"
+            );
+            let bytes = terminal_codec::encode_module(&forged).unwrap();
+            let refusal = terminal_codec::decode_module(&bytes).unwrap_err();
+            assert_eq!(
+                refusal,
+                terminal_codec::CodecError::MalformedStructuralFoundation(
+                    "static requirement dispatch has no exact executable method application"
+                ),
+                "equal physical/header bodies must still match the closed selection"
+            );
+        }
     }
 
     #[test]
@@ -2140,6 +2595,373 @@ pub(crate) mod tests {
                 diagnostics::join_messages(&full).contains("type generic data"),
                 "{full:?}"
             );
+        }
+    }
+
+    fn packaged_selection_source(
+        texts: &[&str],
+        bindings: &[(usize, usize, &str)],
+    ) -> (Vec<semantic_vocabulary::PackageKeyIdentity>, TypedTrees) {
+        let packages = (1..=texts.len())
+            .map(|byte| {
+                semantic_vocabulary::PackageKeyIdentity::from_digest(
+                    [u8::try_from(byte).unwrap(); 32],
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+        let mut sources = source::SourceMap::default();
+        let mut syntax = None;
+        let mut ids = Vec::new();
+        for (index, text) in texts.iter().copied().enumerate() {
+            let root = format!("/selection-{index}");
+            let source = sources
+                .add_with_metadata(
+                    format!("{root}/source.omg").into(),
+                    text.into(),
+                    root.into(),
+                    Some(packages[index]),
+                    source::SourceOrigin::User,
+                )
+                .source_id;
+            ids.push(source);
+            let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+            if let Some(syntax) = &mut syntax {
+                tokens_to_syntax_trees::parse(syntax, source, &tokens).unwrap();
+            } else {
+                syntax = Some(
+                    tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap(),
+                );
+            }
+        }
+        let mut request =
+            syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax.unwrap());
+        request.sources = Some(Arc::new(sources));
+        request.top_level_bindings = bindings
+            .iter()
+            .map(|(from, to, name)| {
+                symbols::SourceScopedTopLevelBinding::new(ids[*from], ids[*to], *name)
+            })
+            .collect();
+        let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
+        let source =
+            symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap();
+        (packages, source)
+    }
+
+    struct SelectionAuthorityEdges(
+        Vec<(
+            semantic_vocabulary::PackageKeyIdentity,
+            semantic_vocabulary::PackageKeyIdentity,
+        )>,
+    );
+    impl BuildTimeSelectionAuthority for SelectionAuthorityEdges {
+        fn allows_declaration_selection(
+            &self,
+            requester: semantic_vocabulary::PackageKeyIdentity,
+            owner: semantic_vocabulary::PackageKeyIdentity,
+        ) -> bool {
+            self.0.contains(&(requester, owner))
+        }
+        fn package_label(&self, package: semantic_vocabulary::PackageKeyIdentity) -> String {
+            format!("{package:?}")
+        }
+    }
+
+    #[test]
+    fn selected_calls_keep_the_suppliers_declaration_authority_requests() {
+        let (packages, source) = packaged_selection_source(
+            &[
+                "machine request() -> u64 { 0u64 }",
+                "public First satisfies Policy { machine plan(value: u64) -> u64 requires value > 0 { value } }",
+                "public trait Policy { machine plan(value: u64) -> u64 requires value > 0; }",
+            ],
+            &[(1, 2, "Policy")],
+        );
+        let requester = source
+            .machines()
+            .iter()
+            .find(|machine| {
+                source.symbols.symbol_package_identity(machine.symbol) == Some(packages[0])
+            })
+            .unwrap()
+            .symbol;
+        let selected = source
+            .conformances()
+            .iter()
+            .find(|selected| {
+                source.symbols.symbol_package_identity(selected.symbol) == Some(packages[1])
+            })
+            .unwrap();
+        let [row] = selected.rows.as_slice() else {
+            panic!("one actual owned member")
+        };
+        let operand = typed_trees::expression::StaticMachineArgument {
+            symbol: selected.symbol,
+            ..Default::default()
+        };
+        let limited = PreparedBuildMachineProgram::prepare(
+            &source,
+            Some(Arc::new(SelectionAuthorityEdges(vec![(
+                packages[0],
+                packages[1],
+            )]))),
+        )
+        .unwrap();
+        let entry = limited
+            .entry_selected(
+                requester,
+                requester,
+                &operand,
+                row.requirement,
+                &[BuildTimeValue::Int(1)],
+            )
+            .unwrap();
+        let produced = entry.produce_invocation().unwrap();
+        let error = entry
+            .admit_invocation(&produced, target())
+            .expect_err("the implementation's separate trait selection needs its own package edge");
+        assert!(
+            error.contains("without direct dependency authority"),
+            "{error}"
+        );
+        assert!(
+            error.contains(&format!("{:?}", packages[2]))
+                && error.contains(&format!("{:?}", packages[1])),
+            "{error}"
+        );
+        let mut meter = psi_work::WorkMeter::unbounded();
+        assert_eq!(entry.invoke(target(), &mut meter).unwrap_err(), error);
+        assert_eq!(meter.usage().total_units(), 0);
+        let complete = PreparedBuildMachineProgram::prepare(
+            &source,
+            Some(Arc::new(SelectionAuthorityEdges(vec![
+                (packages[0], packages[1]),
+                (packages[1], packages[2]),
+            ]))),
+        )
+        .unwrap();
+        assert!(
+            complete
+                .entry(
+                    requester,
+                    row.realization_machine,
+                    &[BuildTimeValue::Int(1)]
+                )
+                .err()
+                .unwrap()
+                .contains("private machine of another package")
+        );
+        let entry = complete
+            .entry_selected(
+                requester,
+                requester,
+                &operand,
+                row.requirement,
+                &[BuildTimeValue::Int(1)],
+            )
+            .unwrap();
+        let mut accounting = crate::SourceCompletionAccounting::default();
+        let value = entry.invoke_recorded(target(), &mut accounting).unwrap();
+        assert_eq!(value.value(), &BuildTimeValue::Int(1));
+        let [crate::PureEvaluationRecord::Invocation(receipt)] = accounting.receipts() else {
+            panic!("one actual selected receipt")
+        };
+        let (_, call) = receipt.invocation().unwrap().unwrap();
+        assert!(call.inputs.required_contract.is_some());
+        assert_eq!(receipt.requester(), requester);
+        assert_eq!(receipt.machine(), row.realization_machine);
+    }
+
+    #[test]
+    fn a_reference_row_keeps_its_suppliers_body_dependency() {
+        let (packages, source) = packaged_selection_source(
+            &[
+                "machine request() -> u64 { 0u64 }",
+                "public First satisfies Policy { Policy::plan = implementation; }",
+                "public trait Policy { machine plan(value: u64) -> u64 requires value > 0; }",
+                "public machine implementation(value: u64) -> u64 requires value > 0 { helper(value) } machine helper(value: u64) -> u64 { value }",
+            ],
+            &[(1, 2, "Policy"), (1, 3, "implementation")],
+        );
+        let requester = source
+            .machines()
+            .iter()
+            .find(|machine| {
+                source.symbols.symbol_package_identity(machine.symbol) == Some(packages[0])
+            })
+            .unwrap()
+            .symbol;
+        let selected = source
+            .conformances()
+            .iter()
+            .find(|selected| {
+                source.symbols.symbol_package_identity(selected.symbol) == Some(packages[1])
+            })
+            .unwrap();
+        let [row] = selected.rows.as_slice() else {
+            panic!("one exact reference row")
+        };
+        assert_eq!(
+            row.source,
+            typed_trees::trait_definition::ConformanceRowSource::Reference
+        );
+        let operand = typed_trees::expression::StaticMachineArgument {
+            symbol: selected.symbol,
+            ..Default::default()
+        };
+        for has_body_edge in [false, true] {
+            let mut edges = vec![(packages[0], packages[1]), (packages[1], packages[2])];
+            if has_body_edge {
+                edges.push((packages[1], packages[3]));
+            }
+            let program = PreparedBuildMachineProgram::prepare(
+                &source,
+                Some(Arc::new(SelectionAuthorityEdges(edges.clone()))),
+            )
+            .unwrap();
+            let entry = program
+                .entry_selected(
+                    requester,
+                    requester,
+                    &operand,
+                    row.requirement,
+                    &[BuildTimeValue::Int(1)],
+                )
+                .unwrap();
+            let mut meter = psi_work::WorkMeter::unbounded();
+            let result = entry.invoke(target(), &mut meter);
+            if has_body_edge {
+                assert_eq!(result.unwrap(), BuildTimeValue::Int(1));
+                let produced = entry.produce_invocation().unwrap();
+                let module = produced.view().module();
+                let authority = SelectionAuthorityEdges(edges);
+                let admit = |module: terminal_psi::TerminalModule| {
+                    // Keep the original invocation custody. These are receiving
+                    // forgeries, never a promotion to portable publication.
+                    let code = terminal_codec::InvocationTerminalCode::new(module)
+                        .map_err(|error| format!("artifact refusal: {error:?}"))?;
+                    let view = code.view();
+                    let root = view
+                        .module()
+                        .scalar_applications
+                        .proof_scope
+                        .callable_declaration(view.module().entry.unwrap())
+                        .unwrap();
+                    let providers = terminal_installation::admit_provider_execution_installation(
+                        view,
+                        &[],
+                        &[],
+                    )
+                    .map_err(|error| format!("provider refusal: {error:?}"))?;
+                    terminal_installation::admit_compiler_evaluation(
+                        view,
+                        target().name,
+                        root,
+                        providers,
+                        semantic_vocabulary::compiler_evaluation::DeclarationCustody::Package(
+                            packages[0],
+                        ),
+                        Some(&authority),
+                    )
+                };
+                assert!(admit(module.clone()).is_ok());
+                let selected = module
+                    .machines
+                    .iter()
+                    .flat_map(|machine| {
+                        machine.module_invocations().filter_map(move |call| {
+                            call.inputs.required_contract.map(|required| {
+                                (machine.id, call.site, call.inputs.callee, required)
+                            })
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                let [(caller, site, body, required)] = selected.as_slice() else {
+                    panic!("one actual selected call")
+                };
+                let semantic_vocabulary::InvocationSite::Operation(operation) = site else {
+                    panic!("the source call returns normally")
+                };
+                let mut stripped = module.clone();
+                stripped
+                    .machines
+                    .iter_mut()
+                    .find(|machine| machine.id == *caller)
+                    .unwrap()
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.operations)
+                    .find(|row| row.id == *operation)
+                    .unwrap()
+                    .required_contract = None;
+                let error = admit(stripped).unwrap_err();
+                assert!(
+                    error.contains("without direct dependency authority")
+                        && error.contains(&format!("{:?}", packages[0]))
+                        && error.contains(&format!("{:?}", packages[3])),
+                    "{error}"
+                );
+
+                let mut missing = module.clone();
+                let scope = &mut missing.scalar_applications.proof_scope;
+                let declaration = scope.callable_declaration((*caller).into()).unwrap();
+                let (header, _) = scope
+                    .callable_headers
+                    .iter()
+                    .find(|(_, header)| header.declaration == declaration)
+                    .unwrap();
+                scope
+                    .callable_headers
+                    .get_mut(header)
+                    .compiler_evaluation
+                    .as_mut()
+                    .unwrap()
+                    .selections
+                    .as_mut()
+                    .unwrap()
+                    .retain(|request| {
+                        request.requester != packages[1] || request.owner != packages[3]
+                    });
+                let error = admit(missing).unwrap_err();
+                assert!(
+                    error.contains("supplier's admitted source-selection requests"),
+                    "{error}"
+                );
+
+                let body_machine = module.machine(*body).unwrap();
+                let inner = body_machine.module_invocations().next().unwrap();
+                let semantic_vocabulary::InvocationSite::Operation(inner_operation) = inner.site
+                else {
+                    panic!("the helper call returns normally")
+                };
+                let mut copied = module.clone();
+                copied
+                    .machines
+                    .iter_mut()
+                    .find(|machine| machine.id == *body)
+                    .unwrap()
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.operations)
+                    .find(|row| row.id == inner_operation)
+                    .unwrap()
+                    .required_contract = Some(*required);
+                let error = admit(copied).unwrap_err();
+                assert!(
+                    error.contains("selected invocation lost its exact public/body association"),
+                    "{error}"
+                );
+            } else {
+                let error = result.unwrap_err();
+                assert!(
+                    error.contains("without direct dependency authority")
+                        && error.contains(&format!("{:?}", packages[1]))
+                        && error.contains(&format!("{:?}", packages[3])),
+                    "{error}"
+                );
+                assert_eq!(meter.usage().total_units(), 0);
+            }
         }
     }
 

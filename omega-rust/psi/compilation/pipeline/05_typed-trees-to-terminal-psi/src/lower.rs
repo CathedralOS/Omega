@@ -92,6 +92,12 @@ pub(crate) struct Lowered {
     pub tables: MachineTables,
     pub sources: MachineSources,
     pub designated: Vec<(OperationId, crate::DesignatedOperands)>,
+    pub calls: Vec<(
+        MachineId,
+        typed_trees::expression::ExpressionHandle,
+        typed_trees::statement::StatementHandle,
+        semantic_vocabulary::InvocationSite,
+    )>,
     /// The block invariant of each loop head whose member has a `requires`,
     /// in head order: rows of the module's `scalar_block_invariants`.
     pub invariants: Vec<ScalarBlockInvariant>,
@@ -284,6 +290,7 @@ fn contract_header(
     outcome: &Outcome,
 ) -> MachineContract {
     MachineContract {
+        selected_application: None,
         parameters: formals.scalars,
         parameter_order: formals.order,
         structural_parameters: formals.records,
@@ -324,24 +331,35 @@ pub(crate) fn declaration_contract(
     caller: MachineId,
     id: ContractId,
     signature: &Signature,
+    selected_body: Option<MachineId>,
     signatures: Signatures<'_>,
     outcomes: &IdTable<MachineId, Outcome>,
     records: &Records<'_>,
 ) -> Checked<MachineContract> {
+    let selected = selected_body
+        .map(|body| terminal_check_tables::row(outcomes, body, caller, Construct::Machine))
+        .transpose()?;
     let outcome = Outcome {
-        operational: signature.operational.published([false; 2]),
-        completes_normally: true,
+        operational: signature
+            .operational
+            .published(selected.map_or([false; 2], |outcome| outcome.operational)),
+        completes_normally: selected.is_none_or(|outcome| outcome.completes_normally),
         crash_routes: signature
             .declared_crash_routes()
+            .or_else(|| selected.map(|outcome| outcome.crash_routes.as_slice()))
             .unwrap_or_default()
             .to_vec(),
         service_reach: match &signature.reaches {
             crate::Ceiling::Authored(row) => row.clone(),
-            crate::Ceiling::Inferred => Vec::new(),
+            crate::Ceiling::Inferred => selected
+                .map(|outcome| outcome.service_reach.clone())
+                .unwrap_or_default(),
         },
         synchronous_entries: match &signature.invokes {
             crate::Ceiling::Authored(row) => row.clone(),
-            crate::Ceiling::Inferred => Vec::new(),
+            crate::Ceiling::Inferred => selected
+                .map(|outcome| outcome.synchronous_entries.clone())
+                .unwrap_or_default(),
         },
     };
     let mut lowering = Lowering::new(
@@ -395,6 +413,7 @@ impl<'a> Lowering<'a> {
             tables: MachineTables::default(),
             sources: MachineSources::default(),
             designated: Vec::new(),
+            calls: Vec::new(),
             call_formations: Vec::new(),
             blocks: IdTable::default(),
             current: None,
@@ -608,6 +627,12 @@ struct Lowering<'a> {
     tables: MachineTables,
     sources: MachineSources,
     designated: Vec<(OperationId, crate::DesignatedOperands)>,
+    calls: Vec<(
+        MachineId,
+        typed_trees::expression::ExpressionHandle,
+        typed_trees::statement::StatementHandle,
+        semantic_vocabulary::InvocationSite,
+    )>,
     call_formations: Vec<terminal_psi::CallFormation>,
     blocks: IdTable<BlockId, Draft>,
     /// The open block, `None` once it is terminated and no block is entered.
@@ -1052,6 +1077,7 @@ impl<'a> Lowering<'a> {
             tables: self.tables,
             sources: self.sources,
             designated: self.designated,
+            calls: self.calls,
             invariants: self.invariants,
         })
     }

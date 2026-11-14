@@ -118,6 +118,14 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
                 expression(machine, element)?;
             }
         }
+        ExpressionKind::ByteSubslice { base, start, end } => {
+            for operand in std::iter::once(base.as_ref())
+                .chain(start.as_deref())
+                .chain(end.as_deref())
+            {
+                expression(machine, operand)?;
+            }
+        }
         ExpressionKind::Index { base, index } | ExpressionKind::ByteElement { base, index } => {
             expression(machine, base)?;
             expression(machine, index)?;

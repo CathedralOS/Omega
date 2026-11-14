@@ -931,6 +931,33 @@ pub mod compiler_evaluation {
         pub owner: crate::PackageKeyIdentity,
     }
 
+    /// Decide whether a declaration selection needs a package edge. The
+    /// caller still checks any returned request against its actual authority;
+    /// neither a source origin nor a recorded request proves that edge.
+    pub fn declaration_authority_request(
+        requester: DeclarationCustody,
+        owner: DeclarationCustody,
+    ) -> Result<Option<DeclarationAuthorityRequest>, &'static str> {
+        match (requester, owner) {
+            (DeclarationCustody::Missing, _) | (_, DeclarationCustody::Missing) => {
+                Err("build-time invocation lacks compiler-owned source/package provenance")
+            }
+            (DeclarationCustody::ToolchainContract, DeclarationCustody::Package(_))
+            | (DeclarationCustody::Package(_), DeclarationCustody::ToolchainContract) => {
+                Err("build-time invocation crosses closed-contract/package custody")
+            }
+            (DeclarationCustody::ToolchainContract, DeclarationCustody::ToolchainContract)
+            | (DeclarationCustody::Toolchain, _)
+            | (_, DeclarationCustody::Toolchain) => Ok(None),
+            (DeclarationCustody::Package(requester), DeclarationCustody::Package(owner)) => {
+                Ok(Some(DeclarationAuthorityRequest { requester, owner }))
+            }
+            (DeclarationCustody::UnownedUser, _) | (_, DeclarationCustody::UnownedUser) => {
+                Err("build-time invocation has user source without reconciled package custody")
+            }
+        }
+    }
+
     pub fn require_compiler_evaluation_floor(
         machine: &str,
         effects: &CompilerEvaluationEffects,

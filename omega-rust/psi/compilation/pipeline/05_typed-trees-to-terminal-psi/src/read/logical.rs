@@ -1321,6 +1321,11 @@ pub(crate) fn projected_arrival(
             call_context: None,
             kind: ExpressionKind::Call {
                 callee: callee.into(),
+                // This abstract callee already carries the authenticated public
+                // requirement. There is no source call or selected member whose
+                // separate contract must be substituted into this proof call.
+                required_contract: None,
+                source_call: None,
                 arguments,
                 designated: None,
             },

@@ -729,6 +729,61 @@ machine entry() -> u32 reaches none crashes none { chosen() }
 }
 
 #[test]
+fn named_selected_calls_keep_their_public_reach_ceiling() {
+    // A literal-returning implementation still contributes the public service
+    // ceiling at its selected call. Only the caller's written ceiling changes.
+    for (ceiling, accepts) in [("Service", true), ("none", false)] {
+        let typed = typed(&format!(
+            "boundary trait Service {{}}
+             trait Read {{ machine value() -> u32 reaches Service crashes none; }}
+             Named satisfies Read {{
+                 machine value() -> u32 reaches none crashes none {{ 7 }}
+             }}
+             machine entry() -> u32 reaches {ceiling} crashes none {{ Named::value() }}"
+        ));
+        let entry = entry(&typed);
+        let verdicts = crate::judge_compilation(
+            typed_trees_to_terminal_psi::prepare_compilation(
+                &typed,
+                typed_trees_to_terminal_psi::Compilation {
+                    declaration_metadata: &[],
+                    entries: &[entry],
+                    subjects: &[],
+                    purpose: source::DependencyScope::Product,
+                    selected: &[],
+                    bindings: &[],
+                    supplies: &[],
+                },
+                terminal_codec::TerminalPublication::Invocation,
+            )
+            .program,
+        );
+        if accepts {
+            let Ok(RouteVerdict::Accepted(accepted)) = &verdicts[0] else {
+                panic!("the written public ceiling covers the selected call: {verdicts:?}")
+            };
+            let module = &accepted.elaboration.module;
+            let call = module.machines[0].module_invocations().next().unwrap();
+            let contract = module
+                .invocation_machine_contract(call.inputs.callee, call.inputs.required_contract)
+                .unwrap();
+            assert!(call.inputs.required_contract.is_some());
+            assert_eq!(contract.published_service_ceiling.len(), 1);
+            assert_eq!(
+                module.machines[0].published_service_ceiling,
+                contract.published_service_ceiling
+            );
+        } else {
+            assert!(
+                matches!(&verdicts[0], Ok(RouteVerdict::Rejected { exceeded, .. })
+                    if !exceeded.is_empty()),
+                "{verdicts:?}"
+            );
+        }
+    }
+}
+
+#[test]
 fn a_declared_conformer_cannot_be_rebound_by_a_selection_row() {
     let text = declared_source("", "input - 1", "7", "")
         + r#"
@@ -1883,6 +1938,28 @@ fn generic_named_map_source_application_retains_actual_constructor_bindings() {
     let [left, right] = &calls[..] else {
         panic!("two explicit constructor applications")
     };
+    for call in [left, right] {
+        let operand = program
+            .static_operand_from_type_reference(call.requirement_application)
+            .unwrap();
+        let typed_trees::types::TypeReferenceNode::Generic { arguments, .. } = program
+            .type_reference_table
+            .type_reference(call.requirement_application)
+        else {
+            panic!("the source retains its complete map application")
+        };
+        let references = program
+            .type_reference_table
+            .type_reference_handles(*arguments);
+        let actual = &operand.application.as_ref().unwrap().arguments;
+        assert_eq!(actual.len(), references.len());
+        for (argument, reference) in actual.iter().zip(references) {
+            assert_eq!(
+                argument.type_reference, *reference,
+                "the same source payload survives conversion for every used or unused map argument"
+            );
+        }
+    }
     let expected_owner = program
         .named_conformance_capture_key(left)
         .unwrap()

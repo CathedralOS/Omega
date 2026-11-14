@@ -280,7 +280,13 @@ fn a_requirement_signature_retains_operational_promises_without_an_executable_bo
             .unwrap();
         let mut program = Program::new(&fixture.typed, false);
         let identity = program
-            .witnessed_signature(requirement, &[])
+            .witnessed(
+                fixture.owner,
+                fixture.requirement,
+                &[],
+                fixture.helper,
+                None,
+            )
             .expect("retain the signature for ordinary operational checking");
         assert_eq!(program.symbols.get(identity), Some(&requirement.symbol));
         let signature = program.signatures.get(identity).unwrap();

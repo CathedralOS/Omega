@@ -597,6 +597,8 @@ mod descriptor_storage_tests {
             &bodies,
             crate::body::Signatures {
                 machines: &signatures,
+                declarations: &IdTable::default(),
+                declaration_aliases: None,
                 boundaries: &boundaries,
                 completions: &completions,
             },

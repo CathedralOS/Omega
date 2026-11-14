@@ -931,6 +931,13 @@ The affine cleanup actions a terminator carries are a closed `u8` space:
 
 ## Machine rows
 
+Marker 264 additionally retains each selected invocation's public contract
+identity separately from its executable machine. Its declaration contract
+retains the exact closed conformance application; decoding checks that the
+call, public header and selected method describe that same application. The
+operational bounds and call acknowledgements introduced by marker 263 remain
+present. Earlier markers reject before payload decoding.
+
 Marker 263 retains each callable's declared suspension and blocking bounds as
 optional Boolean fields, followed by its published suspension and blocking
 flags. An omitted bound requests inference; a written bound fixes publication.

@@ -230,11 +230,7 @@ impl<'module> MachineEvidenceGoals<'module> {
             .flat_map(|block| &block.operations)
             .map(|operation| {
                 let goal = types.as_ref().and_then(|types| {
-                    let semantics =
-                        terminal_semantics::proof_bearing_scalar_leaf_semantics(operation, types)
-                            .ok()??;
-                    let proposition = semantics.canonical_goal().kernel_proposition().ok()?;
-                    Some((semantics.obligation(), proposition))
+                    terminal_semantics::operation_safety_goal(operation, types).ok()?
                 });
                 OperationEvidenceGoal {
                     operation: operation.id,
@@ -914,6 +910,113 @@ mod projection_tests {
         }
         let evidence = EvidenceSeals::for_module(&module, seals).unwrap();
         (module, evidence)
+    }
+
+    #[test]
+    fn byte_bounds_seals_belong_to_the_exact_operation_endpoints() {
+        use semantic_vocabulary::{PlaceId, StructuralTypeId};
+        use terminal_psi::{
+            StructuralAccess, StructuralArgument, StructuralMultiplicity, StructuralOperationResult,
+        };
+        let mut module = TerminalModule::for_entry(machine_id(1));
+        let mut body = crate::semantic_module::target_family_tests::unit_machine(machine_id(1));
+        let count = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+        let value = |raw| ValueId::new(raw).unwrap();
+        let operation = |raw| OperationId::new(raw).unwrap();
+        body.parameters = (1..=3)
+            .map(|raw| ValueDeclaration {
+                id: value(raw),
+                scalar_type: count,
+                qualifications: Default::default(),
+            })
+            .collect();
+        body.blocks[0].operations = vec![
+            Operation::unsuspended(
+                operation(1),
+                OperationResult::Scalar(ValueDeclaration {
+                    id: value(4),
+                    scalar_type: ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+                    ),
+                    qualifications: Default::default(),
+                }),
+                OperationKind::ByteSequenceRead {
+                    source: PlaceId::new(1).unwrap(),
+                    index: value(1),
+                    length: value(3),
+                    obligation: ObligationId::new(1).unwrap(),
+                },
+            ),
+            Operation::unsuspended(
+                operation(2),
+                OperationResult::Structural(StructuralOperationResult {
+                    place: PlaceId::new(2).unwrap(),
+                    structural_type: StructuralTypeId::new(1).unwrap(),
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    qualifications: vec![],
+                    projected_qualifications: vec![],
+                    additional_input_qualifications: vec![],
+                    qualification_establishments: vec![],
+                    claims: vec![],
+                }),
+                OperationKind::ByteSequenceSubslice {
+                    source: StructuralArgument {
+                        place: PlaceId::new(1).unwrap(),
+                        path: vec![],
+                        access: StructuralAccess::SharedBorrow,
+                    },
+                    start: value(1),
+                    end: value(2),
+                    length: value(3),
+                    obligation: ObligationId::new(2).unwrap(),
+                },
+            ),
+        ];
+        // This API checks goal correspondence. Descriptor formation and
+        // backing custody are the independent checker's separate obligations.
+        let goals = MachineEvidenceGoals::new(&body);
+        let seals = (1..=2)
+            .map(|raw| {
+                let (obligation, goal) = goals
+                    .operation(operation(raw))
+                    .unwrap()
+                    .goal
+                    .clone()
+                    .unwrap();
+                ObligationEvidenceSeal::seal(
+                    machine_id(1),
+                    obligation,
+                    goal.clone(),
+                    vec![goal.clone()],
+                    vec![],
+                    CertificateEnvelope {
+                        identity: EvidenceIdentity::new(raw).unwrap(),
+                        proof_system_marker: terminal_psi::ProofSystemMarker::CURRENT,
+                        proof: ProofNode {
+                            conclusion: goal,
+                            rule: ProofRule::Assumption { index: 0 },
+                        },
+                    },
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+        module.machines.push(body);
+        assert!(
+            EvidenceSealValidator::new(&module, &seals)
+                .validate_all()
+                .is_ok()
+        );
+        let OperationKind::ByteSequenceSubslice { end, .. } =
+            &mut module.machines[0].blocks[0].operations[1].kind
+        else {
+            unreachable!()
+        };
+        *end = value(3);
+        assert!(matches!(
+            EvidenceSealValidator::new(&module, &seals).validate_all(),
+            Err(EvidenceSealValidationError::SealMismatch { .. })
+        ));
     }
 
     #[test]
