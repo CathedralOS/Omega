@@ -739,6 +739,93 @@ pub(crate) mod analysis {
             self.replay.summary(identity, 0)?.result
         }
 
+        /// A call may change backing contents while returning the identical
+        /// descriptor. Compare the replayed value, including its projection,
+        /// on every normal return; this makes no claim about payload writes.
+        pub fn call_preserves_descriptor_storage(
+            &mut self,
+            caller: MachineId,
+            position: DescriptorPosition,
+            parameter: usize,
+            path: &[DescriptorPathSegment],
+        ) -> Result<bool, &'static str> {
+            let (callee, descriptor) = {
+                let machine = self
+                    .replay
+                    .machine(caller)
+                    .ok_or("descriptor preservation has no caller")?;
+                let Some(call) = machine.calls.get(&position) else {
+                    return Ok(false);
+                };
+                let Some(callee) = call.stored_effects_callee() else {
+                    return Ok(false);
+                };
+                let body = self
+                    .replay
+                    .machine(callee)
+                    .ok_or("descriptor preservation has no callee")?;
+                let root = exactly_one(body.places.iter(), |place| {
+                    matches!(place.definition,
+                    DescriptorDefinition::Parameter { position, .. } if position == parameter)
+                })
+                .ok_or("descriptor preservation has no unique parameter")?;
+                let root_type = *body
+                    .place_types
+                    .get(&root.place)
+                    .ok_or("descriptor parameter has no type")?;
+                let Some(selected) = descriptor_location_type(self.replay.types, root_type, path)
+                else {
+                    return Ok(false);
+                };
+                if !is_descriptor(self.replay.types.iter(), selected)
+                    || !self.replay.slot_kind.is_slot(self.replay.types, selected)
+                {
+                    return Ok(false);
+                }
+                (
+                    callee,
+                    DescriptorLocation {
+                        root: root.place,
+                        path: path.to_vec(),
+                    },
+                )
+            };
+            if self.replay.prepare_states(callee).is_none() {
+                return Ok(false);
+            }
+            let body = self
+                .replay
+                .machine(callee)
+                .ok_or("descriptor preservation owner disappeared")?;
+            let states = self
+                .replay
+                .snapshots
+                .get(&callee)
+                .and_then(Option::as_ref)
+                .ok_or("descriptor preservation snapshots disappeared")?;
+            let Some(entry) = states.get(&body.entry) else {
+                return Ok(false);
+            };
+            let Some(incoming) = self
+                .replay
+                .read(body, entry, &descriptor)
+                .filter(|value| !value.is_empty())
+            else {
+                return Ok(false);
+            };
+            let mut returns = false;
+            for exit in &body.normal_exits {
+                let Some(state) = states.get(exit) else {
+                    continue;
+                };
+                returns = true;
+                if self.replay.read(body, state, &descriptor).as_ref() != Some(&incoming) {
+                    return Ok(false);
+                }
+            }
+            Ok(returns)
+        }
+
         pub fn stored_effects(
             &mut self,
             identity: MachineId,

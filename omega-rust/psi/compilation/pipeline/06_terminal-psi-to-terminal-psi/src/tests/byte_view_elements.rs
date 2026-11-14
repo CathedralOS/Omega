@@ -445,7 +445,28 @@ fn mutable_byte_stores_preserve_the_descriptor_and_its_bound() {
         "machine build_entry(bytes: &mut [u8]) requires bytes.len > 0 { bytes[0] = 42; use(bytes[0], bytes.len); } machine use(value: u8, length: u64) {}",
         "machine prefix(bytes: &mut [u8]) -> u8 requires bytes.len > 1 { bytes[0] = 7; 42 } machine build_entry(bytes: &mut [u8]) requires bytes.len > 1 { bytes[1] = prefix(bytes); use(bytes[1]); } machine use(value: u8) {}",
     ] {
-        assert_eq!(verdict(program), "accepted", "{program}");
+        match judge_build(program) {
+            Ok(RouteVerdict::Accepted(_)) => {}
+            Ok(RouteVerdict::Rejected {
+                unproved,
+                unestablished,
+                conflicts,
+                ..
+            }) => {
+                panic!(
+                    "{program}: unproved={:?}; storage={:?}; conflicts={conflicts:?}",
+                    unproved
+                        .iter()
+                        .map(|row| (&row.kind, &row.detail, &row.statement))
+                        .collect::<Vec<_>>(),
+                    unestablished
+                        .iter()
+                        .map(|row| &row.detail)
+                        .collect::<Vec<_>>()
+                );
+            }
+            other => panic!("{program}: {other:?}"),
+        }
     }
 }
 
@@ -475,7 +496,7 @@ fn a_byte_store_cannot_claim_another_measurement_or_access() {
     use super::build_purpose::{frontier_of, package, roster, symbol};
     let typed = frontier_of(
         "machine product_entry() {}",
-        "machine build_entry(bytes: &mut [u8], other: &[u8]) requires bytes.len > 0 && other.len > 0 { bytes[0] = 42; }",
+        "machine build_entry(bytes: &mut [u8], other: &[u8]) requires bytes.len > 0 && other.len > 0 { let spare: [u8; 1] = [5]; bytes[0] = 42; }",
     );
     let entry = symbol(&typed, "build_entry");
     let elaborate = || {
@@ -490,8 +511,20 @@ fn a_byte_store_cannot_claim_another_measurement_or_access() {
         judge(Ok(elaborate())).unwrap(),
         RouteVerdict::Accepted(_)
     ));
-    for fault in 0..3 {
+    for fault in 0..4 {
         let mut changed = elaborate();
+        let array_type = changed
+            .module
+            .structural_types
+            .iter()
+            .find(|row| {
+                matches!(
+                    row.shape,
+                    terminal_psi::StructuralTypeShape::FixedArray { .. }
+                )
+            })
+            .unwrap()
+            .id;
         let machine = changed
             .module
             .machines
@@ -536,6 +569,30 @@ fn a_byte_store_cannot_claim_another_measurement_or_access() {
                 };
                 *value = *length;
             }
+            3 => {
+                let array = machine
+                    .structural_places
+                    .iter()
+                    .find(|place| {
+                        matches!(place.kind,
+                    semantic_vocabulary::StructuralPlaceKind::OperationResult { structural_type, .. }
+                        if structural_type == array_type)
+                    })
+                    .unwrap()
+                    .id;
+                let measurement = machine
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|block| &mut block.operations)
+                    .find(|operation| {
+                        matches!(operation.kind, OperationKind::ByteSequenceLength { .. })
+                    })
+                    .unwrap();
+                let OperationKind::ByteSequenceLength { source } = &mut measurement.kind else {
+                    unreachable!()
+                };
+                source.place = array;
+            }
             _ => unreachable!(),
         }
         assert!(
@@ -543,4 +600,39 @@ fn a_byte_store_cannot_claim_another_measurement_or_access() {
             "fault {fault} accepted"
         );
     }
+}
+
+#[test]
+fn a_shared_reference_kept_across_a_byte_store_prevents_the_write() {
+    let before = "machine build_entry(bytes: &mut [u8]) requires bytes.len > 0 { let observed: & &mut [u8] = &bytes; observe(observed); bytes[0] = 42; } machine observe(value: & &mut [u8]) {}";
+    assert_eq!(verdict(before), "accepted");
+    let across = "machine build_entry(bytes: &mut [u8]) requires bytes.len > 0 { let observed: & &mut [u8] = &bytes; bytes[0] = 42; observe(observed); } machine observe(value: & &mut [u8]) {}";
+    let actual = verdict(across);
+    assert!(actual.starts_with("rejected"), "{actual}");
+}
+
+#[test]
+fn byte_store_array_backing_program_is_checked_without_changing_its_operations() {
+    let program = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../../../../tests/fixtures/run/views/byte_view_store/main.omg"
+    ))
+    .replace("machine main()", "machine build_entry()");
+    assert_eq!(verdict(&program), "accepted");
+    let out_of_bounds = program.replace("put(&mut bytes, 1, 73)", "put(&mut bytes, 3, 73)");
+    assert_ne!(out_of_bounds, program);
+    assert_eq!(verdict(&out_of_bounds), "rejected");
+}
+
+#[test]
+fn replacing_a_stored_view_does_not_preserve_its_previous_extent() {
+    let program = r#"
+        data Holder<'a> { bytes: &'a [u8]; }
+        machine replace<'a>(holder: &mut Holder<'a>) { holder.bytes = ""; }
+        machine build_entry<'a>(holder: &mut Holder<'a>) requires holder.bytes.len > 0 {
+            replace(holder);
+            let selected: &[u8] = holder.bytes[0..1];
+        }
+    "#;
+    assert_eq!(verdict(program), "rejected");
 }
