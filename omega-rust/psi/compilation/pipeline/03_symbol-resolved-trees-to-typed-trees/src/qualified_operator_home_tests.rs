@@ -83,6 +83,53 @@ const DOMAIN: &str = "module units; public domain u32::Distance;";
 const OPERATOR: &str = "public machine + Distance::add(left: u32 in Distance, right: u32 in Distance) -> u32 in Distance { ((left as -Distance) +% (right as -Distance)) as +Distance }";
 
 #[test]
+fn selected_operator_is_an_ordinary_call_with_its_exact_source_choice() {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
+    };
+    use typed_trees::expression::ExpressionNode;
+    let declaration = format!("use units; {OPERATOR}");
+    let program = typed(&[
+        ("units.omg", DOMAIN),
+        ("operator.omg", &declaration),
+        (
+            "client.omg",
+            "use units; machine original(value: u32 in Distance) -> u32 in Distance { value } machine sum(left: u32 in Distance, right: u32 in Distance) -> u32 in Distance { original(left) + right }",
+        ),
+    ]);
+    let target = program.machine_token_bindings()[0].symbol;
+    let calls = program
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(_, expression)| match expression {
+            ExpressionNode::Call(call) if call.target_symbol == target => Some(call),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let [call] = calls.as_slice() else {
+        panic!("one selected operator call: {calls:?}");
+    };
+    let selection = program
+        .authored_declaration_selections()
+        .get(call.authored_call_selection.unwrap())
+        .unwrap();
+    assert_eq!(selection.kind(), AuthoredDeclarationSelectionKind::Operator);
+    assert!(
+        matches!(selection.target(), AuthoredDeclarationSelectionTarget::Resolved(selected) if selected.selected_symbol() == target)
+    );
+    let [left, right] = program.expression_table.expression_handles(call.arguments) else {
+        panic!("two ordered operands");
+    };
+    assert!(
+        matches!(program.expression_table.expression(*left), ExpressionNode::Call(inner) if inner.target.as_str() == "original")
+    );
+    assert!(matches!(
+        program.expression_table.expression(*right),
+        ExpressionNode::Name(_)
+    ));
+}
+
+#[test]
 fn imported_domain_operator_keeps_its_exact_home_and_lexical_module() {
     let program = typed(&[
         (
@@ -99,6 +146,30 @@ fn imported_domain_operator_keeps_its_exact_home_and_lexical_module() {
     assert_eq!(binding.home_domain, domain.symbol);
     assert!(!program.symbols.symbol_module(binding.symbol).is_valid());
     assert!(domain.semantic_roles.denotation_dimension.is_none());
+}
+
+#[test]
+fn an_enclosing_domain_cast_reads_the_selected_operators_declared_return() {
+    use typed_trees::expression::ExpressionNode;
+    let declaration = format!("use units; {OPERATOR}");
+    let program = typed(&[
+        ("units.omg", DOMAIN),
+        ("operator.omg", &declaration),
+        (
+            "client.omg",
+            "use units; machine sum(left: u32 in Distance, right: u32 in Distance) -> u32 { (left + right) as -Distance }",
+        ),
+    ]);
+    assert!(
+        program.deferred_refusals.is_empty(),
+        "{:?}",
+        program.deferred_refusals
+    );
+    let target = program.machine_token_bindings()[0].symbol;
+    assert!(program.expression_table.iter_expressions().any(|(_, node)| {
+        matches!(node, ExpressionNode::Cast(cast) if cast.result_type.is_valid()
+            && matches!(program.expression_table.expression(cast.value), ExpressionNode::Call(call) if call.target_symbol == target))
+    }));
 }
 
 #[test]
