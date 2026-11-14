@@ -254,19 +254,19 @@ impl AcceptedClosure {
     /// belongs to the codec; no intermediate source-side carrier is published.
     pub fn publish(&self) -> Result<RoutePublication, PublicationError> {
         self.validate_publication()?;
-        let module = self.elaboration.module.clone();
-        let identity =
-            terminal_codec::terminal_psi_identity(&module).map_err(PublicationError::Seals)?;
+        let module = terminal_codec::ClosedTerminalModule::new(self.elaboration.module.clone())
+            .map_err(PublicationError::Seals)?;
+        let identity = module.identity();
         let record = terminal_codec::PsiOptimizationExecutionRecord::new(
             optimization::PsiOptimizationSelections::default(),
             identity,
             identity,
         )
         .map_err(|error| PublicationError::Semantic(format!("{error:?}")))?;
-        let seals = terminal_codec::EvidenceSeals::for_module(&module, self.seals.clone())
-            .map_err(PublicationError::Seals)?;
-        let artifact = terminal_codec::CanonicalTerminalArtifact::from_parts(module, record, None)
-            .map_err(PublicationError::Artifact)?;
+        let seals = terminal_codec::EvidenceSeals::for_closed_module(&module, self.seals.clone());
+        let artifact =
+            terminal_codec::CanonicalTerminalArtifact::from_closed_parts(module, record, None)
+                .map_err(PublicationError::Artifact)?;
         Ok(RoutePublication { artifact, seals })
     }
 
@@ -276,11 +276,11 @@ impl AcceptedClosure {
         &self,
     ) -> Result<RoutePublication<terminal_codec::InvocationTerminalCode>, PublicationError> {
         self.validate_publication()?;
-        let module = self.elaboration.module.clone();
-        let seals = terminal_codec::EvidenceSeals::for_module(&module, self.seals.clone())
+        let module = terminal_codec::ClosedTerminalModule::new(self.elaboration.module.clone())
             .map_err(PublicationError::Seals)?;
-        let artifact =
-            terminal_codec::InvocationTerminalCode::new(module).map_err(PublicationError::Seals)?;
+        let seals = terminal_codec::EvidenceSeals::for_closed_module(&module, self.seals.clone());
+        let artifact = terminal_codec::InvocationTerminalCode::from_closed_module(module)
+            .map_err(PublicationError::Seals)?;
         Ok(RoutePublication { artifact, seals })
     }
 
@@ -787,6 +787,7 @@ fn conflict_statement(
 /// one, as the source does.
 fn describe_kind(kind: ObligationKind) -> String {
     match kind {
+        ObligationKind::IntegerWidthPositive { .. } => String::from("positive integer width"),
         ObligationKind::OperationSafety { .. } => String::from("operation safety"),
         ObligationKind::CallRequirement { clause, .. } => {
             format!(

@@ -316,3 +316,129 @@ fn a_subslice_cannot_claim_another_measurement_or_mutable_access() {
         );
     }
 }
+
+#[test]
+fn fixed_byte_arrays_can_supply_borrowed_view_parameters() {
+    for access in ["&", "&mut"] {
+        let program = format!(
+            r#"
+            machine count(bytes: {access} [u8]) -> u64 {{ bytes.len }}
+            machine middle(bytes: {access} [u8]) -> u8 {{
+                transition bytes.len > 1 {{ true -> bytes[1] false -> 0 }}
+            }}
+            machine build_entry() {{
+                let mut bytes: [u8; 3] = [17, 42, 99];
+                use(count({access} bytes), middle({access} bytes));
+                use_byte(bytes[0]);
+            }}
+            machine use(extent: u64, middle: u8) {{}}
+            machine use_byte(byte: u8) {{}}
+        "#
+        );
+        assert_eq!(verdict(&program), "accepted", "{program}");
+    }
+}
+
+#[test]
+fn an_array_loan_keeps_its_element_type_and_requested_access() {
+    assert_eq!(
+        verdict(
+            r#"machine count(bytes: &mut &mut [u8]) -> u64 { bytes.len }
+            machine build_entry() {
+                let mut bytes: [u8; 3] = [17, 42, 99]; use(count(&mut bytes));
+            }
+            machine use(extent: u64) {}"#
+        ),
+        "typing argument types"
+    );
+    assert_eq!(
+        verdict(
+            r#"
+        machine count(bytes: &mut [u8]) -> u64 { bytes.len }
+        machine build_entry() {
+            let mut bytes: [u8; 0] = [];
+            use(count(&mut bytes));
+        }
+        machine use(extent: u64) {}
+    "#
+        ),
+        "typing argument types"
+    );
+    assert_eq!(
+        verdict(
+            r#"
+        machine count(bytes: &[u8]) -> u64 { bytes.len }
+        machine build_entry() {
+            let bytes: [u8; 3] = [17, 42, 99];
+            use(count(bytes));
+        }
+        machine use(extent: u64) {}
+    "#
+        ),
+        "call argument for a borrowed formal that is not a borrow"
+    );
+    assert_eq!(
+        verdict(
+            r#"
+        machine count(bytes: &mut [u8]) -> u64 { bytes.len }
+        machine build_entry() {
+            let mut bytes: [u8; 3] = [17, 42, 99];
+            use(count(&bytes));
+        }
+        machine use(extent: u64) {}
+    "#
+        ),
+        "rejected"
+    );
+    assert_eq!(
+        verdict(
+            r#"
+        machine count(bytes: &mut [u8]) -> u64 { bytes.len }
+        machine build_entry() {
+            let mut words: [u16; 3] = [17, 42, 99];
+            use(count(&mut words));
+        }
+        machine use(extent: u64) {}
+    "#
+        ),
+        "typing argument types"
+    );
+}
+
+#[test]
+fn an_empty_byte_window_requires_existing_array_backing() {
+    let mut accepted = match judge_build(
+        "machine build_entry() { let bytes: [u8; 3] = [17, 42, 99]; use(&bytes); } \
+         machine use(bytes: &[u8]) {}",
+    )
+    .unwrap()
+    {
+        RouteVerdict::Accepted(accepted) => accepted,
+        other => panic!("{other:?}"),
+    };
+    let types = &mut accepted.elaboration.module.structural_types;
+    let array = types
+        .iter()
+        .find(|row| {
+            matches!(
+                row.shape,
+                terminal_psi::StructuralTypeShape::FixedArray { .. }
+            )
+        })
+        .unwrap()
+        .id;
+    let empty = [terminal_psi::StructuralPathSegment::FixedRange { start: 3, end: 3 }];
+    assert_eq!(
+        terminal_semantics::fixed_byte_storage_window(types.iter(), array, &empty)
+            .unwrap()
+            .length,
+        0
+    );
+    let declaration = types.iter_mut().find(|row| row.id == array).unwrap();
+    let terminal_psi::StructuralTypeShape::FixedArray { length, .. } = &mut declaration.shape
+    else {
+        unreachable!()
+    };
+    *length = terminal_psi::ArrayExtent::Literal(0);
+    assert!(terminal_semantics::fixed_byte_storage_window(types.iter(), array, &[]).is_none());
+}

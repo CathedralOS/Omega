@@ -2855,7 +2855,7 @@ pub(crate) mod literal_compare_input {
         LegalizedScalarBlock, LegalizedScalarComparison, LegalizedScalarInstruction,
         LegalizedScalarInstructionKind,
     };
-    use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
+    use semantic_vocabulary::{IntegerSign, IntegerValue};
 
     fn folded_literal<'a>(
         function: &crate::native_geometry::NativeFunction<'_>,
@@ -2872,8 +2872,8 @@ pub(crate) mod literal_compare_input {
         };
         let value = u64::try_from(value).ok()?;
         if !matches!(
-            definition.scalar_type,
-            ScalarType::Integer(integer)
+            function.closed_scalar(definition.scalar_type),
+            Some(semantic_vocabulary::ClosedScalarType::Integer(integer))
                 if integer.sign() == IntegerSign::Unsigned && integer.bits() == 64
         ) || !immediates.contains(&value)
         {
@@ -2972,7 +2972,7 @@ pub(crate) mod native_code_layout_input {
         let StructuralFieldType::Scalar(address) = fields[0].field_type else {
             return false;
         };
-        if !matches!(address, semantic_vocabulary::ScalarType::Integer(ty) if ty.is_address() && ty.bits() == 64)
+        if !matches!(source.closed_scalar(address), Some(semantic_vocabulary::ClosedScalarType::Integer(ty)) if ty.is_address() && ty.bits() == 64)
             || geometry::field_read(result.structural_type, &[], fields[0].id, address, types)
                 != Some((0, 8))
         {
@@ -3028,7 +3028,7 @@ pub(crate) mod native_code_layout_input {
             return false;
         };
         base == address
-            && matches!(length, semantic_vocabulary::ScalarType::Integer(ty) if !ty.is_address() && ty.bits() == 64 && ty.sign() == semantic_vocabulary::IntegerSign::Unsigned)
+            && matches!(source.closed_scalar(length), Some(semantic_vocabulary::ClosedScalarType::Integer(ty)) if !ty.is_address() && ty.bits() == 64 && ty.sign() == semantic_vocabulary::IntegerSign::Unsigned)
             && geometry::field_read(element, &[], region[0].id, base, types) == Some((0, 8))
             && geometry::field_read(element, &[], region[1].id, length, types) == Some((8, 8))
     }

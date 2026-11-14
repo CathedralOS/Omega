@@ -632,3 +632,53 @@ fn the_default_product_publishes_generic_named_map_captures() {
         .unwrap();
     });
 }
+
+/// Ordinary Build preparation must publish the closed applications after the
+/// original width-polymorphic body has been judged independently.
+#[test]
+fn the_default_product_publishes_width_parameter_identity() {
+    let _guard = FIXTURE_COMPILATIONS.lock().unwrap();
+    std::thread::scope(|scope| {
+        compiler::checked::spawn_compile_worker(scope, || {
+            let main = repository("tests/fixtures/run/generics/width_parameter_identity/main.omg");
+            let checked = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+            )
+            .result
+            .unwrap_or_else(|failure| panic!("width source: {:?}", failure.into_diagnostics()));
+            let accepted = checked.terminal_publication().accepted().unwrap();
+            assert!(accepted.closure().elaboration.generic_binders.is_empty());
+            let publication = accepted.closure().publish().unwrap();
+            assert_eq!(publication.artifact.semantic_module(), accepted.module());
+            let (_, application) = compiler::prepare_program_entry(&checked).unwrap();
+            assert_eq!(
+                application
+                    .receipt
+                    .unwrap()
+                    .unwrap()
+                    .terminal_psi_identity(),
+                publication.artifact.manifest().semantic()
+            );
+            let main = repository(
+                "tests/fixtures/fail/generics/width_parameter_identity_wrong_body/main.omg",
+            );
+            let failure = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+            )
+            .result
+            .expect_err("the identity body cannot justify an unequal result guarantee");
+            let diagnostics = failure.into_diagnostics();
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains("cannot prove ensures contract")),
+                "{diagnostics:#?}"
+            );
+        })
+        .unwrap()
+        .join()
+        .unwrap();
+    });
+}

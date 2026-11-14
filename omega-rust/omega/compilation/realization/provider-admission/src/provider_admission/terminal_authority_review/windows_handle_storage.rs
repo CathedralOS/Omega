@@ -110,7 +110,7 @@ impl CapturedHandleSequence {
         index: Option<u64>,
     ) -> Result<HandleScalarSelection, String> {
         if !matches!(expected, ScalarType::Integer(integer)
-            if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8)
+            if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == Some(8))
         {
             return Err("handle byte read changes its original scalar codec".into());
         }
@@ -844,7 +844,7 @@ impl<'a> HandleStorageGeometry<'a> {
             let byte_element = terminal_psi::find_structural_type(&self.module.structural_types, element)
                 .is_some_and(|declaration| matches!(declaration.shape,
                     StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
-                    if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8));
+                    if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == Some(8)));
             if source.element != Some(element) && !(source.element.is_none() && byte_element) {
                 return Err("handle view changes its original collection element without a representation operation".into());
             }
@@ -885,7 +885,7 @@ impl<'a> HandleStorageGeometry<'a> {
             StructuralTypeShape::ByteSequence(carrier) => {
                 if source.stride != 1 || source.element.is_some_and(|element|
                     !matches!(self.primitive_scalar(element), Some(ScalarType::Integer(integer))
-                        if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8)) {
+                        if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == Some(8))) {
                     return Err("handle byte descriptor changes its captured element representation".into());
                 }
                 if let terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } = carrier {

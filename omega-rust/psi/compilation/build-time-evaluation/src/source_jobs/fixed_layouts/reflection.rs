@@ -87,7 +87,7 @@ fn field_geometry(
     if let Some(primitive) = typed.primitive_type_reference(reference) {
         let (byte_size, byte_alignment) = match primitive {
             PrimitiveType::Integer(carrier) => {
-                let integer = semantic_vocabulary::IntegerType::from_fixed(carrier)
+                let integer = semantic_vocabulary::ClosedIntegerType::from_fixed(carrier)
                     .ok_or("layout field integer has no supported native carrier")?;
                 return Ok(layout_plans::field_integer_geometry(integer));
             }

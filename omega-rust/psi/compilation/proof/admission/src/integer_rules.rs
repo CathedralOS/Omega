@@ -442,7 +442,7 @@ pub(crate) mod fixed_integer {
     use semantic_vocabulary::{IntegerType, IntegerValue, ScalarTerm};
 
     pub(crate) fn fixed_native(integer_type: IntegerType) -> bool {
-        !integer_type.is_address() && matches!(integer_type.bits(), 8 | 16 | 32 | 64)
+        !integer_type.is_address() && matches!(integer_type.bits(), Some(8 | 16 | 32 | 64))
     }
 
     pub(crate) fn fixed_native_interval(integer_type: IntegerType) -> Option<(i128, i128)> {
@@ -450,8 +450,8 @@ pub(crate) mod fixed_integer {
             return None;
         }
         Some((
-            integer_value_as_i128(integer_type.minimum_value())?,
-            integer_value_as_i128(integer_type.maximum_value())?,
+            integer_value_as_i128(integer_type.minimum_value()?)?,
+            integer_value_as_i128(integer_type.maximum_value()?)?,
         ))
     }
 
@@ -1624,12 +1624,14 @@ pub(crate) mod integer_forbidden_root {
         }
         let integer_type = checked.integer_type;
         let minimum_plus_one = match integer_type.minimum_value() {
-            IntegerValue::Signed(minimum) => IntegerValue::Signed(
+            Some(IntegerValue::Signed(minimum)) => IntegerValue::Signed(
                 minimum
                     .checked_add(1)
                     .expect("fixed signed minimum has a successor"),
             ),
-            IntegerValue::Unsigned(_) => unreachable!("checked correlated roots are signed"),
+            Some(IntegerValue::Unsigned(_)) | None => {
+                unreachable!("checked correlated roots are signed and of a native width")
+            }
         };
         let integer = |value| {
             ScalarTerm::integer(integer_type, value)
@@ -2514,11 +2516,16 @@ pub(crate) mod integer_shift {
                 count_type,
                 count_term,
             )?;
-            if count >= u128::from(value_type.bits()) {
+            let Some(width) = value_type.bits() else {
+                return Err(IntegerShiftChainWitnessError::UnsupportedValueCarrier(
+                    value_type,
+                ));
+            };
+            if count >= u128::from(width) {
                 return Err(IntegerShiftChainWitnessError::CountOutsideValueWidth {
                     index,
                     count,
-                    width: value_type.bits(),
+                    width,
                 });
             }
             if values.contains(next) {
@@ -3452,7 +3459,10 @@ pub(crate) mod wrapping_equality {
         let Some(right) = project(right, carrier, &mut remaining, 0)? else {
             return Ok(false);
         };
-        open_terms::equal_modulo(&left, &right, carrier.bits())
+        let Some(bits) = carrier.bits() else {
+            return Ok(false);
+        };
+        open_terms::equal_modulo(&left, &right, bits)
     }
 
     fn project(

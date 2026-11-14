@@ -4117,7 +4117,7 @@ pub(crate) mod value_image {
                         &mut layout,
                         LayoutPlacementReport::IntegerAt {
                             offset: *byte_offset,
-                            stored_width: u64::from(integer.bits()),
+                            stored_width: u64::from(execution.closed_integer(*integer)?.bits()),
                             interpretation: match integer.sign() {
                                 IntegerSign::Signed => IntegerInterpretation::Signed,
                                 IntegerSign::Unsigned => IntegerInterpretation::Unsigned,

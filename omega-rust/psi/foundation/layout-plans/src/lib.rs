@@ -58,7 +58,7 @@ macro_rules! numbered_variant {
 }
 
 mod aggregate_geometry {
-    use semantic_vocabulary::IntegerType;
+    use semantic_vocabulary::ClosedIntegerType;
 
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub struct StorageGeometry {
@@ -69,15 +69,15 @@ mod aggregate_geometry {
     // Schema reflection and native placement must report the same chosen
     // integer storage. These are the current default realizations, not a
     // language promise about the alignment of every representation.
-    pub fn standalone_integer_geometry(integer: IntegerType) -> StorageGeometry {
+    pub fn standalone_integer_geometry(integer: ClosedIntegerType) -> StorageGeometry {
         integer_geometry(integer, 8)
     }
 
-    pub fn field_integer_geometry(integer: IntegerType) -> StorageGeometry {
+    pub fn field_integer_geometry(integer: ClosedIntegerType) -> StorageGeometry {
         integer_geometry(integer, 16)
     }
 
-    fn integer_geometry(integer: IntegerType, alignment_cap: u16) -> StorageGeometry {
+    fn integer_geometry(integer: ClosedIntegerType, alignment_cap: u16) -> StorageGeometry {
         let bytes = integer.bits().div_ceil(8);
         StorageGeometry {
             byte_size: u64::from(bytes),

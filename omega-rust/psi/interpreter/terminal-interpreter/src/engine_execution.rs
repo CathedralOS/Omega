@@ -810,7 +810,7 @@ pub(crate) mod capabilities {
             let identity = terminal_codec::terminal_psi_identity(&module).unwrap();
             let mut program = AdmittedTerminalProgram {
                 identity: terminal_codec::TerminalExecutionIdentity::portable(identity),
-                catalogs: std::sync::Arc::new(crate::embedding::program::ProgramStorage::Owned(
+                catalogs: std::sync::Arc::new(crate::embedding::program::ProgramStorage::Fixture(
                     module,
                 )),
                 target_layouts: None,
@@ -2124,6 +2124,46 @@ pub(crate) mod execution {
                 self.current,
                 self.values.iter().take(128).collect::<Vec<_>>(),
             );
+        }
+
+        /// Runtime geometry uses the descriptors retained by this execution's publication.
+        pub(crate) fn closed_scalar(
+            &self,
+            scalar: semantic_vocabulary::ScalarType,
+        ) -> Result<semantic_vocabulary::ClosedScalarType, TerminalInterpretError> {
+            #[cfg(test)]
+            if matches!(
+                self.program.catalogs.as_ref(),
+                crate::embedding::program::ProgramStorage::Fixture(_)
+            ) {
+                // Unsealed engine fixtures have no publication owner and never
+                // enter production. They still must use a concrete descriptor.
+                return semantic_vocabulary::ClosedScalarType::try_from(scalar)
+                    .map_err(|_| crate::boundary::errors::malformed());
+            }
+            self.program
+                .catalogs
+                .closed_module()?
+                .closed_types()
+                .scalar(scalar)
+                .map_err(
+                    |cause| TerminalInterpretError::ScalarDescriptorNotRetained {
+                        scalar_type: scalar,
+                        cause,
+                    },
+                )
+        }
+
+        pub(crate) fn closed_integer(
+            &self,
+            integer: semantic_vocabulary::IntegerType,
+        ) -> Result<semantic_vocabulary::ClosedIntegerType, TerminalInterpretError> {
+            let semantic_vocabulary::ClosedScalarType::Integer(integer) =
+                self.closed_scalar(semantic_vocabulary::ScalarType::Integer(integer))?
+            else {
+                return Err(crate::boundary::errors::malformed());
+            };
+            Ok(integer)
         }
 
         pub(crate) fn structural_types(

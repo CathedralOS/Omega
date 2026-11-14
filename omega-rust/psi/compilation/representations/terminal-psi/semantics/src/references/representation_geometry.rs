@@ -20,7 +20,7 @@ pub fn reference_view_offset_is_zero(
     };
     result.id == value
         && matches!(result.scalar_type, ScalarType::Integer(integer)
-            if !integer.is_address() && integer.bits() == 64
+            if !integer.is_address() && integer.bits() == Some(64)
                 && integer.sign() == semantic_vocabulary::IntegerSign::Unsigned)
         && matches!(
             operation.kind,

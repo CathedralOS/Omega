@@ -190,15 +190,19 @@ pub(crate) mod compiler_evaluation {
                     count,
                     ..
                 } => {
-                    if let Some((_, count)) = count.integer_value()
-                        && value_type
-                            .exact_shift_right(value_type.minimum_value(), *count_type, count)
+                    if let Some((_, count)) = count.integer_value() {
+                        let minimum = value_type.minimum_value().ok_or(
+                            "the checked crash guard exact-shift count requires a concrete integer width",
+                        )?;
+                        if value_type
+                            .exact_shift_right(minimum, *count_type, count)
                             .is_none()
-                    {
-                        return Err(
-                            "the checked crash guard contains an undefined exact-shift count"
-                                .into(),
-                        );
+                        {
+                            return Err(
+                                "the checked crash guard contains an undefined exact-shift count"
+                                    .into(),
+                            );
+                        }
                     }
                 }
                 _ => (),
@@ -311,6 +315,36 @@ pub(crate) mod compiler_evaluation {
 
             fn integer(value: u128) -> ScalarTerm {
                 ScalarTerm::integer(integer_type(), IntegerValue::Unsigned(value)).unwrap()
+            }
+
+            #[test]
+            fn exact_shift_formation_requires_a_concrete_width_and_valid_count() {
+                let parameter = semantic_vocabulary::WidthParameter {
+                    owner: semantic_vocabulary::MachineId::new(1).unwrap(),
+                    value: ValueId::new(2).unwrap(),
+                };
+                let shift = |value_type, count| ScalarTerm::ExactIntegerShiftRight {
+                    value_type,
+                    count_type: integer_type(),
+                    value: Box::new(ScalarTerm::value(
+                        ValueId::FIRST,
+                        ScalarType::Integer(value_type),
+                    )),
+                    count: Box::new(integer(count)),
+                };
+                let symbolic = IntegerType::parameterized(IntegerSign::Unsigned, parameter);
+                assert!(
+                    require_formed_scalar(&shift(symbolic, 0))
+                        .unwrap_err()
+                        .contains("requires a concrete integer width")
+                );
+                let closed = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+                assert_eq!(require_formed_scalar(&shift(closed, 7)), Ok(false));
+                assert!(
+                    require_formed_scalar(&shift(closed, 8))
+                        .unwrap_err()
+                        .contains("undefined exact-shift count")
+                );
             }
 
             fn route(cause: CrashCause, guard: Proposition) -> CrashRouteBucket {

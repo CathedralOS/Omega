@@ -412,7 +412,7 @@ fn original_windows_import<'a>(
 
 fn integer_matches(scalar: ScalarType, sign: IntegerSign, bits: u16) -> bool {
     matches!(scalar, ScalarType::Integer(integer)
-        if !integer.is_address() && integer.sign() == sign && integer.bits() == bits)
+        if !integer.is_address() && integer.sign() == sign && integer.bits() == Some(bits))
 }
 
 fn matches_declaration(

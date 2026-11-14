@@ -333,12 +333,8 @@ fn fetch_published_head(main_root: &Path, head: &str) -> Result<(), String> {
             continue;
         };
         let refspec = format!("+refs/heads/{branch}:refs/remotes/origin/{branch}");
-        let fetched = crate::repository::with_git_fetch_lock(main_root, || {
-            Command::new("git")
-                .args(["fetch", "--no-tags", "origin", &refspec])
-                .current_dir(main_root)
-                .stdin(Stdio::null())
-                .output()
+        let fetched = crate::repository::with_git_fetch(main_root, |command| {
+            command.args(["--no-tags", "origin", &refspec]).output()
         })
         .map_err(|error| format!("cannot retain published worktree branch `{branch}`: {error}"))?;
         return if fetched.status.success() {
@@ -681,12 +677,8 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 return Err(2);
             }
             let _ = fs::create_dir_all(&wt_base);
-            let _ = crate::repository::with_git_fetch_lock(&main_root, || {
-                Command::new("git")
-                    .args(["fetch", "origin", "main"])
-                    .current_dir(&main_root)
-                    .stdin(Stdio::null())
-                    .status()
+            let _ = crate::repository::with_git_fetch(&main_root, |command| {
+                command.args(["origin", "main"]).status()
             });
 
             let _pool = lock_pool(&main_root).map_err(report_error)?;
@@ -815,12 +807,8 @@ pub fn run(args: &[String]) -> Result<(), u8> {
         }
         "release" => {
             let target_name = args.get(1).cloned().unwrap_or_else(|| current_name.clone());
-            let _ = crate::repository::with_git_fetch_lock(&main_root, || {
-                Command::new("git")
-                    .args(["fetch", "origin", "main"])
-                    .current_dir(&main_root)
-                    .stdin(Stdio::null())
-                    .status()
+            let _ = crate::repository::with_git_fetch(&main_root, |command| {
+                command.args(["origin", "main"]).status()
             });
             // Network access stays outside the pool lock. The locked check below
             // rereads the slot and still refuses any dirty, locked or unsaved work.

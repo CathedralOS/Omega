@@ -195,7 +195,7 @@ pub(crate) mod call_composition {
                     matches!(element.shape,
                         StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
                             if integer.sign() == IntegerSign::Unsigned
-                                && integer.bits() == 8 && !integer.is_address())
+                                && integer.bits() == Some(8) && !integer.is_address())
                     .then_some(length)
                 }
                 _ => None,
@@ -267,6 +267,17 @@ pub(crate) mod call_composition {
         ) -> Option<FixedCollectionWindow<'path>> {
             let window = fixed_collection_storage_window(types.clone(), root, path)?;
             let backing = runtime_structural_path_tip(types.clone(), root, window.backing_path)?;
+            // An empty range can borrow existing backing, but an erased empty
+            // array has no backing to lend (byte_views.md, fixed-array loans).
+            if matches!(
+                backing.shape,
+                StructuralTypeShape::FixedArray {
+                    length: terminal_psi::ArrayExtent::Literal(0),
+                    ..
+                }
+            ) {
+                return None;
+            }
             (fixed_byte_extent(types, backing.id)? == window.backing_length).then_some(window)
         }
 

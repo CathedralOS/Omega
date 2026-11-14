@@ -98,3 +98,47 @@ fn explicit_audit_root_still_works_outside_a_checkout() {
         invocation.0.canonicalize().unwrap()
     );
 }
+
+/// CLI errors and help are local even when a workspace has no Git registry.
+/// A consumed help-looking value must still form the ordinary valid request.
+#[test]
+fn claims_preflight_does_not_read_git_metadata() {
+    let invocation = Invocation::new(true);
+    let cases: &[(&[&str], i32, bool)] = &[
+        (&["release", "--help"], 0, false),
+        (&["claim", "--help"], 0, false),
+        (&["note", "-h"], 0, false),
+        (&["release"], 2, false),
+        (&["note", "--ticket", "t"], 2, false),
+        (&["claim"], 2, false),
+        (&["unknown"], 2, false),
+        (&["status", "--unknown"], 2, false),
+        (&["claim", "--item", "t", "--owner"], 2, false),
+        (&["note", "--ticket", "t", "--text", "--help"], 1, true),
+    ];
+    for (index, (arguments, expected, reads_git)) in cases.iter().enumerate() {
+        let trace = invocation.0.join(format!("claims-{index}.jsonl"));
+        let output = Command::new(env!("CARGO_BIN_EXE_xtask"))
+            .arg("claims")
+            .args(*arguments)
+            .current_dir(invocation.0.join("nested"))
+            .env("GIT_TRACE2_EVENT", &trace)
+            .env("GIT_CEILING_DIRECTORIES", &invocation.0)
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE")
+            .stdin(std::process::Stdio::null())
+            .output()
+            .unwrap();
+        assert_eq!(
+            output.status.code(),
+            Some(*expected),
+            "claims {arguments:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(
+            trace.exists(),
+            *reads_git,
+            "claims {arguments:?} read Git metadata"
+        );
+    }
+}

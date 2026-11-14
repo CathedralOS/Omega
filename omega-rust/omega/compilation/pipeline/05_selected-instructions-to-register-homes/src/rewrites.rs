@@ -1095,7 +1095,7 @@ pub(crate) mod fixed_occurrences {
         let payload = match register.scalar_type {
             ScalarType::Boolean => true,
             ScalarType::Integer(integer) => {
-                matches!(integer.bits(), 8 | 16 | 32 | 64)
+                matches!(integer.bits(), Some(8 | 16 | 32 | 64))
             }
             ScalarType::IeeeFloat(_) => true,
         };
@@ -1179,6 +1179,78 @@ pub(crate) mod fixed_occurrences {
             _ => {}
         }
         instruction
+    }
+    #[cfg(test)]
+    mod width_tests {
+        use super::*;
+        use register_model::{
+            RegisterConstraintId, RegisterConstraintKey, RegisterOperandConstraint,
+        };
+        use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ValueId, WidthParameter};
+
+        #[test]
+        fn copy_recovery_requires_a_known_supported_payload_width() {
+            let row = RegisterInstructionConstraint {
+                id: RegisterConstraintId(0),
+                key: RegisterConstraintKey::instruction(0),
+                operands: [RegisterOperandAccess::Use, RegisterOperandAccess::Def]
+                    .into_iter()
+                    .enumerate()
+                    .map(|(operand, access)| RegisterOperandConstraint {
+                        operand: operand as u16,
+                        access,
+                        class: RegisterClassId(0),
+                        fixed_view: None,
+                        tied_to: None,
+                        early_clobber: false,
+                    })
+                    .collect(),
+                implicit_uses: Vec::new(),
+                implicit_defs: Vec::new(),
+                clobbers: Vec::new(),
+            };
+            let mut register = VirtualRegister {
+                id: VirtualRegisterId(0),
+                scalar_type: ScalarType::Boolean,
+                class: RegisterClassId(0),
+                origin: VirtualRegisterOrigin::InstructionScratch {
+                    instruction: SelectedInstructionId(0),
+                    operand: 0,
+                },
+                definition_site: None,
+                entry_fixed_view: None,
+            };
+            for bits in [8, 16, 32, 64] {
+                register.scalar_type =
+                    ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap());
+                assert!(admit_copy(&row, &register).is_ok());
+            }
+            let symbolic = IntegerType::parameterized(
+                IntegerSign::Unsigned,
+                WidthParameter {
+                    owner: MachineId::new(1).unwrap(),
+                    value: ValueId::new(1).unwrap(),
+                },
+            );
+            for integer in [
+                symbolic,
+                IntegerType::new(IntegerSign::Unsigned, 13).unwrap(),
+            ] {
+                register.scalar_type = ScalarType::Integer(integer);
+                assert!(matches!(
+                    admit_copy(&row, &register),
+                    Err(FixedOccurrencesError::UnsupportedCarrier)
+                ));
+            }
+            let is_i64 = crate::fixed_view_copy_recovery::fixed_view_copy::compute::apply::is_i64;
+            assert!(!is_i64(ScalarType::Integer(symbolic)));
+            assert!(is_i64(ScalarType::Integer(
+                IntegerType::new(IntegerSign::Signed, 64).unwrap()
+            )));
+            assert!(is_i64(ScalarType::Integer(
+                IntegerType::address(64).unwrap()
+            )));
+        }
     }
 }
 pub(crate) mod fixed_view {

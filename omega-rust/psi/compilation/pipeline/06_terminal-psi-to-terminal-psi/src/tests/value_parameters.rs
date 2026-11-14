@@ -216,3 +216,252 @@ fn a_body_that_reads_the_parameter_as_an_operand_is_not_carried() {
     assert_eq!(started, 0);
     assert_eq!(verdicts.unwrap_err().reason, RefusalReason::Unsupported);
 }
+
+fn width_identity() -> Machine {
+    let width = ScalarType::Integer(IntegerType::parameterized(
+        IntegerSign::Unsigned,
+        semantic_vocabulary::WidthParameter {
+            owner: id(1),
+            value: id(2),
+        },
+    ));
+    let count = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    Machine {
+        result: width,
+        requires: vec![Proposition::LessThan(
+            bound(count, IntegerValue::Unsigned(0)),
+            formal(2, count),
+        )],
+        ensures: vec![Proposition::Equal(formal(3, width), formal(1, width))],
+        ..machine(vec![width, count], vec![returns(slot(0, width))])
+    }
+}
+
+fn width_identity_at(bits: u16) -> Machine {
+    let width = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, bits).unwrap());
+    let count = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    Machine {
+        result: width,
+        requires: vec![Proposition::LessThan(
+            bound(count, IntegerValue::Unsigned(0)),
+            bound(count, IntegerValue::Unsigned(u128::from(bits))),
+        )],
+        ensures: vec![Proposition::Equal(formal(2, width), formal(1, width))],
+        ..machine(vec![width], vec![returns(slot(0, width))])
+    }
+}
+
+#[test]
+fn an_integer_width_body_carries_its_own_proof_to_two_closed_widths() {
+    let (form, found) = checked_once(width_identity(), 1);
+    let proved = verdicts(&form, &found, 1, guarantee);
+    assert_eq!(proved.len(), 1);
+    assert_kernel_checked(&form, 1, proved[0].0, certificate(proved[0].1));
+    for bits in [8, 32] {
+        let (consumer, moved, started) = carried(&form, &found, width_identity_at(bits));
+        assert_eq!(started, 0, "width carry started a prover");
+        let moved = moved.unwrap();
+        assert_eq!(moved.len(), 1);
+        assert_kernel_checked(&consumer, 1, moved[0].0, moved[0].1.as_ref().unwrap());
+    }
+}
+
+#[test]
+fn actual_width_carry_refuses_a_foreign_owner_or_disagreeing_value_carriers() {
+    let (form, found) = checked_once(width_identity(), 1);
+    let mut foreign = form.clone();
+    foreign
+        .tables
+        .machines
+        .get_mut(id(1))
+        .unwrap()
+        .values
+        .get_mut(id(1))
+        .unwrap()
+        .scalar_type = ScalarType::Integer(IntegerType::parameterized(
+        IntegerSign::Unsigned,
+        semantic_vocabulary::WidthParameter {
+            owner: id(2),
+            value: id(2),
+        },
+    ));
+    let (_, moved, started) = carried(&foreign, &found, width_identity_at(8));
+    assert_eq!(started, 0);
+    assert!(
+        moved.is_err(),
+        "another machine's same-numbered width was accepted"
+    );
+
+    let mut consumer = lower(vec![width_identity_at(8)]).unwrap();
+    consumer
+        .tables
+        .machines
+        .get_mut(id(1))
+        .unwrap()
+        .values
+        .get_mut(id(2))
+        .unwrap()
+        .scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+    let before = searches();
+    let moved = reverify_specialization(&form, &found, id(1), &mut consumer, id(1), &[]);
+    assert_eq!(searches(), before);
+    assert!(
+        moved.is_err(),
+        "one width binder was accepted at two widths"
+    );
+}
+
+fn width_form_without_discharge(
+    requires_positive: bool,
+) -> typed_trees_to_terminal_psi::Elaboration {
+    let mut machine = width_identity();
+    if !requires_positive {
+        machine.requires.clear();
+    }
+    let mut form = lower(vec![machine]).unwrap();
+    form.value_parameters.push(1);
+    form
+}
+
+#[test]
+fn a_width_question_cannot_turn_a_runtime_input_into_a_static_width() {
+    let form = width_form_without_discharge(true);
+    crate::minted::width_questions_are_minted(&form).unwrap();
+    let mut runtime = form.clone();
+    *runtime.value_parameters.get_mut(id(1)).unwrap() = 0;
+    assert!(crate::minted::width_questions_are_minted(&runtime).is_err());
+    let mut foreign = form;
+    foreign.module.machines[0].contract.parameters[0].scalar_type =
+        ScalarType::Integer(IntegerType::parameterized(
+            IntegerSign::Unsigned,
+            semantic_vocabulary::WidthParameter {
+                owner: id(2),
+                value: id(2),
+            },
+        ));
+    assert!(crate::minted::width_questions_are_minted(&foreign).is_err());
+}
+
+#[test]
+fn width_questions_are_exact_and_cannot_move_after_the_entry() {
+    let form = width_form_without_discharge(true);
+    let (obligation, row) = form
+        .tables
+        .machines
+        .get(id(1))
+        .unwrap()
+        .obligations
+        .iter()
+        .find(|(_, row)| matches!(row.kind, ObligationKind::IntegerWidthPositive { .. }))
+        .map(|(obligation, row)| (obligation, *row))
+        .expect("lowering emits width formation");
+    let mut omitted = form.clone();
+    let tables = omitted.tables.machines.get_mut(id(1)).unwrap();
+    tables.obligations = IdTable::from_rows(
+        tables
+            .obligations
+            .iter()
+            .filter(|(id, _)| *id != obligation)
+            .map(|(id, row)| (id, *row)),
+    )
+    .unwrap();
+    assert!(crate::minted::width_questions_are_minted(&omitted).is_err());
+    let mut duplicate = form.clone();
+    duplicate
+        .tables
+        .machines
+        .get_mut(id(1))
+        .unwrap()
+        .obligations
+        .push(row);
+    assert!(crate::minted::width_questions_are_minted(&duplicate).is_err());
+    let mut moved = form.clone();
+    moved
+        .tables
+        .machines
+        .get_mut(id(1))
+        .unwrap()
+        .obligations
+        .get_mut(obligation)
+        .unwrap()
+        .created_at = ProgramPoint::Edge(id(1));
+    assert!(crate::minted::width_questions_are_minted(&moved).is_err());
+    let mut extra = form;
+    extra
+        .tables
+        .machines
+        .get_mut(id(1))
+        .unwrap()
+        .obligations
+        .get_mut(obligation)
+        .unwrap()
+        .kind = ObligationKind::IntegerWidthPositive { parameter: id(1) };
+    assert!(crate::minted::width_questions_are_minted(&extra).is_err());
+}
+
+#[test]
+fn a_width_body_needs_its_own_positive_width_proof() {
+    let mut valid = width_form_without_discharge(true);
+    let found = discharge(&mut valid).unwrap();
+    assert!(
+        verdicts(&valid, &found, 1, |kind| matches!(
+            kind,
+            ObligationKind::IntegerWidthPositive { .. }
+        ))
+        .iter()
+        .all(|(_, verdict)| verdict.is_ok())
+    );
+    let mut missing = width_form_without_discharge(false);
+    let found = discharge(&mut missing).unwrap();
+    let questions = verdicts(&missing, &found, 1, |kind| {
+        matches!(kind, ObligationKind::IntegerWidthPositive { .. })
+    });
+    assert_eq!(questions.len(), 1);
+    assert!(
+        questions[0].1.is_err(),
+        "positive callers cannot establish a generic type's width"
+    );
+}
+
+#[test]
+fn a_width_binder_keeps_its_position_after_an_erased_formal() {
+    let width = ScalarType::Integer(IntegerType::parameterized(
+        IntegerSign::Unsigned,
+        semantic_vocabulary::WidthParameter {
+            owner: id(1),
+            value: id(2),
+        },
+    ));
+    let count = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+    let mut form = lower(vec![Machine {
+        erased: vec![0],
+        result: width,
+        requires: vec![Proposition::LessThan(
+            bound(count, IntegerValue::Unsigned(0)),
+            formal(2, count),
+        )],
+        ensures: vec![Proposition::Equal(formal(3, width), formal(1, width))],
+        ..machine(
+            vec![ScalarType::Boolean, width, count],
+            vec![returns(slot(1, width))],
+        )
+    }])
+    .unwrap();
+    form.value_parameters.push(1);
+    crate::minted::width_questions_are_minted(&form).unwrap();
+    let origin = &mut form
+        .tables
+        .machines
+        .get_mut(id(1))
+        .unwrap()
+        .values
+        .get_mut(id(2))
+        .unwrap()
+        .origin;
+    assert_eq!(
+        *origin,
+        terminal_check_tables::values::ValueOrigin::MachineParameter { position: 2 }
+    );
+    *origin = terminal_check_tables::values::ValueOrigin::MachineParameter { position: 1 };
+    assert!(crate::minted::width_questions_are_minted(&form).is_err());
+}

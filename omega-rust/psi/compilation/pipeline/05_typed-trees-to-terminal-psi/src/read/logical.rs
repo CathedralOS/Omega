@@ -392,7 +392,7 @@ pub(super) fn scalar_type(
                     Unserved::Type("address without its binding's mathematical model"),
                 )
             })?;
-        return Ok(ScalarType::Integer(model.carrier));
+        return Ok(ScalarType::Integer(model.carrier.as_checking()));
     }
     super::types::atom_type(atom, machine)
 }

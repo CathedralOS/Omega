@@ -218,10 +218,20 @@ pub(crate) fn prepare(
             id,
         ))
     };
-    let semantic = CanonicalCallingSignature::materialize(module, semantic_id, profile, &extents)
-        .map_err(|reason| failure(format!("semantic entry ABI: {reason}")))?;
-    let physical = CanonicalCallingSignature::materialize(module, physical_id, profile, &extents)
-        .map_err(|reason| failure(format!("physical entry ABI: {reason}")))?;
+    let semantic = CanonicalCallingSignature::materialize(
+        program.artifact().closed_module(),
+        semantic_id,
+        profile,
+        &extents,
+    )
+    .map_err(|reason| failure(format!("semantic entry ABI: {reason}")))?;
+    let physical = CanonicalCallingSignature::materialize(
+        program.artifact().closed_module(),
+        physical_id,
+        profile,
+        &extents,
+    )
+    .map_err(|reason| failure(format!("physical entry ABI: {reason}")))?;
     if semantic.abi != semantic_identity || physical.abi != physical_identity {
         return Err(failure(
             "materialized entry signature differs from its exact accepted ABI",

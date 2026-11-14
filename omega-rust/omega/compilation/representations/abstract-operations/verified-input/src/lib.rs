@@ -90,7 +90,7 @@ impl VerifiedPsiOptimizationInput {
     /// `retain_*` and `attach_*` methods as each admission step succeeds.
     pub fn lowered(
         plan: AbstractOperationPlan,
-        module: terminal_psi::TerminalModule,
+        module: terminal_codec::ClosedTerminalModule,
         target_machine_selections: Option<AdmittedTargetMachineSelections>,
     ) -> Self {
         Self {
@@ -309,11 +309,15 @@ use terminal_installation::admitted_boundary_member as target_family_member;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifiedPsiOptimizationContext {
-    module: terminal_psi::TerminalModule,
+    module: terminal_codec::ClosedTerminalModule,
 }
 
 impl VerifiedPsiOptimizationContext {
-    pub const fn module(&self) -> &terminal_psi::TerminalModule {
+    pub fn module(&self) -> &terminal_psi::TerminalModule {
+        self.module.module()
+    }
+
+    pub const fn closed_module(&self) -> &terminal_codec::ClosedTerminalModule {
         &self.module
     }
 }
@@ -327,7 +331,7 @@ pub struct AdmittedLoweringFacts {
     entry: semantic_vocabulary::MachineId,
     native_execution_scope: Option<std::sync::Arc<NativeExecutionScope>>,
     selected_provider_closure: Option<[u8; 32]>,
-    module: terminal_psi::TerminalModule,
+    module: terminal_codec::ClosedTerminalModule,
     program_entry: Option<SelectedProgramEntryCall>,
     assumed_bindings: Vec<InstalledAssumedBindingEvidence>,
     target_machine_selections: Option<AdmittedTargetMachineSelections>,
@@ -387,7 +391,11 @@ impl AdmittedLoweringFacts {
         Ok(Some(scope))
     }
 
-    pub const fn module(&self) -> &terminal_psi::TerminalModule {
+    pub fn module(&self) -> &terminal_psi::TerminalModule {
+        self.module.module()
+    }
+
+    pub const fn closed_module(&self) -> &terminal_codec::ClosedTerminalModule {
         &self.module
     }
 

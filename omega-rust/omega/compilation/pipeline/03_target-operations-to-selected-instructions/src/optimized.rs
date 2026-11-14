@@ -79,8 +79,9 @@ pub(crate) mod constraints {
 }
 pub(crate) mod construction {
     use crate::{
-        ValidatedLegalizedOperations, ValidatedSelectedInstructions, legalize_target_operations,
-        select_instructions,
+        ValidatedLegalizedOperations, ValidatedSelectedInstructions,
+        legalization::legalize_target_operations_with_types,
+        selection::select_instructions_with_types,
     };
     use register_environment::ValidatedTargetRegisterEnvironment;
 
@@ -95,7 +96,15 @@ pub(crate) mod construction {
         (ValidatedLegalizedOperations, ValidatedSelectedInstructions),
         OptimizedSelectionPipelineError,
     > {
-        let legalized = legalize_target_operations(
+        let closed_types = crate::native_geometry::retained_types(
+            input.closed_module,
+            input.target.psi,
+            input.origins.module,
+        )
+        .ok_or_else(|| {
+            OptimizedSelectionPipelineError::Legalization(crate::LegalizationError::custody())
+        })?;
+        let legalized = legalize_target_operations_with_types(
             input.target,
             input.source,
             input.unit,
@@ -103,12 +112,17 @@ pub(crate) mod construction {
             input.installed_interrupts,
             input.installed_entry_execution,
             input.installed_stack_requirements,
+            Some(closed_types),
         )
         .map_err(OptimizedSelectionPipelineError::Legalization)?;
         let selection_constraints = selection_constraints(&legalized, register_environment);
-        let selected =
-            select_instructions(&legalized, &selection_constraints, register_environment)
-                .map_err(OptimizedSelectionPipelineError::Selection)?;
+        let selected = select_instructions_with_types(
+            &legalized,
+            &selection_constraints,
+            register_environment,
+            Some(closed_types),
+        )
+        .map_err(OptimizedSelectionPipelineError::Selection)?;
         Ok((legalized, selected))
     }
 }
@@ -161,6 +175,7 @@ pub(crate) mod input {
         pub target: &'input TargetOperationPlan,
         pub source: &'input AbstractOperationPlan,
         pub unit: &'input PsiOptimizationUnit,
+        pub closed_module: &'input terminal_codec::ClosedTerminalModule,
         pub origins: BoundaryOriginFacts<'input>,
         pub installed_entry_execution:
             Option<&'input provider_admission::AdmittedInstalledEntryExecution>,

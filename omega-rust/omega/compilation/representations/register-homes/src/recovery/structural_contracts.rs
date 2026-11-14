@@ -162,11 +162,11 @@ pub(super) fn encode_contracts(
     }
     length(bytes, function.calls.len());
     for row in &function.calls {
-        encode_call(bytes, row);
+        encode_call(bytes, row)?;
     }
     length(bytes, function.normalized_foreign_calls.len());
     for row in &function.normalized_foreign_calls {
-        encode_normalized_foreign_call(bytes, row);
+        encode_normalized_foreign_call(bytes, row)?;
     }
     length(bytes, function.memory_accesses.len());
     for row in &function.memory_accesses {

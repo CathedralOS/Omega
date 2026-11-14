@@ -477,14 +477,16 @@ pub(crate) mod atomic_outcome {
                     .find(|row| row.id == result.structural_type)
             })
             .ok_or_else(invalid)?;
-        if target_operations::conventional_atomic_once_layout(declaration, integer, custody)
+        let integer = source.closed_integer(integer).ok_or_else(invalid)?;
+        if target_operations::conventional_atomic_once_layout_closed(declaration, integer, custody)
             .as_ref()
             != Some(layout)
         {
             return Err(invalid());
         }
-        let normalization =
-            crate::selection::scalar_call_abi::integer_carrier_normalization(scalar);
+        let normalization = crate::selection::scalar_call_abi::integer_carrier_normalization(
+            source.closed_scalar(scalar).ok_or_else(invalid)?,
+        );
         let prior = if normalization == SelectedInstructionKind::CopyI64 {
             observed
         } else {
@@ -1742,7 +1744,7 @@ pub(crate) mod activation_storage {
         )?;
         let (_, committed_register, _, committed_type) =
             builder.resolve(*committed).ok_or_else(invalid)?;
-        if !matches!(committed_type, super::ScalarType::Integer(integer) if integer.bits() == 64 && integer.sign() == super::IntegerSign::Unsigned && integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
+        if !matches!(builder.closed_scalar(committed_type), Some(semantic_vocabulary::ClosedScalarType::Integer(integer)) if integer.bits() == 64 && integer.sign() == super::IntegerSign::Unsigned && integer.carrier() == semantic_vocabulary::IntegerCarrier::Fixed)
         {
             return Err(invalid());
         }
@@ -2249,7 +2251,7 @@ pub(crate) mod primitive_locals {
     };
     use super::{
         Builder, IntegerSign, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
-        ScalarType, SelectedMemoryAccessRole, VirtualRegisterId, memory,
+        SelectedMemoryAccessRole, VirtualRegisterId, memory,
     };
     use crate::SelectedInstructionError;
     use crate::selection::construction::scalar_graph::structural::invalid;
@@ -2448,7 +2450,10 @@ pub(crate) mod primitive_locals {
         definition: legalized_operations::LegalizedValueDefinition,
         output: VirtualRegisterId,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
-        if !matches!(definition.scalar_type, ScalarType::Integer(integer)
+        let scalar = builder
+            .closed_scalar(definition.scalar_type)
+            .ok_or_else(invalid)?;
+        if !matches!(scalar, semantic_vocabulary::ClosedScalarType::Integer(integer)
             if integer.sign() == IntegerSign::Signed && matches!(integer.bits(), 8 | 16 | 32))
         {
             return Ok(output);
@@ -2459,9 +2464,7 @@ pub(crate) mod primitive_locals {
             definition.scalar_type,
         )?;
         builder.emit(
-            crate::selection::scalar_call_abi::integer_carrier_normalization(
-                definition.scalar_type,
-            ),
+            crate::selection::scalar_call_abi::integer_carrier_normalization(scalar),
             builder.constraints.keys.copy_i64,
             &[output, normalized],
             crate::selection::construction::scalar_graph::value_provenance(definition.value),
@@ -3130,7 +3133,7 @@ pub(crate) mod reference {
         }
         if let Some(storage) = address.storage {
             let (_, offset, _, scalar) = builder.resolve(storage.byte_offset).ok_or(invalid())?;
-            if !matches!(scalar, semantic_vocabulary::ScalarType::Integer(integer) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 64)
+            if !matches!(scalar, semantic_vocabulary::ScalarType::Integer(integer) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == Some(64))
             {
                 return Err(invalid());
             }
@@ -4139,7 +4142,9 @@ pub(crate) mod fragmented_scalar {
         )?;
         builder.emit(
             crate::selection::scalar_call_abi::integer_carrier_normalization(
-                definition.scalar_type,
+                builder
+                    .closed_scalar(definition.scalar_type)
+                    .ok_or_else(invalid)?,
             ),
             builder.constraints.keys.copy_i64,
             &[value, output],
@@ -4477,6 +4482,7 @@ pub(crate) mod runtime_address {
             let Some(integer) = index.operand.scalar_type.as_integer() else {
                 return Err(invalid());
             };
+            let integer = builder.closed_integer(integer).ok_or_else(invalid)?;
             if integer.bits() > 64 || index_type != index.operand.scalar_type {
                 return Err(invalid());
             }

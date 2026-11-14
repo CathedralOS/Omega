@@ -3319,13 +3319,15 @@ mod normalized_foreign_calls {
             }
             ScalarType::Boolean => Some(Kind::ZeroExtendU8),
             ScalarType::Integer(integer) => match (integer.sign(), integer.bits()) {
-                (IntegerSign::Unsigned, 8) => Some(Kind::ZeroExtendU8),
-                (IntegerSign::Unsigned, 16) => Some(Kind::ZeroExtendU16),
-                (IntegerSign::Unsigned, 32) => Some(Kind::ZeroExtendU32),
-                (IntegerSign::Unsigned, 64) | (IntegerSign::Signed, 64) => Some(Kind::CopyI64),
-                (IntegerSign::Signed, 8) => Some(Kind::SignExtendI8),
-                (IntegerSign::Signed, 16) => Some(Kind::SignExtendI16),
-                (IntegerSign::Signed, 32) => Some(Kind::SignExtendI32),
+                (IntegerSign::Unsigned, Some(8)) => Some(Kind::ZeroExtendU8),
+                (IntegerSign::Unsigned, Some(16)) => Some(Kind::ZeroExtendU16),
+                (IntegerSign::Unsigned, Some(32)) => Some(Kind::ZeroExtendU32),
+                (IntegerSign::Unsigned, Some(64)) | (IntegerSign::Signed, Some(64)) => {
+                    Some(Kind::CopyI64)
+                }
+                (IntegerSign::Signed, Some(8)) => Some(Kind::SignExtendI8),
+                (IntegerSign::Signed, Some(16)) => Some(Kind::SignExtendI16),
+                (IntegerSign::Signed, Some(32)) => Some(Kind::SignExtendI32),
                 _ => None,
             },
         }
@@ -3597,6 +3599,53 @@ mod normalized_foreign_calls {
             semantic_vocabulary::InvocationSite::ExternalCompletion(edge) => {
                 provenance.edges.as_slice() == [edge]
                     && provenance.work_settles_only_claimed_sites()
+            }
+        }
+    }
+    #[cfg(test)]
+    mod scalar_normalization_tests {
+        use super::scalar_result_normalization_kind;
+        use selected_instructions::SelectedInstructionKind as Kind;
+        use semantic_vocabulary::{
+            IntegerSign, IntegerType, MachineId, ScalarType, ValueId, WidthParameter,
+        };
+
+        #[test]
+        fn scalar_result_normalization_requires_a_known_supported_width() {
+            for (sign, bits, expected) in [
+                (IntegerSign::Unsigned, 8, Kind::ZeroExtendU8),
+                (IntegerSign::Unsigned, 16, Kind::ZeroExtendU16),
+                (IntegerSign::Unsigned, 32, Kind::ZeroExtendU32),
+                (IntegerSign::Unsigned, 64, Kind::CopyI64),
+                (IntegerSign::Signed, 8, Kind::SignExtendI8),
+                (IntegerSign::Signed, 16, Kind::SignExtendI16),
+                (IntegerSign::Signed, 32, Kind::SignExtendI32),
+                (IntegerSign::Signed, 64, Kind::CopyI64),
+            ] {
+                let scalar = ScalarType::Integer(IntegerType::new(sign, bits).unwrap());
+                assert_eq!(
+                    scalar_result_normalization_kind(scalar, false),
+                    Some(expected)
+                );
+            }
+            assert_eq!(
+                scalar_result_normalization_kind(
+                    ScalarType::Integer(IntegerType::address(64).unwrap()),
+                    false
+                ),
+                Some(Kind::CopyI64)
+            );
+            for sign in [IntegerSign::Unsigned, IntegerSign::Signed] {
+                let unknown = ScalarType::Integer(IntegerType::parameterized(
+                    sign,
+                    WidthParameter {
+                        owner: MachineId::new(1).unwrap(),
+                        value: ValueId::new(1).unwrap(),
+                    },
+                ));
+                for indirect in [false, true] {
+                    assert_eq!(scalar_result_normalization_kind(unknown, indirect), None);
+                }
             }
         }
     }
@@ -4167,13 +4216,13 @@ pub(crate) mod replay {
                         terminal_psi::StructuralFieldType::Scalar(ScalarType::Integer(integer)) => {
                             !integer.is_address()
                                 && integer.sign() == IntegerSign::Signed
-                                && integer.bits() == 32
+                                && integer.bits() == Some(32)
                         }
                         terminal_psi::StructuralFieldType::BoundedInteger(bounds) => {
                             let integer = bounds.integer_type();
                             !integer.is_address()
                                 && integer.sign() == IntegerSign::Signed
-                                && integer.bits() == 32
+                                && integer.bits() == Some(32)
                                 && bounds.contains(semantic_vocabulary::IntegerValue::Signed(0))
                                 && bounds.contains(semantic_vocabulary::IntegerValue::Signed(255))
                         }
@@ -4227,6 +4276,30 @@ pub(crate) mod replay {
             mod tests {
                 use super::{hosted_read_byte_declaration_is_valid, test_byte_read_declaration};
                 use semantic_vocabulary::StructuralTypeId;
+
+                #[test]
+                fn read_byte_declaration_requires_a_known_signed_32_field() {
+                    use semantic_vocabulary::{
+                        IntegerSign, IntegerType, MachineId, ScalarType, ValueId, WidthParameter,
+                    };
+                    let mut declaration =
+                        test_byte_read_declaration(StructuralTypeId::new(3).unwrap());
+                    assert!(hosted_read_byte_declaration_is_valid(&declaration));
+                    let terminal_psi::StructuralTypeShape::Sum { cases } = &mut declaration.shape
+                    else {
+                        unreachable!()
+                    };
+                    cases[1].fields[0].field_type = terminal_psi::StructuralFieldType::Scalar(
+                        ScalarType::Integer(IntegerType::parameterized(
+                            IntegerSign::Signed,
+                            WidthParameter {
+                                owner: MachineId::new(1).unwrap(),
+                                value: ValueId::new(1).unwrap(),
+                            },
+                        )),
+                    );
+                    assert!(!hosted_read_byte_declaration_is_valid(&declaration));
+                }
 
                 #[test]
                 fn read_byte_declaration_replay_rejects_noncanonical_case_and_field_custody() {
@@ -4324,7 +4397,7 @@ pub(crate) mod replay {
                     } else {
                         return false;
                     };
-                    matches!(scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed && integer.bits() == 32)
+                    matches!(scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed && integer.bits() == Some(32))
                         && settlement.execution
                             == BoundaryExecutionRecord::CompilerBuiltin(
                                 CompilerBuiltinExecution::HostedExitProcessI32,
@@ -4505,7 +4578,7 @@ pub(crate) mod replay {
                 } else {
                     return false;
                 };
-                matches!(scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed && integer.bits() == 32)
+                matches!(scalar_type, ScalarType::Integer(integer) if integer.sign() == IntegerSign::Signed && integer.bits() == Some(32))
                     && settlement.byte_count == byte_count
                     && matches!(
                         settlement.execution,

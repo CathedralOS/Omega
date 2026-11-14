@@ -383,7 +383,9 @@ pub(crate) mod conformances {
                         }
                     },
                 ];
-                bytes.extend(integer.bits().to_le_bytes());
+                integer
+                    .width()
+                    .write_identity(|width| bytes.extend_from_slice(width));
                 bytes
             }
             ClosedConformanceCallableResult::Scalar(ScalarType::IeeeFloat(format)) => vec![

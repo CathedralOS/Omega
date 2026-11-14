@@ -1601,8 +1601,9 @@ pub(crate) mod atomic_access {
     pub(crate) fn access(
         source: &AbstractAtomicEvent,
         function: &optimization_unit::PsiOptimizationFunction,
-        types: &crate::native_geometry::NativeGeometry<'_>,
+        unit: &crate::native_geometry::NativeUnit<'_>,
     ) -> Option<Access> {
+        let types = unit.geometry();
         let location = source.location()?;
         let (event, result) = event(source)?;
         let root = function
@@ -1622,8 +1623,10 @@ pub(crate) mod atomic_access {
         }
         let cell = terminal_semantics::atomic_cell_type(types.iter(), root, &location.path)?;
         let scalar_type = cell.scalar_type();
-        let integer =
-            target_operations::operations::atomic_storage_integer_type(event, scalar_type)?;
+        let integer = target_operations::operations::atomic_storage_integer_type_closed(
+            event,
+            unit.closed_scalar(scalar_type)?,
+        )?;
         super::scalar_shape(scalar_type)?;
         if event
             .operands()
@@ -1651,7 +1654,11 @@ pub(crate) mod atomic_access {
             let declaration = types.iter().find(|row| row.id == outcome.structural_type)?;
             Some((
                 outcome.clone(),
-                target_operations::conventional_atomic_once_layout(declaration, integer, *custody)?,
+                target_operations::conventional_atomic_once_layout_closed(
+                    declaration,
+                    integer,
+                    *custody,
+                )?,
             ))
         } else {
             None
@@ -1662,7 +1669,7 @@ pub(crate) mod atomic_access {
                 access: root_access,
                 path: location.path.clone(),
             },
-            scalar_type: integer,
+            scalar_type: integer.as_checking(),
             field_byte_offset: offset,
             event,
             result,
@@ -5239,8 +5246,9 @@ pub(crate) mod structural_case {
         }
         for element in &indices {
             crate::legalization::runtime_indices::defined_type(function, element.index)
+                .and_then(|scalar| plan.closed_scalar(scalar))
                 .filter(|scalar| {
-                    matches!(scalar, semantic_vocabulary::ScalarType::Integer(integer)
+                    matches!(scalar, semantic_vocabulary::ClosedScalarType::Integer(integer)
                         if integer.bits() <= 64)
                 })
                 .ok_or(LegalizationError::custody())?;
@@ -7405,6 +7413,13 @@ pub(crate) mod nodes {
     pub(crate) fn admit(
         node: &OptimizationNode,
     ) -> Result<(OperationId, Option<ValueId>), NodeRejection> {
+        admit_with_source(node, None)
+    }
+
+    fn admit_with_source(
+        node: &OptimizationNode,
+        source: Option<&crate::native_geometry::NativePlan<'_>>,
+    ) -> Result<(OperationId, Option<ValueId>), NodeRejection> {
         if let AbstractOperation::ActivateTaskRegister {
             psi_operation,
             result,
@@ -7510,12 +7525,22 @@ pub(crate) mod nodes {
         {
             Ok((*psi_operation, result.scalar().map(|result| result.value)))
         } else {
-            scalar_instruction(node).map(|(operation, result)| (operation, Some(result)))
+            scalar_instruction(node, source).map(|(operation, result)| (operation, Some(result)))
         }
     }
     fn scalar_instruction(
         node: &OptimizationNode,
+        source: Option<&crate::native_geometry::NativePlan<'_>>,
     ) -> Result<(OperationId, ValueId), NodeRejection> {
+        // Instruction discovery also classifies independent raw metadata.
+        // Actual source validation retains its catalog here; a miss never
+        // falls back to independently closing the same spelled type.
+        let closed = |scalar| match source {
+            Some(source) => source.closed_scalar(scalar),
+            None => semantic_vocabulary::ClosedScalarType::try_from(scalar).ok(),
+        };
+        let scalar_shape =
+            |scalar| closed(scalar).and_then(calling_conventions::ValueShape::for_closed_scalar);
         match &node.operation {
             AbstractOperation::SelectImplementation {
                 psi_operation,
@@ -7589,7 +7614,9 @@ pub(crate) mod nodes {
                 result,
                 scalar_type,
                 value,
-            } if valid_literal(*scalar_type, *value) => Ok((*psi_operation, *result)),
+            } if closed(*scalar_type).is_some_and(|scalar| valid_literal(scalar, *value)) => {
+                Ok((*psi_operation, *result))
+            }
             AbstractOperation::Call {
                 psi_operation,
                 result,
@@ -7624,7 +7651,10 @@ pub(crate) mod nodes {
                 scalar_type,
                 arithmetic,
                 ..
-            } if integer_arithmetic_admitted(*arithmetic, *scalar_type) => {
+            } if closed(ScalarType::Integer(*scalar_type))
+                .and_then(semantic_vocabulary::ClosedScalarType::as_integer)
+                .is_some_and(|integer| integer_arithmetic_admitted(*arithmetic, integer)) =>
+            {
                 Ok((*psi_operation, *result))
             }
             AbstractOperation::IntegerShift {
@@ -7644,7 +7674,10 @@ pub(crate) mod nodes {
                 scalar_type,
                 operand_type,
                 operation,
-            } if trapping_form(*scalar_type, *operand_type, operation.primitive()).is_some() => {
+            } if closed(ScalarType::Integer(*scalar_type)).is_some()
+                && closed(ScalarType::Integer(*operand_type)).is_some()
+                && trapping_form(*scalar_type, *operand_type, operation.primitive()).is_some() =>
+            {
                 Ok((*psi_operation, *result))
             }
             abstract_operations::integer_equal_less_pair_pattern!(psi_operation, result, ..)
@@ -7681,8 +7714,9 @@ pub(crate) mod nodes {
     }
     fn integer_arithmetic_admitted(
         arithmetic: IntegerArithmetic,
-        scalar_type: IntegerType,
+        integer: semantic_vocabulary::ClosedIntegerType,
     ) -> bool {
+        let scalar_type = integer.as_checking();
         match (arithmetic.policy(), arithmetic.operator()) {
             (IntegerOverflowPolicy::Saturating, _) => saturating_carrier(scalar_type).is_some(),
             (
@@ -7695,20 +7729,14 @@ pub(crate) mod nodes {
         }
     }
 
-    fn valid_literal(scalar: ScalarType, value: semantic_vocabulary::IntegerValue) -> bool {
+    fn valid_literal(
+        scalar: semantic_vocabulary::ClosedScalarType,
+        value: semantic_vocabulary::IntegerValue,
+    ) -> bool {
         if let Some(integer) = scalar.as_integer()
             && matches!(integer.bits(), 8 | 16 | 32 | 64)
         {
-            return match value {
-                semantic_vocabulary::IntegerValue::Unsigned(value) => {
-                    integer.sign() == IntegerSign::Unsigned && value < (1_u128 << integer.bits())
-                }
-                semantic_vocabulary::IntegerValue::Signed(value) => {
-                    integer.sign() == IntegerSign::Signed
-                        && value >= -(1_i128 << (integer.bits() - 1))
-                        && value < (1_i128 << (integer.bits() - 1))
-                }
-            };
+            return integer.as_checking().admits(value);
         }
         false
     }
@@ -7730,23 +7758,29 @@ pub(crate) mod nodes {
     pub(crate) fn validate(
         block: &OptimizationBlock,
         function_inputs: &crate::legalization_function_inputs::FunctionInputs<'_>,
-        types: &crate::native_geometry::NativeGeometry<'_>,
+        plan: &crate::native_geometry::NativePlan<'_>,
         domains: &[terminal_psi::StructuralDomainDeclaration],
         identities: &terminal_psi::TerminalIdentityTable,
     ) -> Result<(), LegalizationError> {
+        let types = plan.geometry();
+        let scalar_shape = |scalar| {
+            plan.closed_scalar(scalar)
+                .and_then(calling_conventions::ValueShape::for_closed_scalar)
+        };
         let optimized = function_inputs.function();
         let (terminator, body) = block
             .nodes
             .split_last()
             .ok_or(LegalizationError::custody())?;
         for (position, parameter) in block.parameters.iter().enumerate() {
-            if (integer_type(parameter.scalar_type).is_none()
-                && !(matches!(
-                    parameter.scalar_type,
-                    ScalarType::Boolean | ScalarType::IeeeFloat(_)
-                ))
-                && !(matches!(parameter.scalar_type, ScalarType::Integer(_))
-                    && scalar_shape(parameter.scalar_type).is_some()))
+            if plan.closed_scalar(parameter.scalar_type).is_none()
+                || (integer_type(parameter.scalar_type).is_none()
+                    && !(matches!(
+                        parameter.scalar_type,
+                        ScalarType::Boolean | ScalarType::IeeeFloat(_)
+                    ))
+                    && !(matches!(parameter.scalar_type, ScalarType::Integer(_))
+                        && scalar_shape(parameter.scalar_type).is_some()))
                 || parameter.site
                     != (ValueDefinitionSite::BlockParameter {
                         block: block.id,
@@ -7757,24 +7791,34 @@ pub(crate) mod nodes {
             }
         }
         for (position, node) in body.iter().enumerate() {
+            if node
+                .definitions
+                .iter()
+                .any(|definition| plan.closed_scalar(definition.scalar_type).is_none())
+            {
+                return Err(LegalizationError::custody());
+            }
             if !node
                 .operation
                 .runtime_indices()
                 .into_iter()
                 .all(|(index, _)| {
-                    matches!(function_inputs.value_type(index), Some(ScalarType::Integer(integer))
+                    matches!(function_inputs.value_type(index).and_then(|scalar| plan.closed_scalar(scalar)), Some(semantic_vocabulary::ClosedScalarType::Integer(integer))
                     if integer.bits() <= 64)
                 })
             {
                 return Err(LegalizationError::custody());
             }
-            let (operation, result) = admit(node).map_err(|rejection| match rejection {
-                NodeRejection::Malformed => LegalizationError::custody(),
-                NodeRejection::UnsupportedFamily => LegalizationError::UnsupportedScalarOperation {
-                    machine: optimized.machine,
-                    operation: node.operation.clone(),
-                },
-            })?;
+            let (operation, result) =
+                admit_with_source(node, Some(plan)).map_err(|rejection| match rejection {
+                    NodeRejection::Malformed => LegalizationError::custody(),
+                    NodeRejection::UnsupportedFamily => {
+                        LegalizationError::UnsupportedScalarOperation {
+                            machine: optimized.machine,
+                            operation: node.operation.clone(),
+                        }
+                    }
+                })?;
             if !node.successors.is_empty()
                 || node.provenance != [PsiProvenance::Operation(operation)]
                 || node.work.is_empty()
@@ -8416,9 +8460,10 @@ pub(crate) mod nodes {
                     ..
                 } => {
                     if arithmetic.policy() != IntegerOverflowPolicy::Exact
-                        && (!integer_arithmetic_admitted(*arithmetic, *scalar_type)
-                            || function_inputs.value_type(*left)
-                                != Some(ScalarType::Integer(*scalar_type))
+                        && (!plan.closed_integer(*scalar_type).is_some_and(|integer| {
+                            integer_arithmetic_admitted(*arithmetic, integer)
+                        }) || function_inputs.value_type(*left)
+                            != Some(ScalarType::Integer(*scalar_type))
                             || function_inputs.value_type(*right)
                                 != Some(ScalarType::Integer(*scalar_type)))
                     {
@@ -8496,9 +8541,15 @@ pub(crate) mod nodes {
                     target_type,
                     ..
                 } => {
-                    if !matches!(source_type.bits(), 8 | 16 | 32 | 64)
-                        || target_type.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
-                        || !matches!(target_type.bits(), 16 | 32 | 64)
+                    let from = plan
+                        .closed_integer(*source_type)
+                        .ok_or(LegalizationError::custody())?;
+                    let to = plan
+                        .closed_integer(*target_type)
+                        .ok_or(LegalizationError::custody())?;
+                    if !matches!(from.bits(), 8 | 16 | 32 | 64)
+                        || to.carrier() != semantic_vocabulary::IntegerCarrier::Fixed
+                        || !matches!(to.bits(), 16 | 32 | 64)
                         || !source_type.can_widen_to(*target_type)
                         || function_inputs.value_type(*operand)
                             != Some(ScalarType::Integer(*source_type))
@@ -8513,11 +8564,13 @@ pub(crate) mod nodes {
                     target_type,
                     ..
                 } => {
-                    if terminal_semantics::ScalarRepresentationViewPair::classify(
-                        *source_type,
-                        *target_type,
-                    )
-                    .is_none()
+                    if plan.closed_scalar(*source_type).is_none()
+                        || plan.closed_scalar(*target_type).is_none()
+                        || terminal_semantics::ScalarRepresentationViewPair::classify(
+                            *source_type,
+                            *target_type,
+                        )
+                        .is_none()
                         || function_inputs.value_type(*operand) != Some(*source_type)
                     {
                         return Err(LegalizationError::custody());
@@ -8530,7 +8583,9 @@ pub(crate) mod nodes {
                     target_type,
                     ..
                 } => {
-                    if !exact_cast_has_native_carriers(*source_type, *target_type)
+                    if plan.closed_integer(*source_type).is_none()
+                        || plan.closed_integer(*target_type).is_none()
+                        || !exact_cast_has_native_carriers(*source_type, *target_type)
                         || function_inputs.value_type(*operand)
                             != Some(ScalarType::Integer(*source_type))
                     {
@@ -8661,6 +8716,16 @@ pub(crate) fn match_input(
     let native = descriptor_inputs.native();
     let plan = descriptor_inputs.plan();
     let unit = descriptor_inputs.unit();
+    // Check semantic SSA declarations at their existing function/block/node
+    // owners, before an independent metadata classifier can interpret them.
+    // Generated native transport registers are outside these source tables.
+    if optimized
+        .parameters
+        .iter()
+        .any(|parameter| plan.closed_scalar(parameter.scalar_type).is_none())
+    {
+        return Err(LegalizationError::custody());
+    }
     primitive_locals::validate(optimized, unit.geometry())?;
     let call_plan = if aggregate_results::uses(optimized) {
         aggregate_results::header(target, abstracted, optimized, native.target, plan)?
@@ -8712,7 +8777,7 @@ pub(crate) fn match_input(
         nodes::validate(
             block,
             &function_inputs,
-            plan.geometry(),
+            plan,
             &unit.structural_domains,
             &unit.identities,
         )?;

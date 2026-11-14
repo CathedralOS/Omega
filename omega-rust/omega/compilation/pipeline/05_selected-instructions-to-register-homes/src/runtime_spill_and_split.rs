@@ -64,7 +64,7 @@ pub(crate) mod runtime_rematerialization {
             let scalar_payload = match victim.scalar_type {
                 ScalarType::Boolean | ScalarType::IeeeFloat(_) => true,
                 ScalarType::Integer(integer) => {
-                    !integer.is_address() && matches!(integer.bits(), 8 | 16 | 32 | 64)
+                    !integer.is_address() && matches!(integer.bits(), Some(8 | 16 | 32 | 64))
                 }
             };
             if !scalar_payload
@@ -3618,7 +3618,7 @@ pub(crate) mod runtime_spill {
         };
         let scalar_payload = match victim.scalar_type {
             ScalarType::Boolean | ScalarType::IeeeFloat(_) => true,
-            ScalarType::Integer(integer) => matches!(integer.bits(), 8 | 16 | 32 | 64),
+            ScalarType::Integer(integer) => matches!(integer.bits(), Some(8 | 16 | 32 | 64)),
         };
         if !scalar_payload
             || (victim.entry_fixed_view.is_some() && !entry_boundary)
@@ -4792,11 +4792,11 @@ pub(crate) mod runtime_spill {
                                 (
                                     ScalarType::Integer(integer),
                                     SelectedInstructionKind::Load32 { byte_offset },
-                                ) if integer.bits() == 32 => (4, byte_offset),
+                                ) if integer.bits() == Some(32) => (4, byte_offset),
                                 (
                                     ScalarType::Integer(integer),
                                     SelectedInstructionKind::Load64 { byte_offset },
-                                ) if integer.bits() == 64 => (8, byte_offset),
+                                ) if integer.bits() == Some(64) => (8, byte_offset),
                                 _ => return Err(RuntimeSpillError::UnsupportedValue),
                             };
                         if owner != block_index
@@ -4933,7 +4933,7 @@ pub(crate) mod runtime_split {
                 ScalarType::Boolean => true,
                 ScalarType::IeeeFloat(_) => false,
                 ScalarType::Integer(integer) => {
-                    !integer.is_address() && matches!(integer.bits(), 8 | 16 | 32 | 64)
+                    !integer.is_address() && matches!(integer.bits(), Some(8 | 16 | 32 | 64))
                 }
             };
             if !scalar_payload
@@ -5241,7 +5241,7 @@ pub(crate) mod runtime_split {
                 let victim = function
                     .virtual_register(register)
                     .ok_or(RuntimeSplitError::UnsupportedValue)?;
-                if !matches!(victim.scalar_type, ScalarType::Integer(integer) if !integer.is_address() && matches!(integer.bits(), 8 | 16 | 32 | 64))
+                if !matches!(victim.scalar_type, ScalarType::Integer(integer) if !integer.is_address() && matches!(integer.bits(), Some(8 | 16 | 32 | 64)))
                 {
                     return Err(RuntimeSplitError::UnsupportedValue);
                 }

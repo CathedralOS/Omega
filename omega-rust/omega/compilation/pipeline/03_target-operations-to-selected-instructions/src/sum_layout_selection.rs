@@ -977,3 +977,71 @@ fn boolean_result() -> AbstractResult {
         scalar_type: ScalarType::Boolean,
     }
 }
+
+// Exercise the metadata boundary without asserting program acceptance.
+#[test]
+fn ordinary_comparison_metadata_does_not_recover_a_missing_retained_operand_type() {
+    let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 16).unwrap());
+    let mut function = function_with_body(
+        Vec::new(),
+        vec![
+            AbstractOperation::IntegerEqual {
+                psi_operation: op(1),
+                result: ValueId::new(3).unwrap(),
+                left: ValueId::new(1).unwrap(),
+                right: ValueId::new(2).unwrap(),
+            },
+            AbstractOperation::ReturnUnit {
+                psi_edge: edge(1),
+                cleanup_actions: Vec::new(),
+            },
+        ],
+        vec![entry(1, 0)],
+    );
+    function.parameters = [1, 2]
+        .map(|id| abstract_operations::AbstractParameter {
+            value: ValueId::new(id).unwrap(),
+            scalar_type: scalar,
+        })
+        .to_vec();
+    let plan = plan(
+        TerminalIdentityTableBuilder::default(),
+        Vec::new(),
+        function,
+    );
+    let unit = reconstruct_psi_optimization_unit_seed(&plan, WorkScheduleIdentity::new(1).unwrap())
+        .expect("well-formed comparison metadata seed");
+    let function = &unit.functions[0];
+    let inputs = crate::legalization_function_inputs::FunctionInputs::new(function);
+    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let independent = crate::native_geometry::NativeInput::new(&plan, &geometry);
+    assert!(
+        crate::legalization_scalar_graph::nodes::validate(
+            &function.blocks[0],
+            &inputs,
+            &independent,
+            &[],
+            &plan.identities,
+        )
+        .is_ok(),
+        "the comparison is supported independent metadata"
+    );
+    let closed = terminal_codec::ClosedTerminalModule::new(TerminalModule::declarations()).unwrap();
+    assert!(closed.closed_types().scalar(scalar).is_err());
+    let retained = crate::native_geometry::NativeInput::with_types(
+        &plan,
+        &geometry,
+        Some(closed.closed_types()),
+    );
+    assert!(
+        crate::legalization_scalar_graph::nodes::validate(
+            &function.blocks[0],
+            &inputs,
+            &retained,
+            &[],
+            &plan.identities,
+        )
+        .is_err(),
+        "a retained catalog miss must not use independent classification"
+    );
+}

@@ -170,7 +170,7 @@ impl DeferredRequest {
 }
 
 /// One unserved request and the declaration that holds it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct DeferredRefusal {
     /// The machine, trait requirement, data type or other declaration a
     /// reader demands as one unit.
@@ -178,6 +178,8 @@ pub struct DeferredRefusal {
     pub request: DeferredRequest,
     /// Where the request is written.
     pub source_span: SourceSpan,
+    /// Diagnostic context only; admission still depends on `request`.
+    pub detail: String,
 }
 
 impl TypedTrees {
@@ -191,6 +193,18 @@ impl TypedTrees {
         lexical_owner: SymbolHandle,
         request: DeferredRequest,
         source_span: SourceSpan,
+    ) {
+        self.record_deferred_refusal_with_detail(lexical_owner, request, source_span, "");
+    }
+
+    /// Retain a preparation failure beside its original owning declaration.
+    /// An unused request remains data; demanding it reports the same cause.
+    pub fn record_deferred_refusal_with_detail(
+        &mut self,
+        lexical_owner: SymbolHandle,
+        request: DeferredRequest,
+        source_span: SourceSpan,
+        detail: impl Into<String>,
     ) {
         let declaration = self.refusal_declaration(lexical_owner);
         let key = (declaration.arena_index(), declaration.generation(), request);
@@ -208,6 +222,7 @@ impl TypedTrees {
                     declaration,
                     request,
                     source_span,
+                    detail: detail.into(),
                 },
             );
         }

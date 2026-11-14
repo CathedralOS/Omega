@@ -1528,7 +1528,7 @@ pub(crate) mod record {
                                 .map(|row| &row.shape),
                             Some(StructuralTypeShape::PrimitiveScalar(_))
                         ) && matches!(scalar_type, semantic_vocabulary::ScalarType::Integer(carrier)
-                        if carrier.bits() == 8 && !carrier.is_address()
+                        if carrier.bits() == Some(8) && !carrier.is_address()
                             && carrier.sign() == semantic_vocabulary::IntegerSign::Unsigned)
                         {
                             let values = elements.iter().map(|value| {
@@ -4622,7 +4622,7 @@ pub(crate) mod structural_storage {
                         });
                         return Ok(());
                     }
-                    if execution.structural_types().get(element).is_some_and(|row| matches!(row.shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(carrier)) if carrier.bits() == 8 && !carrier.is_address() && carrier.sign() == semantic_vocabulary::IntegerSign::Unsigned)) {
+                    if execution.structural_types().get(element).is_some_and(|row| matches!(row.shape, StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(carrier)) if carrier.bits() == Some(8) && !carrier.is_address() && carrier.sign() == semantic_vocabulary::IntegerSign::Unsigned)) {
                 leaves.leaves.push(StorageLeaf { path: path.clone(), kind: StorageLeafKind::ByteArray { destination: destination.clone(), structural_type: root, length: *length } });
             }
                     let elements = match selected_path {

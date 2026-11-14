@@ -1278,9 +1278,9 @@ pub(crate) mod total_scalar_identities {
         )
     }
 
-    pub(crate) fn all_ones(scalar_type: IntegerType) -> IntegerValue {
+    pub(crate) fn all_ones(scalar_type: IntegerType) -> Option<IntegerValue> {
         match scalar_type.sign() {
-            IntegerSign::Signed => IntegerValue::Signed(-1),
+            IntegerSign::Signed => Some(IntegerValue::Signed(-1)),
             IntegerSign::Unsigned => scalar_type.maximum_value(),
         }
     }
@@ -1535,16 +1535,21 @@ pub(crate) mod total_scalar_identity_rules {
                 scalar_type,
                 left,
                 right,
-            } => bitwise_pair_shapes(
-                *psi_operation,
-                *result,
-                *scalar_type,
-                [
-                    (*right, *left, Kind::IntegerBitwiseAndAllOnesLeft),
-                    (*left, *right, Kind::IntegerBitwiseAndAllOnesRight),
-                ],
-                all_ones(*scalar_type),
-            ),
+            } => {
+                let Some(all_ones) = all_ones(*scalar_type) else {
+                    return Vec::new();
+                };
+                bitwise_pair_shapes(
+                    *psi_operation,
+                    *result,
+                    *scalar_type,
+                    [
+                        (*right, *left, Kind::IntegerBitwiseAndAllOnesLeft),
+                        (*left, *right, Kind::IntegerBitwiseAndAllOnesRight),
+                    ],
+                    all_ones,
+                )
+            }
             O::IntegerBitwiseOr {
                 psi_operation,
                 result,
@@ -1632,17 +1637,51 @@ pub(crate) mod total_scalar_identity_rules {
                 scalar_type,
                 left,
                 right,
-            } => bitwise_pair_shapes(
-                *psi_operation,
-                *result,
-                *scalar_type,
-                [
-                    (*left, *left, Kind::IntegerBitwiseOrAllOnesLeft),
-                    (*right, *right, Kind::IntegerBitwiseOrAllOnesRight),
-                ],
-                all_ones(*scalar_type),
-            ),
+            } => {
+                let Some(all_ones) = all_ones(*scalar_type) else {
+                    return Vec::new();
+                };
+                bitwise_pair_shapes(
+                    *psi_operation,
+                    *result,
+                    *scalar_type,
+                    [
+                        (*left, *left, Kind::IntegerBitwiseOrAllOnesLeft),
+                        (*right, *right, Kind::IntegerBitwiseOrAllOnesRight),
+                    ],
+                    all_ones,
+                )
+            }
             _ => Vec::new(),
+        }
+    }
+    #[cfg(test)]
+    mod width_tests {
+        use super::*;
+        use semantic_vocabulary::IntegerSign;
+
+        #[test]
+        fn bitwise_all_ones_requires_an_unsigned_endpoint_without_dropping_zero_laws() {
+            let parameter = IntegerType::parameterized(
+                IntegerSign::Unsigned,
+                semantic_vocabulary::WidthParameter {
+                    owner: semantic_vocabulary::MachineId::new(1).unwrap(),
+                    value: semantic_vocabulary::ValueId::new(1).unwrap(),
+                },
+            );
+            let fixed = IntegerType::new(IntegerSign::Unsigned, 13).unwrap();
+            assert_eq!(all_ones(fixed), Some(IntegerValue::Unsigned(8191)));
+            assert_eq!(all_ones(parameter), None);
+            let operation = |scalar_type| O::IntegerBitwiseAnd {
+                psi_operation: OperationId::new(1).unwrap(),
+                result: ValueId::new(3).unwrap(),
+                scalar_type,
+                left: ValueId::new(1).unwrap(),
+                right: ValueId::new(2).unwrap(),
+            };
+            assert!(!bitwise_neutral_literal_classify(&operation(fixed)).is_empty());
+            assert!(bitwise_neutral_literal_classify(&operation(parameter)).is_empty());
+            assert!(!bitwise_absorbing_literal_classify(&operation(parameter)).is_empty());
         }
     }
 }

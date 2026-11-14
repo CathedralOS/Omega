@@ -126,7 +126,12 @@ pub(crate) mod carrier_encoding {
             IntegerSign::Unsigned => 1,
             IntegerSign::Signed => 2,
         });
-        bytes.u16(integer_type.bits());
+        // This fingerprints raw refinement/receiving metadata; it does not
+        // establish executable closure. Keep scoped widths distinct while the
+        // published native owner remains responsible for concrete carriers.
+        integer_type
+            .width()
+            .write_identity(|part| bytes.bytes(part));
     }
 
     pub(super) fn encode_integer_value(bytes: &mut CanonicalBytes, value: IntegerValue) {
@@ -4999,5 +5004,44 @@ pub(crate) mod operation_encoding {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod width_identity_tests {
+    use semantic_vocabulary::{IntegerSign, IntegerType, MachineId, ValueId, WidthParameter};
+
+    fn identity(integer: IntegerType) -> Vec<u8> {
+        let mut bytes = super::unit_encoding::CanonicalBytes::collect();
+        super::carrier_encoding::encode_integer_type(&mut bytes, integer);
+        bytes.finish()
+    }
+
+    fn range_identity(integer: IntegerType) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        crate::range::encode_integer_type(&mut bytes, integer);
+        bytes
+    }
+
+    #[test]
+    fn width_identities_keep_fixed_bytes_and_distinguish_rigid_parameter_owners() {
+        let fixed = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+        assert_eq!(identity(fixed), [2, 32, 0]);
+        assert_eq!(range_identity(fixed), [1, 1, 32, 0]);
+        let parameter = |owner, value| {
+            IntegerType::parameterized(
+                IntegerSign::Signed,
+                WidthParameter {
+                    owner: MachineId::new(owner).unwrap(),
+                    value: ValueId::new(value).unwrap(),
+                },
+            )
+        };
+        let first = parameter(1, 1);
+        for other in [fixed, parameter(2, 1), parameter(1, 2)] {
+            assert_ne!(identity(first), identity(other));
+            assert_ne!(range_identity(first), range_identity(other));
+        }
+        assert!(semantic_vocabulary::ClosedIntegerType::try_from(first).is_err());
     }
 }

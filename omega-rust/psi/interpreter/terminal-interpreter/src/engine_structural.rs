@@ -2050,7 +2050,7 @@ impl TerminalExecution<'_> {
                 .ok_or_else(malformed)?;
             let size = usize::from(match member.scalar_type {
                 ScalarType::Boolean => 1u16,
-                ScalarType::Integer(integer) => integer.bits() / 8,
+                ScalarType::Integer(integer) => self.closed_integer(integer)?.bits() / 8,
                 _ => return Err(malformed()),
             });
             let end = offset.checked_add(size).ok_or_else(malformed)?;
@@ -2066,7 +2066,7 @@ impl TerminalExecution<'_> {
                 ScalarType::Integer(scalar_type) => {
                     let value = match scalar_type.sign() {
                         IntegerSign::Signed => {
-                            let bits = u32::from(scalar_type.bits());
+                            let bits = u32::from(self.closed_integer(scalar_type)?.bits());
                             let signed = if bits < 128 && (value >> (bits - 1)) & 1 == 1 {
                                 (value | (!0u128 << bits)) as i128
                             } else {

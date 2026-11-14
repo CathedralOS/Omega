@@ -635,7 +635,7 @@ pub(crate) mod self_divide {
     use abstract_operations::{AbstractOperation as O, IntegerArithmeticOperator};
     use optimization_core::{AnalysisKind, AnalysisSet, OptimizationRuleContract};
     use optimization_unit::{PsiOptimizationUnit, PsiRewriteCandidate};
-    use semantic_vocabulary::{IntegerCarrier, IntegerSign, IntegerType, OperationId, ValueId};
+    use semantic_vocabulary::{IntegerCarrier, IntegerType, OperationId, ValueId};
 
     use crate::rules::proof_check_elision::identity_rewrite::propose_proof_certified_integer_constants;
     use crate::{PsiOptimizationRule, RuleAnalysisView, RuleProposalError};
@@ -655,8 +655,7 @@ pub(crate) mod self_divide {
         let operands = operation.integer_arithmetic_operands(IntegerArithmeticOperator::Divide)?;
         if operands.left != operands.right
             || operands.scalar_type.carrier() != IntegerCarrier::Fixed
-            || (operands.scalar_type.sign() == IntegerSign::Signed
-                && operands.scalar_type.bits() == 1)
+            || !operands.scalar_type.admits(operands.scalar_type.one())
         {
             return None;
         }
@@ -665,6 +664,43 @@ pub(crate) mod self_divide {
             operands.result,
             operands.scalar_type,
         ))
+    }
+    #[cfg(test)]
+    mod width_tests {
+        use super::*;
+        use abstract_operations::{IntegerArithmetic, IntegerOverflowPolicy};
+        use semantic_vocabulary::{IntegerSign, MachineId, ObligationId, WidthParameter};
+
+        #[test]
+        fn self_divide_needs_an_admitted_one_in_its_exact_carrier() {
+            let operation = |scalar_type| O::IntegerArithmetic {
+                psi_operation: OperationId::new(1).unwrap(),
+                result: ValueId::new(2).unwrap(),
+                scalar_type,
+                left: ValueId::new(1).unwrap(),
+                right: ValueId::new(1).unwrap(),
+                arithmetic: IntegerArithmetic::new(
+                    IntegerOverflowPolicy::Exact,
+                    IntegerArithmeticOperator::Divide,
+                    Some(ObligationId::new(1).unwrap()),
+                )
+                .unwrap(),
+            };
+            let fixed = |sign, bits| IntegerType::new(sign, bits).unwrap();
+            assert!(classify(&operation(fixed(IntegerSign::Unsigned, 1))).is_some());
+            assert!(classify(&operation(fixed(IntegerSign::Signed, 8))).is_some());
+            assert!(classify(&operation(fixed(IntegerSign::Signed, 1))).is_none());
+            for sign in [IntegerSign::Signed, IntegerSign::Unsigned] {
+                let parameter = IntegerType::parameterized(
+                    sign,
+                    WidthParameter {
+                        owner: MachineId::new(1).unwrap(),
+                        value: ValueId::new(1).unwrap(),
+                    },
+                );
+                assert!(classify(&operation(parameter)).is_none());
+            }
+        }
     }
 }
 pub(crate) mod self_remainder {

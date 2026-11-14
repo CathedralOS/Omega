@@ -695,7 +695,11 @@ pub(crate) fn encode_scalar_type(bytes: &mut Vec<u8>, scalar_type: ScalarType) {
                 IntegerSign::Signed => 0,
                 IntegerSign::Unsigned => 1,
             });
-            push_encoded(bytes, integer.bits().to_le_bytes());
+            // Raw plan identity preserves a rigid parameter; it cannot grant
+            // the concrete carrier required by published native execution.
+            integer
+                .width()
+                .write_identity(|part| bytes.extend_from_slice(part));
         }
         ScalarType::IeeeFloat(format) => {
             bytes.push(2);
@@ -1011,12 +1015,19 @@ mod ordinary {
     use crate::SelectedTerminator;
 
     pub(super) fn encode_terminator(bytes: &mut Vec<u8>, terminator: &SelectedTerminator) {
-        crate::terminator_encoding::encode_terminator(
+        let result = crate::terminator_encoding::encode_terminator(
             bytes,
             terminator,
             encode_instruction,
-            encode_successor,
+            |bytes, successor| {
+                encode_successor(bytes, successor);
+                Ok::<(), std::convert::Infallible>(())
+            },
         );
+        match result {
+            Ok(()) => {}
+            Err(never) => match never {},
+        }
     }
 
     #[cfg(test)]
@@ -1057,6 +1068,88 @@ mod ordinary {
                 source_target: BlockId::new(source_target).expect("block"),
                 bindings: Vec::new(),
                 work: Vec::new(),
+            }
+        }
+
+        #[test]
+        fn successor_encoding_keeps_bytes_and_stops_at_the_original_error() {
+            #[derive(Debug, PartialEq, Eq)]
+            struct Failure(usize);
+
+            let cases: [(SelectedTerminator, &[u8], usize); 4] = [
+                (
+                    SelectedTerminator::Jump {
+                        instruction: instruction(SelectedInstructionKind::Jump),
+                        successor: successor(1, 1, 1),
+                    },
+                    &[4, 0xa0, 1, 0, 0, 0],
+                    1,
+                ),
+                (
+                    SelectedTerminator::ConditionalBranch {
+                        instruction: instruction(SelectedInstructionKind::ConditionalBranchNonZero),
+                        when_nonzero: successor(1, 1, 1),
+                        when_zero: successor(2, 2, 2),
+                    },
+                    &[0, 0xa0, 1, 0, 0, 0, 2, 0, 0, 0],
+                    2,
+                ),
+                (
+                    SelectedTerminator::ConditionalBranchU64LessThan {
+                        instruction: instruction(
+                            SelectedInstructionKind::ConditionalBranchU64LessThan,
+                        ),
+                        when_less: successor(1, 1, 1),
+                        when_not_less: successor(2, 2, 2),
+                    },
+                    &[2, 0xa0, 1, 0, 0, 0, 2, 0, 0, 0],
+                    2,
+                ),
+                (
+                    SelectedTerminator::ConditionalBranchI64LessThan {
+                        instruction: instruction(
+                            SelectedInstructionKind::ConditionalBranchI64LessThan,
+                        ),
+                        when_less: successor(1, 1, 1),
+                        when_not_less: successor(2, 2, 2),
+                    },
+                    &[3, 0xa0, 1, 0, 0, 0, 2, 0, 0, 0],
+                    2,
+                ),
+            ];
+            for (terminator, expected, successor_count) in cases {
+                let mut bytes = Vec::new();
+                crate::terminator_encoding::encode_terminator(
+                    &mut bytes,
+                    &terminator,
+                    |bytes, _| bytes.push(0xa0),
+                    |bytes, successor| {
+                        bytes.extend_from_slice(&successor.block.0.to_le_bytes());
+                        Ok::<(), Failure>(())
+                    },
+                )
+                .unwrap();
+                assert_eq!(bytes, expected);
+
+                for fail_at in 0..successor_count {
+                    let mut calls = 0;
+                    let result = crate::terminator_encoding::encode_terminator(
+                        &mut Vec::new(),
+                        &terminator,
+                        |_, _| {},
+                        |_, _| {
+                            let current = calls;
+                            calls += 1;
+                            if current == fail_at {
+                                Err(Failure(current))
+                            } else {
+                                Ok(())
+                            }
+                        },
+                    );
+                    assert_eq!(result, Err(Failure(fail_at)));
+                    assert_eq!(calls, fail_at + 1);
+                }
             }
         }
 
@@ -1186,6 +1279,33 @@ mod tests {
     };
     use optimization_core::AcceptedObligationFactIdentity;
     use register_model::RegisterConstraintKey;
+
+    #[test]
+    fn scalar_width_identity_keeps_fixed_bytes_and_scopes_parameters() {
+        use semantic_vocabulary::{
+            IntegerSign, IntegerType, MachineId, ScalarType, ValueId, WidthParameter,
+        };
+        let encode = |integer| {
+            let mut bytes = Vec::new();
+            super::encode_scalar_type(&mut bytes, ScalarType::Integer(integer));
+            bytes
+        };
+        let fixed = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        assert_eq!(encode(fixed), [1, 0, 1, 64, 0]);
+        assert_eq!(encode(IntegerType::address(64).unwrap()), [1, 1, 1, 64, 0]);
+        let parameter = |owner, value| {
+            IntegerType::parameterized(
+                IntegerSign::Unsigned,
+                WidthParameter {
+                    owner: MachineId::new(owner).unwrap(),
+                    value: ValueId::new(value).unwrap(),
+                },
+            )
+        };
+        for other in [fixed, parameter(2, 1), parameter(1, 2)] {
+            assert_ne!(encode(parameter(1, 1)), encode(other));
+        }
+    }
 
     #[test]
     fn float_result_policy_plan_identity_binds_format_rule_operands_and_operation() {

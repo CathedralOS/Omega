@@ -367,8 +367,8 @@ pub(crate) mod countdown_ranking {
                 header: header_id,
                 rank_parameter,
                 rank_type,
-                lower_bound: rank_type.minimum_value(),
-                upper_bound: rank_type.maximum_value(),
+                lower_bound: rank_type.minimum_value().ok_or(())?,
+                upper_bound: rank_type.maximum_value().ok_or(())?,
                 guard: OptimizerUnsignedPositiveGuard {
                     block: header_id,
                     edge: when_true.psi_edge,
@@ -569,8 +569,8 @@ pub(crate) mod countdown_ranking {
                 header: header_id,
                 rank_parameter,
                 rank_type,
-                lower_bound: rank_type.minimum_value(),
-                upper_bound: rank_type.maximum_value(),
+                lower_bound: rank_type.minimum_value()?,
+                upper_bound: rank_type.maximum_value()?,
                 guard: OptimizerUnsignedPositiveGuard {
                     block: header_id,
                     edge: guard.edge,

@@ -230,7 +230,7 @@ pub(crate) mod byte_views {
             let Some(scalar_type) = result.scalar_type.as_integer() else {
                 return Err(invalid());
             };
-            if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != 64 {
+            if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != Some(64) {
                 return Err(invalid());
             }
             let (selected, indices) = super::descriptor_operands::descriptor_metadata_projection(
@@ -323,7 +323,7 @@ pub(crate) mod byte_views {
                 obligation,
                 ..
             } => {
-                if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != 8 {
+                if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != Some(8) {
                     return Err(invalid());
                 }
                 let Some(KnownScalar::Integer {
@@ -334,7 +334,7 @@ pub(crate) mod byte_views {
                     return Err(invalid());
                 };
                 if index_type.sign() != IntegerSign::Unsigned
-                    || index_type.bits() != 64
+                    || index_type.bits() != Some(64)
                     || !observes_measured_length(values, lengths, *length, source, true)
                 {
                     return Err(invalid());
@@ -906,7 +906,7 @@ pub(crate) mod descriptor_operands {
         let (selected, _, _, leaf_indices) =
             runtime_descriptor_projection(regions.root, regions.path, structural_types)?;
         let indices = regions.selector_runs(leaf_indices);
-        let indices = runtime_indices(indices, function, &backings.selectors)?;
+        let indices = runtime_indices(indices, function, &backings.selectors, structural_types)?;
         Ok((selected, indices))
     }
 
@@ -921,7 +921,7 @@ pub(crate) mod descriptor_operands {
             return false;
         };
         if scalar_type.sign() != semantic_vocabulary::IntegerSign::Unsigned
-            || scalar_type.bits() != 64
+            || scalar_type.bits() != Some(64)
         {
             return false;
         }
@@ -957,7 +957,7 @@ pub(crate) mod descriptor_operands {
             return false;
         };
         if scalar_type.sign() != semantic_vocabulary::IntegerSign::Unsigned
-            || scalar_type.bits() != 64
+            || scalar_type.bits() != Some(64)
         {
             return false;
         }
@@ -1201,6 +1201,7 @@ pub(crate) mod element_views {
                 regions.selector_runs(runtime_elements),
                 function,
                 &backings.selectors,
+                structural_types,
             )?;
             let collection_shape = projected_storage
                 .shape(structural_types)
@@ -1578,7 +1579,7 @@ pub(crate) mod element_views {
             let Some(scalar_type) = result.scalar_type.as_integer() else {
                 return Err(invalid());
             };
-            if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != 64 {
+            if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != Some(64) {
                 return Err(invalid());
             }
             let (selected, indices) = super::descriptor_operands::descriptor_metadata_projection(
@@ -1654,7 +1655,7 @@ pub(crate) mod element_views {
                 else {
                     return Err(invalid());
                 };
-                if index_type.sign() != IntegerSign::Unsigned || index_type.bits() != 64 {
+                if index_type.sign() != IntegerSign::Unsigned || index_type.bits() != Some(64) {
                     return Err(invalid());
                 }
                 match result.scalar_type {
@@ -1739,7 +1740,7 @@ pub(crate) mod element_views {
         let Some(KnownScalar::Integer { scalar_type, value }) = values.get(index) else {
             return Err(invalid());
         };
-        if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != 64 {
+        if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != Some(64) {
             return Err(invalid());
         }
         Ok(
@@ -2164,17 +2165,23 @@ mod expressions {
         value: ValueId,
         scalar_type: ScalarType,
         require_native_parameter: bool,
+        types: &crate::structural_type_lookup::StructuralTypeLookup<'_>,
     ) -> Result<ValueShape, LoweringError> {
+        // Native geometry belongs to the original artifact. A concrete raw
+        // descriptor cannot recover membership missing from its retained catalog.
+        let scalar_type = types
+            .closed_scalar(scalar_type)
+            .ok_or(LoweringError::ValueTypeMismatch(value))?;
         let bytes = match scalar_type {
-            ScalarType::Boolean => 1,
-            ScalarType::Integer(integer_type) => {
+            semantic_vocabulary::ClosedScalarType::Boolean => 1,
+            semantic_vocabulary::ClosedScalarType::Integer(integer_type) => {
                 let bits = integer_type.bits();
                 if require_native_parameter && !matches!(bits, 8 | 16 | 32 | 64) {
                     return Err(LoweringError::ParameterWidthNotNativelySupported { value, bits });
                 }
                 bits.div_ceil(8)
             }
-            ScalarType::IeeeFloat(format) => {
+            semantic_vocabulary::ClosedScalarType::IeeeFloat(format) => {
                 return Ok(ValueShape::float(format.byte_size()));
             }
         };
@@ -2187,8 +2194,10 @@ mod expressions {
     pub(crate) fn scalar_parameter_location(
         parameter: &AbstractParameter,
         placement: &ValuePlacement,
+        types: &crate::structural_type_lookup::StructuralTypeLookup<'_>,
     ) -> Result<ScalarParameterLocation, LoweringError> {
-        let expected_bytes = scalar_shape(parameter.value, parameter.scalar_type, true)?.byte_size;
+        let expected_bytes =
+            scalar_shape(parameter.value, parameter.scalar_type, true, types)?.byte_size;
         match placement.locations.as_slice() {
             [
                 ValueLocation::Register {
@@ -2429,7 +2438,7 @@ mod expressions {
             else {
                 return Err(invalid());
             };
-            if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != 64 {
+            if scalar_type.sign() != IntegerSign::Unsigned || scalar_type.bits() != Some(64) {
                 return Err(invalid());
             }
             Ok(Box::new(known.clone().into_expression(value)))
@@ -2898,3 +2907,36 @@ pub(crate) use expressions::{
 pub(crate) use integer_binary::{IntegerBinaryKind, lower_integer_binary};
 pub(crate) use integer_operation::try_lower_integer_operation;
 use shift::lower_shift;
+
+#[cfg(test)]
+mod width_tests {
+    use semantic_vocabulary::{
+        IntegerSign, IntegerType, MachineId, ScalarType, ValueId, WidthParameter,
+    };
+
+    #[test]
+    fn scalar_geometry_preserves_closed_width_and_refuses_symbolic_native_width() {
+        let catalog = abstract_operations::StructuralTypeCatalog::default();
+        let types = crate::structural_type_lookup::StructuralTypeLookup::new(&catalog).unwrap();
+        let value = ValueId::new(1).unwrap();
+        let scalar = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 13).unwrap());
+        let shape = super::scalar_shape(value, scalar, false, &types).unwrap();
+        assert_eq!(shape.byte_size, 2);
+        assert_eq!(shape.alignment, 2);
+        assert!(matches!(
+            super::scalar_shape(value, scalar, true, &types),
+            Err(crate::LoweringError::ParameterWidthNotNativelySupported { bits: 13, .. })
+        ));
+        let symbolic = ScalarType::Integer(IntegerType::parameterized(
+            IntegerSign::Unsigned,
+            WidthParameter {
+                owner: MachineId::new(1).unwrap(),
+                value,
+            },
+        ));
+        assert!(
+            matches!(super::scalar_shape(value, symbolic, false, &types),
+            Err(crate::LoweringError::ValueTypeMismatch(actual)) if actual == value)
+        );
+    }
+}

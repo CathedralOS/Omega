@@ -1486,9 +1486,9 @@ pub(crate) mod edge_values {
                 return None;
             }
             let kind = match integer.bits() {
-                8 => SelectedInstructionKind::SignExtendI8,
-                16 => SelectedInstructionKind::SignExtendI16,
-                32 => SelectedInstructionKind::SignExtendI32,
+                Some(8) => SelectedInstructionKind::SignExtendI8,
+                Some(16) => SelectedInstructionKind::SignExtendI16,
+                Some(32) => SelectedInstructionKind::SignExtendI32,
                 _ => return None,
             };
             let (owner, normalization, position) = index.unique_instruction(instruction)?;
@@ -1540,9 +1540,9 @@ pub(crate) mod edge_values {
                 || load.provenance.edges != [psi_edge]
                 || !matches!(
                     (integer.bits(), load.kind),
-                    (8, SelectedInstructionKind::Load8 { .. })
-                        | (16, SelectedInstructionKind::Load16 { .. })
-                        | (32, SelectedInstructionKind::Load32 { .. })
+                    (Some(8), SelectedInstructionKind::Load8 { .. })
+                        | (Some(16), SelectedInstructionKind::Load16 { .. })
+                        | (Some(32), SelectedInstructionKind::Load32 { .. })
                 )
                 || address.access != RegisterOperandAccess::Use
                 || loaded.access != RegisterOperandAccess::Def

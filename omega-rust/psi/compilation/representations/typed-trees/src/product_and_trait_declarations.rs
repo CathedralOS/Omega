@@ -3548,6 +3548,19 @@ pub mod trait_definition {
                 lexical_owner: SymbolHandle,
                 application: TypeReferenceHandle,
             ) -> Option<AppliedTraitScope<'_>> {
+                if let TypeReferenceNode::Named { symbol, .. } =
+                    self.type_reference_table.type_reference(application)
+                {
+                    let selected = self.conformance_by_symbol(*symbol)?;
+                    // A missing generic tuple cannot become a zero-argument
+                    // selection. Only a genuinely closed declaration has this view.
+                    if !selected.type_parameters.is_empty()
+                        || !selected.lifetime_parameters.is_empty()
+                    {
+                        return None;
+                    }
+                    return AppliedTraitScope::from_conformance(self, selected);
+                }
                 let TypeReferenceNode::Generic {
                     base_symbol,
                     lifetime_arguments,

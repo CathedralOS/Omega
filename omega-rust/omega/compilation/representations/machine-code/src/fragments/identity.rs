@@ -328,7 +328,7 @@ fn encode_successor(
                     IntegerSign::Signed => 0,
                     IntegerSign::Unsigned => 1,
                 });
-                hasher.raw(&integer.bits().to_le_bytes());
+                integer.width().write_identity(|part| hasher.raw(part));
             }
             ScalarType::IeeeFloat(format) => {
                 hasher.byte(2);
@@ -371,4 +371,57 @@ fn encode_branch_predicate(
     predicate: FunctionFragmentConditionalBranchPredicate,
 ) {
     hasher.byte(predicate.rank());
+}
+
+#[cfg(test)]
+mod width_tests {
+    use super::*;
+    use semantic_vocabulary::{BlockId, IntegerType, MachineId, ValueId, WidthParameter};
+
+    fn identity(integer: IntegerType) -> [u8; 32] {
+        let successor = FunctionFragmentSuccessorProvenance {
+            role: selected_instructions::SelectedSuccessorRole::Semantic,
+            psi_edge: None,
+            block: selected_instructions::SelectedBlockId(2),
+            source_target: BlockId::new(3).unwrap(),
+            bindings: vec![abstract_operations::ValueBinding {
+                parameter: ValueId::new(4).unwrap(),
+                argument: ValueId::new(5).unwrap(),
+                scalar_type: ScalarType::Integer(integer),
+            }],
+            work: Vec::new(),
+        };
+        let mut digest =
+            crate::digest_encoder::DomainDigestEncoder::new(b"fragment-successor-test");
+        encode_successor(&mut digest, &successor);
+        digest.finish()
+    }
+
+    #[test]
+    fn fragment_successor_keeps_legacy_fixed_width_identity() {
+        let actual = identity(IntegerType::new(IntegerSign::Unsigned, 13).unwrap());
+        assert_eq!(
+            crate::digest_encoder::hex(&actual),
+            "8e94373e9485a207513a1e62862ea4a3edaaa8e8ec4390f76a8d53e2f1dd1e2c"
+        );
+    }
+
+    #[test]
+    fn fragment_successor_identity_retains_rigid_width_owner_and_value() {
+        let parameter = |owner, value| {
+            IntegerType::parameterized(
+                IntegerSign::Unsigned,
+                WidthParameter {
+                    owner: MachineId::new(owner).unwrap(),
+                    value: ValueId::new(value).unwrap(),
+                },
+            )
+        };
+        assert_ne!(identity(parameter(1, 2)), identity(parameter(2, 2)));
+        assert_ne!(identity(parameter(1, 2)), identity(parameter(1, 3)));
+        assert_ne!(
+            identity(parameter(1, 2)),
+            identity(IntegerType::new(IntegerSign::Unsigned, 13).unwrap())
+        );
+    }
 }

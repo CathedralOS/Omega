@@ -279,7 +279,7 @@ pub(crate) mod runtime_indices {
             .map(|element| {
                 let scalar_type = defined_type(optimized, element.index)
                     .filter(
-                        |scalar| matches!(scalar, ScalarType::Integer(integer) if integer.bits() <= 64),
+                        |scalar| matches!(unit.closed_scalar(*scalar), Some(semantic_vocabulary::ClosedScalarType::Integer(integer)) if integer.bits() <= 64),
                     )
                     .ok_or(LegalizationError::custody())?;
                 let accepted_fact = accepted_fact(unit, optimized, owner, element.obligation)?;
@@ -402,6 +402,7 @@ pub(crate) use target_operations::TargetOperationPlan;
 #[allow(unused_imports)]
 pub(crate) use source::derive_source_function_rosters;
 
+#[cfg(test)]
 pub(crate) fn legalize_target_operations(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
@@ -411,6 +412,28 @@ pub(crate) fn legalize_target_operations(
     installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
     installed_stack_requirements: &[installation_evidence::InstalledInterruptStackRequirement],
 ) -> Result<ValidatedLegalizedOperations, LegalizationError> {
+    legalize_target_operations_with_types(
+        target,
+        abstract_plan,
+        unit,
+        origins,
+        installed_interrupts,
+        installed_entry_execution,
+        installed_stack_requirements,
+        None,
+    )
+}
+
+pub(crate) fn legalize_target_operations_with_types(
+    target: &TargetOperationPlan,
+    abstract_plan: &AbstractOperationPlan,
+    unit: &optimization_unit::PsiOptimizationUnit,
+    origins: target_operations::BoundaryOriginFacts<'_>,
+    installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
+    installed_entry_execution: Option<&provider_admission::AdmittedInstalledEntryExecution>,
+    installed_stack_requirements: &[installation_evidence::InstalledInterruptStackRequirement],
+    closed_types: Option<&terminal_codec::ClosedTypeCatalog>,
+) -> Result<ValidatedLegalizedOperations, LegalizationError> {
     crate::installed_interrupts::validate_target(
         target,
         origins.module,
@@ -418,7 +441,7 @@ pub(crate) fn legalize_target_operations(
         abstract_plan,
     )?;
     validate_boundary_origins(target, unit, origins)?;
-    let rosters = derive_source_function_rosters(target, abstract_plan, unit)?;
+    let rosters = derive_source_function_rosters(target, abstract_plan, unit, closed_types)?;
     let plan = LegalizedOperationPlan {
         psi: target.psi,
         optimization_unit: unit.identity,
@@ -471,6 +494,45 @@ pub fn verify_target_operation_plan(
     origins: target_operations::BoundaryOriginFacts<'_>,
     installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
 ) -> Result<(), LegalizationError> {
+    verify_target_operation_plan_input(
+        target,
+        abstract_plan,
+        unit,
+        origins,
+        installed_interrupts,
+        None,
+    )
+}
+
+pub fn verify_target_operation_plan_with_closed_module(
+    target: &TargetOperationPlan,
+    abstract_plan: &AbstractOperationPlan,
+    unit: &optimization_unit::PsiOptimizationUnit,
+    origins: target_operations::BoundaryOriginFacts<'_>,
+    installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
+    closed_module: &terminal_codec::ClosedTerminalModule,
+) -> Result<(), LegalizationError> {
+    let closed_types =
+        crate::native_geometry::retained_types(closed_module, target.psi, origins.module)
+            .ok_or_else(LegalizationError::custody)?;
+    verify_target_operation_plan_input(
+        target,
+        abstract_plan,
+        unit,
+        origins,
+        installed_interrupts,
+        Some(closed_types),
+    )
+}
+
+fn verify_target_operation_plan_input(
+    target: &TargetOperationPlan,
+    abstract_plan: &AbstractOperationPlan,
+    unit: &optimization_unit::PsiOptimizationUnit,
+    origins: target_operations::BoundaryOriginFacts<'_>,
+    installed_interrupts: &provider_admission::AdmittedInstalledInterruptCohort,
+    closed_types: Option<&terminal_codec::ClosedTypeCatalog>,
+) -> Result<(), LegalizationError> {
     crate::installed_interrupts::validate_target(
         target,
         origins.module,
@@ -478,21 +540,26 @@ pub fn verify_target_operation_plan(
         abstract_plan,
     )?;
     validate_boundary_origins(target, unit, origins)?;
-    audit_target_operation_plan(target, abstract_plan, unit)
+    audit_target_operation_plan(target, abstract_plan, unit, closed_types)
 }
 
 pub(crate) fn audit_target_operation_plan(
     target: &TargetOperationPlan,
     abstract_plan: &AbstractOperationPlan,
     unit: &optimization_unit::PsiOptimizationUnit,
+    closed_types: Option<&terminal_codec::ClosedTypeCatalog>,
 ) -> Result<(), LegalizationError> {
     let plan_geometry =
         crate::native_geometry::NativeGeometry::new(&abstract_plan.structural_types)
             .map_err(|_| LegalizationError::custody())?;
     let unit_geometry = crate::native_geometry::NativeGeometry::new(&unit.structural_types)
         .map_err(|_| LegalizationError::custody())?;
-    let abstract_plan = &crate::native_geometry::NativeInput::new(abstract_plan, &plan_geometry);
-    let unit = &crate::native_geometry::NativeInput::new(unit, &unit_geometry);
+    let abstract_plan = &crate::native_geometry::NativeInput::with_types(
+        abstract_plan,
+        &plan_geometry,
+        closed_types,
+    );
+    let unit = &crate::native_geometry::NativeInput::with_types(unit, &unit_geometry, closed_types);
     source::validate_source_custody(target, abstract_plan, unit)?;
     scalar_graph_input::normalized_foreign::validate_native_callback_roster(target)?;
     let descriptor_inputs =
