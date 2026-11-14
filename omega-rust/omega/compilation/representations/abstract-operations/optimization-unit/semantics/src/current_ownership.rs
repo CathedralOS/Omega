@@ -3197,7 +3197,7 @@ mod cleanup {
     /// checks that each cleanup use follows its dominating producer.
     pub(crate) fn unrestricted_owned_cleanup_roots(
         function: &PsiOptimizationFunction,
-        types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+        types: &(impl crate::StructuralTypes + ?Sized),
     ) -> Vec<PlaceId> {
         // Prepare this actual source roster once per function, then reuse it
         // across edge cleanup and replay instead of scanning operations per home.
@@ -3218,12 +3218,14 @@ mod cleanup {
             access == terminal_psi::StructuralAccess::Owned
                 && multiplicity == StructuralMultiplicity::Unrestricted
                 && claimed.binary_search(&place).is_err()
-                && types.get(&structural_type).is_some_and(|declaration| {
-                    declaration.copyable
-                        && !declaration.owns_linear_claim
-                        && declaration.no_code_affine_cleanup
-                        && declaration.descriptor_cleanup
-                })
+                && types
+                    .declaration(structural_type)
+                    .is_some_and(|declaration| {
+                        declaration.copyable
+                            && !declaration.owns_linear_claim
+                            && declaration.no_code_affine_cleanup
+                            && declaration.descriptor_cleanup
+                    })
         };
         let mut roots = function
             .structural_parameters
@@ -7767,7 +7769,7 @@ mod replay {
         let mut ready = BTreeSet::from([function.entry]);
         let mut incoming = BTreeMap::<BlockId, CurrentOwnership>::new();
         incoming.insert(function.entry, entry);
-        let mut returned_reference_sources = BTreeMap::new();
+        let mut returned_reference_sources = vec![Vec::new(); function.blocks.len()];
         let mut snapshots = BTreeMap::<OwnershipFrontierSite, OwnershipFrontierSnapshot>::new();
 
         while let Some(block_id) = ready.pop_first() {
@@ -8884,7 +8886,9 @@ mod replay {
 
             // A tightened join may replay a block. Replace that block's
             // observations rather than retaining evidence from an earlier pass.
-            returned_reference_sources.insert(block_id, returned_here);
+            returned_reference_sources[function
+                .block_index(block_id)
+                .expect("the reachable block belongs to this validated function")] = returned_here;
             for edge in &block
                 .nodes
                 .last()
@@ -9025,7 +9029,7 @@ mod replay {
         super::references::validate_return_coverage(
             function,
             &returned_reference_sources
-                .into_values()
+                .into_iter()
                 .flatten()
                 .collect::<Vec<_>>(),
         )?;

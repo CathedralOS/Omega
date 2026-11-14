@@ -766,7 +766,7 @@ pub(crate) mod affine_authority {
         /// treating every cleanup group as whole-home retirement.
         fn consume_residual_group(
             function: &PsiOptimizationFunction,
-            types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+            types: &(impl crate::StructuralTypes + ?Sized),
             frontier: &mut OwnershipFrontierSnapshot,
             place: PlaceId,
             actions: &[TerminalAffineCleanupAction],
@@ -801,7 +801,7 @@ pub(crate) mod affine_authority {
                         &discard.path,
                     ) != Some(discard.structural_type)
                     || types
-                        .get(&discard.structural_type)
+                        .declaration(discard.structural_type)
                         .is_none_or(|declaration| !declaration.no_code_affine_cleanup)
                     || frontier.claims.iter().any(|claim| {
                         claim.input == Some(place)
