@@ -565,6 +565,7 @@ fn the_default_product_publishes_generic_named_map_captures() {
             .result
             .unwrap_or_else(|failure| panic!("named map source: {:?}", failure.into_diagnostics()));
             let accepted = checked.terminal_publication().accepted().unwrap();
+            assert!(accepted.closure().elaboration.generic_binders.is_empty());
             let publication = accepted.closure().publish().unwrap();
             assert_eq!(publication.artifact.semantic_module(), accepted.module());
             let source = accepted.source();
@@ -610,6 +611,20 @@ fn the_default_product_publishes_generic_named_map_captures() {
                     .unwrap()
                     .terminal_psi_identity(),
                 publication.artifact.manifest().semantic()
+            );
+            let main = repository("tests/fixtures/fail/generics/named_map_universal_body/main.omg");
+            let failure = orchestration::check_source(
+                &mut compiler::CompilationSession::default(),
+                compiler::CheckedCompileRequest::new(&main, Some("linux_x86_64")),
+            )
+            .result
+            .expect_err("one closed integer instance cannot validate the universal body");
+            let diagnostics = failure.into_diagnostics();
+            assert!(
+                diagnostics.iter().any(|diagnostic| diagnostic
+                    .message
+                    .contains("expression anonymous integer literal without an expected type")),
+                "{diagnostics:?}"
             );
         })
         .unwrap()

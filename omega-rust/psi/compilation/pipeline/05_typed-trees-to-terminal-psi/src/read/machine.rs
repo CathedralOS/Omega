@@ -453,6 +453,33 @@ impl<'t> Program<'t> {
         self.elision = elision;
         let scope = std::mem::replace(&mut self.scope, outer);
         let (signature, names, value_parameters) = read?;
+        if matches!(reading, Reading::GenericEntry | Reading::Alternative(_))
+            || (self.rigid && matches!(reading, Reading::Implementation))
+        {
+            let (machine, _) = self.declaration(id, symbol)?;
+            let mut binders = self
+                .generic_parameters(id, machine)?
+                .iter()
+                .map(|parameter| parameter.symbol)
+                .collect::<Vec<_>>();
+            binders.extend(
+                self.typed
+                    .machine_callable_parameters(machine)
+                    .iter()
+                    .map(|parameter| parameter.symbol),
+            );
+            let mut known = self
+                .generic_binders
+                .iter()
+                .copied()
+                .map(|binder| (binder, ()))
+                .collect::<symbols::SymbolMap<_>>();
+            for binder in binders {
+                if known.insert(binder, ()).is_none() {
+                    self.generic_binders.push(binder);
+                }
+            }
+        }
         self.symbols.push(symbol);
         self.signatures.push(signature);
         self.names.push(names);

@@ -130,6 +130,7 @@ pub(crate) struct Program<'t> {
     /// `Elaboration::value_parameters` and `Elaboration::value_arguments`,
     /// pushed with each machine's signature.
     pub value_parameters: IdTable<MachineId, usize>,
+    pub generic_binders: Vec<SymbolHandle>,
     pub value_arguments: IdTable<MachineId, Vec<semantic_vocabulary::ScalarTerm>>,
     /// Every record type a formal, local, result, field or literal named, in
     /// discovery order; a nested record is discovered before its owner.
@@ -279,6 +280,7 @@ impl<'t> Program<'t> {
             alternative: None,
             static_truths: Vec::new(),
             value_parameters: IdTable::default(),
+            generic_binders: Vec::new(),
             value_arguments: IdTable::default(),
             records: IdTable::default(),
             record_sources: IdTable::default(),

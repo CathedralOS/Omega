@@ -231,9 +231,10 @@ impl RoutePublication {
 /// Why an accepted closure could not be published.
 #[derive(Debug)]
 pub enum PublicationError {
-    /// The module names a requirement that stands in for a body: a generic
-    /// check form, which is never encoded (generics.md, "Generic bodies use
-    /// the abstract requirement envelope").
+    /// The module retains an open source binder, an opaque rigid value,
+    /// a static-value formal or an abstract requirement: a generic check
+    /// form, which is never encoded (generics.md, "Generic bodies use the
+    /// abstract requirement envelope").
     GenericCheckForm,
     /// A machine of the module has no declaration identity, for the reason
     /// given (`Elaboration::undeclared`). product.md: "Source-produced
@@ -285,6 +286,7 @@ impl AcceptedClosure {
 
     fn validate_publication(&self) -> Result<(), PublicationError> {
         if !self.elaboration.requirements.is_empty()
+            || !self.elaboration.generic_binders.is_empty()
             || self
                 .elaboration
                 .value_parameters

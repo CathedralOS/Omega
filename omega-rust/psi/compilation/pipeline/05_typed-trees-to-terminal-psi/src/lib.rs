@@ -630,6 +630,7 @@ fn finish_reading(
     elaboration.selections = program.selections;
     elaboration.applications = program.applications;
     elaboration.value_parameters = program.value_parameters;
+    elaboration.generic_binders = program.generic_binders;
     elaboration.value_arguments = program.value_arguments;
     elaboration.generic_templates = program.generic_templates;
     elaboration.conformance_witnesses = program.conformance_witnesses;
@@ -956,6 +957,7 @@ fn lower_generic_for(
             selections: Vec::new(),
             applications: Vec::new(),
             value_parameters: IdTable::default(),
+            generic_binders: Vec::new(),
             value_arguments: IdTable::default(),
             generic_templates: Vec::new(),
             conformance_witnesses: Vec::new(),

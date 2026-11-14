@@ -428,6 +428,12 @@ impl<'t> Program<'t> {
                 Unserved::Declaration("generic trait with an unserved telescope or schema clause"),
             ));
         }
+        self.generic_binders.extend(
+            self.typed
+                .trait_type_parameters(declared)
+                .iter()
+                .map(|parameter| parameter.symbol),
+        );
         let outer = std::mem::take(&mut self.scope);
         self.scope = self
             .typed

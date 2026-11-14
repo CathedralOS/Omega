@@ -399,3 +399,71 @@ fn a_const_only_generic_form_cannot_publish_its_extra_formal() {
         Err(crate::PublicationError::GenericCheckForm)
     ));
 }
+
+#[test]
+fn an_unused_type_binder_still_prevents_generic_form_publication() {
+    let source = super::boundary_calls::typed("machine entry<T>() -> u32 crashes none { 7 }");
+    let entry = super::boundary_calls::entry(&source);
+    let actual = source.machine_type_parameters(source.machine_by_symbol(entry).unwrap());
+    let form = typed_trees_to_terminal_psi::elaborate_generic(&source, entry).unwrap();
+    assert_eq!(
+        form.generic_binders,
+        actual
+            .iter()
+            .map(|parameter| parameter.symbol)
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(form.value_parameters.get(id(1)), Some(&0));
+    assert!(form.requirements.is_empty());
+    assert!(form.tables.machines.iter().all(|(_, machine)| {
+        machine
+            .values
+            .iter()
+            .all(|(_, value)| value.rigid.is_none())
+    }));
+    let RouteVerdict::Accepted(accepted) = judge(Ok(form)).unwrap() else {
+        panic!("the actual unused-binder body must first be judged")
+    };
+    assert!(matches!(
+        accepted.publish(),
+        Err(crate::PublicationError::GenericCheckForm)
+    ));
+    assert!(matches!(
+        accepted.publish_invocation(),
+        Err(crate::PublicationError::GenericCheckForm)
+    ));
+}
+
+#[test]
+fn an_empty_generic_schema_retains_its_real_binder_without_an_entry() {
+    let source = super::boundary_calls::typed("trait Empty<T> {} machine entry() {} ");
+    let declared = source
+        .traits()
+        .iter()
+        .find(|declared| source.symbols.name(declared.symbol) == "Empty")
+        .unwrap();
+    let mut forms =
+        typed_trees_to_terminal_psi::elaborate_generic_forms(&source, &[declared.symbol]).unwrap();
+    let form = forms.remove(0);
+    assert!(form.module.entry.is_none());
+    assert!(form.module.machines.is_empty());
+    assert_eq!(
+        form.generic_binders,
+        source
+            .trait_type_parameters(declared)
+            .iter()
+            .map(|parameter| parameter.symbol)
+            .collect::<Vec<_>>()
+    );
+    let RouteVerdict::Accepted(accepted) = judge(Ok(form)).unwrap() else {
+        panic!("an empty schema has no body obligation")
+    };
+    assert!(matches!(
+        accepted.publish(),
+        Err(crate::PublicationError::GenericCheckForm)
+    ));
+    assert!(matches!(
+        accepted.publish_invocation(),
+        Err(crate::PublicationError::GenericCheckForm)
+    ));
+}
