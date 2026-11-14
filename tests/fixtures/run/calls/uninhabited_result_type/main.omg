@@ -1,0 +1,25 @@
+use omega::language::core::Never;
+
+public machine halt() -> Never crashes Trap {
+    crash Trap;
+}
+
+public machine checked_value(value: u32, fatal: bool) -> u32
+ensures result == value
+crashes Trap
+{
+    transition fatal {
+        true -> halt()
+        false -> value
+    }
+}
+
+machine main() crashes Trap {
+    let actual: u32 = checked_value(7, false);
+    transition actual == 7 {
+        true -> done()
+        false -> wrong()
+    }
+    machine done() { }
+    machine wrong() { crash Trap; }
+}
