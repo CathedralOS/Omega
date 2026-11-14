@@ -98,9 +98,9 @@ pub enum DeferredRequest {
     /// left unbound and that nothing in the program has: no declaration,
     /// parameter, local or field of any kind. A violation, as for a call:
     /// resolution looks through locals, parameters, imports and qualified
-    /// paths (`modules.md`, "Resolution"), and "an unknown machine name or
-    /// malformed type is an error wherever it appears"
-    /// (`state_contracts.md`) holds for a value name none of them answers.
+    /// paths (`modules.md`, "Resolution"), and "name resolution ... [is]
+    /// checked as usual" even where a statement never executes
+    /// (`state_contracts.md`), so a name none of them answers is an error.
     UndeclaredValueName,
 }
 
