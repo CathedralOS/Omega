@@ -1041,16 +1041,25 @@ pub(crate) mod compiler_evaluation {
         if target.is_none() {
             // A tagged callee can occur below an untagged root. Traversal leaves
             // it in the demanded call roster rather than silently selecting it.
-            let demanded = dependencies.iter().copied().collect::<std::collections::BTreeSet<_>>();
+            let demanded = dependencies
+                .iter()
+                .copied()
+                .collect::<std::collections::BTreeSet<_>>();
             for (_, machine) in scope.plan.machines.iter() {
                 if (demanded.contains(&machine.machine)
-                    || scope.plan.symbols.span_or_empty(machine.states).iter()
+                    || scope
+                        .plan
+                        .symbols
+                        .span_or_empty(machine.states)
+                        .iter()
                         .any(|state| demanded.contains(state)))
                     && (machine.authored_target.is_some()
                         || machine.source_target.is_some()
                         || machine.family_interface)
                 {
-                    return Err("target-independent evaluation demands a target-selected body".into());
+                    return Err(
+                        "target-independent evaluation demands a target-selected body".into(),
+                    );
                 }
             }
         }

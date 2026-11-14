@@ -451,10 +451,11 @@ impl PreCheckEvaluation {
                 "source normalization authority has not been rejoined",
             )]);
         }
-        let accounting = crate::source_jobs::evaluate_constant_initializers(
-            typed,
-            self.authority.clone(),
-        )?;
+        // Inventory all remaining source work before retaining an invocation
+        // owner. Later refusal recording must not mutate its request metadata.
+        defer_source_jobs(typed)?;
+        let accounting =
+            crate::source_jobs::evaluate_constant_initializers(typed, self.authority.clone())?;
         self.evaluate(typed)?;
         Ok(crate::RecordedPreCheck {
             pending: None,

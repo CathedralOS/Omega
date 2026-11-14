@@ -1008,15 +1008,34 @@ mod tests {
         machine(&mut plan, 3, None);
         let mut graph = ProofCallGraph::<u32>::default();
         let calls = graph.calls.insert_many([
-            ProofApplicationCall { callee: 2, ..Default::default() },
-            ProofApplicationCall { callee: 3, ..Default::default() },
+            ProofApplicationCall {
+                callee: 2,
+                ..Default::default()
+            },
+            ProofApplicationCall {
+                callee: 3,
+                ..Default::default()
+            },
         ]);
-        graph.insert_machine(ProofCallMachine { machine: 1, calls, ..Default::default() });
-        graph.insert_machine(ProofCallMachine { machine: 2, ..Default::default() });
-        graph.insert_machine(ProofCallMachine { machine: 3, ..Default::default() });
+        graph.insert_machine(ProofCallMachine {
+            machine: 1,
+            calls,
+            ..Default::default()
+        });
+        graph.insert_machine(ProofCallMachine {
+            machine: 2,
+            ..Default::default()
+        });
+        graph.insert_machine(ProofCallMachine {
+            machine: 3,
+            ..Default::default()
+        });
         let applications = ProofApplications::new(&plan, &graph);
         let absent = applications.invocation_reachability_for(None, &[], &[1]);
-        assert!(absent.calls.contains(&2), "admission must still see the demanded tagged call");
+        assert!(
+            absent.calls.contains(&2),
+            "admission must still see the demanded tagged call"
+        );
         assert!(!absent.machines.contains(&2));
         assert!(absent.machines.contains(&1) && absent.machines.contains(&3));
         let named = applications.invocation_reachability("linux_x86_64", &[], &[1]);

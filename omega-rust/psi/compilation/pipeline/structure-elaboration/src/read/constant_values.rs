@@ -25,48 +25,96 @@ impl Program<'_> {
             return Err(unserved("constant requires its pure snapshot materializer"));
         };
         if !qualification.is_none() {
-            return Err(unserved("qualified constant requires its declared value obligations"));
+            return Err(unserved(
+                "qualified constant requires its declared value obligations",
+            ));
         }
         let value = typed_trees::canonical_const_declaration_value(self.typed, constant.symbol)
             .and_then(|value| value.decode_encoding())
             .ok_or_else(|| unserved("constant has no evaluated canonical value"))?;
-        if !self.typed.expression_table.expression_is_valid(constant.materialized_initializer) {
+        if !self
+            .typed
+            .expression_table
+            .expression_is_valid(constant.materialized_initializer)
+        {
             return Err(unserved("constant has no materialized initializer"));
         }
-        let materialized = self.expression(id, &[], constant.materialized_initializer, Some(carrier))?;
+        if let DecodedCanonicalConstValue::Integer { type_name, .. } = &value {
+            let ValueType::Scalar(semantic_vocabulary::ScalarType::Integer(integer), _) = carrier
+            else {
+                return Err(unserved("constant encoding names another carrier"));
+            };
+            let expected = format!(
+                "{}{}",
+                match integer.sign() {
+                    semantic_vocabulary::IntegerSign::Signed => 'i',
+                    semantic_vocabulary::IntegerSign::Unsigned => 'u',
+                },
+                integer.bits()
+            );
+            if integer.is_address() || type_name != &expected {
+                return Err(unserved("constant encoding names another carrier"));
+            }
+        }
+        let materialized =
+            self.expression(id, &[], constant.materialized_initializer, Some(carrier))?;
         let agrees = match (&value, materialized.kind) {
-            (DecodedCanonicalConstValue::Integer { value, .. }, ExpressionKind::Integer(IntegerValue::Signed(current))) =>
-                *value == current,
-            (DecodedCanonicalConstValue::Integer { value, .. }, ExpressionKind::Integer(IntegerValue::Unsigned(current))) =>
-                i128::try_from(current).ok() == Some(*value),
-            (DecodedCanonicalConstValue::Boolean(value), ExpressionKind::Boolean(current)) =>
-                *value == current,
+            (
+                DecodedCanonicalConstValue::Integer { value, .. },
+                ExpressionKind::Integer(IntegerValue::Signed(current)),
+            ) => *value == current,
+            (
+                DecodedCanonicalConstValue::Integer { value, .. },
+                ExpressionKind::Integer(IntegerValue::Unsigned(current)),
+            ) => i128::try_from(current).ok() == Some(*value),
+            (DecodedCanonicalConstValue::Boolean(value), ExpressionKind::Boolean(current)) => {
+                *value == current
+            }
             _ => false,
         };
         if !agrees || materialized.result != Some(carrier) {
-            return Err(unserved("constant encoding and materialized carrier differ"));
+            return Err(unserved(
+                "constant encoding and materialized carrier differ",
+            ));
         }
         if constant.evaluation_entry.is_valid() {
-            if !self.typed.tables.machines.is_valid(constant.evaluation_entry) {
+            if !self
+                .typed
+                .tables
+                .machines
+                .is_valid(constant.evaluation_entry)
+            {
                 return Err(unserved("constant lost its retained initializer entry"));
             }
             let retained = self.typed.tables.machines.get(constant.evaluation_entry);
-            let actual = self.typed.machine_by_symbol(retained.symbol)
+            let actual = self
+                .typed
+                .machine_by_symbol(retained.symbol)
                 .filter(|actual| *actual == retained)
                 .ok_or_else(|| unserved("constant initializer is not its actual source machine"))?;
             let [state] = self.typed.machine_states(actual) else {
                 return Err(unserved("constant initializer has no unique entry"));
             };
             let [typed_trees::statement::StatementNode::Transition(transition)] =
-                self.typed.statement_table.statements(state.statement_nodes) else {
-                    return Err(unserved("constant initializer has no exact value transition"));
-                };
+                self.typed.statement_table.statements(state.statement_nodes)
+            else {
+                return Err(unserved(
+                    "constant initializer has no exact value transition",
+                ));
+            };
             if state.return_type != constant.declared_type
                 || !self.typed.state_parameters(state).is_empty()
-                || self.typed.statement_table.transition_target(transition.target)
-                    != &typed_trees::statement::TransitionTargetNode::Value(constant.evaluation_expression)
+                || self
+                    .typed
+                    .statement_table
+                    .transition_target(transition.target)
+                    != &typed_trees::statement::TransitionTargetNode::Value(
+                        constant.evaluation_expression,
+                    )
             {
-                return Err(unserved("constant initializer differs from its retained computation"));
+                return Err(unserved(
+                    "constant initializer differs from its retained computation",
+                ));
             }
         }
         Ok(())

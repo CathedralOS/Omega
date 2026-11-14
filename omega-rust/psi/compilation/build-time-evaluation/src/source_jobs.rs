@@ -10,7 +10,9 @@ mod constant_jobs;
 mod invocation;
 
 pub use constant_jobs::validate_constant_evaluations;
-pub(crate) use constant_jobs::{evaluate as evaluate_constant_initializers, has_pending as has_pending_constants};
+pub(crate) use constant_jobs::{
+    evaluate as evaluate_constant_initializers, has_pending as has_pending_constants,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedLayoutTargetScope {

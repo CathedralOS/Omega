@@ -485,9 +485,10 @@ pub fn complete_invocation_scalar_applications<'artifact>(
     let facts = target
         .layout_target
         .ok_or("invocation target has no immutable layout catalogue")?;
-    let name = target.name.ok_or("scalar observations require an actual selected target")?;
-    let mut closure =
-        ScalarApplicationClosure::for_invocation(artifact, name, &[declaration]);
+    let name = target
+        .name
+        .ok_or("scalar observations require an actual selected target")?;
+    let mut closure = ScalarApplicationClosure::for_invocation(artifact, name, &[declaration]);
     let mut observations =
         ScalarApplicationObservations::new(artifact, selected, providers, facts)?
             .with_target_carriers(target.carrier_layout)

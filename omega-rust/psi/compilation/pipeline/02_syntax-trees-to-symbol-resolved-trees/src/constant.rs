@@ -1,17 +1,14 @@
 /*
     Constant substitution and exact const-index declaration custody; value contract: wiki/spec/language/constants.md.
 
-    Const VALUE semantics exist only until symbol resolution:
-    A constant declares a named pure value; each selected expression path gets
-    a fresh copy of its initializer before resolution publishes its result.
-    Typed trees, validation, proofs, backends, and the interpreter never grow a
-    const-value concept -- each use IS the literal, which is exactly the copied-at-each-use
-    semantics the contract specifies (and why interior mutability can never hide in
-    one). Resolved declarations keep a detached initializer handle so later
-    source extensions can use the same substitution without reparsing or
-    decoding review encodings. Only newly authored roots resolve names: retained
-    roots keep their declaration-side selections. The symbol table preserves
-    declaration provenance for authored-selection and package-authority checks.
+    Closed values substitute only after resolution has selected their exact
+    declaration. A computational initializer instead remains an ordinary named
+    request: copying its call into every use would execute it at runtime.
+    Typing retains that initializer and its declared destination, and the
+    accepted invocation evaluator later supplies its canonical value and actual
+    receipt before uses are materialized. Resolution supplies no acceptance for
+    that computation. The symbol table preserves declaration provenance for
+    authored-selection and package-authority checks.
 
     Scalar and closed aggregate literals substitute
     only after the shared resolver has selected their namespace and lexical
