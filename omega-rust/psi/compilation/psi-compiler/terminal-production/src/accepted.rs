@@ -112,8 +112,7 @@ impl AcceptedTerminalSource {
             })
             .collect();
         // The published module is the elaboration's module, so the rows
-        // name the artifact's own operations. Native formations stay empty:
-        // the reader refuses the native binding that would need one.
+        // name the artifact's own operations and original source formations.
         let companions =
             crate::build_companions::produce(&self.source, elaboration, &self.correspondence)
                 .map_err(|diagnostic| vec![diagnostic])?;
@@ -130,7 +129,7 @@ impl AcceptedTerminalSource {
             companions.bindings,
             companions.declarations,
             companions.queries,
-            Vec::new(),
+            companions.native_formations,
         );
         let build_requests = crate::TerminalBuildRequests::new(program.view(), companions.requests);
         let build_filesystem =

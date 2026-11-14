@@ -159,8 +159,7 @@ impl Site {
         let (target, selected_otherwise) = match &call {
             StaticArgumentCall::Expression(_, call) => (
                 call.target_symbol,
-                elsewhere(&call.static_requirement_dispatch, call.target_symbol)
-                    || call.build_selection.is_valid(),
+                elsewhere(&call.static_requirement_dispatch, call.target_symbol),
             ),
             StaticArgumentCall::Statement(call) => (
                 call.target_symbol,
@@ -457,6 +456,7 @@ fn apply_requirement(
 /// parameter is given the same declaration or the same value.
 #[derive(Clone, PartialEq, Eq)]
 enum Identity {
+    Type(typed_trees::type_identity::TypeIdentityId),
     /// The declaration the argument names: a type, an implementation, or a
     /// parameter of the enclosing generic machine.
     Declaration(SymbolHandle),
@@ -494,10 +494,14 @@ impl Operand {
         let (identity, value) = match kind {
             TypeParameterKind::Type => {
                 let reference = named_type(program, argument)?;
-                (
-                    Identity::Declaration(argument.symbol),
-                    StaticMachineBindingValue::Type(reference),
-                )
+                let identity = if argument.symbol.is_valid()
+                    && program.symbols.get(argument.symbol).kind == SymbolKind::TypeParameter
+                {
+                    Identity::Declaration(argument.symbol)
+                } else {
+                    Identity::Type(program.normalized_type_identity(reference))
+                };
+                (identity, StaticMachineBindingValue::Type(reference))
             }
             TypeParameterKind::Implementation => (
                 Identity::Declaration(named_implementation(program, parameter, argument)?),
@@ -533,7 +537,7 @@ impl Operand {
     fn declaration(&self) -> Option<SymbolHandle> {
         match &self.identity {
             Identity::Declaration(symbol) => Some(*symbol),
-            Identity::Scalar(_) => None,
+            Identity::Scalar(_) | Identity::Type(_) => None,
         }
     }
 
@@ -553,6 +557,7 @@ impl Operand {
         match &self.identity {
             Identity::Declaration(symbol) => program.symbols.name(*symbol).to_owned(),
             Identity::Scalar(value) => value.clone(),
+            Identity::Type(identity) => program.type_identity_text(*identity).unwrap_or_default(),
         }
     }
 }
@@ -753,14 +758,37 @@ fn selections(program: &TypedTrees, operands: &[Operand]) -> Served<Vec<Selectio
     Ok(selected)
 }
 
-/// The type a static argument names when it is only a name: a builtin type,
-/// a type parameter in scope, or a data declaration with no parameters of
-/// its own. An applied type (`Pair<u8>`), a projection and a literal are
-/// unserved here.
+/// A type retained by typing is used with its complete applied data view.
+/// Region-bearing applications remain refused until specialization retains
+/// their supplying scope. A plain authored name still admits a builtin type,
+/// an open type parameter, or data with no parameters of its own.
 fn named_type(
     program: &mut TypedTrees,
     argument: &StaticMachineArgument,
 ) -> Served<TypeReferenceHandle> {
+    if argument.type_reference.is_valid() {
+        let reference = argument.type_reference;
+        if program
+            .type_reference_table
+            .contains_type_reference(reference)
+            && program
+                .region_free_scoped_type_identity(
+                    typed_trees::type_identity::TypeIdentityRequest::ordinary(reference),
+                    &[],
+                )
+                .is_some()
+            && !matches!(
+                program.type_reference_table.type_reference(reference),
+                TypeReferenceNode::ConstExpression(_)
+            )
+            && program
+                .prepare_data_application_view(reference)
+                .map_err(|_| Stop::Unserved)?
+        {
+            return Ok(reference);
+        }
+        return Err(Stop::Unserved);
+    }
     let only_a_name = only_a_name(program, argument) && argument.const_literal.is_none();
     let symbol = argument.symbol;
     if !only_a_name || !symbol.is_valid() || !program.symbols.symbols().nodes().is_valid(symbol) {
@@ -1196,6 +1224,7 @@ fn generate(
         .map(|operand| match &operand.identity {
             Identity::Declaration(symbol) => program.symbols.display_path(*symbol, "::"),
             Identity::Scalar(value) => value.clone(),
+            Identity::Type(identity) => program.type_identity_text(*identity).unwrap_or_default(),
         })
         .collect::<Vec<_>>();
     program.machine_specializations.push(MachineSpecialization {
