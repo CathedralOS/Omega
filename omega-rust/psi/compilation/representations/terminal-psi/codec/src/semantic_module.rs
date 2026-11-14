@@ -3971,6 +3971,44 @@ mod routed_scalar_tests {
             "a declaration-only contract cannot supply an executable machine"
         );
 
+        // Fixed model commitments isolate artifact reference integrity. They
+        // establish no source application, selection or refinement proof.
+        let mut captured = module.clone();
+        captured.declaration_contracts[0]
+            .declaration
+            .as_mut()
+            .unwrap()
+            .specialization = Some(CheckedMachineSpecialization {
+            template: NominalDeclarationIdentity::new(TerminalIdentityIndex(1)),
+            template_callable: TerminalIdentityIndex(3),
+            template_semantic_declaration: TerminalIdentityIndex(1),
+            commitment: [9; 32],
+            capture: Some(terminal_psi::CheckedMachineCapture {
+                template_identity: TerminalIdentityIndex(1),
+                template_commitment: [7; 32],
+                specialization_commitment: [8; 32],
+            }),
+        });
+        assert_eq!(
+            decode_module(&encode_raw(&captured).unwrap()).unwrap(),
+            captured
+        );
+        captured.declaration_contracts[0]
+            .declaration
+            .as_mut()
+            .unwrap()
+            .specialization
+            .as_mut()
+            .unwrap()
+            .capture
+            .as_mut()
+            .unwrap()
+            .template_identity = TerminalIdentityIndex(99);
+        assert!(
+            decode_module(&encode_raw(&captured).unwrap()).is_err(),
+            "a nonempty capture identity still needs its actual declaration reference"
+        );
+
         for mutation in 0..4 {
             let mut malformed = module.clone();
             let contract = &mut malformed.declaration_contracts[0];

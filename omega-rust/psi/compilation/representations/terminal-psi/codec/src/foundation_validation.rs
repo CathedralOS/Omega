@@ -2936,29 +2936,8 @@ pub(crate) mod proof_scope {
                     }
                 }
                 ProofScopeDeclaration::Callable(row) => {
-                    for identity in [
-                        row.machine.identity(),
-                        row.state.identity(),
-                        row.semantic_declaration,
-                        row.callable,
-                        row.result_type,
-                    ] {
+                    for identity in super::declaration_identity_references(row) {
                         text(identity)?;
-                    }
-                    for identity in &row.parameter_types {
-                        text(*identity)?;
-                    }
-                    if let Some(specialization) = &row.specialization {
-                        for identity in [
-                            specialization.template.identity(),
-                            specialization.template_callable,
-                            specialization.template_semantic_declaration,
-                        ] {
-                            text(identity)?;
-                        }
-                        if let Some(capture) = &specialization.capture {
-                            text(capture.template_identity)?;
-                        }
                     }
                 }
             }
@@ -10116,6 +10095,41 @@ pub(crate) fn values(machine: &TerminalMachine) -> impl Iterator<Item = &ValueDe
         )
 }
 
+// Declaration identities keep the same full reference walk wherever the
+// declaration is received. Each receiving context keeps its own diagnostic.
+fn declaration_identity_references(
+    declaration: &terminal_psi::CheckedMachineDeclaration,
+) -> impl Iterator<Item = terminal_psi::TerminalIdentityIndex> + '_ {
+    [
+        declaration.machine.identity(),
+        declaration.state.identity(),
+        declaration.semantic_declaration,
+        declaration.callable,
+        declaration.result_type,
+    ]
+    .into_iter()
+    .chain(declaration.parameter_types.iter().copied())
+    .chain(
+        declaration
+            .specialization
+            .iter()
+            .flat_map(|specialization| {
+                [
+                    specialization.template.identity(),
+                    specialization.template_callable,
+                    specialization.template_semantic_declaration,
+                ]
+                .into_iter()
+                .chain(
+                    specialization
+                        .capture
+                        .iter()
+                        .map(|capture| capture.template_identity),
+                )
+            }),
+    )
+}
+
 // Public requirements describe inputs and promises without supplying code.
 // Validate their own formal namespace before any invocation can use them.
 fn validate_declaration_contracts(module: &TerminalModule) -> Result<(), CodecError> {
@@ -10185,16 +10199,7 @@ fn validate_declaration_contracts(module: &TerminalModule) -> Result<(), CodecEr
         if declaration.contract == [0; 32] {
             return malformed("public contract has no source commitment");
         }
-        for identity in [
-            declaration.machine.identity(),
-            declaration.state.identity(),
-            declaration.semantic_declaration,
-            declaration.callable,
-            declaration.result_type,
-        ]
-        .into_iter()
-        .chain(declaration.parameter_types.iter().copied())
-        {
+        for identity in declaration_identity_references(declaration) {
             if module.identities.text(identity).is_none_or(str::is_empty) {
                 return malformed("public contract lost an exact source identity");
             }
