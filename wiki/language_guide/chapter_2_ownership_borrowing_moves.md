@@ -159,7 +159,28 @@ machine header<'buffer>(
 }
 ```
 
-With a single reference input, the lifetime can be left out. Data that holds
+With a single reference input, the lifetime can be left out.
+
+A machine that takes no reference can return a view of a quoted literal,
+because the literal's bytes belong to the program image rather than to any
+call. The caller decides how long it keeps the result:
+
+```omega
+machine status_text(code: u32) -> &[u8] {
+    match code == 0 {
+        true -> "ok",
+        false -> "unknown",
+    }
+}
+```
+
+Writing a lifetime that no input carries says the same thing explicitly. It
+also lets a machine that does take a reference return a result that does not
+borrow it: `machine kind_name<'name>(value: &Value) -> &'name [u8]`. The body
+must return storage that lasts for whatever the caller chooses, so returning a
+view into `value` or into a local is rejected.
+
+Data that holds
 references carries lifetimes the same way, which is how a parser returns
 zero-copy results:
 

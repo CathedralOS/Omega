@@ -319,6 +319,16 @@ or foreign retention keep an era live/quarantined. Process death requires no
 in-process reclamation. A copyable permanent gateway is valid only when it
 resolves through process-lifetime state and pins no era.
 
+Views follow the same rule for their backing. Every accepted use of a view into
+a producer's image or state must be covered by checked retention of that
+backing; unloading cannot invalidate an outstanding usable view. Detached or
+permanently retained backing can satisfy a
+[caller-chosen result lifetime](../language/lifetimes.md#caller-chosen-result-lifetimes).
+Backing that exists only while one era is held relates the view, through an
+ordinary lifetime parameter, to an input whose contract retains that era, such
+as a keepalive handle for the exact loaded image. Lifetime spelling alone
+establishes no retention, and copying a view cannot invent an era pin.
+
 Historical origin and current custody differ. Custody follows checked
 establishment, even for transparent provider-local keys. Moves/returns/stores
 preserve it; consumption discharges it; transfer requires a named receiver's
