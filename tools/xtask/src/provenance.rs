@@ -13,7 +13,9 @@ We therefore detect the active harness from its process environment first
 `CLAUDE_CODE_ENTRYPOINT`, `CODEX_THREAD_ID` / `CODEX_SANDBOX`) so concurrent
 sessions across different harnesses never collide. Codex's active thread also
 selects its exact transcript; a missing match refuses instead of auditing a
-different active thread. We fall back to the newest
+different active thread. `--allow-unavailable` explicitly permits an audit with
+textual unavailable fields when that active thread has no readable transcript;
+it never selects another session or overrides a valid transcript. We fall back to the newest
 session transcript across `~/.gemini/antigravity/brain`, `~/.claude/projects`,
 and `~/.codex/sessions` when invoked from a standalone shell:
 - Antigravity (`transcript.jsonl`): `<USER_SETTINGS_CHANGE>` blocks on
@@ -509,6 +511,7 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     let mut effort_override: Option<String> = None;
     let mut transcript_override: Option<PathBuf> = None;
     let mut full_session = false;
+    let mut allow_unavailable = false;
 
     let mut i = 0;
     while i < args.len() {
@@ -529,12 +532,15 @@ pub fn run(args: &[String]) -> Result<(), u8> {
                 i += 1;
                 transcript_override = args.get(i).map(PathBuf::from);
             }
+            "--allow-unavailable" => {
+                allow_unavailable = true;
+            }
             "--full-session" => {
                 full_session = true;
             }
             "-h" | "--help" => {
                 println!(
-                    "usage: cargo xtask provenance [--agent <name>] [--model <model>] [--effort <effort>] [--transcript <path>] [--full-session]"
+                    "usage: cargo xtask provenance [--agent <name>] [--model <model>] [--effort <effort>] [--transcript <path>] [--full-session] [--allow-unavailable]"
                 );
                 return Ok(());
             }
@@ -555,10 +561,17 @@ pub fn run(args: &[String]) -> Result<(), u8> {
     let home = home_dir();
 
     let mut metrics = if let Some(path) = transcript_override {
-        parse_antigravity_transcript(&path, since_epoch)
+        let Some(metrics) = parse_antigravity_transcript(&path, since_epoch)
             .or_else(|| parse_claude_transcript(&path, home.as_deref(), since_epoch))
             .or_else(|| parse_codex_transcript(&path, since_epoch))
-            .unwrap_or_default()
+        else {
+            eprintln!(
+                "provenance: cannot read explicit transcript {}",
+                path.display()
+            );
+            return Err(2);
+        };
+        metrics
     } else if let Some(conv_id) = std::env::var_os("ANTIGRAVITY_CONVERSATION_ID") {
         let app_dir = std::env::var_os("ANTIGRAVITY_APP_DATA_DIR")
             .map(PathBuf::from)
@@ -588,23 +601,32 @@ pub fn run(args: &[String]) -> Result<(), u8> {
             eprintln!("provenance: CODEX_THREAD_ID must be a nonempty Unicode thread ID");
             return Err(2);
         };
-        let Some((path, _)) = home
+        let selected = home
             .as_deref()
             .and_then(|home| find_codex_transcript(home, Some(thread_id)))
-        else {
-            eprintln!(
-                "provenance: no transcript matches active Codex thread `{thread_id}`; use --transcript for an explicit audit"
-            );
-            return Err(2);
-        };
-        let Some(metrics) = parse_codex_transcript(&path, since_epoch) else {
-            eprintln!(
-                "provenance: cannot read active Codex transcript {}",
-                path.display()
-            );
-            return Err(2);
-        };
-        metrics
+            .ok_or_else(|| format!(
+                "no transcript matches active Codex thread `{thread_id}`; use --transcript for an explicit audit"
+            ))
+            .and_then(|(path, _)| {
+                parse_codex_transcript(&path, since_epoch).ok_or_else(|| {
+                    format!("cannot read active Codex transcript {}", path.display())
+                })
+            });
+        match selected {
+            Ok(metrics) => metrics,
+            Err(_) if allow_unavailable => {
+                // The harness identifies Codex, but cannot supply measurements.
+                // Keep that absence distinct from measured zeroes or manual overrides.
+                println!(
+                    "Agent: Codex | Model: unavailable | Effort: unavailable | Tokens: unavailable in (unavailable cached), unavailable out | Steps: unavailable | Time: unavailable | Steers: unavailable"
+                );
+                return Ok(());
+            }
+            Err(error) => {
+                eprintln!("provenance: {error}");
+                return Err(2);
+            }
+        }
     } else if std::env::var_os("CODEX_SANDBOX").is_some() || std::env::var_os("CODEX_CI").is_some()
     {
         home.as_deref()
