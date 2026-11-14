@@ -1426,23 +1426,6 @@ pub(crate) mod commitments {
         }
     }
 
-    pub fn closed_conformance_applications_of(
-        specializations: &[MachineSpecialization],
-        instance: symbols::SymbolHandle,
-        application_report_fingerprint: u64,
-        application_commitment: ClosedConformanceApplicationCommitment,
-    ) -> Vec<&ClosedConformanceApplication> {
-        specializations
-            .iter()
-            .filter(|specialization| specialization.instance == instance)
-            .flat_map(|specialization| &specialization.conformance_applications)
-            .filter(|application| {
-                application.report_fingerprint == application_report_fingerprint
-                    && application.commitment == application_commitment
-            })
-            .collect()
-    }
-
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct ClosedConformanceRowIdentity {
         pub declaring_trait: symbols::SymbolHandle,
@@ -1503,25 +1486,11 @@ pub(crate) mod commitments {
 
     #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
     pub struct StaticRequirementDispatch {
-        pub selection_application: crate::static_applications::StaticMachineApplicationHandle,
         pub evidence_parameter: symbols::SymbolHandle,
-        pub application_report_fingerprint: u64,
-        pub application_commitment: ClosedConformanceApplicationCommitment,
         pub declaring_trait: symbols::SymbolHandle,
         pub requirement: symbols::SymbolHandle,
-        pub contract_signature: symbols::SymbolHandle,
         pub realization_machine: symbols::SymbolHandle,
         pub realization_state: symbols::SymbolHandle,
-    }
-
-    impl StaticRequirementDispatch {
-        pub fn contract_symbol(&self) -> symbols::SymbolHandle {
-            if self.contract_signature.is_valid() {
-                self.contract_signature
-            } else {
-                self.requirement
-            }
-        }
     }
 
     pub fn machine_specialization_matches_template_identity(
