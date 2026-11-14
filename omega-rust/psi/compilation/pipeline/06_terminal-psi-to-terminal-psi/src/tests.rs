@@ -22,6 +22,7 @@ use typed_trees_to_terminal_psi::{
 use crate::{Discharge, Discharged, Evidence, RouteVerdict, UnprovedObligation, discharge, judge};
 use terminal_check_tables::{Construct, Refusal, UnprovedCause};
 
+mod address_bounds;
 mod applications;
 mod arithmetic_policies;
 mod arrays;

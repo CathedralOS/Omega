@@ -1034,11 +1034,18 @@ impl Program<'_> {
                 } else {
                     literal.value_u64()
                 };
+                // A mathematical integer has no carrier, so a literal past
+                // 64 bits is as much a literal as a small one: `addr::Bound`
+                // of a 64-bit address is 18446744073709551616.
                 let literal = magnitude
-                    .and_then(|magnitude| mathematical_literal(literal.is_negative(), magnitude));
+                    .and_then(|magnitude| mathematical_literal(literal.is_negative(), magnitude))
+                    .or_else(|| {
+                        let wide = literal.decimal_value_i128()?;
+                        IntegerMathLiteral::new(wide < 0, wide.unsigned_abs()).ok()
+                    });
                 match literal {
                     Some(literal) => Ok(IntegerMathTerm::IntegerLiteral(literal)),
-                    None => unserved("mathematical literal beyond 64 bits"),
+                    None => unserved("mathematical literal beyond 127 bits"),
                 }
             }
             ExpressionNode::Integer(_) => {
@@ -1104,6 +1111,25 @@ impl Program<'_> {
                 Ok(operation(Box::new(left), Box::new(right)))
             }
             ExpressionNode::Cast(_) => unserved("cast in a mathematical term"),
+            // counts_and_addresses.md: valid geometry proves `embed(base) +
+            // embed(length) <= addr::Bound` "in unbounded proof integers".
+            // The bound is one past the largest address. Here an address is
+            // the one carrier the lowered form gives `addr`
+            // (`read/types.rs`), so the bound is that carrier's. A clause
+            // judged against a binding's own address model is read by
+            // `logical_mathematical_term` instead.
+            ExpressionNode::Name(_) | ExpressionNode::Member(_)
+                if self.address_bound(expression) =>
+            {
+                let address =
+                    semantic_vocabulary::ClosedIntegerType::supported_address_representation();
+                match 1_u128.checked_shl(u32::from(address.bits())) {
+                    Some(bound) => Ok(IntegerMathTerm::literal(
+                        semantic_vocabulary::IntegerValue::Unsigned(bound),
+                    )),
+                    None => unserved("address bound outside mathematical literal support"),
+                }
+            }
             ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
                 unserved("runtime value in a mathematical term without embed")
             }
