@@ -125,6 +125,102 @@ machine entry<'a>(items: &'a [u8]) -> u64 requires items.len > 0 {
 }
 
 #[test]
+fn a_call_binds_length_to_its_actual_descriptor_version() {
+    for (parameters, requirement, body) in [
+        ("items: &'a [u8]", "items.len > 0", "required(items)"),
+        (
+            "items: &'a [u8]",
+            "items.len > 0",
+            "let local: &'a [u8] = items; required(local)",
+        ),
+        (
+            "holder: &Holder<'a>",
+            "holder.left.len > 0",
+            "required(holder.left)",
+        ),
+    ] {
+        let source = format!(
+            r#"
+data Holder<'held> {{ left: &'held [u8]; right: &'held [u8]; }}
+machine required<'a>(items: &'a [u8]) -> u64 requires items.len > 0 {{ items.len - 1 }}
+machine entry<'a>({parameters}) -> u64 requires {requirement} {{ {body} }}
+"#
+        );
+        let result = judged(&source);
+        assert!(
+            matches!(result, super::RouteVerdict::Accepted(_)),
+            "{body}: {result:?}"
+        );
+    }
+}
+
+#[test]
+fn a_call_cannot_use_another_fields_length() {
+    let result = judged(
+        r#"
+data Holder<'held> { left: &'held [u8]; right: &'held [u8]; }
+machine required<'a>(items: &'a [u8]) -> u64 requires items.len > 0 { items.len - 1 }
+machine entry<'a>(holder: &Holder<'a>) -> u64 requires holder.left.len > 0 {
+    required(holder.right)
+}
+"#,
+    );
+    assert!(
+        matches!(result, super::RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, super::ObligationKind::CallRequirement { .. }))),
+        "{result:?}"
+    );
+}
+
+#[test]
+fn a_call_cannot_reuse_length_from_before_an_overlapping_mutable_call() {
+    let result = judged(
+        r#"
+data Holder<'held> { bytes: &'held [u8]; }
+machine replace<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) { holder.bytes = replacement; }
+machine required<'a>(items: &'a [u8]) -> u64 requires items.len > 0 { items.len - 1 }
+machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64
+requires holder.bytes.len > 0 {
+    let before: u64 = holder.bytes.len;
+    replace(holder, replacement);
+    required(holder.bytes)
+}
+"#,
+    );
+    assert!(
+        matches!(result, super::RouteVerdict::Rejected { ref unproved, .. }
+        if unproved.iter().any(|row| matches!(row.kind, super::ObligationKind::CallRequirement { .. }))),
+        "{result:?}"
+    );
+}
+
+#[test]
+fn a_later_argument_preserves_an_explicit_descriptor_copy() {
+    // Replacing the source slot does not replace the descriptor already
+    // captured in a distinct local before the call's arguments execute.
+    let result = judged(
+        r#"
+data Holder<'held> { bytes: &'held [u8]; }
+machine replace<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {
+    holder.bytes = replacement;
+    0
+}
+machine required<'a>(items: &'a [u8], ignored: u64) -> u64
+requires items.len > 0 { items.len - 1 }
+machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64
+requires holder.bytes.len > 0 {
+    let captured: &'a [u8] = holder.bytes;
+    required(captured, replace(holder, replacement))
+}
+"#,
+    );
+    assert!(
+        matches!(result, super::RouteVerdict::Accepted(_)),
+        "{result:?}"
+    );
+}
+
+#[test]
 fn replacing_a_stored_descriptor_cannot_reuse_its_old_extent() {
     let result = judged(
         r#"

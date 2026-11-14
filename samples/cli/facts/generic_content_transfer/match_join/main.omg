@@ -1,8 +1,8 @@
 // Fact: a generic transfer conserves the complete counted content of its owned input.
 // Expected exit: 0
 // Counted model only; this carrier grants no access to physical storage.
-use omega::language::core::content;
-use omega::language::core::drop;
+use omega::language::core::Content;
+use omega::language::core::CountedQuantity;
 data Units {}
 data Payload {}
 data Region [linear] dropped by cleanup_region { amount: u64; }

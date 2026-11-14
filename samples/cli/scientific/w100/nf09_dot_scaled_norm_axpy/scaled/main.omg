@@ -1,5 +1,7 @@
 // Expected exit: 0.
-use omega::language::core::float_operations;
+use omega::language::core::F64::maximum;
+use omega::language::core::F64::negate;
+use omega::language::core::F64::square_root;
 use omega::language::core::linear_algebra::try_dot_f64;
 use omega::language::core::linear_algebra::try_scaled_norm_f64;
 use omega::language::core::linear_algebra::try_axpy_f64;

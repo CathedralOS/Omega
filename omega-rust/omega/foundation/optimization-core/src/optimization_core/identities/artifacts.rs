@@ -37,15 +37,3 @@ canonical_identity!(
     OptimizedOrdinaryCallableEntryManifestIdentity,
     b"omega.optimized-terminal-ordinary-callable-entry-manifest-identity.v1\0"
 );
-canonical_identity!(
-    OptimizedProgramStorageSemanticWrapperObjectIdentity,
-    b"omega.optimized-program-storage-semantic-wrapper-object-identity.v1\0"
-);
-canonical_identity!(
-    OptimizedProgramStorageSemanticWrapperObjectContainerIdentity,
-    b"omega.optimized-program-storage-semantic-wrapper-object-container-identity.v1\0"
-);
-canonical_identity!(
-    OptimizedProgramStorageSemanticWrapperObjectManifestIdentity,
-    b"omega.optimized-program-storage-semantic-wrapper-object-manifest-identity.v1\0"
-);

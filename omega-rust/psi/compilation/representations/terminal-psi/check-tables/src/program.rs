@@ -197,6 +197,9 @@ pub struct Elaboration {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Selected {
     pub caller: MachineId,
+    /// The exact public header used by this invocation. Synthetic checking
+    /// models without a source call leave this absent.
+    pub required_contract: Option<semantic_vocabulary::ContractId>,
     pub parameter: SymbolHandle,
     pub declaring_trait: SymbolHandle,
     pub requirement: SymbolHandle,

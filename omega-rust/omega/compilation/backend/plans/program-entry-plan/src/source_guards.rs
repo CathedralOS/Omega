@@ -27,7 +27,6 @@ const ALLOWED: &[(&str, &str)] = &[
     row!("selected_entry/service_establishment.rs" => "carrier_base_identity: String,"),
     row!("selected_entry/service_establishment.rs" => "requirement_identity: String,"),
     ("selected_entry.rs", "requirement_identity: String,"),
-    row!("optimized_semantic_entry.rs" => "pub(super) requirement_identity: String,"),
 ];
 
 #[test]

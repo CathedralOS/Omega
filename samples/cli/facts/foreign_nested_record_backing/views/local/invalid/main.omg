@@ -1,7 +1,7 @@
 // Fact: A mutable foreign registration retains the original fixed-array view in Buffer until Pending completes; completion restores the original Cell::Issued memberships and ResidentValue for observed_gap, writes 73, and preserves both neighbors, marker 91 and the earlier copy 37.
 // Reject: reading through the array view while its retained exclusive loan is live.
-use omega::language::core::content;
-use omega::language::core::drop;
+use omega::language::core::Content;
+use omega::language::core::CountedQuantity;
 public data ByteUnit {}
 public domain u64::ResidentValue requires self >= 0 && self <= 2147483647 && self != 42;
 public data Cell { value: u64 in ResidentValue; }

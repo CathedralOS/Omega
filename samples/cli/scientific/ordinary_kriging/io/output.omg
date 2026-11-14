@@ -1,6 +1,6 @@
 use omega_language_std::console;
-use omega::language::core::float_operations;
-use omega::language::core::numeric_conversion;
+use omega::language::core::I64::from_f64;
+use omega::language::core::narrow_i64_to_i32_saturating;
 use model::kriging;
 // Decimal scientific tokens retain sixteen significant digits without a fixed
 // point output range or silent saturation of large finite scientific values.

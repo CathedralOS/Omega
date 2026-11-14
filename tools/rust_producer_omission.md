@@ -21,7 +21,7 @@ declaration defect, not an audit false-negative.
   `*.sources` closure manifest and contributes its `member` row spellings
   (the fifth field). Other files contribute one relative path per
   non-blank, non-`#` line. Member spellings are relative to the manifest's
-  own directory, exactly as `tools/bootstrap/source_closure.py` reads
+  own directory, exactly as `mbx xtask source-closure` reads
   them.
 - `--steps PATH` (repeatable) — the set's declared build/invocation
   surface: one command per line (env scripts, run sheets, wrapper
@@ -41,7 +41,7 @@ declaration defect, not an audit false-negative.
 | `producer-artifact` | has an `omega-rust` path component |
 | `producer-build-step` | invokes `cargo`, `rustc`, `rustup`, `mbx`, `nextest`, or `cargo-nextest`, or references `omega-rust/` |
 | `checkout-derived-path` | spells `..` traversal, an absolute path, `CARGO_MANIFEST_DIR`/`OUT_DIR`, or reaches `source/library` through checkout-relative traversal |
-| `canonical-spelling` | is not a canonical relative POSIX path (same byte rules as `source_closure.py`) |
+| `canonical-spelling` | is not a canonical relative POSIX path (same byte rules as `mbx xtask source-closure`) |
 
 Exit status: `0` = expected verdict matched (omitted by default), `1` = verdict
 mismatch, `2` = malformed input. With `--require present`, findings produce
@@ -73,16 +73,18 @@ mbx xtask rust-producer-omission `
 [rust_producer_omission.sh](rust_producer_omission.sh) audits the interpreted
 variant's numbered rungs and proof manifests, plus shell orchestration under
 `tools/bootstrap/`. Independent peer roots declare their own seed and audit
-boundary. The chain-hygiene gate also audits Python orchestration and retains
-its closed manifest/member/entry identity checks. Both reject forged Rust
-producer dependencies; neither is invoked by the source-to-executable chain.
+boundary. The chain-hygiene gate also audits shell steps under
+`tools/bootstrap/` and retains its closed manifest/member/entry identity
+checks. Both reject forged Rust producer dependencies; neither is invoked by
+the source-to-executable chain.
 
 This is **developer-only verification**. Build its Rust executable once with
 `mbx build -p xtask`, then run the shell gate. `OMEGA_XTASK_BIN` can name an
 already-built verifier; archive regression fixtures reuse that executable and
-pass their own `--root`. Rust is required to build this auditor, not to construct
-or execute bootstrap stages. The ordinary construction still uses the documented
-Alpha seed, admitted Beta tape, source inputs, and byte-transport helpers.
+pass their own `--root`. Rust builds this auditor and the source-closure,
+alpha-forge, and gamma-invoke commands. Those commands pack and invoke bytes;
+they do not compile a bootstrap stage. The ordinary construction still uses
+the documented Alpha seed, admitted Beta tape, and source inputs.
 
 The verifier rejects invocations without inputs, malformed manifests, non-regular input
 files, and forbidden member spellings. The source-closure materializer separately

@@ -61,7 +61,8 @@ pub(crate) struct Program<'t> {
     pub signatures: IdTable<MachineId, Signature>,
     /// A subject requirement is a declaration, never an executable machine.
     pub declaration_signatures: IdTable<semantic_vocabulary::ContractId, Signature>,
-    pub declaration_sources: IdTable<semantic_vocabulary::ContractId, &'t typed_trees::signature::StateSignature>,
+    pub declaration_sources:
+        IdTable<semantic_vocabulary::ContractId, &'t typed_trees::signature::StateSignature>,
     /// Selected headers keep their supplying call and complete application.
     /// This is construction input for the existing public contract table,
     /// not permission to invoke its implementation.
@@ -72,8 +73,10 @@ pub(crate) struct Program<'t> {
     /// Construction coordinates are coalesced once after reading. Calls keep
     /// their construction coordinate until lowering translates it; the emitted
     /// module contains one header for each complete selected application.
-    pub declaration_aliases: IdTable<semantic_vocabulary::ContractId, semantic_vocabulary::ContractId>,
-    pub declaration_representatives: IdTable<semantic_vocabulary::ContractId, semantic_vocabulary::ContractId>,
+    pub declaration_aliases:
+        IdTable<semantic_vocabulary::ContractId, semantic_vocabulary::ContractId>,
+    pub declaration_representatives:
+        IdTable<semantic_vocabulary::ContractId, semantic_vocabulary::ContractId>,
     /// Only this root of a refinement witness exposes the member's own
     /// body contract. Every named call, including recursion, uses its route.
     implementation_body: Option<MachineId>,
@@ -283,40 +286,76 @@ impl<'t> Program<'t> {
     /// complete selected identities avoids rescanning prior headers for every
     /// call, and keeps different applications of one requirement separate.
     pub fn finish_declarations(&mut self, diagnostic: MachineId) -> Checked<()> {
-        let unavailable = |reason| refuse(diagnostic, Construct::Machine, Unserved::Declaration(reason));
+        let unavailable = |reason| {
+            refuse(
+                diagnostic,
+                Construct::Machine,
+                Unserved::Declaration(reason),
+            )
+        };
         let mut ordered = Vec::with_capacity(self.declaration_signatures.len());
         for (coordinate, _) in self.declaration_signatures.iter() {
-            let source = self.declaration_sources.get(coordinate).copied()
+            let source = self
+                .declaration_sources
+                .get(coordinate)
+                .copied()
                 .ok_or_else(|| unavailable("public contract lost its exact source signature"))?;
-            let selected = self.declaration_selections.get(coordinate)
+            let selected = self
+                .declaration_selections
+                .get(coordinate)
                 .ok_or_else(|| unavailable("public contract lost its selection coordinate"))?;
             let key = if let Some((caller, body, dispatch)) = selected {
-                let owner = self.symbols.get(*caller).copied()
-                    .ok_or_else(|| unavailable("selected contract lost its requesting declaration"))?;
-                if !self.typed.expression_table.static_machine_application_is_valid(dispatch.selection_application) {
-                    return Err(unavailable("selected contract has a stale source application"));
+                let owner = self.symbols.get(*caller).copied().ok_or_else(|| {
+                    unavailable("selected contract lost its requesting declaration")
+                })?;
+                if dispatch.selection_application.is_valid()
+                    && !self
+                        .typed
+                        .expression_table
+                        .static_machine_application_is_valid(dispatch.selection_application)
+                {
+                    return Err(unavailable(
+                        "selected contract has a stale source application",
+                    ));
                 }
                 let applications = self.typed.selected_conformance_applications(
-                    owner, dispatch.selection_application, dispatch.evidence_parameter,
-                    dispatch.requirement, dispatch.application_report_fingerprint,
+                    owner,
+                    dispatch.selection_application,
+                    dispatch.evidence_parameter,
+                    dispatch.requirement,
+                    dispatch.application_report_fingerprint,
                     dispatch.application_commitment,
                 );
                 let [application] = applications.as_slice() else {
-                    return Err(unavailable("selected contract has no unique complete application"));
+                    return Err(unavailable(
+                        "selected contract has no unique complete application",
+                    ));
                 };
-                let application_identity = self.typed.portable_conformance_application_identity(
-                    application, dispatch.selection_application,
-                ).ok_or_else(|| unavailable("selected contract has unresolved static argument identity"))?;
-                let (declaring, _) = self.typed.trait_machine_signature(source.symbol)
+                let application_identity = self
+                    .typed
+                    .selected_conformance_application_identity(owner, dispatch)
+                    .map_err(unavailable)?;
+                let (declaring, _) = self
+                    .typed
+                    .trait_machine_signature(source.symbol)
                     .ok_or_else(|| unavailable("selected contract lost its declaring trait"))?;
-                let requirement_identity = self.typed.trait_requirement_callable_identity(declaring, source);
+                let requirement_identity = self
+                    .typed
+                    .trait_requirement_callable_identity(declaring, source);
                 if !requirement_identity.is_valid() {
-                    return Err(unavailable("selected contract has no complete public signature identity"));
+                    return Err(unavailable(
+                        "selected contract has no complete public signature identity",
+                    ));
                 }
                 Some((
-                    *caller, application_identity, requirement_identity, *body,
-                    application.lifetime_arguments.clone(), application.type_arguments.clone(),
-                    application.trait_lifetime_arguments.clone(), application.trait_arguments.clone(),
+                    *caller,
+                    application_identity,
+                    requirement_identity,
+                    *body,
+                    application.lifetime_arguments.clone(),
+                    application.type_arguments.clone(),
+                    application.trait_lifetime_arguments.clone(),
+                    application.trait_arguments.clone(),
                 ))
             } else {
                 None
@@ -331,9 +370,14 @@ impl<'t> Program<'t> {
         for (key, source) in ordered {
             let same = key.is_some() && previous.as_ref() == key.as_ref();
             let canonical = if same {
-                let (canonical, original) = representative.ok_or_else(|| unavailable("selected contract lost its representative"))?;
-                if self.declaration_signatures.get(original) != self.declaration_signatures.get(source) {
-                    return Err(unavailable("one selected application produced different public signatures"));
+                let (canonical, original) = representative
+                    .ok_or_else(|| unavailable("selected contract lost its representative"))?;
+                if self.declaration_signatures.get(original)
+                    != self.declaration_signatures.get(source)
+                {
+                    return Err(unavailable(
+                        "one selected application produced different public signatures",
+                    ));
                 }
                 canonical
             } else {
@@ -342,14 +386,19 @@ impl<'t> Program<'t> {
                 canonical
             };
             let slot = usize::try_from(source.get() - 1)
-                .ok().and_then(|position| aliases.get_mut(position))
-                .ok_or_else(|| unavailable("public contract construction coordinate is unavailable"))?;
+                .ok()
+                .and_then(|position| aliases.get_mut(position))
+                .ok_or_else(|| {
+                    unavailable("public contract construction coordinate is unavailable")
+                })?;
             *slot = Some(canonical);
             previous = key;
         }
         let mut declared_aliases = IdTable::default();
         for alias in aliases {
-            declared_aliases.push(alias.ok_or_else(|| unavailable("public contract lost its emitted coordinate"))?);
+            declared_aliases.push(
+                alias.ok_or_else(|| unavailable("public contract lost its emitted coordinate"))?,
+            );
         }
         self.declaration_aliases = declared_aliases;
         self.declaration_representatives = representatives;

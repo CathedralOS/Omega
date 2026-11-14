@@ -11,7 +11,15 @@ pub struct SourceCorrespondence {
     /// the source member's specialization because a call component can place
     /// several source members in that same emitted machine. An expression may
     /// have several sites; none is selected by a source span or callee name.
-    pub calls: IdTable<MachineId, Vec<(MachineId, typed_trees::expression::ExpressionHandle, semantic_vocabulary::InvocationSite)>>,
+    pub calls: IdTable<
+        MachineId,
+        Vec<(
+            MachineId,
+            typed_trees::expression::ExpressionHandle,
+            typed_trees::statement::StatementHandle,
+            semantic_vocabulary::InvocationSite,
+        )>,
+    >,
 }
 
 pub(crate) struct PreparedProgram {

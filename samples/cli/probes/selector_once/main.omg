@@ -8,7 +8,6 @@
 //     result == 0` contract on the selector.
 //   * Element-wise array member writes.
 //
-use omega::language::core::drop;
 
 // Compile-checked only: no standard-library dependency, no
 // ProcessExit provider.

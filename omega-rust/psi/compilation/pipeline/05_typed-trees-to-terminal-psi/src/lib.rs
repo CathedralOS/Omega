@@ -407,6 +407,27 @@ pub fn elaborate_witness(
     elaborate_witness_call(program, entry, callee)
 }
 
+fn elaborate_applied_witness(
+    typed: &TypedTrees,
+    required: &typed_trees::signature::StateSignature,
+    declaring_trait: SymbolHandle,
+    requirement: SymbolHandle,
+    arguments: &[semantic_vocabulary::ScalarTerm],
+    implementation: SymbolHandle,
+) -> Checked<Elaboration> {
+    let mut program = read::Program::new(typed, false);
+    let entry = program.witnessed_signature(
+        required,
+        if required.type_parameters.is_empty() {
+            &[]
+        } else {
+            arguments
+        },
+    )?;
+    let callee = program.implementation(implementation, declaring_trait, requirement)?;
+    elaborate_witness_call(program, entry, callee)
+}
+
 fn elaborate_witness_call(
     mut program: read::Program<'_>,
     entry: MachineId,
@@ -520,11 +541,26 @@ fn finish_reading(
         program.publication,
         Some(&program),
     )?;
-    declare::declare(program.typed(), &program, &mut elaboration)
-        .map_err(|reason| {
-            refuse(diagnostic, Construct::Machine, Unserved::Declaration(reason))
-        })?;
+    declare::declare(program.typed(), &program, &mut elaboration).map_err(|reason| {
+        refuse(
+            diagnostic,
+            Construct::Machine,
+            Unserved::Declaration(reason),
+        )
+    })?;
     source.records = program.source_record_correspondence(diagnostic)?;
+    for selected in &mut program.selections {
+        if let Some(required) = selected.required_contract {
+            selected.required_contract =
+                Some(*program.declaration_aliases.get(required).ok_or_else(|| {
+                    refuse(
+                        diagnostic,
+                        Construct::Machine,
+                        Unserved::Declaration("selected witness lost its public header coordinate"),
+                    )
+                })?);
+        }
+    }
     elaboration.machines = program.symbols;
     elaboration.boundaries = program.boundary_symbols;
     elaboration.private_inputs = private_inputs;
@@ -667,16 +703,26 @@ fn lower_generic_for(
     let mut sources = IdTable::default();
     if let Some(source) = declarations {
         for (id, original) in source.declaration_representatives.iter() {
-            let signature = source.declaration_signatures.get(*original).ok_or_else(|| {
-                refuse(diagnostic, Construct::Machine, Unserved::Declaration("public contract lost its representative signature"))
-            })?;
+            let signature = source
+                .declaration_signatures
+                .get(*original)
+                .ok_or_else(|| {
+                    refuse(
+                        diagnostic,
+                        Construct::Machine,
+                        Unserved::Declaration("public contract lost its representative signature"),
+                    )
+                })?;
             module
                 .declaration_contracts
                 .push(lower::declaration_contract(
                     diagnostic,
                     id,
                     signature,
-                    source.declaration_selections.get(*original).and_then(|selected| selected.as_ref().map(|(_, body, _)| *body)),
+                    source
+                        .declaration_selections
+                        .get(*original)
+                        .and_then(|selected| selected.as_ref().map(|(_, body, _)| *body)),
                     signatures,
                     &outcomes,
                     &declared.records,
@@ -872,7 +918,7 @@ mod publication_scope_tests {
                 &bodies,
                 body::Signatures {
                     declarations: &IdTable::default(),
-            declaration_aliases: None,
+                    declaration_aliases: None,
                     machines: &signatures,
                     boundaries: &IdTable::default(),
                     completions: &IdTable::default(),

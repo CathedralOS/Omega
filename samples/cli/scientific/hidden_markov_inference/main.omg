@@ -1,7 +1,7 @@
 // Expected exit: 64 (empty stdin is invalid).
 // Expected numerical outputs are frozen independently in expected.json.
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i64;
 use domain::inference;
 use domain::viterbi;
 use io::trace;

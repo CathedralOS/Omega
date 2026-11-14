@@ -1,8 +1,13 @@
 // The shared Darwin stat representation preserves all SDK fields, signed carriers and its complete 144-byte extent through C exchange and transport.
 // Expected exit: 0
-use omega::language::core::layout;
-use omega::language::core::c_layout;
-use omega::language::core::numeric_conversion;
+use omega::language::core::FixedLayout;
+use omega::language::core::LayoutPlan;
+use omega::language::core::LayoutStorage;
+use omega::language::core::LayoutTarget;
+use omega::language::core::Schema;
+use omega::language::core::CAbiPolicy;
+use omega::language::core::narrow_i32_to_u32_wrapping;
+use omega::language::core::widen_u32_to_u64;
 use omega_language_std::targets::macos_arm64::filesystem_abi;
 
 public boundary trait StatExchange {

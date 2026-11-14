@@ -1,5 +1,5 @@
 use domain::balance;
-use omega::language::core::numeric_conversion;
+use omega::language::core::widen_u8_to_i32;
 // Seven signed decimal integers per line, separated by spaces. No commas,
 // exponent syntax or silent partial parses. Bounded magnitude prevents overflow.
 public data Parsed { case Invalid; case Valid(frame: Frame); }

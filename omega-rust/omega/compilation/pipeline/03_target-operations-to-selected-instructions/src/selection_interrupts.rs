@@ -13,8 +13,8 @@ pub(crate) mod interrupt_installation {
         self as guards, GuardEntry,
     };
     use crate::selection::construction::scalar_graph::structural::{
-        Builder, LegalizedScalarFunction, LegalizedScalarInstruction,
-        LegalizedScalarInstructionKind, SelectedInstructionKind, VirtualRegisterId,
+        Builder, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+        SelectedInstructionKind, VirtualRegisterId,
     };
     use runtime_abi::static_interrupts::{
         InstalledInterruptEntryPlan, InstalledInterruptFrame, root,
@@ -44,7 +44,7 @@ pub(crate) mod interrupt_installation {
 
     pub(crate) fn emit(
         function: usize,
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
@@ -112,11 +112,11 @@ pub(crate) mod interrupt_installation {
             &arguments[0],
             &indices[0],
         )?;
-        let declarations = &source
+        source
             .structural
             .as_ref()
-            .ok_or_else(|| failure("installation has no structural layouts"))?
-            .structural_types;
+            .ok_or_else(|| failure("installation has no structural layouts"))?;
+        let declarations = source.geometry();
         let table_shape = crate::structural_inputs::structural_reference_input::stored_value_shape(
             scope.table_type(),
             declarations,
@@ -480,7 +480,7 @@ pub(crate) mod interrupt_installation {
 pub(crate) mod interrupt_installation_calls {
     use crate::SelectedInstructionError;
     use crate::selection::construction::scalar_graph::structural::{
-        Builder, LegalizedScalarFunction, LegalizedScalarInstruction, VirtualRegisterId,
+        Builder, LegalizedScalarInstruction, VirtualRegisterId,
     };
     use legalized_operations::LegalizedScalarCall;
     use target_operations::{CallSiteOwner, InstallationCallRole};
@@ -519,7 +519,7 @@ pub(crate) mod interrupt_installation_calls {
 
     pub(crate) fn emit(
         function: usize,
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         role: InstallationCallRole,
         call: &LegalizedScalarCall,
@@ -619,9 +619,8 @@ pub(crate) mod interrupt_installation_guards {
         self as scalar, StorageAccess,
     };
     use crate::selection::construction::scalar_graph::structural::{
-        Builder, LegalizedScalarFunction, LegalizedScalarInstruction,
-        LegalizedScalarInstructionKind, PlaceId, SelectedInstructionKind, VirtualRegisterId,
-        provenance, transport_register,
+        Builder, LegalizedScalarInstruction, LegalizedScalarInstructionKind, PlaceId,
+        SelectedInstructionKind, VirtualRegisterId, provenance, transport_register,
     };
     use crate::structural_inputs::structural_reference_input as geometry;
     use installation_evidence::InstalledInterruptStackRequirement;
@@ -885,14 +884,14 @@ pub(crate) mod interrupt_installation_guards {
         use terminal_psi::StructuralTypeShape;
         pub(crate) type Layout = crate::InstalledInterruptOperandLayout;
         fn argument_type(
-            source: &LegalizedScalarFunction,
+            source: &crate::native_geometry::NativeFunction<'_>,
             argument: &terminal_psi::StructuralArgument,
         ) -> Result<StructuralTypeId, SelectedInstructionError> {
-            let declarations = &source
+            source
                 .structural
                 .as_ref()
-                .ok_or_else(|| failure("installation has no structural declarations"))?
-                .structural_types;
+                .ok_or_else(|| failure("installation has no structural declarations"))?;
+            let declarations = source.geometry();
             let root = crate::selection::reference_input::root_type(source, argument.place)
                 .ok_or_else(|| failure("installation argument has no root type"))?;
             let selected =
@@ -911,14 +910,14 @@ pub(crate) mod interrupt_installation_guards {
 
         impl Layout {
             pub(crate) fn prepare(
-                source: &LegalizedScalarFunction,
+                source: &crate::native_geometry::NativeFunction<'_>,
                 arguments: &[terminal_psi::StructuralArgument; 6],
             ) -> Result<Self, SelectedInstructionError> {
-                let declarations = &source
+                source
                     .structural
                     .as_ref()
-                    .ok_or_else(|| failure("installation has no structural declarations"))?
-                    .structural_types;
+                    .ok_or_else(|| failure("installation has no structural declarations"))?;
+                let declarations = source.geometry();
                 let mut types = Vec::with_capacity(6);
                 for argument in arguments {
                     types.push(argument_type(source, argument)?);
@@ -1468,7 +1467,7 @@ pub(crate) mod interrupt_installation_guards {
 
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn with_validated(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
         control_home: VirtualRegisterId,
@@ -1715,7 +1714,7 @@ pub(crate) mod interrupt_installation_guards {
     }
 
     fn view_words(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         checks: &Checks<'_>,
         argument: &terminal_psi::StructuralArgument,
@@ -1793,9 +1792,9 @@ pub(crate) mod interrupt_installation_guards {
 pub(crate) mod static_interrupts {
     use crate::SelectedInstructionError;
     use crate::selection::construction::scalar_graph::structural::{
-        Builder, LegalizedScalarFunction, LegalizedScalarInstruction,
-        LegalizedScalarInstructionKind, PlaceId, SelectedInstructionKind, SelectedMemoryAccessRole,
-        VirtualRegisterId, memory, provenance, transport_register,
+        Builder, LegalizedScalarInstruction, LegalizedScalarInstructionKind, PlaceId,
+        SelectedInstructionKind, SelectedMemoryAccessRole, VirtualRegisterId, memory, provenance,
+        transport_register,
     };
     use crate::structural_inputs::structural_reference_input;
     use language_core::static_interrupts::StaticInterruptOperation;
@@ -1808,7 +1807,7 @@ pub(crate) mod static_interrupts {
     }
 
     pub(crate) fn emit(
-        source: &LegalizedScalarFunction,
+        source: &crate::native_geometry::NativeFunction<'_>,
         row: &LegalizedScalarInstruction,
         builder: &mut Builder<'_>,
     ) -> Result<(), SelectedInstructionError> {
@@ -1832,11 +1831,8 @@ pub(crate) mod static_interrupts {
             .interrupt_helpers
             .require(row.operation, *operation)
             .map_err(SelectedInstructionError::custody_because)?;
-        let declarations = &source
-            .structural
-            .as_ref()
-            .ok_or_else(failure)?
-            .structural_types;
+        source.structural.as_ref().ok_or_else(failure)?;
+        let declarations = source.geometry();
         let token_root = crate::selection::reference_input::root_type(source, token.place)
             .ok_or_else(failure)?;
         let geometry = structural_reference_input::reference_formation_geometry(

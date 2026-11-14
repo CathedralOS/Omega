@@ -12,7 +12,6 @@ require_seed_execution_host "Gamma composed artifact"
 
 TMP=$(mktemp -d)
 trap 'rm -rf -- "$TMP"' EXIT HUP INT TERM
-INVOKE="$OMEGA_REPO_ROOT/tools/bootstrap/gamma/invoke.py"
 SOURCE="$TMP/compiler.gamma"
 # The bound materializer refuses before writing when the canonical entry,
 # manifest, members, packed closure, or composed record differ from the
@@ -61,15 +60,15 @@ temporary = Path(os.environ["TMP"])
     b"\xffDCOUT\x01\x00" + struct.pack("<BBHIQQQ", 1, 4, 0, 1, 0, 0, 0)
 )
 PY
-python3 "$INVOKE" --evaluator "$TMP/evaluator" --source "$SOURCE" \
+bootstrap_xtask gamma-invoke --evaluator "$TMP/evaluator" --source "$SOURCE" \
     --input "$TMP/request" --output "$TMP/receipt.gamma" --timeout 60
-python3 "$INVOKE" --evaluator "$TMP/evaluator" --source "$TMP/receipt.gamma" \
+bootstrap_xtask gamma-invoke --evaluator "$TMP/evaluator" --source "$TMP/receipt.gamma" \
     --input "$TMP/payload" --output "$TMP/observation" --timeout 60
 cmp "$TMP/observation" "$TMP/payload"
 
 # Raw source is malformed DCREQ, and its nonzero DCOUT frame is published.
 set +e
-python3 "$INVOKE" --evaluator "$TMP/evaluator" --source "$SOURCE" \
+bootstrap_xtask gamma-invoke --evaluator "$TMP/evaluator" --source "$SOURCE" \
     --input "$CUSTOMER" --output "$TMP/failure-frame" --timeout 60
 STATUS=$?
 set -e
@@ -84,7 +83,7 @@ cat > "$TMP/late-trap.gamma" <<'EOF'
 EOF
 printf 'unchanged' > "$TMP/not-published"
 set +e
-python3 "$INVOKE" --evaluator "$TMP/evaluator" --source "$TMP/late-trap.gamma" \
+bootstrap_xtask gamma-invoke --evaluator "$TMP/evaluator" --source "$TMP/late-trap.gamma" \
     --output "$TMP/not-published" --timeout 10
 STATUS=$?
 set -e
@@ -96,7 +95,7 @@ cat > "$TMP/empty.gamma" <<'EOF'
 (def main () Int (pair 0 1))
 EOF
 printf 'unchanged' > "$TMP/empty-published"
-python3 "$INVOKE" --evaluator "$TMP/evaluator" --source "$TMP/empty.gamma" \
+bootstrap_xtask gamma-invoke --evaluator "$TMP/evaluator" --source "$TMP/empty.gamma" \
         --output "$TMP/empty-published" --timeout 10
 [ ! -s "$TMP/empty-published" ]
 
@@ -108,7 +107,7 @@ cat > "$TMP/published-failure.gamma" <<'EOF'
 EOF
 printf 'unchanged' > "$TMP/failure-published"
 set +e
-python3 "$INVOKE" --evaluator "$TMP/evaluator" \
+bootstrap_xtask gamma-invoke --evaluator "$TMP/evaluator" \
         --source "$TMP/published-failure.gamma" \
         --output "$TMP/failure-published" --timeout 10
 STATUS=$?
@@ -124,7 +123,7 @@ cat > "$TMP/discarded.gamma" <<'EOF'
 EOF
 printf 'unchanged' > "$TMP/discarded-output"
 set +e
-python3 "$INVOKE" --evaluator "$TMP/evaluator" \
+bootstrap_xtask gamma-invoke --evaluator "$TMP/evaluator" \
         --source "$TMP/discarded.gamma" --output "$TMP/discarded-output" \
         --timeout 10
 STATUS=$?

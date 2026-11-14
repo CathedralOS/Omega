@@ -1,6 +1,6 @@
 // Expected exit: 0 for admitted data; explicit row exclusions are reported.
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::F64::square_root;
 use io::protocol;
 use domain::model;
 use domain::math;

@@ -1,6 +1,7 @@
 use omega_language_std::console;
-use omega::language::core::float_operations;
-use omega::language::core::numeric_conversion;
+use omega::language::core::U64::from_f64;
+use omega::language::core::narrow_i32_to_u64_saturating;
+use omega::language::core::narrow_u64_to_i32_saturating;
 use domain::model;
 // Scientific output retains twelve significant decimal places at every scale.
 public machine number(value: f64)

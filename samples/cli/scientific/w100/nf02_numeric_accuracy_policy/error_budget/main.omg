@@ -9,7 +9,10 @@ use omega::language::core::float_accuracy::compare_symmetric_any_f32;
 use omega::language::core::float_accuracy::compare_symmetric_any_f64;
 use omega::language::core::float_accuracy::compare_reference_additive_f32;
 use omega::language::core::float_accuracy::compare_reference_additive_f64;
-use omega::language::core::float_operations;
+use omega::language::core::F32::negate;
+use omega::language::core::F32::square_root;
+use omega::language::core::F64::negate;
+use omega::language::core::F64::square_root;
 
 machine main() crashes Trap {
     let exact32: SymmetricAnyTolerance32 = SymmetricAnyTolerance32 { absolute: 0.0f32, relative: 0.0f32 };

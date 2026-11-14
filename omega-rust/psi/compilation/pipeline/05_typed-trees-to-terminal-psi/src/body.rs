@@ -414,7 +414,8 @@ pub struct Signature {
 pub(crate) struct Signatures<'a> {
     pub machines: &'a IdTable<MachineId, Signature>,
     pub declarations: &'a IdTable<semantic_vocabulary::ContractId, Signature>,
-    pub declaration_aliases: Option<&'a IdTable<semantic_vocabulary::ContractId, semantic_vocabulary::ContractId>>,
+    pub declaration_aliases:
+        Option<&'a IdTable<semantic_vocabulary::ContractId, semantic_vocabulary::ContractId>>,
     pub boundaries: &'a IdTable<BoundaryMachineId, Signature>,
     /// How an invocation of each boundary requirement ends when it does not
     /// crash. The canonical process-exit requirement "produces no normal
@@ -435,8 +436,13 @@ impl<'a> Signatures<'a> {
             (None, _) => Ok(None),
             (Some(required), None) => Ok(Some(required)),
             (Some(required), Some(aliases)) => terminal_check_tables::row(
-                aliases, required, caller, terminal_check_tables::Construct::Machine,
-            ).copied().map(Some),
+                aliases,
+                required,
+                caller,
+                terminal_check_tables::Construct::Machine,
+            )
+            .copied()
+            .map(Some),
         }
     }
 
@@ -959,7 +965,11 @@ pub enum ExpressionKind {
     Call {
         callee: TargetMachineCallable,
         required_contract: Option<semantic_vocabulary::ContractId>,
-        source_call: Option<(MachineId, typed_trees::expression::ExpressionHandle)>,
+        source_call: Option<(
+            MachineId,
+            typed_trees::expression::ExpressionHandle,
+            typed_trees::statement::StatementHandle,
+        )>,
         arguments: Vec<Expression>,
         designated: Option<DesignatedOperands>,
     },

@@ -6,11 +6,12 @@ use symbols::SymbolHandle;
 use terminal_check_tables::compilation::{GenericForms, PreparedCompilation, TerminalCompilation};
 use typed_trees::TypedTrees;
 
-type WitnessRow = (
+type WitnessRow<'source> = (
     SymbolHandle,
     SymbolHandle,
     Vec<semantic_vocabulary::ScalarTerm>,
     SymbolHandle,
+    Option<&'source typed_trees::signature::StateSignature>,
 );
 
 /// The driver keeps source publication custody while passing only `program`
@@ -45,7 +46,8 @@ pub fn prepare_compilation(
         Err(refusal) => (Err(refusal), Default::default()),
     };
     let mut templates = Vec::new();
-    let mut rows: Vec<WitnessRow> = Vec::new();
+    let mut rows: Vec<WitnessRow<'_>> = Vec::new();
+    let mut selected_failure = None;
     let mut specializations = semantic_vocabulary::IdTable::default();
     let mut selection_witnesses = Vec::new();
     if let Ok(closure) = &mut closure {
@@ -59,6 +61,7 @@ pub fn prepare_compilation(
                         row.requirement,
                         Vec::new(),
                         row.implementation,
+                        None,
                     )
                 }),
         );
@@ -69,11 +72,19 @@ pub fn prepare_compilation(
             let Some(implementation) = closure.machines.get(selected.implementation) else {
                 continue;
             };
+            let signature = match selected_signature(typed, closure, &source, selected) {
+                Ok(signature) => signature,
+                Err(reason) => {
+                    selected_failure = Some(reason);
+                    break;
+                }
+            };
             let row = (
                 selected.declaring_trait,
                 selected.requirement,
                 selected.value_arguments.clone(),
                 *implementation,
+                Some(signature),
             );
             let position = rows
                 .iter()
@@ -85,18 +96,31 @@ pub fn prepare_compilation(
             selection_witnesses.push((selection, position));
         }
     }
+    if let Some(reason) = selected_failure {
+        closure = Err(reason);
+    }
     let forms = prepare_generic_forms(typed, templates);
     let mut witnesses = Vec::new();
     let mut next = 0;
     while next < rows.len() {
-        let (declaring_trait, requirement, arguments, implementation) = &rows[next];
-        let mut witness = crate::elaborate_witness(
-            typed,
-            *declaring_trait,
-            *requirement,
-            arguments,
-            *implementation,
-        );
+        let (declaring_trait, requirement, arguments, implementation, signature) = &rows[next];
+        let mut witness = match signature {
+            Some(signature) => crate::elaborate_applied_witness(
+                typed,
+                signature,
+                *declaring_trait,
+                *requirement,
+                arguments,
+                *implementation,
+            ),
+            None => crate::elaborate_witness(
+                typed,
+                *declaring_trait,
+                *requirement,
+                arguments,
+                *implementation,
+            ),
+        };
         if let Ok(witness) = &mut witness {
             for row in std::mem::take(&mut witness.conformance_witnesses) {
                 let row = (
@@ -104,6 +128,7 @@ pub fn prepare_compilation(
                     row.requirement,
                     Vec::new(),
                     row.implementation,
+                    None,
                 );
                 if !rows.contains(&row) {
                     rows.push(row);
@@ -123,6 +148,107 @@ pub fn prepare_compilation(
             selection_witnesses,
         }),
     }
+}
+
+/// A source call can share a body with calls made under another public
+/// contract. Rejoin its exact emitted site before preparing the independent
+/// refinement witness; the physical body cannot choose the public signature.
+fn selected_signature<'source>(
+    typed: &'source TypedTrees,
+    closure: &crate::Elaboration,
+    source: &crate::SourceCorrespondence,
+    selected: &crate::Selected,
+) -> terminal_check_tables::Checked<&'source typed_trees::signature::StateSignature> {
+    use terminal_check_tables::Construct;
+    use typed_trees::expression::ExpressionNode;
+    let unavailable = |reason| {
+        crate::refuse(
+            selected.caller,
+            Construct::Machine,
+            crate::Unserved::Declaration(reason),
+        )
+    };
+    let required = selected
+        .required_contract
+        .ok_or_else(|| unavailable("selected witness has no public header"))?;
+    let header = closure
+        .module
+        .declaration_contract(required)
+        .ok_or_else(|| unavailable("selected witness lost its public header"))?;
+    let declaration = header
+        .declaration
+        .as_ref()
+        .ok_or_else(|| unavailable("selected witness lost its public source declaration"))?;
+    let mut signature = None;
+    for (caller, calls) in source.calls.iter() {
+        let machine = closure
+            .module
+            .machine(caller)
+            .ok_or_else(|| unavailable("source call lost its emitted caller"))?;
+        for (member, expression, statement, site) in calls {
+            if *member != selected.caller {
+                continue;
+            }
+            if !machine.module_invocations().any(|invocation| {
+                invocation.site == *site
+                    && invocation.inputs.required_contract == Some(required)
+                    && invocation.inputs.callee == selected.implementation
+            }) {
+                continue;
+            }
+            let owner = *closure
+                .machines
+                .get(*member)
+                .ok_or_else(|| unavailable("source call lost its requesting member"))?;
+            let call = if expression.is_valid() && !statement.is_valid() {
+                if !typed.expression_table.expression_is_valid(*expression) {
+                    return Err(unavailable("source call has a stale expression coordinate"));
+                }
+                let ExpressionNode::Call(call) = typed.expression_table.expression(*expression)
+                else {
+                    return Err(unavailable(
+                        "source call no longer names its retained expression",
+                    ));
+                };
+                typed_trees::references::StaticArgumentCall::Expression(*expression, call)
+            } else if statement.is_valid() && !expression.is_valid() {
+                if !typed.statement_table.statement_is_valid(*statement) {
+                    return Err(unavailable("source call has a stale statement coordinate"));
+                }
+                let typed_trees::statement::StatementNode::Call(call) =
+                    typed.statement_table.statement(*statement)
+                else {
+                    return Err(unavailable(
+                        "source call no longer names its retained statement",
+                    ));
+                };
+                typed_trees::references::StaticArgumentCall::Statement(call)
+            } else {
+                return Err(unavailable(
+                    "source call has no unique expression or statement coordinate",
+                ));
+            };
+            let applied = typed
+                .resolve_requirement_static_call_signature(owner, call)
+                .map_err(unavailable)?;
+            let (declaring, _) = typed
+                .trait_machine_signature(applied.symbol)
+                .ok_or_else(|| unavailable("selected witness lost its exact declaring trait"))?;
+            let identity = typed.trait_requirement_callable_identity_text(declaring, applied);
+            if closure.module.identities.text(declaration.callable) != Some(identity.as_str()) {
+                return Err(unavailable(
+                    "selected witness differs from the invocation's public signature",
+                ));
+            }
+            if signature.is_some_and(|known| known != applied) {
+                return Err(unavailable(
+                    "selected witness has different applied public signatures",
+                ));
+            }
+            signature = Some(applied);
+        }
+    }
+    signature.ok_or_else(|| unavailable("selected witness has no exact source call correspondence"))
 }
 
 fn prepare_generic_forms(

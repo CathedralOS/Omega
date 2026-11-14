@@ -1,5 +1,5 @@
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::I32::from_f64;
 
 // Signed micro-units, ten decimal digits. No text format or math dependency.
 // Saturating conversion is explicit; the model inputs keep values below 1000.

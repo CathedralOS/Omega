@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 use domain::complex;
 public data Problem {
     cells: i32; spacing: f64; timestep: f64; steps: i32;

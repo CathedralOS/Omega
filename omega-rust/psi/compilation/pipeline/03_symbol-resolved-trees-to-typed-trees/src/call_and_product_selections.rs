@@ -3,6 +3,47 @@ Call result typing, captured product operands, construction destinations, build
 and product selections, installed interrupts, and qualification casts.
 */
 
+/// A rewrite that already selected an exact declaration must retain that
+/// answer on the original call occurrence. An unresolved different question
+/// or a contradictory earlier answer remains an error.
+pub(crate) fn bind_generated_call_selection(
+    program: &mut typed_trees::TypedTrees,
+    occurrence: language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+    target: symbols::SymbolHandle,
+) -> Result<(), diagnostics::Diagnostic> {
+    use language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionLateBinding as Late,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+    let selections = program.authored_declaration_selections();
+    let selection = selections.get(occurrence).ok_or_else(|| {
+        diagnostics::Diagnostic::error("rewritten call lost its original selection record")
+    })?;
+    let source_span = selection.source_span();
+    let refused =
+        |reason: &str| diagnostics::Diagnostic::error(reason).with_source_span(source_span);
+    if selection.kind()
+        != language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Call
+    {
+        return Err(refused(
+            "rewritten call does not own a call selection record",
+        ));
+    }
+    match selection.target() {
+        Target::LateBound(Late::CheckedCall) => program
+            .finalize_authored_declaration_selection(occurrence, Late::CheckedCall, target)
+            .map_err(|error| {
+                refused(&format!(
+                    "rewritten call cannot retain its selected declaration: {error:?}"
+                ))
+            }),
+        Target::Resolved(selected) if selected.selected_symbol() == target => Ok(()),
+        _ => Err(refused(
+            "rewritten call contradicts its original selection record",
+        )),
+    }
+}
+
 pub(crate) mod build_selections {
     use diagnostics::Diagnostic;
     use language_semantics::declaration_selection::{
@@ -2310,7 +2351,6 @@ pub(crate) mod installed_interrupts {
                 "interrupt installation requires a registrar declaration, not a value or evidence projection",
             ));
         }
-        let mut declaration_path = registrar.path.to_vec();
         let mut continuation = registrar;
         while let Some(application) = &continuation.application
             && application.member.is_valid()
@@ -2320,7 +2360,6 @@ pub(crate) mod installed_interrupts {
                 .ok_or_else(|| {
                     Diagnostic::error("interrupt registrar member has no owning resolved record")
                 })?;
-            declaration_path.extend_from_slice(&continuation.path);
         }
         let registrar_selection = if let Some((first, last)) =
             continuation.path.first().zip(continuation.path.last())
@@ -2346,9 +2385,19 @@ pub(crate) mod installed_interrupts {
         } else {
             None
         };
-        let selected = syntax_trees_to_symbol_resolved_trees::declaration_selection::resolve_signature_free_requirement(program, &declaration_path)
-            .map_err(|reason| Diagnostic::error(format!("interrupt installation registrar declaration cannot be selected: {reason:?}")))?;
-        let registrar_trait = selected.trait_definition.symbol;
+        let selected = registrar
+            .signature_free_requirement
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "interrupt registrar lost its prepared signature-free requirement selection",
+                )
+            })?
+            .map_err(|reason| {
+                Diagnostic::error(format!(
+                    "interrupt installation registrar declaration cannot be selected: {reason:?}"
+                ))
+            })?;
+        let registrar_trait = selected.trait_definition;
         let mut registrar =
             lower_static_machine_argument(Some(program), target_trees, exposure, registrar)?;
         let mut member_handle = registrar
@@ -2357,7 +2406,7 @@ pub(crate) mod installed_interrupts {
             .map(|application| application.member)
             .unwrap_or_default();
         if !member_handle.is_valid() {
-            registrar.symbol = selected.requirement.symbol;
+            registrar.symbol = selected.requirement;
         } else {
             loop {
                 let member = target_trees
@@ -2372,7 +2421,7 @@ pub(crate) mod installed_interrupts {
                     .map(|application| application.member)
                     .unwrap_or_default();
                 if !next.is_valid() {
-                    member.symbol = selected.requirement.symbol;
+                    member.symbol = selected.requirement;
                     break;
                 }
                 member_handle = next;

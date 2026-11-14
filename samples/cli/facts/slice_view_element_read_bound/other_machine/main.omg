@@ -2,7 +2,6 @@
 // Place: another machine. A forwarding machine transports the slice view to the reader.
 // Expected exit: 0
 
-use omega::language::core::slice;
 
 machine target_reader(view: &[u64]) -> i32
     requires view.len >= 3

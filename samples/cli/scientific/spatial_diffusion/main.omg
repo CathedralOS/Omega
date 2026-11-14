@@ -5,7 +5,7 @@
 // is not a fallback.
 // SCI04: bounded 2D finite-volume diffusion/Poisson with explicit CSR and CG.
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::I64::from_f64;
 use domain::grid;
 use domain::solver;
 use platform::decimal;

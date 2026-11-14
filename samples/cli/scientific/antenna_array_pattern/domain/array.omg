@@ -1,8 +1,7 @@
-use omega::language::core::math;
+use omega::language::core::abs_f64;
 
 // Direct element summation; co-located elements remain separate excitations.
 // Negative real weights encode a pi phase reversal. Zero excitation is valid.
-use omega::language::core::float_operations;
 use domain::phasor;
 public data Geometry {
     positions: [f64; 4];

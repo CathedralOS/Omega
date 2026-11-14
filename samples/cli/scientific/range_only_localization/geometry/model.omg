@@ -1,7 +1,6 @@
 // Private lattice geometry. Inputs are validated before any products; the
 // wrapping arithmetic domain is explicit and the application bounds guarantee
 // every actual product is small (squared distances <= 3200).
-use omega::language::core::numeric_conversion;
 
 public data Problem {
     values: [i32 in Wrapping; 17];

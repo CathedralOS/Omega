@@ -9,9 +9,9 @@ pub(crate) mod byte_concatenation {
     use crate::selection::byte_concatenation_input::field_offset;
     use crate::selection::construction::scalar_graph::structural::byte_field_read::payload_pointer;
     use crate::selection::construction::scalar_graph::structural::{
-        Builder, LegalizedScalarFunction, LegalizedScalarInstruction,
-        LegalizedScalarInstructionKind, SelectedInstructionKind, SelectedInstructionProvenance,
-        SelectedMemoryAccessRole, VirtualRegisterId, memory,
+        Builder, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+        SelectedInstructionKind, SelectedInstructionProvenance, SelectedMemoryAccessRole,
+        VirtualRegisterId, memory,
     };
     use crate::selection::construction::scalar_graph::structural::{
         byte_field_store, byte_views, invalid, local_storage, obligation_provenance, provenance,
@@ -21,7 +21,7 @@ pub(crate) mod byte_concatenation {
     use terminal_psi::control_flow::ByteSequenceOperand;
 
     pub(crate) fn establish(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<(), SelectedInstructionError> {
@@ -124,7 +124,7 @@ pub(crate) mod byte_concatenation {
     }
 
     pub(crate) fn operand_pointer(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
         operand: &ByteSequenceOperand,
@@ -162,7 +162,7 @@ pub(crate) mod byte_concatenation {
     }
 
     pub(crate) fn operand_span(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &Builder<'_>,
         operand: &ByteSequenceOperand,
     ) -> Result<(u32, Vec<(PlaceId, ValueId)>), SelectedInstructionError> {
@@ -197,7 +197,7 @@ pub(crate) mod byte_concatenation {
 
     #[allow(clippy::too_many_arguments)]
     fn copy(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
         operand: &ByteSequenceOperand,
@@ -419,13 +419,13 @@ pub(crate) mod byte_field_read {
     };
     use crate::selection::construction::scalar_graph::structural::transport_register;
     use crate::selection::construction::scalar_graph::structural::{
-        Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
+        Builder, IntegerSign, IntegerType, LegalizedScalarInstruction,
         LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
         SelectedMemoryAccessRole, VirtualRegisterId, memory,
     };
 
     pub(crate) fn read_byte(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
@@ -489,7 +489,7 @@ pub(crate) mod byte_field_read {
     }
 
     pub(crate) fn payload_pointer(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
         place: semantic_vocabulary::PlaceId,
@@ -538,14 +538,14 @@ pub(crate) mod byte_field_store {
     use crate::selection::construction::scalar_graph::structural::provenance;
     use crate::selection::construction::scalar_graph::structural::transport_register;
     use crate::selection::construction::scalar_graph::structural::{
-        Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
+        Builder, IntegerSign, IntegerType, LegalizedScalarInstruction,
         LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
         SelectedMemoryAccessRole, StructuralAccess, VirtualRegisterId, memory,
     };
     use crate::selection::primitive_local_input::read_parameter;
 
     pub(crate) fn replace(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<(), SelectedInstructionError> {
@@ -669,7 +669,7 @@ pub(crate) mod byte_field_store {
                 destination_type,
                 reference.map_or(destination.path.as_slice(), |(_, suffix)| suffix),
                 field,
-                &signature.structural_types,
+                function.geometry(),
             )
             .ok_or_else(|| invalid())?
             .0
@@ -794,7 +794,7 @@ pub(crate) mod byte_field_store {
     }
 
     pub(crate) fn replace_byte(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<(), SelectedInstructionError> {
@@ -810,7 +810,7 @@ pub(crate) mod byte_field_store {
         else {
             return Err(invalid());
         };
-        let signature = function.structural.as_ref().ok_or_else(|| invalid())?;
+        function.structural.as_ref().ok_or_else(|| invalid())?;
         let parameter = crate::selection::address_join_input::loan_declaration(
             function,
             destination.place,
@@ -834,7 +834,7 @@ pub(crate) mod byte_field_store {
                 parameter.structural_type,
                 &destination.path,
                 *field,
-                &signature.structural_types,
+                function.geometry(),
             )
             .ok_or_else(|| invalid())?;
         let payload_offset = metadata_offset.checked_add(8).ok_or_else(|| invalid())?;
@@ -915,14 +915,13 @@ pub(crate) mod byte_view_field_store {
     };
     use crate::selection::construction::scalar_graph::structural::transport_register;
     use crate::selection::construction::scalar_graph::structural::{
-        Builder, LegalizedScalarFunction, LegalizedScalarInstruction,
-        LegalizedScalarInstructionKind, SelectedInstructionProvenance, SelectedMemoryAccessRole,
-        StructuralAccess, memory,
+        Builder, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+        SelectedInstructionProvenance, SelectedMemoryAccessRole, StructuralAccess, memory,
     };
     use crate::selection::established_view_input::{descriptor_home, view_type};
 
     pub(crate) fn replace(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<(), SelectedInstructionError> {
@@ -947,7 +946,7 @@ pub(crate) mod byte_view_field_store {
             root_type,
             &destination.path,
             *field,
-            &signature.structural_types,
+            function.geometry(),
         )
         .ok_or_else(|| invalid())?;
         if row.result.is_some()
@@ -1058,7 +1057,7 @@ pub(crate) mod byte_views {
     use crate::selection::construction::scalar_graph::structural::provenance;
     use crate::selection::construction::scalar_graph::structural::transport_register;
     use crate::selection::construction::scalar_graph::structural::{
-        Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
+        Builder, IntegerSign, IntegerType, LegalizedScalarInstruction,
         LegalizedScalarInstructionKind, PlaceId, ScalarType, SelectedInstructionKind,
         SelectedMemoryAccessRole, ValueId, VirtualRegisterId, memory, obligation_provenance,
     };
@@ -1069,7 +1068,7 @@ pub(crate) mod byte_views {
     use terminal_psi::control_flow::ByteSequenceOperand;
 
     pub(crate) fn write(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<(), SelectedInstructionError> {
@@ -1139,7 +1138,7 @@ pub(crate) mod byte_views {
     }
 
     pub(crate) fn byte_observation(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
@@ -1198,7 +1197,7 @@ pub(crate) mod byte_views {
     }
 
     fn byte_sequence_read(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
@@ -1266,7 +1265,7 @@ pub(crate) mod byte_views {
     }
 
     pub(crate) fn charge_backing_roots(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
         place: PlaceId,
@@ -1300,7 +1299,7 @@ pub(crate) mod byte_views {
     }
 
     pub(crate) fn unsliced_payload_offset(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         place: PlaceId,
     ) -> u32 {
         if crate::selection::byte_concatenation_input::owner_layout_type(function, place).is_some()
@@ -1351,7 +1350,7 @@ pub(crate) mod byte_views {
     }
 
     pub(crate) fn backing_pointer(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &impl crate::selection::construction::scalar_graph::call_arguments::InvocationArgumentSource,
         source: PlaceId,
@@ -1416,7 +1415,7 @@ pub(crate) mod byte_views {
     }
 
     pub(crate) fn byte_predicate(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
@@ -1455,7 +1454,7 @@ pub(crate) mod byte_views {
     }
 
     pub(crate) fn byte_equal(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
@@ -1507,7 +1506,7 @@ pub(crate) mod byte_views {
     }
 
     fn measured_span_reads(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
         operand: &ByteSequenceOperand,
@@ -1538,8 +1537,8 @@ pub(crate) mod element_establishment {
     };
     use crate::selection::construction::scalar_graph::structural::transport_register;
     use crate::selection::construction::scalar_graph::structural::{
-        Builder, LegalizedScalarFunction, LegalizedScalarInstruction,
-        LegalizedScalarInstructionKind, SelectedInstructionKind, VirtualRegisterId,
+        Builder, LegalizedScalarInstruction, LegalizedScalarInstructionKind,
+        SelectedInstructionKind, VirtualRegisterId,
     };
     use crate::selection::primitive_local_input::read_parameter;
     use crate::structural_inputs::structural_reference_input::collection_view_region_geometry;
@@ -1548,7 +1547,7 @@ pub(crate) mod element_establishment {
     use terminal_psi::{StructuralAccess, StructuralTypeShape};
 
     pub(crate) fn establish(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<(), SelectedInstructionError> {
@@ -1659,7 +1658,7 @@ pub(crate) mod element_establishment {
             root,
             source,
             result.structural_type,
-            &signature.structural_types,
+            function.geometry(),
             *region,
         ) else {
             return Err(invalid());
@@ -2012,7 +2011,7 @@ pub(crate) mod element_subslice {
     use crate::selection::construction::scalar_graph::structural::invalid;
     use crate::selection::construction::scalar_graph::structural::transport_register;
     use crate::selection::construction::scalar_graph::structural::{
-        Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
+        Builder, IntegerSign, IntegerType, LegalizedScalarInstruction,
         LegalizedScalarInstructionKind, ScalarType, SelectedInstructionKind,
         SelectedInstructionProvenance, obligation_provenance,
     };
@@ -2020,7 +2019,7 @@ pub(crate) mod element_subslice {
     use semantic_vocabulary::IntegerValue;
 
     pub(crate) fn create(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<(), SelectedInstructionError> {
@@ -2193,13 +2192,13 @@ pub(crate) mod element_view_write {
     use crate::selection::construction::scalar_graph::structural::scaled_element_index;
     use crate::selection::construction::scalar_graph::structural::transport_register;
     use crate::selection::construction::scalar_graph::structural::{
-        Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
+        Builder, IntegerSign, IntegerType, LegalizedScalarInstruction,
         LegalizedScalarInstructionKind, ScalarType, SelectedMemoryAccessRole, memory,
     };
     use terminal_psi::StructuralTypeShape;
 
     pub(crate) fn write(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<(), SelectedInstructionError> {
@@ -2230,7 +2229,7 @@ pub(crate) mod element_view_write {
         }
         let stride = crate::selection::construction::scalar_graph::structural::descriptor_operands::element_stride(function, destination)
             .ok_or_else(|| invalid())?;
-        let Some(signature) = function.structural.as_ref() else {
+        let Some(_) = function.structural.as_ref() else {
             return Err(invalid());
         };
         let Some((_, StructuralTypeShape::ElementView { element, .. })) =
@@ -2243,7 +2242,7 @@ pub(crate) mod element_view_write {
                 element,
                 path,
                 value_type,
-                signature.structural_types.as_slice(),
+                function.geometry(),
             )
             .ok_or_else(|| invalid())?;
         let pointer = if destination.path.is_empty() {
@@ -2307,7 +2306,7 @@ pub(crate) mod element_views {
     use crate::selection::construction::scalar_graph::structural::scaled_element_index;
     use crate::selection::construction::scalar_graph::structural::transport_register;
     use crate::selection::construction::scalar_graph::structural::{
-        Builder, IntegerSign, IntegerType, LegalizedScalarFunction, LegalizedScalarInstruction,
+        Builder, IntegerSign, IntegerType, LegalizedScalarInstruction,
         LegalizedScalarInstructionKind, PlaceId, ScalarType, SelectedInstructionProvenance,
         SelectedMemoryAccessRole, VirtualRegisterId, memory,
     };
@@ -2317,7 +2316,7 @@ pub(crate) mod element_views {
     use terminal_psi::StructuralTypeShape;
 
     pub(crate) fn element_stride(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &Builder<'_>,
         source: PlaceId,
     ) -> Option<u32> {
@@ -2325,19 +2324,17 @@ pub(crate) mod element_views {
             return Some(view.element_stride);
         }
         let view_type = element_view_type(function, source)?;
-        let signature = function.structural.as_ref()?;
-        let declaration =
-            terminal_psi::find_structural_type(signature.structural_types.as_slice(), view_type)?;
+        function.structural.as_ref()?;
+        let declaration = terminal_psi::find_structural_type(function.geometry(), view_type)?;
         let StructuralTypeShape::ElementView { element, .. } = &declaration.shape else {
             return None;
         };
-        let shape =
-            crate::structural_inputs::shape(*element, signature.structural_types.as_slice())?;
+        let shape = crate::structural_inputs::shape(*element, function.geometry())?;
         align(shape.byte_size, shape.alignment).filter(|stride| *stride != 0)
     }
 
     pub(crate) fn element_observation(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
@@ -2370,7 +2367,7 @@ pub(crate) mod element_views {
     }
 
     fn element_view_read(
-        function: &LegalizedScalarFunction,
+        function: &crate::native_geometry::NativeFunction<'_>,
         builder: &mut Builder<'_>,
         row: &LegalizedScalarInstruction,
     ) -> Result<VirtualRegisterId, SelectedInstructionError> {
@@ -2396,26 +2393,21 @@ pub(crate) mod element_views {
             return Err(invalid());
         }
         let stride = element_stride(function, builder, source).ok_or_else(|| invalid())?;
-        let Some(signature) = function.structural.as_ref() else {
+        let Some(_) = function.structural.as_ref() else {
             return Err(invalid());
         };
         let Some(view_type) = element_view_type(function, source) else {
             return Err(invalid());
         };
-        let element =
-            terminal_psi::find_structural_type(signature.structural_types.as_slice(), view_type)
-                .and_then(|declaration| match declaration.shape {
-                    StructuralTypeShape::ElementView { element, .. } => Some(element),
-                    _ => None,
-                })
+        let element = terminal_psi::find_structural_type(function.geometry(), view_type)
+            .and_then(|declaration| match declaration.shape {
+                StructuralTypeShape::ElementView { element, .. } => Some(element),
+                _ => None,
+            })
+            .ok_or_else(|| invalid())?;
+        let (byte_offset, byte_count, elements) =
+            element_leaf_projection(element, path, definition.scalar_type, function.geometry())
                 .ok_or_else(|| invalid())?;
-        let (byte_offset, byte_count, elements) = element_leaf_projection(
-            element,
-            path,
-            definition.scalar_type,
-            signature.structural_types.as_slice(),
-        )
-        .ok_or_else(|| invalid())?;
         if !crate::structural_inputs::runtime_indices_match(indices, &elements) {
             return Err(invalid());
         }

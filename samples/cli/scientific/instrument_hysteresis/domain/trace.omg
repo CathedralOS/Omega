@@ -1,4 +1,4 @@
-use omega::language::core::math;
+use omega::language::core::max_i32;
 
 // Direction uses the last nonzero stimulus change. A plateau inherits it;
 // without a prior change direction remains ambiguous. At a reversal the new

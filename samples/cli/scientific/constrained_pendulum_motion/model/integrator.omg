@@ -1,7 +1,7 @@
 // Scientific sample model: unit mass, gravity 9.81, dt=0.01 seconds.
 // Cartesian constrained kick/drift followed by radial and tangent projections.
 // Projection is dissipative; energy drift is measured, never called conservation.
-use omega::language::core::float_operations;
+use omega::language::core::F64::square_root;
 
 public data Pendulum {
     length: f64;

@@ -12,7 +12,7 @@
 // Expected output contains: 150
 
 use omega_language_std::console;
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_i32_to_u8_trapping;
 
 domain [u8]::Utf8
 requires

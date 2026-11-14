@@ -34,6 +34,8 @@ that lists one, because it would publish a source-produced body with no
 declaration identity.
 */
 
+mod selected;
+
 use std::hash::{Hash, Hasher};
 
 use optimization::digest_encoder::DomainDigestEncoder;
@@ -153,7 +155,9 @@ pub(crate) fn declare(
             .as_ref()
             .map_err(|_| "a public requirement toolchain source has no exact identity")?;
         for contract in &mut elaboration.module.declaration_contracts {
-            let original = *program.declaration_representatives.get(contract.id)
+            let original = *program
+                .declaration_representatives
+                .get(contract.id)
                 .ok_or("public contract lost its source representative")?;
             let requirement = *requirement_sources
                 .get(original)
@@ -176,6 +180,52 @@ pub(crate) fn declare(
             )?;
             contract.declaration = Some(declaration);
         }
+        let links = selected::publish(
+            typed,
+            program,
+            sources,
+            &mut elaboration.module,
+            &mut identities,
+        )?;
+        for (required, application, mut dispatch) in links {
+            let application = elaboration
+                .module
+                .closed_conformance_applications
+                .get(application)
+                .ok_or("selected public contract lost its emitted application")?;
+            dispatch.conformance_application_report_fingerprint = application.report_fingerprint;
+            dispatch.conformance_application_commitment = application.commitment;
+            let contract = elaboration
+                .module
+                .declaration_contracts
+                .iter_mut()
+                .find(|contract| contract.id == required)
+                .ok_or("selected application lost its exact public contract")?;
+            if contract
+                .selected_application
+                .as_ref()
+                .is_some_and(|known| known != &dispatch)
+            {
+                return Err("one public contract is associated with different closed selections");
+            }
+            contract.selected_application = Some(dispatch);
+        }
+        elaboration
+            .module
+            .closed_conformance_applications
+            .sort_unstable_by(|left, right| {
+                (
+                    left.owner,
+                    identities.text(left.declaration_identity),
+                    left.report_fingerprint,
+                )
+                    .cmp(&(
+                        right.owner,
+                        identities.text(right.declaration_identity),
+                        right.report_fingerprint,
+                    ))
+            });
+        elaboration.module.closed_conformance_applications.dedup();
         Ok(())
     })();
     elaboration.module.identities = identities.build();

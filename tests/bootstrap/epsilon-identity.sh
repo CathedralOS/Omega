@@ -250,7 +250,7 @@ done
 for record in \
   tests/bootstrap/omega-parser/gate.py \
   tests/bootstrap/gate_lib.py \
-  tests/bootstrap/source-closure.py \
+  tools/xtask/src/source_closure.rs \
   tests/epsilon/array-storage/gate.py \
   tests/epsilon/interpreted-omega-experiment/run.sh
 do

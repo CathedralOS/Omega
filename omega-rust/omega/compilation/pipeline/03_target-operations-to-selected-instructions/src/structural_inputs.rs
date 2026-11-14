@@ -1,21 +1,29 @@
 /*
-We reconstruct native structural storage geometry, pointer/descriptor slots,
+We project retained native layouts into pointer/descriptor slots,
 collection views (`structural_reference_input`), and unit parameter/result
 contracts (`structural_unit_input`) shared by target legalization and
 instruction selection.
 */
 
 pub(crate) mod structural_reference_input {
+    use crate::native_geometry::NativeGeometry;
     use calling_conventions::{IndirectPointerLocation, ValueLocation, ValuePlacement, ValueShape};
     use semantic_vocabulary::{ScalarType, StructuralFieldId, StructuralTypeId};
     use terminal_psi::{
         StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
-        find_structural_type, structural_case_position,
+        structural_case_position,
     };
+
+    fn find_structural_type<'a>(
+        declarations: &NativeGeometry<'a>,
+        root: StructuralTypeId,
+    ) -> Option<&'a StructuralTypeDeclaration> {
+        declarations.declaration(root).ok()
+    }
 
     pub(crate) fn scalar_storage_type(
         root: StructuralTypeId,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<ScalarType> {
         let StructuralTypeShape::PrimitiveScalar(scalar) =
             find_structural_type(declarations, root)?.shape
@@ -28,7 +36,7 @@ pub(crate) mod structural_reference_input {
     pub(crate) fn scalar_reference_export_width(
         selected: StructuralTypeId,
         access: terminal_psi::StructuralAccess,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<u32> {
         let scalar = scalar_storage_type(selected, declarations)?;
         terminal_semantics::reference_storage_export_byte_width(scalar, access).map(u32::from)
@@ -157,7 +165,7 @@ pub(crate) mod structural_reference_input {
     pub(crate) fn element_view_length_geometry(
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<ReferenceSourceGeometry> {
         let mut geometry = reference_source_geometry(root, path, declarations)?;
         if !geometry.readable
@@ -175,7 +183,7 @@ pub(crate) mod structural_reference_input {
     pub(crate) fn descriptor_source_geometry(
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<ReferenceSourceGeometry> {
         reference_source_geometry_with_leaf_type(root, path, declarations, descriptor_leaf_type)
     }
@@ -183,7 +191,7 @@ pub(crate) mod structural_reference_input {
     pub fn reference_formation_geometry<'types>(
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
-        declarations: &'types [StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'types>,
     ) -> Option<ReferenceSourceGeometry<std::borrow::Cow<'types, StructuralFieldType>>> {
         reference_geometry(root, path, declarations, |root, path| {
             if let Some((StructuralPathSegment::FixedRange { .. }, prefix)) = path.split_last() {
@@ -222,7 +230,7 @@ pub(crate) mod structural_reference_input {
     pub(crate) fn reference_source_geometry(
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<ReferenceSourceGeometry> {
         reference_source_geometry_with_leaf_type(
             root,
@@ -235,7 +243,7 @@ pub(crate) mod structural_reference_input {
     pub(crate) fn storage_address_geometry(
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<ReferenceSourceGeometry<()>> {
         reference_geometry(root, path, declarations, |root, path| {
             let (_, offset, elements) = runtime_storage_projection(root, path, declarations)?;
@@ -246,7 +254,7 @@ pub(crate) mod structural_reference_input {
     pub(crate) fn owner_loan_geometry(
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<ReferenceSourceGeometry> {
         reference_source_geometry_with_leaf_type(root, path, declarations, descriptor_leaf_type)
     }
@@ -255,7 +263,7 @@ pub(crate) mod structural_reference_input {
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
         expected: StructuralTypeId,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<ReferenceSourceGeometry> {
         let expected = declarations.iter().find(|row| row.id == expected)?;
         reference_source_geometry_with_leaf_type(root, path, declarations, |field| {
@@ -266,7 +274,7 @@ pub(crate) mod structural_reference_input {
     fn reference_source_geometry_with_leaf_type(
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
         leaf_type: impl Fn(&StructuralFieldType) -> Option<StructuralFieldType> + Copy,
     ) -> Option<ReferenceSourceGeometry> {
         reference_geometry(root, path, declarations, |root, path| {
@@ -277,7 +285,7 @@ pub(crate) mod structural_reference_input {
     fn reference_geometry<Endpoint>(
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
         endpoint: impl Fn(
             StructuralTypeId,
             &[StructuralPathSegment],
@@ -311,7 +319,7 @@ pub(crate) mod structural_reference_input {
     fn storage_projection_regions(
         mut root: StructuralTypeId,
         path: &[StructuralPathSegment],
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<StorageProjectionRegions> {
         let mut segment_start = 0;
         let mut elements = Vec::new();
@@ -424,7 +432,7 @@ pub(crate) mod structural_reference_input {
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
         scalar: ScalarType,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<PrimitiveAccessGeometry> {
         terminal_semantics::atomic_cell_type(declarations.iter(), root, path)
             .filter(|cell| cell.scalar_type() == scalar)?;
@@ -467,7 +475,7 @@ pub(crate) mod structural_reference_input {
         destination: &abstract_operations::StructuralScalarStoreDestination,
         path: &[StructuralPathSegment],
         scalar: ScalarType,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<PrimitiveAccessGeometry> {
         if destination.multiplicity() == terminal_psi::StructuralMultiplicity::Linear
             || (path.is_empty()
@@ -516,12 +524,12 @@ pub(crate) mod structural_reference_input {
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
         scalar: ScalarType,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
         endpoint: impl Fn(
             StructuralTypeId,
             &[StructuralPathSegment],
             ScalarType,
-            &[StructuralTypeDeclaration],
+            &NativeGeometry<'_>,
         ) -> Option<(u32, u32, Vec<RuntimeElement>)>,
     ) -> Option<PrimitiveAccessGeometry> {
         let regions = storage_projection_regions(root, path, declarations)?;
@@ -546,7 +554,7 @@ pub(crate) mod structural_reference_input {
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
         scalar: ScalarType,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<(u32, u32, Vec<RuntimeElement>)> {
         let mut roots = declarations
             .iter()
@@ -641,7 +649,7 @@ pub(crate) mod structural_reference_input {
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
         scalar: ScalarType,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<PrimitiveAccessGeometry> {
         if terminal_semantics::primitive_read_projection_type(declarations.iter(), root, path)
             != Some(scalar)
@@ -661,7 +669,7 @@ pub(crate) mod structural_reference_input {
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
         scalar: ScalarType,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<(u32, u32, Vec<RuntimeElement>)> {
         if let Some(geometry) = primitive_geometry(root, path, scalar, declarations) {
             return Some(geometry);
@@ -678,14 +686,14 @@ pub(crate) mod structural_reference_input {
 
     pub(crate) fn shape(
         root: StructuralTypeId,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<ValueShape> {
-        shape_inner(root, declarations, &mut Vec::new())
+        declarations.shape(root).ok()
     }
 
     pub(crate) fn parameter_shape<'declaration>(
         parameter: impl Into<abstract_operations::StructuralCallFormal<'declaration>>,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<ValueShape> {
         use terminal_psi::StructuralAccess;
         let parameter = parameter.into();
@@ -705,7 +713,7 @@ pub(crate) mod structural_reference_input {
 
     pub(crate) fn internal_borrow_shape(
         structural_type: StructuralTypeId,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<ValueShape> {
         if scalar_storage_type(structural_type, declarations).is_some() {
             Some(ValueShape::borrowed_scalar_reference())
@@ -720,7 +728,7 @@ pub(crate) mod structural_reference_input {
 
     pub(crate) fn owned_storage_shape(
         structural_type: StructuralTypeId,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<ValueShape> {
         find_structural_type(declarations, structural_type).filter(|declaration| {
             declaration.shape.is_composite_shape()
@@ -731,52 +739,35 @@ pub(crate) mod structural_reference_input {
 
     pub(crate) fn stored_value_shape(
         structural_type: StructuralTypeId,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<ValueShape> {
-        primitive_array_shape(structural_type, declarations)
-            .or_else(|| shape(structural_type, declarations))
+        shape(structural_type, declarations)
     }
 
     pub(crate) fn primitive_array_shape(
         root: StructuralTypeId,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<ValueShape> {
         let mut current = root;
-        let mut count = Some(1_u64);
-        let mut empty = false;
         let mut array = false;
         for _ in 0..declarations.len() {
-            let mut matching = declarations
-                .iter()
-                .filter(|declaration| declaration.id == current);
-            let declaration = matching.next()?;
-            if matching.next().is_some() {
-                return None;
-            }
-            match declaration.shape {
+            match find_structural_type(declarations, current)?.shape {
                 StructuralTypeShape::FixedArray {
                     element,
-                    length: terminal_psi::ArrayExtent::Literal(length),
+                    length: terminal_psi::ArrayExtent::Literal(_),
                 } => {
                     array = true;
-                    empty |= length == 0;
-                    count = count.and_then(|count| count.checked_mul(length));
                     current = element;
                 }
                 StructuralTypeShape::PrimitiveScalar(scalar) if array => {
-                    if matches!(scalar, ScalarType::Integer(integer) if integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed)
+                    if matches!(scalar, ScalarType::Integer(integer)
+                        if integer.carrier() != semantic_vocabulary::IntegerCarrier::Fixed)
                     {
                         return None;
                     }
-                    let leaf = scalar_shape(scalar)?;
-                    let size = u32::try_from(
-                        (if empty { 0 } else { count? }).checked_mul(u64::from(leaf.byte_size))?,
-                    )
-                    .ok()?;
-                    return Some(ValueShape::integer(
-                        size,
-                        if size == 0 { 1 } else { leaf.alignment },
-                    ));
+                    // Scalar operation eligibility is narrower than storage layout.
+                    scalar_shape(scalar)?;
+                    return shape(root, declarations);
                 }
                 _ => return None,
             }
@@ -788,7 +779,7 @@ pub(crate) mod structural_reference_input {
         source: &terminal_psi::StructuralParameterDeclaration,
         argument: &terminal_psi::StructuralArgument,
         view_type: StructuralTypeId,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<(u32, Option<u64>, Option<u32>)> {
         if !declarations.iter().any(|declaration| {
             declaration.id == view_type
@@ -816,7 +807,7 @@ pub(crate) mod structural_reference_input {
         source: &terminal_psi::StructuralParameterDeclaration,
         argument: &terminal_psi::StructuralArgument,
         view_type: StructuralTypeId,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<(u32, u64)> {
         let mut destination = source.clone();
         destination.structural_type = view_type;
@@ -860,7 +851,7 @@ pub(crate) mod structural_reference_input {
         source: &terminal_psi::StructuralParameterDeclaration,
         argument: &terminal_psi::StructuralArgument,
         view_type: StructuralTypeId,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<(u32, u64, u32)> {
         let geometry = collection_view_geometry(source, argument, view_type, declarations)?;
         let terminal_semantics::CollectionExtent::Fixed(length) = geometry.extent else {
@@ -885,7 +876,7 @@ pub(crate) mod structural_reference_input {
         pub(crate) fn projected_collection<'types>(
             root: StructuralTypeId,
             path: &[StructuralPathSegment],
-            declarations: &'types [StructuralTypeDeclaration],
+            declarations: &NativeGeometry<'types>,
         ) -> Option<ProjectedCollection<'types>> {
             let regions = storage_projection_regions(root, path, declarations)?;
             if !regions.readable {
@@ -896,7 +887,7 @@ pub(crate) mod structural_reference_input {
                 collection_projection(regions.root, leaf_path, declarations)?;
             let (storage, _, _) =
                 runtime_storage_projection(regions.root, leaf_path, declarations)?;
-            let byte_size = field_shape(&storage, declarations, &mut Vec::new())?.byte_size;
+            let byte_size = field_shape(&storage, declarations, root)?.byte_size;
             let mut elements = regions.elements;
             elements.extend(leaf_elements);
             Some(ProjectedCollection {
@@ -922,7 +913,7 @@ pub(crate) mod structural_reference_input {
             source: &terminal_psi::StructuralParameterDeclaration,
             argument: &terminal_psi::StructuralArgument,
             view_type: StructuralTypeId,
-            declarations: &[StructuralTypeDeclaration],
+            declarations: &NativeGeometry<'_>,
         ) -> Option<CollectionViewGeometry> {
             collection_view_region_geometry(
                 source,
@@ -936,7 +927,7 @@ pub(crate) mod structural_reference_input {
             source: &terminal_psi::StructuralParameterDeclaration,
             argument: &terminal_psi::StructuralArgument,
             view_type: StructuralTypeId,
-            declarations: &[StructuralTypeDeclaration],
+            declarations: &NativeGeometry<'_>,
             region: terminal_psi::ElementViewRegion,
         ) -> Option<CollectionViewGeometry> {
             use terminal_psi::{StructuralAccess, StructuralMultiplicity};
@@ -1186,7 +1177,7 @@ pub(crate) mod structural_reference_input {
             source_layout: &terminal_semantics::RepresentationElementLayout,
             target: StructuralTypeId,
             target_layout: &terminal_semantics::RepresentationElementLayout,
-            declarations: &[StructuralTypeDeclaration],
+            declarations: &NativeGeometry<'_>,
         ) -> Option<u64> {
             let source = match collection {
                 StructuralTypeShape::FixedArray { element, .. }
@@ -1230,7 +1221,7 @@ pub(crate) mod structural_reference_input {
         source: &terminal_psi::StructuralParameterDeclaration,
         argument: &terminal_psi::StructuralArgument,
         view_type: StructuralTypeId,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<BoundedByteViewGeometry> {
         if source.place != argument.place
             || source.multiplicity != terminal_psi::StructuralMultiplicity::Unrestricted
@@ -1295,7 +1286,7 @@ pub(crate) mod structural_reference_input {
         source: &terminal_psi::StructuralParameterDeclaration,
         argument: &terminal_psi::StructuralArgument,
         view_type: StructuralTypeId,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<(u32, u64)> {
         bounded_byte_field_borrow(source, argument, view_type, declarations, true)
     }
@@ -1304,7 +1295,7 @@ pub(crate) mod structural_reference_input {
         source: &terminal_psi::StructuralParameterDeclaration,
         argument: &terminal_psi::StructuralArgument,
         view_type: StructuralTypeId,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
         owned: bool,
     ) -> Option<(u32, u64)> {
         use terminal_psi::{StructuralAccess, StructuralMultiplicity};
@@ -1372,155 +1363,10 @@ pub(crate) mod structural_reference_input {
         .then_some((field_offset, capacity))
     }
 
-    fn case_payloads(
-        cases: &[terminal_psi::StructuralCaseDeclaration],
-        declarations: &[StructuralTypeDeclaration],
-        active: &mut Vec<StructuralTypeId>,
-    ) -> Option<Vec<Vec<ValueShape>>> {
-        cases
-            .iter()
-            .map(|case| {
-                case.fields
-                    .iter()
-                    .filter(|field| !field.relevance.is_erased())
-                    .map(|field| field_shape(&field.field_type, declarations, active))
-                    .collect::<Option<Vec<_>>>()
-            })
-            .collect()
-    }
-
-    fn shape_inner(
-        root: StructuralTypeId,
-        declarations: &[StructuralTypeDeclaration],
-        active: &mut Vec<StructuralTypeId>,
-    ) -> Option<ValueShape> {
-        if active.contains(&root) {
-            return None;
-        }
-        active.push(root);
-        let declaration = find_structural_type(declarations, root)?;
-        let result = match &declaration.shape {
-            StructuralTypeShape::PrimitiveScalar(scalar) => scalar_shape(*scalar),
-            StructuralTypeShape::AtomicCell(cell) => scalar_shape(cell.scalar_type()),
-            StructuralTypeShape::ByteSequence(carrier) => field_shape(
-                &StructuralFieldType::ByteSequence(*carrier),
-                declarations,
-                active,
-            ),
-            StructuralTypeShape::ElementView { .. } => Some(ValueShape::integer(16, 8)),
-            StructuralTypeShape::Sum { cases } => {
-                let payloads = case_payloads(cases, declarations, active)?;
-                Some(
-                    calling_conventions::evaluate_conventional_sum_layout(&[], &payloads)
-                        .ok()?
-                        .shape,
-                )
-            }
-            StructuralTypeShape::Mixed { fields, cases } => {
-                let common = fields
-                    .iter()
-                    .filter(|field| !field.relevance.is_erased())
-                    .map(|field| field_shape(&field.field_type, declarations, active))
-                    .collect::<Option<Vec<_>>>()?;
-                let payloads = case_payloads(cases, declarations, active)?;
-                Some(
-                    calling_conventions::evaluate_conventional_sum_layout(&common, &payloads)
-                        .ok()?
-                        .shape,
-                )
-            }
-            StructuralTypeShape::Reference { referent, .. } => Some(ValueShape::integer(
-                if scalar_storage_type(*referent, declarations).is_some() {
-                    16
-                } else {
-                    8
-                },
-                8,
-            )),
-            StructuralTypeShape::Record { fields, storage } => {
-                if matches!(
-                    storage,
-                    terminal_psi::StructuralRecordStorage::TargetLayout(_)
-                ) {
-                    return None;
-                }
-                if let terminal_psi::StructuralRecordStorage::Authored(storage)
-                | terminal_psi::StructuralRecordStorage::AccessView(storage)
-                | terminal_psi::StructuralRecordStorage::Accessor(storage) = storage
-                {
-                    active.pop();
-                    return Some(ValueShape::integer(
-                        u32::try_from(storage.byte_size).ok()?,
-                        u16::try_from(storage.byte_alignment).ok()?,
-                    ));
-                }
-                let mut bytes = 0;
-                let mut alignment = 1;
-                for field in fields.iter().filter(|field| {
-                    !field.relevance.is_erased()
-                        && !matches!(field.field_type, StructuralFieldType::Erased { .. })
-                }) {
-                    let field_shape = field_shape(&field.field_type, declarations, active)?;
-                    alignment = alignment.max(field_shape.alignment);
-                    bytes =
-                        align(bytes, field_shape.alignment)?.checked_add(field_shape.byte_size)?;
-                }
-                Some(ValueShape::integer(align(bytes, alignment)?, alignment))
-            }
-            StructuralTypeShape::FixedArray { element, length } => {
-                let length = length.literal()?;
-                if let Some(shape) = primitive_array_shape(root, declarations) {
-                    Some(shape)
-                } else {
-                    let element = shape_inner(*element, declarations, active)?;
-                    let stride = align(element.byte_size, element.alignment)?;
-                    Some(ValueShape::integer(
-                        u32::try_from(u64::from(stride).checked_mul(length)?).ok()?,
-                        if length == 0 { 1 } else { element.alignment },
-                    ))
-                }
-            }
-        };
-        active.pop();
-        result
-    }
-
-    pub(crate) fn field_storage_shape(
-        field: &terminal_psi::StructuralFieldDeclaration,
-        declarations: &[StructuralTypeDeclaration],
-    ) -> Option<ValueShape> {
-        if matches!(
-            field.storage.as_ref(),
-            Some(semantic_vocabulary::AuthoredFieldStorage::Fragmented(_))
-        ) {
-            return None;
-        }
-        if let Some(stored) = field
-            .storage
-            .as_ref()
-            .and_then(|storage| storage.stored_scalar())
-        {
-            let codec = runtime_abi::ScalarStorageCodec::from_scalar(stored)?;
-            return Some(ValueShape::integer(u32::from(codec.byte_size()), 1));
-        }
-        field_shape(&field.field_type, declarations, &mut Vec::new())
-    }
-
-    fn field_storage_offset(
-        field: &terminal_psi::StructuralFieldDeclaration,
-        conventional_offset: u32,
-        alignment: u16,
-    ) -> Option<u32> {
-        match field.storage.as_ref() {
-            Some(storage) => u32::try_from(storage.byte_offset()?).ok(),
-            None => align(conventional_offset, alignment),
-        }
-    }
-
     pub(crate) fn projected_scalar_codec(
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<runtime_abi::ScalarStorageCodec> {
         let (root, path) = referent_projection(root, path, declarations)?;
         if let Some((StructuralPathSegment::Field(_), prefix)) = path.split_last() {
@@ -1548,7 +1394,7 @@ pub(crate) mod structural_reference_input {
     pub(crate) fn projected_scalar_fragments<'declarations>(
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
-        declarations: &'declarations [StructuralTypeDeclaration],
+        declarations: &'declarations NativeGeometry<'_>,
     ) -> Option<&'declarations semantic_vocabulary::AuthoredBitFragments> {
         let (root, path) = referent_projection(root, path, declarations)?;
         let (StructuralPathSegment::Field(_), prefix) = path.split_last()? else {
@@ -1561,7 +1407,7 @@ pub(crate) mod structural_reference_input {
     fn referent_projection<'path>(
         root: StructuralTypeId,
         path: &'path [StructuralPathSegment],
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<(StructuralTypeId, &'path [StructuralPathSegment])> {
         let regions = storage_projection_regions(root, path, declarations)?;
         Some((regions.root, &path[regions.segment_start..]))
@@ -1571,7 +1417,7 @@ pub(crate) mod structural_reference_input {
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
         field: StructuralFieldId,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<runtime_abi::ScalarStorageCodec> {
         let field = scalar_field_declaration(root, path, field, declarations)?;
         if matches!(
@@ -1593,7 +1439,7 @@ pub(crate) mod structural_reference_input {
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
         field: StructuralFieldId,
-        declarations: &'declarations [StructuralTypeDeclaration],
+        declarations: &'declarations NativeGeometry<'_>,
     ) -> Option<&'declarations semantic_vocabulary::AuthoredBitFragments> {
         let field = scalar_field_declaration(root, path, field, declarations)?;
         if matches!(
@@ -1614,7 +1460,7 @@ pub(crate) mod structural_reference_input {
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
         field: StructuralFieldId,
-        declarations: &'declarations [StructuralTypeDeclaration],
+        declarations: &'declarations NativeGeometry<'_>,
     ) -> Option<&'declarations terminal_psi::StructuralFieldDeclaration> {
         let (root, path) = referent_projection(root, path, declarations)?;
         terminal_semantics::projected_field_declaration(declarations.iter(), root, path, field)
@@ -1622,39 +1468,24 @@ pub(crate) mod structural_reference_input {
 
     pub(crate) fn field_shape(
         field: &StructuralFieldType,
-        declarations: &[StructuralTypeDeclaration],
-        active: &mut Vec<StructuralTypeId>,
+        declarations: &NativeGeometry<'_>,
+        owner: StructuralTypeId,
     ) -> Option<ValueShape> {
-        match field {
-            StructuralFieldType::Scalar(scalar) => scalar_shape(*scalar),
-            StructuralFieldType::Atomic(_) | StructuralFieldType::AtomicBoundedInteger(_) => {
-                scalar_shape(field.atomic_scalar_type()?)
-            }
-            StructuralFieldType::BoundedInteger(bounds) => {
-                scalar_shape(ScalarType::Integer(bounds.integer_type()))
-            }
-            StructuralFieldType::RefinedScalar(refinement) => scalar_shape(refinement.carrier()),
-            StructuralFieldType::IeeeFloat(format) => scalar_shape(ScalarType::IeeeFloat(*format)),
-            StructuralFieldType::ByteSequence(carrier)
-            | StructuralFieldType::PredicateByteSequence { carrier, .. } => {
-                let bytes = match carrier {
-                    terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => {
-                        capacity.checked_add(8)?
-                    }
-                    terminal_psi::ByteSequenceCarrier::BoundedView { .. } => 8,
-                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => 16,
-                };
-                Some(ValueShape::integer(u32::try_from(bytes).ok()?, 8))
-            }
-            StructuralFieldType::Structural(nested) => shape_inner(*nested, declarations, active),
-            _ => None,
-        }
+        declarations.field_shape(field, owner).ok()
+    }
+
+    pub(crate) fn field_storage_shape(
+        field: &terminal_psi::StructuralFieldDeclaration,
+        declarations: &NativeGeometry<'_>,
+        owner: StructuralTypeId,
+    ) -> Option<ValueShape> {
+        declarations.field_storage_shape(field, owner).ok()
     }
 
     pub(crate) fn case_projection(
         root: StructuralTypeId,
         path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<ReferenceSourceGeometry> {
         let endpoint =
             terminal_semantics::canonical_case_leaf_type(declarations.iter(), root, path)?;
@@ -1673,31 +1504,9 @@ pub(crate) mod structural_reference_input {
 
     pub(crate) fn case_layout(
         root: StructuralTypeId,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<calling_conventions::ConventionalSumLayout> {
-        let declaration = find_structural_type(declarations, root)?;
-        let (common, cases) = match &declaration.shape {
-            StructuralTypeShape::Sum { cases } => (&[][..], cases),
-            StructuralTypeShape::Mixed { fields, cases } => (fields.as_slice(), cases),
-            _ => return None,
-        };
-        let mut active = vec![root];
-        let common = common
-            .iter()
-            .filter(|field| !field.relevance.is_erased())
-            .map(|field| field_shape(&field.field_type, declarations, &mut active))
-            .collect::<Option<Vec<_>>>()?;
-        let payloads = cases
-            .iter()
-            .map(|case| {
-                case.fields
-                    .iter()
-                    .filter(|field| !field.relevance.is_erased())
-                    .map(|field| field_shape(&field.field_type, declarations, &mut active))
-                    .collect::<Option<Vec<_>>>()
-            })
-            .collect::<Option<Vec<_>>>()?;
-        calling_conventions::evaluate_conventional_sum_layout(&common, &payloads).ok()
+        declarations.sum_layout(root).ok()
     }
 
     pub(crate) struct ReferenceProjection {
@@ -1713,7 +1522,7 @@ pub(crate) mod structural_reference_input {
         mut path: &[StructuralPathSegment],
         access: terminal_psi::StructuralAccess,
         expected: Option<StructuralTypeId>,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<ReferenceProjection> {
         use terminal_psi::StructuralAccess;
         if access == StructuralAccess::Owned {
@@ -1773,7 +1582,7 @@ pub(crate) mod structural_reference_input {
     pub(crate) fn project(
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<(StructuralTypeId, u32)> {
         project_with_leaf_type(
             root,
@@ -1816,7 +1625,7 @@ pub(crate) mod structural_reference_input {
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
         expected: StructuralTypeId,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<(StructuralTypeId, u32)> {
         let expected = declarations.iter().find(|row| row.id == expected)?;
         project_with_leaf_type(root, path, declarations, |field| {
@@ -1827,7 +1636,7 @@ pub(crate) mod structural_reference_input {
     fn project_with_leaf_type(
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
         leaf_type: impl Fn(&StructuralFieldType) -> Option<StructuralFieldType> + Copy,
     ) -> Option<(StructuralTypeId, u32)> {
         project_inner(
@@ -1867,7 +1676,7 @@ pub(crate) mod structural_reference_input {
     pub(crate) fn collection_projection<'types>(
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
-        declarations: &'types [StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'types>,
     ) -> Option<(
         std::borrow::Cow<'types, StructuralTypeShape>,
         u32,
@@ -1889,7 +1698,7 @@ pub(crate) mod structural_reference_input {
     pub(crate) fn runtime_projection_elements(
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<Vec<RuntimeElement>> {
         let regions = storage_projection_regions(root, path, declarations)?;
         let (_, _, leaf_elements) =
@@ -1902,7 +1711,7 @@ pub(crate) mod structural_reference_input {
     fn project_inner(
         root: StructuralTypeId,
         path: impl Iterator<Item = Projection>,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
         leaf_type: impl Fn(&StructuralFieldType) -> Option<StructuralFieldType> + Copy,
     ) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
         let (storage, offset, elements) = project_storage(root, path, declarations)?;
@@ -1919,7 +1728,7 @@ pub(crate) mod structural_reference_input {
     fn project_storage<'types>(
         root: StructuralTypeId,
         path: impl Iterator<Item = Projection>,
-        declarations: &'types [StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'types>,
     ) -> Option<(
         std::borrow::Cow<'types, StructuralFieldType>,
         u32,
@@ -2020,8 +1829,11 @@ pub(crate) mod structural_reference_input {
                         if field.storage.is_some() && field.identity != name {
                             continue;
                         }
-                        let layout = field_storage_shape(field, declarations)?;
-                        field_offset = field_storage_offset(field, field_offset, layout.alignment)?;
+                        let placement = declarations
+                            .field_placement(field, carrier, field_offset)
+                            .ok()?;
+                        let layout = placement.shape;
+                        field_offset = placement.byte_offset;
                         if field.identity == name {
                             found = Some((
                                 &field.field_type,
@@ -2048,7 +1860,7 @@ pub(crate) mod structural_reference_input {
     pub(crate) fn runtime_projection(
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
         runtime_projection_with_leaf_type(
             root,
@@ -2063,7 +1875,7 @@ pub(crate) mod structural_reference_input {
         path: &[StructuralPathSegment],
         access: terminal_psi::StructuralAccess,
         expected: Option<StructuralTypeId>,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
         let expected = expected.and_then(|expected| find_structural_type(declarations, expected));
         let geometry = reference_geometry(root, path, declarations, |root, path| {
@@ -2089,7 +1901,7 @@ pub(crate) mod structural_reference_input {
     fn runtime_projection_with_leaf_type(
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
         leaf_type: impl Fn(&StructuralFieldType) -> Option<StructuralFieldType>,
     ) -> Option<(StructuralTypeId, u32, Vec<RuntimeElement>)> {
         let (storage, offset, elements) = runtime_storage_projection(root, path, declarations)?;
@@ -2106,7 +1918,7 @@ pub(crate) mod structural_reference_input {
     fn runtime_storage_projection<'types>(
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
-        declarations: &'types [StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'types>,
     ) -> Option<(
         std::borrow::Cow<'types, StructuralFieldType>,
         u32,
@@ -2137,7 +1949,7 @@ pub(crate) mod structural_reference_input {
         path: &[StructuralPathSegment],
         field: StructuralFieldId,
         scalar: ScalarType,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<PrimitiveAccessGeometry> {
         primitive_access_geometry(
             root,
@@ -2155,7 +1967,7 @@ pub(crate) mod structural_reference_input {
         path: &[StructuralPathSegment],
         field: StructuralFieldId,
         scalar: ScalarType,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<(u32, u32, Vec<RuntimeElement>)> {
         let geometry = field_store_geometry(root, path, field, scalar, declarations)?;
         Some((geometry.byte_offset, geometry.byte_size, geometry.elements))
@@ -2166,7 +1978,7 @@ pub(crate) mod structural_reference_input {
         path: &[StructuralPathSegment],
         field: StructuralFieldId,
         scalar: ScalarType,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<(u32, u32, Vec<RuntimeElement>)> {
         if let Some((StructuralPathSegment::Case(case), prefix)) = path.split_last() {
             let (carrier, carrier_offset, elements) =
@@ -2189,7 +2001,7 @@ pub(crate) mod structural_reference_input {
         element: StructuralTypeId,
         path: &[StructuralPathSegment],
         scalar: ScalarType,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<(u32, u32)> {
         let (offset, bytes, elements) =
             element_leaf_projection(element, path, scalar, declarations)?;
@@ -2200,7 +2012,7 @@ pub(crate) mod structural_reference_input {
         element: StructuralTypeId,
         path: &[StructuralPathSegment],
         scalar: ScalarType,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<(u32, u32, Vec<RuntimeElement>)> {
         if terminal_semantics::element_view_leaf_scalar(declarations, element, path) != Some(scalar)
         {
@@ -2233,7 +2045,7 @@ pub(crate) mod structural_reference_input {
         path: &[StructuralPathSegment],
         field: StructuralFieldId,
         scalar: ScalarType,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
         observes_byte_length: bool,
     ) -> Option<(u32, u32, Vec<RuntimeElement>)> {
         let (carrier, carrier_offset, elements) = runtime_projection(root, path, declarations)?;
@@ -2283,8 +2095,11 @@ pub(crate) mod structural_reference_input {
                 return scalar_access_within_storage(root, offset, bytes, &elements, declarations)
                     .then_some((offset, bytes, elements));
             }
-            let layout = field_storage_shape(candidate, declarations)?;
-            offset = field_storage_offset(candidate, offset, layout.alignment)?;
+            let placement = declarations
+                .field_placement(candidate, carrier, offset)
+                .ok()?;
+            let layout = placement.shape;
+            offset = placement.byte_offset;
             if candidate.id == field {
                 let mut length_word = 0;
                 let matches_type = match candidate.field_type {
@@ -2387,7 +2202,7 @@ pub(crate) mod structural_reference_input {
         offset: u32,
         bytes: u32,
         elements: &[RuntimeElement],
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> bool {
         let descriptor_frame = matches!(
             find_structural_type(declarations, root).map(|declaration| &declaration.shape),
@@ -2414,7 +2229,7 @@ pub(crate) mod structural_reference_input {
         path: &[StructuralPathSegment],
         field: StructuralFieldId,
         scalar: ScalarType,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<(u32, u32)> {
         if !path.iter().all(|segment| {
             matches!(
@@ -2449,7 +2264,7 @@ pub(crate) mod structural_reference_input {
         path: &[StructuralPathSegment],
         field: StructuralFieldId,
         scalar: ScalarType,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<(u32, u32)> {
         let (carrier, carrier_offset) = project(structural_type, path, declarations)?;
         let (offset, bytes) = mixed_common_field_geometry(carrier, field, scalar, declarations)?;
@@ -2460,7 +2275,7 @@ pub(crate) mod structural_reference_input {
         carrier: StructuralTypeId,
         field: StructuralFieldId,
         scalar: ScalarType,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<(u32, u32)> {
         let StructuralTypeShape::Mixed { fields, .. } =
             &find_structural_type(declarations, carrier)?.shape
@@ -2489,7 +2304,7 @@ pub(crate) mod structural_reference_input {
         case: semantic_vocabulary::StructuralCaseId,
         field: StructuralFieldId,
         scalar: ScalarType,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<(u32, u32)> {
         if path.iter().any(|segment| {
             matches!(
@@ -2543,7 +2358,7 @@ pub(crate) mod structural_reference_input {
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
         field: StructuralFieldId,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<ProjectedByteField> {
         let selected = terminal_semantics::projected_field_declaration(
             declarations.iter(),
@@ -2596,7 +2411,7 @@ pub(crate) mod structural_reference_input {
         root: StructuralTypeId,
         path: &[StructuralPathSegment],
         field: Option<StructuralFieldId>,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<ProjectedByteField> {
         let Some(field) = field else {
             let declaration = find_structural_type(declarations, root)?;
@@ -2625,7 +2440,7 @@ pub(crate) mod structural_reference_input {
         path: &[StructuralPathSegment],
         field: StructuralFieldId,
         scalar: ScalarType,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<(u32, u32)> {
         if !terminal_psi::is_static_structural_scalar_store_path(path) {
             return None;
@@ -2638,7 +2453,7 @@ pub(crate) mod structural_reference_input {
         structural_type: StructuralTypeId,
         path: &[StructuralPathSegment],
         field: StructuralFieldId,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> Option<(u32, u64)> {
         let scalar = ScalarType::Integer(
             semantic_vocabulary::IntegerType::new(semantic_vocabulary::IntegerSign::Unsigned, 64)
@@ -2670,7 +2485,7 @@ pub(crate) mod structural_reference_input {
         collection: &StructuralTypeShape,
         target: StructuralTypeId,
         access: terminal_psi::StructuralAccess,
-        declarations: &[StructuralTypeDeclaration],
+        declarations: &NativeGeometry<'_>,
     ) -> bool {
         let StructuralTypeShape::FixedArray {
             element: source, ..
@@ -2736,7 +2551,7 @@ pub(crate) mod structural_unit_input {
     pub(crate) fn accepts_graph(
         call_plan: &CallPlan,
         parameters: &[Parameter<'_>],
-        structural_types: &[terminal_psi::StructuralTypeDeclaration],
+        structural_types: &crate::native_geometry::NativeGeometry<'_>,
     ) -> bool {
         let Some(scalar_count) = call_plan.parameters.len().checked_sub(parameters.len()) else {
             return false;

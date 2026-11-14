@@ -35,6 +35,7 @@ pub mod observation;
 #[macro_use]
 pub mod ownership;
 pub mod proof;
+pub mod structural_path_encoding;
 pub mod terminal_module;
 pub mod types_and_values;
 

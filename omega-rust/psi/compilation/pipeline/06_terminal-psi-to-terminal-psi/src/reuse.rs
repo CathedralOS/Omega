@@ -680,15 +680,14 @@ impl Carried<'_> {
 /// `reverify`, each goal and its hypotheses are the consumer's own, computed
 /// from its lowered program; only proofs are taken from elsewhere.
 ///
-/// A certificate of the generic body cites what the requirement guarantees
-/// after a call. The specialization does not assume that: after the call it
-/// knows the implementation's published guarantee. So the citation is
-/// replaced by the witness's proof of the requirement's clause, moved to
-/// this call: the witness's formals become the call's actuals and its result
-/// the call's result. That proof in turn cites the requirement's `requires`,
-/// which the generic body proved at the call, and those proofs are carried
-/// the same way. The specialization's own call requirements are the
-/// implementation's; each is the witness's proof of it, moved likewise.
+/// A certificate cites a judgment of the requirement's call. A routed
+/// specialization keeps that public judgment, so its own identical call fact
+/// is used directly. When the consumer instead exposes a different contract,
+/// the existing refinement proof must derive the exact missing judgment.
+/// Witness formals become this call's actuals and its result becomes this
+/// call's result. Clause ordinals in different contracts are never treated as
+/// correspondence; the final kernel still checks every moved conclusion and
+/// assumption against this consumer's actual goal and hypotheses.
 ///
 /// A value parameter of the generic body (`const Units: u64`) is one of its
 /// formals there and a literal in the specialization, which stage 04 put
@@ -702,9 +701,12 @@ impl Carried<'_> {
 /// the specialization's own, so a wrong one yields a proof the kernel
 /// refuses.
 ///
-/// Returns one verdict per obligation that takes a certificate, in table
-/// order. Nothing here is trusted: a carried proof that does not fit is
-/// refused by the kernel, as `Unproved(KernelRefused)`.
+/// Returns only conditional mathematical evidence per obligation, not an
+/// accepted compilation or proof of a selected implementation's identity.
+/// `judge_compilation` independently judges every actual conformance witness
+/// emitted by source preparation; carrying cannot replace that admission.
+/// A proof with no matching premise refuses before kernel entry, and every
+/// reconstructed candidate still reaches the consumer's actual kernel goal.
 pub fn reverify_specialization(
     generic: &Elaboration,
     found: &Discharge,
@@ -1110,7 +1112,7 @@ impl<'a> Carry<'a> {
     ) -> Checked<Evidence> {
         let hypotheses =
             crate::hypotheses(graph, self.tables, self.specialization, obligation, point)?;
-        let proof = self.proof(obligation, kind, &hypotheses)?;
+        let proof = self.proof(obligation, kind, &goal, &hypotheses)?;
         let identity = EvidenceIdentity::new(obligation.get()).ok_or_else(|| {
             self.refuse(
                 RefusalReason::ForeignIdentity,
@@ -1348,19 +1350,13 @@ impl Carry<'_> {
         &self,
         obligation: ObligationId,
         kind: &ObligationKind,
+        goal: &Proposition,
         target: &Hypotheses,
     ) -> Checked<ProofNode> {
         let concerns = Construct::Obligation(obligation);
         let same: Box<dyn Fn(&ObligationKind) -> bool> = match *kind {
-            ObligationKind::CallRequirement { invocation, clause } => {
-                if let Some(selection) = self.selection(invocation)? {
-                    return self.implementation_requirement(
-                        selection, invocation, clause, target, concerns,
-                    );
-                }
-                Box::new(move |other| {
-                    *other == ObligationKind::CallRequirement { invocation, clause }
-                })
+            ObligationKind::CallRequirement { invocation, .. } => {
+                return self.call_requirement(invocation, goal, target, concerns);
             }
             // The published identity is this machine's own; the exit and
             // the clause say which guarantee it is.
@@ -1387,8 +1383,8 @@ impl Carry<'_> {
     /// A certificate of the generic body, moved into the specialization for
     /// an obligation whose hypotheses are `target`. Values keep their
     /// identities; each cited hypothesis becomes the specialization's row
-    /// with the same justification, except a requirement's guarantee, which
-    /// the specialization does not assume and the witness proves.
+    /// with the same judgment. An absent public call fact must instead be
+    /// derived by its selected member's existing refinement proof.
     fn carried(
         &self,
         evidence: &Evidence,
@@ -1415,12 +1411,22 @@ impl Carry<'_> {
                     .knowledge
                     .get(row)
                     .map(|row| row.justification);
-                if let Some(Justification::CalleeGuarantee { invocation, clause }) = justification
-                    && let Some(selection) = self.selection(invocation)?
-                {
-                    return self
-                        .requirement_guarantee(selection, invocation, clause, target, concerns)
-                        .map(Cited::Proof);
+                if let Some(Justification::CalleeGuarantee { invocation, .. }) = justification {
+                    if let Some(index) = self.call_assumption(invocation, concluded, target) {
+                        return Ok(Cited::Index(index));
+                    }
+                    if let Some(selection) = self.selection(invocation)? {
+                        return self
+                            .requirement_guarantee(
+                                selection, invocation, concluded, target, concerns,
+                            )
+                            .map(Cited::Proof);
+                    }
+                    return Err(self.refuse(
+                        RefusalReason::Unproved(UnprovedCause::NoDerivation),
+                        concerns,
+                        "the call does not retain the guarantee this proof cites",
+                    ));
                 }
                 // An entry `requires` clause is found by what it says once
                 // moved, not by its position: the clauses are in canonical
@@ -1544,50 +1550,139 @@ impl Carry<'_> {
         Ok((crate::scalar_actuals(&row.actuals), result))
     }
 
-    /// A proof that the requirement's `ensures` clause `clause` holds of the
-    /// specialization's call `invocation`: the witness's proof of that
-    /// clause, with its formals this call's actuals and its result this
-    /// call's result. Where the witness cites the implementation's
-    /// guarantee, the specialization assumes the same after its call; where
-    /// it cites the requirement's `requires`, the generic body proved that
-    /// at this call.
+    /// A public call may already expose the generic requirement's judgment.
+    /// Otherwise its refinement proof must derive the actual input judgment.
+    /// Clause positions in the public and implementing contracts need not agree.
+    fn call_requirement(
+        &self,
+        invocation: InvocationId,
+        goal: &Proposition,
+        target: &Hypotheses,
+        concerns: Construct,
+    ) -> Checked<ProofNode> {
+        let selection = self.selection(invocation)?;
+        let called = terminal_check_tables::row(
+            &self.template.invocations,
+            invocation,
+            self.specialization,
+            concerns,
+        )?;
+        let public = self.matching_proof(
+            self.found,
+            called.requirements.iter().copied(),
+            goal,
+            concerns,
+            |evidence| self.carried(evidence, target, concerns),
+        );
+        match (public, selection) {
+            (Ok(proof), _) => Ok(proof),
+            (Err(_), Some(selection)) => {
+                let witness = self.witness(selection, concerns)?;
+                let called = terminal_check_tables::row(
+                    &witness.tables.invocations,
+                    witness.invocation,
+                    self.specialization,
+                    concerns,
+                )?;
+                self.matching_proof(
+                    witness.verdicts,
+                    called.requirements.iter().copied(),
+                    goal,
+                    concerns,
+                    |evidence| {
+                        self.moved_from_witness(&witness, evidence, invocation, target, concerns)
+                    },
+                )
+            }
+            (Err(refusal), None) => Err(refusal),
+        }
+    }
+
+    // Only a fact on this invocation with this exact moved proposition can
+    // replace a cited call fact. An equal clause ordinal is not correspondence.
+    fn call_assumption(
+        &self,
+        invocation: InvocationId,
+        concluded: &Proposition,
+        target: &Hypotheses,
+    ) -> Option<usize> {
+        target
+            .assumption_rows
+            .iter()
+            .zip(&target.assumptions)
+            .position(|(row, proposition)| {
+                proposition == concluded
+                    && matches!(
+                        self.tables.knowledge.get(*row).map(|row| row.justification),
+                        Some(Justification::CalleeGuarantee { invocation: actual, .. })
+                            if actual == invocation
+                    )
+            })
+    }
+
+    // Match an already-found certificate to the consumer's own judgment.
+    // This reconstructs known proofs; it never starts a prover or changes a goal.
+    fn matching_proof(
+        &self,
+        verdicts: &IdTable<ObligationId, Checked<Discharged>>,
+        obligations: impl Iterator<Item = ObligationId>,
+        goal: &Proposition,
+        concerns: Construct,
+        moved: impl Fn(&Evidence) -> Checked<ProofNode>,
+    ) -> Checked<ProofNode> {
+        let mut matched = None;
+        let mut refused = None;
+        for obligation in obligations {
+            let Some(Ok(Discharged::Certificate(evidence))) = verdicts.get(obligation) else {
+                continue;
+            };
+            match moved(evidence) {
+                Ok(proof) if proof.conclusion == *goal => {
+                    if matched.replace(proof).is_some() {
+                        return Err(self.refuse(
+                            RefusalReason::Unsupported,
+                            concerns,
+                            "more than one certificate matches the call judgment",
+                        ));
+                    }
+                }
+                Ok(_) => {}
+                Err(refusal) => refused = Some(refusal),
+            }
+        }
+        matched.ok_or_else(|| {
+            refused.unwrap_or_else(|| {
+                self.refuse(
+                    RefusalReason::Unproved(UnprovedCause::NoDerivation),
+                    concerns,
+                    "no carried certificate matches the call's exact judgment",
+                )
+            })
+        })
+    }
+
     fn requirement_guarantee(
         &self,
         selection: &Selection<'_>,
         invocation: InvocationId,
-        clause: u32,
+        goal: &Proposition,
         target: &Hypotheses,
         concerns: Construct,
     ) -> Checked<ProofNode> {
         let witness = self.witness(selection, concerns)?;
-        let evidence = self.certificate(
-            witness.tables,
+        self.matching_proof(
             witness.verdicts,
-            |kind| matches!(kind, ObligationKind::NormalGuarantee { clause: c, .. } if *c == clause),
+            witness
+                .tables
+                .obligations
+                .iter()
+                .filter_map(|(obligation, row)| {
+                    matches!(row.kind, ObligationKind::NormalGuarantee { .. }).then_some(obligation)
+                }),
+            goal,
             concerns,
-        )?;
-        self.moved_from_witness(&witness, evidence, invocation, target, concerns)
-    }
-
-    /// A proof of the implementation's `requires` clause `clause` at the
-    /// specialization's call `invocation`: the witness's proof that the
-    /// requirement's `requires` imply it, moved to this call.
-    fn implementation_requirement(
-        &self,
-        selection: &Selection<'_>,
-        invocation: InvocationId,
-        clause: u32,
-        target: &Hypotheses,
-        concerns: Construct,
-    ) -> Checked<ProofNode> {
-        let witness = self.witness(selection, concerns)?;
-        let evidence = self.certificate(
-            witness.tables,
-            witness.verdicts,
-            |kind| matches!(kind, ObligationKind::CallRequirement { clause: c, .. } if *c == clause),
-            concerns,
-        )?;
-        self.moved_from_witness(&witness, evidence, invocation, target, concerns)
+            |evidence| self.moved_from_witness(&witness, evidence, invocation, target, concerns),
+        )
     }
 
     fn moved_from_witness(
@@ -1613,7 +1708,7 @@ impl Carry<'_> {
                 (self.tables.values.get(mine)?.scalar_type == scalar_type)
                     .then_some(Moved::Value(mine))
             },
-            assumption: &|index, _| {
+            assumption: &|index, concluded| {
                 let row = evidence.assumptions.get(index).copied().ok_or_else(|| {
                     unsupported(
                         "the refinement proof cites a hypothesis its evidence does not list",
@@ -1627,40 +1722,37 @@ impl Carry<'_> {
                 {
                     // The requirement's `requires`, which the generic body
                     // proved of these actuals before this call.
-                    Some(Justification::EntryRequirement { clause }) => {
-                        let evidence = self.certificate(
-                            self.template,
-                            self.found,
-                            |kind| *kind == ObligationKind::CallRequirement { invocation, clause },
+                    Some(Justification::EntryRequirement { .. }) => {
+                        let called = terminal_check_tables::row(
+                            &self.template.invocations,
+                            invocation,
+                            self.specialization,
                             concerns,
                         )?;
-                        self.carried(evidence, target, concerns).map(Cited::Proof)
+                        self.matching_proof(
+                            self.found,
+                            called.requirements.iter().copied(),
+                            concluded,
+                            concerns,
+                            |evidence| self.carried(evidence, target, concerns),
+                        )
+                        .map(Cited::Proof)
                     }
-                    // The implementation's guarantee after the witness's
-                    // call, which the specialization assumes after its own.
+                    // This witness premise must actually be available at
+                    // the consumer's call. A same-numbered public clause
+                    // cannot replace a stronger implementation premise.
                     Some(Justification::CalleeGuarantee {
-                        invocation: called,
-                        clause,
-                    }) if called == witness.invocation => {
-                        let mine = self.tables.knowledge.iter().find(|(_, row)| {
-                            row.justification
-                                == Justification::CalleeGuarantee { invocation, clause }
-                        });
-                        mine.and_then(|(mine, _)| {
-                            target
-                                .assumption_rows
-                                .iter()
-                                .position(|candidate| *candidate == mine)
-                        })
+                        invocation: called, ..
+                    }) if called == witness.invocation => self
+                        .call_assumption(invocation, concluded, target)
                         .map(Cited::Index)
                         .ok_or_else(|| {
                             self.refuse(
                                 RefusalReason::Unproved(UnprovedCause::NoDerivation),
                                 concerns,
-                                "the implementation's guarantee is not available here",
+                                "the implementation's exact guarantee is not available here",
                             )
-                        })
-                    }
+                        }),
                     _ => Err(unsupported(
                         "the refinement proof cites something other than the two contracts",
                     )),

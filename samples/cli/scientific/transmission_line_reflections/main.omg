@@ -4,7 +4,6 @@
 // Complete bounded transmission-line pulse simulation. Output is CSV records
 // in micro-units; see data/oracle.json for independently frozen exact fractions.
 use omega_language_std::console;
-use omega::language::core::float_operations;
 use physics::model;
 use io::input;
 use io::report;

@@ -1,7 +1,7 @@
 // Expected exit: 2 (EOF).
 // Expected output contains: invalid input: one digit 0..9 and LF required
 use omega_language_std::console;
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_i64_to_u64_saturating;
 use kinetics;
 use format;
 data Main {

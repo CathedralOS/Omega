@@ -14,7 +14,7 @@
 // Compile-checked only: path-depends on
 // source/library/std; run a check target, not native.
 
-use omega::language::core::format_lineage;
+use omega::language::core::FormatMigration;
 
 data CounterDisk {
 }

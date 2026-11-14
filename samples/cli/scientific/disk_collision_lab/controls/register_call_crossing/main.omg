@@ -1,6 +1,6 @@
 // Complete reproduction: a scaled integer survives ordinary Console calls.
 use omega_language_std::console;
-use omega::language::core::float_operations;
+use omega::language::core::F64::from_i32;
 use formatting;
 data Main {}
 machine Main::main(main:&mut Main) reaches Console {

@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 use domain::model;
 
 // Private normal equations. Exact KKT signs select the admissible active set;

@@ -1,6 +1,6 @@
 module input;
 use model;
-use omega::language::core::numeric_conversion;
+use omega::language::core::widen_u8_to_i32;
 // Fixed grammar: SSS RRR K LLL LLL LLL LLL, followed by LF or EOF.
 public machine parse(bytes: &[u8; 32], orders: &mut model::Orders) -> bool {
     orders.values = [0,0,0,0,0,0,0];

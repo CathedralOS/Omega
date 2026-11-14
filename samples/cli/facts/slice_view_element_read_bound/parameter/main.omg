@@ -2,7 +2,6 @@
 // Place: parameter. The slice view is passed as an explicit parameter under length requirement.
 // Expected exit: 0
 
-use omega::language::core::slice;
 
 machine pass_through(param: &[u64]) -> &[u64]
     requires param.len >= 3

@@ -499,43 +499,12 @@ pub(crate) mod structural_place_wire {
     }
 
     fn encode_projection(writer: &mut Writer, segment: &StructuralPathSegment) {
-        match segment {
-            StructuralPathSegment::AllElements => writer.u8(10),
-            StructuralPathSegment::Case(case) => {
-                writer.u8(7);
-                writer.id(*case);
-            }
-            StructuralPathSegment::Field(identity) => {
-                writer.u8(1);
-                writer.u32(identity.0);
-            }
-            StructuralPathSegment::FixedIndex(index) => {
-                writer.u8(2);
-                writer.u64(*index);
-            }
-            StructuralPathSegment::Referent => writer.u8(3),
-            StructuralPathSegment::FixedRange { start, end } => {
-                writer.u8(4);
-                writer.u64(*start);
-                writer.u64(*end);
-            }
-            StructuralPathSegment::RuntimeIndex { index, obligation } => {
-                writer.u8(6);
-                writer.id(*index);
-                writer.id(*obligation);
-            }
-            StructuralPathSegment::RepresentationView {
-                structural_type,
-                stored_scalar,
-            } => {
-                writer.u8(8);
-                writer.id(*structural_type);
-                writer.boolean(stored_scalar.is_some());
-                if let Some(scalar) = stored_scalar {
-                    encode_scalar_type(writer, *scalar);
-                }
-            }
-        }
+        terminal_psi::structural_path_encoding::encode_structural_path_segment(
+            writer,
+            segment,
+            Writer::bytes,
+            encode_scalar_type,
+        );
     }
 
     pub(crate) fn encode_obligation_ids(
@@ -675,23 +644,24 @@ pub(crate) mod structural_place_wire {
         reader: &mut Reader<'_>,
         tag: u8,
     ) -> Result<StructuralPathSegment, CodecError> {
-        match tag {
-            10 => Ok(StructuralPathSegment::AllElements),
-            1 => Ok(StructuralPathSegment::Field(TerminalIdentityIndex(
+        use terminal_psi::structural_path_encoding::SegmentTag as Tag;
+        match Tag::from_byte(tag).ok_or(CodecError::InvalidTag("StructuralPathSegment", tag))? {
+            Tag::AllElements => Ok(StructuralPathSegment::AllElements),
+            Tag::Field => Ok(StructuralPathSegment::Field(TerminalIdentityIndex(
                 reader.u32()?,
             ))),
-            2 => Ok(StructuralPathSegment::FixedIndex(reader.u64()?)),
-            3 => Ok(StructuralPathSegment::Referent),
-            4 => Ok(StructuralPathSegment::FixedRange {
+            Tag::FixedIndex => Ok(StructuralPathSegment::FixedIndex(reader.u64()?)),
+            Tag::Referent => Ok(StructuralPathSegment::Referent),
+            Tag::FixedRange => Ok(StructuralPathSegment::FixedRange {
                 start: reader.u64()?,
                 end: reader.u64()?,
             }),
-            6 => Ok(StructuralPathSegment::RuntimeIndex {
+            Tag::RuntimeIndex => Ok(StructuralPathSegment::RuntimeIndex {
                 index: reader.id("ValueId")?,
                 obligation: reader.id("ObligationId")?,
             }),
-            7 => Ok(StructuralPathSegment::Case(reader.id("StructuralCaseId")?)),
-            8 => Ok(StructuralPathSegment::RepresentationView {
+            Tag::Case => Ok(StructuralPathSegment::Case(reader.id("StructuralCaseId")?)),
+            Tag::RepresentationView => Ok(StructuralPathSegment::RepresentationView {
                 structural_type: reader.id("StructuralTypeId")?,
                 stored_scalar: if reader.boolean()? {
                     Some(decode_scalar_type(reader)?)
@@ -699,7 +669,6 @@ pub(crate) mod structural_place_wire {
                     None
                 },
             }),
-            tag => Err(CodecError::InvalidTag("StructuralPathSegment", tag)),
         }
     }
 

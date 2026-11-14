@@ -1,4 +1,7 @@
-use omega::language::core::filesystem_authority;
+use omega::language::core::FilesystemContentRead;
+use omega::language::core::FilesystemContentWrite;
+use omega::language::core::FilesystemMetadataMutation;
+use omega::language::core::FilesystemNamespaceMutation;
 // A two-second C-major scale as a canonical 8-bit WAV file: eight square-wave
 // notes of 2000 samples (0.25 s) each, rendered into one fixed [u8; 16044]
 // buffer — the 44-byte RIFF header followed by 16000 unsigned PCM samples
@@ -10,14 +13,15 @@ use omega::language::core::filesystem_authority;
 // Expected exit: 0 after writing and playback; 1 on write failure, 2 on playback failure.
 // Expected output contains: scale_melody: played scale_melody.wav
 
-use omega::language::core::process_exit;
+use omega::language::core::ProcessExit;
 use omega_language_std::process_exit;
 use omega_language_std::posix_filesystem_host;
 use omega_language_std::windows_filesystem_host;
 use wav_output::wav_output::WavOutput;
 use audio_playback::audio_playback::AudioPlayback;
 use omega_language_std::console;
-use omega::language::core::numeric_conversion;
+use omega::language::core::narrow_i64_to_i32_wrapping;
+use omega::language::core::widen_i32_to_i64;
 
 data Main {
     n: i64;

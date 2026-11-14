@@ -1,27 +1,9 @@
-/*
-We define normalized access policy (`AccessPlan`, `AccessFields`, and
-`ValidatedAccessPlan`), provider resource profiles (`ResourceProfile`), range
-placements and resident/external custody views (`placements`), and sealed
-primitive access specialization (`primitive_access`) over `LayoutPlan` geometry.
-*/
-
-/*
-Layout geometry alone never confers MMIO, atomic, or volatile memory rights, and
-source code must never bypass access validation via raw offset arithmetic. By
-joining a validated `LayoutPlanReport` with per-field observation models,
-allowed primitive operations (`plan_policy`), boundary service reach, and
-provider-supplied `ResourceProfile` capabilities (`resources`), we guarantee
-that every stable, atomic, or external access request is authorized against both
-its layout and its backing address-space extent before lowering.
-*/
-
-/*
-`access_fields.rs` defines field descriptors and `AccessPlanDiagnostic`;
-`plan_policy.rs` validates field access permissions and footprint conflicts;
-`resources.rs` governs provider resource profiles and device operation closure;
-`placements.rs` manages borrowed/owned resident and schema-corresponded views;
-`primitive_access.rs` projects fields into sealed specialization requests.
-*/
+//! Validates field access demands and their compatibility with supplied backing.
+//!
+//! `plan` joins layout geometry, field decisions and reach into the normalized
+//! representation consumed by compiler stages. `plan_policy` checks operations;
+//! `resources` checks provider profiles, range supply and relocation requirements.
+//! These checks do not establish runtime views or issue backing authority.
 
 #![forbid(unsafe_code)]
 
@@ -67,11 +49,10 @@ mod normalized_identity {
 
     pub(crate) use normalized_identity;
 }
-mod placements;
+mod plan;
 
 pub(crate) use normalized_identity::normalized_identity;
 mod plan_policy;
-mod primitive_access;
 mod resources;
 pub use resources::run_relocation::validate_run_relocation_resources;
 
@@ -82,78 +63,12 @@ pub use access_fields::{
     FieldAccess, FieldAccessDescriptor, FieldRegion, LogicalFieldExtent, LogicalFieldFragment,
     ObservationModel, RelativeEffectFootprint, ValidatedAccessFields,
 };
-pub use placements::access_admission::{
-    AccessAdmission, AccessAdmissionId, AccessOccurrenceId, AccessRejection,
-    PlaceEstablishmentError,
-};
-pub use placements::access_admission::{admit_access, admit_owned_access, place};
-pub use placements::access_plan::{
+pub use plan::{
     AccessPlan, AccessPlanId, AccessPlanSnapshot, ValidatedAccessPlan, validate_access_plan,
-};
-pub use placements::atomic_resident_views::{
-    BorrowedAtomicResidentRetirementError, EstablishedBorrowedAtomicResidentAccess,
-};
-pub use placements::borrowed_view::{AccessView, AccessViewRetirementError};
-pub use placements::owned_access_lifecycle::{
-    DormantOwnedResident, EstablishedOwnedAccess, OwnedAccessAdmission, OwnedAccessRejection,
-    OwnedResidentRetirementError, OwnedResidentViewEstablishmentError, OwnedStableAdoptionError,
-};
-pub use placements::owned_atomic_resident_custody::{
-    DormantOwnedAtomicResident, EstablishedOwnedAtomicAccess, OwnedAtomicAdoptionError,
-    OwnedAtomicResidentRetirementError, OwnedAtomicResidentViewEstablishmentError,
-    adopt_owned_atomic,
-};
-pub use placements::owned_external_correspondence::{
-    EstablishedOwnedExternalAccess, OwnedCorrespondedExternalAdmission, OwnedExternalAdoptionError,
-    OwnedExternalRetirementError, OwnedExternalViewEstablishmentError, adopt_owned_external,
-};
-pub use placements::owned_resident_custody::adopt_owned_stable;
-pub use placements::resident_views::{
-    BorrowedResidentRetirementError, EstablishedBorrowedResidentAccess,
-};
-pub use placements::schema_correspondence::{
-    AdmittedSchemaDeviceCorrespondence, DeviceRevisionPredicateId, RuntimeDeviceRevisionEvidence,
-    RuntimeDeviceRevisionObservationId, SchemaCorrespondedAccessAdmission,
-    SchemaCorrespondedAccessView, SchemaCorrespondedPlaceEstablishmentError,
-    SchemaCorrespondedPlaceRetirementError, SchemaCorrespondenceAccessBindingError,
-    SchemaCorrespondenceProviderId, SchemaCorrespondenceSourceId,
-    SchemaDeviceCorrespondenceAdmissionError, SchemaDeviceCorrespondenceGrant,
-    SchemaDeviceCorrespondenceGrantError, SchemaDeviceCorrespondenceReceiptContext,
-    StableDeviceInstanceId, bind_schema_correspondence_to_access_plan,
 };
 pub use plan_policy::access_fields_validation::validate_access_fields;
 pub use plan_policy::access_operations::{AccessOperation, AtomicAccessOperation, BorrowPolarity};
-pub use plan_policy::authorization::effect_footprints_conflict;
 pub use plan_policy::boundary_reach::{BoundaryReach, BoundaryServiceReachId};
-pub use primitive_access::corresponded_atomic::{
-    CorrespondedAtomicPrimitiveAccessRejection, CorrespondedAtomicPrimitiveAccessRequest,
-};
-pub use primitive_access::corresponded_external::{
-    CorrespondedExternalPrimitiveAccessRejection, CorrespondedExternalPrimitiveAccessRequest,
-};
-pub use primitive_access::corresponded_stable::{
-    CorrespondedStablePrimitiveAccessRejection, CorrespondedStablePrimitiveAccessRequest,
-};
-pub use primitive_access::corresponded_stable_compound::{
-    CorrespondedStableCompoundMutationAccessRejection,
-    CorrespondedStableCompoundMutationAccessRequest,
-};
-pub use primitive_access::field_projection::{AccessFieldAccess, AccessFieldProjection};
-pub use primitive_access::primitive_request::PrimitiveAccessRequest;
-pub use primitive_access::primitive_specialization::{
-    AtomicPrimitiveAccessRejection, AtomicPrimitiveAccessRequest, ExternalPrimitiveAccessRejection,
-    ExternalPrimitiveAccessRequest, ExternalPrimitiveOperation,
-    StableCompoundMutationAccessRejection, StableCompoundMutationAccessRequest,
-    StablePrimitiveAccessRejection, StablePrimitiveAccessRequest, StablePrimitiveOperation,
-};
-pub use resources::device_operation_requirements::{
-    DeviceOperation, DeviceOperationCoordinates, DeviceOperationProviderPlanId,
-    DeviceOperationRequirement, DeviceOperationRequirementId,
-    DeviceOperationStructuralClosureError, DeviceOrderingScopeId, DeviceOrderingScopeOccurrence,
-    DeviceOrderingScopeOccurrenceId, ProviderAssertedDeviceOperationClaim,
-    StructurallyClosedDeviceOperationRequirement, StructurallyClosedDeviceOperationRequirements,
-    structurally_close_device_operation_requirements,
-};
 pub use resources::resource_compatibility::{
     AccessResourceCompatibility, BaseCongruence, EffectiveFieldSupply, EffectiveSupplyKind,
 };

@@ -2432,7 +2432,11 @@ pub(crate) mod declaration_tables {
             commitment: crate::ClosedConformanceApplicationCommitment,
         ) -> Vec<&crate::ClosedConformanceApplication> {
             if selection_application.is_valid() {
-                if evidence_parameter.is_valid() {
+                if !self
+                    .expression_table
+                    .static_machine_application_is_valid(selection_application)
+                    || evidence_parameter.is_valid()
+                {
                     return Vec::new();
                 }
                 let source = self.static_machine_application(selection_application);
@@ -2488,6 +2492,12 @@ pub(crate) mod declaration_tables {
                     .iter()
                     .filter(|specialization| specialization.instance == owner)
                 {
+                    if !self
+                        .expression_table
+                        .static_machine_application_is_valid(specialization.binding_application)
+                    {
+                        return Vec::new();
+                    }
                     let bindings = self
                         .static_machine_application_bindings(specialization.binding_application)
                         .iter()
@@ -2795,6 +2805,19 @@ pub(crate) mod declaration_tables {
             selections: language_semantics::declaration_selection::AuthoredDeclarationSelections,
         ) {
             self.tables.authored_declaration_selections = selections;
+        }
+
+        /// Retain one resolved source selection without copying the program's
+        /// complete selection table. A failed finalization changes no row.
+        pub fn finalize_authored_declaration_selection(
+            &mut self,
+            occurrence: language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId,
+            binding: language_semantics::declaration_selection::AuthoredDeclarationSelectionLateBinding,
+            selected: symbols::SymbolHandle,
+        ) -> Result<(), language_semantics::declaration_selection::AuthoredDeclarationSelectionFinalizationError>{
+            self.tables
+                .authored_declaration_selections
+                .finalize_late_bound(occurrence, binding, selected)
         }
 
         pub fn authored_declaration_selections(

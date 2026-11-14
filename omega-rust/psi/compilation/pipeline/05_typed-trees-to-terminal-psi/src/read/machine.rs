@@ -1214,14 +1214,27 @@ impl<'t> Program<'t> {
         requirement: &'t StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<(Signature, MachineNames)> {
-        // As a machine's: an elided lifetime is a fresh parameter of the
-        // requirement, which each call instantiates (`regions::Elision`).
+        // These are the declaration's parameters, not a new family whenever
+        // another call reads its header. Each invocation later substitutes
+        // them with its own actual regions (`call_of`).
+        let previous_elisions = self
+            .elided_lifetimes
+            .iter_mut()
+            .find(|(owner, _)| *owner == requirement.symbol)
+            .map(|(_, count)| std::mem::replace(count, 0));
         let elision = std::mem::replace(
             &mut self.elision,
             super::regions::Elision::Inputs(requirement.symbol),
         );
         let read = self.read_requirement_signature(id, requirement, arguments);
         self.elision = elision;
+        if let Some((_, count)) = self
+            .elided_lifetimes
+            .iter_mut()
+            .find(|(owner, _)| *owner == requirement.symbol)
+        {
+            *count = (*count).max(previous_elisions.unwrap_or(0));
+        }
         let (mut signature, names) = read?;
         signature.termination = self.requirement_termination(id, requirement)?;
         Ok((signature, names))
@@ -1436,12 +1449,12 @@ impl<'t> Program<'t> {
                 Some(ValueType::Scalar(..)) => {
                     ResultTerm::Absent("result that carries a declared domain")
                 }
-                // A clause over a record result projects it
-                // (`result.field`), which a later slice serves from the
-                // result place.
-                Some(ValueType::Record(_, _, _)) => {
-                    ResultTerm::Absent("result of a record machine")
-                }
+                // A returned field belongs to the declared result root,
+                // allocated after the structural formals by lowering.
+                Some(value_type @ ValueType::Record(_, _, _)) => ResultTerm::Structural(
+                    super::contracts::formal_place(id, &slots, slots.len())?,
+                    value_type,
+                ),
                 Some(ValueType::Rigid(_)) => ResultTerm::Absent("result of a rigid type"),
                 None => ResultTerm::Absent("result of a Unit machine"),
             },
@@ -2049,7 +2062,20 @@ impl<'t> Program<'t> {
                 }
                 StatementNode::Assignment(assignment) => self.assignment(id, &slots, assignment)?,
                 StatementNode::Call(call) => {
-                    let called = self.call_statement(id, &slots, call)?;
+                    let called = self.call_statement(
+                        id,
+                        &slots,
+                        call,
+                        state
+                            .statement_nodes
+                            .handle_at(u32::try_from(position).map_err(|_| {
+                                refuse(
+                                    id,
+                                    Construct::Machine,
+                                    Unserved::Statement("statement coordinate overflows"),
+                                )
+                            })?),
+                    )?;
                     if !call.discards_result {
                         undiscarded(id, &called)?;
                     }

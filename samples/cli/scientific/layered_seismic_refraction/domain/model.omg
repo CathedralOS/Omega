@@ -1,4 +1,3 @@
-use omega::language::core::float_operations;
 domain f64::SurfaceOffset;
 domain f64::Velocity;
 domain f64::TravelTime;

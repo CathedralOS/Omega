@@ -91,7 +91,7 @@ use proof_admission::{
     ProofSystemMarker, verify_obligation,
 };
 use semantic_vocabulary::{
-    BlockId, CanonicalStructuralPathSegment, EdgeId, EvidenceIdentity, IdTable, IntegerMathTerm,
+    BlockId, CanonicalStructuralPathSegment, EvidenceIdentity, IdTable, IntegerMathTerm,
     InvocationSite, MachineId, ObligationId, OperationId, PlaceId, Proposition, PropositionContext,
     ScalarTerm, ScalarType, StructuralCaseId, StructuralTypeId, ValueId,
 };
@@ -929,7 +929,6 @@ fn fill_knowledge(
             InvocationSite::InvokeNoNormal(_) | InvocationSite::ExternalCompletion(_) => continue,
         };
         let callee = callee(module, id, invocation, row)?;
-        let actuals = scalar_actuals(&row.actuals);
         let erased = callable_erased_actuals(module, lowered, callee, row.required_contract, id, invocation, row.site)?;
         let ensures = module.invocation_ensures(callee, row.required_contract).ok_or_else(|| {
             refusal(
@@ -939,19 +938,48 @@ fn fill_knowledge(
                 "callee has no canonical guarantee contract",
             )
         })?;
-        for (clause, ensures) in ensures.enumerate() {
-            let proposition = substitute(
-                ensures,
-                &mut ErasedTerms {
-                    terms: &erased,
-                    runtime: &mut ScalarActuals {
-                        actuals: &actuals,
-                        result: operation_result(lowered, operation),
-                        tables,
+        let mut ensures = ensures.peekable();
+        if ensures.peek().is_none() {
+            continue;
+        }
+        let mut returned = storage.after_call(
+            tables,
+            &row.actuals,
+            module
+                .invocation_structural_parameters(callee, row.required_contract)
+                .ok_or_else(|| {
+                    refusal(
+                        RefusalReason::ForeignIdentity,
+                        id,
+                        Construct::Invocation(invocation),
+                        "callee has no canonical structural formals",
+                    )
+                })?,
+            match callee {
+                semantic_vocabulary::TargetMachineCallable::Machine(machine) => {
+                    module.invocation_machine_contract(machine, row.required_contract).map(|contract| &contract.result)
+                }
+                semantic_vocabulary::TargetMachineCallable::Boundary(_) => None,
+            },
+            operation,
+            Construct::Invocation(invocation),
+        )?;
+        // Resolve this invocation's guarantees before publishing knowledge:
+        // every clause reads the same retained inputs and actual result,
+        // without holding a table borrow across its output mutation.
+        let propositions = ensures
+            .map(|ensures| {
+                substitute(
+                    ensures,
+                    &mut ErasedTerms {
+                        terms: &erased,
+                        runtime: &mut returned,
                     },
-                },
-            )
-            .map_err(|unbound| unbound.refusal(id, Construct::Invocation(invocation)))?;
+                )
+                .map_err(|unbound| unbound.refusal(id, Construct::Invocation(invocation)))
+            })
+            .collect::<Checked<Vec<_>>>()?;
+        for (clause, proposition) in propositions.into_iter().enumerate() {
             push_knowledge(
                 tables,
                 proposition,
@@ -1667,15 +1695,11 @@ fn stated_goal(
                         "machine has no such ensures clause",
                     )
                 })?;
-            // On a return edge the result pseudo-value stands for the value
-            // that edge returns (state_contracts.md: "Synthetic `result`
-            // denotes the exact returned value").
-            Ok(match (&lowered.result, returned(lowered, exit)) {
-                (terminal_psi::TerminalMachineResult::Scalar(result), Some(value)) => {
-                    returned_for_result(&clause.proposition, result.id, value)
-                }
-                _ => clause.proposition.clone(),
-            })
+            substitute(
+                &clause.proposition,
+                &mut storage.at_return(tables, exit, concerns)?,
+            )
+            .map_err(|unbound| unbound.refusal(id, concerns))
         }
         ObligationKind::PublishedGuarantee { .. } => Err(refusal(
             RefusalReason::Unsupported,
@@ -1876,17 +1900,6 @@ pub(crate) fn operation_result(
         .find(|candidate| candidate.id == operation)
         .and_then(|found| match &found.result {
             terminal_psi::OperationResult::Scalar(declaration) => Some(declaration.id),
-            _ => None,
-        })
-}
-
-/// The value a `Return` terminator with this edge returns.
-fn returned(lowered: &TerminalMachine, exit: EdgeId) -> Option<ValueId> {
-    lowered
-        .blocks
-        .iter()
-        .find_map(|block| match &block.terminator {
-            Terminator::Return { edge, value, .. } if *edge == exit => Some(*value),
             _ => None,
         })
 }

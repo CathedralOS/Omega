@@ -79,7 +79,12 @@ pub(crate) struct Lowered {
     pub tables: MachineTables,
     pub sources: MachineSources,
     pub designated: Vec<(OperationId, crate::DesignatedOperands)>,
-    pub calls: Vec<(MachineId, typed_trees::expression::ExpressionHandle, semantic_vocabulary::InvocationSite)>,
+    pub calls: Vec<(
+        MachineId,
+        typed_trees::expression::ExpressionHandle,
+        typed_trees::statement::StatementHandle,
+        semantic_vocabulary::InvocationSite,
+    )>,
     /// The block invariant of each loop head whose member has a `requires`,
     /// in head order: rows of the module's `scalar_block_invariants`.
     pub invariants: Vec<ScalarBlockInvariant>,
@@ -326,11 +331,15 @@ pub(crate) fn declaration_contract(
             .to_vec(),
         service_reach: match &signature.reaches {
             crate::Ceiling::Authored(row) => row.clone(),
-            crate::Ceiling::Inferred => selected.map(|outcome| outcome.service_reach.clone()).unwrap_or_default(),
+            crate::Ceiling::Inferred => selected
+                .map(|outcome| outcome.service_reach.clone())
+                .unwrap_or_default(),
         },
         synchronous_entries: match &signature.invokes {
             crate::Ceiling::Authored(row) => row.clone(),
-            crate::Ceiling::Inferred => selected.map(|outcome| outcome.synchronous_entries.clone()).unwrap_or_default(),
+            crate::Ceiling::Inferred => selected
+                .map(|outcome| outcome.synchronous_entries.clone())
+                .unwrap_or_default(),
         },
     };
     let mut lowering = Lowering::new(
@@ -379,7 +388,7 @@ impl<'a> Lowering<'a> {
             outcomes,
             records,
             roots: IdTable::default(),
-            entry_contents: Vec::new(),
+            initial_contents: Vec::new(),
             path: Vec::new(),
             tables: MachineTables::default(),
             sources: MachineSources::default(),
@@ -572,9 +581,9 @@ struct Lowering<'a> {
     /// What each root place is and the record type it holds, indexed by its
     /// `PlaceId`: the machine's structural place declarations.
     roots: IdTable<PlaceId, (StructuralPlaceKind, StructuralTypeId)>,
-    /// The entry content value minted for a formal's scalar leaf, indexed by
-    /// that leaf's `ExactPlaceId`; `None` until the leaf is first read.
-    entry_contents: Vec<Option<ValueId>>,
+    /// The initial value of a formal's scalar leaf or a produced call result's
+    /// leaf, indexed by `ExactPlaceId`; `None` until its identity is needed.
+    initial_contents: Vec<Option<ValueId>>,
     /// The branch decisions on the path to the open block, in program order:
     /// each the branch value equal to the Boolean its edge took. Every arm
     /// completes the machine, and a short-circuit or `match` rejoins its
@@ -585,7 +594,12 @@ struct Lowering<'a> {
     tables: MachineTables,
     sources: MachineSources,
     designated: Vec<(OperationId, crate::DesignatedOperands)>,
-    calls: Vec<(MachineId, typed_trees::expression::ExpressionHandle, semantic_vocabulary::InvocationSite)>,
+    calls: Vec<(
+        MachineId,
+        typed_trees::expression::ExpressionHandle,
+        typed_trees::statement::StatementHandle,
+        semantic_vocabulary::InvocationSite,
+    )>,
     blocks: IdTable<BlockId, Draft>,
     /// The open block, `None` once it is terminated and no block is entered.
     current: Option<BlockId>,

@@ -190,43 +190,12 @@ pub(crate) mod carrier_encoding {
         bytes: &mut CanonicalBytes,
         segment: &StructuralPathSegment,
     ) {
-        match segment {
-            StructuralPathSegment::AllElements => bytes.u8(10),
-            StructuralPathSegment::Case(case) => {
-                bytes.u8(7);
-                bytes.u64(case.get());
-            }
-            StructuralPathSegment::Field(identity) => {
-                bytes.u8(1);
-                bytes.u32(identity.0);
-            }
-            StructuralPathSegment::FixedIndex(index) => {
-                bytes.u8(2);
-                bytes.u64(*index);
-            }
-            StructuralPathSegment::Referent => bytes.u8(3),
-            StructuralPathSegment::FixedRange { start, end } => {
-                bytes.u8(4);
-                bytes.u64(*start);
-                bytes.u64(*end);
-            }
-            StructuralPathSegment::RuntimeIndex { index, obligation } => {
-                bytes.u8(5);
-                bytes.u64(index.get());
-                bytes.u64(obligation.get());
-            }
-            StructuralPathSegment::RepresentationView {
-                structural_type,
-                stored_scalar,
-            } => {
-                bytes.u8(8);
-                bytes.id(*structural_type);
-                bytes.boolean(stored_scalar.is_some());
-                if let Some(scalar) = stored_scalar {
-                    encode_scalar_type(bytes, *scalar);
-                }
-            }
-        }
+        terminal_psi::structural_path_encoding::encode_structural_path_segment(
+            bytes,
+            segment,
+            CanonicalBytes::bytes,
+            encode_scalar_type,
+        );
     }
 
     pub(super) fn encode_optional_access(
@@ -2357,7 +2326,7 @@ pub(crate) mod unit_encoding {
         ValueDefinitionSite, ValueUse, WorkSettlement,
     };
 
-    const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v54\0";
+    const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v55\0";
     pub fn recompute_psi_optimization_unit_identity(
         unit: &PsiOptimizationUnit,
     ) -> OptimizationUnitIdentity {

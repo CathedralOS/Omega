@@ -149,8 +149,10 @@ def controls(work, evaluator, compiler=Compiler, realize=stamp):
 
 
 def pack(manifest, output, prefix=None):
-    command = [sys.executable, str(ROOT / "tools/bootstrap/source_closure.py"),
-               str(ROOT / manifest), str(output)]
+    binary = os.environ.get("OMEGA_XTASK_BIN") or str(ROOT / "target" / "debug" / "xtask")
+    if not os.access(binary, os.X_OK):
+        raise SystemExit(f"bootstrap artifact: xtask binary is not executable at {binary}")
+    command = [binary, "source-closure", str(ROOT / manifest), str(output)]
     if prefix:
         command.extend(["--prefix", str(ROOT / prefix)])
     subprocess.run(command, check=True)

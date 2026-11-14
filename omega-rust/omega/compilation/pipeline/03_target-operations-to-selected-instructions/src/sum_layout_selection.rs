@@ -334,8 +334,10 @@ fn dispatch(
     );
     let geometry = geometry(&plan, root, &path);
     let selected = sum_layout(&plan, geometry.selected);
+    let layouts = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let prepared = crate::native_geometry::NativeInput::new(&plan, &layouts);
     let root_layout =
-        crate::legalization_scalar_graph::aggregate_results::type_home_layout(root, &plan)
+        crate::legalization_scalar_graph::aggregate_results::type_home_layout(root, &prepared)
             .unwrap_or_else(|error| panic!("{name}: root layout {error:?}"));
     let source = TargetStructuralCaseSource::BorrowedParameter {
         parameter: abi_parameter(&plan, &plan.functions[0].structural_parameters[0]),
@@ -383,6 +385,8 @@ fn validate_stored_geometry(
     };
     // These hand-built selection rows omit unrelated provenance metadata. Test
     // the validator's geometry checks directly, with the same rows selection uses.
+    let geometry = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan = &crate::native_geometry::NativeInput::new(plan, &geometry);
     let function = &unit.functions[0];
     for block in &target.functions[0].graph.blocks {
         if let TargetControlTerminator::StructuralCase {
@@ -611,12 +615,10 @@ fn carried_region_size(
     if geometry.pointer_slots.is_empty() && geometry.region_root == geometry.selected {
         sum_size
     } else {
-        crate::structural_inputs::structural_reference_input::shape(
-            geometry.region_root,
-            plan.structural_types.as_slice(),
-        )
-        .expect("region size")
-        .byte_size
+        let layouts = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+        crate::structural_inputs::structural_reference_input::shape(geometry.region_root, &layouts)
+            .expect("region size")
+            .byte_size
     }
 }
 
@@ -625,10 +627,9 @@ fn geometry(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
 ) -> crate::structural_inputs::structural_reference_input::ReferenceSourceGeometry {
+    let layouts = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
     crate::structural_inputs::structural_reference_input::reference_source_geometry(
-        root,
-        path,
-        plan.structural_types.as_slice(),
+        root, path, &layouts,
     )
     .expect("sum geometry")
 }
@@ -637,7 +638,9 @@ fn sum_layout(
     plan: &AbstractOperationPlan,
     sum: StructuralTypeId,
 ) -> calling_conventions::ConventionalSumLayout {
-    crate::legalization_scalar_graph::aggregate_results::sum_type_layout(sum, plan)
+    let layouts = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
+    let plan = crate::native_geometry::NativeInput::new(plan, &layouts);
+    crate::legalization_scalar_graph::aggregate_results::sum_type_layout(sum, &plan)
         .expect("sum layout")
 }
 
@@ -683,13 +686,13 @@ fn target_plan(
     plan: &AbstractOperationPlan,
     blocks: Vec<TargetControlBlock>,
 ) -> TargetOperationPlan {
+    let layouts = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
     let function = &plan.functions[0];
     let shapes = function
         .structural_parameters
         .iter()
         .map(|parameter| {
-            crate::structural_inputs::parameter_shape(parameter, plan.structural_types.as_slice())
-                .expect("parameter shape")
+            crate::structural_inputs::parameter_shape(parameter, &layouts).expect("parameter shape")
         })
         .collect();
     let call_plan = calling_conventions::evaluate_call_plan(
@@ -747,9 +750,9 @@ fn abi_parameter(
     plan: &AbstractOperationPlan,
     parameter: &StructuralParameterDeclaration,
 ) -> TargetStructuralParameter {
+    let layouts = crate::native_geometry::NativeGeometry::new(&plan.structural_types).unwrap();
     let shape =
-        crate::structural_inputs::parameter_shape(parameter, plan.structural_types.as_slice())
-            .expect("parameter shape");
+        crate::structural_inputs::parameter_shape(parameter, &layouts).expect("parameter shape");
     let call_plan = calling_conventions::evaluate_call_plan(
         CallingPolicy::native_for_target(HOST()),
         &CallSignature {

@@ -13,8 +13,8 @@ Our pipeline separates object custody from container emission and installation:
 component shared images; `entries.rs` binds physical stack-switch, hosted
 receiver, callable entry transport, and foreign adapter shims; `image.rs`
 routes sealed objects through direct or dynamic ELF container writers and
-replays terminal image custody; and `installation_record.rs` defines the
-installation error surface.
+replays terminal image custody. Receiver-side installation authority remains
+separate from emitting these containers.
 */
 
 /*
@@ -78,7 +78,6 @@ pub use object::component_shared_image::{
     ComponentSharedContainer, ComponentSharedImage, ComponentSharedImageEmissionError,
     emit_component_shared_image,
 };
-mod installation_record;
 mod order {
     pub(crate) fn strictly_increasing<T, K: Ord>(rows: &[T], key: impl Fn(&T) -> K) -> bool {
         rows.windows(2).all(|pair| key(&pair[0]) < key(&pair[1]))
@@ -126,7 +125,6 @@ pub use image::image_output::{
     validate_direct_executable_image, validate_direct_executable_image_output,
 };
 
-pub use installation_record::InstallationError;
 pub use machine_code::BoundaryExecutionRecord;
 
 pub use object::object_artifact::installed_stack::{

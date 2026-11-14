@@ -1,7 +1,7 @@
 // Expected exit: 0
 // A linear closed Inert opaque moves exactly once through independent consuming calls, preserving libc host numbers 66051 and 513 and replacement 1027 while retaining each disjoint sibling until its own consumption.
 
-use omega::language::core::representation;
+use omega::language::core::OpaqueRepresentation;
 public boundary data InternetAddress [linear];
 public data AddressWord { address: u32; }
 public data AddressCarrier<T> { payload: T; }

@@ -706,7 +706,10 @@ pub(crate) mod conformance_scopes {
             application: &crate::ClosedConformanceApplication,
             supplying_application: crate::static_applications::StaticMachineApplicationHandle,
         ) -> Option<crate::type_identity::NormalizedTypeIdentity> {
-            if !supplying_application.is_valid() {
+            if !self
+                .expression_table
+                .static_machine_application_is_valid(supplying_application)
+            {
                 return None;
             }
             let source = self.static_machine_application(supplying_application);
@@ -775,6 +778,139 @@ pub(crate) mod conformance_scopes {
             left_identity.is_some()
                 && left_identity
                     == self.portable_conformance_application_identity_in_owner(right, owner)
+        }
+
+        /// Retain the actual operation roster of an unapplied implementation
+        /// operand. This describes the selection only; its public contracts
+        /// still require the normal independent refinement judgments.
+        pub fn prepare_plain_conformance_application(
+            &mut self,
+            supplying: StaticMachineApplicationHandle,
+            operand: &crate::expression::StaticMachineArgument,
+        ) -> Result<ClosedConformanceApplication, &'static str> {
+            use language_semantics::conformance_identity::{
+                ConformanceIdentityDescription, ConformanceRowIdentity,
+            };
+            if !self
+                .expression_table
+                .static_machine_application_is_valid(supplying)
+            {
+                return Err("implementation operand has a stale supplying application");
+            }
+            if operand.application.is_some()
+                || operand.const_literal.is_some()
+                || operand.evidence_projection.is_some()
+                || !self.symbols.symbols().nodes().is_valid(operand.symbol)
+            {
+                return Err("implementation operand needs its complete applied argument list");
+            }
+            let declared = self
+                .conformance_by_symbol(operand.symbol)
+                .ok_or("implementation operand has no retained declaration")?
+                .clone();
+            if !self.conformance_type_parameters(&declared).is_empty()
+                || !declared.lifetime_parameters.is_empty()
+                || !declared.arguments.is_empty()
+                || !declared.trait_lifetime_arguments.is_empty()
+            {
+                return Err("implementation operand needs its complete applied trait scope");
+            }
+            let owner = self.static_machine_application(supplying).lexical_owner;
+            if !self.symbols.symbols().nodes().is_valid(owner) {
+                return Err("implementation operand lost its actual supplying declaration");
+            }
+            let environment =
+                crate::trait_definition::AppliedTraitScope::from_conformance(self, &declared)
+                    .ok_or("implementation operand has no complete declared trait scope")?
+                    .environment();
+            let retained = environment.retain(self)?;
+            let mut rows = Vec::with_capacity(declared.rows.len());
+            let mut identities = Vec::with_capacity(declared.rows.len());
+            for row in &declared.rows {
+                let (trait_owner, required) = self
+                    .trait_machine_signature(row.requirement)
+                    .filter(|(trait_owner, _)| trait_owner.symbol == row.declaring_trait)
+                    .ok_or("implementation row lost its exact public requirement")?;
+                if !self
+                    .symbols
+                    .symbols()
+                    .nodes()
+                    .is_valid(row.realization_machine)
+                    || !self
+                        .symbols
+                        .symbols()
+                        .nodes()
+                        .is_valid(row.realization_state)
+                    || self.symbols.get(row.realization_state).parent != row.realization_machine
+                {
+                    return Err("implementation row lost its exact realizing machine and state");
+                }
+                let public = self.trait_requirement_callable_identity_text(trait_owner, required);
+                if public.is_empty() {
+                    return Err("implementation row has no complete public signature identity");
+                }
+                identities.push((
+                    self.normalized_hermetic_symbol_identity(row.declaring_trait)
+                        .map_err(|_| "implementation row has no exact declaring trait identity")?,
+                    self.normalized_hermetic_symbol_identity(row.requirement)
+                        .map_err(|_| "implementation row has no exact requirement identity")?,
+                    self.normalized_hermetic_symbol_identity(row.realization_machine)
+                        .map_err(|_| "implementation row has no exact realization identity")?,
+                    public.into_bytes(),
+                ));
+                rows.push(crate::ClosedConformanceRowIdentity {
+                    declaring_trait: row.declaring_trait,
+                    requirement: row.requirement,
+                    realization_machine: row.realization_machine,
+                    realization_state: row.realization_state,
+                });
+            }
+            let declaration = self
+                .normalized_hermetic_symbol_identity(declared.symbol)
+                .map_err(|_| "implementation operand has no exact declaration identity")?;
+            let trait_name = self
+                .normalized_hermetic_symbol_identity(declared.trait_symbol)
+                .map_err(|_| "implementation operand has no exact trait identity")?;
+            let description = ConformanceIdentityDescription {
+                declaration: &declaration,
+                trait_name: &trait_name,
+                rows: identities
+                    .iter()
+                    .map(|(declaring_trait, requirement, realization, signature)| {
+                        ConformanceRowIdentity {
+                            declaring_trait,
+                            requirement,
+                            realization,
+                            requirement_signature: Some(signature.clone()),
+                        }
+                    })
+                    .collect(),
+                ..Default::default()
+            };
+            let encoding = description.encoded_bytes();
+            let (report_fingerprint, commitment) =
+                language_semantics::conformance_identity::source_identity_commitments(&encoding);
+            let callable_application = self.expression_table.retain_static_machine_application(
+                declared.symbol,
+                Default::default(),
+                &[],
+            );
+            self.expression_table
+                .static_machine_application_mut(callable_application)
+                .lexical_owner = owner;
+            let application = ClosedConformanceApplication {
+                declaration: declared.symbol,
+                trait_definition: declared.trait_symbol,
+                trait_scope: retained,
+                callable_application,
+                rows,
+                report_fingerprint,
+                commitment: crate::ClosedConformanceApplicationCommitment::from_digest(commitment),
+                identity_encoding: encoding.into(),
+                ..Default::default()
+            };
+            self.prepare_realization_contracts(&application, owner, retained)?;
+            Ok(application)
         }
 
         pub fn prepare_closed_conformance_scopes(&mut self) -> Result<(), String> {
@@ -6507,6 +6643,45 @@ pub(crate) mod trait_scopes {
     use symbols::SymbolHandle;
 
     impl TypedTrees {
+        /// A named selection owns its arguments at the call; an evidence
+        /// parameter owns them at the supplying specialization. Use that same
+        /// retained owner when identifying either form of selected map.
+        pub fn selected_conformance_application_identity(
+            &self,
+            owner: SymbolHandle,
+            dispatch: &crate::StaticRequirementDispatch,
+        ) -> Result<crate::type_identity::NormalizedTypeIdentity, &'static str> {
+            self.selected_requirement_contract_scope(owner, dispatch)?;
+            let applications = self.selected_conformance_applications(
+                owner,
+                dispatch.selection_application,
+                dispatch.evidence_parameter,
+                dispatch.requirement,
+                dispatch.application_report_fingerprint,
+                dispatch.application_commitment,
+            );
+            let [application] = applications.as_slice() else {
+                return Err("selected identity has no unique supplying map application");
+            };
+            let supplying = if dispatch.selection_application.is_valid() {
+                dispatch.selection_application
+            } else {
+                let mut receipts = self
+                    .machine_specializations
+                    .iter()
+                    .filter(|receipt| receipt.instance == owner);
+                let receipt = receipts
+                    .next()
+                    .ok_or("selected identity lost its supplying specialization")?;
+                if receipts.next().is_some() {
+                    return Err("selected identity has an ambiguous supplying specialization");
+                }
+                receipt.binding_application
+            };
+            self.portable_conformance_application_identity(application, supplying)
+                .ok_or("selected application has no complete argument identity")
+        }
+
         /// The selected map authenticates execution; the caller's evidence
         /// bound supplies the public contract, including its refinements.
         pub fn selected_requirement_contract_scope<'program>(
@@ -6517,6 +6692,13 @@ pub(crate) mod trait_scopes {
             use crate::static_applications::StaticMachineBindingValue;
             use crate::trait_definition::TraitApplicationArguments;
 
+            if dispatch.selection_application.is_valid()
+                && !self
+                    .expression_table
+                    .static_machine_application_is_valid(dispatch.selection_application)
+            {
+                return Err("selected contract has a stale source application");
+            }
             let applications = self.selected_conformance_applications(
                 owner,
                 dispatch.selection_application,
@@ -6543,8 +6725,12 @@ pub(crate) mod trait_scopes {
             let receipt = receipts
                 .next()
                 .ok_or("selected contract lost its supplying specialization")?;
-            if receipts.next().is_some() || !receipt.binding_application.is_valid() {
-                return Err("selected contract has an ambiguous supplying specialization");
+            if receipts.next().is_some()
+                || !self
+                    .expression_table
+                    .static_machine_application_is_valid(receipt.binding_application)
+            {
+                return Err("selected contract has an ambiguous or stale supplying specialization");
             }
             let source = self.static_machine_application(receipt.binding_application);
             if source.binding_declaration != receipt.template {
@@ -6684,6 +6870,26 @@ pub(crate) mod trait_scopes {
                 call.authored_machine_application,
             )
             .or_else(|reason| self.named_conformance_call_signature(call).ok_or(reason))
+        }
+
+        pub fn resolve_requirement_static_call_signature(
+            &self,
+            lexical_owner: SymbolHandle,
+            call: crate::references::StaticArgumentCall<'_>,
+        ) -> Result<&signature::StateSignature, &'static str> {
+            match call {
+                crate::references::StaticArgumentCall::Expression(_, call) => {
+                    self.resolve_requirement_call_signature(lexical_owner, call)
+                }
+                crate::references::StaticArgumentCall::Statement(call) => self
+                    .requirement_invocation_signature(
+                        lexical_owner,
+                        call.target_symbol,
+                        call.static_requirement_dispatch.as_ref(),
+                        Default::default(),
+                        call.authored_machine_application,
+                    ),
+            }
         }
 
         pub fn requirement_statement_call_signature(

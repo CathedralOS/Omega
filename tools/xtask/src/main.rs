@@ -13,7 +13,11 @@
 //! - `cargo xtask provenance [--agent <name>] [--model <model>] [--effort <effort>]`
 //! - `cargo xtask worktree <status|acquire|clean> [options]`
 //! - `cargo xtask retire-attached-machines [--write] <path>...`
+//! - `cargo xtask alpha-forge LISTING OUTPUT` or `alpha-forge LISTING --check COMMITTED`
+//! - `cargo xtask gamma-invoke --evaluator PATH --source PATH --output PATH [--input PATH] [--timeout SECONDS]`
+//! - `cargo xtask source-closure MANIFEST OUTPUT [--prefix ENTRY]`
 
+mod alpha_forge;
 mod attached_machines;
 mod boundary;
 mod claims;
@@ -21,6 +25,7 @@ mod doctor;
 mod execution;
 mod fmt;
 mod focused_test;
+mod gamma_invoke;
 mod landing;
 mod managed_cache_retention;
 mod producer;
@@ -30,6 +35,7 @@ mod repository;
 mod rules;
 mod rust_producer_omission;
 mod samples;
+mod source_closure;
 mod worktree;
 
 use std::path::PathBuf;
@@ -60,7 +66,10 @@ commands:
   provenance       Emit the canonical model-audit footer from the active session transcript
   worktree         List, acquire/recycle, or clean isolated `.agents/worktree/` checkouts
   managed-cache-retention  Retain the managed session's shared worker pool in mbx
-  retire-attached-machines  Rewrite retired `machine Data::member` declarations as free machines"
+  retire-attached-machines  Rewrite retired `machine Data::member` declarations as free machines
+  alpha-forge      Resolve an Alpha Windows .hex listing into the seed image
+  gamma-invoke     Frame Gamma source and run one evaluator
+  source-closure   Check and concatenate an ordered source-closure manifest"
 }
 
 fn main() -> ExitCode {
@@ -85,6 +94,9 @@ fn main() -> ExitCode {
         "worktree" => worktree::run(&args),
         "managed-cache-retention" => managed_cache_retention::run(&args),
         "retire-attached-machines" => attached_machines::run(&args),
+        "alpha-forge" => alpha_forge::run(&args),
+        "gamma-invoke" => gamma_invoke::run(&args),
+        "source-closure" => source_closure::run(&args),
         other => {
             eprintln!("xtask: unknown command `{other}`\n\n{}", usage());
             return ExitCode::from(2);

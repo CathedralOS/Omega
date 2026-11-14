@@ -274,7 +274,7 @@ mod tests {
                 "{source}"
             );
         }
-        let steps = fixture.write("steps.sh", "# cargo build\npython3 source_closure.py\n");
+        let steps = fixture.write("steps.sh", "# cargo build\nprintf pack\n");
         assert_eq!(
             audit(&[], &[steps], &fixture.0).unwrap()["result"],
             "omitted"

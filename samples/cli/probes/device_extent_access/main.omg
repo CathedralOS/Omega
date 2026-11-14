@@ -27,9 +27,15 @@
 //
 // Expected exit: 0.
 
-use omega::language::core::device;
-use omega::language::core::extent;
-use omega::language::core::representation;
+use omega::language::core::DeviceAcquisitionAttempt;
+use omega::language::core::DeviceCompletionAttempt;
+use omega::language::core::DeviceLoan;
+use omega::language::core::DeviceLoanProvider;
+use omega::language::core::DeviceOrderingEvent;
+use omega::language::core::DeviceOrderingEvent::Completion;
+use omega::language::core::DeviceOrderingEvent::Publication;
+use omega::language::core::Extent;
+use omega::language::core::OpaqueRepresentation;
 
 // The byte representation `DeviceLoan` materializes across the provider
 // boundary: a carrier the opaque proxy selects through

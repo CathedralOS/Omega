@@ -1,6 +1,8 @@
 use omega_language_std::console;
-use omega::language::core::float_operations;
-use omega::language::core::numeric_conversion;
+use omega::language::core::F64::from_i32;
+use omega::language::core::I64::from_f64;
+use omega::language::core::narrow_i32_to_u8_trapping;
+use omega::language::core::narrow_i64_to_i32_trapping;
 use domain::model;
 use domain::mathematics;
 
