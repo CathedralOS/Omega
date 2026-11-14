@@ -26,8 +26,9 @@ public boundary trait ProcessExit {
 Its [`Never`](data_and_literals.md#the-uninhabited-type-never) result lets
 wrappers publish the same guarantee through
 [published no-return](state_contracts.md#published-no-return). Recognition of
-the canonical requirement supplies authority, abandonment, the exit status and
-the terminal event, none of which follow from `Never` alone.
+the canonical requirement retains the operation's authority requirements and
+terminal semantics: abandonment, the exit status and the terminal event. None
+of these follows from `Never` alone, and recognition grants no authority.
 The requirement explicitly declares `reaches ProcessExit`; that contribution
 does not arise implicitly from its containing boundary trait.
 Psi recognizes the exact admitted canonical requirement, including package and
@@ -135,10 +136,11 @@ registry, or compiler-inserted cleanup of caller frames.
 The exact canonical requirement owns the public terminal-event identity, not
 the selected provider or a separately named effect. Checking and Terminal Psi
 retain an explicit closed external-completion kind and a terminal invocation
-with no normal result. An ordinary Unit call is not that representation; the
-special canonical contract does not change result omission for other machines.
-No `completes` keyword or public `never` type is introduced. Epsilon's independent
-bootstrap `never` rules are unchanged.
+with no normal result. An ordinary Unit call is not that representation. The
+terminal invocation's `Never` result is the ordinary core type, and every
+machine follows the same [published no-return](state_contracts.md#published-no-return)
+rules. No `completes` keyword is introduced, and `Never` is a core data type,
+not a keyword. Epsilon's independent bootstrap `never` rules are unchanged.
 
 Provider conformance preserves the terminal outcome, exact arguments, progress,
 and preceding trace. Returning mocks, divergence, or abort cannot substitute.

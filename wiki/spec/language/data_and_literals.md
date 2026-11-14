@@ -384,9 +384,10 @@ prove a type inhabited is not proof that it is empty.
 [published no-return](state_contracts.md#published-no-return). An expression
 whose declared type is proved uninhabited is accepted wherever any type is
 expected. No value is produced or converted, because its evaluation never
-completes normally. A declared inhabited result does not gain that
-compatibility because a postcondition excludes return: such a call can end a
-statement sequence, but it cannot stand where a value is required.
+completes normally. An impossible postcondition excludes normal continuation
+but does not change the expression's declared type or grant that
+compatibility: `let n: u32 = stop()` remains valid for a `-> u32 ensures false`
+callee because the types already match, while `let b: bool = stop()` rejects.
 
 **Coverage.** A case whose payload is proved uninhabited needs no arm under
 [coverage](patterns.md#coverage-and-domain-tests):

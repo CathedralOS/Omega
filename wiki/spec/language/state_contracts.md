@@ -374,8 +374,8 @@ only from the callee's published contract, in one of two ways:
 
 | Published form | Meaning |
 | --- | --- |
-| `-> Never`, or another result type proved uninhabited | No normal return can occur. The call may also stand where a value is required. |
-| A normal-return postcondition that is impossible after substituting the actual arguments, such as `ensures false`, or `ensures !fatal` called with `fatal == true` | No normal return can occur for that call. The call ends a statement sequence but does not supply a value. |
+| `-> Never`, or another result type proved uninhabited | No normal return can occur. The call is also accepted where a value of any type is expected. |
+| A normal-return postcondition that is impossible after substituting the actual arguments, such as `ensures false`, or `ensures !fatal` called with `fatal == true` | No normal return can occur for that call. Its declared type is unchanged: value uses that already type-check remain valid, and it gains no uninhabited-type compatibility. |
 
 Both use the no-normal-successor rule above. Inside one verification unit, a
 checked body-derived outcome may also establish non-return under
