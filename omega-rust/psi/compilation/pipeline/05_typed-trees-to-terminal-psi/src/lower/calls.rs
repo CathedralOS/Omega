@@ -158,19 +158,13 @@ pub(crate) fn publish_write_frames(
                         "a written root has no structural type".to_owned(),
                     )
                 })?;
-                let path = terminal_semantics::canonical_static_projection(
+                // The same region the ownership analysis gives a write of this
+                // storage, a stored view's descriptor included.
+                let path = terminal_semantics::canonical_inline_region(
                     module.structural_types.iter(),
                     structural_type,
                     &region.projection.path,
                 )
-                .map(|(path, _)| path)
-                .or_else(|| {
-                    terminal_semantics::canonical_primitive_read_path(
-                        module.structural_types.iter(),
-                        structural_type,
-                        &region.projection.path,
-                    )
-                })
                 .ok_or_else(|| {
                     problem(
                         id,

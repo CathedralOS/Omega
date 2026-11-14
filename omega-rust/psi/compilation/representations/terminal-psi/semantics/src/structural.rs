@@ -1818,6 +1818,42 @@ pub(crate) mod primitive_place {
         canonical
     }
 
+    /// The region of inline storage a projection names, as the canonical
+    /// path every analysis of that storage compares: what is read, what is
+    /// written, what is moved.
+    ///
+    /// A static projection of declared storage has its own path, and so
+    /// does a primitive scalar read. A byte field is the third case: its
+    /// descriptor is inline storage of its record, so its region is the
+    /// carrier's path and the field. The static projection stops there
+    /// because a view's bytes lie outside the record; the descriptor does
+    /// not. A payload field's carrier is the sum, and its region lies under
+    /// the case, as a scalar payload leaf's does.
+    pub fn canonical_inline_region<'a>(
+        declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
+        root: StructuralTypeId,
+        path: &[StructuralPathSegment],
+    ) -> Option<Vec<CanonicalStructuralPathSegment>> {
+        canonical_static_projection(declarations.clone(), root, path)
+            .map(|(path, _)| path)
+            .or_else(|| canonical_primitive_read_path(declarations.clone(), root, path))
+            .or_else(|| {
+                let (StructuralPathSegment::Field(_), carrier) = path.split_last()? else {
+                    return None;
+                };
+                let field = crate::runtime_structural_field(declarations.clone(), root, path)?;
+                field.field_type.byte_sequence_carrier()?;
+                let (carrier, case) = match carrier.split_last() {
+                    Some((StructuralPathSegment::Case(case), sum)) => (sum, Some(*case)),
+                    _ => (carrier, None),
+                };
+                let (mut canonical, _) = canonical_static_projection(declarations, root, carrier)?;
+                canonical.extend(case.map(CanonicalStructuralPathSegment::Case));
+                canonical.push(CanonicalStructuralPathSegment::Field(field.id));
+                Some(canonical)
+            })
+    }
+
     pub fn canonical_static_projection<'a>(
         declarations: impl Iterator<Item = &'a StructuralTypeDeclaration> + Clone,
         root: StructuralTypeId,

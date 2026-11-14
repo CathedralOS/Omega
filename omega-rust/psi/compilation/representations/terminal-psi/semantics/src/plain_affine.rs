@@ -1416,47 +1416,9 @@ impl Analysis<'_> {
         let declaration = self
             .root(root)?
             .ok_or(Error::malformed("untracked affine root"))?;
-        crate::canonical_static_projection(self.types.iter(), declaration.structural_type, path)
-            .map(|(path, _)| path)
-            .or_else(|| {
-                crate::canonical_primitive_read_path(
-                    self.types.iter(),
-                    declaration.structural_type,
-                    path,
-                )
-            })
-            .or_else(|| {
-                // A byte field's descriptor is inline storage of its record,
-                // so its region is the carrier's path and the field. The
-                // static projection stops there because a view's bytes lie
-                // outside the record; the descriptor does not. A payload
-                // field's carrier is the sum, and its region lies under the
-                // case, as a scalar payload leaf's does.
-                let (StructuralPathSegment::Field(_), carrier) = path.split_last()? else {
-                    return None;
-                };
-                let field = crate::runtime_structural_field(
-                    self.types.iter(),
-                    declaration.structural_type,
-                    path,
-                )?;
-                field.field_type.byte_sequence_carrier()?;
-                let (carrier, case) = match carrier.split_last() {
-                    Some((StructuralPathSegment::Case(case), sum)) => (sum, Some(*case)),
-                    _ => (carrier, None),
-                };
-                let (mut canonical, _) = crate::canonical_static_projection(
-                    self.types.iter(),
-                    declaration.structural_type,
-                    carrier,
-                )?;
-                canonical.extend(case.map(Segment::Case));
-                canonical.push(Segment::Field(field.id));
-                Some(canonical)
-            })
-            .ok_or(Error::unsupported(
-                "affine projection outside the static structural vocabulary",
-            ))
+        crate::canonical_inline_region(self.types.iter(), declaration.structural_type, path).ok_or(
+            Error::unsupported("affine projection outside the static structural vocabulary"),
+        )
     }
 
     /// The region an observation of `path` under `root` depends on, and
