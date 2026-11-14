@@ -262,6 +262,8 @@ pub(crate) mod content_wire {
 
 pub(crate) mod contract_wire {
 
+    use semantic_vocabulary::Termination as TerminationPromise;
+
     use terminal_psi::{
         ContractClause, CrashCause, CrashPredicateTerm, CrashRouteBucket, CrashRouteGuard,
         MachineContract, OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificGuard,
@@ -329,7 +331,7 @@ pub(crate) mod contract_wire {
     }
 
     wire_enum! {
-        Termination: semantic_vocabulary::Termination, "termination guarantee" {
+        Termination: TerminationPromise, "termination guarantee" {
             0 => NoGuarantee,
             1 => Terminates,
         }
