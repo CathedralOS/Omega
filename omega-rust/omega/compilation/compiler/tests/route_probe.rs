@@ -107,6 +107,49 @@ fn a_standalone_program_is_judged_without_its_build() {
     assert_eq!(verdicts("accepted", ACCEPTED), ["accepted"]);
 }
 
+/// An array extent reads the lexical value even inside a generic type argument.
+/// A runtime parameter cannot borrow a same-named constant's static value.
+#[test]
+fn generic_array_extents_keep_their_lexical_value_binding() {
+    let _compilation = COMPILATIONS
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let source = |declaration: &str| {
+        format!(
+            "const count: u64 = 3;\n\
+             data Buffer<T> {{ item: T; }}\n\
+             machine shaped<Shape, const N: u64>(value: Buffer<Shape>)\n\
+                 requires Shape == [u8; N] {{ }}\n\
+             {declaration}\n\
+             machine main() {{ }}"
+        )
+    };
+    let stopped = match unbuilt_frontier::staged(
+        "generic_array_runtime_shadow",
+        &source("machine next(count: u64, value: Buffer<[u8; count]>) { }"),
+    ) {
+        Err(diagnostics) => diagnostics,
+        Ok(_) => panic!("a runtime parameter must not become the top-level constant's extent"),
+    };
+    assert!(
+        stopped.iter().any(|message| message.contains("runtime")),
+        "{stopped:?}"
+    );
+    for (name, declaration) in [
+        (
+            "generic_array_constant",
+            "machine next(value: Buffer<[u8; count]>) { shaped(value) }",
+        ),
+        (
+            "generic_array_const_binder",
+            "machine next<const count: u64>(value: Buffer<[u8; count]>) { }",
+        ),
+    ] {
+        unbuilt_frontier::staged(name, &source(declaration))
+            .unwrap_or_else(|diagnostics| panic!("{name}: {diagnostics:?}"));
+    }
+}
+
 /// A suffixed operator names its policy at one operation
 /// (`wiki/spec/language/numeric_values.md`, "Policy operators"): `a +% b` on
 /// two `u32` values "is exactly what `+` means for two `u32 in Wrapping`
