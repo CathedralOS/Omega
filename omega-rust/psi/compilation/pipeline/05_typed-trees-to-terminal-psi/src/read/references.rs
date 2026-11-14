@@ -186,6 +186,9 @@ impl Program<'_> {
         expected: ValueType,
         source: crate::SourceOrigin,
     ) -> Checked<crate::Expression> {
+        if let Some(view) = self.array_byte_view(machine, slots, argument, expected, source)? {
+            return Ok(view);
+        }
         let Some((referent, access)) = self.reference_referent(machine, expected)? else {
             return Err(refuse(
                 machine,
@@ -277,7 +280,7 @@ impl Program<'_> {
 
     /// Borrowing a descriptor's home is distinct from borrowing the storage
     /// the descriptor views. Its backing lifetime cannot keep that home live.
-    fn storage_loan_regions(
+    pub(super) fn storage_loan_regions(
         &mut self,
         machine: MachineId,
         slots: &[super::Slot],

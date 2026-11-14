@@ -102,48 +102,141 @@ pub(super) fn source_sequence_view(
 }
 
 impl Program<'_> {
-    /// A byte-view parameter can borrow a fixed array's backing. Keep the
-    /// array's real type on the argument; canonical loan checking supplies
-    /// the descriptor's extent and checks its access at the call.
-    pub(super) fn borrowed_byte_array_matches(
-        &self,
-        actual: Option<ValueType>,
-        expected: ValueType,
-    ) -> bool {
-        let (
-            Some(ValueType::Record(actual, Qualification::NONE, _)),
-            ValueType::Record(expected, Qualification::NONE, _),
-        ) = (actual, expected)
-        else {
-            return false;
+    /// The element of a plain closed byte array. This recognizes its storage,
+    /// not a conversion to a view; only an explicit range forms that loan.
+    pub(super) fn byte_array_element(&self, actual: Option<ValueType>) -> Option<StructuralTypeId> {
+        let Some(ValueType::Record(actual, Qualification::NONE, _)) = actual else {
+            return None;
         };
-        if !self.records.get(expected).is_some_and(|row| {
-            matches!(
-                row.shape,
-                StorageShape::ByteSequence(terminal_psi::ByteSequenceCarrier::BorrowedView {
-                    access: Some(
-                        terminal_psi::StructuralAccess::SharedBorrow
-                            | terminal_psi::StructuralAccess::MutableBorrow
-                    ),
-                })
-            )
-        }) {
-            return false;
-        }
-        let Some(actual) = self.records.get(actual) else {
-            return false;
-        };
+        let actual = self.records.get(actual)?;
         let StorageShape::FixedArray {
             element,
-            length: ArrayExtent::Literal(length),
+            length: ArrayExtent::Literal(_),
         } = actual.shape
         else {
-            return false;
+            return None;
         };
-        length > 0 && actual.requires.is_empty() && self.records.get(element).is_some_and(|element|
+        (actual.requires.is_empty() && self.records.get(element).is_some_and(|element|
             element.requires.is_empty() && matches!(element.shape,
                 StorageShape::PrimitiveScalar { scalar_type: ScalarType::Integer(integer), policy: None }
-                    if integer.bits() == Some(8) && integer.sign() == IntegerSign::Unsigned && !integer.is_address()))
+                    if integer.bits() == Some(8) && integer.sign() == IntegerSign::Unsigned && !integer.is_address())))
+            .then_some(element)
+    }
+
+    pub(super) fn array_byte_view(
+        &mut self,
+        machine: MachineId,
+        slots: &[Slot],
+        argument: ExpressionHandle,
+        expected: ValueType,
+        source: SourceOrigin,
+    ) -> Checked<Option<Expression>> {
+        use language_core::ReferenceAccess;
+        use terminal_psi::{ByteSequenceCarrier, StructuralAccess};
+
+        let unavailable =
+            |detail| refuse(machine, Construct::Machine, Unserved::Expression(detail));
+        let Some(borrow) = self.typed.expression_table.borrow_expression(argument) else {
+            return Ok(None);
+        };
+        let Some(indexed) = self.typed.expression_table.indexed_node(borrow.target) else {
+            return Ok(None);
+        };
+        let Some(range) = self.typed.expression_table.range_node(indexed.index) else {
+            return Ok(None);
+        };
+        let ValueType::Record(view, Qualification::NONE, _) = expected else {
+            return Ok(None);
+        };
+        let StorageShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+            access: Some(access),
+        }) = self.data_type(machine, view)?.shape
+        else {
+            return Ok(None);
+        };
+        let requested = match borrow.access {
+            ReferenceAccess::Shared => StructuralAccess::SharedBorrow,
+            ReferenceAccess::Mutable => StructuralAccess::MutableBorrow,
+            ReferenceAccess::WriteOnly => {
+                return Err(unavailable("write-only array view formation"));
+            }
+        };
+        if access != requested {
+            if requested == StructuralAccess::SharedBorrow
+                && access == StructuralAccess::MutableBorrow
+            {
+                return Err(crate::reject(
+                    machine,
+                    source,
+                    "the explicit array view lends only immutable access; a mutable parameter cannot grant writable access to that backing",
+                ));
+            }
+            return Err(unavailable(
+                "array view access differs from its explicit borrow",
+            ));
+        }
+        if range.start.is_valid() || range.end.is_valid() || range.end_inclusive {
+            return Err(unavailable(
+                "partial array views need their endpoint and window correspondence",
+            ));
+        }
+        let mut base = self.expression(machine, slots, indexed.collection, None)?;
+        if let Some((referent, _)) = self.reference_referent(
+            machine,
+            base.result
+                .ok_or_else(|| unavailable("array view without backing storage"))?,
+        )? {
+            base = Expression {
+                call_context: None,
+                source: base.source,
+                kind: ExpressionKind::Referent(Box::new(base)),
+                result: Some(referent),
+            };
+        }
+        let element = self
+            .byte_array_element(base.result)
+            .ok_or_else(|| unavailable("array view without a plain closed u8 array"))?;
+        let Some(ValueType::Record(array, _, _)) = base.result else {
+            unreachable!()
+        };
+        self.byte_range_selection(machine, borrow.target, array)?;
+        let crossed = self.reference_place_access(machine, &base, borrow.access)?;
+        let slot = super::storage_path::root_slot(machine, &base, &self.captures)?
+            .ok_or_else(|| unavailable("array view without an existing backing place"))?;
+        if !crossed
+            && borrow.access == ReferenceAccess::Mutable
+            && (slots[slot].borrowed == Some(ReferenceAccess::Shared)
+                || slots[slot].borrowed.is_none() && !slots[slot].assignable)
+        {
+            return Err(unavailable(
+                "mutable array view without exclusive backing access",
+            ));
+        }
+        self.authorized(
+            machine,
+            base.result.unwrap(),
+            if borrow.access == ReferenceAccess::Mutable {
+                Access::Write
+            } else {
+                Access::Read
+            },
+        )?;
+        if borrow.access == ReferenceAccess::Mutable {
+            self.written_through(machine, &base)?;
+        }
+        let regions = self.storage_loan_regions(machine, slots, &base)?;
+        // The source array and its own type stay on the operand. The result
+        // is a descriptor with the actual backing's lifetime, not the context's.
+        Ok(Some(Expression {
+            call_context: None,
+            kind: ExpressionKind::ArrayByteView {
+                base: Box::new(base),
+                access: borrow.access,
+                element,
+            },
+            result: Some(ValueType::Record(view, Qualification::NONE, regions)),
+            source,
+        }))
     }
 
     pub(super) fn array_literal(

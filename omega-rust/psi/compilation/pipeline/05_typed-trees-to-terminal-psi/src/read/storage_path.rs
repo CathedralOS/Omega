@@ -36,6 +36,7 @@ pub(super) fn walk<'a, E>(
             | ExpressionKind::ByteLiteral(_)
             | ExpressionKind::CollectionMeasure { .. }
             | ExpressionKind::ByteElement { .. }
+            | ExpressionKind::ArrayByteView { .. }
             | ExpressionKind::ByteSubslice { .. }
             | ExpressionKind::Boolean(_)
             | ExpressionKind::Array { .. }

@@ -104,6 +104,7 @@ fn expression(machine: MachineId, value: &Expression) -> Checked<()> {
         | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::Field { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
+        | ExpressionKind::ArrayByteView { base: operand, .. }
         | ExpressionKind::CollectionMeasure { base: operand, .. }
         | ExpressionKind::IsCase {
             subject: operand, ..

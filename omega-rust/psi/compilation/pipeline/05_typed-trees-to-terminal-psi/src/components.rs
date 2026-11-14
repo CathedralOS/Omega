@@ -246,6 +246,7 @@ fn expression(value: &Expression, sites: &mut Vec<CallSite>) {
         | ExpressionKind::Referent(operand)
         | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::Field { base: operand, .. }
+        | ExpressionKind::ArrayByteView { base: operand, .. }
         | ExpressionKind::CollectionMeasure { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {
@@ -333,6 +334,7 @@ fn uses_storage(body: &Body, signature: &Signature) -> bool {
             | ExpressionKind::Record { .. }
             | ExpressionKind::Field { .. }
             | ExpressionKind::ByteElement { .. }
+            | ExpressionKind::ArrayByteView { .. }
             | ExpressionKind::ByteSubslice { .. }
             | ExpressionKind::CollectionMeasure { .. }
             | ExpressionKind::Case { .. }

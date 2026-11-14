@@ -159,6 +159,8 @@ pub(crate) fn reference_graph(
                     matches!(
                         operation.kind,
                         terminal_psi::OperationKind::EstablishReference { .. }
+                            | terminal_psi::OperationKind::EstablishElementView { .. }
+                            | terminal_psi::OperationKind::EstablishMutableElementView { .. }
                             | terminal_psi::OperationKind::ReleaseReference { .. }
                     ) || operation
                         .result
@@ -504,26 +506,35 @@ impl Storage<'_> {
         use terminal_semantics::descriptor_lifetimes::{
             DescriptorLocation, descriptor_location_lifetime,
         };
-        let OperationKind::EstablishReference { source, storage } = &operation.kind else {
-            return Ok(());
-        };
         let concerns = Construct::Operation(operation.id);
-        if storage.is_some() {
-            return Err(self.unsupported(
-                concerns,
-                "a reference representation view without its checked storage correspondence",
-            ));
-        }
-        let result = operation.result.as_structural().ok_or_else(|| {
-            self.foreign(concerns, "reference formation has no descriptor result")
-        })?;
-        let StructuralTypeShape::Reference {
-            referent,
-            access: declared,
-        } = self.declaration(result.structural_type, concerns)?.shape
-        else {
-            return Err(self.foreign(concerns, "reference formation produces another constructor"));
+        let result = operation.result.as_structural();
+        let (source, declared, reference_referent) = match &operation.kind {
+            OperationKind::EstablishReference { source, storage } => {
+                if storage.is_some() {
+                    return Err(self.unsupported(concerns,
+                        "a reference representation view without its checked storage correspondence"));
+                }
+                let result = result.ok_or_else(|| {
+                    self.foreign(concerns, "reference formation has no descriptor result")
+                })?;
+                let StructuralTypeShape::Reference { referent, access } =
+                    self.declaration(result.structural_type, concerns)?.shape
+                else {
+                    return Err(
+                        self.foreign(concerns, "reference formation produces another constructor")
+                    );
+                };
+                (source, access, Some(referent))
+            }
+            OperationKind::EstablishElementView { source, .. }
+            | OperationKind::EstablishMutableElementView { source, .. } => {
+                self.array_view_formation(operation)?;
+                (source, source.access, None)
+            }
+            _ => return Ok(()),
         };
+        let result = result
+            .ok_or_else(|| self.foreign(concerns, "loan formation has no descriptor result"))?;
         if source.access != declared {
             return Err(self.foreign(concerns, "reference formation changes its source access"));
         }
@@ -533,19 +544,21 @@ impl Storage<'_> {
             return Err(self.unsupported(concerns, "a write-only persistent loan"));
         }
         let raw = self.argument(source, concerns)?;
-        let expected = self.declaration(referent, concerns)?;
-        let compatible = match self.shape(&raw, concerns)? {
-            super::Shape::Scalar(scalar) => {
-                expected.shape == StructuralTypeShape::PrimitiveScalar(scalar)
+        if let Some(referent) = reference_referent {
+            let expected = self.declaration(referent, concerns)?;
+            let compatible = match self.shape(&raw, concerns)? {
+                super::Shape::Scalar(scalar) => {
+                    expected.shape == StructuralTypeShape::PrimitiveScalar(scalar)
+                }
+                super::Shape::Typed(actual) => actual == referent,
+                super::Shape::View | super::Shape::Payload(_) => false,
+            };
+            if !compatible {
+                return Err(self.foreign(
+                    concerns,
+                    "reference formation changes its captured referent type",
+                ));
             }
-            super::Shape::Typed(actual) => actual == referent,
-            super::Shape::View | super::Shape::Payload(_) => false,
-        };
-        if !compatible {
-            return Err(self.foreign(
-                concerns,
-                "reference formation changes its captured referent type",
-            ));
         }
         let captured = self.interned(tables, &raw, concerns)?.ok_or_else(|| {
             self.foreign(concerns, "reference formation has no captured place row")
@@ -889,6 +902,8 @@ impl Storage<'_> {
                 matches!(
                     operation.kind,
                     terminal_psi::OperationKind::EstablishReference { .. }
+                        | terminal_psi::OperationKind::EstablishElementView { .. }
+                        | terminal_psi::OperationKind::EstablishMutableElementView { .. }
                 )
             }) {
             Some(

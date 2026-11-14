@@ -2010,6 +2010,8 @@ impl<'a> Storage<'a> {
                             self.operation(row.operation, concerns)?.kind,
                             OperationKind::ByteSequenceSubslice { .. }
                                 | OperationKind::EstablishByteSequenceLiteral { .. }
+                                | OperationKind::EstablishElementView { .. }
+                                | OperationKind::EstablishMutableElementView { .. }
                         ) =>
                 {
                     Reached::Extent(row.operation)

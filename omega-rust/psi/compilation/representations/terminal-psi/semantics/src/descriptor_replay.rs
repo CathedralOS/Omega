@@ -803,12 +803,14 @@ pub(crate) mod analysis {
                 .get(&callee)
                 .and_then(Option::as_ref)
                 .ok_or("descriptor preservation snapshots disappeared")?;
-            let Some(entry) = states.get(&body.entry) else {
+            // A loop can replace the descriptor before revisiting the entry block.
+            // Compare returns with invocation inputs, not the widened loop state.
+            let Some(entry) = self.replay.initial(body) else {
                 return Ok(false);
             };
             let Some(incoming) = self
                 .replay
-                .read(body, entry, &descriptor)
+                .read(body, &entry, &descriptor)
                 .filter(|value| !value.is_empty())
             else {
                 return Ok(false);
@@ -5477,6 +5479,125 @@ pub(crate) mod engine {
                 calls: BTreeMap::new(),
                 normal_exits: vec![entry],
             }
+        }
+
+        #[test]
+        fn a_backedge_cannot_make_a_replaced_descriptor_preserve_its_input() {
+            use crate::descriptors::descriptor_lifetimes::{
+                DescriptorFlowEdge, DescriptorFlowStep,
+            };
+            use semantic_vocabulary::{BlockId, OperationId};
+
+            let caller_id = MachineId::new(1).unwrap();
+            let callee_id = MachineId::new(2).unwrap();
+            let view = StructuralTypeId::new(1).unwrap();
+            let types = vec![StructuralTypeDeclaration {
+                shape: StructuralTypeShape::ByteSequence(
+                    terminal_psi::ByteSequenceCarrier::BorrowedView {
+                        access: Some(StructuralAccess::SharedBorrow),
+                    },
+                ),
+                ..scalar_type(1)
+            }];
+            let stored = location(1);
+            let replacement = location(2);
+            let entry = (BlockId::new(1).unwrap(), 0);
+            let exit = (BlockId::new(2).unwrap(), 0);
+            let replace = (BlockId::new(3).unwrap(), 0);
+            let edge = |target| DescriptorFlowEdge {
+                target,
+                parameters: vec![],
+                bindings: vec![],
+            };
+            let machine = |id| {
+                bare_machine(
+                    id,
+                    [
+                        (&stored, StructuralAccess::MutableBorrow),
+                        (&replacement, StructuralAccess::SharedBorrow),
+                    ]
+                    .into_iter()
+                    .enumerate()
+                    .map(|(position, (place, access))| DescriptorPlace {
+                        place: place.root,
+                        definition: DescriptorDefinition::Parameter {
+                            position,
+                            access,
+                            structural_type: view,
+                        },
+                    })
+                    .collect(),
+                    BTreeMap::from([(stored.root, view), (replacement.root, view)]),
+                    BTreeSet::new(),
+                )
+            };
+            let mut caller = machine(caller_id);
+            caller.flow = BTreeMap::from([
+                (
+                    entry,
+                    DescriptorFlowStep {
+                        successors: vec![edge(exit)],
+                        ..Default::default()
+                    },
+                ),
+                (exit, DescriptorFlowStep::default()),
+            ]);
+            caller.normal_exits = vec![exit];
+            caller.calls.insert(
+                entry,
+                DescriptorInvocation {
+                    operation: OperationId::new(1).unwrap(),
+                    target: DescriptorInvocationTarget::Machine(callee_id),
+                    arguments: vec![Some(stored.clone()), Some(replacement.clone())],
+                    argument_contents: vec![
+                        Some(DescriptorContentsQuery::from_location(&stored)),
+                        Some(DescriptorContentsQuery::from_location(&replacement)),
+                    ],
+                    result: None,
+                },
+            );
+            let mut callee = machine(callee_id);
+            callee.flow = BTreeMap::from([
+                (
+                    entry,
+                    DescriptorFlowStep {
+                        successors: vec![edge(exit), edge(replace)],
+                        ..Default::default()
+                    },
+                ),
+                (exit, DescriptorFlowStep::default()),
+                (
+                    replace,
+                    DescriptorFlowStep {
+                        definitions: vec![stored.clone()],
+                        derivations: vec![(replacement.clone(), stored.clone())],
+                        successors: vec![edge(entry)],
+                        ..Default::default()
+                    },
+                ),
+            ]);
+            callee.normal_exits = vec![exit];
+            let graph = vec![caller, callee];
+            let mut replay =
+                Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::BorrowedStorage);
+            let states = replay.states(callee_id, 0).unwrap();
+            let initial = replay.initial(&graph[1]).unwrap();
+            let original = replay.read(&graph[1], &initial, &stored).unwrap();
+            let joined_entry = replay.read(&graph[1], &states[&entry], &stored).unwrap();
+            let returned = replay.read(&graph[1], &states[&exit], &stored).unwrap();
+            // Both routes reach the return. The fixed-point entry already
+            // includes the replacement and cannot stand for invocation entry.
+            assert_eq!(original.len(), 1);
+            assert_eq!(joined_entry.len(), 2);
+            assert_ne!(joined_entry, original);
+            assert_eq!(joined_entry, returned);
+
+            let mut analysis = DescriptorAnalysis::with_borrowed_storage_slots(&types, &graph);
+            assert!(
+                !analysis
+                    .call_preserves_descriptor_storage(caller_id, entry, 0, &[])
+                    .unwrap()
+            );
         }
 
         #[test]

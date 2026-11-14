@@ -2935,6 +2935,7 @@ fn spans(expression: &Expression, binder: &Binder, out: &mut Vec<(SourceSpan, Bi
         }
         ExpressionKind::Field { base, .. }
         | ExpressionKind::Payload { base, .. }
+        | ExpressionKind::ArrayByteView { base, .. }
         | ExpressionKind::CollectionMeasure { base, .. } => {
             spans(base, binder, out);
         }
@@ -3119,6 +3120,7 @@ fn expression_slot_uses(expression: &Expression, uses: &mut [usize]) {
         }
         ExpressionKind::Field { base, .. }
         | ExpressionKind::Payload { base, .. }
+        | ExpressionKind::ArrayByteView { base, .. }
         | ExpressionKind::CollectionMeasure { base, .. } => {
             expression_slot_uses(base, uses);
         }

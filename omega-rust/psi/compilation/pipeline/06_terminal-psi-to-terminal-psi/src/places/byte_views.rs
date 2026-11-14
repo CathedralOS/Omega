@@ -162,6 +162,107 @@ impl Storage<'_> {
         Ok(true)
     }
 
+    /// Forming a view retains the array's storage and creates a descriptor;
+    /// the separate loan judgment still checks authority and the view's lifetime.
+    pub(super) fn array_view_formation(&self, operation: &Operation) -> Checked<u64> {
+        use terminal_psi::{
+            ByteSequenceCarrier, ElementViewRegion, StructuralParameterDeclaration,
+        };
+        let concerns = Construct::Operation(operation.id);
+        let (destination, source, element, region, access, multiplicity) = match &operation.kind {
+            OperationKind::EstablishElementView {
+                destination,
+                source,
+                element,
+                region,
+            } => (
+                *destination,
+                source,
+                *element,
+                *region,
+                StructuralAccess::SharedBorrow,
+                StructuralMultiplicity::Unrestricted,
+            ),
+            OperationKind::EstablishMutableElementView {
+                destination,
+                source,
+                element,
+                region,
+            } => (
+                *destination,
+                source,
+                *element,
+                *region,
+                StructuralAccess::MutableBorrow,
+                StructuralMultiplicity::Affine,
+            ),
+            _ => return Err(self.foreign(concerns, "array view has no formation operation")),
+        };
+        let result = operation
+            .result
+            .as_structural()
+            .ok_or_else(|| self.foreign(concerns, "array view has no descriptor result"))?;
+        if destination != result.place
+            || source.access != access
+            || region != ElementViewRegion::WholeCollection
+            || result.multiplicity != multiplicity
+            || !result.qualifications.is_empty()
+            || !result.projected_qualifications.is_empty()
+            || !result.qualification_establishments.is_empty()
+            || !result.additional_input_qualifications.is_empty()
+            || !result.claims.is_empty()
+            || !self
+                .domains
+                .get(result.structural_type)
+                .is_some_and(Vec::is_empty)
+            || self
+                .declaration(result.structural_type, concerns)?
+                .scalar_restriction
+                .is_some()
+            || self.root_kind(result.place, concerns)?
+                != (StructuralPlaceKind::OperationResult {
+                    producer: operation.id,
+                    structural_type: result.structural_type,
+                })
+            || self.declaration(result.structural_type, concerns)?.shape
+                != StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {
+                    access: Some(access),
+                })
+        {
+            return Err(self.foreign(
+                concerns,
+                "array view changes its descriptor type, access or ownership",
+            ));
+        }
+        let selected = terminal_semantics::runtime_structural_path_tip(
+            self.types.iter(),
+            self.root_type(source.place, concerns)?,
+            &source.path,
+        )
+        .ok_or_else(|| self.foreign(concerns, "array view lost its captured storage"))?;
+        if !matches!(selected.shape, StructuralTypeShape::FixedArray { element: actual, .. } if actual == element)
+        {
+            return Err(self.foreign(concerns, "array view changes its element type"));
+        }
+        let expected = StructuralParameterDeclaration {
+            place: result.place,
+            position: 0,
+            structural_type: result.structural_type,
+            multiplicity,
+            access,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            additional_input_qualifications: Vec::new(),
+        };
+        if !self.byte_array_presentation(source, &expected, concerns)? {
+            return Err(self.unsupported(concerns, "array view has no checked byte storage window"));
+        }
+        let actual = terminal_semantics::structural_argument_source(self.lowered, source.place, 0)
+            .ok_or_else(|| self.foreign(concerns, "array view lost its source declaration"))?;
+        terminal_semantics::fixed_byte_array_extent(self.types.iter(), &actual, source, &expected)
+            .ok_or_else(|| self.foreign(concerns, "array view lost its checked extent"))
+    }
+
     pub(super) fn readable_byte_view(&self, operation: &Operation, root: PlaceId) -> Checked<()> {
         let concerns = Construct::Operation(operation.id);
         let shape = self.byte_shape(root, &[], concerns)?;
@@ -401,6 +502,27 @@ impl Storage<'_> {
         {
             return Ok(None);
         }
+        if matches!(
+            producer.kind,
+            OperationKind::EstablishElementView { .. }
+                | OperationKind::EstablishMutableElementView { .. }
+        ) {
+            let Some(result) = measurement.result.scalar_ref() else {
+                return Err(self.foreign(concerns, "a length measurement has no scalar result"));
+            };
+            let Some(extent) = self.extent_contents(
+                producer.id,
+                ProgramPoint::AfterOperation(measurement.id),
+                result.scalar_type,
+            )?
+            else {
+                return Ok(None);
+            };
+            return Ok(Some(Proposition::Equal(
+                semantic_vocabulary::ScalarTerm::value(result.id, result.scalar_type),
+                extent,
+            )));
+        }
         let mut read = measurement.clone();
         let OperationKind::ByteSequenceLength { source } = &mut read.kind else {
             return Ok(None);
@@ -482,6 +604,13 @@ impl Storage<'_> {
             OperationKind::EstablishByteSequenceLiteral { bytes, .. } => {
                 ScalarTerm::integer(integer, IntegerValue::Unsigned(bytes.len() as u128))
             }
+            OperationKind::EstablishElementView { .. }
+            | OperationKind::EstablishMutableElementView { .. } => ScalarTerm::integer(
+                integer,
+                IntegerValue::Unsigned(
+                    self.array_view_formation(self.operation(producer, concerns)?)? as u128,
+                ),
+            ),
             OperationKind::ByteSequenceSubslice { start, end, .. } => {
                 if self.repeated_extent(producer)? {
                     return Ok(None);

@@ -482,7 +482,9 @@ impl Storage<'_> {
                 self.shared_subslice(operation)?;
                 rows.push((fresh()?, Stored::Established));
             }
-            OperationKind::EstablishReference { .. } => {
+            OperationKind::EstablishReference { .. }
+            | OperationKind::EstablishElementView { .. }
+            | OperationKind::EstablishMutableElementView { .. } => {
                 rows.push((fresh()?, Stored::Established));
             }
             OperationKind::ReleaseReference { source, path } => {

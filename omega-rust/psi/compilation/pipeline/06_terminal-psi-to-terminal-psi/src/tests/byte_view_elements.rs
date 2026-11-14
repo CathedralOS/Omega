@@ -324,7 +324,7 @@ fn fixed_byte_arrays_can_supply_borrowed_view_parameters() {
             }}
             machine build_entry() {{
                 let mut bytes: [u8; 3] = [17, 42, 99];
-                use(count({access} bytes), middle({access} bytes));
+                use(count({access} bytes[..]), middle({access} bytes[..]));
                 use_byte(bytes[0]);
             }}
             machine use(extent: u64, middle: u8) {{}}
@@ -332,6 +332,27 @@ fn fixed_byte_arrays_can_supply_borrowed_view_parameters() {
         "#
         );
         assert_eq!(verdict(&program), "accepted", "{program}");
+    }
+}
+
+#[test]
+fn explicit_array_views_keep_exact_length_and_release_the_original_backing() {
+    for access in ["&", "&mut"] {
+        let program = format!(
+            r#"
+            machine demand(bytes: {access} [u8]) requires bytes.len == 3 {{}}
+            machine build_entry() {{
+                let mut bytes: [u8; 3] = [17, 42, 99];
+                let view: {access} [u8] = {access} bytes[..];
+                demand(view);
+                use_byte(bytes[0]);
+            }}
+            machine use_byte(byte: u8) {{}}
+        "#
+        );
+        assert_eq!(verdict(&program), "accepted", "{program}");
+        let wrong_length = program.replace("bytes.len == 3", "bytes.len == 4");
+        assert!(verdict(&wrong_length).starts_with("rejected"));
     }
 }
 
@@ -404,7 +425,7 @@ fn an_array_loan_keeps_its_element_type_and_requested_access() {
 #[test]
 fn an_empty_byte_window_requires_existing_array_backing() {
     let mut accepted = match judge_build(
-        "machine build_entry() { let bytes: [u8; 3] = [17, 42, 99]; use(&bytes); } \
+        "machine build_entry() { let bytes: [u8; 3] = [17, 42, 99]; use(&bytes[..]); } \
          machine use(bytes: &[u8]) {}",
     )
     .unwrap()
@@ -619,7 +640,7 @@ fn byte_store_array_backing_program_is_checked_without_changing_its_operations()
     ))
     .replace("machine main()", "machine build_entry()");
     assert_eq!(verdict(&program), "accepted");
-    let out_of_bounds = program.replace("put(&mut bytes, 1, 73)", "put(&mut bytes, 3, 73)");
+    let out_of_bounds = program.replace("put(&mut bytes[..], 1, 73)", "put(&mut bytes[..], 3, 73)");
     assert_ne!(out_of_bounds, program);
     assert_eq!(verdict(&out_of_bounds), "rejected");
 }

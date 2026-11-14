@@ -541,6 +541,7 @@ fn expression_homes<'b>(
         | ExpressionKind::Establish { operand, .. }
         | ExpressionKind::Referent(operand)
         | ExpressionKind::Field { base: operand, .. }
+        | ExpressionKind::ArrayByteView { base: operand, .. }
         | ExpressionKind::CollectionMeasure { base: operand, .. }
         | ExpressionKind::Payload { base: operand, .. }
         | ExpressionKind::IsCase {
@@ -1251,6 +1252,80 @@ impl<'a> Lowering<'a> {
                     fresh: true,
                 }))
             }
+            ExpressionKind::ArrayByteView {
+                base,
+                access,
+                element,
+            } => {
+                let captured = continuing!(self.capture_place(base, None));
+                let lent = self.captured_loan(base, *access, captured, None)?;
+                let operation = self.operation_identity(expression.source);
+                let before = self.here()?;
+                self.obligation(
+                    ObligationKind::Loan {
+                        captured: lent.place,
+                        access: *access,
+                        lender: lent.lender,
+                    },
+                    before,
+                    expression.source,
+                );
+                let source = StructuralArgument {
+                    place: lent.argument.0,
+                    path: self.storage_path(
+                        &lent.argument.1,
+                        ExecutionSite::Operation(operation),
+                        expression.source,
+                    )?,
+                    access: lent.argument.2,
+                };
+                let (root, place) = self.root(
+                    StructuralPlaceKind::OperationResult {
+                        producer: operation,
+                        structural_type: record,
+                    },
+                    record,
+                )?;
+                let region = terminal_psi::ElementViewRegion::WholeCollection;
+                let kind = match access {
+                    language_core::ReferenceAccess::Shared => OperationKind::EstablishElementView {
+                        destination: root,
+                        source,
+                        element: *element,
+                        region,
+                    },
+                    language_core::ReferenceAccess::Mutable => {
+                        OperationKind::EstablishMutableElementView {
+                            destination: root,
+                            source,
+                            element: *element,
+                            region,
+                        }
+                    }
+                    language_core::ReferenceAccess::WriteOnly => {
+                        return Err(self.internal("write-only array view"));
+                    }
+                };
+                let multiplicity = self.records.multiplicity(record, self.id)?;
+                self.draft()?.operations.push(Operation::unsuspended(
+                    operation,
+                    OperationResult::Structural(owned_result(root, record, multiplicity)),
+                    kind,
+                ));
+                self.point = Some(ProgramPoint::AfterOperation(operation));
+                self.write(
+                    place,
+                    ProgramPoint::AfterOperation(operation),
+                    Content::Overwritten,
+                )?;
+                Ok(Reached::Value(Located {
+                    root,
+                    place,
+                    path: Vec::new(),
+                    record,
+                    fresh: true,
+                }))
+            }
             ExpressionKind::ByteSubslice { base, start, end } => {
                 // Capture the descriptor before evaluating either endpoint.
                 // A later call may replace the original descriptor home.
@@ -1674,6 +1749,13 @@ impl<'a> Lowering<'a> {
                 ValueType::record(record),
                 Some(root),
             )
+        } else if matches!(value_type, ValueType::Record(..)) {
+            // Structural values already have a canonical location. Borrow
+            // that location without copying affine permission; a fresh
+            // operation result is temporary for this call.
+            let at = continuing!(self.located(place));
+            let temporary = at.fresh.then_some(at.root);
+            (at.root, at.path, at.place, value_type, temporary)
         } else {
             let (root, steps, exact, actual) =
                 continuing!(self.capture_place(place, home_identity));
