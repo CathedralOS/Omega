@@ -368,11 +368,28 @@ fn what_the_lane_does_not_serve_yet_on_a_cycle_is_refused_by_name() {
         refused(vec![countdown(promised)]),
         "contract termination promise over a call cycle"
     );
+    // A witness ranks the loop of the one machine that writes it. On a
+    // cycle of two machines it is refused by name.
     let mut witnessed = plain();
-    witnessed.termination = Termination::Witnessed;
+    witnessed.termination = Termination::Witnessed(crate::Ranking { subject: 0 });
+    let through = |callee: u64, header: &Signature| {
+        (
+            Body {
+                slots: scalars(vec![u32_type()]),
+                statements: vec![
+                    guarded(
+                        positive(0),
+                        call(callee, vec![less_one(0)], Some(u32_type())),
+                    ),
+                    returns(integer(0)),
+                ],
+            },
+            header.clone(),
+        )
+    };
     assert_eq!(
-        refused(vec![countdown(witnessed)]),
-        "contract ranking witness"
+        refused(vec![through(2, &witnessed), through(1, &witnessed)]),
+        "contract ranking witness on a call cycle of several machines"
     );
     let mut guarded_route = plain();
     guarded_route.crashes = CrashCeiling::Authored(vec![CrashRouteBucket {
@@ -400,6 +417,170 @@ fn what_the_lane_does_not_serve_yet_on_a_cycle_is_refused_by_name() {
     ];
     assert_eq!(
         refused(vec![(caller, outer), looping]),
+        "contract termination promise over a call cycle"
+    );
+}
+
+/// `machine countdown(remaining: u32) -> u32 terminates by remaining
+///  { remaining > 0 -> countdown(remaining - 1); 0 }`
+fn ranked_countdown() -> (Body, Signature) {
+    let mut witnessed = signature(vec![u32_type()], Some(u32_type()));
+    witnessed.termination = Termination::Witnessed(crate::Ranking { subject: 0 });
+    countdown(witnessed)
+}
+
+#[test]
+fn a_witness_writes_the_loops_ranking_and_owes_a_comparison_on_every_edge() {
+    use terminal_psi::{TerminalNaturalRankComparison, TerminalRankedScc};
+
+    let elaboration = elaborate(vec![ranked_countdown()]).unwrap();
+    let lowered = machine(&elaboration.module, 1);
+    let tables = elaboration.tables.machines.get(id(1)).unwrap();
+    assert_eq!(
+        lowered.contract.termination,
+        semantic_vocabulary::Termination::Terminates
+    );
+    let Some(TerminalRankedScc::Natural(cycles)) = &lowered.ranked_scc else {
+        panic!("the loop is ranked");
+    };
+    let [cycle] = cycles.as_slice() else {
+        panic!("one cycle: {cycles:?}");
+    };
+    // The head and the block that jumps back are the cycle; the entry and
+    // the returning block are outside it. Every block's rank is the head's
+    // parameter, the witness's subject.
+    let head = &lowered.blocks[1];
+    let subject = head.parameters[0].id;
+    let ranks: Vec<_> = cycle
+        .ranks
+        .iter()
+        .map(|rank| {
+            (
+                rank.block,
+                cycle.scalar_rank_value(rank.values).unwrap().value,
+            )
+        })
+        .collect();
+    let jump_back = lowered
+        .blocks
+        .iter()
+        .find_map(|block| match &block.terminator {
+            terminal_psi::Terminator::Jump {
+                edge,
+                target,
+                arguments,
+                ..
+            } if *target == head.id && block.id != lowered.entry => {
+                Some((block.id, *edge, arguments[0]))
+            }
+            _ => None,
+        })
+        .expect("the recursive call is a jump back");
+    assert_eq!(ranks, vec![(head.id, subject), (jump_back.0, subject)]);
+    // The edge beneath the head keeps the rank; the jump back passes the
+    // call's argument and claims strict descent.
+    let edges: Vec<_> = cycle
+        .edges
+        .iter()
+        .map(|edge| {
+            (
+                edge.source,
+                edge.target,
+                cycle.scalar_rank_value(edge.successor_ranks).unwrap().value,
+                edge.comparison,
+            )
+        })
+        .collect();
+    assert_eq!(
+        edges,
+        vec![
+            (
+                head.id,
+                jump_back.0,
+                subject,
+                TerminalNaturalRankComparison::Preserving
+            ),
+            (
+                jump_back.0,
+                head.id,
+                jump_back.2,
+                TerminalNaturalRankComparison::Strict
+            ),
+        ]
+    );
+    // One shared well-foundedness question at the head, and one comparison
+    // on each edge of the cycle, at that edge.
+    let component = terminal_semantics::control_graph::control_cycle_identity(lowered, cycle);
+    let owed: Vec<_> = tables
+        .obligations
+        .iter()
+        .filter(|(_, row)| {
+            matches!(
+                row.kind,
+                ObligationKind::WellFoundedness { .. } | ObligationKind::RankComparison { .. }
+            )
+        })
+        .map(|(_, row)| (row.kind, row.created_at))
+        .collect();
+    assert_eq!(
+        owed,
+        vec![
+            (
+                ObligationKind::WellFoundedness { component },
+                ProgramPoint::BlockEntry(head.id)
+            ),
+            (
+                ObligationKind::RankComparison {
+                    component,
+                    edge: cycle.edges[0].edge
+                },
+                ProgramPoint::Edge(cycle.edges[0].edge)
+            ),
+            (
+                ObligationKind::RankComparison {
+                    component,
+                    edge: jump_back.1
+                },
+                ProgramPoint::Edge(jump_back.1)
+            ),
+        ]
+    );
+}
+
+#[test]
+fn a_promise_over_a_ranked_loop_is_served_and_over_an_unranked_one_refused() {
+    // `machine outer() -> u32 terminates { countdown(3) }` holds when the
+    // loop it calls supplies its ranking, and is refused when it does not.
+    let outer = || {
+        let mut promised = signature(Vec::new(), Some(u32_type()));
+        promised.termination = Termination::Promised;
+        (
+            Body {
+                slots: Vec::new(),
+                statements: vec![returns(call(2, vec![integer(3)], Some(u32_type())))],
+            },
+            promised,
+        )
+    };
+    let looping = |header: Signature| {
+        let mut looping = countdown(header);
+        looping.0.statements = vec![
+            guarded(positive(0), call(2, vec![less_one(0)], Some(u32_type()))),
+            returns(integer(0)),
+        ];
+        looping
+    };
+    let mut witnessed = signature(vec![u32_type()], Some(u32_type()));
+    witnessed.termination = Termination::Witnessed(crate::Ranking { subject: 0 });
+    assert!(elaborate(vec![outer(), looping(witnessed)]).is_ok());
+    let Err(refusal) = elaborate(vec![
+        outer(),
+        looping(signature(vec![u32_type()], Some(u32_type()))),
+    ]) else {
+        panic!("a promise over an unranked loop is refused");
+    };
+    assert_eq!(
+        refusal.detail,
         "contract termination promise over a call cycle"
     );
 }

@@ -1355,7 +1355,7 @@ impl<'t> Program<'t> {
             ),
         };
 
-        signature.termination = self.termination(id, machine)?;
+        signature.termination = self.termination(id, machine, &signature)?;
         self.inherit_requirement_contract(id, machine, &mut signature, &mut names)?;
         // A machine's header clauses belong to the machine declaration; its
         // formals belong to its one state, which `contract` was given.
@@ -2172,10 +2172,14 @@ impl<'t> Program<'t> {
     }
 
     /// What the header says about ending, from the plan stage 02 fills once
-    /// (`MachineTerminationPlan`). Only the presence of a promise and of a
-    /// witness is read here: the plan's `RankingWitness` holds its subjects
-    /// as rendered text, which this reader never resolves.
-    fn termination(&self, id: MachineId, machine: &Machine) -> Checked<Termination> {
+    /// (`MachineTerminationPlan`), and the witness's subject from the typed
+    /// expressions stage 03 keeps beside it (`ranking`).
+    fn termination(
+        &self,
+        id: MachineId,
+        machine: &Machine,
+        signature: &Signature,
+    ) -> Checked<Termination> {
         let plan = &machine.termination_plan;
         let promised = match &plan.interface {
             TerminationInterface::InternalDerived
@@ -2194,9 +2198,97 @@ impl<'t> Program<'t> {
             }
         };
         Ok(match (&plan.implementation_witness, promised) {
-            (Some(_), _) => Termination::Witnessed,
+            (Some(witness), _) => {
+                Termination::Witnessed(self.ranking(id, machine, witness, signature)?)
+            }
             (None, true) => Termination::Promised,
             (None, false) => Termination::Silent,
+        })
+    }
+
+    /// The ranking a `terminates by` witness supplies, when it is the one
+    /// form lowering ranks: one subject that is a formal of an unsigned
+    /// fixed-width integer type, under `Nat::Descending`.
+    ///
+    /// The subject is read from the typed expression stage 03 keeps for it
+    /// (`RankingExpressionCustody`), never from the plan's rendered text, and
+    /// the view from the identity stage 03 settled: termination.md,
+    /// "Ranking": "Short form without `-> View` requires a carrier-declared
+    /// stable canonical default, immediately elaborated to an explicit
+    /// view." `source/library/core/nat.omg` declares that default for
+    /// "unsigned natural values" only, so a signed subject is not ranked
+    /// here. Every form the page allows beyond this one is refused by name:
+    /// accepting a witness nobody compares would publish its guarantee
+    /// unproved.
+    fn ranking(
+        &self,
+        id: MachineId,
+        machine: &Machine,
+        witness: &language_semantics::RankingWitness,
+        signature: &Signature,
+    ) -> Checked<crate::body::Ranking> {
+        let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Contract(what)));
+        let Some(custody) = self.typed.ranking_expression_custody_for(machine.symbol) else {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Spelling("ranking subject kept only as text"),
+            ));
+        };
+        if witness.ranking_view != language_semantics::RankingViewId::NAT_DESCENDING
+            || !custody.view_arguments.is_empty()
+        {
+            return unserved("ranking view other than Nat::Descending");
+        }
+        if custody.rank_range.is_some() {
+            return unserved("rank range on a ranking witness");
+        }
+        let [subject] = custody.subjects[..] else {
+            return unserved("ranking over several subjects");
+        };
+        let formals = self
+            .typed
+            .machine_states(machine)
+            .first()
+            .map(|state| self.typed.state_parameters(state))
+            .unwrap_or_default();
+        let position = match self.typed.expression_table.expression(subject) {
+            typed_trees::expression::ExpressionNode::Name(path)
+                if path.symbol.is_valid() && path.head_symbol == path.symbol =>
+            {
+                formals
+                    .iter()
+                    .position(|formal| formal.symbol == path.symbol)
+            }
+            _ => None,
+        };
+        let Some(position) = position else {
+            return unserved("ranking subject that is not a formal");
+        };
+        let ranked = matches!(
+            signature.parameters.get(position),
+            Some(ValueType::Scalar(semantic_vocabulary::ScalarType::Integer(integer), _))
+                if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned
+                    && !integer.is_address()
+                    && matches!(integer.width(), semantic_vocabulary::IntegerWidth::Bits(_))
+        );
+        if !ranked
+            || signature.erased.contains(&position)
+            || signature
+                .borrowed
+                .iter()
+                .any(|borrowed| borrowed.position == position)
+        {
+            return unserved("ranking subject that is not an unsigned fixed-width integer formal");
+        }
+        Ok(crate::body::Ranking {
+            subject: u32::try_from(position).map_err(|_| {
+                refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Contract("ranking subject position"),
+                )
+            })?,
         })
     }
 

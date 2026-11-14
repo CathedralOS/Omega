@@ -62,6 +62,7 @@ pub(crate) use calls::publish_write_frames;
 mod control;
 mod operations;
 pub(crate) mod places;
+mod ranking;
 
 use semantic_vocabulary::{
     BlockId, ContractId, EdgeId, IdTable, MachineId, ObligationId, OperationId, PlaceId,
@@ -109,6 +110,9 @@ struct Head {
     member: MachineId,
     block: BlockId,
     parameters: Vec<ValueId>,
+    /// The position in `parameters` of the subject of the member's
+    /// `terminates by` witness, when it supplies one (`ranking`).
+    subject: Option<usize>,
 }
 
 /// Lowers machine `id`. `component` holds the members of its call component
@@ -312,7 +316,7 @@ fn contract_header(
         published_synchronous_entries: outcome.synchronous_entries.clone(),
         termination: match signature.termination {
             crate::Termination::Silent => semantic_vocabulary::Termination::NoGuarantee,
-            crate::Termination::Promised | crate::Termination::Witnessed => {
+            crate::Termination::Promised | crate::Termination::Witnessed(_) => {
                 semantic_vocabulary::Termination::Terminates
             }
         },
@@ -846,10 +850,21 @@ impl<'a> Lowering<'a> {
                     arrivals: Vec::new(),
                 });
             }
+            let subject = match signature.termination {
+                crate::Termination::Witnessed(ranking) => {
+                    let subject = usize::try_from(ranking.subject)
+                        .ok()
+                        .filter(|subject| *subject < parameters.len())
+                        .ok_or_else(|| self.internal("a ranking subject past the formals"))?;
+                    Some(subject)
+                }
+                crate::Termination::Silent | crate::Termination::Promised => None,
+            };
             self.heads.push(Head {
                 member: *member,
                 block,
                 parameters,
+                subject,
             });
         }
         let entered: Vec<ValueId> = formals.scalars.iter().map(|formal| formal.id).collect();
@@ -1065,7 +1080,21 @@ impl<'a> Lowering<'a> {
             .map(|(id, (kind, _))| StructuralPlaceDeclaration { id, kind: *kind })
             .collect();
         self.call_formations.sort_unstable_by_key(|row| row.site);
-        let machine = TerminalMachine {
+        // The one cycle a witness ranks is the loop of the machine that
+        // wrote it (`components` refuses a witness on a cycle of several
+        // machines), so a ranked head stands alone.
+        let ranked = match self.heads.as_slice() {
+            [head] => head.subject.map(|subject| ranking::RankedHead {
+                block: head.block,
+                subject,
+                rank: head.parameters[subject],
+            }),
+            heads if heads.iter().any(|head| head.subject.is_some()) => {
+                return Err(self.internal("a ranking on a call cycle of several machines"));
+            }
+            _ => None,
+        };
+        let mut machine = TerminalMachine {
             assembly_target_requirement: RegisterTargetApplicability::Any,
             id: self.id,
             attachment: None,
@@ -1081,6 +1110,10 @@ impl<'a> Lowering<'a> {
             blocks,
             contract,
         };
+        if let Some(head) = ranked {
+            machine.ranked_scc =
+                ranking::rank(&machine, head, &mut self.tables, &mut self.sources)?;
+        }
         // A scalar machine has no structural place, so its place, root and
         // write tables are empty; `places` filled them for every record.
         Ok(Lowered {
