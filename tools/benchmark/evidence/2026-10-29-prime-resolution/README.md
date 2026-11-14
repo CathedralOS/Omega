@@ -126,7 +126,7 @@ without collapsing authority or changing proof context? Query:
 Read the [Rust compiler query model](https://rustc-dev-guide.rust-lang.org/queries/query-evaluation-model-in-detail.html),
 including immutable keys/results, provider purity and cycles. This source suggests
 conditions for reuse; it does not prove an Omega performance result. Earlier
-[query research](../../../../wiki/drafts/measurements/arithmetic_walk_2026_10_29/research.md)
+[query research](https://github.com/CathedralOS/Omega/blob/3b24dc9383e37416021ff19b350869a147c57432/wiki/drafts/measurements/arithmetic_walk_2026_10_29/research.md)
 is background, not evidence for a broader cache lifetime. The selected candidate
 uses Omega's existing exact resolver payload/context comparison and preserves
 active recurrence history. The local A/B and runtime controls decide retention.

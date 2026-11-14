@@ -42,9 +42,9 @@ acceptance are complete.
 - Spelling. Explicit empty values are `reaches none`, `crashes none`,
   `suspends false` and `blocks false`: clause then the empty literal of its
   type. The keyword with no value is malformed in the spec; both parsers still
-  accept it until the retirement sweep of `tests/omega`, `samples` and their
-  golden rows lands. The library, Build prelude, guide and spec were swept in
-  the ratifying change.
+  accept it until the retirement sweep of `tests/fixtures` and `samples`
+  lands. The library, Build prelude, guide and spec were swept in the
+  ratifying change.
 - Identity. Terms, bounds and premises are part of contract identity. A body
   edit that changes one is an interface change even with an unchanged header.
   Compatibility target: existing admitted closed applications keep their
@@ -63,21 +63,12 @@ acceptance are complete.
 
 ## Current code
 
-- `omega-rust/psi/compilation/validation/src/machine_calls/effect_inference/service_reach.rs`
-  retains fixed services and exact binder symbols separately: the reach term.
-- `.../effect_inference/operational.rs` reaches per-application precision for
-  suspension and blocking by a fixed point over selected call contexts rather
-  than a symbolic term.
-- `.../effect_inference/callback_requirements.rs` is the binder/trait join both
-  share.
-- No crash or termination handling exists in that module, and the Psi codec
-  publishes no dependency rows, so precision does not survive publication.
 - The parser accepts `reaches none` and `crashes none` beside the bare keyword
-  (`grammar/contracts.rs`, `grammar/contracts/parse_contract_clauses.rs`,
-  `grammar/contracts/signature.rs`); the Omega-written parser accepts both in
-  `source/psi/parse/clause.omg`. `crashes none` currently publishes no
-  contract, which equals omission on today's published surfaces; private-body
-  and requirement enforcement arrive with the crash row.
+  (`omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/contracts_and_parameters.rs`);
+  the Omega-written parser accepts both in `source/psi/parse/clause.omg`.
+  `crashes none` currently publishes no contract, which equals omission on
+  today's published surfaces; private-body and requirement
+  enforcement arrive with the crash row.
 
 ## Implementation
 
@@ -99,11 +90,9 @@ acceptance are complete.
 4. Carry row on the shared suspension term, as already specified.
 5. Termination row. Binder premises on authored `terminates` with the own
    progress proof; application discharge from selected published promises;
-   `05_machine_contracts.json` and the termination identity retain binder
-   premises.
-6. Retire the bare keyword in both parsers, sweep `tests/omega`, `samples`,
-   `tests/psi/parser` and `tests/psi/resolver` to `reaches none`, and
-   re-record the touched golden rows.
+   the termination identity retains binder premises.
+6. Retire the bare keyword in both parsers and sweep `tests/fixtures`,
+   `samples`, `tests/psi/parser` and `tests/psi/resolver` to `reaches none`.
 7. Result relations: retain the opaque per-invocation relation fact through
    generic checking, discharge authored claims from it with ordinary logical
    evidence, substitute the selected published relation at specialization, and

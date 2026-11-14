@@ -63,8 +63,7 @@ callable types without changing the rule.
    missing clause.
 3. Reject an open contract on a boundary requirement, offering the missing
    clause.
-4. Sweep `source/library`, then `samples` and `tests/omega`, re-recording the
-   touched golden rows.
+4. Sweep `source/library`, then `samples` and `tests/fixtures`.
 
 ## Acceptance
 
@@ -73,7 +72,7 @@ suggested clause. The same type with `reaches none crashes none` admits a
 service-free, crash-free machine and rejects one that reaches a service or can
 crash. A static requirement with both clauses omitted still accepts both kinds
 and publishes the selected machine's reach and crash routes. No callable type
-or boundary requirement in `source`, `samples` or `tests/omega` omits either
+or boundary requirement in `source`, `samples` or `tests/fixtures` omits either
 clause.
 
 ## Follow-on

@@ -908,7 +908,7 @@ quotient or a right shift, so those stay unreached.
   split alternative against a requirement) chain to `high < high`, and no
   rule calls that false without a literal. It would take irreflexivity of
   `<` on a value as a kernel rule. None of the programs in
-  [route one measures](../../../../../wiki/drafts/designs/route_one_measures.md#2-verdict-agreement)
+  [route one measures](https://github.com/CathedralOS/Omega/blob/3b24dc9383e37416021ff19b350869a147c57432/wiki/drafts/designs/route_one_measures.md#2-verdict-agreement)
   needs it: a guard that contradicts an order is closed through the
   guard's value, above.
 - *A quotient bounded through its divisor's bound.* `value / divisor` with

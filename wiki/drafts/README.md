@@ -10,14 +10,10 @@ Each draft names its purpose and when it can be deleted. Promote useful settled
 content to its proper owner, then delete the draft. Execution status belongs on
 the existing task boards, not in a second tracking system.
 
-Drafts are grouped by kind. A draft belongs to exactly one folder, and
-`README.md` indexes every one of them.
+Drafts are grouped by kind. A draft belongs to exactly one folder. This index
+does not list every draft, so check the folder as well.
 
 ## Reference
-
-- [Scalar call lowering notes](reference/scalar_call_lowering.md): bounded source-call
-  implementation snapshot and guarded-operand migration; delete after the shared
-  value frontier replaces those routes. Not current coverage or language rules.
 
 Cross-cutting notes that outlive any single rung.
 
@@ -51,54 +47,39 @@ Cross-cutting notes that outlive any single rung.
 - [Typed-to-one-sorted encoding](reference/matching_logic_sort_encoding.md): how Omega
   types, slices, sums, and loans encode into the one-sorted fragment; delete
   once the bounded comparison rules on the encoding.
+- [Compiler parallelism](reference/compiler_parallelism.md): primary-source research
+  on how other compilers divide and schedule work, as hypotheses for Omega.
+- [Ordinary invocations without normal completion](reference/terminal_no_normal_invocations.md):
+  implementation note on `InvokeNoNormal` for the reference producer.
 
 ## Audits
 
 Inventories of an existing surface and what each row still owes.
 
-- [Backend vocabulary rejection audit](audits/backend_vocabulary_rejection_audit.md):
-  catalog of the compiler-owned closed vocabularies and where non-admitted
-  values or authored extension reject; delete once a permanent spec section
-  owns the inventory or the closed sets stop moving.
-- [Canary corpus distribution](audits/canary_corpus_distribution.md): measured census
-  of the authored fixture inventory by group and outcome suffix; delete once a
-  generated inventory report carries these counts.
-- [Coordinator over-ownership audit](audits/coordinator_overownership_audit.md): sweep
-  of the named sequencers against the coordinator rule; delete once F2, F3 and
-  F4 are relocated by their sibling board items.
-- [Coordinator scope audit](audits/coordinator_scope_audit.md): sweep of coordinator
-  and entry files for absorbed domain work; delete once the F3 watch item
-  moves the product fences to the admission owner.
-- [Crate-root responsibility audit](audits/crate_root_responsibility_audit.md): sweep
-  of every workspace crate root against the responsibility rule; delete once
-  the three heavyweight representation roots move their vocabulary out.
-- [Lookup-map justification audit](audits/lookup_map_justification.md): census of every
-  name-keyed map beside the scoped symbol tree; delete once the architecture
-  test and its key-domain catalog carry these justifications.
+- [`dyn` retirement inventory](audits/dyn_retirement_inventory.md): why `dyn`
+  migrates through a checked rewrite rule and the order of the compiler work;
+  delete once source `dyn` parsing and `TypeReferenceNode::DynamicTrait` are gone.
 - [Operator-introducer retirement inventory](audits/operator_introducer_retirement_inventory.md):
   every surface the separate `operator` introducer must retire, with removal
   order; delete once the introducer and its representation are gone.
 - [Pipeline placement audit](audits/pipeline_placement_audit.md): which ownership
   bucket each durable identity and codec sits in, plus recorded rulings; delete
   once every open row-1 violation moves or is boarded.
-- [PoC orphan-entrance audit](audits/poc_orphan_entrance_audit.md): entrance inventory
-  and caller graph for the parked spill families; delete once the park is
-  disposed of — every family sequenced or deleted.
 - [Historical producer/checker audit](audits/producer_checker_decision_sharing_audit.md):
   findings about the audited revision, including superseded artifact formats;
   use the pipeline contract for current guarantees.
 - [Proposition surface retirement](audits/proposition_surface_retirement.md): every
-  grammar, pipeline, library, and corpus surface the `proposition` retirement
+  grammar, pipeline and library surface the `proposition` retirement
   must drain; delete once the migration drains them.
-- [Replacement rejection inventory](audits/replacement_rejection_inventory.md): catalog
-  of every spec-named component-replacement rejection obligation mapped to its
-  enforcement site or residual owner; delete once the residual rows land.
-- [Stage-crate ownership audit](audits/stage_crate_ownership_audit.md): module
-  inventory of all 21 stage crates against the ownership rules; delete once its
-  five findings are boarded or repaired.
 - [Stage-output orphan audit](audits/stage_output_orphan_audit.md): whether each rule
   stage's produced route and each accessor channel has a reader; delete once
   the zero-reader accessors are pruned or ruled on.
+- [Python outside `tools/`](audits/python_inventory_2026-11-13.md): every Python
+  file outside `tools/`, classified, so each can be deleted or replaced by
+  `mbx xtask`.
+- [Recursive walker inventory](audits/recursive_walkers_2026-11-12.md): the Psi
+  stage 01–03 walkers whose stack recursion follows source nesting, as the
+  checklist for storing recursive terms as flat tables.
 
 ## Measurements
 
@@ -111,40 +92,9 @@ Dated cost and failure evidence, superseded by a later run.
 - [Benchmark records](measurements/benchmarks.md): methodology and host coverage for the
   committed compile/memory/size/runtime records; delete once the harness
   README owns the method and the host-coverage account.
-- [Compiler progress](measurements/compiler_progress.md): how much of Omega the
-  reference compiler compiles and runs, as fractions with named denominators
-  from `tools/progress.py`; delete once a generated report is published beside
-  the release gates.
-- [C2L conjunct-lowering cliff](measurements/c2l_conjunct_lowering_cliff.md): measured
-  hotspots behind the lowering member that never returns; delete once hotspot
-  2 is repaired and the subject fixture returns a verdict.
-- [Contract-exit-fact checking cost](measurements/checking_contract_exit_fact_cost.md):
-  sampled checking-stage hotspot with its landed hoist and two open
-  candidates; delete once those candidates land or are ruled out.
-- [Graph cost-model study](measurements/graph_cost_model_study.md): inventory of the existing
-  candidate seams and what a ranking measurement must show; delete once a
-  measured corpus answers the question or the policy question closes.
-- [Package-review hotspot attribution](measurements/package_review_hotspot_attribution.md):
-  where `omega packages audit` time actually goes; delete once the arena and
-  symbol-lookup hotspots are repaired or boarded.
-- [Squalr geometry native hosts](measurements/squalr_geometry_native_hosts.md): per-host
-  ledger and ceremony for the geometry parity acceptance; delete once every
-  host leg is recorded.
-- [Structural borrow identity host legs](measurements/structural_borrow_identity_host_legs.md):
-  recording recipe for the matching-host runtime results; delete once all four
-  hosted-target legs are recorded or the row retires.
-- [Swarm commit signal](measurements/swarm_commit_signal.md): 1,000-commit noise measurement
-  against published swarm-orchestration evidence; remove when the board/landing
-  workflow makes its numbers stale or a later measurement supersedes it.
 - [Test-cycle measurements](measurements/test_cycle_measurements.md): dated scheduling and
   package-review route attribution evidence; delete once the optimization items
   citing it close or a later measurement replaces those sections.
-- [Test-cycle selection remeasurement](measurements/test_cycle_selection_remeasurement.md):
-  controlled Linux replacement for the selection and scheduling costs; delete
-  once a later remeasurement supersedes it or the slow-tail policy is decided.
-- [std check duration](measurements/std_check_duration_linux_x86_64.md): measured cost of
-  `omega --check` over the bundled standard library; delete once the
-  `Filesystem::host` join regression closes and the check is remeasured.
 
 ## Designs
 
@@ -196,12 +146,6 @@ Dated cost and failure evidence, superseded by a later run.
   attached domain; implicit weakening, annotation-attached domains and
   whole-type cast targets are retired; delete when the board item lands.
 
-- [Operation arithmetic policy](designs/operation_arithmetic_policy.md):
-  `%`, `|` and `!` suffixes choose wrapping, saturating or trapping arithmetic
-  at one operation, the three policy domains become core domains that forward
-  to them, and `source/psi` drops `in Trapping`; delete when the board item
-  lands.
-
 - [Validation subjects](designs/validation_subjects.md): check the selected
   packages in full and dependencies only through their semantic closure, with
   `Build::validate`, the workspace default and admission validation; delete
@@ -233,99 +177,40 @@ Dated cost and failure evidence, superseded by a later run.
 
 - [Check on the lowered form](designs/check_on_lowered_form.md): architecture
   decision. Elaborate typed trees to unsealed Terminal Psi by structure alone,
-  then check on that form, replacing Psi 05, validation and Psi 06 after one
-  proven route. Further construct families wait on its four-condition gate.
+  then check on that form. It replaces Psi 05, validation and Psi 06, which
+  the owner ruled removed and which are deleted. Further construct families
+  wait on its four-condition gate.
 
 - [Type and value parameters on the lowered form](designs/lowered_type_generics.md):
   proposal for condition 3 of that gate beyond implementation parameters: a
   rigid sort for an opaque `T`, concrete arms under type equations, and
-  certificates carried by substitution; delete when the gate decides it.
-
-- [Route one measures](designs/route_one_measures.md): the eight gate
-  measures of that route and the verdict against its first stop rule, since
-  replaced by the gate.
+  certificates carried by substitution.
 
 - [What each stage may trust](designs/stage_trust.md): hand-off audit,
   compiler rules for stage outputs and `"validated"` claims, and the rule that
   the checker accepts only kernel-verified proofs and rejects the rest at
   compile time, at no runtime cost.
 
-- [Fact transport](designs/fact_transport.md): the evidence behind that
-  decision. Its design section is superseded; see the corrections there.
-
 - [Conditional callback carry](designs/conditional_callback_carry.md):
-  migration and acceptance for one generic resource helper across synchronous
-  and suspending callbacks, with exact conditional suspension permissions.
+  the six acceptance cases for one generic resource helper across synchronous
+  and suspending callbacks; the rules are in the spec. Delete when they pass.
 
 - [Deferred callback reach](designs/deferred_callback_reach.md):
   migration and acceptance for inferred service rows through static machine and
   conformance selections, with an explicit service-free requirement audit.
 
 - [Conservative markers and subsystem CLI](designs/operational_markers_and_cli.md):
-  migration and acceptance for source rewriting, validator selection and public
-  Psi naming; delete when the owning implementation tasks close.
-
-- [Callback composition and explicit field omissions](designs/callback_composition_and_explicit_defaults.md):
-  ratified source rules and compiler acceptance for `..`, forwarded callback
-  requirements and suspension/blocking dependencies; delete this migration
-  record when the acceptance coverage is implemented and the specs suffice.
-
-- [UEFI bootstrap migration](designs/uefi_bootstrap_migration.md): remaining Rust
-  catalogs and protocol ownership to replace with authored source; delete when
-  the existing UEFI entry and handoff tasks close.
+  implementation route for call-site markers, source rewriting and the
+  subsystem CLI; the rules are in the spec. Delete when the owning tasks close.
 
 A proposed shape for work that has not landed.
 
-- [Call-containing requirement transport](designs/call_containing_scalar_requirement_transport.md):
-  design for citing calls inside scalar contract clauses through Terminal;
-  delete once cited-call transport lands and the reproducer's artifact
-  verifies.
-- [Condition-fact equality roster](designs/condition_fact_equality_roster.md): sparse
-  projection design for the cliff's open asymptotic centre; delete once the
-  projection lands and that hotspot closes.
-- [Dynamic proof arguments](designs/dynamic_erased_lane_channel.md): migration
-  obligations after retirement of the instance-descriptor proposal; preserve
-  proof argument relationships independently of implementation selection.
-- [Evaluated foreign bindings](designs/evaluated_foreign_bindings.md): resume recipe for
-  the privileged port-effect producer chain; delete once the producer legs land
-  and a port-bearing artifact replays its effects.
-- [Filesystem release contract](designs/filesystem_release_contract.md): scope
-  verification and paused-closure plan for the bounded release proof; delete
-  once the occurrence derivation and structural field-store closure land.
-- [General cyclic execution optimizer](designs/general_cyclic_execution_optimizer.md):
-  re-verification ledger for the optimizer half of ranked cyclic execution;
-  delete once an admitted ranked call cycle reaches that half.
 - [Normalized call-inventory unification](designs/normalized_call_inventory_unification.md):
   design collapsing eight target call variants into one operation; delete once
   the unified `Call` lands and the retired variants are gone.
-- [Normalized foreign legalization](designs/normalized_foreign_legalization_leg.md):
-  resume recipe for aggregate and descriptor foreign transport; delete once
-  legalization and selection admit those argument classes with witnesses.
-- [Physical entry end to end](designs/physical_entry_end_to_end.md): audit of the
-  authored-entry-to-host-process route with its linux closure; delete once the
-  remaining host legs report their own runs.
-- [Preserving decode and remainder custody](designs/wire_preserving_decode.md): the
-  preserving decode mode's shape, custody, and relay splice; delete when the
-  mode and its demand/report surface land or the board retires the leg.
-- [Psi stage timing carrier](designs/psi_stage_timing_carrier.md): the Psi-owned timing
-  row carrier, what landed, and the remaining call-site leg; delete once the
-  prepared-project route threads the flag.
 - [Scalar range contract migration](designs/range_suffix_migration.md): canonical
   per-position mapping to `where`/`requires`/`ensures` plus the audit rule for
   migration-generated domains; delete after the history inventory closes.
-- [Slice-view sample frontier](designs/slice_view_sample_frontier.md): the twelve
-  samples blocked on borrowed non-byte slice views and what moved; delete once
-  they reach entry establishment or the vocabulary spec lands.
-- [Target-set compilation](designs/target_set_compilation.md): historical proposal
-  superseded by the pipeline-route tasks and multi-target spec; its per-target
-  Build/Terminal alternatives are not implementation instructions. Delete after
-  the pipeline migration when the historical comparison is no longer useful.
-- [Unused `self` receiver pin](designs/unused_self_receiver_signature.md): the verified
-  admission and the fixture that will pin it; delete once the fixture and its
-  roster seat land.
-- [Write-only-borrow IEEE store branch](designs/write_only_borrow_ieee_store_branch.md):
-  recovery ledger and re-implementation contract for the parked computed-store
-  slice; delete once the slice lands and the frontier pin flips.
 
 Keep useful temporary residue here after review; delete obsolete or redundant
 history. Concrete proposed language or toolchain changes belong in proposals.

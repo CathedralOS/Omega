@@ -112,10 +112,9 @@ are not new validation of this design.
   substitutions and malformed certificates as negatives. Keep verification
   exhaustion separate from discovery exhaustion and production receipts separate
   from consumer verification charges.
-- **Carry-through:** validate the same admitted programs through Checked Psi,
-  serialized/reloaded Terminal Psi, interpreter and native execution on hosted
-  targets. Re-record affected corpus results only after actual implementation;
-  documentation ratification changes no fixture classifications.
+- **Carry-through:** validate the same admitted programs through the lowered-form
+  checker, serialized/reloaded Terminal Psi, interpreter and native execution
+  on hosted targets.
 
 The old `bounded-canonical-index-normalization` and
 `literal-linked-index-identities` decisions are superseded/narrowed in
