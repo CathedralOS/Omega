@@ -205,6 +205,12 @@ path = "tests/lowered_route_generics.rs"
 name = "lowered_route_qualified"
 path = "tests/lowered_route_qualified.rs"
 
+# A value-position `match` on an integer or Boolean subject is judged on the
+# lowered form: each arm is checked knowing its test held.
+[[test]]
+name = "lowered_route_scalar_match"
+path = "tests/lowered_route_scalar_match.rs"
+
 [[test]]
 name = "package_review"
 path = "tests/package_review.rs"
