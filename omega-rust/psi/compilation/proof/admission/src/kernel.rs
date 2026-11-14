@@ -138,6 +138,24 @@ fn integer_carrier_bound(left: &ScalarTerm, right: &ScalarTerm) -> bool {
 }
 
 fn mathematical_integer_carrier_bound(left: &IntegerMathTerm, right: &IntegerMathTerm) -> bool {
+    // A parameter width's endpoints are terms over its binder, `0 <= v <=
+    // 2^N - 1` or `-2^(N-1) <= v <= 2^(N-1) - 1`; the value's own declared
+    // type names the binder, so no hypothesis is needed.
+    match (left, right) {
+        (IntegerMathTerm::MathValue { source_type, .. }, endpoint)
+            if source_type.bits().is_none() =>
+        {
+            return source_type.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                && *endpoint == IntegerMathTerm::carrier_maximum(*source_type);
+        }
+        (endpoint, IntegerMathTerm::MathValue { source_type, .. })
+            if source_type.bits().is_none() =>
+        {
+            return source_type.carrier() == semantic_vocabulary::IntegerCarrier::Fixed
+                && *endpoint == IntegerMathTerm::carrier_minimum(*source_type);
+        }
+        _ => {}
+    }
     let (literal, source_type, lower) = match (left, right) {
         (
             IntegerMathTerm::IntegerLiteral(literal),

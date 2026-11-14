@@ -54,6 +54,7 @@ use terminal_check_tables::values::ValueRow;
 
 mod ranges;
 mod reach;
+mod widths;
 
 use crate::known::{Fact, is_branch_fact};
 
@@ -80,7 +81,11 @@ const CASE_BRANCH_BUDGET: usize = 64;
 /// equations are substituted, which is how the kernel reads it
 /// (`Prover::by_transport`), so a comparison of two such terms is evaluated,
 /// not searched for (`Prover::has_rules_for`).
-fn covered(goal: &Proposition, fixed: &dyn Fn(ValueId) -> bool) -> bool {
+fn covered(
+    goal: &Proposition,
+    fixed: &dyn Fn(ValueId) -> bool,
+    width: &dyn Fn(ValueId) -> bool,
+) -> bool {
     // The kernel also decides open expressions whose difference is constant.
     // Both comparison outcomes are covered: an unequal result is a refused
     // obligation, rather than an unsupported mathematical goal.
@@ -94,10 +99,10 @@ fn covered(goal: &Proposition, fixed: &dyn Fn(ValueId) -> bool) -> bool {
     match goal {
         Proposition::Truth | Proposition::Falsehood => true,
         Proposition::Conjunction(parts) | Proposition::Disjunction(parts) => {
-            parts.iter().all(|part| covered(part, fixed))
+            parts.iter().all(|part| covered(part, fixed, width))
         }
         // The premise is only assumed; the conclusion is what is proved.
-        Proposition::Implication { conclusion, .. } => covered(conclusion, fixed),
+        Proposition::Implication { conclusion, .. } => covered(conclusion, fixed, width),
         Proposition::LessOrEqual(left, right)
         | Proposition::LessThan(left, right)
         | Proposition::Equal(left, right) => {
@@ -116,6 +121,12 @@ fn covered(goal: &Proposition, fixed: &dyn Fn(ValueId) -> bool) -> bool {
         Proposition::IntegerMathLessOrEqual(left, right) => {
             if closed_mathematical(left, fixed) && closed_mathematical(right, fixed) {
                 return true;
+            }
+            // A range at a parameter width (`widths`).
+            if widths::mentions_parameter_width(left, width)
+                || widths::mentions_parameter_width(right, width)
+            {
+                return widths::covered(left, right, width);
             }
             // `Prover::arithmetic_interval` bounds one operation over values
             // of one carrier and literals, the shape an exact operation's
@@ -152,7 +163,7 @@ fn covered(goal: &Proposition, fixed: &dyn Fn(ValueId) -> bool) -> bool {
 /// `covered` with no value fixed: the goal's form as written.
 #[cfg(test)]
 pub(crate) fn has_rules_for(goal: &Proposition) -> bool {
-    covered(goal, &|_| false)
+    covered(goal, &|_| false, &|_| false)
 }
 
 /// Whether `term` is literals, values that `fixed` says are literals, and
@@ -499,14 +510,16 @@ impl<'a> Prover<'a> {
                     if *id == value)
             })
         };
-        if covered(goal, &|value| fixed(&self.equations, value)) {
+        let binders = self.width_binders();
+        let width = |value| binders.contains(&value);
+        if covered(goal, &|value| fixed(&self.equations, value), &width) {
             return true;
         }
         // Use the same exact definitions as certificate construction. A
         // checked update can expose `entry + 1 == entry + 2`: the kernel can
         // decide that comparison even though its original result was open.
         self.transported_goal(goal)
-            .is_some_and(|goal| covered(&goal, &|value| fixed(&self.equations, value)))
+            .is_some_and(|goal| covered(&goal, &|value| fixed(&self.equations, value), &width))
     }
 
     fn closed(&self, proposition: Proposition) -> Option<ProofNode> {
@@ -1011,6 +1024,13 @@ impl<'a> Prover<'a> {
             Proposition::IntegerMathLessOrEqual(left, right) => {
                 if let Some(proof) = self.closed(goal.clone()) {
                     return Ok(proof);
+                }
+                let binders = self.width_binders();
+                let width = |value| binders.contains(&value);
+                if widths::mentions_parameter_width(left, &width)
+                    || widths::mentions_parameter_width(right, &width)
+                {
+                    return self.width_goal(left, right);
                 }
                 self.arithmetic(left, right)
             }

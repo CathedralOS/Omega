@@ -315,6 +315,59 @@ fn a_value_parameter_application_is_judged_at_its_value() {
     assert_eq!(verdicts("beyond", &program("9")), ["rejected", "accepted"]);
 }
 
+/// A width-generic machine is judged once as written, with its width `N` a
+/// rigid input (`wiki/spec/language/numeric_values.md`, "Width-indexed
+/// integers"): the body must hold at every width its requirements admit.
+/// `next` owes `value + 1 <= 2^N - 1`; its `value < limit` gives `value + 1
+/// <= limit`, and `limit` is a value of `u<N>`. The literal `1` lands in
+/// `u<N>` because `N > 0` gives `2 <= 2^N`.
+///
+/// The twin drops only `value < limit`. Both applications in `main` are
+/// safe, and the generic body is still rejected as written: some value of
+/// `u<N>` overflows at every width. (The closed applications, judged at
+/// their own carriers with the same unconstrained input, are rejected too.)
+/// A body returning `1` from `i<N>` is rejected: from `N > 0` nothing puts
+/// one below `2^(N-1)`, and at `i1` it is not there. The same body returning
+/// `1` from `u<N>` is accepted.
+#[test]
+fn a_width_generic_body_is_judged_at_every_width() {
+    let next = |requirement: &str| {
+        format!(
+            "machine next<const N: u64>(value: u<N>, limit: u<N>) -> u<N>\n\
+             requires N > 0u64{requirement}\n\
+             crashes none\n\
+             {{ value + 1 }}\n\
+             machine main() {{\n    \
+             let small: u8 = next<8>(3u8, 9u8);\n    \
+             let large: u32 = next<32>(4u32, 10u32);\n}}\n"
+        )
+    };
+    // The entry closure, then `next` checked once with `N` rigid.
+    assert_eq!(
+        verdicts("width_next", &next(" && value < limit")),
+        ["accepted", "accepted"]
+    );
+    assert_eq!(
+        verdicts("width_next_unbounded", &next("")),
+        ["rejected", "rejected"]
+    );
+    let one = |carrier: &str| {
+        format!(
+            "machine one<const N: u64>() -> {carrier}<N>\n\
+             requires N > 0u64\n\
+             crashes none\n\
+             {{ 1 }}\n\
+             machine main() {{\n    \
+             let small: {carrier}8 = one<8>();\n}}\n"
+        )
+    };
+    assert_eq!(verdicts("width_one", &one("u")), ["accepted", "accepted"]);
+    assert_eq!(
+        verdicts("width_signed_one", &one("i")),
+        ["accepted", "rejected"]
+    );
+}
+
 #[test]
 fn an_uncalled_defect_of_a_standalone_program_is_rejected() {
     assert_eq!(
@@ -1104,13 +1157,14 @@ fn an_indexed_width_is_the_type_its_shorthand_names() {
     ] {
         assert_eq!(verdicts(name, &spare(declaration)), [expected], "{name}");
     }
-    /* The empty `main` is judged; the generic form of `next` is what is refused. */
+    /* The empty `main` is judged, then the generic form of `next`, which
+    nothing proves well formed: no requirement makes `N` positive. */
     assert_eq!(
         verdicts(
             "symbolic_width",
             &spare("machine next<const N: u64>(value: u<N>) -> u<N> { value }")
         ),
-        ["accepted", "not-supported"]
+        ["accepted", "rejected"]
     );
     for (name, declaration, reason) in [
         (
@@ -1157,7 +1211,9 @@ fn an_indexed_width_is_the_type_its_shorthand_names() {
 /// `main` passes each application the greatest value that keeps the add in
 /// range (8190 of 8191, 30 of 31); each twin differs in one argument, which
 /// is that width's greatest value. The second part is the generic form of
-/// `next`, which the checker cannot state with `N` unknown: refused by name.
+/// `next`, judged with `N` rigid: no requirement makes `N` positive, so its
+/// `u<N>` is not well formed and it is rejected
+/// (`a_width_generic_body_is_judged_at_every_width` states it with `N > 0`).
 ///
 /// A zero width rejects at the application that gives it.
 #[test]
@@ -1181,7 +1237,7 @@ fn a_symbolic_width_is_judged_at_each_applied_width() {
     ] {
         assert_eq!(
             verdicts(name, &program(wide, narrow)),
-            [closure, "not-supported"],
+            [closure, "rejected"],
             "{name}"
         );
     }

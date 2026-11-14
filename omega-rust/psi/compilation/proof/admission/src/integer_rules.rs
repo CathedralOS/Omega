@@ -592,11 +592,24 @@ pub(crate) mod integer_cast {
             if values.contains(next) || witness.root.any_value_id(|root_id| root_id == *next_id) {
                 return Err(IntegerCastChainWitnessError::CyclicValue(index));
             }
-            let target_interval = fixed_native_interval(*target_type).ok_or(
-                IntegerCastChainWitnessError::UnsupportedCarrier(*target_type),
-            )?;
-            interval.0 = interval.0.max(target_interval.0);
-            interval.1 = interval.1.min(target_interval.1);
+            // A parameter width has no interval to narrow by: its values
+            // are this chain's root's own, which the mathematical form below
+            // carries unchanged.
+            if parameter_width_target(*source_type, *target_type) {
+                if !exact_cast {
+                    return Err(IntegerCastChainWitnessError::InvalidWidenEdge {
+                        index,
+                        source: *source_type,
+                        target: *target_type,
+                    });
+                }
+            } else {
+                let target_interval = fixed_native_interval(*target_type).ok_or(
+                    IntegerCastChainWitnessError::UnsupportedCarrier(*target_type),
+                )?;
+                interval.0 = interval.0.max(target_interval.0);
+                interval.1 = interval.1.min(target_interval.1);
+            }
             current = next.clone();
             current_type = *target_type;
             carriers.push(*target_type);
@@ -615,7 +628,20 @@ pub(crate) mod integer_cast {
         })
     }
 
+    /// An exact conversion from a fixed native carrier into a parameter
+    /// width: how a literal lands there. Its bound is only ever carried in
+    /// the mathematical form, which keeps the root's value.
+    fn parameter_width_target(source: IntegerType, target: IntegerType) -> bool {
+        fixed_native_interval(source).is_some()
+            && target.bits().is_none()
+            && !target.is_address()
+            && source.can_exact_cast_to(target)
+    }
+
     fn partial_fixed_native_cast(source: IntegerType, target: IntegerType) -> bool {
+        if parameter_width_target(source, target) {
+            return true;
+        }
         fixed_native_interval(source).is_some()
             && fixed_native_interval(target).is_some()
             && source != target

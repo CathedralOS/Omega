@@ -7221,6 +7221,7 @@ mod elaboration {
                         relation,
                         addend: _,
                     } => Children::fixed([Some(relation), None, None]),
+                    IntegerPowerOfTwoOrder { order } => Children::fixed([Some(order), None, None]),
                     IntegerOrderSubstitution {
                         relation,
                         equality,
@@ -8455,6 +8456,19 @@ mod elaboration {
                         AcceptedProofRule::IntegerCorrelatedForbiddenRoots,
                         premises,
                         evidence,
+                        &proof.conclusion,
+                    )
+                }
+                // Provisional: the core has no power of two to derive it
+                // from, so the checked row is an instance of its statement.
+                ProofRule::IntegerPowerOfTwoOrder { order } => {
+                    let evidence = operands.take(order);
+                    crate::proof::power_of_two_order::check(&order.conclusion, &proof.conclusion)
+                        .map_err(BoundedDenotationError::Certificate)?;
+                    self.rule_instance(
+                        AcceptedProofRule::IntegerPowerOfTwoOrder,
+                        vec![order.conclusion.clone()],
+                        vec![evidence],
                         &proof.conclusion,
                     )
                 }
