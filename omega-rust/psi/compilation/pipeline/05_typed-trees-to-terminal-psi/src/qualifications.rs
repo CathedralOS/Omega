@@ -245,45 +245,62 @@ impl Qualifications {
     /// A cast's predicate/issuer completion and a result's forwarding retain
     /// their exact values and edges. The checker judges them against the
     /// declared theory and actual callable, independently of the reader.
-    pub fn complete(&mut self, machine: &terminal_psi::TerminalMachine) -> Checked<()> {
+    pub fn complete(
+        &mut self,
+        machine: &terminal_psi::TerminalMachine,
+        coercions_start: usize,
+    ) -> Checked<()> {
         use terminal_psi::{
             ScalarReturnOrigin, ScalarReturnQualification, ScalarReturnSite, Terminator,
         };
         let mut returns = Vec::new();
-        for coercion in self
+        let mut values: Vec<_> =
+            terminal_semantics::scalar_qualifications::values(machine).collect();
+        values.sort_unstable_by_key(|value| value.id);
+        let value = |id| {
+            values
+                .binary_search_by_key(&id, |value| value.id)
+                .ok()
+                .map(|index| values[index])
+        };
+        let coercions = self
             .catalog
             .coercions
-            .iter()
-            .filter(|row| row.machine == machine.id)
-        {
-            let source = terminal_semantics::scalar_qualifications::values(machine)
-                .find(|value| value.id == coercion.source)
-                .ok_or_else(|| {
-                    refuse(
-                        machine.id,
-                        Construct::Edge(coercion.edge),
-                        Unserved::Type("qualification source"),
-                    )
-                })?;
-            let destination = terminal_semantics::scalar_qualifications::values(machine)
-                .find(|value| value.id == coercion.destination)
-                .ok_or_else(|| {
-                    refuse(
-                        machine.id,
-                        Construct::Edge(coercion.edge),
-                        Unserved::Type("qualification destination"),
-                    )
-                })?;
-            let members = |set| {
-                self.catalog
-                    .sets
-                    .iter()
-                    .find(|row| row.id == set)
-                    .map_or(&[][..], |row| row.domains.as_slice())
-            };
-            for id in members(destination.qualifications)
+            .get(coercions_start..)
+            .ok_or_else(|| {
+                refuse(
+                    machine.id,
+                    Construct::Machine,
+                    Unserved::Type("qualification slice is outside its producer"),
+                )
+            })?;
+        for coercion in coercions {
+            if coercion.machine != machine.id {
+                return Err(refuse(
+                    machine.id,
+                    Construct::Edge(coercion.edge),
+                    Unserved::Type("qualification slice contains another machine"),
+                ));
+            }
+            let source = value(coercion.source).ok_or_else(|| {
+                refuse(
+                    machine.id,
+                    Construct::Edge(coercion.edge),
+                    Unserved::Type("qualification source"),
+                )
+            })?;
+            let destination = value(coercion.destination).ok_or_else(|| {
+                refuse(
+                    machine.id,
+                    Construct::Edge(coercion.edge),
+                    Unserved::Type("qualification destination"),
+                )
+            })?;
+            let before = self.members(machine.id, source.qualifications)?;
+            for id in self
+                .members(machine.id, destination.qualifications)?
                 .iter()
-                .filter(|id| !members(source.qualifications).contains(id))
+                .filter(|id| !before.contains(id))
             {
                 let domain = self
                     .catalog

@@ -440,6 +440,7 @@ impl<'a> Lowering<'a> {
         slot_types: &'a [ValueType],
         qualifications: &'a mut crate::qualifications::Qualifications,
     ) -> Self {
+        let coercions_start = qualifications.catalog.coercions.len();
         Self {
             id,
             signature,
@@ -462,6 +463,7 @@ impl<'a> Lowering<'a> {
             selected: Vec::new(),
             slot_types,
             qualifications,
+            coercions_start,
             value_qualifications: Vec::new(),
             published: Vec::new(),
             heads: Vec::new(),
@@ -665,6 +667,9 @@ struct Lowering<'a> {
     outcomes: &'a IdTable<MachineId, Outcome>,
     records: &'a Records<'a>,
     qualifications: &'a mut crate::qualifications::Qualifications,
+    /// The first qualification edge minted by this machine, carried from
+    /// construction instead of searching all preceding machines' edges.
+    coercions_start: usize,
     /// Complete declared types indexed by the values this lowering minted.
     /// Synthetic proof temporaries have no qualification; expression results
     /// and formals set theirs through the same owner before publication.
@@ -1240,7 +1245,8 @@ impl<'a> Lowering<'a> {
             machine.ranked_scc =
                 ranking::rank(&machine, head, &mut self.tables, &mut self.sources)?;
         }
-        self.qualifications.complete(&machine)?;
+        self.qualifications
+            .complete(&machine, self.coercions_start)?;
         // A scalar machine has no structural place, so its place, root and
         // write tables are empty; `places` filled them for every record.
         Ok(Lowered {

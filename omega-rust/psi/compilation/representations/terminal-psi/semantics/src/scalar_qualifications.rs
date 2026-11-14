@@ -372,14 +372,12 @@ fn validate_transfers(module: &TerminalModule) -> Result<(), ScalarQualification
                         path,
                         value,
                         ..
-                    } => {
-                        if declared.get(*value)?.qualifications
-                            != storage_qualifications(module, machine, *destination, path)?
-                        {
-                            return malformed(
-                                "scalar storage write does not preserve its complete declared type",
-                            );
-                        }
+                    } if declared.get(*value)?.qualifications
+                        != storage_qualifications(module, machine, *destination, path)? =>
+                    {
+                        return malformed(
+                            "scalar storage write does not preserve its complete declared type",
+                        );
                     }
                     _ => {}
                 }
@@ -673,11 +671,11 @@ fn field_qualifications(
     module: &TerminalModule,
     field: semantic_vocabulary::StructuralFieldId,
 ) -> ScalarQualificationSetId {
-    module
-        .scalar_qualifications
-        .fields
-        .iter()
-        .find(|row| row.field == field)
+    let fields = &module.scalar_qualifications.fields;
+    fields
+        .binary_search_by_key(&field, |row| row.field)
+        .ok()
+        .map(|index| &fields[index])
         .map_or(ScalarQualificationSetId::ZERO, |row| {
             row.value_type.qualifications
         })
@@ -687,11 +685,11 @@ fn primitive_qualifications(
     module: &TerminalModule,
     ty: semantic_vocabulary::StructuralTypeId,
 ) -> ScalarQualificationSetId {
-    module
-        .scalar_qualifications
-        .primitives
-        .iter()
-        .find(|row| row.structural_type == ty)
+    let primitives = &module.scalar_qualifications.primitives;
+    primitives
+        .binary_search_by_key(&ty, |row| row.structural_type)
+        .ok()
+        .map(|index| &primitives[index])
         .map_or(ScalarQualificationSetId::ZERO, |row| {
             row.value_type.qualifications
         })
@@ -839,23 +837,21 @@ pub fn qualification_domains(
     if set.is_empty() {
         return Some(&[]);
     }
-    module
-        .scalar_qualifications
-        .sets
-        .iter()
-        .find(|row| row.id == set)
-        .map(|row| row.domains.as_slice())
+    let sets = &module.scalar_qualifications.sets;
+    sets.binary_search_by_key(&set, |row| row.id)
+        .ok()
+        .map(|index| sets[index].domains.as_slice())
 }
 
 pub fn scalar_domain(
     module: &TerminalModule,
     id: ScalarDomainId,
 ) -> Option<&ScalarDomainDeclaration> {
-    module
-        .scalar_qualifications
-        .domains
-        .iter()
-        .find(|domain| domain.id == id)
+    let domains = &module.scalar_qualifications.domains;
+    domains
+        .binary_search_by_key(&id, |domain| domain.id)
+        .ok()
+        .map(|index| &domains[index])
 }
 
 pub fn values(machine: &TerminalMachine) -> impl Iterator<Item = &ValueDeclaration> {

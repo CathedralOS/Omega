@@ -2302,75 +2302,6 @@ pub(crate) mod scalar_qualification_wire {
         })
     }
 
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        #[test]
-        fn primitive_types_and_proved_completions_round_trip_without_erasure() {
-            use semantic_vocabulary::{
-                DomainSemanticId, EdgeId, IntegerSign, IntegerType, MachineId, QualifiedScalarType,
-                ScalarDomainId, ScalarType, StructuralTypeId, ValueId,
-            };
-            let carrier = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
-            let domain = ScalarDomainId::new(1).unwrap();
-            let set = ScalarQualificationSetId::new(1);
-            let catalog = ScalarQualificationCatalog {
-                domains: vec![ScalarDomainDeclaration {
-                    required_memberships: Some(Vec::new()),
-                    predicate: Some(ScalarDomainPredicate {
-                        subject: ValueId::new(1).unwrap(),
-                        proposition: semantic_vocabulary::Proposition::Truth,
-                    }),
-                    id: domain,
-                    semantic_domain: DomainSemanticId::new(1).unwrap(),
-                    identity: TerminalIdentityIndex(1),
-                    carrier,
-                    establishment_routes: None,
-                }],
-                sets: vec![ScalarQualificationSet {
-                    id: set,
-                    domains: vec![domain],
-                }],
-                primitives: vec![terminal_psi::ScalarPrimitiveQualification {
-                    structural_type: StructuralTypeId::new(1).unwrap(),
-                    value_type: QualifiedScalarType {
-                        scalar_type: carrier,
-                        qualifications: set,
-                    },
-                }],
-                returns: vec![ScalarReturnQualification {
-                    site: ScalarReturnSite::Completion {
-                        argument_ordinal: 0,
-                    },
-                    machine: MachineId::new(1).unwrap(),
-                    edge: EdgeId::new(1).unwrap(),
-                    source: ValueId::new(1).unwrap(),
-                    result: ValueId::new(2).unwrap(),
-                    domain,
-                    origins: vec![ScalarReturnOrigin::Proved],
-                }],
-                ..ScalarQualificationCatalog::default()
-            };
-            validate(&catalog).unwrap();
-            let mut writer = Writer::default();
-            encode(&mut writer, &catalog).unwrap();
-            let bytes = writer.finish();
-            let mut reader = Reader::new(&bytes);
-            assert_eq!(decode(&mut reader).unwrap(), catalog);
-            assert_eq!(reader.remaining(), 0);
-            let mut erased = catalog;
-            erased.primitives[0].value_type.qualifications = ScalarQualificationSetId::ZERO;
-            let mut writer = Writer::default();
-            encode(&mut writer, &erased).unwrap();
-            assert_ne!(
-                writer.finish(),
-                bytes,
-                "primitive qualification participates in canonical bytes"
-            );
-        }
-    }
-
     pub(crate) fn validate(catalog: &ScalarQualificationCatalog) -> Result<(), CodecError> {
         require_increasing(
             catalog.primitives.iter().map(|row| row.structural_type),
@@ -2467,6 +2398,74 @@ pub(crate) mod scalar_qualification_wire {
             return Err(CodecError::NonCanonicalEncoding);
         }
         Ok(())
+    }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn primitive_types_and_proved_completions_round_trip_without_erasure() {
+            use semantic_vocabulary::{
+                DomainSemanticId, EdgeId, IntegerSign, IntegerType, MachineId, QualifiedScalarType,
+                ScalarDomainId, ScalarType, StructuralTypeId, ValueId,
+            };
+            let carrier = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
+            let domain = ScalarDomainId::new(1).unwrap();
+            let set = ScalarQualificationSetId::new(1);
+            let catalog = ScalarQualificationCatalog {
+                domains: vec![ScalarDomainDeclaration {
+                    required_memberships: Some(Vec::new()),
+                    predicate: Some(ScalarDomainPredicate {
+                        subject: ValueId::new(1).unwrap(),
+                        proposition: semantic_vocabulary::Proposition::Truth,
+                    }),
+                    id: domain,
+                    semantic_domain: DomainSemanticId::new(1).unwrap(),
+                    identity: TerminalIdentityIndex(1),
+                    carrier,
+                    establishment_routes: None,
+                }],
+                sets: vec![ScalarQualificationSet {
+                    id: set,
+                    domains: vec![domain],
+                }],
+                primitives: vec![terminal_psi::ScalarPrimitiveQualification {
+                    structural_type: StructuralTypeId::new(1).unwrap(),
+                    value_type: QualifiedScalarType {
+                        scalar_type: carrier,
+                        qualifications: set,
+                    },
+                }],
+                returns: vec![ScalarReturnQualification {
+                    site: ScalarReturnSite::Completion {
+                        argument_ordinal: 0,
+                    },
+                    machine: MachineId::new(1).unwrap(),
+                    edge: EdgeId::new(1).unwrap(),
+                    source: ValueId::new(1).unwrap(),
+                    result: ValueId::new(2).unwrap(),
+                    domain,
+                    origins: vec![ScalarReturnOrigin::Proved],
+                }],
+                ..ScalarQualificationCatalog::default()
+            };
+            validate(&catalog).unwrap();
+            let mut writer = Writer::default();
+            encode(&mut writer, &catalog).unwrap();
+            let bytes = writer.finish();
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(decode(&mut reader).unwrap(), catalog);
+            assert_eq!(reader.remaining(), 0);
+            let mut erased = catalog;
+            erased.primitives[0].value_type.qualifications = ScalarQualificationSetId::ZERO;
+            let mut writer = Writer::default();
+            encode(&mut writer, &erased).unwrap();
+            assert_ne!(
+                writer.finish(),
+                bytes,
+                "primitive qualification participates in canonical bytes"
+            );
+        }
     }
 }
 

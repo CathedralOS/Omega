@@ -332,19 +332,30 @@ fn describe(
             Some(ValueOrigin::StorageContent { place, after: None }) if crate::places::input_content(lowered, tables, place)
         ))
     };
-    let equations: Vec<&Proposition> = available
+    // Earlier parameters can already be related to their own arguments by a
+    // block predicate. Their available conjunct equalities are definitions
+    // too: unfolding only operations strands a later result at those earlier
+    // parameters and loses it at this scope boundary. The kernel still proves
+    // the complete predicate on every arrival; alternatives are not flattened.
+    let mut pending: Vec<&Proposition> = available
         .iter()
-        .filter(|(justification, proposition, _)| {
-            matches!(justification, Justification::OperationSemantics(_))
-                && matches!(
-                    proposition,
-                    Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition)
-                        if matches!(subject.scalar_type(), ScalarType::Boolean | ScalarType::Integer(_))
-                            || entry_content(definition)
-                )
-        })
         .map(|(_, proposition, _)| *proposition)
         .collect();
+    let mut equations = Vec::new();
+    while let Some(proposition) = pending.pop() {
+        match proposition {
+            Proposition::Conjunction(parts) => pending.extend(parts),
+            Proposition::Equal(subject @ ScalarTerm::Value { .. }, definition)
+                if matches!(
+                    subject.scalar_type(),
+                    ScalarType::Boolean | ScalarType::Integer(_)
+                ) || entry_content(definition) =>
+            {
+                equations.push(proposition)
+            }
+            _ => {}
+        }
+    }
     let mut defined_values: Vec<ValueId> = equations
         .iter()
         .filter_map(|equation| match equation {
