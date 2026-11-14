@@ -33,8 +33,6 @@ trusting mutable filesystem paths or runtime environment variables.
 
 mod execution_settlement;
 mod observations;
-#[cfg(test)]
-mod product_boundary;
 mod product_execution;
 mod target_batch;
 mod terminal;

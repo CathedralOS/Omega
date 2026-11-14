@@ -208,9 +208,9 @@ framework or a list of features that remain unimplemented.
 
 ### Architecture rules are enforced by searching source text for substrings
 - Category: tests that pin the bug
-- Where: `omega-rust/omega/compilation/compiler/src/product_boundary.rs`, `omega-rust/omega/build-system/orchestration/src/build_boundary.rs`, `omega-rust/omega/compilation/native-compiler/src/pipeline_boundary.rs`, `omega-rust/omega/compilation/realization/provider-planning/src/source_guards.rs`, `omega-rust/omega/compilation/backend/plans/program-entry-plan/src/source_guards.rs`, `omega-rust/psi/foundation/access-plans/src/tests.rs`, `omega-rust/psi/interpreter/terminal-interpreter/src/embedding.rs`
-- Saw: these tests assert that source strings are present, absent or ordered, rather than exercise the owned operation or dependency boundary. The compiler guards pinned fields of the deleted custody and had to lose those assertions when it was removed; they never established that custody had a producer. The stage-05 guards themselves are gone.
-- Cost: harmless renaming breaks tests while equivalent forbidden behavior can pass under another spelling. Move actual dependency rules to the boundary checker and use behavior tests for custody and execution claims; do not mechanically preserve old strings or test totals.
+- Where: `omega-rust/omega/compilation/realization/provider-planning/src/source_guards.rs`, `omega-rust/omega/compilation/backend/plans/program-entry-plan/src/source_guards.rs`, `omega-rust/psi/foundation/access-plans/src/tests.rs`, `omega-rust/psi/interpreter/terminal-interpreter/src/embedding.rs`
+- Saw: remaining tests count function names, identity-field spellings, FNV constructors or shared-reader call text instead of checking retained identity, commitment or observation behavior.
+- Cost: formatting and harmless renaming break tests while equivalent forbidden behavior can pass under another spelling. Replace these semantic claims with behavior controls at their actual owners; dependency direction belongs to the existing Cargo-graph boundary checker.
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
 ### Typing refuses its own questions as if they waited for the checker
