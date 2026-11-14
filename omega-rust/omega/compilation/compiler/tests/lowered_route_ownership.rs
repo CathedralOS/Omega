@@ -177,11 +177,15 @@ fn execute_refilled_owner(closure: &terminal_psi_to_terminal_psi::AcceptedClosur
         )
         .expect("Omega 01 verifies the restored owned home")
         .into_parts();
+    let frontiers = optimization_unit_semantics::reconstruct_ownership_frontier_facts_with_admitted_cycle_machines(&unit, &[])
+        .expect("the independent current ownership walk reconstructs the restored owner");
+    let unit = optimization_unit::attach_ownership_frontier_facts(unit, frontiers)
+        .expect("the exact reconstructed owner facts attach without substitution");
     optimization_unit_semantics::validate_psi_optimization_unit_with_admitted_cycle_machines(
         &unit,
         &[],
     )
-    .expect("the independent current ownership walk reconstructs the restored owner");
+    .expect("the retained owner facts preserve the actual edge cleanup transitions");
     let bytes = terminal_codec::encode_module(publication.artifact.semantic_module())
         .expect("restored module encodes");
     let mut execution =

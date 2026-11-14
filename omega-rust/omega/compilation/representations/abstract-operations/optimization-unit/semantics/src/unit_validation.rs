@@ -690,6 +690,15 @@ pub(crate) mod affine_authority {
                     remaining = rest;
                     continue;
                 }
+                if group
+                    .iter()
+                    .all(|action| matches!(action, TerminalAffineCleanupAction::DiscardResidual(_)))
+                {
+                    consume_residual_group(function, types, &mut frontier, place, group)?;
+                    retired.push(place);
+                    remaining = rest;
+                    continue;
+                }
                 let partition = match group.split_last()? {
                     (TerminalAffineCleanupAction::RetireHome(retired), partition)
                         if *retired == place =>
@@ -750,6 +759,82 @@ pub(crate) mod affine_authority {
                 remaining = rest;
             }
             Some(frontier)
+        }
+
+        /// An equalizing edge discards only its live remainder and retains
+        /// the allocated owner. Record exactly those absent paths instead of
+        /// treating every cleanup group as whole-home retirement.
+        fn consume_residual_group(
+            function: &PsiOptimizationFunction,
+            types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+            frontier: &mut OwnershipFrontierSnapshot,
+            place: PlaceId,
+            actions: &[TerminalAffineCleanupAction],
+        ) -> Option<()> {
+            if !frontier.owned_places.iter().any(|owned| {
+                owned.place == place && owned.multiplicity == StructuralMultiplicity::Affine
+            }) {
+                return None;
+            }
+            let source =
+                super::super::operation_contracts::structural_source_contract(function, place)?;
+            if source.access != StructuralAccess::Owned
+                || source.multiplicity != StructuralMultiplicity::Affine
+            {
+                return None;
+            }
+            let mut moved = frontier
+                .partial_custody
+                .iter()
+                .find(|custody| custody.place == place)
+                .map(|custody| custody.moved_paths.iter().cloned().collect::<BTreeSet<_>>())
+                .unwrap_or_default();
+            for action in actions {
+                let TerminalAffineCleanupAction::DiscardResidual(discard) = action else {
+                    return None;
+                };
+                if discard.place != place
+                    || discard.path.is_empty()
+                    || super::super::structural_catalog::resolve_structural_path(
+                        types,
+                        source.structural_type,
+                        &discard.path,
+                    ) != Some(discard.structural_type)
+                    || types
+                        .get(&discard.structural_type)
+                        .is_none_or(|declaration| !declaration.no_code_affine_cleanup)
+                    || frontier.claims.iter().any(|claim| {
+                        claim.input == Some(place)
+                            && terminal_semantics::structural_paths_may_overlap(
+                                &claim.path,
+                                &discard.path,
+                            )
+                    })
+                    || moved.iter().any(|existing| {
+                        existing.starts_with(&discard.path) || discard.path.starts_with(existing)
+                    })
+                {
+                    return None;
+                }
+                moved.insert(discard.path.clone());
+            }
+            if crate::current_ownership::partial_affine_root_is_drained(
+                function, types, place, &moved,
+            ) {
+                frontier.owned_places.retain(|owned| owned.place != place);
+            }
+            let missing = OwnershipFrontierPartialCustody {
+                place,
+                moved_paths: moved.into_iter().collect(),
+            };
+            match frontier
+                .partial_custody
+                .binary_search_by_key(&place, |custody| custody.place)
+            {
+                Ok(position) => frontier.partial_custody[position] = missing,
+                Err(position) => frontier.partial_custody.insert(position, missing),
+            }
+            Some(())
         }
 
         struct ConsumedSources<'function> {
@@ -899,6 +984,197 @@ pub(crate) mod affine_authority {
                 frontier.owned_places.retain(|owned| owned.place != source);
             }
             true
+        }
+        #[cfg(test)]
+        mod tests {
+            use super::*;
+            use semantic_vocabulary::PsiSemanticId;
+            use terminal_psi::StructuralPathSegment as Segment;
+            use terminal_psi::{
+                ArrayExtent, StructuralAffineDiscard, StructuralPlaceDeclaration,
+                StructuralRecordStorage, StructuralTypeShape, TerminalIdentityIndex,
+            };
+
+            fn id<T: PsiSemanticId>(raw: u64) -> T {
+                T::new(raw).unwrap()
+            }
+
+            #[test]
+            fn a_residual_only_edge_retains_its_actual_parent_home() {
+                let declarations = (1..=3)
+                    .map(|raw| StructuralTypeDeclaration {
+                        id: id(raw),
+                        identity: TerminalIdentityIndex(raw as u32),
+                        quotient_carrier: None,
+                        owns_linear_claim: false,
+                        copyable: false,
+                        no_code_affine_cleanup: true,
+                        descriptor_cleanup: true,
+                        scalar_restriction: None,
+                        requires: Vec::new(),
+                        shape: if raw == 1 {
+                            StructuralTypeShape::Record {
+                                fields: Vec::new(),
+                                storage: StructuralRecordStorage::Packed,
+                            }
+                        } else {
+                            StructuralTypeShape::FixedArray {
+                                element: id(raw - 1),
+                                length: ArrayExtent::Literal(2),
+                            }
+                        },
+                    })
+                    .collect::<Vec<_>>();
+                let types = declarations
+                    .iter()
+                    .map(|declaration| (declaration.id, declaration))
+                    .collect();
+                let function = PsiOptimizationFunction {
+                    machine: id(1),
+                    attachment: None,
+                    nominal_cleanup_subject: None,
+                    entry: id(1),
+                    parameters: Vec::new(),
+                    structural_parameters: vec![StructuralParameterDeclaration {
+                        place: id(1),
+                        position: 0,
+                        structural_type: id(3),
+                        multiplicity: StructuralMultiplicity::Affine,
+                        access: StructuralAccess::Owned,
+                        qualifications: Vec::new(),
+                        projected_qualifications: Vec::new(),
+                        additional_input_qualifications: Vec::new(),
+                    }],
+                    structural_places: vec![StructuralPlaceDeclaration {
+                        id: id(1),
+                        kind: semantic_vocabulary::StructuralPlaceKind::Parameter { position: 0 },
+                    }],
+                    result: abstract_operations::AbstractFunctionResult::Unit,
+                    declared_places: BTreeSet::from([id(1)]),
+                    entry_claim_declarations: Vec::new(),
+                    block_entry_claims: Vec::new(),
+                    content_entry_claims: Vec::new(),
+                    verified_contract: None,
+                    evidence_contract_lanes: Vec::new(),
+                    entry_claims: BTreeSet::new(),
+                    published_service_ceiling: Vec::new(),
+                    declared_service_reach: Vec::new(),
+                    facts: Vec::new(),
+                    blocks: Vec::new(),
+                };
+                let first = vec![Segment::FixedIndex(0), Segment::FixedIndex(0)];
+                let second = vec![Segment::FixedIndex(0), Segment::FixedIndex(1)];
+                let entry = OwnershipFrontierSnapshot {
+                    claims: Vec::new(),
+                    owned_places: vec![OwnershipFrontierOwnedPlace {
+                        place: id(1),
+                        multiplicity: StructuralMultiplicity::Affine,
+                    }],
+                    partial_custody: vec![OwnershipFrontierPartialCustody {
+                        place: id(1),
+                        moved_paths: vec![first.clone()],
+                    }],
+                };
+                let mut exit = entry.clone();
+                exit.partial_custody[0].moved_paths.push(second.clone());
+                let action =
+                    TerminalAffineCleanupAction::DiscardResidual(StructuralAffineDiscard {
+                        place: id(1),
+                        path: second,
+                        structural_type: id(1),
+                    });
+                assert!(valid_transition(
+                    &function,
+                    &types,
+                    &[],
+                    &entry,
+                    &exit,
+                    std::slice::from_ref(&action),
+                    &[]
+                ));
+                let last_sibling =
+                    TerminalAffineCleanupAction::DiscardResidual(StructuralAffineDiscard {
+                        place: id(1),
+                        path: vec![Segment::FixedIndex(1)],
+                        structural_type: id(2),
+                    });
+                let mut vacant = exit.clone();
+                vacant.owned_places.clear();
+                vacant.partial_custody[0]
+                    .moved_paths
+                    .push(vec![Segment::FixedIndex(1)]);
+                let mut all = vec![last_sibling, action.clone()];
+                assert!(valid_transition(
+                    &function,
+                    &types,
+                    &[],
+                    &entry,
+                    &vacant,
+                    &all,
+                    &[]
+                ));
+                let mut ended = vacant.clone();
+                ended.partial_custody.clear();
+                assert!(
+                    !valid_transition(&function, &types, &[], &entry, &ended, &all, &[]),
+                    "an empty obligation frontier retains the vacant home until explicit retirement"
+                );
+                all.push(TerminalAffineCleanupAction::RetireHome(id(1)));
+                assert!(valid_transition(
+                    &function,
+                    &types,
+                    &[],
+                    &entry,
+                    &ended,
+                    &all,
+                    &[]
+                ));
+                let mut wrong_type = action.clone();
+                let TerminalAffineCleanupAction::DiscardResidual(discard) = &mut wrong_type else {
+                    unreachable!()
+                };
+                discard.structural_type = id(2);
+                assert!(!valid_transition(
+                    &function,
+                    &types,
+                    &[],
+                    &entry,
+                    &exit,
+                    &[wrong_type],
+                    &[]
+                ));
+                assert!(!valid_transition(
+                    &function,
+                    &types,
+                    &[],
+                    &entry,
+                    &exit,
+                    &[action.clone(), action.clone()],
+                    &[]
+                ));
+                let mut claimed = entry.clone();
+                claimed
+                    .claims
+                    .push(optimization_unit::OwnershipFrontierLiveClaim {
+                        claim: id(1),
+                        input: Some(id(1)),
+                        path: vec![Segment::FixedIndex(0), Segment::FixedIndex(1)],
+                        multiplicity: Some(StructuralMultiplicity::Linear),
+                    });
+                assert!(!valid_transition(
+                    &function,
+                    &types,
+                    &[],
+                    &claimed,
+                    &exit,
+                    std::slice::from_ref(&action),
+                    &[]
+                ));
+                assert!(
+                    !valid_transition(&function, &types, &[], &entry, &entry, &[action], &[]),
+                    "the retained frontier must record the actual discarded subtree"
+                );
+            }
         }
     }
     pub(super) fn validate_retained_ownership_authority(

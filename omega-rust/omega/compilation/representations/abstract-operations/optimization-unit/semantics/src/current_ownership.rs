@@ -3139,6 +3139,7 @@ mod cleanup {
         structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
         reference_effects: &super::references::call_effects::ReferenceCallEffects,
         block: BlockId,
+        unrestricted: &[PlaceId],
         frontier: &CurrentOwnership,
         actions: &[TerminalAffineCleanupAction],
         membership: &CaseMembership<'_>,
@@ -3149,6 +3150,7 @@ mod cleanup {
             functions,
             structural_types,
             block,
+            unrestricted,
             &mut remaining,
             actions,
             membership,
@@ -3197,8 +3199,8 @@ mod cleanup {
         function: &PsiOptimizationFunction,
         types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     ) -> Vec<PlaceId> {
-        // Prepare the actual source roster once per cleanup transaction rather
-        // than searching the entire operation stream for each candidate home.
+        // Prepare this actual source roster once per function, then reuse it
+        // across edge cleanup and replay instead of scanning operations per home.
         let mut claimed = function
             .entry_claim_declarations
             .iter()
@@ -3875,6 +3877,7 @@ mod continuation {
         functions: &BTreeMap<semantic_vocabulary::MachineId, &PsiOptimizationFunction>,
         structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
         block: BlockId,
+        unrestricted: &[semantic_vocabulary::PlaceId],
         frontier: &mut CurrentOwnership,
         actions: &[terminal_psi::TerminalAffineCleanupAction],
         membership: &super::cleanup::CaseMembership<'_>,
@@ -3883,9 +3886,7 @@ mod continuation {
             machine: function.machine,
             block,
         };
-        let unrestricted =
-            super::cleanup::unrestricted_owned_cleanup_roots(function, structural_types);
-        let roots = super::cleanup::cleanup_root_order(function, &unrestricted, frontier);
+        let roots = super::cleanup::cleanup_root_order(function, unrestricted, frontier);
         let mut eligible = roots.into_iter();
         for group in actions.chunk_by(|left, right| left.place() == right.place()) {
             let place = group[0].place();
@@ -3897,7 +3898,7 @@ mod continuation {
                 functions,
                 structural_types,
                 block,
-                &unrestricted,
+                unrestricted,
                 frontier,
                 place,
                 group,
@@ -7761,6 +7762,8 @@ mod replay {
             structural_types,
             call_accesses,
         );
+        let unrestricted =
+            super::cleanup::unrestricted_owned_cleanup_roots(function, structural_types);
         let mut ready = BTreeSet::from([function.entry]);
         let mut incoming = BTreeMap::<BlockId, CurrentOwnership>::new();
         incoming.insert(function.entry, entry);
@@ -8739,6 +8742,7 @@ mod replay {
                         structural_types,
                         &call_accesses.references,
                         block_id,
+                        &unrestricted,
                         frontier,
                         actions,
                         &membership,
@@ -8966,6 +8970,7 @@ mod replay {
                     functions,
                     structural_types,
                     block_id,
+                    &unrestricted,
                     &mut outgoing,
                     &edge.cleanup_actions,
                     &membership,
@@ -10254,11 +10259,14 @@ mod value_custody {
                     .iter()
                     .map(|declaration| (declaration.id, declaration))
                     .collect();
+                let unrestricted =
+                    super::super::cleanup::unrestricted_owned_cleanup_roots(function, &types);
                 super::super::continuation::apply_edge_cleanup_actions(
                     function,
                     &BTreeMap::new(),
                     &types,
                     id(1),
+                    &unrestricted,
                     current,
                     actions,
                     &|_, _, _, _| false,
