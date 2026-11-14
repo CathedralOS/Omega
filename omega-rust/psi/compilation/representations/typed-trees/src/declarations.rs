@@ -2632,24 +2632,9 @@ pub mod numeric_intrinsics {
         PrimitiveFloatBinaryOperation, PrimitiveIntegerComparisonOperation,
     };
 
-    /*
-        The numeric-intrinsic vocabulary still names eight integer widths
-        (it is published in Terminal Psi), so an integer of any other width
-        has no intrinsic type here and its intrinsic is not selected.
-    */
     pub const fn primitive_numeric_type(primitive: PrimitiveType) -> Option<NumericType> {
         Some(match primitive {
-            PrimitiveType::Integer(carrier) => match (carrier.is_signed(), carrier.width()) {
-                (true, 8) => NumericType::I8,
-                (true, 16) => NumericType::I16,
-                (true, 32) => NumericType::I32,
-                (true, 64) => NumericType::I64,
-                (false, 8) => NumericType::U8,
-                (false, 16) => NumericType::U16,
-                (false, 32) => NumericType::U32,
-                (false, 64) => NumericType::U64,
-                _ => return None,
-            },
+            PrimitiveType::Integer(carrier) => NumericType::Integer(carrier),
             PrimitiveType::F32 => NumericType::F32,
             PrimitiveType::F64 => NumericType::F64,
             PrimitiveType::Bool | PrimitiveType::Addr | PrimitiveType::Selector => return None,
