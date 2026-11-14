@@ -479,7 +479,7 @@ fn a_call_with_no_normal_return_keeps_its_acknowledgement() {
     let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
     let mut instance = program.instantiate(Default::default()).unwrap();
     let status = instance
-        .invoke(&mut psi_work::WorkMeter::with_budget(32))
+        .invoke(&mut terminal_work::WorkMeter::with_budget(32))
         .unwrap();
     assert!(
         matches!(
