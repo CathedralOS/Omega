@@ -742,7 +742,7 @@ impl Program<'_> {
         member: &TableMemberExpression,
         source: SourceOrigin,
     ) -> Checked<Expression> {
-        if !member.member_symbol.is_valid() {
+        if !member.selection.field_symbol().is_valid() {
             return Err(refuse(
                 id,
                 Construct::Machine,
@@ -761,18 +761,20 @@ impl Program<'_> {
             .result
             .map_or(crate::body::Regions::NONE, ValueType::regions);
         let base = Box::new(base);
-        Ok(match self.member_of(id, record, member.member_symbol)? {
-            Member::Field(field) => Expression {
-                result: Some(self.field_type(id, record, regions, field)?),
-                kind: ExpressionKind::Field { base, field },
-                source,
+        Ok(
+            match self.member_of(id, record, member.selection.field_symbol())? {
+                Member::Field(field) => Expression {
+                    result: Some(self.field_type(id, record, regions, field)?),
+                    kind: ExpressionKind::Field { base, field },
+                    source,
+                },
+                Member::Payload { case, field } => Expression {
+                    result: Some(self.payload_type(id, record, regions, case, field)?),
+                    kind: ExpressionKind::Payload { base, case, field },
+                    source,
+                },
             },
-            Member::Payload { case, field } => Expression {
-                result: Some(self.payload_type(id, record, regions, case, field)?),
-                kind: ExpressionKind::Payload { base, case, field },
-                source,
-            },
-        })
+        )
     }
 
     /// `R { a: x, b: y }`: every field of `R` exactly once, operands kept in

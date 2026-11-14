@@ -3153,7 +3153,7 @@ pub fn visit_expression(
         }
         ExpressionNode::Member(member) => {
             visit_expression(program, retained, member.receiver);
-            visit_symbol(retained, member.member_symbol);
+            visit_symbol(retained, member.selection.field_symbol());
         }
         ExpressionNode::Borrow(borrow) => {
             visit_expression(program, retained, borrow.target);
