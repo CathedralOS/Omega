@@ -76,14 +76,7 @@ recorded identity for reconciliation rather than allocating a replacement.
    send enforcement beyond this boundary belongs to the parent; never claim the
    repository can transact with arbitrary external tools.
 
-The Devin `launch.py launch` path also reserves through claims before each actual
-create, persists a per-slot intent before POST, and never retries POST blindly.
-`--skip-claims-check` skips advisory probes only. `--relaunch` cannot replace an
-existing send intent; reconcile/reuse that actual session. Explicit read-only
-semantic reviews retain send durability but do not reserve implementation ownership.
-Its fixed manifest path remains for reviewed named assignments; automatic outcome
-selection uses the common packet procedure above. The local renderer does not send
-anything; Cursor/Codex external send APIs require the parent's reserve/arm procedure.
+Cursor and Codex external send APIs require the parent's reserve/arm procedure.
 
 ## Selection packet
 

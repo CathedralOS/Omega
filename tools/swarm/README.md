@@ -1,133 +1,21 @@
-# Swarm launcher
+# Swarm coordination
 
 Automatic assignment starts with the common [dispatch reservation procedure](dispatch.md):
 current-main gap evidence, atomic existing-claims outcome/session reservation,
 one durable send attempt, completed-session reuse and honest cache continuity.
-The local renderer and external Codex/Cursor calls require the parent's explicit
-reserve/arm/send/receipt procedure; Devin creates reserve in the executable path.
+Codex, Cursor, Devin, and local agents use that reserve/arm/send/receipt procedure.
 No new queue or shared acceptance system is introduced.
 
 For dot cloud tasks with parent-owned create/read/follow-up tools, use the
 [cloud coordination adapter](cloud.md). It extends the recovery journal with
 durable dispatch results, dependency handoffs, final acceptance and bounded
-2/5/10 admission. The Devin launcher below retains its existing transport.
-
-`launch.py` fans "advance the compiler" out to Devin Cloud sessions: the
-coordinator writes a wave manifest assigning capability outcomes through the
-existing `board`/`item` fields. `suggested_first_slice` names the next executable
-witness, oracle and requirement it discharges. A `"sample": "samples/..."` row
-remains available for an explicitly sample-scoped assignment; the two forms
-are mutually exclusive; no new manifest fields are required.
-The launcher creates one session per entry, and each session runs the ordinary
-`advance` skill restricted to that item, registering its assignment in the
-shared claims registry ([tools/claims](../claims.md)) and landing through
-`tools/landing.py`.
+2/5/10 admission.
 
 Apply the [law of completion](../../AGENTS.md#law-of-completion): each
 implementation session retains context through its complete assigned acceptance,
 necessary cross-layer repairs, required review and authorized landing verified
 on remote main. Checkpoints, bounded report turns and transferred artifacts
 preserve evidence; they are not finish lines or implementation handoffs.
-
-The launcher writes no board text, holds no landing claim, creates no Git refs,
-and keeps receipts only under the ignored `build/swarm/<wave>/` directory.
-Partitioning lives in the manifest, checked against the claims registry's live
-assignments.
-
-Work dispatch defaults to semantic: each session supplies an exact
-`source_revision` and focused `semantic_contracts` as described in
-[qualification](../qualification.md). Genuine non-semantic work supplies
-`work_classification:{"kind":"non_semantic","reason":"concrete scope"}`.
-Old archived wave manifests need this context added before reuse; they are
-historical assignments, not ready-to-launch templates. `plan`, `local` and
-`launch` validate and deliver the passages. Continuation repeats focused
-passages when retained delivery cannot be established. `status`/`report` do
-not need these declarations. Managed cloud prepare/dispatch generates its own
-prompt through [required work context](cloud.md#required-work-context).
-
-## Prerequisites
-
-- Python 3.9+ and Git, run from the repository root (or pass `--repository`).
-- `DEVIN_API_KEY` (a `cog_...` service-user key) and `DEVIN_ORG_ID` in the
-  environment. They are read from the environment only and never printed.
-
-Windows PowerShell:
-
-```powershell
-$env:DEVIN_API_KEY = "cog_..."
-$env:DEVIN_ORG_ID = "org-..."
-python tools/swarm/launch.py plan --manifest tools/swarm/waves/wave-1.json
-```
-
-macOS shell (use `python3`):
-
-```sh
-export DEVIN_API_KEY=cog_...
-export DEVIN_ORG_ID=org-...
-python3 tools/swarm/launch.py plan --manifest tools/swarm/waves/wave-1.json
-```
-
-`plan` needs no credentials and no network. `launch --dry-run` needs no
-credentials either; real `launch`, `status`, and `report` call the Devin API
-(`--base-url`, default `https://api.devin.ai/v3`).
-
-## Workflow
-
-Before a new launch, complete the
-[mandatory main preflight](../../AGENTS.md#sessions-and-subagents): successfully
-fetch main, record its exact commit, update clean main or use an isolated
-checkout at that commit, and reread current instructions before selecting work.
-Each independent executor repeats this preflight before implementation. Preserve
-unpublished work in existing outcomes. `local` and real `launch` refuse a failed
-fetch before preparing workers; new local worktrees use the recorded commit,
-even if the tracking ref moves later. `plan` and `launch --dry-run` remain
-offline previews and do not establish fresh-main preflight.
-
-1. Write a manifest (see `manifest.schema.json`; `waves/wave-1.json` is the
-   worked example). Optional top-level `secret_ids` lists Devin organization
-   secrets to inject into every session's environment — e.g.
-   `"secret_ids": ["TYPESAFE_API_KEY"]` gives cloud sessions the Jev
-   test-selection augment (`tools/test_affected.py` reads the variable
-   directly). Create each secret once in Devin's organization settings;
-   values never enter prompts, receipts, or transcripts, and sessions
-   launched without them simply run the deterministic baseline.
-2. `plan --manifest <file>` — validates the manifest, runs `host_gates` and
-   the omega-route check, probes owning-path freshness (including each path's
-   crate), checks each item and its owning paths against the live claims
-   registry, renders one prompt per session to `build/swarm/<wave>/prompts/`,
-   and prints the exact request bodies. Each session row also carries
-   `partition_hints`, advisory signals read from the item's board text:
-   `dependency_language` ("depends on", "joins the preceding task") marks
-   sequencing candidates for layers; `references_items` names other board
-   items the text cites, and `same_layer_reference` warns when one is a
-   same-layer session; `uncovered_mentions` lists paths or backticked crate
-   names the item text cites that `owning_paths` do not cover — revise the
-   estimate without splitting ownership merely by file; `scale_hint` fires
-   when the text spans many crates, prompting integration review;
-   `resolution_language` fires when the item text carries board-sweep
-   vocabulary ("Resolved —", "Row consumed", "already landed"), meaning the
-   item may already be resolved upstream — re-verify it names unfinished
-   work before assigning a session to re-discover that.
-   Use them before spawning: adjust owning paths to the named machinery and
-   order dependency-flagged items into layers. Use
-   `--skip-host-gates`, `--skip-route-check`, or `--skip-claims-check` when
-   the coordinator deliberately does not run those checks. An unreachable
-   registry reports `unavailable` per session rather than failing `plan`'s
-   offline use; a reachable registry with a live same-outcome claim fails like
-   a host gate.
-3. `launch --manifest <file>` — re-runs the claims check, then creates one
-   session per entry and records `receipts.json`. A name with an existing
-   receipt is skipped; pass `--relaunch <name>` to recreate just that session.
-   `--dry-run` prints the bodies without network.
-4. `status --wave <id>` — polls each session's status and ACU consumption.
-5. `report --wave <id>` — merges receipts and structured output into
-   `build/swarm/<wave>/report.md`, the input for a `retrospect` pass. With
-   `--save` it also writes `tools/swarm/waves/<wave>.outcomes.json`: a tracked
-   per-session record of `result`, `acus_consumed`, and `item_closed`
-   (the assigned item's `**<item>.**` marker absent from its board at report
-   time), plus a result rollup. Run it after the wave's landings settle and
-   commit the outcomes file with the manifest so closure and ACU-per-closure
-   stay measurable across waves.
 
 ## Local worktree status
 
@@ -138,14 +26,13 @@ observations, complements these helpers, and never executes a proposed recovery
 or cleanup action. Reconcile first; a stale `slots.json` flag is not live-process
 evidence. The existing fill ledger now uses atomic file replacement as well.
 
-Cloud `status`/`report` only see Devin sessions through their receipts. Local
-waves run in plain git worktrees (for example `.agents/worktree/<wave>-<task>`)
-and produce no receipts, so `worktree_status.py` gives them the same
-visibility: each worktree's branch, uncommitted churn, ahead/behind against
-`origin/main`, whether its head already landed, the live claims-registry
-assignment matched by owner name (including `item_on_board` for board claims),
-and the landing queue's state — plus claims held by owners with no local
-worktree (cloud sessions, other machines). It is read-only.
+Local waves run in plain git worktrees (for example `.agents/worktree/<wave>-<task>`)
+and produce no receipts. `worktree_status.py` reports each worktree's branch,
+uncommitted churn, ahead/behind against `origin/main`, whether its head already
+landed, the live claims-registry assignment matched by owner name (including
+`item_on_board` for board claims), and the landing queue's state — plus claims
+held by owners with no local worktree (cloud sessions, other machines). It is
+read-only.
 
 ```sh
 python3 tools/swarm/worktree_status.py            # one JSON object
@@ -170,15 +57,15 @@ keeps changing); treat claim presence alone as "assigned", not "running".
 
 ## Local waves
 
-A local wave runs the same protocol from one machine without Devin sessions:
-the coordinator spawns one agent per `.agents/worktree/<wave>-<task>` worktree
-and each authorized end-to-end owner claims, works, lands, and releases exactly
-like a cloud session. Contributor and read-only assignments retain their narrower
-scope: the integration DRI lands contributor work, and review/scouting does not
-authorize publication. Declare publication and required review responsibility
-before dispatch under [AGENTS.md](../../AGENTS.md#delegation).
-`worktree_status.py` is the local wave's `status`/`report` equivalent. At
-drain, collect worker evidence notes first: `python3 tools/claims.py notes`
+A local wave runs on one machine without Devin sessions: the coordinator spawns
+one agent per `.agents/worktree/<wave>-<task>` worktree and each authorized
+end-to-end owner claims, works, lands, and releases. Contributor and read-only
+assignments retain their narrower scope: the integration DRI lands contributor
+work, and review/scouting does not authorize publication. Declare publication
+and required review responsibility before dispatch under
+[AGENTS.md](../../AGENTS.md#delegation).
+`worktree_status.py` reports the local wave's branch, claim, and landing state.
+At drain, collect worker evidence notes first: `python3 tools/claims.py notes`
 lists findings workers attached to their claim tickets; fold what they
 justify into one board sweep PR through the native merge queue, then
 `python3 tools/claims.py sweep --owner <wave>` marks this wave's notes
@@ -188,50 +75,6 @@ so the ledger stops proposing refills, then write the per-slot
 tally (result, commits, `item_closed`) to
 `tools/swarm/waves/<wave>.outcomes.json` so local waves stay measurable the
 same way cloud waves do.
-
-### Launching
-
-Local sessions carry `"host": "local"` in the manifest; a manifest may mix
-hosts — `plan`/`launch` handle the `linux` entries and `local` handles the
-rest, each reporting the skipped side. `waves/local-example.json` is the
-minimal shape.
-
-```sh
-python3 tools/swarm/launch.py local \
-    --manifest tools/swarm/waves/<wave>.json --create-worktrees
-```
-
-`local` runs the same validation, host gates, route check, and claims check
-as `plan`, renders one prompt per local session from
-`prompt_template_local.md` into `build/swarm/<wave>/prompts/<name>.md`, and
-prints the launch table: name, item, prompt path, worktree, branch, and owner
-label per row. The coordinator then spawns one agent per row with that
-prompt.
-
-`--create-worktrees` pre-creates `.agents/worktree/<wave>-<name>` on
-`swarm/<wave>-<name>` from `origin/main`; without it agents create their own.
-When the branch already carries unpublished commits the rendered prompt marks
-the slot a continuation and instructs the agent to resume that work — the
-same path as recovery step 4 below. Local claims default to a 120-minute
-lease in the rendered command so interrupted slots self-release sooner than
-the registry's 480-minute default.
-
-The local template differs from the cloud one where the waves proved it
-matters: outcome ownership with advisory path overlap, `mbx` instead of Cargo,
-the worktree/`git stash` rules, validate-once PR submission, and a
-per-host block generated from `platform` (Intel macOS gets the
-`--target linux_x86_64` workaround).
-
-### Layers
-
-Sessions may carry `"layer": N` (default 0) for dependency ordering. Launch
-layer N only after layer N-1 has fully landed — each layer builds on
-`origin/main` containing the previous layer's published work, so dependency
-order follows required producer results. Layers never partition a single
-assigned outcome's prerequisite repairs among workers. Shared paths are allowed
-within and across layers; outcome identity, not a directory, determines ownership.
-`--layer N` on `plan`, `launch`, and `local` selects one layer, and
-composes with `local --sessions` for partial relaunches.
 
 ### Coordinator runbook
 
@@ -262,8 +105,8 @@ coordinator-side:
   coordinator procedure end to end — partition, launch, monitor, recover, drain
   — and defers here for the evidence behind each rule.
 - Cursor cloud subagents started from a Cursor chat follow
-  `.agents/skills/swarm/references/cursor.md`. `launch.py` remains the Devin
-  transport and does not create those sessions.
+  `.agents/skills/swarm/references/cursor.md`. Devin sessions follow
+  `.agents/skills/swarm/references/devin.md`.
 
 ### Recovering an interrupted wave
 
@@ -304,33 +147,17 @@ Pick items that are:
 
 - runnable on the assigned host — Linux x86-64 for cloud sessions; a local
   session takes this machine's host, including its gaps,
-- distinct outcomes: the launcher rejects duplicate outcome owners in a layer,
-  while shared files are allowed. Review semantic dependencies and reconcile
-  overlapping implementations at landing,
+- distinct outcomes: one session owns an outcome, while shared files are
+  allowed. Review semantic dependencies and reconcile overlapping
+  implementations at landing,
 - not in this wave's `exclusions` or already owned as an outcome
   (`python tools/claims.py status`); paths are advisory,
-- named in a board the launcher knows (`TASKS.md`, `TASKS_BOOTSTRAP.md`,
-  `TASKS_OPTIMIZER.md`), with the item present as `**<item>.**`.
+- named in `TASKS.md`, `TASKS_BOOTSTRAP.md`, or `TASKS_OPTIMIZER.md`, with
+  the item present as `**<item>.**`.
 - still unimplemented: board "next slice" text can lag landed code — check
   the item's named machinery against recent history before manifesting it
   (the Sept board-history screen confirmed stale or duplicate assignments
-  in 4 of 11 reviewed flags),
-- ready to attempt on the assigned host: `host_gates` are environment/access and
-  prerequisite checks that must pass before assignment. Keep the expected-red
-  customer reproduction in the board acceptance or `suggested_first_slice`, not
-  in `host_gates`. Acceptance must pass after implementation, not before selection,
-- an optimizer item's owning path must be the `X-to-X` stage crate at the
-  item's representation level, and that compiler-tree crate under
-  `omega-rust/` must exist and be on the `omega` route; the route check does
-  not reject test-harness crates outside `omega-rust/`. If the stage does not
-  exist the slot is `probe_only` or dropped (wave-3 miss:
-  `EXACT-MACHINE-SIMPLIFICATIONS`),
-- `probe_only` is for an explicitly chosen feasibility investigation, not merely
-  a cross-stage repair or a failing customer. Ordinary implementation slots must
-  attempt the design-backed repair; helper tests alone do not establish closure.
-- `budget_exhausted` requires active implementation of a slice the child still
-  believes is landable. Diagnose scope honestly, but crossing a crate or stage
-  boundary is not by itself a reason to stop at `verification_only`.
+  in 4 of 11 reviewed flags).
 
 When an item returns in a later wave's manifest, the previous session's board
 resume evidence should have let it skip re-witnessing the failure. At wave
@@ -338,30 +165,9 @@ review, check one returning item's session for that reuse and note the finding
 beside its outcomes entry; that is where the repeated-rediscovery cost of
 multi-session items would show up.
 
-## Lead-only launch checklist
+## Claims
 
-Before the first wave, a human with org access must:
-
-1. Create a service user with `UseDevinSessions` under Settings > Service
-   users, generate its `cog_` key, and note the org id.
-2. Confirm Devin's GitHub integration covers both `CathedralOS/Omega` and
-   `CathedralOS/Squalr-Omega` (the latter is needed for the blueprint's
-   best-effort `git submodule update --init`) and can push `main` and
-   `refs/coordination/*`.
-3. Choose the agent mode in the manifest's `devin_mode` (wave 1 uses `fusion`).
-4. Sync `.devin/blueprint.yaml` and wait for the snapshot build.
-
-## Stated limits
-
-- Cloud sessions expose no model choice. The only per-session knob is the
-  agent mode (`normal`, `fast`, `lite`, `ultra`, `fusion`), passed as
-  `devin_mode`; `null` means the org default mode. Which model backs each
-  mode is not documented and cannot be pinned from the launcher.
-- Snapshot warmth is relative to the snapshot's build commit. It buys
-  crates.io downloads, the registry index, build scripts, and unchanged leaf
-  crates; at this repository's commit velocity the first `cargo check` still
-  rebuilds most of the workspace. Blueprints rebuild roughly every 24 hours.
-- Claims record outcome DRIs. Path overlaps appear in reports, not rejection.
-  Existing manifests and tickets remain valid. Refresh old clients before new
-  assignments; landing still serializes publication and requires reconciling
-  incoming changes. An old manifest is not a current ownership claim.
+Claims record outcome DRIs. Path overlaps appear in reports, not rejection.
+Existing manifests and tickets remain valid. Refresh old clients before new
+assignments; landing still serializes publication and requires reconciling
+incoming changes. An old manifest is not a current ownership claim.

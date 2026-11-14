@@ -20,8 +20,7 @@ checkpoints and bounded tool/report turns preserve the same owner's work;
 they never complete an unfinished implementation or transfer its necessary
 compiler/library repairs to another agent. Completion requires the entire
 assigned acceptance and authorized landing verified on remote main.
-`launch.py`'s legacy Devin transport and manifests are unchanged; this controller
-is the portable dot/cloud tool adapter, not an alternate claims registry.
+This controller is the portable dot/cloud tool adapter, not an alternate claims registry.
 
 Python 3.9+ and Git work on Windows, macOS and Linux. Use `python` on Windows or
 `python3` on macOS/Linux. Run the examples from the repository root. Every JSON
