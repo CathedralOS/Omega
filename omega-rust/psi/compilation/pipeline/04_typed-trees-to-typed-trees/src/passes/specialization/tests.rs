@@ -229,6 +229,14 @@ fn source_named(relay_name: &'static str) -> Source {
 }
 
 fn source_with_nested(relay_name: &'static str, with_nested: bool) -> Source {
+    source_with_child_telescope(relay_name, with_nested, false)
+}
+
+fn source_with_child_telescope(
+    relay_name: &'static str,
+    with_nested: bool,
+    independent_child: bool,
+) -> Source {
     let mut builder = SymbolTableBuilder::new();
     let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
     let top = builder.insert_children(
@@ -264,12 +272,21 @@ fn source_with_nested(relay_name: &'static str, with_nested: bool) -> Source {
             ],
         );
         let (item, machine) = (children.handle_at(0), children.handle_at(1));
-        let nested_state = builder
-            .insert_children(
-                machine,
-                [(SymbolKind::State, SymbolNameRef::Static("entry"))],
-            )
-            .handle_at(0);
+        let child_roster = if independent_child {
+            vec![
+                (SymbolKind::State, SymbolNameRef::Static("entry")),
+                (SymbolKind::TypeParameter, SymbolNameRef::Static("T")),
+            ]
+        } else {
+            vec![(SymbolKind::State, SymbolNameRef::Static("entry"))]
+        };
+        let children = builder.insert_children(machine, child_roster);
+        let nested_state = children.handle_at(0);
+        let nested_parameter = if independent_child {
+            children.handle_at(1)
+        } else {
+            parameter
+        };
         let nested_item = builder
             .insert_children(
                 nested_state,
@@ -286,7 +303,7 @@ fn source_with_nested(relay_name: &'static str, with_nested: bool) -> Source {
             Some(Generic {
                 machine,
                 state: nested_state,
-                parameter,
+                parameter: nested_parameter,
                 item: nested_item,
             }),
         )
@@ -379,7 +396,13 @@ fn source_with_nested(relay_name: &'static str, with_nested: bool) -> Source {
     );
 
     if let Some(nested) = &nested {
-        let item_type = named(&mut program, relay.parameter, "T");
+        let type_parameters = program.data_type_parameters.insert_many([TypeParameter {
+            symbol: nested.parameter,
+            name: Identifier::generated("T"),
+            kind: TypeParameterKind::Type,
+            ..Default::default()
+        }]);
+        let item_type = named(&mut program, nested.parameter, "T");
         let parameters = program.state_parameters.insert_many([StateParameter {
             symbol: nested.item,
             name: Identifier::generated("item"),
@@ -392,7 +415,7 @@ fn source_with_nested(relay_name: &'static str, with_nested: bool) -> Source {
             nested.machine,
             forward.state,
             "forward",
-            argument(relay.parameter, "T"),
+            argument(nested.parameter, "T"),
             item,
         );
         let body = returns(&mut program, forwarded);
@@ -408,7 +431,7 @@ fn source_with_nested(relay_name: &'static str, with_nested: bool) -> Source {
             &mut program,
             nested.machine,
             "nested",
-            HandleSpan::empty(),
+            type_parameters,
             HandleSpan::empty(),
             state,
         );
@@ -948,18 +971,10 @@ fn an_unserved_child_telescope_leaves_the_whole_specialization_unwritten() {
         nested,
         main,
         ..
-    } = source_with_nested("relay", true);
+    } = source_with_child_telescope("relay", true, true);
     let nested = nested.unwrap();
-    let parameters = program
-        .machine_by_symbol(relay.machine)
-        .unwrap()
-        .type_parameters;
-    program
-        .machines_mut()
-        .iter_mut()
-        .find(|machine| machine.symbol == nested.machine)
-        .unwrap()
-        .type_parameters = parameters;
+    assert_ne!(nested.parameter, relay.parameter);
+    assert_eq!(program.symbols.get(nested.parameter).parent, nested.machine);
     let symbols = program.symbols.symbols().len();
     let machines = program.machines().len();
     prepare(&mut program).unwrap();

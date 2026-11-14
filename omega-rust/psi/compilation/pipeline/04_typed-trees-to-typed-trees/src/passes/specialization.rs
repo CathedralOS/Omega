@@ -846,15 +846,27 @@ fn bind(
 /// exist. Runtime values remain explicit parameters; this supplies only the
 /// enclosing declaration's already selected static context.
 fn template(program: &TypedTrees, symbol: SymbolHandle) -> Served<Vec<(Machine, State)>> {
+    let root = program.machine_by_symbol(symbol).ok_or(Stop::Unserved)?;
+    let parameters = program
+        .machine_callable_parameters(root)
+        .into_iter()
+        .map(|parameter| (parameter.symbol, parameter))
+        .collect::<symbols::SymbolMap<_>>();
     let mut pending = vec![symbol];
     let mut parts = Vec::new();
     let mut position = 0;
     while position < pending.len() {
         let declaration = pending[position];
         let (machine, state, types) = copied_parts(program, declaration)?;
-        // A child's independent telescope needs a separate application;
-        // this copy binds only the requested enclosing telescope.
-        if position != 0 && !program.machine_callable_parameters(&machine).is_empty() {
+        // Typing retains the enclosing binders on the child's callable
+        // signature too. Those exact rows use this application; a child's
+        // independent binder still needs an application of its own.
+        if position != 0
+            && program
+                .machine_callable_parameters(&machine)
+                .iter()
+                .any(|parameter| parameters.get(&parameter.symbol) != Some(parameter))
+        {
             return Err(Stop::Unserved);
         }
         if holds_expression(program, &types) {
