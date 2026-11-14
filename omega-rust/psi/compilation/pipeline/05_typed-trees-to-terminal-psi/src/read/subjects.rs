@@ -384,7 +384,14 @@ impl<'t> Program<'t> {
             }
             let (signature, _) = self.requirement_signature(entry, requirement, &[])?;
             let id = self.declaration_signatures.push(signature);
-            if self.declaration_symbols.push(requirement.symbol) != id {
+            if self.declaration_selections.push(None) != id {
+                return Err(refuse(
+                    entry,
+                    Construct::Machine,
+                    Unserved::Declaration("public requirement lost its selection coordinate"),
+                ));
+            }
+            if self.declaration_sources.push(requirement) != id {
                 return Err(refuse(
                     entry,
                     Construct::Machine,

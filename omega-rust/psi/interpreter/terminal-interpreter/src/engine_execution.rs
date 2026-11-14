@@ -716,6 +716,7 @@ pub(crate) mod capabilities {
                     .enumerate()
                     .map(|(index, kind)| Operation {
                         static_reach_binding: None,
+            required_contract: None,
                         suspension_crossing: None,
                         id: OperationId::new(index as u64 + 1).unwrap(),
                         result: OperationResult::Unit,
@@ -757,6 +758,7 @@ pub(crate) mod capabilities {
                 content_identity_reshuffles: Vec::new(),
                 content_partition_compositions: Vec::new(),
                 contract: terminal_psi::MachineContract {
+                    selected_application: None,
                     declaration: None,
                     parameters: Vec::new(),
                     parameter_order: Vec::new(),

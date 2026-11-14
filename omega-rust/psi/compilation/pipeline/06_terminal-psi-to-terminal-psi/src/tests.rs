@@ -1814,6 +1814,7 @@ fn affine_terminal_boundaries_transfer_custody_once() {
     exiting.module.machines[0].blocks[0].terminator = terminal_psi::Terminator::InvokeNoNormal {
         edge: id(1),
         static_reach_binding: None,
+            required_contract: None,
         callee: id(1),
         arguments: Vec::new(),
         erased_arguments: Vec::new(),

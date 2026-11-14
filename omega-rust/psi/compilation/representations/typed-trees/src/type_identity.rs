@@ -242,6 +242,70 @@ pub(crate) mod callable_identity {
             )
         }
 
+        /// Keep the declaration's own parameter categories with its signature.
+        /// The receiving artifact checks this definition against each emitted
+        /// method tuple; describing it establishes no conformance or proof.
+        pub fn requirement_schema_definition(
+            &self,
+            owner: &TraitDefinition,
+            requirement: &StateSignature,
+        ) -> Result<(Vec<u8>, Vec<u8>), &'static str> {
+            use crate::data::TypeParameterKind;
+            let parameters = self.state_signature_type_parameters(requirement);
+            if parameters.is_empty() != requirement.type_parameters.is_empty() {
+                return Err("requirement schema has an invalid parameter span");
+            }
+            let signature = self.trait_requirement_callable_identity_text(owner, requirement);
+            if signature.is_empty() {
+                return Err("requirement schema has no exact original signature");
+            }
+            let mut bytes = b"omega.requirement-schema.v3\0".to_vec();
+            let length = |bytes: &mut Vec<u8>, value: usize| -> Result<(), &'static str> {
+                bytes.extend(u64::try_from(value).map_err(|_| "requirement schema length overflows")?.to_le_bytes());
+                Ok(())
+            };
+            length(&mut bytes, signature.len())?;
+            bytes.extend(signature.as_bytes());
+            length(&mut bytes, requirement.lifetime_parameters.len())?;
+            length(&mut bytes, parameters.len())?;
+            let mut kinds = Vec::with_capacity(parameters.len());
+            for parameter in parameters {
+                let (kind, contract) = match &parameter.kind {
+                    TypeParameterKind::Type => (1, String::new()),
+                    TypeParameterKind::Const { type_reference }
+                    | TypeParameterKind::Value { type_reference } => {
+                        if !self.type_reference_table.contains_type_reference(*type_reference) {
+                            return Err("requirement schema has a stale parameter carrier");
+                        }
+                        let identity = self.type_identity_text(self.package_qualified_type_identity(*type_reference))
+                            .filter(|identity| !identity.is_empty())
+                            .ok_or("requirement schema parameter has no declared carrier identity")?;
+                        let kind = if matches!(parameter.kind, TypeParameterKind::Const { .. }) { 2 } else { 3 };
+                        (kind, identity)
+                    }
+                    TypeParameterKind::Machine { .. }
+                    | TypeParameterKind::Implementation
+                    | TypeParameterKind::Proposition { .. } => {
+                        return Err("requirement schema needs its complete higher-order parameter contract");
+                    }
+                };
+                kinds.push(kind);
+                bytes.push(kind);
+                bytes.push(match parameter.bounds.multiplicity {
+                    language_semantics::Multiplicity::Unrestricted => 1,
+                    language_semantics::Multiplicity::Affine => 2,
+                    language_semantics::Multiplicity::Linear => 3,
+                });
+                if let Some(carry) = parameter.bounds.carry {
+                    bytes.extend(carry.to_string().as_bytes());
+                }
+                bytes.push(0);
+                length(&mut bytes, contract.len())?;
+                bytes.extend(contract.as_bytes());
+            }
+            Ok((bytes, kinds))
+        }
+
         pub fn operator_callable_identity(
             &self,
             operator: &OperatorDefinition,

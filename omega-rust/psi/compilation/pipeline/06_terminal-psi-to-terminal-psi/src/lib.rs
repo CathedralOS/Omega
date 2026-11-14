@@ -930,8 +930,8 @@ fn fill_knowledge(
         };
         let callee = callee(module, id, invocation, row)?;
         let actuals = scalar_actuals(&row.actuals);
-        let erased = callable_erased_actuals(module, lowered, callee, id, invocation, row.site)?;
-        let ensures = module.callable_ensures(callee).ok_or_else(|| {
+        let erased = callable_erased_actuals(module, lowered, callee, row.required_contract, id, invocation, row.site)?;
+        let ensures = module.invocation_ensures(callee, row.required_contract).ok_or_else(|| {
             refusal(
                 RefusalReason::ForeignIdentity,
                 id,
@@ -1252,6 +1252,7 @@ fn callable_erased_actuals(
     module: &TerminalModule,
     caller: &TerminalMachine,
     callee: semantic_vocabulary::TargetMachineCallable,
+    required_contract: Option<semantic_vocabulary::ContractId>,
     machine: MachineId,
     invocation: terminal_check_tables::InvocationId,
     site: InvocationSite,
@@ -1259,7 +1260,9 @@ fn callable_erased_actuals(
     match callee {
         semantic_vocabulary::TargetMachineCallable::Machine(callee) => erased_actuals(
             caller,
-            &terminal_machine(&module.machines, callee, machine)?.contract,
+            module.invocation_machine_contract(callee, required_contract).ok_or_else(|| {
+                refusal(RefusalReason::ForeignIdentity, machine, Construct::Invocation(invocation), "call lost its public contract association")
+            })?,
             machine,
             invocation,
             site,
@@ -1588,8 +1591,8 @@ fn stated_goal(
             )?;
             let callee = callee(module, id, invocation, row)?;
             let erased =
-                callable_erased_actuals(module, lowered, callee, id, invocation, row.site)?;
-            let clauses = module.callable_requires(callee).ok_or_else(|| {
+                callable_erased_actuals(module, lowered, callee, row.required_contract, id, invocation, row.site)?;
+            let clauses = module.invocation_requires(callee, row.required_contract).ok_or_else(|| {
                 refusal(
                     RefusalReason::ForeignIdentity,
                     id,
@@ -1598,7 +1601,7 @@ fn stated_goal(
                 )
             })?;
             let formals = module
-                .callable_structural_parameters(callee)
+                .invocation_structural_parameters(callee, row.required_contract)
                 .ok_or_else(|| {
                     refusal(
                         RefusalReason::ForeignIdentity,

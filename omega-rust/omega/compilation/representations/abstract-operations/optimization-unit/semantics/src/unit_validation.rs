@@ -362,6 +362,7 @@ mod activation_storage {
         Ok(Some(Operation {
             id,
             static_reach_binding: None,
+            required_contract: None,
             suspension_crossing: None,
             result,
             kind,
@@ -491,6 +492,7 @@ mod activation_storage {
             } => Terminator::InvokeNoNormal {
                 edge: *psi_edge,
                 static_reach_binding: None,
+            required_contract: None,
                 callee: *callee,
                 arguments: arguments.clone(),
                 erased_arguments: Vec::new(),
@@ -7334,6 +7336,7 @@ pub(crate) mod function_structure {
                             let operation = terminal_psi::Operation {
                                 id: *psi_operation,
                                 static_reach_binding: None,
+            required_contract: None,
                                 suspension_crossing: None,
                                 result: terminal_psi::OperationResult::Structural(result.clone()),
                                 kind: terminal_psi::OperationKind::EstablishActivationClaim {

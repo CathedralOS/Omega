@@ -3656,6 +3656,7 @@ mod routed_scalar_tests {
         module.machines[0].blocks[0].operations.push(Operation {
             id: semantic_vocabulary::OperationId::new(1).unwrap(),
             static_reach_binding: None,
+            required_contract: None,
             suspension_crossing: None,
             result: OperationResult::Scalar(ValueDeclaration {
                 id: ValueId::new(3).unwrap(),
@@ -4505,6 +4506,7 @@ pub(crate) mod target_family_tests {
                 },
             }],
             contract: terminal_psi::MachineContract {
+                selected_application: None,
                 declaration: Some(terminal_psi::CheckedMachineDeclaration {
                     semantic_declaration: Default::default(),
                     parameter_types: Vec::new(),

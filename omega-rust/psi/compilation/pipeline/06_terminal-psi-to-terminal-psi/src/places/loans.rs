@@ -135,14 +135,14 @@ impl Storage<'_> {
         let Some((site, callee)) = call else {
             return Err(self.unsupported(concerns, "a loan to something not a call"));
         };
-        let formals = module
-            .callable_structural_parameters(callee)
-            .ok_or_else(|| self.foreign(concerns, "call has no canonical structural formals"))?;
         let (invocation, row) = tables
             .invocations
             .iter()
             .find(|(_, row)| row.site == site)
             .ok_or_else(|| self.foreign(concerns, "a call has no invocation row"))?;
+        let formals = module
+            .invocation_structural_parameters(callee, row.required_contract)
+            .ok_or_else(|| self.foreign(concerns, "call has no canonical structural formals"))?;
         // The structural lane's places, in argument order.
         let places: Vec<_> = row
             .actuals
@@ -286,7 +286,6 @@ impl Storage<'_> {
                 let concerns = Construct::Operation(operation.id);
                 let arguments = operation.kind.structural_arguments();
                 let call = operation
-                    .kind
                     .declared_invocation()
                     .map(|inputs| (InvocationSite::Operation(operation.id), inputs.callee));
                 self.lent(

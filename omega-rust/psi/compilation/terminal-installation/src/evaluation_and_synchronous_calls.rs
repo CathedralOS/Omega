@@ -583,6 +583,7 @@ pub(crate) mod compiler_evaluation {
                         },
                     )],
                     contract: terminal_psi::MachineContract {
+                        selected_application: None,
                         declaration: None,
                         parameters: vec![terminal_psi::ValueDeclaration {
                             id: ValueId::FIRST,

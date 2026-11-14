@@ -234,7 +234,7 @@ machine entry<'a>(holder: &mut Holder<'a>, replacement: &'a [u8]) -> u64 {{
         let call_index = entry
             .operations
             .iter()
-            .position(|operation| operation.kind.declared_invocation().is_some())
+            .position(|operation| operation.declared_invocation().is_some())
             .unwrap();
         let after = entry.operations.split_off(call_index + 1);
         let call = entry.operations.pop().unwrap();

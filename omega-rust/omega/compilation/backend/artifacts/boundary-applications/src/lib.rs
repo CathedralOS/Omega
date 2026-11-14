@@ -478,6 +478,7 @@ mod comparison_tests {
                     structural_parameters: Vec::new(),
                     operations: vec![Operation {
                         static_reach_binding: None,
+            required_contract: None,
                         suspension_crossing: None,
                         id: OperationId::new(1).unwrap(),
                         result: OperationResult::Scalar(value(3, ScalarType::Boolean)),
@@ -489,6 +490,7 @@ mod comparison_tests {
                     },
                 }],
                 contract: terminal_psi::MachineContract {
+                    selected_application: None,
                     declaration: None,
                     parameters: vec![value(1, operand_type), value(2, operand_type)],
                     parameter_order: vec![terminal_psi::BoundaryParameterKind::Scalar; 2],
@@ -595,6 +597,7 @@ mod comparison_tests {
         );
         module.machines[0].blocks[0].operations.push(Operation {
             static_reach_binding: None,
+            required_contract: None,
             suspension_crossing: None,
             id: OperationId::new(2).unwrap(),
             result: OperationResult::Scalar(value(4, ScalarType::Boolean)),

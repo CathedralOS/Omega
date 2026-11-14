@@ -70,12 +70,13 @@ impl Hasher for Commitment {
 /// requirement descriptions without giving a requirement an executable body.
 pub(crate) fn declare(
     typed: &TypedTrees,
-    machines: &IdTable<MachineId, SymbolHandle>,
-    signatures: &IdTable<MachineId, Signature>,
-    requirement_symbols: &IdTable<semantic_vocabulary::ContractId, SymbolHandle>,
-    requirement_signatures: &IdTable<semantic_vocabulary::ContractId, Signature>,
+    program: &crate::read::Program<'_>,
     elaboration: &mut Elaboration,
 ) -> Result<(), &'static str> {
+    let machines = &program.symbols;
+    let signatures = &program.signatures;
+    let requirement_sources = &program.declaration_sources;
+    let requirement_signatures = &program.declaration_signatures;
     let sources =
         source::source_identity::toolchain_source_identities(typed.symbols.source_files());
     // A service is committed to by its portable identity, never by its
@@ -152,16 +153,14 @@ pub(crate) fn declare(
             .as_ref()
             .map_err(|_| "a public requirement toolchain source has no exact identity")?;
         for contract in &mut elaboration.module.declaration_contracts {
-            let symbol = *requirement_symbols
-                .get(contract.id)
+            let original = *program.declaration_representatives.get(contract.id)
+                .ok_or("public contract lost its source representative")?;
+            let requirement = *requirement_sources
+                .get(original)
                 .ok_or("public contract lost its source declaration coordinate")?;
             let signature = requirement_signatures
-                .get(contract.id)
+                .get(original)
                 .ok_or("public contract lost its exact source signature")?;
-            let (_, requirement) = typed
-                .trait_machine_signature(symbol)
-                .filter(|(_, requirement)| requirement.symbol == symbol)
-                .ok_or("public contract no longer names its declaring requirement")?;
             let reach = identities_of(&contract.published_service_ceiling)?;
             let entries = identities_of(&contract.published_synchronous_entries)?;
             let (_, declaration, _) = trait_requirement(

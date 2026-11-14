@@ -268,9 +268,11 @@ impl Lowering<'_> {
             } => self.short_circuit(*conjunction, left, right),
             ExpressionKind::Call {
                 callee,
+                required_contract,
+                source_call,
                 arguments,
                 designated,
-            } => self.call(*callee, arguments, *designated, expression.result, source),
+            } => self.call(*callee, *required_contract, arguments, *designated, expression.result, (source, *source_call)),
         }
     }
 

@@ -283,7 +283,7 @@ fn elaborate_source_for(
     program.selected_declarations(first, compilation.selected)?;
     program.supplied_slots(first, compilation.supplies)?;
     program.subject_declarations(first, compilation.subjects, compilation.purpose)?;
-    let mut elaboration = finish_reading(program, entry, IdTable::default(), Some(typed))?;
+    let mut elaboration = finish_reading(program, entry, IdTable::default())?;
     proof_scope::declare(typed, &mut elaboration.program)?;
     Ok(elaboration)
 }
@@ -333,7 +333,7 @@ pub fn elaborate_alternatives(
             let mut program = read::Program::new(typed, false);
             program.alternative = Some(arguments);
             let entry = program.machine(template)?;
-            finish_reading(program, Some(entry), IdTable::default(), None)
+            finish_reading(program, Some(entry), IdTable::default())
                 .map(|prepared| prepared.program)
         })
         .collect()
@@ -446,6 +446,8 @@ fn elaborate_witness_call(
                 })
                 .collect(),
             designated: None,
+            required_contract: None,
+            source_call: None,
         },
         result: required.result,
         source,
@@ -462,24 +464,24 @@ fn elaborate_witness_call(
             None => Statement::Evaluate(call),
         }],
     });
-    finish_reading(program, Some(entry), bodies, None).map(|prepared| prepared.program)
+    finish_reading(program, Some(entry), bodies).map(|prepared| prepared.program)
 }
 
 fn elaborate_form(typed: &TypedTrees, entry: SymbolHandle, rigid: bool) -> Checked<Elaboration> {
     let mut program = read::Program::new(typed, rigid);
     let entry = program.machine(entry)?;
-    finish_reading(program, Some(entry), IdTable::default(), None).map(|prepared| prepared.program)
+    finish_reading(program, Some(entry), IdTable::default()).map(|prepared| prepared.program)
 }
 
 /// Reads every body not yet in `bodies`, callees as they are discovered,
-/// and lowers the closure. `declared` is the typed trees when the closure is a
-/// compilation's program, whose machines are then given their declaration
-/// identities (`declare`).
+/// and lowers the closure. Real source declarations receive their identities
+/// through the same declaration owner, including in proof inputs. A synthetic
+/// witness root has no source machine and remains unpublishable; no body is
+/// accepted merely by describing its header.
 fn finish_reading(
     mut program: read::Program<'_>,
     entry: Option<MachineId>,
     mut bodies: IdTable<MachineId, Body>,
-    declared: Option<&TypedTrees>,
 ) -> Checked<PreparedProgram> {
     // Refusals need a coordinate even for an empty declaration module. This
     // diagnostic anchor is never installed as an entry or an input boundary.
@@ -497,6 +499,7 @@ fn finish_reading(
         let body = program.body(next)?;
         bodies.push(body);
     }
+    program.finish_declarations(diagnostic)?;
     let private_inputs = program.private_input_contracts(entry, diagnostic)?;
     let local_results = program.local_result_bodies(entry)?;
     let PreparedProgram {
@@ -507,6 +510,8 @@ fn finish_reading(
         &bodies,
         body::Signatures {
             machines: &program.signatures,
+            declarations: &program.declaration_signatures,
+            declaration_aliases: Some(&program.declaration_aliases),
             boundaries: &program.boundary_signatures,
             completions: &program.boundary_completions,
         },
@@ -515,23 +520,10 @@ fn finish_reading(
         program.publication,
         Some(&program),
     )?;
-    if let Some(typed) = declared {
-        declare::declare(
-            typed,
-            &program.symbols,
-            &program.signatures,
-            &program.declaration_symbols,
-            &program.declaration_signatures,
-            &mut elaboration,
-        )
+    declare::declare(program.typed(), &program, &mut elaboration)
         .map_err(|reason| {
-            refuse(
-                diagnostic,
-                Construct::Machine,
-                Unserved::Declaration(reason),
-            )
+            refuse(diagnostic, Construct::Machine, Unserved::Declaration(reason))
         })?;
-    }
     source.records = program.source_record_correspondence(diagnostic)?;
     elaboration.machines = program.symbols;
     elaboration.boundaries = program.boundary_symbols;
@@ -592,6 +584,8 @@ pub fn lower_generic(
         Some(entry),
         bodies,
         body::Signatures {
+            declarations: &IdTable::default(),
+            declaration_aliases: None,
             machines: signatures,
             boundaries: &IdTable::default(),
             completions: &IdTable::default(),
@@ -672,13 +666,17 @@ fn lower_generic_for(
     let mut tables = CheckTables::default();
     let mut sources = IdTable::default();
     if let Some(source) = declarations {
-        for (id, signature) in source.declaration_signatures.iter() {
+        for (id, original) in source.declaration_representatives.iter() {
+            let signature = source.declaration_signatures.get(*original).ok_or_else(|| {
+                refuse(diagnostic, Construct::Machine, Unserved::Declaration("public contract lost its representative signature"))
+            })?;
             module
                 .declaration_contracts
                 .push(lower::declaration_contract(
                     diagnostic,
                     id,
                     signature,
+                    source.declaration_selections.get(*original).and_then(|selected| selected.as_ref().map(|(_, body, _)| *body)),
                     signatures,
                     &outcomes,
                     &declared.records,
@@ -723,6 +721,7 @@ fn lower_generic_for(
         tables.machines.push(lowered.tables);
         sources.push(lowered.sources);
         source.designated.push(lowered.designated);
+        source.calls.push(lowered.calls);
     }
     for machine in &mut module.machines {
         let plan = terminal_semantics::plain_affine::plan(machine, &module.structural_types)
@@ -872,6 +871,8 @@ mod publication_scope_tests {
                 Some(entry),
                 &bodies,
                 body::Signatures {
+                    declarations: &IdTable::default(),
+            declaration_aliases: None,
                     machines: &signatures,
                     boundaries: &IdTable::default(),
                     completions: &IdTable::default(),

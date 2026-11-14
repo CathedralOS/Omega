@@ -7,6 +7,11 @@ use semantic_vocabulary::{IdTable, MachineId, OperationId};
 pub struct SourceCorrespondence {
     pub records: Vec<typed_trees::SourceRecordCorrespondence>,
     pub designated: IdTable<MachineId, Vec<(OperationId, DesignatedOperands)>>,
+    /// The outer table is indexed by the emitted caller. Each row also keeps
+    /// the source member's specialization because a call component can place
+    /// several source members in that same emitted machine. An expression may
+    /// have several sites; none is selected by a source span or callee name.
+    pub calls: IdTable<MachineId, Vec<(MachineId, typed_trees::expression::ExpressionHandle, semantic_vocabulary::InvocationSite)>>,
 }
 
 pub(crate) struct PreparedProgram {

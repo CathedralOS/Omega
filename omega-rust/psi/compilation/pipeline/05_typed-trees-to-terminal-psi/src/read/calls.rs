@@ -409,6 +409,21 @@ impl<'t> Program<'t> {
         handle: ExpressionHandle,
         source: SourceOrigin,
     ) -> Checked<Expression> {
+        let mut read = self.read_call_expression(id, slots, call, handle, source)?;
+        if let ExpressionKind::Call { source_call, .. } = &mut read.kind {
+            *source_call = Some((id, handle));
+        }
+        Ok(read)
+    }
+
+    fn read_call_expression(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        call: &TableCallExpression,
+        handle: ExpressionHandle,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
         // Taken before anything nested is read, so no argument sees it.
         let expected = self.expected.take();
         self.bound_target(id, call.target_symbol)?;
@@ -600,6 +615,9 @@ impl<'t> Program<'t> {
         if !dispatch.requirement.is_valid() {
             return unserved("requirement dispatch with no requirement");
         }
+        if !self.typed.expression_table.static_machine_application_is_valid(dispatch.selection_application) {
+            return unserved("requirement dispatch with a stale selection application");
+        }
         // The member's value parameters, bound by this call's static
         // arguments (`Implementation::value<7>(x)`).
         let declared =
@@ -618,20 +636,33 @@ impl<'t> Program<'t> {
         if dispatch.contract_signature.is_valid() && value_arguments.is_empty() {
             return unserved("requirement dispatch through a separate contract signature");
         }
-        // Only a call through a parameter: a member named through the
-        // implementation itself, `Double::apply(x)`, records no parameter
-        // and stays refused.
-        if !dispatch.evidence_parameter.is_valid() {
-            return unserved("static requirement dispatch");
-        }
-        // The author named the parameter's requirement child, and nothing
-        // rebound it.
-        match call.authored_call_binding {
-            Some(binding)
-                if binding.selected == binding.original
-                    && self.typed.symbols.get(binding.selected).parent
-                        == dispatch.evidence_parameter => {}
-            _ => return unserved("requirement dispatch not bound to its parameter"),
+        let caller = self.symbols.get(id).copied().ok_or_else(|| {
+            refuse(id, Construct::Machine, Unserved::Call("selected call has no requesting declaration"))
+        })?;
+        let applications = self.typed.selected_conformance_applications(
+            caller,
+            dispatch.selection_application,
+            dispatch.evidence_parameter,
+            dispatch.requirement,
+            dispatch.application_report_fingerprint,
+            dispatch.application_commitment,
+        );
+        let [application] = applications.as_slice() else {
+            return unserved("selected call has no unique complete conformance application");
+        };
+        self.typed.selected_requirement_contract_scope(caller, dispatch).map_err(|reason| {
+            refuse(id, Construct::Machine, Unserved::Call(reason))
+        })?;
+        self.visible_to(id, dispatch.requirement)?;
+        self.visible_to(id, application.declaration)?;
+        // An evidence parameter keeps its exact authored child. A named map
+        // is authenticated by the same retained application and contract scope.
+        if dispatch.evidence_parameter.is_valid() {
+            match call.authored_call_binding {
+                Some(binding) if binding.selected == binding.original
+                    && self.typed.symbols.get(binding.selected).parent == dispatch.evidence_parameter => {}
+                _ => return unserved("requirement dispatch not bound to its parameter"),
+            }
         }
         let arguments = self
             .typed
@@ -653,7 +684,27 @@ impl<'t> Program<'t> {
         } else {
             return unserved("requirement dispatch that targets another machine");
         };
-        let read = self.call(id, slots, target, arguments, source, None)?;
+        let required_source = self.typed.resolve_requirement_call_signature(caller, call).map_err(|reason| {
+            refuse(id, Construct::Machine, Unserved::Call(reason))
+        })?;
+        let (required, _) = self.requirement_signature(id, required_source, &value_arguments)?;
+        let machine = self.call_target_symbol(id, target)?;
+        let callee = self.machine(machine)?;
+        let supplied = self.signatures.get(callee).cloned().ok_or_else(|| {
+            refuse(id, Construct::Machine, Unserved::Call("selected body has no signature"))
+        })?;
+        if !self.same_signature(id, &required, &supplied, machine)? {
+            return unserved("selected body has another runtime signature");
+        }
+        // The signature is the public one. Its application stays beside it,
+        // so omitted effects can later close against only this selected body.
+        let required_contract = self.declaration_signatures.push(required);
+        if self.declaration_sources.push(required_source) != required_contract
+            || self.declaration_selections.push(Some((id, callee, dispatch.clone()))) != required_contract
+        {
+            return unserved("selected contract lost its declaration coordinate");
+        }
+        let read = self.call_of(id, slots, (callee.into(), Some(required_contract)), arguments, source, None)?;
         if let ExpressionKind::Call {
             callee: semantic_vocabulary::TargetMachineCallable::Machine(callee),
             ..
@@ -688,6 +739,9 @@ impl<'t> Program<'t> {
         use typed_trees::static_applications::StaticMachineBindingValue;
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         let table = &self.typed.expression_table;
+        if application_handle.is_valid() && !table.static_machine_application_is_valid(application_handle) {
+            return unserved("requirement call with a stale method application");
+        }
         let (application, arguments, bindings) = if application_handle.is_valid() {
             (
                 Some(table.static_machine_application(application_handle)),
@@ -859,7 +913,7 @@ impl<'t> Program<'t> {
             .typed
             .expression_table
             .expression_handles(call.arguments);
-        self.call_of(id, slots, callee.into(), arguments, source, None)
+        self.call_of(id, slots, (callee.into(), None), arguments, source, None)
     }
 
     /// The entry of a generic check form calling through a rigid
@@ -944,7 +998,7 @@ impl<'t> Program<'t> {
         let value_arguments =
             self.static_value_arguments(id, &binders, application, authored_arguments)?;
         let callee = self.requirement(requirement, &value_arguments)?;
-        self.call_of(id, slots, callee.into(), arguments, source, None)
+        self.call_of(id, slots, (callee.into(), None), arguments, source, None)
             .map(Some)
     }
 
@@ -969,15 +1023,25 @@ impl<'t> Program<'t> {
             return self.call_of(
                 id,
                 slots,
-                semantic_vocabulary::TargetMachineCallable::Boundary(boundary),
+                (semantic_vocabulary::TargetMachineCallable::Boundary(boundary), None),
                 arguments,
                 source,
                 expected,
             );
         }
-        // A call names its callee's entry state; the machine is that state's
-        // symbol parent, and must have exactly that one state.
-        let machine = match self.typed.symbols.get(target).kind {
+        let machine = self.call_target_symbol(id, target)?;
+        self.visible_to(id, machine)?;
+        // The callee's formals are the arguments' expected types, so its
+        // signature is read first; reading order is not evaluation order.
+        let callee = self.machine(machine)?;
+        self.call_of(id, slots, (callee.into(), None), arguments, source, expected)
+    }
+
+    /// Resolve the same exact entry identity for direct and selected calls.
+    /// Selection decides which contract is exposed; it does not change which
+    /// source machine owns this entry state.
+    fn call_target_symbol(&self, id: MachineId, target: SymbolHandle) -> Checked<SymbolHandle> {
+        Ok(match self.typed.symbols.get(target).kind {
             SymbolKind::Machine => target,
             SymbolKind::State => {
                 let parent = self.typed.symbols.get(target).parent;
@@ -998,12 +1062,7 @@ impl<'t> Program<'t> {
                     Unserved::Call(symbol_kind(other)),
                 ));
             }
-        };
-        self.visible_to(id, machine)?;
-        // The callee's formals are the arguments' expected types, so its
-        // signature is read first; reading order is not evaluation order.
-        let callee = self.machine(machine)?;
-        self.call_of(id, slots, callee.into(), arguments, source, expected)
+        })
     }
 
     /// Refuses a call from machine `id` to a machine of another package that
@@ -1025,6 +1084,7 @@ impl<'t> Program<'t> {
                     .trait_machine_signature(callee)
                     .map(|(owner, _)| owner.is_public)
             })
+            .or_else(|| self.typed.conformance_by_symbol(callee).map(|declaration| declaration.is_public))
             .ok_or_else(|| {
                 refuse(
                     id,
@@ -1072,12 +1132,17 @@ impl<'t> Program<'t> {
         &mut self,
         id: MachineId,
         slots: &[Slot],
-        callee: semantic_vocabulary::TargetMachineCallable,
+        (callee, required_contract): (semantic_vocabulary::TargetMachineCallable, Option<semantic_vocabulary::ContractId>),
         arguments: &[ExpressionHandle],
         source: SourceOrigin,
         expected: Option<crate::body::ValueType>,
     ) -> Checked<Expression> {
-        let free: Vec<_> = match callee {
+        let free: Vec<_> = if let Some(required) = required_contract {
+            let requirement = self.declaration_sources.get(required).copied().ok_or_else(|| {
+                refuse(id, Construct::Machine, Unserved::Declaration("selected call lost its public requirement"))
+            })?;
+            self.machine_lifetimes(requirement.symbol)
+        } else { match callee {
             semantic_vocabulary::TargetMachineCallable::Machine(machine) => {
                 let symbol = self
                     .symbols
@@ -1094,14 +1159,17 @@ impl<'t> Program<'t> {
                     .unwrap_or_else(SymbolHandle::invalid);
                 self.machine_lifetimes(symbol)
             }
+        }
         };
         let mut bound = super::regions::Substitution::new();
         let signature = crate::body::Signatures {
             machines: &self.signatures,
+            declarations: &self.declaration_signatures,
+            declaration_aliases: None,
             boundaries: &self.boundary_signatures,
             completions: &self.boundary_completions,
         }
-        .get(callee, id)?;
+        .invocation(callee, required_contract, id)?;
         let formals: Vec<_> = signature
             .parameters
             .iter()
@@ -1255,6 +1323,8 @@ impl<'t> Program<'t> {
         Ok(Expression {
             kind: ExpressionKind::Call {
                 callee,
+                required_contract,
+                source_call: None,
                 arguments: read,
                 designated: None,
             },

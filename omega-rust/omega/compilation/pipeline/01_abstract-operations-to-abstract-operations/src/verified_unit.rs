@@ -861,6 +861,7 @@ mod qualified_cleanup_receiving_tests {
         assert!(path.is_empty(), "actual observer reads a direct field");
         let store = Operation {
             static_reach_binding: None,
+            required_contract: None,
             suspension_crossing: None,
             id: next_id,
             result: OperationResult::Unit,

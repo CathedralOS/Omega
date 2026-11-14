@@ -1259,15 +1259,18 @@ impl<'a> Lowering<'a> {
             }
             ExpressionKind::Call {
                 callee,
+                required_contract,
+                source_call,
                 arguments,
                 designated,
             } => {
                 match self.call(
                     *callee,
+                    *required_contract,
                     arguments,
                     *designated,
                     expression.result,
-                    expression.source,
+                    (expression.source, *source_call),
                 )? {
                     Value::Record(root) => Ok(Located {
                         root,
@@ -2637,6 +2640,8 @@ mod tests {
                             source,
                         }],
                         designated: None,
+            required_contract: None,
+            source_call: None,
                     },
                     result: Some(plain),
                     source,
@@ -2670,6 +2675,8 @@ mod tests {
             &types,
             &bodies,
             crate::body::Signatures {
+                declarations: &IdTable::default(),
+            declaration_aliases: None,
                 machines: &signatures,
                 boundaries: &IdTable::default(),
                 completions: &IdTable::default(),

@@ -1071,6 +1071,7 @@ mod tests {
             entry: BlockId::new(1).unwrap(),
             blocks: Vec::new(),
             contract: terminal_psi::MachineContract {
+                selected_application: None,
                 declaration: None,
                 parameters: Vec::new(),
                 parameter_order: Vec::new(),

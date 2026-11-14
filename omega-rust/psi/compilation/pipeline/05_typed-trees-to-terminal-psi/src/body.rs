@@ -413,6 +413,8 @@ pub struct Signature {
 #[derive(Clone, Copy)]
 pub(crate) struct Signatures<'a> {
     pub machines: &'a IdTable<MachineId, Signature>,
+    pub declarations: &'a IdTable<semantic_vocabulary::ContractId, Signature>,
+    pub declaration_aliases: Option<&'a IdTable<semantic_vocabulary::ContractId, semantic_vocabulary::ContractId>>,
     pub boundaries: &'a IdTable<BoundaryMachineId, Signature>,
     /// How an invocation of each boundary requirement ends when it does not
     /// crash. The canonical process-exit requirement "produces no normal
@@ -424,6 +426,37 @@ pub(crate) struct Signatures<'a> {
 }
 
 impl<'a> Signatures<'a> {
+    pub fn canonical_contract(
+        self,
+        required: Option<semantic_vocabulary::ContractId>,
+        caller: MachineId,
+    ) -> terminal_check_tables::Checked<Option<semantic_vocabulary::ContractId>> {
+        match (required, self.declaration_aliases) {
+            (None, _) => Ok(None),
+            (Some(required), None) => Ok(Some(required)),
+            (Some(required), Some(aliases)) => terminal_check_tables::row(
+                aliases, required, caller, terminal_check_tables::Construct::Machine,
+            ).copied().map(Some),
+        }
+    }
+
+    pub fn invocation(
+        self,
+        callable: TargetMachineCallable,
+        required: Option<semantic_vocabulary::ContractId>,
+        caller: MachineId,
+    ) -> terminal_check_tables::Checked<&'a Signature> {
+        match required {
+            None => self.get(callable, caller),
+            Some(required) => terminal_check_tables::row(
+                self.declarations,
+                required,
+                caller,
+                terminal_check_tables::Construct::Machine,
+            ),
+        }
+    }
+
     /// The declared completion of a boundary requirement.
     pub fn completion(
         self,
@@ -925,6 +958,8 @@ pub enum ExpressionKind {
     /// so the Build host can receive it.
     Call {
         callee: TargetMachineCallable,
+        required_contract: Option<semantic_vocabulary::ContractId>,
+        source_call: Option<(MachineId, typed_trees::expression::ExpressionHandle)>,
         arguments: Vec<Expression>,
         designated: Option<DesignatedOperands>,
     },

@@ -74,6 +74,9 @@ pub struct InvocationRow {
     /// Where the lowered form performs it.
     pub site: InvocationSite,
     pub callee: Callee,
+    /// The public declaration through which this exact call executes. A
+    /// physical body can serve several contracts; the call keeps its own.
+    pub required_contract: Option<semantic_vocabulary::ContractId>,
     /// Actuals in authored formal-position order. calls_and_outcomes.md:
     /// "Mixed scalar and structural operands share that order; they do not
     /// form two separately evaluated lists."

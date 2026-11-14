@@ -185,6 +185,10 @@ pub(crate) mod contracts {
     pub struct MachineContract {
         pub id: ContractId,
         pub declaration: Option<crate::CheckedMachineDeclaration>,
+        /// Closing an open effect promise depends on the exact selected
+        /// application. Retain that association with this public header,
+        /// rather than assigning the implementation's private contract to it.
+        pub selected_application: Option<crate::StaticRequirementDispatch>,
         pub parameters: Vec<crate::ValueDeclaration>,
         pub parameter_order: Vec<crate::BoundaryParameterKind>,
         pub structural_parameters: Vec<crate::StructuralParameterDeclaration>,
@@ -249,6 +253,7 @@ pub(crate) mod contracts {
             Self {
                 id,
                 declaration: None,
+                selected_application: None,
                 parameters: Vec::new(),
                 parameter_order: Vec::new(),
                 structural_parameters: Vec::new(),

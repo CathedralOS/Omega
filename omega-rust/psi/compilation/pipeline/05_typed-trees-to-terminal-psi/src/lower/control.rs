@@ -159,6 +159,7 @@ impl Lowering<'_> {
             ExpressionKind::Call {
                 callee: semantic_vocabulary::TargetMachineCallable::Machine(callee),
                 arguments,
+                required_contract: None,
                 ..
             } if self.heads.iter().any(|head| head.member == *callee) => Some((*callee, arguments)),
             _ => None,
@@ -283,8 +284,8 @@ impl Lowering<'_> {
                 Ok(())
             }
             Statement::Evaluate(expression) => match self.no_normal(expression)? {
-                Some((callee, arguments)) => {
-                    self.invoke_no_normal(callee, arguments, expression.source)
+                Some((callee, required_contract, source_call, arguments)) => {
+                    self.invoke_no_normal(callee, required_contract, source_call, arguments, expression.source)
                 }
                 None => self.expression(expression).map(drop),
             },
@@ -340,8 +341,8 @@ impl Lowering<'_> {
                     }
                     self.arrive(member, values, expression.source)
                 }
-                Some((callee, arguments)) => {
-                    self.invoke_no_normal(callee, arguments, expression.source)
+                Some((callee, required_contract, source_call, arguments)) => {
+                    self.invoke_no_normal(callee, required_contract, source_call, arguments, expression.source)
                 }
                 None => match self.expression(expression)? {
                     Value::Scalar(value) => self.return_value(value, expression.source),

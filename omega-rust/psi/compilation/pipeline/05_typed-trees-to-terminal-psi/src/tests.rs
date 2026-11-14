@@ -60,6 +60,8 @@ fn call(callee: u64, arguments: Vec<Expression>, result: Option<ScalarType>) -> 
             callee: semantic_vocabulary::TargetMachineCallable::Machine(id(callee)),
             arguments,
             designated: None,
+            required_contract: None,
+            source_call: None,
         },
         result,
     )
@@ -199,6 +201,8 @@ fn lower_records(
     bodies.push(body);
     let boundary_signatures = IdTable::default();
     let signatures = crate::body::Signatures {
+        declarations: &IdTable::default(),
+            declaration_aliases: None,
         machines: signatures,
         boundaries: &boundary_signatures,
         completions: &IdTable::default(),
@@ -1365,6 +1369,8 @@ fn outcomes_follow_the_ceiling_or_the_body() {
         let table = outcomes(
             &bodies,
             crate::body::Signatures {
+                declarations: &IdTable::default(),
+            declaration_aliases: None,
                 machines: &signatures,
                 boundaries: &IdTable::default(),
                 completions: &IdTable::default(),
@@ -1421,6 +1427,8 @@ fn a_body_that_declares_crashes_none_publishes_no_route() {
         outcomes(
             &bodies,
             crate::body::Signatures {
+                declarations: &IdTable::default(),
+            declaration_aliases: None,
                 machines: &signatures,
                 boundaries: &IdTable::default(),
                 completions: &IdTable::default(),
@@ -1489,6 +1497,8 @@ fn a_skipped_operand_cannot_end_the_machine() {
     let table = outcomes(
         &bodies,
         crate::body::Signatures {
+            declarations: &IdTable::default(),
+            declaration_aliases: None,
             machines: &signatures,
             boundaries: &IdTable::default(),
             completions: &IdTable::default(),
@@ -1827,6 +1837,8 @@ fn a_whole_copy_logs_one_row_on_its_fresh_root_and_names_its_source() {
                         callee: semantic_vocabulary::TargetMachineCallable::Machine(id(2)),
                         arguments: Vec::new(),
                         designated: None,
+            required_contract: None,
+            source_call: None,
                     },
                     point(),
                 ),

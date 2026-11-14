@@ -121,6 +121,7 @@ mod tests {
             entry: BlockId::new(1).expect("entry"),
             blocks: Vec::new(),
             contract: terminal_psi::MachineContract {
+                selected_application: None,
                 closed_reach_application: None,
                 published_synchronous_entries: Vec::new(),
                 declared_service_reach: None,

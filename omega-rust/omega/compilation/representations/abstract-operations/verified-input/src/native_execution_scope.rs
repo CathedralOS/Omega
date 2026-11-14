@@ -300,7 +300,7 @@ impl NativeExecutionScope {
                                 .map(|callback| callback.callback_thunk_artifact().entry()),
                         );
                     }
-                    if let Some(invocation) = operation.kind.module_invocation() {
+                    if let Some(invocation) = operation.module_invocation() {
                         pending.push(invocation.callee);
                     }
                     match &operation.kind {
@@ -761,6 +761,7 @@ mod scope_tests {
             content_identity_reshuffles: Vec::new(),
             content_partition_compositions: Vec::new(),
             contract: terminal_psi::MachineContract {
+                selected_application: None,
                 declaration: None,
                 parameters: Vec::new(),
                 parameter_order: Vec::new(),
