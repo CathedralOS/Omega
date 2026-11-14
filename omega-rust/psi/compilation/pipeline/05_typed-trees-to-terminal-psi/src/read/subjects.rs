@@ -60,26 +60,12 @@ impl Program<'_> {
         subjects: &[Option<PackageKeyIdentity>],
         purpose: DependencyScope,
     ) -> Checked<Owner> {
-        let symbols = &self.typed.symbols;
-        let file = symbol
-            .is_valid()
-            .then(|| symbols.symbol_provenance_source_span(symbol))
-            .flatten()
-            .and_then(|span| symbols.source_file(span))
-            .ok_or_else(|| {
-                refuse(
-                    entry,
-                    Construct::Machine,
-                    Unserved::Declaration("declaration without a source file"),
-                )
-            })?;
-        let dependency = file.origin.is_toolchain()
-            || file.dependency_scope != purpose
-            || !subjects.contains(&file.package_identity);
-        Ok(if dependency {
-            Owner::Dependency
-        } else {
+        let subject = typed_trees::source_subjects::contains(self.typed, symbol, subjects, purpose)
+            .map_err(|reason| refuse(entry, Construct::Machine, Unserved::Declaration(reason)))?;
+        Ok(if subject {
             Owner::Subject
+        } else {
+            Owner::Dependency
         })
     }
 
@@ -298,14 +284,15 @@ impl Program<'_> {
                 self.subject_implementation(entry, declared)?;
             }
         }
+        for constant in typed.const_declarations() {
+            if self.owner(entry, constant.symbol, subjects, purpose)? == Owner::Subject {
+                self.subject_constant(entry, constant)?;
+            }
+        }
         // One row per remaining declaration table of the typed trees' roots.
         // A subject declaration in any of them is outside what the route
         // judges.
         let unjudged = [
-            (
-                symbols_of(typed.const_declarations(), |row| row.symbol),
-                "const",
-            ),
             (
                 symbols_of(typed.type_aliases(), |row| row.symbol),
                 "type alias",

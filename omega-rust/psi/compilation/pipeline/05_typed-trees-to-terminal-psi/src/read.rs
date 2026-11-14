@@ -28,6 +28,7 @@ mod authority;
 mod bytes;
 mod calls;
 mod casts;
+mod constant_values;
 mod contracts;
 mod expressions;
 mod machine;

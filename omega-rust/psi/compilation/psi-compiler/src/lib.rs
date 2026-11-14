@@ -330,7 +330,8 @@ pub(crate) mod source_parsing {
 }
 
 pub use source_checking::{
-    FrozenSource, ProductRepresentationInput, SourceAdmission, SourcePreparationRequest,
+    FrozenSource, ProductRepresentationInput, SourceAdmission, SourcePreparationFailure,
+    SourcePreparationRequest,
 };
 pub use source_parsing::{
     ParsedText, SourceInput, SourceParseError, load_source_files, parse_text,

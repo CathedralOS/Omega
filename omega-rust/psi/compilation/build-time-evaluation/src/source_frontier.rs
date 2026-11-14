@@ -227,7 +227,10 @@ fn require_no_unevaluated_constant_use(typed: &TypedTrees) -> Result<(), Vec<Dia
     let unevaluated = typed
         .const_declarations()
         .iter()
-        .filter(|declaration| declaration.evaluated_value.is_none())
+        .filter(|declaration| {
+            declaration.evaluated_value.is_none()
+                && !typed.tables.machines.is_valid(declaration.evaluation_entry)
+        })
         .map(|declaration| declaration.symbol)
         .collect::<Vec<_>>();
     if unevaluated.is_empty() {
@@ -443,12 +446,21 @@ impl PreCheckEvaluation {
         self,
         typed: &mut TypedTrees,
     ) -> Result<crate::RecordedPreCheck, Vec<Diagnostic>> {
+        if self.recorded_authority.is_some() {
+            return Err(vec![Diagnostic::error(
+                "source normalization authority has not been rejoined",
+            )]);
+        }
+        // Inventory all remaining source work before retaining an invocation
+        // owner. Later refusal recording must not mutate its request metadata.
+        defer_source_jobs(typed)?;
+        // A source frontier has no compilation demand. Retain constant
+        // requests until SourcePreparationRequest receives the real roster.
+        let accounting = crate::SourceCompletionAccounting::default();
         self.evaluate(typed)?;
-        // The complete source-job inventory was empty. Reading declarations
-        // produced no execution receipt and discharged no source contract.
         Ok(crate::RecordedPreCheck {
             pending: None,
-            accounting: crate::SourceCompletionAccounting::default(),
+            accounting,
         })
     }
     pub fn evaluate_or_defer(
