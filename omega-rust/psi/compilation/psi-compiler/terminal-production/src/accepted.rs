@@ -18,6 +18,20 @@ pub struct AcceptedTerminalSource {
     advisories: Vec<Diagnostic>,
 }
 
+/// One constant the declarations of an accepted module name.
+///
+/// `declaration` is where the constant is declared, kept as source so a
+/// frontier typed later can find the same declaration; `None` when the
+/// constant has no authored source to rejoin. `value` is what the judged
+/// source recorded for it, `None` when no stage had evaluated it. `name` is
+/// for messages only.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConstantRead {
+    pub name: String,
+    pub declaration: Option<symbols::RetainedDeclaration>,
+    pub value: Option<language_core::constant_value::EvaluatedConstant>,
+}
+
 /// One boundary requirement a machine of an accepted module calls.
 ///
 /// `boundary` is the callable the module declares for it, `requirement` the
@@ -174,15 +188,15 @@ impl AcceptedTerminalSource {
         })
     }
 
-    /// The constants the declarations of this accepted module name, by
-    /// name, each once and in the order the declarations name them.
+    /// The constants the declarations of this accepted module name, each
+    /// declaration once and in the order the declarations name them.
     ///
     /// The declarations are the ones the elaboration lowered: its machines,
     /// its boundary requirements and the records it declares. They are read
     /// in the judged source, so the answer is about this artifact and does
     /// not rest on the reader having refused constants on the way here. A
     /// Build admission settles nothing for a module that names none.
-    pub fn constants_read(&self) -> Vec<String> {
+    pub fn constants_read(&self) -> Vec<ConstantRead> {
         let elaboration = &self.closure.elaboration;
         let key = |symbol: symbols::SymbolHandle| (symbol.arena_index(), symbol.generation());
         let mut lowered = elaboration
@@ -210,14 +224,23 @@ impl AcceptedTerminalSource {
                 .is_ok()
         });
         typed_trees::references::visit_program(&self.source, &mut uses);
-        let mut names = Vec::<String>::new();
+        let mut read = Vec::<symbols::SymbolHandle>::new();
         for found in uses.into_uses() {
-            let name = self.source.symbols.name(found.constant);
-            if !names.iter().any(|known| known == name) {
-                names.push(name.to_owned());
+            if !read.contains(&found.constant) {
+                read.push(found.constant);
             }
         }
-        names
+        read.into_iter()
+            .map(|constant| ConstantRead {
+                name: self.source.symbols.name(constant).to_owned(),
+                declaration: symbols::RetainedDeclaration::capture(&self.source.symbols, constant)
+                    .ok(),
+                value: self
+                    .source
+                    .const_declaration_by_symbol(constant)
+                    .and_then(|declaration| declaration.evaluated_value.clone()),
+            })
+            .collect()
     }
 
     /// The boundary requirements this accepted module's machines call, in

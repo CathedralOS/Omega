@@ -32,8 +32,9 @@ pub struct BuildConstants {
     /// The admission folded a constant under Build's own provider plans.
     pub folded_under_providers: bool,
     /// The constants the accepted Build module names
-    /// (`AcceptedTerminalSource::constants_read`).
-    pub read: Vec<String>,
+    /// (`AcceptedTerminalSource::constants_read`), each with its declaration
+    /// and the value the judged source recorded for it.
+    pub read: Vec<psi_compiler::ConstantRead>,
 }
 
 pub use build_time_evaluation::product_declarations::ServiceAuditRegistration;

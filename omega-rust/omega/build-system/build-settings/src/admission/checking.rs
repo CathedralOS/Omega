@@ -50,43 +50,80 @@ own targets.
 
 The admission states what it owes (`BuildConstants`): whether it folded a
 constant under Build's provider plans, and which constants the module it
-accepted names, read from that module. When it folded nothing and the module
-names no constant, no evaluation of the Build program exists to repeat and
-the settlement is complete. Otherwise the rejoined slice needs the evaluator
-that owns pending constant work (`build_time_evaluation::PreCheckEvaluation`),
-which serves no job yet, so the settlement is refused naming the constants.
-That evaluator replaces the refusal: it receives the rejoined frontier, the
-Build entry there and the package inputs the Build was admitted under.
+accepted names, each with its declaration and the value the judged source
+recorded for it.
+
+A constant the admission read at a recorded value owes no evaluation: no
+stage ran anything to produce it, so there is nothing to repeat. It is
+settled when the rejoined frontier holds that same declaration at that same
+recorded value, which is checked here on the frontier itself and never
+assumed from how either frontier was typed. Then the Product has no pending
+work for it and reads what Build read.
+
+Everything else needs the evaluator that owns pending constant work
+(`build_time_evaluation::PreCheckEvaluation`), which serves no job yet, and
+is refused naming the constant: a fold under provider plans, a constant the
+rejoined frontier no longer declares or has not evaluated, and one whose
+value there differs. That evaluator replaces the refusal: it receives the
+rejoined frontier, the Build entry there and the package inputs the Build
+was admitted under.
 */
 pub fn settle_rejoined_build_slice(
     constants: &compilation_products::BuildConstants,
-    _rejoined: psi_compiler::BuildSourceInput<'_>,
+    rejoined: psi_compiler::BuildSourceInput<'_>,
     _entry: symbols::SymbolHandle,
     _packages: Option<&PackageCompilationInputs>,
     _dependency_activation: bool,
     _execution_profile: Option<target::TargetProfile>,
 ) -> Result<(), Vec<Diagnostic>> {
-    if !constants.folded_under_providers && constants.read.is_empty() {
-        return Ok(());
-    }
+    let typed = &*rejoined.typed;
     let mut refusals = constants
         .read
         .iter()
-        .map(|name| {
+        .filter(|read| !holds_recorded_value(typed, read))
+        .map(|read| {
             Diagnostic::error(format!(
-                "no product route yet: the Build program reads constant `{name}`, and settling \
-                 it on a Product frontier typed after Build ran requires the constant evaluator"
+                "no product route yet: the Build program reads constant `{}`, and settling \
+                 it on a Product frontier typed after Build ran requires the constant evaluator",
+                read.name
             ))
         })
         .collect::<Vec<_>>();
-    if refusals.is_empty() {
+    if constants.folded_under_providers && refusals.is_empty() {
         refusals.push(Diagnostic::error(
             "no product route yet: Build admission folded a constant under its provider plans, \
              and settling it on a Product frontier typed after Build ran requires the constant \
              evaluator",
         ));
     }
-    Err(refusals)
+    if refusals.is_empty() {
+        Ok(())
+    } else {
+        Err(refusals)
+    }
+}
+
+/// Whether `typed` declares the constant Build read, at the value Build
+/// read. A constant no stage had evaluated when Build read it has no value
+/// to hold the frontier to.
+fn holds_recorded_value(
+    typed: &typed_trees::TypedTrees,
+    read: &psi_compiler::ConstantRead,
+) -> bool {
+    let (Some(declaration), Some(value)) = (&read.declaration, &read.value) else {
+        return false;
+    };
+    declaration
+        .rejoin(
+            &typed.symbols,
+            typed
+                .const_declarations()
+                .iter()
+                .map(|constant| constant.symbol),
+        )
+        .ok()
+        .and_then(|constant| typed.const_declaration_by_symbol(constant))
+        .is_some_and(|constant| constant.evaluated_value.as_ref() == Some(value))
 }
 
 pub(crate) fn prepare_admitted_build(
@@ -179,13 +216,25 @@ mod tests {
         assert_eq!(settle(&BuildConstants::default()), Ok(()));
     }
 
-    /// The twin: the accepted module names constants. Settling them needs
+    fn read(name: &str, value: Option<&str>) -> psi_compiler::ConstantRead {
+        psi_compiler::ConstantRead {
+            name: name.to_owned(),
+            declaration: None,
+            value: value.map(|value| value.to_owned().into()),
+        }
+    }
+
+    /// The twin: the accepted module names constants the later frontier
+    /// does not declare, one of them never evaluated. Settling them needs
     /// the evaluator, so each is refused by name.
     #[test]
-    fn a_build_that_reads_constants_is_refused_naming_each() {
+    fn a_build_that_reads_constants_the_frontier_lacks_is_refused_naming_each() {
         let refusals = settle(&BuildConstants {
             folded_under_providers: false,
-            read: vec!["LIMIT".into(), "linux_x86_64".into()],
+            read: vec![
+                read("LIMIT", None),
+                read("linux_x86_64", Some("integer8:1")),
+            ],
         })
         .unwrap_err();
         assert_eq!(refusals.len(), 2);
