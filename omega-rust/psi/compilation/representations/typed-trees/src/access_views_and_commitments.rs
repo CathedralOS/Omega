@@ -1121,9 +1121,11 @@ pub(crate) mod access_views {
 
     #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
     pub struct PlanLaidLayout {
+        /// The original storage application retains the semantic type and the
+        /// complete selected policy arguments. A report of that selection
+        /// cannot replace this source occurrence.
         pub application: TypeReferenceHandle,
         pub semantic_type: TypeReferenceHandle,
-        pub policy_application: crate::ClosedConformanceApplication,
         pub target_inputs: Vec<layout_plans::LayoutTargetFacts>,
         pub data_name: String,
         pub data_symbol: symbols::SymbolHandle,

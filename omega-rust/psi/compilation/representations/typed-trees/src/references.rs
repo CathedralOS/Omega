@@ -1553,6 +1553,45 @@ impl DeclarationSelection {
         Self::from_symbols(collect_program_declarations(program))
     }
 
+    /// A requested computation also needs the declarations its source uses.
+    /// Derived reports retain custody but do not request another evaluation.
+    pub fn from_computation_roots(
+        program: &TypedTrees,
+        roots: impl IntoIterator<Item = SymbolHandle>,
+    ) -> Result<Self, &'static str> {
+        let key = |symbol: SymbolHandle| (symbol.arena_index(), symbol.generation());
+        let mut rows = collect_computation_symbol_dependencies(program);
+        rows.sort_unstable_by_key(|(symbol, _)| key(*symbol));
+        let mut visited = vec![false; rows.len()];
+        let mut pending = roots.into_iter().collect::<Vec<_>>();
+        let mut declarations = Vec::new();
+        while let Some(symbol) = pending.pop() {
+            if !program.symbols.symbols().nodes().is_valid(symbol) {
+                return Err("computation demand contains a stale source declaration");
+            }
+            let symbol = program.refusal_declaration(symbol);
+            if !program.symbols.symbols().nodes().is_valid(symbol) {
+                return Err("computation demand lost its owning declaration");
+            }
+            if let Ok(index) = rows.binary_search_by_key(&key(symbol), |(symbol, _)| key(*symbol)) {
+                if std::mem::replace(&mut visited[index], true) {
+                    continue;
+                }
+                declarations.push(symbol);
+                pending.extend(
+                    rows[index]
+                        .1
+                        .iter()
+                        .copied()
+                        .filter(|symbol| symbol.is_valid()),
+                );
+            } else {
+                declarations.push(symbol);
+            }
+        }
+        Ok(Self::from_symbols(declarations))
+    }
+
     pub fn from_symbols(symbols: impl IntoIterator<Item = SymbolHandle>) -> Self {
         let mut symbols = symbols.into_iter().collect::<Vec<_>>();
         symbols.sort_unstable_by_key(|symbol| (symbol.arena_index(), symbol.generation()));
@@ -2793,7 +2832,6 @@ fn visit_data(
         {
             visit_type_reference(program, retained, plan.application);
             visit_type_reference(program, retained, plan.semantic_type);
-            visit_closed_conformance(program, retained, &plan.policy_application);
             visit_symbol(retained, plan.schema_symbol);
             visit_symbol(retained, plan.policy_symbol);
             visit_symbol(retained, plan.policy_plan_machine_symbol);

@@ -138,6 +138,9 @@ impl SourcePreparationRequest<'_> {
                 &mut program,
                 self.admission.layout_scopes,
                 self.admission.layout_selection_authority.clone(),
+                self.admission.invocation_sources.clone(),
+                self.compilation.purpose,
+                &mut accounting,
             )?;
             constant_entries::retain_evaluation_entries(&mut program)?;
             let constants =

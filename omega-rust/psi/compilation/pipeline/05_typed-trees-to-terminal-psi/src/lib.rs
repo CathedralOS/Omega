@@ -640,6 +640,7 @@ fn finish_reading<'source>(
         Some(&program),
     )?;
     calling_abis.publish(&mut elaboration.module)?;
+    program.publish_record_layouts(diagnostic, &mut elaboration.module)?;
     declare::declare(program.typed(), &program, &mut elaboration)
         .and_then(|()| {
             declare::provider_candidates(

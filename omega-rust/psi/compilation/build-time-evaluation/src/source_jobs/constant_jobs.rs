@@ -439,8 +439,6 @@ fn demanded_constants(
     program: &TypedTrees,
     request: psi_terminal_production::TerminalSourceCompilation<'_>,
 ) -> Result<Vec<SymbolHandle>, String> {
-    let mut rows = typed_trees::references::collect_computation_symbol_dependencies(program);
-    rows.sort_unstable_by_key(|(symbol, _)| key(*symbol));
     let mut pending = request
         .entries
         .iter()
@@ -455,14 +453,14 @@ fn demanded_constants(
         ]);
     }
     if !request.subjects.is_empty() {
-        for (symbol, _) in &rows {
+        for symbol in typed_trees::references::collect_program_declarations(program) {
             if typed_trees::source_subjects::contains(
                 program,
-                *symbol,
+                symbol,
                 request.subjects,
                 request.purpose,
             )? {
-                pending.push(*symbol);
+                pending.push(symbol);
             }
         }
     }
@@ -496,28 +494,16 @@ fn demanded_constants(
             }
         }
     }
-    let mut visited = vec![false; rows.len()];
-    let mut constants = Vec::new();
-    while let Some(symbol) = pending.pop() {
-        if !program.symbols.symbols().nodes().is_valid(symbol) {
-            return Err("constant demand contains a stale source declaration".into());
-        }
-        let symbol = program.refusal_declaration(symbol);
-        if program.const_declaration_by_symbol(symbol).is_some() {
-            insert(&mut constants, symbol);
-        }
-        if let Ok(index) = rows.binary_search_by_key(&key(symbol), |(symbol, _)| key(*symbol))
-            && !std::mem::replace(&mut visited[index], true)
-        {
-            pending.extend(
-                rows[index]
-                    .1
-                    .iter()
-                    .copied()
-                    .filter(|symbol| symbol.is_valid()),
-            );
-        }
-    }
+    let selection =
+        typed_trees::references::DeclarationSelection::from_computation_roots(program, pending)?;
+    let mut constants = program
+        .const_declarations()
+        .iter()
+        .filter(|constant| selection.contains(constant.symbol))
+        .map(|constant| constant.symbol)
+        .collect::<Vec<_>>();
+    constants.sort_unstable_by_key(|symbol| key(*symbol));
+    constants.dedup();
     Ok(constants)
 }
 
