@@ -4731,8 +4731,8 @@ pub(crate) use crate::mathematical_typing as typing;
 pub(crate) use bounded_denotation::test_utilities::{assert_refused, verify_and_assert_forged};
 pub(crate) use bounded_denotation::verify_bounded_certificate_with_machine_parameters;
 pub use bounded_denotation::{
-    BoundedDenotation, BoundedDenotationError, SourceContentTheory, SourceIntegerTheory,
-    SourceIntegerVocabulary, denote_bounded_certificate, verify_bounded_certificate,
+    BoundedDenotation, BoundedDenotationError, SourceContentTheory, denote_bounded_certificate,
+    verify_bounded_certificate,
 };
 #[cfg(test)]
 pub(crate) use bounded_observations::bounded_verification_entries;
