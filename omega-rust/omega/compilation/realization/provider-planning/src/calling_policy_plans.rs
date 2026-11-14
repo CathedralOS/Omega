@@ -145,7 +145,14 @@ pub(super) mod scalar_completion {
                 demand.applications(),
             ),
         };
-        let scopes = closure.scopes().map(str::to_owned).collect::<Vec<_>>();
+        let scopes = closure
+            .scopes()
+            .map(|scope| {
+                scope
+                    .map(str::to_owned)
+                    .ok_or("calling scalar scope has no deployment selection")
+            })
+            .collect::<Result<Vec<_>, _>>()?;
         for scope in scopes {
             let profile = target::TargetProfile::from_canonical_target_name(&scope)
                 .map_err(|error| error.message)?;
@@ -160,7 +167,7 @@ pub(super) mod scalar_completion {
                         profile
                             .native_realization()
                             .map(runtime_abi::target_carrier_layout),
-                    );
+                    )?;
             let mut observations = match &request {
                 CallingScalarScope::Invocation { declaration, .. } => {
                     observations.with_invocation_roots(&[*declaration])?

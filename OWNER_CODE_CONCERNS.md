@@ -282,13 +282,6 @@ framework or a list of features that remain unimplemented.
 - Cost: an overflow or zero divisor that native code would trap on shows up as "the verified artifact is malformed" with no reason, so a native and Psi disagreement reads as an interpreter failure and the cause must be found by hand
 - Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
 
-### A missing target profile is replaced by the build host at 16 places
-- Category: a verdict with nothing behind it
-- Where: `omega-rust/omega/build-system/build-settings/src/admission/checking.rs:149`, `:190`; `omega-rust/omega/compilation/compiler/src/checked/target_preparation.rs:104`, `execution_settlement.rs:286`, `:368`, `:412`, `product_execution/component.rs:132`, `terminal/terminal_artifact.rs:238`, `:365`, `:389`; `omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement.rs:246`, `:395`, `target_machines.rs:143`, `:167`, `target_machines/prepared_providers.rs:352`, `provider_planning/provenance_replay/plan_derivation.rs:192`
-- Saw: 16 `unwrap_or_else(TargetProfile::host)` calls across three crates; `checking.rs:171-175` reports "Build provider planning requires an admitted execution profile" for the same absence when candidates exist
-- Cost: a caller that forgets to pass the target gets host answers with no diagnostic, which only shows up as a wrong result when cross-compiling; nothing says which of the 16 are meant
-- Reported: 2026-11-12, Claude Code, while reading the compiler atlas against main
-
 ### Architecture rules are enforced by searching source text for substrings
 - Category: tests that pin the bug
 - Where: `omega-rust/omega/compilation/compiler/src/product_boundary.rs`, `omega-rust/omega/build-system/orchestration/src/build_boundary.rs`, `omega-rust/omega/compilation/native-compiler/src/pipeline_boundary.rs`, `omega-rust/omega/compilation/realization/provider-planning/src/source_guards.rs`, `omega-rust/omega/compilation/backend/plans/program-entry-plan/src/source_guards.rs`, `omega-rust/psi/foundation/access-plans/src/tests.rs`, `omega-rust/psi/interpreter/terminal-interpreter/src/embedding.rs`
@@ -400,3 +393,10 @@ framework or a list of features that remain unimplemented.
 - Saw: typing picks the protocol operation of a Build selection by comparing strings, and publication recovers which operation a boundary call is by comparing the requirement's name a second time. The typed call also carries no static application, so `bind_native<Locator>` reaches the checker as an open requirement although typing knows the locator argument it was written with
 - Cost: the host row's operation is decided twice from text, and the native binding cannot be closed at its locator type by the pass that closes every other application until typing records that application on the call
 - Reported: 2026-11-13, Claude Code, while closing boundary requirements at the types their calls apply
+
+### A reused xtask binary audits the checkout that built it
+- Category: a verdict about the wrong source
+- Where: `tools/xtask/src/main.rs:37` (`repo_root`), consumed by rules, formatting and boundary checks
+- Saw: `repo_root()` uses build-time `CARGO_MANIFEST_DIR`; invoking worker-21's binary from worker-20 reported worker-21's uncommitted geometry changes rather than inspecting worker-20
+- Cost: reused tooling can silently validate another checkout. Resolve an explicit workspace or invocation directory at the command boundary; retain executable-relative locations only for resources that actually belong to the executable
+- Reported: 2026-11-13, Codex, while validating explicit targetless scalar evaluation; final checks use a binary built in the affected worktree

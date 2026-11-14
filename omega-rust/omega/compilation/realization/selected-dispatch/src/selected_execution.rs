@@ -20,18 +20,23 @@ pub struct SelectedExecution {
 }
 
 impl SelectedExecution {
-    /// Forms the selected execution of `target_profile` (the host when the
-    /// request named no target) from its settled supply. A chosen supply
+    /// Forms the selected execution from its settled supply. An absent profile
+    /// retains unscoped checking, without selecting host providers. A chosen supply
     /// whose provider plan cannot be formed refuses here, by requirement.
     pub fn settle(
         target_profile: Option<target::TargetProfile>,
         supply: &provider_planning::target_supply::SettledTargetSupply,
     ) -> Result<Self, Vec<Diagnostic>> {
+        if target_profile.map(|profile| profile.target_name()) != supply.target() {
+            return Err(vec![Diagnostic::error(
+                "selected execution and settled provider supply name different deployments",
+            )]);
+        }
         let plans = effects::SelectedProviderPlanFacts::from_selected_plans(supply.plans()?)
             .map_err(|reason| {
                 vec![Diagnostic::error(format!(
                     "provider settlement for `{}`: {reason}",
-                    supply.target()
+                    supply.target().unwrap_or("<unscoped>")
                 ))]
             })?;
         Ok(Self {
@@ -71,11 +76,8 @@ impl SelectedExecution {
         &self,
         artifact: terminal_codec::TerminalArtifactView<'_>,
         optimization_selection: optimization_core::OptimizationSelectionIdentity,
-    ) -> backend_plan::TerminalTargetProviderProposal {
-        let target = self
-            .target_profile
-            .unwrap_or_else(target::TargetProfile::host)
-            .target_name();
+    ) -> Option<backend_plan::TerminalTargetProviderProposal> {
+        let target = self.target_profile?.target_name();
         let refusals = self
             .plans
             .plans()
@@ -97,13 +99,13 @@ impl SelectedExecution {
         } else {
             Err(refusals)
         };
-        backend_plan::TerminalTargetProviderProposal {
+        Some(backend_plan::TerminalTargetProviderProposal {
             target: target.to_owned(),
             terminal_psi: artifact.identity(),
             optimization_selection,
             application_roots: None,
             application_required: true,
             selection,
-        }
+        })
     }
 }

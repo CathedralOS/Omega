@@ -110,7 +110,11 @@ fn capture_scalar_applications(
         return Ok(None);
     };
     if completed.terminal() != identity
-        || completed.primary().targets().target() != target.target_name()
+        || completed
+            .primary()
+            .targets()
+            .map(|selected| selected.target())
+            != Some(target.target_name())
         || installation
             .is_some_and(|installed| !installed.is_subset_of(completed.primary().providers()))
     {
