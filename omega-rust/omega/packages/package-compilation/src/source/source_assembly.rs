@@ -1019,6 +1019,14 @@ fn append_default_build(
         catalogue,
     )?;
     let selection = BuildSourceSelection::compiler_default(admitted.source_id);
+    // A package with no Build-scope source of its own has parsed nothing
+    // yet, so the default Build is the first source of this cohort and its
+    // primary coordinate, as the first loaded source is in `load_imports`.
+    // Only the first package of a compilation gets coordinate zero by
+    // accident; a dependency without `build.omg` is admitted later.
+    if storage.source_roots.is_empty() {
+        storage.syntax_trees.source_id = admitted.source_id;
+    }
     let parsed = SourceInput([admitted].into_iter().collect())
         .append(&mut storage.syntax_trees, &mut ParsingTimings(timings))?;
     storage.attach_parsed(parsed);
