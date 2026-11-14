@@ -215,8 +215,32 @@ machine consume(items: &[Item]) { }
 "#;
     let prepared = PreparedBuildMachineProgram::prepare(&super::tests::typed(SHARED), None)
         .expect("real shared typed-view source");
+    let typed = prepared.typed();
+    let echo = typed
+        .realized_machine_named("echo")
+        .expect("actual source echo");
+    let [state] = typed.machine_states(echo) else {
+        panic!("exact entry state")
+    };
+    let [formal] = typed.state_parameters(state) else {
+        panic!("exact shared formal")
+    };
+    let typed_trees::types::TypeReferenceNode::Reference { referee, .. } = typed
+        .type_reference_table
+        .type_reference(formal.type_reference)
+    else {
+        panic!("actual shared view reference")
+    };
+    let typed_trees::types::TypeReferenceNode::Slice { element_type } =
+        typed.type_reference_table.type_reference(*referee)
+    else {
+        panic!("actual sequence element declaration")
+    };
+    let element_identity = typed
+        .type_identity_text(typed.normalized_type_identity(*element_type))
+        .expect("canonical Item identity from the actual formal");
     let item = |number, bytes: &[u8]| BuildTimeValue::Struct {
-        type_name: "Item".into(),
+        type_name: element_identity.clone(),
         fields: vec![
             ("number".into(), BuildTimeValue::Int(number)),
             ("bytes".into(), BuildTimeValue::Text(bytes.to_vec())),
