@@ -2225,9 +2225,18 @@ impl<'a> Storage<'a> {
             if std::mem::replace(&mut listed[position], true) {
                 return Err(self.foreign(concerns, "a dispatch lists a case twice"));
             }
-            if !edge.structural_arguments.is_empty() || !edge.cleanup_actions.is_empty() {
+            if !edge.structural_arguments.is_empty() {
                 return Err(self.unsupported(concerns, "storage passed on a dispatch edge"));
             }
+            // An arm that never names the subject again leaves it to its
+            // case's edge, which discards it after the payload is bound
+            // (control_flow.md: "Selected payload fields become scalar
+            // parameters on that case's edge before cleanup."). A discard
+            // runs no code and reads nothing, so the place model judges
+            // nothing in it, as on any other edge. That the edge's actions
+            // are the ones ownership requires, and that none runs a cleanup
+            // machine, is the affine judgment's
+            // (`terminal_semantics::plain_affine::verify`).
             let parameters = &self.block(edge.target)?.parameters;
             if parameters.len() != edge.payload_fields.len() {
                 return Err(self.foreign(
