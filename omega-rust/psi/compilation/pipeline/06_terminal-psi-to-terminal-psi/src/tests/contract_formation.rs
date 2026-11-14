@@ -139,7 +139,7 @@ fn source_result(text: &str) -> RouteVerdict {
     super::build_purpose::judge_build(text).unwrap()
 }
 
-fn accepted_source(text: &str) -> crate::AcceptedClosure {
+fn accepted_source(text: &str) -> Box<crate::AcceptedClosure> {
     let verdict = source_result(text);
     let RouteVerdict::Accepted(accepted) = verdict else {
         panic!("{verdict:?}");
