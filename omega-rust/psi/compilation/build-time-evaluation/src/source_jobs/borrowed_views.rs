@@ -41,9 +41,7 @@ fn run(source: &str) -> Result<BuildTimeValue, String> {
     let prepared = PreparedBuildMachineProgram::prepare(&source, None)
         .map_err(|errors| diagnostics::join_messages(&errors))?;
     let mut accounting = SourceCompletionAccounting::default();
-    let entry = prepared.entry(requester, requester, &[])?;
-    describe_reference_flow(&entry);
-    let result = entry.invoke_recorded(
+    let result = prepared.entry(requester, requester, &[])?.invoke_recorded(
         InvocationTarget {
             // The existing pure source-control profile is explicit. This
             // supplies neither native layout nor host access to the borrow.
@@ -58,129 +56,6 @@ fn run(source: &str) -> Result<BuildTimeValue, String> {
     Ok(result.value().clone())
 }
 
-fn describe_reference_flow(entry: &crate::PreparedBuildMachineEntry) {
-    use terminal_semantics::descriptor_lifetimes::{
-        DescriptorLocation, descriptor_location_lifetime,
-    };
-    use terminal_semantics::descriptor_results::{
-        DescriptorAnalysis, DescriptorStoredOrigin, terminal_reference_graph_from,
-    };
-
-    let accepted = entry.accepted();
-    let module = accepted.module();
-    let Some(root) = accepted.machine_of(entry.symbol()) else {
-        eprintln!("Reference-flow observation has no actual source machine");
-        return;
-    };
-    let graph = match terminal_reference_graph_from(module, [root]) {
-        Ok(graph) => graph,
-        Err(error) => {
-            eprintln!("Reference-flow graph is unavailable: {error:?}");
-            return;
-        }
-    };
-    let mut analysis = DescriptorAnalysis::with_reference_slots(&module.structural_types, &graph);
-    eprintln!(
-        "Actual reference flow for {}: source machine {root:?}",
-        entry.source().symbols.name(entry.symbol()),
-    );
-    for graph_machine in &graph {
-        let body = module.machine(graph_machine.id).unwrap();
-        eprintln!(
-            "Machine {:?}: formals {:?}; declared result {:?}",
-            body.id, body.structural_parameters, body.result,
-        );
-        if let Some(tables) = accepted.closure().elaboration.tables.machines.get(body.id) {
-            eprintln!("  Exact places {:?}", tables.places);
-            eprintln!("  Obligations {:?}", tables.obligations);
-            eprintln!("  Writes {:?}", tables.writes);
-        }
-        match analysis.result_slots(body.id) {
-            Some(slots) => {
-                for slot in slots {
-                    for origin in slot.origins {
-                        let description = match origin {
-                            DescriptorStoredOrigin::Parameter {
-                                position,
-                                projection,
-                            } => {
-                                format!("parameter {position}: {projection:?}")
-                            }
-                            DescriptorStoredOrigin::IncomingSlot { position, path } => {
-                                format!("incoming slot {position}: {path:?}")
-                            }
-                            DescriptorStoredOrigin::IncomingContents {
-                                position,
-                                steps,
-                                projection,
-                            } => {
-                                format!("incoming contents {position}: {steps:?}; {projection:?}")
-                            }
-                            DescriptorStoredOrigin::Invocation {
-                                carrier_type,
-                                projection,
-                            } => {
-                                format!("invocation {carrier_type:?}: {projection:?}")
-                            }
-                            DescriptorStoredOrigin::AccessFormation {
-                                machine,
-                                operation,
-                                place,
-                                carrier,
-                                projection,
-                            } => {
-                                format!(
-                                    "access formation {machine:?}/{operation:?}/{place:?}/{carrier:?}: {projection:?}"
-                                )
-                            }
-                            DescriptorStoredOrigin::Empty => "empty".into(),
-                            DescriptorStoredOrigin::Literal { machine, place } => {
-                                format!("literal {machine:?}/{place:?}")
-                            }
-                            DescriptorStoredOrigin::Provider(_) => "provider".into(),
-                        };
-                        eprintln!("  Result slot {:?}: {description}", slot.path);
-                    }
-                }
-            }
-            None => eprintln!("  Result slots unavailable"),
-        }
-        let flow = analysis.flow(body.id);
-        for block in &body.blocks {
-            for (ordinal, operation) in block.operations.iter().enumerate() {
-                let at = (block.id, u32::try_from(ordinal).unwrap());
-                eprintln!(
-                    "  {at:?}: {:?}; result {:?}",
-                    operation.kind, operation.result
-                );
-                if let Some(step) = flow.as_ref().and_then(|flow| flow.get(&at)) {
-                    eprintln!(
-                        "    inputs {:?}; definitions {:?}; derivations {:?}; authorization {:?}",
-                        step.inputs, step.definitions, step.derivations, step.authority_derivations,
-                    );
-                }
-                if matches!(
-                    operation.kind,
-                    terminal_psi::OperationKind::EstablishReference { .. }
-                ) && let Some(result) = operation.result.as_structural()
-                    && let Some(flow) = &flow
-                {
-                    let lifetime = descriptor_location_lifetime(
-                        flow,
-                        at,
-                        &DescriptorLocation::whole(result.place),
-                    );
-                    eprintln!(
-                        "    Formed loan live {:?}; authorized {:?}",
-                        lifetime.live, lifetime.authorized
-                    );
-                }
-            }
-            eprintln!("  Block {:?} exits with {:?}", block.id, block.terminator);
-        }
-    }
-}
-
 #[test]
 fn a_closed_core_borrow_returns_the_original_storage_and_excludes_its_parent() {
     assert_eq!(
@@ -193,6 +68,14 @@ fn a_closed_core_borrow_returns_the_original_storage_and_excludes_its_parent() {
     assert!(
         refusal.contains("storage is changed while a conflicting reference remains live"),
         "{refusal}"
+    );
+    // Once the returned reference's last use is complete, the same home is
+    // writable again. Its next read must observe the replacement there.
+    let restored = SOURCE.replace("    observed\n}", "    backing = 7;\n    backing\n}");
+    assert_ne!(restored, SOURCE);
+    assert_eq!(
+        run(&restored).expect("the original home remains writable after its loan ends"),
+        BuildTimeValue::Int(7),
     );
 }
 

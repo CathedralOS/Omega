@@ -247,6 +247,18 @@ impl Lowering<'_> {
         }
         match statement {
             Statement::Bind { slot, value } => {
+                // A loan may have given this scalar binding a storage home.
+                // Reassignment must write that same home: replacing only its
+                // SSA binding would hide the write from outstanding loans.
+                if matches!(*self.slot_mut(*slot)?, Some(Bound::Home(_))) {
+                    let destination = Expression {
+                        call_context: None,
+                        kind: ExpressionKind::Slot(*slot),
+                        result: Some(self.slot_type(*slot)?),
+                        source: value.source,
+                    };
+                    return self.store(&destination, value, value.source);
+                }
                 let bound = match value.result {
                     Some(ValueType::Record(_, _, _)) => {
                         Bound::Record(continuing!(self.bind_record(value)))
