@@ -99,7 +99,7 @@ fn toolchain_site<'a>(
 pub use builtin::{
     BUILTIN_TYPE_COUNT, BuiltinFunction, BuiltinType, BuiltinTypeAtom, BuiltinTypeMember,
     FixedCoreDeclaration, builtin_function_symbols, builtin_type_member_symbols,
-    builtin_type_symbols, fixed_core_declaration_symbols,
+    builtin_type_symbols, fixed_core_declaration_symbols, is_builtin_type_spelling,
 };
 pub use fast_map::{BuildSymbolHasher, SymbolHasher, SymbolKeyMap, SymbolMap};
 pub use retained_declaration::{RetainedDeclaration, SourceSpanCandidates};

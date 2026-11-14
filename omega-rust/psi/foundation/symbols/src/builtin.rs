@@ -810,6 +810,25 @@ impl BuiltinFunction {
     }
 }
 
+/*
+    Whether `name` is spelled like a compiler-defined type
+    (`wiki/spec/language/modules.md#builtin-type-names`): a roster member's
+    installed name, or the open-ended integer family `i`, `u`, and either
+    letter followed by decimal digits, whether or not the digits form a valid
+    width (`u0` is a family spelling and an invalid type). A declaration that
+    introduces a type or namespace name may not use such a spelling; a value
+    may, because it never competes with a type.
+*/
+pub fn is_builtin_type_spelling(name: &str) -> bool {
+    let integer_family = name
+        .strip_prefix(['i', 'u'])
+        .is_some_and(|digits| digits.bytes().all(|byte| byte.is_ascii_digit()));
+    integer_family
+        || BuiltinTypeAtom::SPELLINGS
+            .iter()
+            .any(|(_, _, symbol_name)| *symbol_name == name)
+}
+
 pub fn builtin_type_symbols() -> [(SymbolKind, SymbolNameRef<'static>); BUILTIN_TYPE_COUNT] {
     BuiltinTypeAtom::SPELLINGS
         .map(|(_, _, symbol_name)| (SymbolKind::BuiltinType, SymbolNameRef::Static(symbol_name)))
@@ -1228,5 +1247,16 @@ mod builtin_ordinal_tests {
             None
         );
         assert_eq!(FixedCoreDeclaration::from_name("core::Vec"), None);
+    }
+
+    /* The integer family is open-ended; a value-like spelling is not a type name. */
+    #[test]
+    fn builtin_type_spellings_cover_the_roster_and_the_integer_family() {
+        for name in ["bool", "addr", "f32", "u32", "i", "u", "u0", "i7", "u257", "Never"] {
+            assert!(super::is_builtin_type_spelling(name), "{name}");
+        }
+        for name in ["count", "ui", "u8x", "i_1", "uint", "U32", ""] {
+            assert!(!super::is_builtin_type_spelling(name), "{name}");
+        }
     }
 }

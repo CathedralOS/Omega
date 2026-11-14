@@ -1372,3 +1372,102 @@ fn an_owned_sum_is_dispatched_and_disposed_of_once() {
         ["rejected"]
     );
 }
+
+/// A builtin type name such as `u32` or `i1` exists only in the type role
+/// (`wiki/spec/language/modules.md`, "Builtin type names"): a value may share
+/// its spelling, a declaration introducing a type or namespace may not, and
+/// every use is read by its role. Every staged program is typed beside the
+/// bundled libraries, so each accepted one also types `core::reflect`, whose
+/// `read` binds the locals `i1` through `i7`.
+#[test]
+fn a_builtin_type_name_is_read_by_its_role() {
+    for (name, source) in [
+        (
+            "builtin_spelled_values",
+            "machine scaled(i: u32, u8: u16) -> u32 requires i <= 1000 {\n\
+                 let i1: u32 = 1;\n\
+                 let wide: u32 = u8 as u32;\n\
+                 i + wide + i1\n\
+             }\n\
+             machine main() { }\n",
+        ),
+        (
+            "builtin_spelled_machine",
+            "machine i(value: u32) -> u32 { value }\n\
+             machine main() { let r: u32 = i(3); }\n",
+        ),
+        (
+            "invalid_family_spelling_as_value",
+            "machine main() { let u0: u32 = 4; }\n",
+        ),
+    ] {
+        assert_eq!(verdicts(name, source), ["accepted"], "{name}");
+    }
+    for (name, source, reason) in [
+        (
+            "invalid_family_spelling_as_type",
+            "machine main() { let bad: u0 = 0; }\n",
+            "u0",
+        ),
+        (
+            "data_redefines_invalid_width",
+            "data u0 { }\nmachine main() { }\n",
+            "data declaration `u0` is spelled like the builtin type",
+        ),
+        (
+            "data_redefines_width",
+            "data u7 { value: u32; }\nmachine main() { }\n",
+            "data declaration `u7` is spelled like the builtin type",
+        ),
+        (
+            "trait_redefines_builtin",
+            "trait u32 { }\nmachine main() { }\n",
+            "trait `u32` is spelled like the builtin type",
+        ),
+        (
+            "alias_redefines_builtin",
+            "data u32 = u64;\nmachine main() { }\n",
+            "type alias `u32` is spelled like the builtin type",
+        ),
+        (
+            "type_binder_redefines_builtin",
+            "machine pick<u32>(value: u32) -> u32 { value }\nmachine main() { }\n",
+            "generic type binder `u32` is spelled like the builtin type",
+        ),
+        (
+            "module_redefines_builtin",
+            "module u32;\nmachine main() { }\n",
+            "module `u32` is spelled like the builtin type",
+        ),
+        // The runtime parameter hides the constant in both value positions.
+        (
+            "width_names_shadowing_parameter",
+            "const count: u64 = 13;\n\
+             machine f(count: u64, value: u<count>) -> u64 { count }\n\
+             machine main() { }\n",
+            "is a runtime value",
+        ),
+        (
+            "extent_names_shadowing_parameter",
+            "const count: u64 = 13;\n\
+             machine f(count: u64, items: [u8; count]) -> u64 { count }\n\
+             machine main() { }\n",
+            "count",
+        ),
+    ] {
+        let stopped = {
+            let _compilation = COMPILATIONS
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner);
+            unbuilt_frontier::staged(name, source)
+        };
+        let messages = match stopped {
+            Ok(_) => panic!("{name}: must stop before the checker"),
+            Err(messages) => messages,
+        };
+        assert!(
+            messages.iter().any(|message| message.contains(reason)),
+            "{name}: {messages:?}"
+        );
+    }
+}

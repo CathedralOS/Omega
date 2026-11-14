@@ -6,27 +6,23 @@
     names, not a generic application that happens to compare equal to it.
 
     This pass makes that true before any symbol exists: an application whose
-    width is a closed positive integer is replaced by the decimal shorthand,
-    so every later stage sees one spelling of one carrier and none of them
-    learns about the indexed form. The width is read from an integer literal
-    or from the constant its name selects in the scope of the source that
-    wrote it, once that constant's initializer has folded to a literal; a
-    width that must be computed is left as written and refused by the first
-    stage that needs its value.
+    width is an integer literal is replaced by the decimal shorthand, so every
+    later stage sees one spelling of one carrier and none of them learns about
+    the indexed form.
 
     Malformed applications are refused here, each for its own reason: a zero
     width, a width beyond `u64`, and an omitted or repeated width (bare `u`
     and `i` are the unbounded integers; nothing is inferred).
 
-    A width that is any other name is left as written. This pass does not
-    know which declaration a type sits in, so it cannot tell a const
-    parameter from a runtime value of the same spelling; the head resolves
-    to the family's builtin symbol and the name to whatever it means in its
-    own scope, and typing accepts a `const` parameter (the specialization
-    then substitutes it) and refuses everything else as a runtime width.
+    A width written as a name is left as written. It is a const argument, so
+    it reads a value, and which value depends on the lexical scope the type
+    sits in: a runtime parameter `count` hides a constant `count`. This pass
+    sees only spellings, so resolution reads the name in that scope
+    (`wiki/spec/language/modules.md#builtin-type-names`), and typing accepts a
+    `const` parameter (the specialization then substitutes it) and refuses a
+    runtime width.
 */
 
-use super::declaration_selection::ConstantSelection;
 use diagnostics::Diagnostic;
 use numerics::integer_carrier::{FixedInteger, IntegerSign};
 use syntax_trees::SyntaxTrees;
@@ -47,18 +43,15 @@ enum Width {
     Closed(i128),
     /* Beyond `u64`, so not a width at all. */
     TooWide,
-    /* A name that is not a closed constant here; typing decides what it names. */
+    /* A name, which resolution reads in the scope the type sits in. */
     Named,
     /* Not a value at all, such as another type. */
     Runtime,
-    /* An expression or a declared constant this pass does not evaluate. */
+    /* An expression this pass does not evaluate. */
     Unevaluated,
 }
 
-pub(crate) fn normalize(
-    syntax: &mut SyntaxTrees,
-    selection: &ConstantSelection<'_>,
-) -> Result<(), Vec<Diagnostic>> {
+pub(crate) fn normalize(syntax: &mut SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
     let applications = syntax
         .type_references
         .iter_type_references()
@@ -78,6 +71,7 @@ pub(crate) fn normalize(
     if applications.is_empty() {
         return Ok(());
     }
+    /* A name is a const argument that resolution reads in its lexical scope. */
     let width_of = |name: &Identifier| -> Result<Width, Diagnostic> {
         let text = name.as_str(syntax);
         if !text.is_empty()
@@ -90,21 +84,6 @@ pub(crate) fn normalize(
                 Err(_) => Width::TooWide,
             });
         }
-        /* The constant this name selects in the scope of the source that wrote it. */
-        if let Some(constant) = selection.select(syntax, name)? {
-            return Ok(match syntax.expressions.expression(constant.value) {
-                ExpressionNode::Integer(literal) => literal
-                    .value_u64()
-                    .map(i128::from)
-                    .or_else(|| literal.value_i64().map(i128::from))
-                    .map_or(Width::TooWide, Width::Closed),
-                _ => Width::Unevaluated,
-            });
-        }
-        /*
-            Any other name is resolved where its scope is known: typing
-            accepts a `const` parameter of the declaration and refuses the rest.
-        */
         Ok(Width::Named)
     };
 
@@ -207,10 +186,7 @@ mod tests {
             .add("widths/main.omg".into(), text.to_owned())
             .source_id;
         let mut syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(id, &tokens).unwrap();
-        let selection =
-            ConstantSelection::new(&syntax, Some(std::sync::Arc::new(sources)), Vec::new())
-                .unwrap();
-        normalize(&mut syntax, &selection).map_err(|diagnostics| {
+        normalize(&mut syntax).map_err(|diagnostics| {
             diagnostics
                 .iter()
                 .map(|diagnostic| diagnostic.message.to_string())
@@ -231,19 +207,33 @@ mod tests {
     }
 
     #[test]
-    fn a_closed_width_application_is_the_decimal_shorthand() {
+    fn a_literal_width_application_is_the_decimal_shorthand() {
         let (named, applied) = spellings(
-            "const WIDTH: u64 = 13;
-             machine next(word: u<32>, small: i<13>, odd: u<WIDTH>, bit: i<1>) -> u<257> { 0 }",
+            "machine next(word: u<32>, small: i<13>, bit: i<1>) -> u<257> { 0 }",
         )
         .unwrap();
-        for carrier in ["u32", "i13", "u13", "i1", "u257"] {
+        for carrier in ["u32", "i13", "i1", "u257"] {
             assert!(
                 named.iter().any(|name| name == carrier),
                 "{carrier}: {named:?}"
             );
         }
         assert!(applied.is_empty(), "{applied:?}");
+    }
+
+    /*
+        A runtime parameter `count` hides the constant `count`, which only
+        resolution can see; a spelling read here would fix the width to 13.
+    */
+    #[test]
+    fn a_named_width_is_left_for_resolution_in_its_scope() {
+        let (named, applied) = spellings(
+            "const count: u64 = 13;
+             machine next(count: u64, value: u<count>) -> u64 { count }",
+        )
+        .unwrap();
+        assert!(!named.iter().any(|name| name == "u13"), "{named:?}");
+        assert_eq!(applied, ["u"]);
     }
 
     #[test]
