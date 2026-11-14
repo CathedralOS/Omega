@@ -6288,8 +6288,7 @@ mod generic_bodies {
 
         // The actual Wide refinement remains a separate refused judgment:
         // its <=25 body promise does not establish the public <=20 result.
-        let (actual, _) = run(vec![witness(), wide()]);
-        let actual_verdict = judge(Ok(actual)).unwrap();
+        let actual_verdict = judge(lower(vec![witness(), wide()])).unwrap();
         let RouteVerdict::Rejected {
             formations,
             violations,
