@@ -87,12 +87,6 @@ impl Program<'_> {
                 if !slots[slot].assignable {
                     return Err(unserved("assignment to an immutable binding"));
                 }
-                // A whole record stored through a reference replaces the
-                // caller's storage in place, a store no slice lowers yet; a
-                // record local's assignment rebinds its slot instead.
-                if slots[slot].borrowed.is_some() && !slots[slot].homed {
-                    return Err(unserved("whole assignment through a reference"));
-                }
                 let value_type = slots[slot].value_type;
                 // The value's type first: a value that is not the place's
                 // type is wrong whoever may write the place.
@@ -101,7 +95,10 @@ impl Program<'_> {
                     return Err(assigned(self, &value, value_type));
                 }
                 self.authorized(id, value_type, Access::Replace)?;
-                Ok(if slots[slot].homed {
+                // A borrowed formal already names the caller's storage.
+                // Replace there through the same captured-place store as a
+                // field; only an owned value binding may acquire a new root.
+                Ok(if slots[slot].homed || slots[slot].borrowed.is_some() {
                     Statement::Store {
                         destination: crate::Expression {
                             call_context: None,

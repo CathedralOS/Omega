@@ -308,3 +308,108 @@ fn a_formal_lent_exclusively_holds_what_the_callee_left() {
         1
     );
 }
+
+// A direct borrowed formal holds the caller's root rather than a local value
+// binding. Replacing it must change that root; completion alone would miss a
+// mistaken local rebind, so the caller traps unless it observes seven.
+const BORROWED_REPLACEMENT: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../../../../tests/fixtures/run/ownership/borrowed_root_replacement/main.omg"
+));
+
+fn borrowed_replacement_source() -> String {
+    BORROWED_REPLACEMENT.replace("machine main()", "machine build_entry()")
+}
+
+fn execute_borrowed_replacement(source: &str) {
+    let verdict = super::build_purpose::judge_build(source).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("mutable borrowed storage must receive the replacement: {verdict:?}");
+    };
+    let publication = accepted.publish_invocation().unwrap();
+    let program = terminal_interpreter::TerminalProgram::borrow(publication.artifact.view());
+    let mut instance = program.instantiate(Default::default()).unwrap();
+    let status = instance
+        .invoke(&mut psi_work::WorkMeter::with_budget(10_000))
+        .unwrap();
+    assert!(
+        matches!(
+            status,
+            terminal_interpreter::TerminalExecutionStatus::Complete(
+                terminal_interpreter::TerminalExecutionResult::Unit
+            )
+        ),
+        "the caller must observe its replacement's value seven: {status:?}"
+    );
+}
+
+#[test]
+fn a_whole_borrowed_record_replacement_changes_the_callers_root() {
+    execute_borrowed_replacement(&borrowed_replacement_source());
+}
+
+#[test]
+fn a_whole_borrowed_record_replacement_requires_mutable_access() {
+    let source = borrowed_replacement_source()
+        .replace("owner: &mut Item", "owner: &Item")
+        .replace("replace(&mut item)", "replace(&item)");
+    let verdict = super::build_purpose::judge_build(&source);
+    let Ok(RouteVerdict::FallBack(refusal)) = verdict else {
+        panic!("shared access cannot replace the caller's root: {verdict:?}");
+    };
+    assert_eq!(
+        refusal.detail,
+        "statement assignment to an immutable binding"
+    );
+}
+
+#[test]
+fn unserved_linear_data_cannot_gain_a_whole_borrowed_replacement() {
+    let source = r#"
+data Item [linear] { value: u32; }
+machine build_entry(owner: &mut Item, replacement: Item) {
+    owner = replacement;
+}
+"#;
+    let verdict = super::build_purpose::judge_build(source).unwrap();
+    // This source form is refused before structural replacement: do not
+    // mistake that floor for proof that a linear resident was disposed.
+    let RouteVerdict::FallBack(refusal) = verdict else {
+        panic!("unserved linear custody must remain unavailable: {verdict:?}");
+    };
+    assert_eq!(refusal.detail, "type data with custody");
+}
+
+#[test]
+fn a_whole_borrowed_record_replacement_conflicts_with_a_live_child_loan() {
+    let source = borrowed_replacement_source()
+        .replace(
+            "machine consume(item: Item) { }",
+            "machine consume(item: Item) { }\nmachine observe(value: &u32) { }",
+        )
+        .replace(
+            "owner = replacement;",
+            "let held: &u32 = &owner.value; observe(held); owner = replacement;",
+        );
+    // End the child before replacing the root, then keep the same child
+    // alive across that exact store. Both use the same incoming root.
+    // This isolates loan judgment/publication; reference formation during
+    // execution is independent of the replacement's runtime oracle above.
+    let verdict = super::build_purpose::judge_build(&source).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("ending the child permits whole-root replacement: {verdict:?}");
+    };
+    accepted.publish_invocation().unwrap();
+    let conflict = source.replace(
+        "observe(held); owner = replacement;",
+        "owner = replacement; observe(held);",
+    );
+    let verdict = super::build_purpose::judge_build(&conflict).unwrap();
+    let RouteVerdict::Rejected { conflicts, .. } = verdict else {
+        panic!("a live child loan must exclude the whole replacement: {verdict:?}");
+    };
+    assert!(
+        !conflicts.is_empty(),
+        "the rejection must retain the conflicting loan"
+    );
+}

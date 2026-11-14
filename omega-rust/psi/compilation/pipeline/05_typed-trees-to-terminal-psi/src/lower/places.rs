@@ -2640,7 +2640,10 @@ impl<'a> Lowering<'a> {
         // Capturing visits the destination before the right-hand side and
         // retains each selector's exact SSA value in the existing Step roster.
         let (root, steps, place, expected) = continuing!(self.capture_place(destination, None));
-        if steps.is_empty() && matches!(expected, ValueType::Record(_, _, _)) {
+        if steps.is_empty()
+            && matches!(expected, ValueType::Record(_, _, _))
+            && !self.borrowed_roots.contains(&root)
+        {
             return Err(self.internal("a whole record assignment must rebind its local"));
         }
         let mut owed = 0;
