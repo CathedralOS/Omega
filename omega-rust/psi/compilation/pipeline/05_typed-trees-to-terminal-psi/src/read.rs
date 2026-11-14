@@ -1161,7 +1161,7 @@ mod tests {
                     left: old,
                     operator: BinaryOperator::Equal,
                     right: named,
-                    policy: Default::default(),
+                    policy: numerics::arithmetic::ArithmeticDomain::Exact,
                 }));
         let completion = typed_trees::signature::SignatureContract {
             kind: typed_trees::signature::SignatureContractKind::Ensures,
