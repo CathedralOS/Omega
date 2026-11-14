@@ -661,6 +661,10 @@ fn elaborate_witness_call(
     let source = SourceOrigin::Unpositioned(Unpositioned::ConformanceWitness);
     let call = Expression {
         kind: ExpressionKind::Call {
+            operational_acknowledgement: language_core::CallOperationalAcknowledgement {
+                origin: language_core::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+                ..Default::default()
+            },
             callee: callee.into(),
             arguments: required
                 .parameters
@@ -717,7 +721,7 @@ fn finish_logical_witness(
             program.requirements.push(id);
         }
     }
-    let source_selection_questions = capture_source_questions(&program, entry)?;
+    let source_selection_questions = capture_source_questions(&mut program, entry)?;
     let services = program.service_map(entry)?;
     let mut witness = lower_program(
         entry,
@@ -747,16 +751,20 @@ fn finish_logical_witness(
 }
 
 fn capture_source_questions(
-    program: &read::Program<'_>,
+    program: &mut read::Program<'_>,
     entry: MachineId,
 ) -> Checked<selection_questions::RawSelectionQuestions> {
-    selection_questions::capture(program.typed, &program.admitted_declarations).map_err(|error| {
-        Refusal {
-            machine: entry,
-            concerns: Construct::Machine,
-            reason: RefusalReason::Unsupported,
-            detail: error.to_string(),
-        }
+    program.completed_operators.finish();
+    selection_questions::capture(
+        program.typed,
+        &program.admitted_declarations,
+        &program.completed_operators,
+    )
+    .map_err(|error| Refusal {
+        machine: entry,
+        concerns: Construct::Machine,
+        reason: RefusalReason::Unsupported,
+        detail: error.to_string(),
     })
 }
 
@@ -805,7 +813,7 @@ fn finish_reading(
     let local_results = program.local_result_bodies(entry)?;
     program.finish_operational_envelopes(&bodies)?;
     program.prepare_external_providers(entry)?;
-    let source_selection_questions = capture_source_questions(&program, entry)?;
+    let source_selection_questions = capture_source_questions(&mut program, entry)?;
     let services = program.service_map(entry)?;
     let mut elaboration = lower_program(
         entry,

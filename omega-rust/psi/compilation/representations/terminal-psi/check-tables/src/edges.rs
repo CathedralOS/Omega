@@ -76,6 +76,8 @@ pub enum Fate {
 /// explicit parameters."
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InvocationRow {
+    /// The source acknowledgement is audited against the actual completed envelope.
+    pub operational_acknowledgement: language_core::CallOperationalAcknowledgement,
     /// Where the lowered form performs it.
     pub site: InvocationSite,
     pub callee: Callee,

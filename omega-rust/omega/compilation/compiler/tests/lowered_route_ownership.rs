@@ -169,6 +169,7 @@ fn whole_owned_transfers_consume_their_homes_once() {
     let invoke = |callee, arguments, result| {
         expression(
             ExpressionKind::Call {
+                operational_acknowledgement: Default::default(),
                 callee: id::<semantic_vocabulary::MachineId>(callee).into(),
                 arguments,
                 designated: None,
@@ -415,6 +416,7 @@ mod transferred_on_one_path {
     fn invoke(callee: u64, arguments: Vec<Expression>, result: ValueType) -> Expression {
         expression(
             ExpressionKind::Call {
+                operational_acknowledgement: Default::default(),
                 callee: id::<semantic_vocabulary::MachineId>(callee).into(),
                 arguments,
                 designated: None,

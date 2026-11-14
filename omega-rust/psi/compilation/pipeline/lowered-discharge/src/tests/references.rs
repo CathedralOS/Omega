@@ -133,6 +133,7 @@ pub(super) fn lend(access: ReferenceAccess, place: Expression, home: bool) -> Ex
 pub(super) fn invoke(callee: u64, arguments: Vec<Expression>) -> Statement {
     Statement::Evaluate(Expression {
         kind: ExpressionKind::Call {
+            operational_acknowledgement: Default::default(),
             callee: id::<MachineId>(callee).into(),
             arguments,
             designated: None,
@@ -585,6 +586,7 @@ fn a_home_a_loan_gives_a_local_in_an_arm_is_not_the_continuations() {
                     guard: Some(named(0, ScalarType::Boolean.into())),
                     target: Target::Value(Expression {
                         kind: ExpressionKind::Call {
+                            operational_acknowledgement: Default::default(),
                             callee: id::<MachineId>(2).into(),
                             arguments: vec![lend(
                                 ReferenceAccess::Mutable,

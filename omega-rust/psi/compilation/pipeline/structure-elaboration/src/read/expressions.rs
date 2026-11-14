@@ -169,6 +169,19 @@ impl<'t> Program<'t> {
         handle: ExpressionHandle,
         expected: Option<ValueType>,
     ) -> Checked<Expression> {
+        let value = self.read_expression(id, slots, handle, expected)?;
+        let owner = self.symbols.get(id).copied().unwrap_or_default();
+        self.complete_builtin_operator(id, owner, handle)?;
+        Ok(value)
+    }
+
+    fn read_expression(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        handle: ExpressionHandle,
+        expected: Option<ValueType>,
+    ) -> Checked<Expression> {
         let typed = self.typed;
         let node = self.node(id, handle)?;
         let span = typed.expression_table.source_span(handle);
@@ -912,11 +925,13 @@ pub(super) fn same_computation(left: &Expression, right: &Expression) -> bool {
                     callee: a,
                     arguments: a_arguments,
                     designated: a_designated,
+                    ..
                 },
                 ExpressionKind::Call {
                     callee: b,
                     arguments: b_arguments,
                     designated: b_designated,
+                    ..
                 },
             ) => {
                 // A boundary may observe supplied state or issue a fresh

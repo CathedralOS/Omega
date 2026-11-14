@@ -698,6 +698,19 @@ pub(crate) fn judge(elaboration: &structure_elaboration::Elaboration) -> Checked
             };
             let call = crate::call_contracts::invocation(module, caller, rows, invocation, row)?;
             let envelope = envelope_for(elaboration, caller.id, call.inputs)?;
+            if let Envelope::Runtime(envelope) = envelope {
+                row.operational_acknowledgement
+                    .require_envelope(envelope.suspends, envelope.blocks)
+                    .map_err(|reason| refusal(RefusalReason::Unsupported, caller.id, at, reason))?;
+                if envelope.suspends {
+                    return Err(refusal(
+                        RefusalReason::Unsupported,
+                        caller.id,
+                        at,
+                        "suspending call needs continuation and carry evidence",
+                    ));
+                }
+            }
             let context = Calls {
                 module,
                 values: values.as_ref(),

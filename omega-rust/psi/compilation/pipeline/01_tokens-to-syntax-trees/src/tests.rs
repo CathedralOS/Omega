@@ -5263,6 +5263,75 @@ pub(crate) mod items_and_selections {
     }
 
     #[test]
+    fn terminal_acknowledgements_preserve_named_and_parenthesized_call_forms() {
+        for (target, named, suspend_marker, block_marker) in [
+            ("block next(input; proof)", true, false, true),
+            ("suspend block next(input; proof)", true, true, true),
+            ("(block next(input; proof))", false, false, true),
+            // `block(...)` is an ordinary call of the contextual name.
+            ("block (next)(input; proof)", false, false, false),
+            ("block pick().next(input; proof)", false, false, true),
+        ] {
+            let source =
+                format!("machine run(input: u32) -> u32 {{ transition {{ _ -> {target} }} }}");
+            let parsed = super::parse_source_unwrap(&source);
+            let machine = super::root_machine_unwrap(&parsed);
+            let state = parsed
+                .items
+                .state(parsed.items.state_handles(machine.states)[0]);
+            let StatementNode::Transition(transition) = parsed
+                .statements
+                .statement(parsed.items.statements(state.statements)[0])
+            else {
+                panic!("terminal transition");
+            };
+            match parsed.statements.transition_target(transition.target) {
+                syntax_trees::statement::TransitionTargetNode::Named {
+                    operational_acknowledgement,
+                    evidence_arguments,
+                    ..
+                } if named => {
+                    assert_eq!(
+                        operational_acknowledgement.acknowledges_block, block_marker,
+                        "{target}"
+                    );
+                    assert_eq!(
+                        operational_acknowledgement.acknowledges_suspend, suspend_marker,
+                        "{target}"
+                    );
+                    assert_eq!(evidence_arguments[0].as_str(&parsed), "proof");
+                }
+                syntax_trees::statement::TransitionTargetNode::Value(expression) if !named => {
+                    let ExpressionNode::Call(call) = parsed.expressions.expression(*expression)
+                    else {
+                        panic!("parenthesized call: {target}")
+                    };
+                    assert_eq!(
+                        call.operational_acknowledgement.acknowledges_block, block_marker,
+                        "{target}"
+                    );
+                    assert_eq!(
+                        call.operational_acknowledgement.acknowledges_suspend, suspend_marker,
+                        "{target}",
+                    );
+                    if !block_marker {
+                        let ExpressionNode::Call(callee) =
+                            parsed.expressions.expression(call.callee)
+                        else {
+                            panic!("computed result of the ordinary block call: {target}")
+                        };
+                        assert_eq!(callee.target.as_str(&parsed), "block");
+                        assert!(!callee.operational_acknowledgement.acknowledges_block);
+                        assert!(!callee.operational_acknowledgement.acknowledges_suspend);
+                    }
+                    assert_eq!(call.evidence_arguments[0].as_str(&parsed), "proof");
+                }
+                _ => panic!("acknowledgement changed target form: {target}"),
+            }
+        }
+    }
+
+    #[test]
     fn tail_targets_preserve_other_receiver_calls_without_reclassifying_state_coordinates() {
         for (target, named) in [
             ("next", true),

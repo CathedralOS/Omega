@@ -291,8 +291,16 @@ pub(crate) fn invocation<'a>(
                     ));
                 }
             }
+            // Blocking retains the ordinary stack and loan window. The exact
+            // published envelope is still required; suspension needs a separate
+            // continuation/carry producer, checked with all call forms below.
+            let envelope = module
+                .callables
+                .boundary_envelope(boundary.id)
+                .ok_or_else(|| refuse("boundary has no complete operational envelope"))?;
             if boundary.declaration.as_ref().is_some_and(|declaration| {
-                declaration.source.published_may_suspend || declaration.source.published_may_block
+                declaration.source.published_may_suspend != envelope.suspends
+                    || declaration.source.published_may_block != envelope.blocks
             }) {
                 return Err(crate::refusal(
                     RefusalReason::Unsupported,

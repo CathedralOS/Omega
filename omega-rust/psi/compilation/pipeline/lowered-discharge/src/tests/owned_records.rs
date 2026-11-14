@@ -69,6 +69,7 @@ fn a_no_normal_borrow_keeps_the_callers_affine_owner_suspended() {
             bind(0, point_of(unsigned(73), unsigned(97))),
             Statement::Evaluate(Expression {
                 kind: ExpressionKind::Call {
+                    operational_acknowledgement: Default::default(),
                     callee: id::<MachineId>(2).into(),
                     arguments: vec![borrowed],
                     designated: None,

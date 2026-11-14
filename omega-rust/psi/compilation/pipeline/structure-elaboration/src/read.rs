@@ -39,6 +39,7 @@ mod provider_selections;
 mod providers;
 mod reflection;
 pub(crate) mod services;
+mod source_operators;
 mod source_records;
 mod statements;
 pub(crate) mod storage_metadata;
@@ -64,6 +65,8 @@ pub(crate) struct Program<'t> {
     pub(super) typed: &'t TypedTrees,
     /// Exact declarations admitted by this reader form, before source questions are captured.
     pub(crate) admitted_declarations: typed_trees::references::DeclarationSelection,
+    /// Choices made by this reader, prepared once before source admission.
+    pub(crate) completed_operators: crate::selection_questions::CompletedOperators,
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
     pub signatures: IdTable<MachineId, Signature>,
@@ -198,6 +201,7 @@ impl<'t> Program<'t> {
             type_purpose: storage_metadata::TypePurpose::Value,
             value_records: Vec::new(),
             admitted_declarations: typed_trees::references::DeclarationSelection::from_symbols([]),
+            completed_operators: crate::selection_questions::CompletedOperators::default(),
             symbols: IdTable::default(),
             signatures: IdTable::default(),
             callables: crate::callables::CallableNamespace::default(),
@@ -645,7 +649,7 @@ mod tests {
                 u32_type
             ))
         );
-        let detail = |scope: &ClauseScope<'_>, handle| {
+        let mut detail = |scope: &ClauseScope<'_>, handle| {
             program
                 .term(machine(), scope, handle, None)
                 .unwrap_err()
@@ -685,7 +689,7 @@ mod tests {
                 symbol: formal,
                 ..TableNamePath::default()
             }));
-        let program = Program::new(&typed, false);
+        let mut program = Program::new(&typed, false);
         let u32_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 32).unwrap());
         let value = ValueId::new(1).unwrap();
         let slot = |assignable| Slot {
@@ -715,7 +719,7 @@ mod tests {
             },
             u32_type,
         ));
-        let read = |scope: &ClauseScope<'_>| program.term(machine(), scope, named, None);
+        let mut read = |scope: &ClauseScope<'_>| program.term(machine(), scope, named, None);
         assert_eq!(read(&scope(&mutable, true)), term);
         assert_eq!(read(&scope(&immutable, false)), term);
         assert_eq!(
@@ -991,7 +995,7 @@ mod tests {
             owner: SymbolHandle::invalid(),
             result: ResultTerm::Absent("result in an entry clause"),
         };
-        let term = |handle| {
+        let mut term = |handle| {
             program
                 .term(machine(), &scope, handle, None)
                 .unwrap_err()
@@ -1453,7 +1457,7 @@ mod tests {
             owner: SymbolHandle::invalid(),
             result: ResultTerm::Absent("result in an entry clause"),
         };
-        let program = Program::new(&typed, false);
+        let mut program = Program::new(&typed, false);
         let served = scope(MathematicalTerms::Served);
         let embedded = |value: u64| IntegerMathTerm::MathValue {
             source_type: IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
@@ -1489,7 +1493,7 @@ mod tests {
                 .render(&|position| ["a", "b"][position].to_owned()),
             "embed(a) + embed(b) * 10 <= 99"
         );
-        let detail = |scope: &ClauseScope<'_>, handle| {
+        let mut detail = |scope: &ClauseScope<'_>, handle| {
             let refusal = program.clause(machine(), scope, handle).unwrap_err();
             assert_eq!(
                 refusal.reason,

@@ -376,11 +376,13 @@ pub(crate) mod body_copies {
 
             let target = match other.statements.transition_target(handle) {
                 TransitionTargetNode::Named {
+                    operational_acknowledgement,
                     path,
                     arguments,
                     evidence_arguments,
                     source_span,
                 } => TransitionTargetNode::Named {
+                    operational_acknowledgement: *operational_acknowledgement,
                     path: self.copy_statement_identifier_span(other, *path),
                     arguments: self.copy_statement_expression_span(other, *arguments),
                     evidence_arguments: evidence_arguments.clone(),

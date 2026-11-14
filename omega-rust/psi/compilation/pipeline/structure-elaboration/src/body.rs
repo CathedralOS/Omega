@@ -844,6 +844,8 @@ pub enum ExpressionKind {
     },
     /// Evaluate the selected callable first, then arguments in authored order.
     Call {
+        /// Authored audit markers remain separate from the completed call envelope.
+        operational_acknowledgement: language_core::CallOperationalAcknowledgement,
         callee: CallTarget,
         arguments: Vec<Expression>,
         designated: Option<DesignatedOperands>,

@@ -18,6 +18,112 @@ use typed_trees::references::{DeclarationSelection, TypedReferences};
 use typed_trees::statement::{StatementHandle, StatementNode};
 use typed_trees::types::TypeReferenceHandle;
 
+/// Answers produced while this form reads an actual primitive operation.
+/// An answer belongs to the exact expression, occurrence and source owner;
+/// another use of a copied expression cannot inherit it.
+#[derive(Default)]
+pub(crate) struct CompletedOperators {
+    reads: Vec<CompletedOperatorRead>,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct CompletedOperatorRead {
+    owner: SymbolHandle,
+    expression: ExpressionHandle,
+    occurrence: AuthoredDeclarationSelectionOccurrenceId,
+}
+
+impl CompletedOperatorRead {
+    fn key(&self) -> (u32, u32, u32, u32, u64) {
+        (
+            self.owner.arena_index(),
+            self.owner.generation(),
+            self.expression.arena_index(),
+            self.expression.generation(),
+            self.occurrence.ordinal(),
+        )
+    }
+}
+
+impl CompletedOperators {
+    pub(crate) fn record_builtin(
+        &mut self,
+        typed: &TypedTrees,
+        owner: SymbolHandle,
+        expression: ExpressionHandle,
+    ) -> Result<(), SelectionCaptureError> {
+        use language_semantics::declaration_selection::{
+            AuthoredDeclarationSelectionIntrinsic as Intrinsic,
+            AuthoredDeclarationSelectionKind as Kind,
+            AuthoredDeclarationSelectionLateBinding as Binding,
+            AuthoredDeclarationSelectionTarget as Target,
+        };
+        if !typed.expression_table.expression_is_valid(expression) {
+            return Err(SelectionCaptureError(
+                "completed operator has a stale expression".into(),
+            ));
+        }
+        for occurrence in typed
+            .expression_table
+            .authored_selection_occurrences(expression)
+        {
+            let row = typed
+                .authored_declaration_selections()
+                .get(occurrence)
+                .ok_or_else(|| {
+                    SelectionCaptureError("completed operator lost its attached occurrence".into())
+                })?;
+            if row.kind() != Kind::Operator {
+                continue;
+            }
+            if !owner.is_valid() || !typed.symbols.symbols().nodes().is_valid(owner) {
+                return Err(SelectionCaptureError(
+                    "completed operator has no exact source owner".into(),
+                ));
+            }
+            match row.target() {
+                Target::LateBound(Binding::CheckedOperator)
+                | Target::Intrinsic(Intrinsic::BuiltinOperator) => {
+                    self.reads.push(CompletedOperatorRead {
+                        owner,
+                        expression,
+                        occurrence,
+                    });
+                }
+                _ => return Err(SelectionCaptureError(
+                    "completed primitive operation conflicts with its authored operator selection"
+                        .into(),
+                )),
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn finish(&mut self) {
+        self.reads.sort_unstable_by_key(CompletedOperatorRead::key);
+        self.reads.dedup();
+    }
+
+    fn contains(
+        &self,
+        owner: SymbolHandle,
+        expression: ExpressionHandle,
+        occurrence: AuthoredDeclarationSelectionOccurrenceId,
+    ) -> bool {
+        self.reads
+            .binary_search_by_key(
+                &CompletedOperatorRead {
+                    owner,
+                    expression,
+                    occurrence,
+                }
+                .key(),
+                CompletedOperatorRead::key,
+            )
+            .is_ok()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RawSelectionRole {
     Execution,
@@ -110,6 +216,7 @@ struct ExpressionScope {
 struct Capture<'a> {
     typed: &'a TypedTrees,
     admitted: &'a DeclarationSelection,
+    completed_operators: &'a CompletedOperators,
     output: RawSelectionQuestions,
     owner: SymbolHandle,
     scopes: Vec<SymbolHandle>,
@@ -159,11 +266,25 @@ impl Capture<'_> {
                         .then(|| self.typed.symbols.symbol_source_span(self.owner))
                         .flatten()
                 });
-            self.fail(format!(
+            let mut reason = format!(
                 "source selection {role} has a missing or stale declaration coordinate {symbol:?}; \
                  lexical owner {:?}, expression {expression:?}, statement {:?}, source {span:?}",
                 self.owner, self.statement,
-            ));
+            );
+            if let Some(expression) = expression
+                && let ExpressionNode::Name(path) =
+                    self.typed.expression_table.expression(expression)
+            {
+                reason.push_str(&format!(
+                    "; name head {:?}, target {:?}, result owner {:?}, members {:?}, static application {:?}",
+                    path.head_symbol,
+                    path.symbol,
+                    path.reserved_result_of,
+                    self.typed.expression_table.name_path_member_symbols(path.member_symbols),
+                    path.static_application,
+                ));
+            }
+            self.fail(reason);
             false
         } else {
             true
@@ -686,24 +807,38 @@ impl TypedReferences for Capture<'_> {
                     RawSelectionTarget::Intrinsic(intrinsic)
                 }
                 AuthoredDeclarationSelectionTarget::LateBound(binding) => {
-                    let Some(input) = designation else {
-                        self.fail(format!(
-                            "admitted source selection {:?} remains unresolved as {binding:?}",
-                            row.kind()
-                        ));
-                        return;
-                    };
-                    match input.resolved_target {
-                        Some(symbol) => {
-                            let Some(target) = self.target(symbol) else {
-                                return;
-                            };
-                            target
+                    if binding == AuthoredDeclarationSelectionLateBinding::CheckedOperator
+                        && self.expressions.last().is_some_and(|scope| {
+                            self.completed_operators.contains(
+                                self.owner,
+                                scope.expression,
+                                occurrence,
+                            )
+                        })
+                    {
+                        RawSelectionTarget::Intrinsic(
+                            AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                        )
+                    } else {
+                        let Some(input) = designation else {
+                            self.fail(format!(
+                                "admitted source selection {:?} remains unresolved as {binding:?}",
+                                row.kind()
+                            ));
+                            return;
+                        };
+                        match input.resolved_target {
+                            Some(symbol) => {
+                                let Some(target) = self.target(symbol) else {
+                                    return;
+                                };
+                                target
+                            }
+                            // Recording an unresolved Product input is inert. Its
+                            // exact request and application remain owed at Product
+                            // admission; this never supplies executable code.
+                            None => RawSelectionTarget::ProductInput { binding, input },
                         }
-                        // Recording an unresolved Product input is inert. Its
-                        // exact request and application remain owed at Product
-                        // admission; this never supplies executable code.
-                        None => RawSelectionTarget::ProductInput { binding, input },
                     }
                 }
             }
@@ -763,9 +898,10 @@ impl TypedReferences for Capture<'_> {
     }
 }
 
-pub fn capture(
+pub(crate) fn capture(
     typed: &TypedTrees,
     admitted: &DeclarationSelection,
+    completed_operators: &CompletedOperators,
 ) -> Result<RawSelectionQuestions, SelectionCaptureError> {
     let roots = admitted.explicit_symbols().ok_or_else(|| {
         SelectionCaptureError(
@@ -783,6 +919,7 @@ pub fn capture(
     let mut capture = Capture {
         typed,
         admitted,
+        completed_operators,
         output: RawSelectionQuestions {
             declarations: roots.to_vec(),
             ..RawSelectionQuestions::default()
@@ -980,7 +1117,12 @@ mod tests {
     #[test]
     fn admitted_roots_capture_exact_owner_and_occurrence_without_unrelated_body() {
         let (typed, a, b, occurrence) = source();
-        let captured = capture(&typed, &DeclarationSelection::from_symbols([a])).unwrap();
+        let captured = capture(
+            &typed,
+            &DeclarationSelection::from_symbols([a]),
+            &CompletedOperators::default(),
+        )
+        .unwrap();
         assert_eq!(captured.declarations, vec![a]);
         assert_eq!(
             captured.questions,
@@ -997,7 +1139,12 @@ mod tests {
     #[test]
     fn an_admitted_unresolved_occurrence_refuses_with_its_actual_binding_reason() {
         let (typed, a, b, _) = source();
-        let refused = capture(&typed, &DeclarationSelection::from_symbols([a, b])).unwrap_err();
+        let refused = capture(
+            &typed,
+            &DeclarationSelection::from_symbols([a, b]),
+            &CompletedOperators::default(),
+        )
+        .unwrap_err();
         assert!(refused.to_string().contains("CheckedMember"), "{refused}");
     }
 
@@ -1108,7 +1255,12 @@ mod tests {
     fn computed_call_questions_retain_exact_runtime_binding_for_both_call_forms() {
         for statement in [false, true] {
             let (typed, a, node, binding) = runtime_source(statement);
-            let captured = capture(&typed, &DeclarationSelection::from_symbols([a])).unwrap();
+            let captured = capture(
+                &typed,
+                &DeclarationSelection::from_symbols([a]),
+                &CompletedOperators::default(),
+            )
+            .unwrap();
             let calls = captured
                 .questions
                 .iter()
@@ -1145,7 +1297,12 @@ mod tests {
             unreachable!()
         };
         let binding = call.runtime_call.take().unwrap();
-        let refused = capture(&typed, &DeclarationSelection::from_symbols([a])).unwrap_err();
+        let refused = capture(
+            &typed,
+            &DeclarationSelection::from_symbols([a]),
+            &CompletedOperators::default(),
+        )
+        .unwrap_err();
         assert!(refused.to_string().contains("CheckedCall"), "{refused}");
         let ExpressionNode::Call(call) = typed.expression_table.expression_mut(node) else {
             unreachable!()
@@ -1154,10 +1311,145 @@ mod tests {
             contract: Default::default(),
             ..binding
         });
-        let refused = capture(&typed, &DeclarationSelection::from_symbols([a])).unwrap_err();
+        let refused = capture(
+            &typed,
+            &DeclarationSelection::from_symbols([a]),
+            &CompletedOperators::default(),
+        )
+        .unwrap_err();
         assert!(
             refused.to_string().contains("current callable contract"),
             "{refused}"
+        );
+    }
+
+    #[test]
+    fn completed_operator_answers_require_the_exact_owner_expression_and_occurrence() {
+        use typed_trees::expression::{BinaryOperator, TableBinaryExpression};
+        let (mut typed, a, b, selected) = source();
+        let span = typed
+            .authored_declaration_selections()
+            .get(selected)
+            .unwrap()
+            .source_span();
+        let occurrence = typed
+            .record_late_bound_authored_declaration_selection(
+                span,
+                Exposure::PrivateImplementation,
+                Kind::Operator,
+                LateBinding::CheckedOperator,
+            )
+            .unwrap();
+        let value = typed.expression_table.insert(ExpressionNode::Boolean(true));
+        let node = ExpressionNode::Binary(TableBinaryExpression {
+            left: value,
+            operator: BinaryOperator::Equal,
+            right: value,
+            policy: numerics::arithmetic::ArithmeticDomain::Exact,
+        });
+        let expression = typed.expression_table.insert(node.clone());
+        typed
+            .expression_table
+            .attach_authored_selection_occurrences(expression, [occurrence]);
+        let state = typed
+            .machine_by_symbol(a)
+            .unwrap()
+            .states
+            .handles()
+            .next()
+            .unwrap();
+        let body = typed
+            .statement_table
+            .insert_statements([StatementNode::Expression(expression)]);
+        typed.machine_states.get_mut(state).statement_nodes = body;
+        let admitted = DeclarationSelection::from_symbols([a]);
+        let mut answers = CompletedOperators::default();
+        assert!(
+            capture(&typed, &admitted, &answers)
+                .unwrap_err()
+                .to_string()
+                .contains("CheckedOperator")
+        );
+        answers.record_builtin(&typed, b, expression).unwrap();
+        answers.finish();
+        assert!(
+            capture(&typed, &admitted, &answers)
+                .unwrap_err()
+                .to_string()
+                .contains("CheckedOperator")
+        );
+        answers.record_builtin(&typed, a, expression).unwrap();
+        answers.finish();
+        let captured = capture(&typed, &admitted, &answers).unwrap();
+        assert!(
+            captured
+                .questions
+                .iter()
+                .any(|question| question.occurrence == occurrence
+                    && question.lexical_owner == a
+                    && question.target
+                        == RawSelectionTarget::Intrinsic(
+                            AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+                        ))
+        );
+
+        // A copied expression retains the source occurrence, but has not been read.
+        let copied = typed.expression_table.insert(node);
+        typed
+            .expression_table
+            .attach_authored_selection_occurrences(copied, [occurrence]);
+        let copied_body = typed
+            .statement_table
+            .insert_statements([StatementNode::Expression(copied)]);
+        typed.machine_states.get_mut(state).statement_nodes = copied_body;
+        assert!(
+            capture(&typed, &admitted, &answers)
+                .unwrap_err()
+                .to_string()
+                .contains("CheckedOperator")
+        );
+        answers.record_builtin(&typed, a, copied).unwrap();
+        answers.finish();
+        capture(&typed, &admitted, &answers).unwrap();
+
+        // Neither a new occurrence nor an explicit declaration choice inherits it.
+        let other = typed
+            .record_late_bound_authored_declaration_selection(
+                span,
+                Exposure::PrivateImplementation,
+                Kind::Operator,
+                LateBinding::CheckedOperator,
+            )
+            .unwrap();
+        assert!(!answers.contains(a, copied, other));
+        typed
+            .expression_table
+            .attach_authored_selection_occurrences(copied, [other]);
+        assert!(
+            capture(&typed, &admitted, &answers)
+                .unwrap_err()
+                .to_string()
+                .contains("CheckedOperator")
+        );
+        let mut conflicting = typed.clone();
+        conflicting
+            .finalize_authored_declaration_selection(occurrence, LateBinding::CheckedOperator, b)
+            .unwrap();
+        assert!(
+            answers
+                .record_builtin(&conflicting, a, expression)
+                .unwrap_err()
+                .to_string()
+                .contains("conflicts")
+        );
+        typed.expression_table.clear();
+        typed.expression_table.insert(ExpressionNode::Boolean(true));
+        assert!(
+            answers
+                .record_builtin(&typed, a, expression)
+                .unwrap_err()
+                .to_string()
+                .contains("stale expression")
         );
     }
 }

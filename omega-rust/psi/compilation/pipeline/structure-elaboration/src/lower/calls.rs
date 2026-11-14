@@ -67,6 +67,18 @@ pub(super) enum EvaluatedCallTarget {
     },
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(super) struct EvaluatedCall {
+    pub target: EvaluatedCallTarget,
+    pub acknowledgement: language_core::CallOperationalAcknowledgement,
+}
+
+pub(super) struct NoNormalCall<'a> {
+    pub callee: &'a CallTarget,
+    pub arguments: &'a [Expression],
+    pub acknowledgement: language_core::CallOperationalAcknowledgement,
+}
+
 impl Lowering<'_> {
     fn target_signature(&self, target: &CallTarget) -> Checked<Signature> {
         match target {
@@ -289,11 +301,18 @@ impl Lowering<'_> {
     pub(super) fn no_normal<'e>(
         &self,
         expression: &'e Expression,
-    ) -> Checked<Option<(&'e CallTarget, &'e [Expression])>> {
+    ) -> Checked<Option<NoNormalCall<'e>>> {
         match &expression.kind {
             ExpressionKind::Call {
-                callee, arguments, ..
-            } if !self.target_outcome(callee)?.completes_normally => Ok(Some((callee, arguments))),
+                callee,
+                arguments,
+                operational_acknowledgement,
+                ..
+            } if !self.target_outcome(callee)?.completes_normally => Ok(Some(NoNormalCall {
+                callee,
+                arguments,
+                acknowledgement: *operational_acknowledgement,
+            })),
             ExpressionKind::Call { .. }
             | ExpressionKind::SavedSubject(_)
             | ExpressionKind::Integer(_)
@@ -339,13 +358,14 @@ impl Lowering<'_> {
         &mut self,
         callee: &CallTarget,
         arguments: &[Expression],
+        acknowledgement: language_core::CallOperationalAcknowledgement,
         source: SourceOrigin,
     ) -> Checked<()> {
         let signature = self.target_signature(callee)?;
         let target = self.evaluated_target(callee)?;
         let arguments = self.arguments(&signature, arguments)?;
         if let EvaluatedCallTarget::Boundary { boundary, .. } = target {
-            return self.invoke_boundary_no_normal(boundary, arguments, source);
+            return self.invoke_boundary_no_normal(boundary, arguments, acknowledgement, source);
         }
         let EvaluatedCallTarget::Machine(machine) = target else {
             return Err(self.internal("runtime callable has no normal-return contract"));
@@ -365,7 +385,10 @@ impl Lowering<'_> {
         let edge = self.no_successor_edge(Self::terminal_loan_dispositions(&loans), source)?;
         let requirements = self.invocation(
             InvocationSite::InvokeNoNormal(edge),
-            target,
+            EvaluatedCall {
+                target,
+                acknowledgement,
+            },
             signature.requires.len(),
             &arguments.actuals,
             before,
@@ -402,15 +425,16 @@ impl Lowering<'_> {
     pub(super) fn invocation(
         &mut self,
         site: InvocationSite,
-        callee: EvaluatedCallTarget,
+        call: EvaluatedCall,
         clauses: usize,
         actuals: &[Actual],
         before: ProgramPoint,
         source: SourceOrigin,
     ) -> Checked<Vec<ObligationId>> {
         let invocation = self.tables.invocations.push(InvocationRow {
+            operational_acknowledgement: call.acknowledgement,
             site,
-            callee: match callee {
+            callee: match call.target {
                 EvaluatedCallTarget::Machine(machine) => {
                     Callee::Declared(semantic_vocabulary::TargetMachineCallable::Machine(machine))
                 }
@@ -451,6 +475,7 @@ impl Lowering<'_> {
         callee: &CallTarget,
         arguments: &[Expression],
         designated: Option<crate::body::DesignatedOperands>,
+        acknowledgement: language_core::CallOperationalAcknowledgement,
         result: Option<ValueType>,
         source: SourceOrigin,
     ) -> Checked<Value> {
@@ -498,7 +523,10 @@ impl Lowering<'_> {
         }
         let requirements = self.invocation(
             InvocationSite::Operation(operation),
-            target,
+            EvaluatedCall {
+                target,
+                acknowledgement,
+            },
             signature.requires.len(),
             &arguments.actuals,
             before,

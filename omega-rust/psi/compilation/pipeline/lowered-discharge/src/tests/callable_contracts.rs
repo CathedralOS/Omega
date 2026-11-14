@@ -542,3 +542,159 @@ fn runtime_evidence_roster_rejoins_full_meaning_and_exact_subjects() {
     application.proposition_applications[0].arguments[0] = "another-formal".into();
     assert!(!roster_valid(&application));
 }
+
+/// A terminal path selects its nested machine even when a scalar local has
+/// the same spelling. An operational marker retains that target and remains
+/// separate from the binding of an ordinary evaluated call operand.
+#[test]
+fn acknowledged_terminal_paths_keep_nominal_targets_and_scalar_calls_stay_invalid() {
+    let source = |body: &str| {
+        format!(
+            r#"
+machine build_entry(value: u32) -> u32 {{
+    let root: u64 = 1;
+    {body}
+    machine root(value: u32) -> u32 {{ value }}
+}}
+"#
+        )
+    };
+    let positive = source("transition { _ -> block root(value) }");
+    let verdict = super::build_purpose::judge_build(&positive).unwrap();
+    let RouteVerdict::Accepted(accepted) = verdict else {
+        panic!("acknowledged nested transfer must be judged: {verdict:?}");
+    };
+    accepted.publish_invocation().unwrap();
+
+    let negative = source("let result: u32 = block root(value); result");
+    let mut sources = source::SourceMap::default();
+    let source_id = sources
+        .add_checked_instance(
+            "package/build.omg".into(),
+            negative.as_str(),
+            "package".into(),
+            semantic_vocabulary::PackageKeyIdentity::from_digest([7; 32]),
+            source::SourceOrigin::User,
+            source::SourceResolutionStratum::Base,
+            source::DependencyScope::Build,
+        )
+        .source_id;
+    let tokens = source_files_to_tokens::Lexer::new(&negative)
+        .tokenize()
+        .unwrap();
+    let syntax = tokens_to_syntax_trees::parse_syntax_trees_with_id(source_id, &tokens).unwrap();
+    let mut request = syntax_trees_to_symbol_resolved_trees::ResolutionRequest::new(syntax);
+    request.sources = Some(std::sync::Arc::new(sources));
+    let resolved = syntax_trees_to_symbol_resolved_trees::resolve(request).unwrap();
+    let error =
+        symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved).unwrap_err();
+    assert_eq!(
+        error.message,
+        "the evaluated call operand is not a runtime callable"
+    );
+}
+
+/// Inference, opaque contracts and boundary headers must discharge the same
+/// marker obligation. A provisional private summary cannot erase it.
+#[test]
+fn acknowledgements_use_completed_named_selected_and_boundary_envelopes() {
+    for (label, source) in [
+        (
+            "inferred named",
+            r#"
+machine wait(value: u32) -> u32 blocks crashes none { value }
+machine relay(value: u32) -> u32 crashes none { block wait(value) }
+machine build_entry(value: u32) -> u32 crashes none { ACK relay(value) }
+"#,
+        ),
+        (
+            "opaque callable",
+            r#"
+machine build_entry(operation: machine(value: u32) -> u32 reaches none blocks crashes none, value: u32) -> u32 crashes none {
+    ACK operation(value)
+}
+"#,
+        ),
+        (
+            "boundary",
+            r#"
+boundary trait Probe {
+    machine read(value: u32) -> u32 reaches none blocks crashes none;
+}
+machine build_entry(value: u32) -> u32 crashes none { ACK Probe::read(value) }
+"#,
+        ),
+    ] {
+        let valid = source.replace("ACK", "block");
+        let verdict = super::build_purpose::judge_build(&valid).unwrap();
+        let RouteVerdict::Accepted(accepted) = verdict else {
+            panic!("{label} with its actual acknowledgement must be judged: {verdict:?}");
+        };
+        let artifact = accepted.publish_invocation().unwrap();
+        assert!(
+            artifact
+                .artifact
+                .view()
+                .module()
+                .callables
+                .machine_envelopes
+                .iter()
+                .flatten()
+                .any(|row| row.envelope.blocks),
+            "{label} must retain blocking"
+        );
+        let mut missing_audit = accepted.elaboration.clone();
+        let machines: Vec<_> = missing_audit.tables.machines.keys().collect();
+        for machine in machines {
+            let tables = missing_audit.tables.machines.get_mut(machine).unwrap();
+            let invocations: Vec<_> = tables.invocations.keys().collect();
+            for invocation in invocations {
+                tables
+                    .invocations
+                    .get_mut(invocation)
+                    .unwrap()
+                    .operational_acknowledgement
+                    .acknowledges_block = false;
+            }
+        }
+        let refusal = crate::ceilings::judge(&missing_audit).unwrap_err();
+        assert_eq!(
+            refusal.detail, "call that may block needs a block acknowledgement",
+            "{label}"
+        );
+        let missing = source.replace("ACK", "");
+        let verdict = super::build_purpose::judge_build(&missing).unwrap();
+        assert!(
+            matches!(verdict, RouteVerdict::FallBack(ref refusal)
+            if refusal.detail == "call that may block needs a block acknowledgement"),
+            "{label} cannot discharge its marker against an empty provisional summary: {verdict:?}"
+        );
+    }
+}
+
+#[test]
+fn redundant_suspend_markers_still_require_a_complete_source_position() {
+    let legal = r#"
+machine pure(value: u32) -> u32 crashes none { value }
+machine build_entry(value: u32) -> u32 crashes none {
+    let result: u32 = suspend pure(value);
+    result
+}
+"#;
+    assert!(matches!(
+        super::build_purpose::judge_build(legal).unwrap(),
+        RouteVerdict::Accepted(_)
+    ));
+    let nested = r#"
+machine pure(value: u32) -> u32 crashes none { value }
+machine build_entry(value: u32) -> u32 crashes none {
+    pure(suspend pure(value))
+}
+"#;
+    let verdict = super::build_purpose::judge_build(nested).unwrap();
+    assert!(
+        matches!(verdict, RouteVerdict::FallBack(ref refusal)
+        if refusal.detail == "suspend acknowledgement outside a complete statement, simple let, transition subject or terminal expression"),
+        "{verdict:?}"
+    );
+}

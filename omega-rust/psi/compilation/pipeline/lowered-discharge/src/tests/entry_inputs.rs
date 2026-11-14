@@ -195,6 +195,7 @@ fn a_private_helper_that_returns_nothing_receives_its_inferred_input() {
         slots: vec![u32_type().into()],
         statements: vec![Statement::Evaluate(expression(
             ExpressionKind::Call {
+                operational_acknowledgement: Default::default(),
                 callee: id::<MachineId>(2).into(),
                 arguments: vec![slot(0, u32_type())],
                 designated: None,

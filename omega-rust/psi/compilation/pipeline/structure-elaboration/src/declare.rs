@@ -119,6 +119,11 @@ pub(crate) fn declare(
                 };
                 identities_of(&machine.published_service_ceiling).and_then(|reach| {
                     let entries = identities_of(&machine.published_synchronous_entries)?;
+                    let envelope = elaboration
+                        .module
+                        .callables
+                        .machine_envelope(machine.id)
+                        .ok_or("the machine has no completed operational envelope")?;
                     declaration(
                         typed,
                         sources,
@@ -128,6 +133,8 @@ pub(crate) fn declare(
                         Published {
                             reach: &reach,
                             entries: &entries,
+                            suspends: envelope.suspends,
+                            blocks: envelope.blocks,
                         },
                         &mut identities,
                     )
@@ -226,11 +233,8 @@ fn declaration(
         callable: identities.intern(&callable),
         result_type: identities.intern(&result_type),
         contract,
-        // The reader refuses a machine that declares `suspends` or `blocks`
-        // (`read/machine.rs`, `machine_shape`), so every machine here
-        // publishes neither.
-        published_may_suspend: false,
-        published_may_block: false,
+        published_may_suspend: published.suspends,
+        published_may_block: published.blocks,
         specialization,
     })
 }
@@ -360,6 +364,12 @@ fn declaration_contract_commitment<'a>(
     if !published.entries.is_empty() {
         ("synchronous entries", published.entries).hash(&mut commitment);
     }
+    if published.suspends {
+        ("suspends", true).hash(&mut commitment);
+    }
+    if published.blocks {
+        ("blocks", true).hash(&mut commitment);
+    }
     commitment.0.finish()
 }
 
@@ -369,6 +379,8 @@ fn declaration_contract_commitment<'a>(
 pub(crate) struct Published<'a> {
     pub reach: &'a [&'a str],
     pub entries: &'a [&'a str],
+    pub suspends: bool,
+    pub blocks: bool,
 }
 
 /// The exact-owner identity of `symbol`: its package's, or its toolchain

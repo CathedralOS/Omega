@@ -1615,6 +1615,16 @@ pub(crate) mod lowerer {
                         reaches,
                     });
             }
+            for (handle, contract) in base.tables.declarations.runtime_callable_contracts.iter() {
+                let signature = &contract.signature;
+                let reaches = retained_reach(signature.symbol, signature.service_reach_row);
+                self.pending_signature_service_reaches
+                    .push(PendingSignatureServiceReach {
+                        location: PendingSignatureLocation::RuntimeCallable(handle),
+                        owner: PendingSignatureOwner::Requirement(signature.name.clone()),
+                        reaches,
+                    });
+            }
             self.bound_generic_application_origins =
                 base.tables.types.generic_application_origins.len();
             self.symbol_resolved_trees = base.as_ref().clone();

@@ -267,6 +267,17 @@ impl<'t> Program<'t> {
         call: &TableCall,
         source: SourceOrigin,
     ) -> Checked<Expression> {
+        let read = self.read_call_statement(id, slots, call, source)?;
+        self.acknowledged_call(id, read, call.operational_acknowledgement)
+    }
+
+    fn read_call_statement(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        call: &TableCall,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
         let unserved = |what| Err(refuse(id, Construct::Machine, Unserved::Call(what)));
         if let Some(runtime) = call.runtime_call {
             if call.target_symbol.is_valid()
@@ -276,12 +287,8 @@ impl<'t> Program<'t> {
                 || call.installed_interrupt_operation.is_some()
                 || call.static_requirement_dispatch.is_some()
                 || call.static_machine_parameter.is_valid()
-                || call.operational_acknowledgement.acknowledges_suspend
-                || call.operational_acknowledgement.acknowledges_block
             {
-                return unserved(
-                    "runtime call with static dispatch, evidence or operational acknowledgement",
-                );
+                return unserved("runtime call with static dispatch or evidence");
             }
             let arguments = self
                 .typed
@@ -323,11 +330,6 @@ impl<'t> Program<'t> {
         if call.static_machine_parameter.is_valid() || !call.evidence_arguments.is_empty() {
             return unserved("machine parameter or evidence");
         }
-        if call.operational_acknowledgement.acknowledges_suspend
-            || call.operational_acknowledgement.acknowledges_block
-        {
-            return unserved("suspend or block acknowledgement");
-        }
         let arguments = self
             .typed
             .statement_table
@@ -336,6 +338,18 @@ impl<'t> Program<'t> {
     }
 
     pub(super) fn call_expression(
+        &mut self,
+        id: MachineId,
+        slots: &[Slot],
+        call: &TableCallExpression,
+        handle: ExpressionHandle,
+        source: SourceOrigin,
+    ) -> Checked<Expression> {
+        let read = self.read_call_expression(id, slots, call, handle, source)?;
+        self.acknowledged_call(id, read, call.operational_acknowledgement)
+    }
+
+    fn read_call_expression(
         &mut self,
         id: MachineId,
         slots: &[Slot],
@@ -352,12 +366,8 @@ impl<'t> Program<'t> {
                 || call.installed_interrupt_operation.is_some()
                 || call.static_requirement_dispatch.is_some()
                 || call.static_machine_parameter.is_valid()
-                || call.operational_acknowledgement.acknowledges_suspend
-                || call.operational_acknowledgement.acknowledges_block
             {
-                return unserved(
-                    "runtime call with static dispatch, evidence or operational acknowledgement",
-                );
+                return unserved("runtime call with static dispatch or evidence");
             }
             let arguments = self
                 .typed
@@ -435,11 +445,6 @@ impl<'t> Program<'t> {
         }
         if call.static_machine_parameter.is_valid() || !call.evidence_arguments.is_empty() {
             return unserved("machine parameter or evidence");
-        }
-        if call.operational_acknowledgement.acknowledges_suspend
-            || call.operational_acknowledgement.acknowledges_block
-        {
-            return unserved("suspend or block acknowledgement");
         }
         let arguments = self
             .typed
@@ -536,8 +541,6 @@ impl<'t> Program<'t> {
             || call.exact_coercion_target.is_valid()
             || call.static_machine_parameter.is_valid()
             || !call.evidence_arguments.is_empty()
-            || call.operational_acknowledgement.acknowledges_suspend
-            || call.operational_acknowledgement.acknowledges_block
         {
             return unserved("requirement dispatch with another call feature");
         }
@@ -776,8 +779,6 @@ impl<'t> Program<'t> {
             || call.exact_coercion_target.is_valid()
             || call.static_machine_parameter.is_valid()
             || !call.evidence_arguments.is_empty()
-            || call.operational_acknowledgement.acknowledges_suspend
-            || call.operational_acknowledgement.acknowledges_block
         {
             return unserved("type application with another call feature");
         }
@@ -842,9 +843,7 @@ impl<'t> Program<'t> {
                         || call.requirement_application.is_valid()
                         || call.exact_coercion_target.is_valid()
                         || call.static_machine_parameter.is_valid()
-                        || !call.evidence_arguments.is_empty()
-                        || call.operational_acknowledgement.acknowledges_suspend
-                        || call.operational_acknowledgement.acknowledges_block,
+                        || !call.evidence_arguments.is_empty(),
                 ),
                 StaticArgumentCall::Statement(call) => (
                     call.target_symbol,
@@ -859,9 +858,7 @@ impl<'t> Program<'t> {
                         || call.static_requirement_dispatch.is_some()
                         || call.reflected_field_origin.is_some()
                         || call.static_machine_parameter.is_valid()
-                        || !call.evidence_arguments.is_empty()
-                        || call.operational_acknowledgement.acknowledges_suspend
-                        || call.operational_acknowledgement.acknowledges_block,
+                        || !call.evidence_arguments.is_empty(),
                 ),
             };
         let unserved = |what| refuse(id, Construct::Machine, Unserved::Call(what));
@@ -1192,6 +1189,7 @@ impl<'t> Program<'t> {
         }
         Ok(Expression {
             kind: ExpressionKind::Call {
+                operational_acknowledgement: Default::default(),
                 callee,
                 arguments: read,
                 designated: None,
@@ -1199,6 +1197,31 @@ impl<'t> Program<'t> {
             result,
             source,
         })
+    }
+
+    pub(super) fn acknowledged_call(
+        &self,
+        id: MachineId,
+        mut read: Expression,
+        acknowledgement: language_core::CallOperationalAcknowledgement,
+    ) -> Checked<Expression> {
+        match &mut read.kind {
+            ExpressionKind::Call {
+                operational_acknowledgement,
+                ..
+            } => {
+                *operational_acknowledgement = acknowledgement;
+            }
+            _ if acknowledgement.acknowledges_suspend || acknowledgement.acknowledges_block => {
+                return Err(refuse(
+                    id,
+                    Construct::Machine,
+                    Unserved::Call("operational acknowledgement on a non-call compiler expression"),
+                ));
+            }
+            _ => {}
+        }
+        Ok(read)
     }
 
     /// Holds a call's arguments to its callee's formal types and gives the

@@ -279,7 +279,15 @@ impl Lowering<'_> {
                 callee,
                 arguments,
                 designated,
-            } => self.call(callee, arguments, *designated, expression.result, source),
+                operational_acknowledgement,
+            } => self.call(
+                callee,
+                arguments,
+                *designated,
+                *operational_acknowledgement,
+                expression.result,
+                source,
+            ),
         }
     }
 

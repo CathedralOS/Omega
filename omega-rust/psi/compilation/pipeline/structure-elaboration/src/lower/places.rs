@@ -1205,11 +1205,13 @@ impl<'a> Lowering<'a> {
                 callee,
                 arguments,
                 designated,
+                operational_acknowledgement,
             } => {
                 match self.call(
                     callee,
                     arguments,
                     *designated,
+                    *operational_acknowledgement,
                     expression.result,
                     expression.source,
                 )? {
@@ -2491,6 +2493,7 @@ mod tests {
                 },
                 Statement::Evaluate(Expression {
                     kind: ExpressionKind::Call {
+                        operational_acknowledgement: Default::default(),
                         callee: CallTarget::Machine(MachineId::new(2).unwrap()),
                         arguments: vec![Expression {
                             kind: ExpressionKind::Borrow {

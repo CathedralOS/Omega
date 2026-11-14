@@ -1682,6 +1682,7 @@ mod statement_nodes {
     ) -> Result<TransitionTarget, Diagnostic> {
         match syntax_trees.statements.transition_target(target) {
             TransitionTargetNode::Named {
+                operational_acknowledgement,
                 path,
                 arguments,
                 evidence_arguments,
@@ -1707,7 +1708,7 @@ mod statement_nodes {
                     head_symbol: SymbolHandle::invalid(),
                     symbol: SymbolHandle::invalid(),
                     storage: NamedTransitionTargetStorage {
-                        operational_acknowledgement: Default::default(),
+                        operational_acknowledgement: *operational_acknowledgement,
                         path: lower_statement_path_members(lowerer, syntax_trees, *path),
                         arguments,
                         evidence_arguments: lower_names(syntax_trees, evidence_arguments)

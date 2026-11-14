@@ -3367,12 +3367,32 @@ fn visit_name_path(
     retained: &mut impl TypedReferences,
     path: &TableNamePath,
 ) {
-    visit_symbol(retained, path.head_symbol);
-    visit_symbol(retained, path.symbol);
-    for member in program
+    let absent = SymbolHandle::invalid();
+    if path.reserved_result_of != absent {
+        // A reserved result is identified by its contract owner. Its ordinary
+        // name slots are absent; every coordinate actually present still counts.
+        visit_symbol(retained, path.reserved_result_of);
+        for symbol in [path.head_symbol, path.symbol] {
+            if symbol != absent {
+                visit_symbol(retained, symbol);
+            }
+        }
+    } else {
+        visit_symbol(retained, path.head_symbol);
+        visit_symbol(retained, path.symbol);
+    }
+    for (index, member) in program
         .expression_table
         .name_path_member_symbols(path.member_symbols)
+        .iter()
+        .enumerate()
     {
+        // The first member is the base name. A reserved result has an owner,
+        // rather than an ordinary symbol, for that slot. Later members must
+        // still resolve, and any present base coordinate must remain visible.
+        if index == 0 && path.reserved_result_of != absent && *member == absent {
+            continue;
+        }
         visit_symbol(retained, *member);
     }
     if let Some(argument) = program
@@ -4211,6 +4231,93 @@ mod declaration_description_tests {
     use crate::name::Identifier;
     use crate::types::TypeReferenceNode;
     use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
+
+    #[test]
+    fn reserved_results_retain_the_owner_without_inventing_a_name_binding() {
+        let mut symbols = SymbolTableBuilder::default();
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let declarations = symbols.insert_children(
+            root,
+            [
+                (SymbolKind::State, SymbolNameRef::Static("contract")),
+                (SymbolKind::Local, SymbolNameRef::Static("result")),
+                (SymbolKind::Field, SymbolNameRef::Static("field")),
+            ],
+        );
+        let owner = declarations.handle_at(0);
+        let local = declarations.handle_at(1);
+        let field = declarations.handle_at(2);
+        let symbols = symbols.finish();
+        let collect = |result_owner, head_symbol, symbol, member_symbols: &[SymbolHandle]| {
+            let mut program = TypedTrees {
+                symbols: symbols.clone(),
+                ..Default::default()
+            };
+            let mut members = Default::default();
+            program
+                .expression_table
+                .push_name_path_member(&mut members, Identifier::generated("result"));
+            let mut member_span = Default::default();
+            for (index, member) in member_symbols.iter().enumerate() {
+                if index != 0 {
+                    program
+                        .expression_table
+                        .push_name_path_member(&mut members, Identifier::generated("field"));
+                }
+                program
+                    .expression_table
+                    .push_name_path_member_symbol(&mut member_span, *member);
+            }
+            let expression = program
+                .expression_table
+                .insert(ExpressionNode::Name(TableNamePath {
+                    reserved_result_of: result_owner,
+                    ..TableNamePath::new(members, member_span, head_symbol, symbol)
+                }));
+            let copy = program.expression_table.insert_copy(expression);
+            let mut retained = ReferenceCollector::default();
+            visit_expression(&program, &mut retained, copy);
+            finish_references(retained).symbols
+        };
+        let absent = SymbolHandle::invalid();
+        let reserved = collect(owner, absent, absent, &[absent]);
+        assert!(reserved.contains(&owner));
+        assert!(!reserved.contains(&absent));
+        let mut authored = TypedTrees {
+            symbols: symbols.clone(),
+            ..Default::default()
+        };
+        let expression =
+            authored
+                .expression_table
+                .insert_tree(&crate::expression::Expression::Name(
+                    crate::expression::NamePath::unresolved(vec![Identifier::generated("result")])
+                        .denoting_reserved_result_of(owner),
+                ));
+        let copy = authored.expression_table.insert_copy(expression);
+        let mut retained = ReferenceCollector::default();
+        visit_expression(&authored, &mut retained, copy);
+        assert_eq!(finish_references(retained).symbols, reserved);
+        let plain = collect(absent, local, local, &[local]);
+        assert!(plain.contains(&local));
+        assert!(!plain.contains(&owner));
+        assert!(collect(absent, absent, local, &[local]).contains(&absent));
+        assert!(collect(absent, local, absent, &[local]).contains(&absent));
+        assert!(collect(absent, local, local, &[absent]).contains(&absent));
+        let stale = SymbolHandle::from_parts(owner.arena_index(), owner.generation() + 1);
+        assert!(!symbols.symbols().nodes().is_valid(stale));
+        assert!(collect(stale, absent, absent, &[absent]).contains(&stale));
+        let malformed = SymbolHandle::from_parts(0, 1);
+        assert_ne!(malformed, absent);
+        assert!(collect(malformed, absent, absent, &[absent]).contains(&malformed));
+        for present in [local, stale, malformed] {
+            assert!(collect(owner, present, absent, &[absent]).contains(&present));
+            assert!(collect(owner, absent, present, &[absent]).contains(&present));
+            assert!(collect(owner, absent, absent, &[present]).contains(&present));
+        }
+        assert!(collect(owner, absent, absent, &[absent, field]).contains(&field));
+        assert!(collect(owner, absent, absent, &[absent, absent]).contains(&absent));
+    }
 
     #[test]
     fn named_transitions_keep_required_and_present_receiver_coordinates() {

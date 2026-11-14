@@ -122,6 +122,38 @@ impl Program<'_> {
     // Contract clauses: a comparison of formals, literals and Booleans, or a
     // conjunction of those. Terms name formal `i` as value `i + 1`.
 
+    /// Source-free models have no authored operator to complete. An authored
+    /// data clause keeps its record declaration; callable clauses keep the
+    /// exact contract owner, independently of the reserved result identity.
+    fn complete_contract_operator(
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+    ) -> Checked<()> {
+        if self
+            .typed
+            .expression_table
+            .authored_selection_occurrences(expression)
+            .next()
+            .is_none()
+        {
+            return Ok(());
+        }
+        let owner = if let Some(subject) = scope.subject {
+            terminal_check_tables::row(
+                &self.record_sources,
+                subject.record,
+                id,
+                Construct::Machine,
+            )?
+            .declaration
+        } else {
+            scope.owner
+        };
+        self.complete_builtin_operator(id, owner, expression)
+    }
+
     /// A contract fact that is an expression; memberships and named
     /// propositions are outside the subset.
     pub(super) fn fact(&self, id: MachineId, fact: &ProofFact) -> Checked<ExpressionHandle> {
@@ -155,7 +187,18 @@ impl Program<'_> {
     }
 
     pub(super) fn clause(
-        &self,
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+    ) -> Checked<Proposition> {
+        let read = self.read_clause(id, scope, expression)?;
+        self.complete_contract_operator(id, scope, expression)?;
+        Ok(read)
+    }
+
+    fn read_clause(
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
@@ -382,7 +425,19 @@ impl Program<'_> {
     }
 
     pub(super) fn term(
-        &self,
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+        expected: Option<ScalarType>,
+    ) -> Checked<(ScalarTerm, ScalarType)> {
+        let read = self.read_term(id, scope, expression, expected)?;
+        self.complete_contract_operator(id, scope, expression)?;
+        Ok(read)
+    }
+
+    fn read_term(
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,
@@ -622,7 +677,7 @@ impl Program<'_> {
     /// `IntegerMathLessOrEqual`). `>` and `>=` are the same order read from
     /// the other side, and `!=` is `a < b or b < a`, as for carrier integers.
     fn mathematical_comparison(
-        &self,
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         comparison: BinaryOperator,
@@ -684,7 +739,18 @@ impl Program<'_> {
     /// literal that is not embedded, since no promotion of one into the
     /// mathematical integers is implied.
     fn mathematical_term(
-        &self,
+        &mut self,
+        id: MachineId,
+        scope: &ClauseScope<'_>,
+        expression: ExpressionHandle,
+    ) -> Checked<IntegerMathTerm> {
+        let read = self.read_mathematical_term(id, scope, expression)?;
+        self.complete_contract_operator(id, scope, expression)?;
+        Ok(read)
+    }
+
+    fn read_mathematical_term(
+        &mut self,
         id: MachineId,
         scope: &ClauseScope<'_>,
         expression: ExpressionHandle,

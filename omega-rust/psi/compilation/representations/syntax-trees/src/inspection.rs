@@ -2183,6 +2183,9 @@ pub mod snapshot {
                 path: Vec<IdentifierSnapshot>,
                 arguments: Vec<ExpressionSnapshot>,
                 evidence_arguments: Vec<IdentifierSnapshot>,
+                acknowledgement_synthesized: bool,
+                acknowledges_suspend: bool,
+                acknowledges_block: bool,
             },
             Value {
                 expression: ExpressionSnapshot,
@@ -2533,6 +2536,7 @@ pub mod snapshot {
         ) -> TransitionTargetSnapshot {
             match target {
                 TransitionTargetNode::Named {
+                    operational_acknowledgement,
                     path,
                     arguments,
                     evidence_arguments,
@@ -2549,6 +2553,10 @@ pub mod snapshot {
                         .map(|handle| snapshot_expression_handle(syntax_trees, *handle))
                         .collect(),
                     evidence_arguments: snapshot_identifier_slice(syntax_trees, evidence_arguments),
+                    acknowledgement_synthesized: operational_acknowledgement.origin
+                        == language_core::CallOperationalAcknowledgementOrigin::CompilerSynthesized,
+                    acknowledges_suspend: operational_acknowledgement.acknowledges_suspend,
+                    acknowledges_block: operational_acknowledgement.acknowledges_block,
                 },
                 TransitionTargetNode::Value(expression) => TransitionTargetSnapshot::Value {
                     expression: snapshot_expression_handle(syntax_trees, *expression),

@@ -99,6 +99,7 @@ fn relay(item_type: ValueType, bound: u128) -> Shape {
             Strict::Add,
             Expression {
                 kind: ExpressionKind::Call {
+                    operational_acknowledgement: Default::default(),
                     callee: id::<MachineId>(2).into(),
                     arguments: vec![item(item_type), slot(1, u32_type())],
                     designated: None,

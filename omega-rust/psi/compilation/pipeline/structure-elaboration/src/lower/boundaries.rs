@@ -6,7 +6,7 @@ use terminal_check_tables::Checked;
 use terminal_psi::Terminator;
 
 use super::Lowering;
-use super::calls::{Arguments, EvaluatedCallTarget};
+use super::calls::{Arguments, EvaluatedCall, EvaluatedCallTarget};
 use crate::{Outcome, Signature, SourceOrigin, canonical};
 
 impl Lowering<'_> {
@@ -25,6 +25,7 @@ impl Lowering<'_> {
         &mut self,
         boundary: BoundaryMachineId,
         arguments: Arguments,
+        acknowledgement: language_core::CallOperationalAcknowledgement,
         source: SourceOrigin,
     ) -> Checked<()> {
         let Some(BoundaryCompletion::External(kind)) = self.boundaries.completion(boundary) else {
@@ -50,7 +51,10 @@ impl Lowering<'_> {
         let edge = self.no_successor_edge(Self::terminal_loan_dispositions(&loans), source)?;
         let requirements = self.invocation(
             InvocationSite::ExternalCompletion(edge),
-            EvaluatedCallTarget::Boundary { boundary },
+            EvaluatedCall {
+                target: EvaluatedCallTarget::Boundary { boundary },
+                acknowledgement,
+            },
             signature.requires.len(),
             &arguments.actuals,
             before,

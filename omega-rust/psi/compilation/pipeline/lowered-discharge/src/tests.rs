@@ -103,6 +103,7 @@ fn strict(operation: Strict, left: Expression, right: Expression) -> Expression 
 fn call(callee: u64, arguments: Vec<Expression>) -> Expression {
     expression(
         ExpressionKind::Call {
+            operational_acknowledgement: Default::default(),
             callee: id::<MachineId>(callee).into(),
             arguments,
             designated: None,
@@ -1473,6 +1474,7 @@ fn transferred_when(flag: usize, value: usize) -> Expression {
         slot(flag, bool_type()),
         of_type(
             ExpressionKind::Call {
+                operational_acknowledgement: Default::default(),
                 callee: id::<MachineId>(2).into(),
                 arguments: vec![place(value, point())],
                 designated: None,
@@ -2084,6 +2086,7 @@ fn a_copy_reads_as_what_its_source_held_and_an_unknown_content_reads_as_nothing(
                 2,
                 of_type(
                     ExpressionKind::Call {
+                        operational_acknowledgement: Default::default(),
                         callee: id::<MachineId>(3).into(),
                         arguments: Vec::new(),
                         designated: None,
@@ -3076,6 +3079,7 @@ fn every_use_of_storage_has_exactly_one_verdict() {
                 4,
                 of_type(
                     ExpressionKind::Call {
+                        operational_acknowledgement: Default::default(),
                         callee: id::<MachineId>(2).into(),
                         arguments: vec![place(4, point())],
                         designated: None,
@@ -4092,6 +4096,7 @@ fn a_clause_over_a_field_with_no_value_identity_is_unproved_and_says_so() {
                     0,
                     of_type(
                         ExpressionKind::Call {
+                            operational_acknowledgement: Default::default(),
                             callee: id::<MachineId>(2).into(),
                             arguments: Vec::new(),
                             designated: None,
@@ -4702,6 +4707,7 @@ fn a_read_of_what_a_call_returned_carries_its_types_clause() {
                     0,
                     of_type(
                         ExpressionKind::Call {
+                            operational_acknowledgement: Default::default(),
                             callee: id::<MachineId>(3).into(),
                             arguments: Vec::new(),
                             designated: None,
@@ -4756,6 +4762,7 @@ fn peek() -> Shaped {
 fn peeking(argument: Expression) -> Expression {
     of_type(
         ExpressionKind::Call {
+            operational_acknowledgement: Default::default(),
             callee: id::<MachineId>(2).into(),
             arguments: vec![argument],
             designated: None,
@@ -4805,6 +4812,7 @@ fn a_requirement_over_a_field_of_a_record_formal_is_decided_by_the_actuals_leaf(
             u32_type().into(),
             vec![returns(peeking(of_type(
                 ExpressionKind::Call {
+                    operational_acknowledgement: Default::default(),
                     callee: id::<MachineId>(3).into(),
                     arguments: Vec::new(),
                     designated: None,
@@ -4907,6 +4915,7 @@ fn taker(record: u64) -> Shaped {
 fn taking(callee: u64, argument: Expression) -> Expression {
     of_type(
         ExpressionKind::Call {
+            operational_acknowledgement: Default::default(),
             callee: id::<MachineId>(callee).into(),
             arguments: vec![argument],
             designated: None,

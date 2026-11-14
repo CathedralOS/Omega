@@ -188,6 +188,13 @@ impl Program<'_> {
                     "runtime callable needs the abstract requirement's complete operational contract",
                 ));
             }
+            for (id, body) in bodies.iter() {
+                let mut calls = Vec::new();
+                for statement in &body.statements {
+                    collect_statement(statement, &mut calls);
+                }
+                validate_positions(id, &calls)?;
+            }
             return Ok(());
         }
         let mut policies = IdTable::default();
@@ -269,6 +276,7 @@ impl Program<'_> {
             for statement in &body.statements {
                 collect_statement(statement, &mut found);
             }
+            validate_positions(id, &found)?;
             calls.push(found);
         }
         loop {
@@ -440,6 +448,46 @@ impl Program<'_> {
                 break;
             }
         }
+        // Private summaries are complete only after the fixed point. A marker
+        // cannot be discharged against a provisional empty callee envelope.
+        for (id, uses) in calls.iter() {
+            for invocation in uses {
+                let envelope = match invocation.target {
+                    CallTarget::Machine(callee) => {
+                        terminal_check_tables::row(&published, *callee, id, Construct::Machine)?
+                    }
+                    CallTarget::Selected { contract, .. } => {
+                        &self
+                            .callables
+                            .contracts
+                            .get(*contract)
+                            .ok_or_else(|| {
+                                unavailable(id, "invocation lost its retained callable contract")
+                            })?
+                            .envelope
+                    }
+                    CallTarget::Boundary { boundary } => {
+                        &self
+                            .boundaries
+                            .row(*boundary)
+                            .ok_or_else(|| {
+                                unavailable(id, "invocation lost its retained boundary contract")
+                            })?
+                            .envelope
+                    }
+                };
+                invocation
+                    .acknowledgement
+                    .require_envelope(envelope.suspends, envelope.blocks)
+                    .map_err(|reason| unavailable(id, reason))?;
+                if envelope.suspends {
+                    return Err(unavailable(
+                        id,
+                        "suspending call needs continuation and carry evidence",
+                    ));
+                }
+            }
+        }
         // A silent private acyclic body may finish locally without exporting
         // a promise. Unknown code must still carry a genuine termination
         // guarantee before a caller can rely on it to fulfill its own promise.
@@ -601,17 +649,39 @@ fn union<T: Clone + Ord>(to: &mut Vec<T>, from: &[T]) {
 struct Use<'a> {
     target: &'a CallTarget,
     arguments: &'a [Expression],
+    acknowledgement: language_core::CallOperationalAcknowledgement,
+    suspension_position: bool,
 }
+
+fn validate_positions(context: MachineId, calls: &[Use<'_>]) -> Checked<()> {
+    if calls
+        .iter()
+        .any(|call| call.acknowledgement.acknowledges_suspend && !call.suspension_position)
+    {
+        return Err(unavailable(
+            context,
+            "suspend acknowledgement outside a complete statement, simple let, transition subject or terminal expression",
+        ));
+    }
+    Ok(())
+}
+
+pub(super) fn nested_acknowledgements(context: MachineId, value: &Expression) -> Checked<()> {
+    let mut calls = Vec::new();
+    collect_expression(value, &mut calls, false);
+    validate_positions(context, &calls)
+}
+
 fn collect_statement<'a>(statement: &'a Statement, calls: &mut Vec<Use<'a>>) {
     match statement {
         Statement::Bind { value, .. } | Statement::Evaluate(value) => {
-            collect_expression(value, calls)
+            collect_expression(value, calls, true)
         }
         Statement::Store {
             destination, value, ..
         } => {
-            collect_expression(destination, calls);
-            collect_expression(value, calls);
+            collect_expression(destination, calls, false);
+            collect_expression(value, calls, false);
         }
         Statement::Witness { .. } | Statement::Declare { .. } => {}
         Statement::Dispatch {
@@ -620,7 +690,7 @@ fn collect_statement<'a>(statement: &'a Statement, calls: &mut Vec<Use<'a>>) {
             default,
             ..
         } => {
-            collect_expression(subject, calls);
+            collect_expression(subject, calls, true);
             for (_, target, _) in arms {
                 collect_target(target, calls);
             }
@@ -630,7 +700,7 @@ fn collect_statement<'a>(statement: &'a Statement, calls: &mut Vec<Use<'a>>) {
         }
         Statement::Arm { guard, target, .. } => {
             if let Some(guard) = guard {
-                collect_expression(guard, calls);
+                collect_expression(guard, calls, false);
             }
             collect_target(target, calls);
         }
@@ -638,23 +708,32 @@ fn collect_statement<'a>(statement: &'a Statement, calls: &mut Vec<Use<'a>>) {
 }
 fn collect_target<'a>(target: &'a Target, calls: &mut Vec<Use<'a>>) {
     if let Target::Value(value) = target {
-        collect_expression(value, calls);
+        collect_expression(value, calls, true);
     }
 }
-fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) {
+fn collect_expression<'a>(
+    expression: &'a Expression,
+    calls: &mut Vec<Use<'a>>,
+    suspension_position: bool,
+) {
     match &expression.kind {
         E::Call {
-            callee, arguments, ..
+            callee,
+            arguments,
+            operational_acknowledgement,
+            ..
         } => {
             if let CallTarget::Selected { callable, .. } = callee {
-                collect_expression(callable, calls);
+                collect_expression(callable, calls, false);
             }
             for argument in arguments {
-                collect_expression(argument, calls);
+                collect_expression(argument, calls, false);
             }
             calls.push(Use {
                 target: callee,
                 arguments,
+                acknowledgement: *operational_acknowledgement,
+                suspension_position,
             });
         }
         E::Field { base, .. }
@@ -664,10 +743,10 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
         | E::Not(base)
         | E::BitwiseNot(base)
         | E::Cast(base)
-        | E::Requalify(base) => collect_expression(base, calls),
+        | E::Requalify(base) => collect_expression(base, calls, false),
         E::Record { fields } | E::Case { fields, .. } => {
             for (_, field) in fields {
-                collect_expression(field, calls);
+                collect_expression(field, calls, false);
             }
         }
         E::Match {
@@ -676,26 +755,26 @@ fn collect_expression<'a>(expression: &'a Expression, calls: &mut Vec<Use<'a>>) 
             default,
             ..
         } => {
-            collect_expression(subject, calls);
+            collect_expression(subject, calls, false);
             for (_, arm) in arms {
-                collect_expression(arm, calls);
+                collect_expression(arm, calls, false);
             }
             if let Some(default) = default {
-                collect_expression(default, calls);
+                collect_expression(default, calls, false);
             }
         }
         E::Strict { left, right, .. } | E::ShortCircuit { left, right, .. } => {
-            collect_expression(left, calls);
-            collect_expression(right, calls);
+            collect_expression(left, calls, false);
+            collect_expression(right, calls, false);
         }
         E::Array { elements } => {
             for element in elements {
-                collect_expression(element, calls);
+                collect_expression(element, calls, false);
             }
         }
         E::Index { base, index } => {
-            collect_expression(base, calls);
-            collect_expression(index, calls);
+            collect_expression(base, calls, false);
+            collect_expression(index, calls, false);
         }
         E::SavedSubject(_)
         | E::ByteLiteral(_)

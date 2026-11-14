@@ -73,6 +73,7 @@ impl Program<'_> {
                 let value_type = slots[slot].value_type;
                 self.authorized(id, value_type, Access::Replace)?;
                 let value = self.expression(id, slots, assignment.value, Some(value_type))?;
+                super::services::nested_acknowledgements(id, &value)?;
                 if value.result != Some(value_type) {
                     return Err(typing());
                 }
@@ -142,6 +143,7 @@ impl Program<'_> {
                 self.written_through(id, &place)?;
                 self.authorized(id, stored, Access::Replace)?;
                 let value = self.expression(id, slots, assignment.value, Some(stored))?;
+                super::services::nested_acknowledgements(id, &value)?;
                 if value.result != Some(stored) {
                     return Err(typing());
                 }
@@ -289,6 +291,9 @@ impl Program<'_> {
             None
         };
         let value = self.expression(id, slots, local.initial_value, declared)?;
+        if local.is_operand_capture {
+            super::services::nested_acknowledgements(id, &value)?;
+        }
         let Some(value_type) = value.result else {
             return Err(refuse(
                 id,

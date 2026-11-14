@@ -32,6 +32,11 @@ fn refused(detail: impl std::fmt::Display) -> Diagnostic {
     Diagnostic::error(format!("source declaration-selection admission: {detail}"))
 }
 
+fn selection_context(mut diagnostic: Diagnostic, context: impl std::fmt::Display) -> Diagnostic {
+    diagnostic.message = format!("{}; {context}", diagnostic.message);
+    diagnostic
+}
+
 pub(crate) fn prepare(
     source: &AcceptedTerminalSource,
     module: &TerminalModule,
@@ -56,9 +61,13 @@ pub(crate) fn prepare(
                     .map_err(|_| refused("accepted form ordinal exceeds its namespace"))?,
             }
         };
-        prepared.retain_form(form, raw)?;
+        prepared
+            .retain_form(form, raw)
+            .map_err(|error| selection_context(error, format_args!("accepted form {form:?}")))?;
     }
-    prepared.retain_physical_joins()?;
+    prepared
+        .retain_physical_joins()
+        .map_err(|error| selection_context(error, "joining emitted declarations to source"))?;
     Ok(prepared.output)
 }
 
@@ -488,10 +497,21 @@ impl Questions<'_> {
     ) -> Result<(), Diagnostic> {
         for &declaration in &raw.declarations {
             self.declarations
-                .declaration(&mut self.output, declaration)?;
+                .declaration(&mut self.output, declaration)
+                .map_err(|error| {
+                    selection_context(error, format_args!("captured declaration {declaration:?}"))
+                })?;
         }
         for question in &raw.questions {
-            self.authored_question(form, question)?;
+            self.authored_question(form, question).map_err(|error| {
+                selection_context(
+                    error,
+                    format_args!(
+                        "authored occurrence {:?}, lexical owner {:?}, target {:?}",
+                        question.occurrence, question.lexical_owner, question.target,
+                    ),
+                )
+            })?;
         }
         for dependency in &raw.dependencies {
             if dependency.role == RawSelectionRole::ProductDesignation {
@@ -501,12 +521,29 @@ impl Questions<'_> {
             }
             let owner = self
                 .declarations
-                .declaration(&mut self.output, dependency.lexical_owner)?;
-            let selected = self.declarations.symbol_reference(
-                &mut self.output,
-                dependency.lexical_owner,
-                dependency.target,
-            )?;
+                .declaration(&mut self.output, dependency.lexical_owner)
+                .map_err(|error| {
+                    selection_context(
+                        error,
+                        format_args!("dependency owner {:?}", dependency.lexical_owner),
+                    )
+                })?;
+            let selected = self
+                .declarations
+                .symbol_reference(
+                    &mut self.output,
+                    dependency.lexical_owner,
+                    dependency.target,
+                )
+                .map_err(|error| {
+                    selection_context(
+                        error,
+                        format_args!(
+                            "dependency from {:?} to {:?} ({:?})",
+                            dependency.lexical_owner, dependency.target, dependency.kind,
+                        ),
+                    )
+                })?;
             self.output.questions.push(SelectionQuestion {
                 form,
                 occurrence: SelectionOccurrence {
@@ -779,17 +816,17 @@ impl<'source> Declarations<'source> {
         })
     }
 
-    fn valid(&self, symbol: SymbolHandle) -> Result<(), Diagnostic> {
+    fn valid(&self, symbol: SymbolHandle, role: &str) -> Result<(), Diagnostic> {
         if !symbol.is_valid() || !self.typed.symbols.symbols().nodes().is_valid(symbol) {
-            return Err(refused(
-                "source selection has a stale declaration coordinate",
-            ));
+            return Err(refused(format!(
+                "source selection {role} has a missing or stale declaration coordinate {symbol:?}"
+            )));
         }
         Ok(())
     }
 
     fn purpose(&self, symbol: SymbolHandle) -> Result<SelectionPurpose, Diagnostic> {
-        self.valid(symbol)?;
+        self.valid(symbol, "purpose owner")?;
         let source = self
             .typed
             .symbols
@@ -849,7 +886,7 @@ impl<'source> Declarations<'source> {
         output: &mut SelectionQuestions,
         symbol: SymbolHandle,
     ) -> Result<SelectionDeclarationId, Diagnostic> {
-        self.valid(symbol)?;
+        self.valid(symbol, "declaration")?;
         if let Some(id) = self.ids.get(&symbol) {
             return Ok(*id);
         }
@@ -877,9 +914,30 @@ impl<'source> Declarations<'source> {
         symbol: SymbolHandle,
         declared_owner: SymbolHandle,
     ) -> Result<SelectionReference, Diagnostic> {
-        self.valid(symbol)?;
-        self.valid(lexical_owner)?;
-        self.valid(declared_owner)?;
+        self.valid(symbol, "local binding")?;
+        self.valid(lexical_owner, "local binding lexical owner")?;
+        self.valid(declared_owner, "local binding declaration owner")
+            .map_err(|error| {
+                let provenance = self
+                    .typed
+                    .symbols
+                    .symbol_provenance_source_span(symbol)
+                    .map(|span| {
+                        (
+                            self.typed.symbols.source_file(span).map(|file| &file.path),
+                            span,
+                        )
+                    });
+                selection_context(
+                    error,
+                    format_args!(
+                        "binding {} ({:?}), referenced from {}, source {provenance:?}",
+                        self.typed.symbols.display_path(symbol, "::"),
+                        self.typed.symbols.get(symbol).kind,
+                        self.typed.symbols.display_path(lexical_owner, "::"),
+                    ),
+                )
+            })?;
         if self.typed.symbols.get(symbol).parent != declared_owner {
             return Err(refused(
                 "local selection changed its actual declaration owner",
@@ -892,7 +950,7 @@ impl<'source> Declarations<'source> {
         let mut visible = false;
         let mut scopes = Vec::new();
         while scope.is_valid() {
-            self.valid(scope)?;
+            self.valid(scope, "enclosing local scope")?;
             if scopes.contains(&scope) {
                 return Err(refused("local selection has a cyclic lexical scope"));
             }
@@ -941,7 +999,7 @@ impl<'source> Declarations<'source> {
         owner: SymbolHandle,
         symbol: SymbolHandle,
     ) -> Result<SelectionReference, Diagnostic> {
-        self.valid(symbol)?;
+        self.valid(symbol, "reference target")?;
         if let Some(atom) = self.typed.symbols.builtin_type_atom(symbol) {
             return Ok(SelectionReference::Intrinsic {
                 identity: intrinsic_identity(&atom, "builtin-type-v1:")?,

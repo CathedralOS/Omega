@@ -275,9 +275,12 @@ impl Lowering<'_> {
                 Ok(())
             }
             Statement::Evaluate(expression) => match self.no_normal(expression)? {
-                Some((callee, arguments)) => {
-                    self.invoke_no_normal(callee, arguments, expression.source)
-                }
+                Some(call) => self.invoke_no_normal(
+                    call.callee,
+                    call.arguments,
+                    call.acknowledgement,
+                    expression.source,
+                ),
                 None => self.expression(expression).map(drop),
             },
             Statement::Arm {
@@ -332,9 +335,12 @@ impl Lowering<'_> {
                     }
                     self.arrive(member, values, expression.source)
                 }
-                Some((callee, arguments)) => {
-                    self.invoke_no_normal(callee, arguments, expression.source)
-                }
+                Some(call) => self.invoke_no_normal(
+                    call.callee,
+                    call.arguments,
+                    call.acknowledgement,
+                    expression.source,
+                ),
                 None => match self.expression(expression)? {
                     Value::Scalar(value) => self.return_value(value, expression.source),
                     Value::Record(root) => self.return_record(root, expression.source),

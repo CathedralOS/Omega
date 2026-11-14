@@ -3551,9 +3551,17 @@ pub(crate) mod service_reaches {
             .traits
             .iter()
             .flat_map(|definition| program.trait_machine_signatures(definition.machines))
+            .chain(
+                program
+                    .tables
+                    .declarations
+                    .runtime_callable_contracts
+                    .iter()
+                    .map(|(_, contract)| &contract.signature),
+            )
             .map(|signature| {
                 let pending =
-                    pending_signature_service_reach(signature_service_reaches, signature.symbol);
+                    pending_signature_service_reach(signature_service_reaches, signature.symbol)?;
                 validate_signature_service_reaches(program, &services, signature, pending)?;
                 let (row, authored) = pending.reaches.resolve(
                     &program.symbols,
@@ -3579,15 +3587,45 @@ pub(crate) mod service_reaches {
             .iter()
             .map(|definition| definition.machines)
             .collect::<Vec<_>>();
+        let mut prepared_rows = signature_rows.iter();
+        let mut apply_signature_row = |signature: &mut StateSignature| -> Result<(), Diagnostic> {
+            let (symbol, row, _) = prepared_rows.next().ok_or_else(|| {
+                Diagnostic::error("callable signature has no prepared normalized service-reach row")
+            })?;
+            if *symbol != signature.symbol {
+                return Err(Diagnostic::error(
+                    "normalized service-reach row does not match its exact callable signature",
+                ));
+            }
+            signature.service_reach_row = *row;
+            Ok(())
+        };
         let signature_arena = &mut program.tables.declarations.trait_machine_signatures;
         for span in signature_spans {
             for signature in signature_arena.span_mut_or_empty(span) {
-                signature.service_reach_row = signature_rows
-                    .iter()
-                    .find(|(symbol, _, _)| *symbol == signature.symbol)
-                    .map(|(_, row, _)| *row)
-                    .unwrap_or(ServiceReachRowTable::EMPTY_ROW);
+                apply_signature_row(signature)?;
             }
+        }
+
+        let runtime_contracts = program
+            .tables
+            .declarations
+            .runtime_callable_contracts
+            .iter()
+            .map(|(handle, _)| handle)
+            .collect::<Vec<_>>();
+        for handle in runtime_contracts {
+            let contract = program
+                .tables
+                .declarations
+                .runtime_callable_contracts
+                .get_mut(handle);
+            apply_signature_row(&mut contract.signature)?;
+        }
+        if prepared_rows.next().is_some() {
+            return Err(Diagnostic::error(
+                "normalized service-reach rows outnumber their exact callable signatures",
+            ));
         }
 
         let parameter_authored_rows = normalize_machine_parameter_rows(
@@ -3611,11 +3649,15 @@ pub(crate) mod service_reaches {
     fn pending_signature_service_reach(
         pending: &[PendingSignatureServiceReach],
         symbol: SymbolHandle,
-    ) -> &PendingSignatureServiceReach {
+    ) -> Result<&PendingSignatureServiceReach, Diagnostic> {
         pending
             .iter()
             .find(|entry| entry.symbol == symbol)
-            .expect("resolved state signature retains its pending authored service row")
+            .ok_or_else(|| {
+                Diagnostic::error(
+                    "resolved callable signature has no exact pending authored service-reach row",
+                )
+            })
     }
 
     fn validate_signature_service_reaches(
@@ -3762,6 +3804,15 @@ pub(crate) mod service_reaches {
             );
         }
 
+        roots.extend(
+            program
+                .tables
+                .declarations
+                .runtime_callable_contracts
+                .iter()
+                .map(|(_, contract)| contract.signature.type_parameters),
+        );
+
         let type_parameters = &program.tables.declarations.data_type_parameters;
         let mut spans = Vec::new();
         for root in roots {
@@ -3780,7 +3831,7 @@ pub(crate) mod service_reaches {
                 continue;
             };
             let pending =
-                pending_signature_service_reach(signature_service_reaches, contract.symbol);
+                pending_signature_service_reach(signature_service_reaches, contract.symbol)?;
             validate_signature_service_reaches(program, services, contract, pending)?;
             let (row, authored) = pending.reaches.resolve(
                 &program.symbols,
@@ -4826,3 +4877,132 @@ pub(super) use leaf_carrier_type_reference_pattern;
 use machine_parameter_requirements::normalize_nominal_machine_parameter_requirements;
 use machine_parameter_requirements::normalize_trait_machine_requirement_arguments;
 use signature_free_requirements::validate_signature_free_requirement_compatibility;
+
+#[cfg(test)]
+mod runtime_callable_reach_tests {
+    use std::sync::Arc;
+    use symbol_resolved_trees::SymbolResolvedTrees;
+
+    fn parse(text: &str, source: source::SourceId) -> syntax_trees::SyntaxTrees {
+        let tokens = source_files_to_tokens::Lexer::new(text).tokenize().unwrap();
+        tokens_to_syntax_trees::parse_syntax_trees_with_id(source, &tokens).unwrap()
+    }
+
+    fn check_rows(program: &SymbolResolvedTrees) {
+        let contracts = program
+            .tables
+            .declarations
+            .runtime_callable_contracts
+            .iter()
+            .map(|(_, contract)| &contract.signature)
+            .collect::<Vec<_>>();
+        assert_eq!(contracts.len(), 3);
+        let service = program
+            .traits
+            .iter()
+            .find(|declaration| declaration.name.as_str() == "Io")
+            .unwrap()
+            .symbol;
+        let service_id = program.service_reaches.id_for_symbol(service).unwrap();
+        for (position, signature) in contracts.iter().enumerate() {
+            let authored = program
+                .authored_service_reach_rows_for(signature.symbol)
+                .collect::<Vec<_>>();
+            let normalized = program
+                .service_reach_rows
+                .services(signature.service_reach_row);
+            assert!(
+                signature.blocks,
+                "operational metadata remains independent of reach"
+            );
+            match position {
+                0 => {
+                    assert_eq!(
+                        authored.len(),
+                        1,
+                        "explicit reaches none retains writtenness"
+                    );
+                    assert_eq!(authored[0].owner, signature.symbol);
+                    assert!(!authored[0].keyword_source_spans.is_empty());
+                    assert!(authored[0].targets.is_empty());
+                    assert!(normalized.is_empty());
+                }
+                1 => {
+                    assert_eq!(authored.len(), 1);
+                    assert_eq!(authored[0].owner, signature.symbol);
+                    assert_eq!(authored[0].targets.len(), 1);
+                    assert_eq!(authored[0].targets[0].service, service);
+                    assert_eq!(normalized, &[service_id]);
+                }
+                2 => {
+                    assert!(
+                        authored.is_empty(),
+                        "omission must not become authored reaches none"
+                    );
+                    assert!(normalized.is_empty());
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    #[test]
+    fn runtime_callable_reach_rows_keep_authored_and_omitted_ceilings_across_seeding() {
+        let text = r#"
+boundary trait Io { machine read() reaches none crashes none; }
+machine hold(
+    first: machine() -> u32 reaches none blocks crashes none,
+    second: machine() -> u32 reaches Io blocks crashes none,
+    third: machine() -> u32 blocks crashes none,
+    value: u32
+) {}
+"#;
+        let mut sources = source::SourceMap::default();
+        let source = sources
+            .add("callable/base.omg".into(), text.into())
+            .source_id;
+        let sources = Arc::new(sources);
+        let base = crate::resolve(crate::ResolutionRequest {
+            syntax: parse(text, source),
+            sources: Some(Arc::clone(&sources)),
+            top_level_bindings: Vec::new(),
+            retained_base: None,
+        })
+        .unwrap();
+        check_rows(&base);
+        let original_rows = base.authored_service_reach_rows.clone();
+        let original_contracts = base
+            .tables
+            .declarations
+            .runtime_callable_contracts
+            .iter()
+            .map(|(handle, contract)| (handle, contract.signature.clone()))
+            .collect::<Vec<_>>();
+        let mut extended_sources = sources.as_ref().clone();
+        let added = "machine extension() {}";
+        let extension = extended_sources
+            .add("callable/extension.omg".into(), added.into())
+            .source_id;
+        let resumed = crate::resolve_extension(crate::ExtensionRequest {
+            base: Arc::new(base),
+            syntax: parse(added, extension),
+            sources: Arc::new(extended_sources),
+            top_level_bindings: Vec::new(),
+        })
+        .unwrap();
+        check_rows(resumed.trees());
+        assert_eq!(resumed.trees().authored_service_reach_rows, original_rows);
+        for (handle, signature) in original_contracts {
+            assert_eq!(
+                resumed
+                    .trees()
+                    .tables
+                    .declarations
+                    .runtime_callable_contracts
+                    .get(handle)
+                    .signature,
+                signature
+            );
+        }
+    }
+}

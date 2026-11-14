@@ -583,9 +583,6 @@ impl<'t> Program<'t> {
         {
             return unserved("service reach bound by an installation");
         }
-        if machine.suspends || machine.blocks {
-            return unserved("suspends or blocks");
-        }
         // Lifetime parameters make no second machine: lifetimes.md,
         // "Lifetime arguments are erased regions, separate from runtime
         // generic arity, layout and monomorphization". The machine is read
@@ -843,6 +840,17 @@ impl<'t> Program<'t> {
         requirement: &'t StateSignature,
         arguments: &[semantic_vocabulary::ScalarTerm],
     ) -> Checked<(Signature, MachineNames)> {
+        // Abstract witnesses have no full operational envelope to discharge.
+        // Boundary and stored-callable declarations retain theirs separately.
+        if requirement.suspends || requirement.blocks {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Machine(
+                    "abstract suspension or blocking contract without a retained operational envelope",
+                ),
+            ));
+        }
         self.callable_signature(
             id,
             requirement,
@@ -1015,9 +1023,6 @@ impl<'t> Program<'t> {
                 .is_abstract(requirement.service_reach_row)
         {
             return unserved("service reach bound by an installation");
-        }
-        if requirement.suspends || requirement.blocks {
-            return unserved("suspends or blocks");
         }
         let (mut signature, mut names) = self.contract(
             id,

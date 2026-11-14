@@ -2195,7 +2195,9 @@ pub mod operator {
                 .map_or(owner_symbol, |machine| machine.symbol);
             let abstract_trait_meaning = owner_symbol.is_valid() && {
                 let parent = program.symbols.get(owner_symbol).parent;
-                program.symbols.get(parent).kind == symbols::SymbolKind::Trait
+                parent.is_valid()
+                    && program.symbols.symbols().nodes().is_valid(parent)
+                    && program.symbols.get(parent).kind == symbols::SymbolKind::Trait
                     && program
                         .trait_definition_by_symbol(parent)
                         .is_some_and(|definition| {

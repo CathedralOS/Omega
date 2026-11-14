@@ -359,6 +359,22 @@ pub struct CallOperationalAcknowledgement {
     pub acknowledges_block: bool,
 }
 
+impl CallOperationalAcknowledgement {
+    /// Acknowledgements cover the actual envelope's independent waiting axes.
+    /// Extra markers grant no effect, carry or execution permission.
+    pub fn require_envelope(self, suspends: bool, blocks: bool) -> Result<(), &'static str> {
+        match (
+            suspends && !self.acknowledges_suspend,
+            blocks && !self.acknowledges_block,
+        ) {
+            (true, true) => Err("call that may suspend and block needs both acknowledgements"),
+            (true, false) => Err("call that may suspend needs a suspend acknowledgement"),
+            (false, true) => Err("call that may block needs a block acknowledgement"),
+            (false, false) => Ok(()),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, compiler_storage::Record)]
 pub enum CallOperationalAcknowledgementOrigin {
     #[default]
@@ -457,5 +473,41 @@ mod domain_predicate_presence_tests {
         assert!(DomainPredicatePresence::Present.is_present());
         assert_eq!(DomainPredicatePresence::Absent.as_str(), "bodyless");
         assert_eq!(DomainPredicatePresence::Present.as_str(), "present");
+    }
+}
+
+#[cfg(test)]
+mod call_acknowledgement_tests {
+    use super::CallOperationalAcknowledgement;
+
+    #[test]
+    fn waiting_axes_are_independent_and_redundant_markers_grant_nothing() {
+        let suspend = CallOperationalAcknowledgement {
+            acknowledges_suspend: true,
+            ..Default::default()
+        };
+        let block = CallOperationalAcknowledgement {
+            acknowledges_block: true,
+            ..Default::default()
+        };
+        assert_eq!(
+            suspend.require_envelope(true, true),
+            Err("call that may block needs a block acknowledgement")
+        );
+        assert_eq!(
+            block.require_envelope(true, true),
+            Err("call that may suspend needs a suspend acknowledgement")
+        );
+        let both = CallOperationalAcknowledgement {
+            acknowledges_suspend: true,
+            acknowledges_block: true,
+            ..Default::default()
+        };
+        assert_eq!(both.require_envelope(true, true), Ok(()));
+        assert_eq!(both.require_envelope(false, false), Ok(()));
+        assert_eq!(
+            CallOperationalAcknowledgement::default().require_envelope(false, true),
+            Err("call that may block needs a block acknowledgement")
+        );
     }
 }

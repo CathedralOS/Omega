@@ -319,15 +319,6 @@ impl Program<'_> {
                 source_span,
                 authored_call_selection,
             } => {
-                if operational_acknowledgement.acknowledges_suspend
-                    || operational_acknowledgement.acknowledges_block
-                {
-                    return Err(refuse(
-                        id,
-                        Construct::Machine,
-                        Unserved::Call("suspend or block acknowledgement"),
-                    ));
-                }
                 if static_machine_parameter.is_valid() || !evidence_arguments.is_empty() {
                     return Err(refuse(
                         id,
@@ -351,13 +342,14 @@ impl Program<'_> {
                     ));
                 }
                 let arguments = typed.statement_table.expression_handles(*arguments);
-                self.call(
+                let call = self.call(
                     id,
                     slots,
                     path.symbol,
                     arguments,
                     SourceOrigin::of(*source_span),
-                )?
+                )?;
+                self.acknowledged_call(id, call, *operational_acknowledgement)?
             }
         };
         if target.result != result {
