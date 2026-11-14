@@ -185,13 +185,6 @@ framework or a list of features that remain unimplemented.
 - Cost: Selected files pay for syntax construction twice. Retain immutable syntax and a module/import index within the invocation, separately from semantic owner, scope, stratum and bindings. Pin parse counts, distinct Build/Product identities, changed-input behavior and diagnostic locations. Release unused discovery syntax when ownership permits and measure retained memory against avoided parsing; do not add a persistent cache. See the [draft syntax retention design](wiki/drafts/designs/compiler_work_ownership.md#actionable-repair-references).
 - Reported: 2026-11-14, Codex, while comparing Squalr-inspired pipeline proposals at `c445e89a1eead`
 
-### Call-component discovery builds all-pairs reachability to answer component questions
-- Category: re-deriving
-- Where: [call-component discovery](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/components.rs#L69), [component consumer](omega-rust/psi/compilation/pipeline/05_typed-trees-to-terminal-psi/src/lower.rs#L117)
-- Saw: `components` allocates an N-by-N Boolean reachability table and walks the call graph from every machine. It then constructs the same component-member vector for each member of a cycle. Consumers need component membership and whether a machine can reach a cycle, not arbitrary all-pairs paths.
-- Cost: Sparse graphs pay quadratic reachability storage and repeated traversals. Compute strongly connected components once, keep one ordered member span per component and a dense machine-to-component table, then propagate cycle reachability on the component DAG. Preserve refusal order, terminal-call restrictions and termination checks; exercise chains, self/mutual cycles and callers reaching cycles, and count graph work independently of required emitted code. See the [draft call graph design](wiki/drafts/designs/compiler_work_ownership.md#actionable-repair-references).
-- Reported: 2026-11-14, Codex, while comparing Squalr-inspired pipeline proposals at `c445e89a1eead`
-
 ### Completing selected bodies can copy the retained typed program
 - Category: re-deriving
 - Where: [retained-body completion](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L810), [shared typing loop](omega-rust/psi/compilation/pipeline/03_symbol-resolved-trees-to-typed-trees/src/lowerer.rs#L1596), [arena cloning](omega-rust/psi/foundation/arena/src/arena.rs#L624)
