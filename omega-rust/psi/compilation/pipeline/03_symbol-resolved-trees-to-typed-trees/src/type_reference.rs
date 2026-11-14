@@ -966,12 +966,20 @@ pub(crate) mod const_arguments {
                             return Ok(None);
                         }
                     }
-                    let value = literal
-                        .value_i64()
-                        .map(i128::from)
-                        .or_else(|| literal.value_u64().map(i128::from));
-                    match value {
-                        Some(value) if landed.admits_i128(value) => Ok(Some(value.to_string())),
+                    let argument = typed_trees::expression::StaticMachineArgument {
+                        const_literal: Some(literal.clone()),
+                        ..Default::default()
+                    };
+                    match program.prepare_callable_scalar_argument(
+                        typed_trees::types::PrimitiveType::Integer(landed.value_carrier()),
+                        &argument,
+                    ) {
+                        Ok(ExpressionNode::Integer(value)) => Ok(Some(
+                            value
+                                .value_bignum()
+                                .expect("admission retained the exact integer value")
+                                .to_string(),
+                        )),
                         _ => Err(refuse(format!(
                             "`{}`, which is outside that type",
                             literal.canonical_spelling().as_str()
@@ -1052,6 +1060,12 @@ pub(crate) mod const_arguments {
                         .data_type_parameters
                         .span(alias.type_parameters)
                         .map(<[_]>::to_vec)
+                }
+                symbols::SymbolKind::Machine | symbols::SymbolKind::State => {
+                    let machine = program
+                        .machine_by_symbol(declaration)
+                        .or_else(|| program.machine_holding_state(declaration))?;
+                    Some(program.machine_callable_parameters(machine))
                 }
                 _ => None,
             }
