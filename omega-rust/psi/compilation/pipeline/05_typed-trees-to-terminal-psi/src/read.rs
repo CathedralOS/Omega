@@ -354,7 +354,10 @@ impl<'t> Program<'t> {
                     application_identity,
                     requirement_identity,
                     *body,
-                    dispatch.evidence_parameter,
+                    (
+                        dispatch.evidence_parameter.arena_index(),
+                        dispatch.evidence_parameter.generation(),
+                    ),
                 ))
             } else {
                 None

@@ -261,8 +261,11 @@ pub(super) fn publish(
                 });
             }
             source_schemas.push((
-                row.declaring_trait,
-                row.requirement,
+                (
+                    row.declaring_trait.arena_index(),
+                    row.declaring_trait.generation(),
+                ),
+                (row.requirement.arena_index(), row.requirement.generation()),
                 schema.declaring_trait_identity,
                 schema.public_requirement_identity,
             ));
@@ -305,7 +308,16 @@ pub(super) fn publish(
                 .ok_or("selected header lost its source dispatch")?;
             let source_schema = source_schemas
                 .binary_search_by_key(
-                    &(dispatch.declaring_trait, dispatch.requirement),
+                    &(
+                        (
+                            dispatch.declaring_trait.arena_index(),
+                            dispatch.declaring_trait.generation(),
+                        ),
+                        (
+                            dispatch.requirement.arena_index(),
+                            dispatch.requirement.generation(),
+                        ),
+                    ),
                     |(declaring, requirement, _, _)| (*declaring, *requirement),
                 )
                 .ok()
