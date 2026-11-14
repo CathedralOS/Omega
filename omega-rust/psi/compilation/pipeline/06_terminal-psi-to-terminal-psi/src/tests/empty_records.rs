@@ -17,12 +17,14 @@ fn token() -> ValueType {
 fn tokens(copyable: bool) -> IdTable<StructuralTypeId, RecordType> {
     let mut records = IdTable::default();
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable,
         identity: "Token".into(),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(Vec::new()),
         requires: Vec::new(),
     });
     records.push(RecordType {
+        owns_linear_claim: false,
         copyable,
         identity: "Holder".into(),
         shape: typed_trees_to_terminal_psi::StorageShape::Record(vec![RecordField {

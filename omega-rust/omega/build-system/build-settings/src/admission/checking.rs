@@ -149,6 +149,7 @@ pub(crate) fn prepare_admitted_build(
             (!dependency_activation).then(|| packages.map(PackageCompilationInputs::root));
         let accepted = timings.record_result(BUILD_SOURCE_JUDGMENT, || {
             let compilation = psi_compiler::TerminalSourceCompilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: subject.as_slice(),
                 purpose: source::DependencyScope::Build,

@@ -220,6 +220,13 @@ impl<'t> Program<'t> {
 
     /// The `MachineId` of a callee, reading its signature the first time.
     pub fn machine(&mut self, symbol: SymbolHandle) -> Checked<MachineId> {
+        if self.descriptor_storage {
+            return Err(refuse(
+                self.next_identity()?,
+                Construct::Machine,
+                Unserved::Declaration("machine admission after storage metadata"),
+            ));
+        }
         let diagnostic = self.next_identity()?;
         let (declared, _) = self.declaration(diagnostic, symbol)?;
         if let Some((owner, _)) = self.conformer_requirement(diagnostic, declared)?
@@ -291,6 +298,13 @@ impl<'t> Program<'t> {
         reading: Reading,
     ) -> Checked<MachineId> {
         let id = self.next_identity()?;
+        if self.descriptor_storage {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Declaration("machine admission after storage metadata"),
+            ));
+        }
         let (machine, _) = self.declaration(id, symbol)?;
         let bound = self
             .conformer_requirement(id, machine)?
@@ -339,6 +353,13 @@ impl<'t> Program<'t> {
         symbol: SymbolHandle,
         reading: Reading,
     ) -> Checked<()> {
+        if self.descriptor_storage {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Declaration("machine admission after storage metadata"),
+            ));
+        }
         let outer = std::mem::take(&mut self.scope);
         // An elided lifetime in the signature is a fresh parameter of this
         // machine, which each call instantiates (`regions::Elision`).
@@ -1982,6 +2003,13 @@ impl<'t> Program<'t> {
     /// lifetimes its types name (lifetimes.md: a named data application
     /// must "use binders declared in the lexical owner").
     pub fn body(&mut self, id: MachineId) -> Checked<Body> {
+        if self.descriptor_storage {
+            return Err(refuse(
+                id,
+                Construct::Machine,
+                Unserved::Declaration("body admission after storage metadata"),
+            ));
+        }
         let symbol = *terminal_check_tables::row(&self.symbols, id, id, Construct::Machine)?;
         let owner = std::mem::replace(&mut self.lifetime_owner, symbol);
         let read = self.read_body(id, symbol);

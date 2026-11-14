@@ -168,6 +168,69 @@ pub struct SelectedProgramEntrySignature {
 }
 
 impl SelectedProgramEntrySignature {
+    /// Read a hosted entry's signature from the module that was accepted and
+    /// published. The target slot supplies the visible arrival shape; names
+    /// are diagnostic only and never select a declaration.
+    pub fn from_module_entry(
+        target_slot: target::ProgramEntrySlotDeclaration,
+        module: &terminal_psi::TerminalModule,
+        entry: semantic_vocabulary::MachineId,
+        machine_name: &str,
+    ) -> Result<Self, String> {
+        if target_slot.source_contract().visible_parameters
+            != semantic_vocabulary::ProgramEntryVisibleParameters::None
+        {
+            return Err(
+                "no product route yet: installed entry arguments need their established storage signature"
+                    .into(),
+            );
+        }
+        let machine = module
+            .machine(entry)
+            .ok_or("selected entry machine is absent")?;
+        let declaration = machine
+            .declaration
+            .as_ref()
+            .ok_or("selected entry has no source declaration")?;
+        let entry_block = machine
+            .blocks
+            .iter()
+            .find(|block| block.id == machine.entry)
+            .ok_or("selected entry has no entry block")?;
+        if machine.result != terminal_psi::TerminalMachineResult::Unit
+            || !machine.parameters.is_empty()
+            || !machine.parameter_order.is_empty()
+            || !machine.structural_parameters.is_empty()
+            || !declaration.parameter_types.is_empty()
+            || !entry_block.parameters.is_empty()
+            || !entry_block.structural_parameters.is_empty()
+            || !entry_block.erased_scalar_formals.is_empty()
+            || !entry_block.erased_proof_formals.is_empty()
+        {
+            return Err(
+                "hosted program entry must have no arrival arguments and return Unit".into(),
+            );
+        }
+        let text = |identity| {
+            module
+                .identities
+                .text(identity)
+                .filter(|text| !text.is_empty())
+                .map(str::to_owned)
+                .ok_or_else(|| "selected entry lost its exact declaration identity".to_owned())
+        };
+        text(declaration.callable)?;
+        Self::from_checked_declaration(
+            target_slot,
+            text(declaration.machine.identity())?,
+            machine_name.to_owned(),
+            text(declaration.state.identity())?,
+            declaration.callable,
+            Vec::new(),
+            module.identities.clone(),
+        )
+    }
+
     pub fn from_checked_declaration(
         target_slot: target::ProgramEntrySlotDeclaration,
         declaration: String,

@@ -177,48 +177,48 @@ impl Program<'_> {
             ))
         };
         for supply in supplies {
-            // The slot is a boundary trait, supplied whole, or one
-            // requirement of a boundary trait.
+            // The slot is a nominal trait, supplied whole, or one
+            // exact requirement. Ordinary traits grant no boundary capability.
             let (owner, requirements) = match typed.trait_definition_by_symbol(supply.slot) {
-                Some(owner) => (
-                    owner,
-                    typed
-                        .trait_machine_signatures(owner)
-                        .iter()
-                        .map(|requirement| requirement.symbol)
-                        .collect::<Vec<_>>(),
-                ),
+                Some(owner) => {
+                    // No applied parent environment is carried by this bare
+                    // whole-trait nomination. Refuse rather than omit inherited
+                    // requirements or pretend the application was empty.
+                    if !owner.lifetime_parameters.is_empty()
+                        || !owner.type_parameters.is_empty()
+                        || !owner.conformance_bounds.is_empty()
+                        || !owner.requires.is_empty()
+                        || owner.refines.is_some()
+                        || !owner.refinement_clauses.is_empty()
+                    {
+                        return unserved(
+                            "whole-trait supply with parameters, parents or refinements",
+                        );
+                    }
+                    (
+                        owner,
+                        typed
+                            .trait_machine_signatures(owner)
+                            .iter()
+                            .map(|requirement| requirement.symbol)
+                            .collect::<Vec<_>>(),
+                    )
+                }
                 None => match typed.trait_machine_signature(supply.slot) {
                     Some((owner, requirement)) if requirement.symbol == supply.slot => {
                         (owner, vec![supply.slot])
                     }
                     _ => {
                         return unserved(
-                            "provider supply of a slot that is not a boundary trait or one of its requirements",
+                            "provider supply of a slot that is not a trait or one of its requirements",
                         );
                     }
                 },
             };
-            if !owner.is_boundary {
-                return unserved("provider supply of a trait that is not a boundary");
-            }
             for requirement in requirements {
-                let mut realizing = typed.machines().iter().filter(|machine| {
-                    typed_trees::provider_declarations::satisfaction_provider_declaration(
-                        typed, machine,
-                    ) == Some(supply.provider)
-                        && (typed
-                            .machine_trait_conformances(machine)
-                            .iter()
-                            .any(|clause| clause.requirement_symbol == requirement)
-                            || typed
-                                .owned_conformance_realization(machine.symbol)
-                                .is_some_and(|(_, row)| row.requirement == requirement))
-                });
-                let (Some(machine), None) = (realizing.next(), realizing.next()) else {
-                    return unserved(
-                        "provider that does not give a supplied requirement exactly one machine",
-                    );
+                let machine = match supply.realization(typed, requirement) {
+                    Ok(machine) => machine,
+                    Err(reason) => return unserved(reason),
                 };
                 let witness = crate::ConformanceWitness {
                     declaring_trait: owner.symbol,

@@ -17,6 +17,7 @@ fn judged(text: &str) -> RouteVerdict {
         typed_trees_to_terminal_psi::prepare_compilation(
             &frozen,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,

@@ -46,6 +46,7 @@ pub(crate) use optimization_core::digest_encoder;
 pub use source::source_assembly;
 pub use source::source_assembly::BuildSourceSelection;
 pub use source::source_imports;
+pub use source::source_imports::selected_program_entry_boundary;
 pub use source::toolchain_library;
 mod package_compilation;
 #[doc(hidden)]

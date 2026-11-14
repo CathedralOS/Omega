@@ -41,6 +41,7 @@ fn invocation(typed: typed_trees::TypedTrees) -> Checked<typed_trees_to_terminal
     typed_trees_to_terminal_psi::elaborate_for(
         &frozen,
         typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
             purpose: source::DependencyScope::Product,
@@ -148,6 +149,7 @@ machine entry() -> u32 crashes none {{
     typed_trees_to_terminal_psi::elaborate_for(
         &frozen,
         typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
             entries: &[entry],
             subjects: &[],
             purpose: source::DependencyScope::Product,
@@ -378,6 +380,7 @@ machine entry() crashes none {{}}
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[None],
                 purpose: source::DependencyScope::Product,
@@ -498,6 +501,7 @@ fn compilation_verdicts_of(typed: &typed_trees::TypedTrees) -> Vec<RouteVerdict>
         typed_trees_to_terminal_psi::prepare_compilation(
             typed,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,
@@ -637,6 +641,7 @@ fn a_boundary_conformer_is_not_a_named_direct_entry() {
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,
@@ -672,6 +677,7 @@ machine entry() -> u32 reaches none crashes none { chosen() }
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[],
                 purpose: source::DependencyScope::Product,
@@ -711,6 +717,7 @@ Rebound satisfies Other { Other::apply = previous; }
         typed_trees_to_terminal_psi::prepare_compilation(
             &typed,
             typed_trees_to_terminal_psi::Compilation {
+                declaration_metadata: &[],
                 entries: &[entry],
                 subjects: &[None],
                 purpose: source::DependencyScope::Product,
@@ -815,6 +822,7 @@ fn inline_parameter_read(
     typed_trees_to_terminal_psi::elaborate_for(
         prepared,
         typed_trees_to_terminal_psi::Compilation {
+            declaration_metadata: &[],
             entries: &[entry],
             subjects: &[None],
             purpose: source::DependencyScope::Product,

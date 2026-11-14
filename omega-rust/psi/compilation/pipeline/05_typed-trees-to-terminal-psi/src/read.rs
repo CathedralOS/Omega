@@ -26,6 +26,7 @@ serve is refused when it is set, never ignored.
 mod arrays;
 mod authority;
 mod bytes;
+mod calling_abis;
 mod calls;
 #[cfg(test)]
 mod calls_visibility_tests;
@@ -58,7 +59,10 @@ use crate::{Unserved, refuse};
 
 pub(crate) struct Program<'t> {
     pub publication: terminal_codec::TerminalPublication,
+    pub declaration_metadata: Vec<SymbolHandle>,
     typed: &'t TypedTrees,
+    /// Irreversible storage-description phase, entered after the body closure.
+    descriptor_storage: bool,
     /// The typed-tree machine of each discovered `MachineId`.
     pub symbols: IdTable<MachineId, SymbolHandle>,
     pub signatures: IdTable<MachineId, Signature>,
@@ -218,10 +222,28 @@ fn span<'a, T: Default>(
         .ok_or_else(|| refuse(machine, Construct::Machine, Unserved::Machine(what)))
 }
 impl<'t> Program<'t> {
+    pub(crate) fn begin_declaration_storage(
+        &mut self,
+        entry: MachineId,
+        bodies: usize,
+    ) -> Checked<()> {
+        if self.descriptor_storage || bodies != self.symbols.len() {
+            return Err(refuse(
+                entry,
+                Construct::Machine,
+                Unserved::Declaration("storage metadata before the complete body closure"),
+            ));
+        }
+        self.descriptor_storage = true;
+        Ok(())
+    }
+
     pub fn new(typed: &'t TypedTrees, rigid: bool) -> Self {
         Self {
             publication: terminal_codec::TerminalPublication::Portable,
+            declaration_metadata: Vec::new(),
             typed,
+            descriptor_storage: false,
             symbols: IdTable::default(),
             signatures: IdTable::default(),
             declaration_signatures: IdTable::default(),
