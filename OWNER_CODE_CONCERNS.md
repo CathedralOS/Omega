@@ -115,11 +115,11 @@ framework or a list of features that remain unimplemented.
 - Cost: a package type spelled like a primitive has to be taught to both routes, and the two can disagree about one type reference. The width spellings were taught to both (`u13` is a name to typing and an installed builtin symbol to the checker), which made them agree without removing the second route.
 - Reported: 2026-11-13, Claude Code, while replacing the eight integer names with a sign and a width
 
-### Float semantic evaluation still collapses integer metadata to a fixed-width roster
+### Const evaluation still keys integer carriers by spelling and folds in i128
 - Category: branch per shape
-- Where: `numerics/src/float_semantics.rs` (the integer side of float conversions)
-- Saw: the front end states an integer as a sign and a width, and the float semantic catalog converts that pair back into one of eight variants, refusing the rest. Stage 02's const evaluator (`preparation_const_evaluation.rs`) keys carriers by type-name strings and folds in `i128`, so it serves widths to 64 bits for shifts and 127 for ranges
-- Cost: unusual-width conversion proofs stop at the finite semantic catalog, and its published operation identities require a versioned change
+- Where: Stage 02's `preparation_const_evaluation.rs`
+- Saw: the const evaluator keys integer carriers by type-name strings and folds in `i128`, so it serves widths to 64 bits for shifts and 127 for ranges
+- Cost: constant evaluation discards the authoritative integer metadata and narrows otherwise valid width-indexed arithmetic to host-integer limits
 - Reported: 2026-11-13, Claude Code, while replacing the eight integer names with a sign and a width
 
 ### The lowered form drops declared domains, so only the reader knows a value's type
