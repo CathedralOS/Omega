@@ -191,7 +191,7 @@ impl Lowering<'_> {
                     subject,
                     arms,
                     default.as_deref(),
-                    scalar_type,
+                    ValueType::plain(scalar_type),
                     source,
                     *capture,
                 )
